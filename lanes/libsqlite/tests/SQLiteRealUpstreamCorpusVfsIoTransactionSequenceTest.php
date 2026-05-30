@@ -112,12 +112,94 @@ foreach ($sectorAtomicCases as $name => [$flags, $pageSize, $sectorSize, $atomic
     };
 }
 
+$defaultPageCases = [
+    'io-5.1 default 512 byte sector selects 1024 page' => [[], 512, 1024],
+    'io-5.2 default 1024 byte sector selects 1024 page' => [[], 1024, 1024],
+    'io-5.3 default 2048 byte sector selects 2048 page' => [[], 2048, 2048],
+    'io-5.4 default 8192 byte sector selects 8192 page' => [[], 8192, 8192],
+    'io-5.5 large sector clamps to maximum default page' => [[], 16384, 8192],
+    'io-5.6 generic atomic selects maximum default page' => [['atomic'], 512, 8192],
+    'io-5.7 atomic512 keeps minimum default page' => [['atomic512'], 512, 1024],
+    'io-5.8 atomic2k selects 2048 page' => [['atomic2K'], 512, 2048],
+    'io-5.9 atomic2k with larger sector selects 4096 page' => [['atomic2K'], 4096, 4096],
+    'io-5.10 generic atomic dominates explicit atomic2k' => [['atomic2K', 'atomic'], 512, 8192],
+    'io-5.11 atomic64k larger than maximum keeps minimum default page' => [['atomic64K'], 512, 1024],
+];
+
+foreach ($defaultPageCases as $name => [$flags, $sectorSize, $expectedPageSize]) {
+    $tests['real upstream corpus vfs io default page size ' . $name] = static function (TestRunner $t) use ($flags, $sectorSize, $expectedPageSize): void {
+        $plan = SQLiteVfsIoTransactionSequencePlan::defaultPageSize($flags, $sectorSize);
+
+        $t->same('ok', $plan['status']);
+        $t->same('io.test', $plan['script']);
+        $t->same('io-5.*', $plan['scenario']);
+        $t->same($sectorSize, $plan['sector_size']);
+        $t->same($expectedPageSize, $plan['selected_page_size']);
+        $t->same(true, in_array('io.test io-5.*', $plan['upstream'], true));
+        $t->same(true, in_array('vfs-io-default-page-size', $plan['dependencies'], true));
+        $t->same(true, in_array('real-upstream-corpus-io-test', $plan['dependencies'], true));
+    };
+}
+
+$defaultFlagMatrix = [
+    'none' => [[], null],
+    'atomic512' => [['atomic512'], 512],
+    'atomic1k' => [['atomic1k'], 1024],
+    'atomic2k' => [['atomic2k'], 2048],
+    'atomic4k' => [['atomic4k'], 4096],
+    'atomic8k' => [['atomic8k'], 8192],
+    'atomic16k' => [['atomic16k'], 16384],
+    'atomic64k' => [['atomic64k'], 65536],
+    'atomic-generic' => [['atomic'], 8192],
+    'atomic2k-generic' => [['atomic2k', 'atomic'], 8192],
+];
+$defaultSectorMatrix = [512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 32768, 65536];
+$defaultMaxMatrix = [1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072];
+$defaultCaseOrdinal = 0;
+
+foreach ($defaultFlagMatrix as $flagName => [$flags, $atomicBytes]) {
+    foreach ($defaultSectorMatrix as $sectorSize) {
+        foreach ($defaultMaxMatrix as $maxPageSize) {
+            $defaultCaseOrdinal++;
+            $tests["real upstream corpus vfs io default page size matrix {$defaultCaseOrdinal} {$flagName} sector {$sectorSize} max {$maxPageSize}"] = static function (TestRunner $t) use ($flags, $sectorSize, $maxPageSize, $atomicBytes): void {
+                $plan = SQLiteVfsIoTransactionSequencePlan::defaultPageSize($flags, $sectorSize, $maxPageSize);
+                $expected = 1024;
+
+                if (in_array('atomic', array_map(static fn ($flag): string => strtolower((string) $flag), $flags), true)) {
+                    $expected = $maxPageSize;
+                } elseif ($atomicBytes !== null && $atomicBytes <= $maxPageSize) {
+                    $expected = max($expected, $atomicBytes);
+                }
+                if ($sectorSize > $expected) {
+                    $nextPowerOfTwo = 1;
+                    while ($nextPowerOfTwo < $sectorSize) {
+                        $nextPowerOfTwo <<= 1;
+                    }
+                    $expected = min($nextPowerOfTwo, $maxPageSize);
+                }
+
+                $t->same('io.test', $plan['script']);
+                $t->same('io-5.*', $plan['scenario']);
+                $t->same($sectorSize, $plan['sector_size']);
+                $t->same($maxPageSize, $plan['max_page_size']);
+                $t->same($expected, $plan['selected_page_size']);
+                $t->same(true, $plan['selected_page_size'] >= 1024);
+                $t->same(true, $plan['selected_page_size'] <= $maxPageSize);
+                $t->same(0, $plan['selected_page_size'] & ($plan['selected_page_size'] - 1));
+                $t->same(true, in_array('vfs-io-default-page-size', $plan['dependencies'], true));
+            };
+        }
+    }
+}
+
 $guardCases = [
     'rejects empty transaction sequence' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([]),
     'rejects unknown capability flag' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([['pages_written' => 1]], ['networked']),
     'rejects zero pages written' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([['pages_written' => 0]]),
     'rejects zero page size' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([['pages_written' => 1]], [], 0),
     'rejects zero sector size' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([['pages_written' => 1]], [], 1024, 0),
+    'rejects default page size zero sector' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::defaultPageSize([], 0),
+    'rejects default page size non-power maximum' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::defaultPageSize([], 512, 3000),
 ];
 
 foreach ($guardCases as $name => $callable) {

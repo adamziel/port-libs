@@ -681,6 +681,10 @@ final class SQLiteSelectExpression
 
     private static function numericCastOperand(mixed $value): int|float
     {
+        if (is_float($value)) {
+            return $value;
+        }
+
         $numeric = self::numericOperand($value);
         if (is_int($numeric)) {
             return $numeric;
@@ -778,11 +782,25 @@ final class SQLiteSelectExpression
         if (is_bool($value)) {
             return $value ? '1' : '0';
         }
-        if (is_int($value) || is_float($value) || is_string($value)) {
+        if (is_float($value)) {
+            return self::realTextValue($value);
+        }
+        if (is_int($value) || is_string($value)) {
             return (string) $value;
         }
 
         throw new \InvalidArgumentException('SQLite SELECT concatenation operands must be scalar, BLOB, or NULL');
+    }
+
+    private static function realTextValue(float $value): string
+    {
+        if (floor($value) === $value && abs($value) < 1.0e16) {
+            return sprintf('%.1F', $value);
+        }
+
+        $text = sprintf('%.15G', $value);
+
+        return str_contains($text, 'E') ? str_replace('E', 'e', $text) : $text;
     }
 
     /**
@@ -814,6 +832,13 @@ final class SQLiteSelectExpression
     {
         if (array_key_exists($name, $row)) {
             return $row[$name];
+        }
+
+        if (str_contains($name, '.')) {
+            $suffix = substr($name, strrpos($name, '.') + 1);
+            if (array_key_exists($suffix, $row)) {
+                return $row[$suffix];
+            }
         }
 
         if (!str_contains($name, '.')) {

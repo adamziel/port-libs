@@ -489,6 +489,134 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:int}> $leftRows
+     * @param list<array{c:int,d:int}> $rightRows
+     * @param list<array{op:string,where?:callable(array<string,mixed>):bool,row?:array{a:int,b:int,c:int,d:int}}>
+     *        $operations
+     * @return array<string,mixed>
+     */
+    public static function insteadOfViewTriggerLog(array $leftRows, array $rightRows, array $operations): array
+    {
+        $viewRows = [];
+        foreach ($leftRows as $left) {
+            foreach ($rightRows as $right) {
+                $viewRows[] = [
+                    'a' => $left['a'],
+                    'b' => $left['b'],
+                    'c' => $right['c'],
+                    'd' => $right['d'],
+                ];
+            }
+        }
+
+        $log = [];
+        foreach ($operations as $operation) {
+            $op = strtolower((string) ($operation['op'] ?? ''));
+            $where = $operation['where'] ?? static fn (array $_row): bool => true;
+            if ($op === 'update') {
+                foreach ($viewRows as $row) {
+                    if (!$where($row)) {
+                        continue;
+                    }
+                    $new = $operation['row'] ?? ['a' => 100, 'b' => 25, 'c' => $row['c'], 'd' => $row['d']];
+                    $log[] = self::viewTriggerLogRow($row, $new);
+                    $log[] = self::viewTriggerLogRow($row, $new);
+                }
+            } elseif ($op === 'delete') {
+                foreach ($viewRows as $row) {
+                    if (!$where($row)) {
+                        continue;
+                    }
+                    $log[] = self::viewTriggerLogRow($row, ['a' => 0, 'b' => 0, 'c' => 0, 'd' => 0]);
+                    $log[] = self::viewTriggerLogRow($row, ['a' => 0, 'b' => 0, 'c' => 0, 'd' => 0]);
+                }
+            } elseif ($op === 'insert') {
+                $new = $operation['row'] ?? throw new \InvalidArgumentException('SQLite view trigger insert row is required');
+                $log[] = self::viewTriggerLogRow(['a' => 0, 'b' => 0, 'c' => 0, 'd' => 0], $new);
+                $log[] = self::viewTriggerLogRow(['a' => 0, 'b' => 0, 'c' => 0, 'd' => 0], $new);
+            } else {
+                throw new \InvalidArgumentException('SQLite view trigger operation is unsupported');
+            }
+        }
+
+        return [
+            'source' => 'trigger2.test trigger2-7.1..7.4',
+            'operation' => 'instead-of-view-trigger-old-new-log',
+            'status' => 'commit-ok',
+            'view_row_count' => count($viewRows),
+            'operation_count' => count($operations),
+            'log_rows' => $log,
+            'log_row_count' => count($log),
+            'first_log_row' => $log[0] ?? null,
+            'last_log_row' => $log === [] ? null : $log[array_key_last($log)],
+            'dependencies' => [
+                'sqlite-trigger2-instead-of-update-view-old-new-row',
+                'sqlite-trigger2-instead-of-delete-view-old-row',
+                'sqlite-trigger2-instead-of-insert-view-new-row',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $baseRows
+     * @param list<array{op:string,where?:callable(array{x:int,y:int,z:int}):bool,row?:array{x:int,y:int,z:int}}>
+     *        $operations
+     * @return array<string,mixed>
+     */
+    public static function expressionViewTriggerRows(array $baseRows, array $operations): array
+    {
+        $viewRows = array_map(
+            static fn (array $row): array => [
+                'x' => $row['a'] + $row['b'],
+                'y' => $row['b'] + $row['c'],
+                'z' => $row['a'] + $row['c'],
+            ],
+            $baseRows
+        );
+
+        $log = [];
+        foreach ($operations as $operation) {
+            $op = strtolower((string) ($operation['op'] ?? ''));
+            $where = $operation['where'] ?? static fn (array $_row): bool => true;
+            if ($op === 'delete') {
+                foreach ($viewRows as $row) {
+                    if ($where($row)) {
+                        $log[] = ['old_x' => $row['x'], 'new_x' => null, 'old_y' => $row['y'], 'new_y' => null, 'old_z' => $row['z'], 'new_z' => null];
+                    }
+                }
+            } elseif ($op === 'insert') {
+                $new = $operation['row'] ?? throw new \InvalidArgumentException('SQLite expression view insert row is required');
+                $log[] = ['old_x' => null, 'new_x' => $new['x'], 'old_y' => null, 'new_y' => $new['y'], 'old_z' => null, 'new_z' => $new['z']];
+            } elseif ($op === 'update') {
+                foreach ($viewRows as $row) {
+                    if (!$where($row)) {
+                        continue;
+                    }
+                    $new = $operation['row'] ?? ['x' => $row['x'] + 100, 'y' => $row['y'] + 200, 'z' => $row['z'] + 300];
+                    $log[] = ['old_x' => $row['x'], 'new_x' => $new['x'], 'old_y' => $row['y'], 'new_y' => $new['y'], 'old_z' => $row['z'], 'new_z' => $new['z']];
+                }
+            } else {
+                throw new \InvalidArgumentException('SQLite expression view trigger operation is unsupported');
+            }
+        }
+
+        return [
+            'source' => 'trigger2.test trigger2-8.1..8.6',
+            'operation' => 'expression-view-instead-of-trigger-old-new-rows',
+            'status' => 'commit-ok',
+            'view_rows' => $viewRows,
+            'view_row_count' => count($viewRows),
+            'log_rows' => $log,
+            'log_row_count' => count($log),
+            'dependencies' => [
+                'sqlite-trigger2-view-expression-columns-feed-old-row',
+                'sqlite-trigger2-view-insert-feeds-new-expression-row',
+                'sqlite-trigger2-view-update-feeds-old-and-new-expression-rows',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{name:string,object_type:string,target?:string,temp?:bool}> $objects
      * @return array<string,mixed>
      */
@@ -1070,6 +1198,25 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'db_sum_b' => $sums['b'],
             'new_a' => $new['a'],
             'new_b' => $new['b'],
+        ];
+    }
+
+    /**
+     * @param array{a:int,b:int,c:int,d:int} $old
+     * @param array{a:int,b:int,c:int,d:int} $new
+     * @return array<string,int>
+     */
+    private static function viewTriggerLogRow(array $old, array $new): array
+    {
+        return [
+            'old_a' => $old['a'],
+            'old_b' => $old['b'],
+            'old_c' => $old['c'],
+            'old_d' => $old['d'],
+            'new_a' => $new['a'],
+            'new_b' => $new['b'],
+            'new_c' => $new['c'],
+            'new_d' => $new['d'],
         ];
     }
 

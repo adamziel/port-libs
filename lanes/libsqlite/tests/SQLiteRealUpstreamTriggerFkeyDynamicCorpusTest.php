@@ -472,6 +472,148 @@ for ($i = 1; $i <= 45; $i++) {
     };
 }
 
+for ($i = 1; $i <= 48; $i++) {
+    $rows = [
+        ['a' => 0, 'b' => 0, 'c' => 0, 'd' => 0],
+        ['a' => 1, 'b' => 0, 'c' => 0, 'd' => 0],
+    ];
+    if ($i % 4 === 0) {
+        $rows[] = ['a' => 2, 'b' => 0, 'c' => 0, 'd' => 0];
+    }
+    $updates = [
+        ['columns' => ['b', 'c']],
+        ['columns' => ['b']],
+        ['columns' => ['d'], 'where' => static fn (array $row): bool => $row['a'] === 0],
+        ['columns' => ['a', 'b']],
+    ];
+    if ($i % 3 === 0) {
+        $updates[] = ['columns' => ['c'], 'where' => static fn (array $row): bool => $row['a'] === 99];
+    }
+    $insertRows = [
+        ['a' => 0, 'b' => 0, 'c' => 0, 'd' => 0],
+        ['a' => 0, 'b' => 0, 'c' => 0, 'd' => 0],
+        ['a' => 200 + $i, 'b' => 0, 'c' => 0, 'd' => 0],
+    ];
+    $subqueryWhen = $i % 5 !== 0;
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::selectiveTriggerExecution($rows, $updates, $insertRows, $subqueryWhen);
+    $case = 'trigger2-3 selective update-of and when dynamic ' . $i;
+    $expectedUpdateOfLog = count($rows) + 1;
+    $expectedUpdateEvents = $expectedUpdateOfLog + ($i % 3 === 0 ? 1 : 0);
+    $expectedWhenLog = ($subqueryWhen ? 1 : 0) + 1;
+
+    $tests[$case] = static function (TestRunner $t) use ($plan, $rows, $insertRows, $subqueryWhen, $expectedUpdateOfLog, $expectedUpdateEvents, $expectedWhenLog): void {
+        $actual = $plan();
+        $t->same('trigger2.test trigger2-3.1..3.2', $actual['source']);
+        $t->same('selective-update-of-and-when-trigger-execution', $actual['operation']);
+        $t->same('commit-ok', $actual['status']);
+        $t->same($expectedUpdateOfLog, $actual['update_of_log_count']);
+        $t->same($expectedUpdateEvents, count($actual['update_events']));
+        $t->same(['b', 'c'], $actual['update_events'][0]['columns']);
+        $t->same(['d'], $actual['update_events'][count($rows)]['columns']);
+        $t->same(1, $actual['final_rows'][0]['a']);
+        $t->same(3, $actual['final_rows'][0]['b']);
+        $t->same(1, $actual['final_rows'][0]['c']);
+        $t->same(1, $actual['final_rows'][0]['d']);
+        $t->same(2, $actual['final_rows'][1]['a']);
+        $t->same(3, $actual['final_rows'][1]['b']);
+        $t->same(1, $actual['final_rows'][1]['c']);
+        $t->same(0, $actual['final_rows'][1]['d']);
+        $t->same($expectedWhenLog, $actual['when_log_count']);
+        $t->same($insertRows, $actual['inserted_rows']);
+        $t->same($subqueryWhen ? 'table-empty-subquery' : 'new-a-gt-20', $actual['when_log'][0]['trigger']);
+        $t->same($subqueryWhen ? 0 : 2, $subqueryWhen ? $actual['when_log'][0]['new_a'] : $actual['when_log'][0]['preinsert_count']);
+        $t->same($subqueryWhen ? 0 : $insertRows[2]['a'], $actual['when_log'][0]['new_a']);
+        $t->same('new-a-gt-20', $actual['when_log'][$expectedWhenLog - 1]['trigger']);
+        $t->same('sqlite-trigger2-update-of-fires-only-for-named-columns', $actual['dependencies'][0]);
+        $t->same('sqlite-trigger2-when-new-row-predicate', $actual['dependencies'][1]);
+        $t->same('sqlite-trigger2-when-subquery-sees-preinsert-table', $actual['dependencies'][2]);
+    };
+}
+
+for ($i = 1; $i <= 54; $i++) {
+    $tables = [
+        'tblA' => $i % 2 === 0 ? [['a' => 9, 'b' => 9]] : [],
+        'tblB' => $i % 3 === 0 ? [['a' => 8, 'b' => 8]] : [],
+        'tblC' => $i % 4 === 0 ? [['a' => 7, 'b' => 7]] : [],
+    ];
+    $insertRow = ['a' => $i, 'b' => $i + 1];
+    $recursive = $i % 2 === 0;
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::cascadedTriggerExecution($tables, $insertRow, $recursive);
+    $case = 'trigger2-4 cascaded trigger program dynamic ' . $i;
+
+    $tests[$case] = static function (TestRunner $t) use ($plan, $tables, $insertRow, $recursive): void {
+        $actual = $plan();
+        $t->same('trigger2.test trigger2-4.1..4.2', $actual['source']);
+        $t->same('cascaded-trigger-program-execution', $actual['operation']);
+        $t->same('commit-ok', $actual['status']);
+        $t->same(count($tables['tblA']) + 1, count($actual['tblA_rows']));
+        $t->same(count($tables['tblB']) + 1, count($actual['tblB_rows']));
+        $t->same(count($tables['tblC']) + 1, count($actual['tblC_rows']));
+        $t->same($insertRow, $actual['tblA_rows'][count($actual['tblA_rows']) - 1]);
+        $t->same($insertRow, $actual['tblB_rows'][count($actual['tblB_rows']) - 1]);
+        $t->same($insertRow, $actual['tblC_rows'][count($actual['tblC_rows']) - 1]);
+        $t->same([$insertRow, $insertRow], $actual['recursive_rows']);
+        $t->same(!$recursive, $actual['recursive_trigger_program_limited']);
+        $t->same(true, $actual['cascade_reaches_second_trigger']);
+        $t->same('sqlite-trigger2-trigger-program-may-fire-other-triggers', $actual['dependencies'][0]);
+        $t->same('sqlite-trigger2-recursive-trigger-program-limited-when-disabled', $actual['dependencies'][1]);
+    };
+}
+
+for ($i = 1; $i <= 44; $i++) {
+    $rows = $i % 2 === 0 ? [['a' => 10, 'b' => 20, 'c' => 30]] : [];
+    $insertRow = ['a' => 100 + $i, 'b' => 200 + $i, 'c' => 300 + $i];
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::triggerProgramChangesCount($rows, $insertRow);
+    $case = 'trigger2-5 trigger program changes count boundary ' . $i;
+
+    $tests[$case] = static function (TestRunner $t) use ($plan, $insertRow): void {
+        $actual = $plan();
+        $t->same('trigger2.test trigger2-5', $actual['source']);
+        $t->same('trigger-program-changes-count-boundary', $actual['operation']);
+        $t->same('commit-ok', $actual['status']);
+        $t->same(1, $actual['reported_changes']);
+        $t->same(5, $actual['trigger_side_effect_changes']);
+        $t->same(6, $actual['total_physical_changes']);
+        $t->same([$insertRow], $actual['final_rows']);
+        $t->same('sqlite-trigger2-count-changes-excludes-trigger-program-side-effects', $actual['dependencies'][0]);
+    };
+}
+
+foreach ([false, true] as $updateConflict) {
+    foreach (['default', 'abort', 'fail', 'ignore', 'replace', 'rollback'] as $policy) {
+        for ($i = 1; $i <= 20; $i++) {
+            $rows = [
+                ['a' => $i, 'b' => 2, 'c' => 3],
+                ['a' => $i + 10, 'b' => 3, 'c' => 4],
+            ];
+            $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::triggerConflictPropagation($rows, $policy, $i, $updateConflict);
+            $case = 'trigger2-6 conflict policy propagation ' . ($updateConflict ? 'update ' : 'insert ') . $policy . ' ' . $i;
+            $expectedStatus = match ($policy) {
+                'ignore', 'replace' => 'commit-ok',
+                'rollback' => 'rolled-back',
+                default => 'constraint-failed',
+            };
+
+            $tests[$case] = static function (TestRunner $t) use ($plan, $policy, $i, $updateConflict, $expectedStatus): void {
+                $actual = $plan();
+                $t->same($updateConflict ? 'trigger2.test trigger2-6.2a..6.2h' : 'trigger2.test trigger2-6.1a..6.1h', $actual['source']);
+                $t->same($updateConflict ? 'update-trigger-conflict-policy-propagation' : 'insert-trigger-conflict-policy-propagation', $actual['operation']);
+                $t->same($expectedStatus, $actual['status']);
+                $t->same($policy, $actual['outer_policy']);
+                $t->same($i, $actual['incoming_key']);
+                $t->same($policy === 'rollback', $actual['rolled_back']);
+                $t->same($policy === 'replace', $actual['trigger_row_survived']);
+                $t->same(!$updateConflict && in_array($policy, ['default', 'abort', 'fail', 'ignore'], true), $actual['statement_row_survived']);
+                $t->same($policy === 'rollback' ? [] : true, $policy === 'rollback' ? $actual['final_rows'] : is_array($actual['final_rows']));
+                $t->same($policy === 'rollback' ? [] : true, $policy === 'rollback' ? $actual['final_keys'] : in_array($i + 10, $actual['final_keys'], true));
+                $t->same($policy === 'ignore' ? null : ($policy === 'replace' ? null : 'UNIQUE constraint failed: tbl.a'), $actual['error']);
+                $t->same('sqlite-trigger2-outer-conflict-policy-applies-to-trigger-program', $actual['dependencies'][0]);
+                $t->same('sqlite-trigger2-rollback-policy-clears-transaction', $actual['dependencies'][1]);
+            };
+        }
+    }
+}
+
 for ($i = 1; $i <= 44; $i++) {
     $parents = [
         ['id' => 0, 'label' => 'zero'],

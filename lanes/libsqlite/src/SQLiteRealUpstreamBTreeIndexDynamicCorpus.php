@@ -439,6 +439,115 @@ final class SQLiteRealUpstreamBTreeIndexDynamicCorpus
         ];
     }
 
+    /**
+     * @return array{
+     *   source:string,
+     *   t1:list<array{rowid:int,a:int|null,b:int,c:int}>,
+     *   t1a_rowids:list<int>,
+     *   t1b_rowids:list<int>,
+     *   t1_stat_steps:array<string, array{table:string,t1a:string,t1b:string,t1c?:string,integrity:string}>,
+     *   t2:list<array{rowid:int,a:int|null,b:int}>,
+     *   t2a1_rowids:list<int>,
+     *   t2a2_rowids:list<int>,
+     *   t2a1_count:int,
+     *   t2a2_count:int
+     * }
+     */
+    public static function partialIndexScenario(): array
+    {
+        $t1 = [];
+        for ($value = 1; $value <= 20; $value++) {
+            $t1[] = [
+                'rowid' => $value,
+                'a' => $value % 3 === 0 ? null : $value,
+                'b' => $value,
+                'c' => $value,
+            ];
+        }
+
+        $t1aRowids = self::partialIndexRowids($t1, static fn (array $row): bool => $row['a'] !== null);
+        $t1bRowids = self::partialIndexRowids($t1, static fn (array $row): bool => $row['b'] > 10);
+
+        $t2 = [];
+        for ($value = 1; $value < 1000; $value++) {
+            $t2[] = [
+                'rowid' => $value,
+                'a' => $value % 2 === 0 ? null : $value,
+                'b' => $value,
+            ];
+        }
+
+        $t2a1Rowids = self::partialIndexRowids($t2, static fn (array $row): bool => $row['a'] !== null);
+        $t2AfterDrop = array_map(
+            static fn (array $row): array => ['rowid' => $row['rowid'], 'a' => $row['b'], 'b' => $row['b'] + 10000],
+            $t2,
+        );
+        $t2a2Rowids = self::partialIndexRowids(
+            $t2AfterDrop,
+            static fn (array $row): bool => $row['a'] < 100 || $row['a'] > 200,
+        );
+
+        return [
+            'source' => 'index6.test index6-1.1 through index6-2.104',
+            't1' => $t1,
+            't1a_rowids' => $t1aRowids,
+            't1b_rowids' => $t1bRowids,
+            't1_stat_steps' => [
+                'index6-1.10' => ['table' => '20', 't1a' => '14 1', 't1b' => '10 1', 'integrity' => 'ok'],
+                'index6-1.11-update-a-b' => ['table' => '20', 't1a' => '20 1', 't1b' => '10 1', 'integrity' => 'ok'],
+                'index6-1.11-null-a-b-plus-100' => ['table' => '20', 't1a' => '6 1', 't1b' => '20 1', 'integrity' => 'ok'],
+                'index6-1.12-restore-a-b' => ['table' => '20', 't1a' => '13 1', 't1b' => '10 1', 'integrity' => 'ok'],
+                'index6-1.13-delete-between' => ['table' => '15', 't1a' => '10 1', 't1b' => '8 1', 'integrity' => 'ok'],
+                'index6-1.14-reindex' => ['table' => '15', 't1a' => '10 1', 't1b' => '8 1', 'integrity' => 'ok'],
+                'index6-1.15-add-c-index' => ['table' => '15', 't1a' => '10 1', 't1b' => '8 1', 't1c' => '15 1', 'integrity' => 'ok'],
+            ],
+            't2' => $t2AfterDrop,
+            't2a1_rowids' => $t2a1Rowids,
+            't2a2_rowids' => $t2a2Rowids,
+            't2a1_count' => count($t2a1Rowids),
+            't2a2_count' => count($t2a2Rowids),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<int>
+     */
+    public static function partialIndexRowids(array $rows, callable $predicate): array
+    {
+        $rowids = [];
+        foreach ($rows as $row) {
+            if ($predicate($row)) {
+                $rowids[] = (int) $row['rowid'];
+            }
+        }
+
+        return $rowids;
+    }
+
+    /**
+     * @param array{column:string,operator:string,value?:mixed} $term
+     */
+    public static function partialIndexTermImplies(array $term, string $partialPredicate): bool
+    {
+        $column = $term['column'] ?? '';
+        $operator = strtoupper((string) ($term['operator'] ?? ''));
+        $value = $term['value'] ?? null;
+
+        if ($partialPredicate === 'a IS NOT NULL') {
+            return $column === 'a' && in_array($operator, ['=', '>', '>=', '<', '<=', 'IS NOT NULL'], true) && $value !== null;
+        }
+
+        if ($partialPredicate === 'a<100 OR a>200') {
+            return $column === 'a'
+                && $operator === '='
+                && is_int($value)
+                && ($value < 100 || $value > 200);
+        }
+
+        return false;
+    }
+
     private static function applyNumericAffinity(string $literal): int|float|string
     {
         if (!preg_match('/^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?$/', $literal)) {

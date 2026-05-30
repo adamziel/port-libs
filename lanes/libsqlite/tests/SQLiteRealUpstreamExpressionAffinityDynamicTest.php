@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAffinityComparison;
 use PortLibs\LibSqlite\SQLiteBlobValue;
+use PortLibs\LibSqlite\SQLiteRealExpressionAffinityCorpusPlan;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 use PortLibs\LibSqlite\SQLiteSelectPredicate;
 use PortLibs\LibSqlite\SQLiteSelectSql;
@@ -306,6 +307,174 @@ foreach ($sqlCases as $name => [$sql, $expected]) {
         $rows = SQLiteSelectSql::execute($sql, ['app_settings' => $settingsRows]);
         $t->same($expected, array_map(static fn (array $row): string => (string) $row['key_name'], $rows));
     };
+}
+
+$castExpectedKey = static function (mixed $value) use ($valueKey): string {
+    return $valueKey($value);
+};
+
+$assertCastCase = static function (TestRunner $t, string $upstreamName, mixed $value, string $target, mixed $expected, string $storageClass) use ($cast, $literal, $castExpectedKey): void {
+    $actual = SQLiteSelectExpression::evaluate([], $cast($literal($value), $target));
+    $t->same($castExpectedKey($expected), $castExpectedKey($actual), "{$upstreamName} cast value");
+    $t->same($storageClass, SQLiteRealExpressionAffinityCorpusPlan::storageClass($actual), "{$upstreamName} storage class");
+    $t->same($actual === null, $expected === null, "{$upstreamName} null preservation");
+    $t->same($expected instanceof SQLiteBlobValue, $actual instanceof SQLiteBlobValue, "{$upstreamName} blob preservation");
+    $t->same(
+        SQLiteRealExpressionAffinityCorpusPlan::quote($expected),
+        SQLiteRealExpressionAffinityCorpusPlan::quote($actual),
+        "{$upstreamName} quote parity"
+    );
+};
+
+$castCases = [
+    // Upstream cast.test cast-1.1 through cast-1.10.
+    'cast-1.1 blob literal remains blob bytes' => [new SQLiteBlobValue('abc'), 'BLOB', new SQLiteBlobValue('abc'), 'blob'],
+    'cast-1.3 blob to text decodes bytes' => [new SQLiteBlobValue('abc'), 'TEXT', 'abc', 'text'],
+    'cast-1.5 blob to numeric uses zero when no numeric prefix' => [new SQLiteBlobValue('abc'), 'NUMERIC', 0, 'integer'],
+    'cast-1.7 blob to blob preserves bytes' => [new SQLiteBlobValue('abc'), 'BLOB', new SQLiteBlobValue('abc'), 'blob'],
+    'cast-1.9 blob to integer uses zero when no integer prefix' => [new SQLiteBlobValue('abc'), 'INTEGER', 0, 'integer'],
+    // Upstream cast.test cast-1.11 through cast-1.20.
+    'cast-1.13 null to text stays null' => [null, 'TEXT', null, 'null'],
+    'cast-1.15 null to numeric stays null' => [null, 'NUMERIC', null, 'null'],
+    'cast-1.17 null to blob stays null' => [null, 'BLOB', null, 'null'],
+    'cast-1.19 null to integer stays null' => [null, 'INTEGER', null, 'null'],
+    // Upstream cast.test cast-1.21 through cast-1.30.
+    'cast-1.23 integer to text' => [123, 'TEXT', '123', 'text'],
+    'cast-1.25 integer to numeric remains integer' => [123, 'NUMERIC', 123, 'integer'],
+    'cast-1.27 integer to blob uses text bytes' => [123, 'BLOB', new SQLiteBlobValue('123'), 'blob'],
+    'cast-1.29 integer to integer remains integer' => [123, 'INTEGER', 123, 'integer'],
+    // Upstream cast.test cast-1.31 through cast-1.38.
+    'cast-1.33 real to text' => [123.456, 'TEXT', '123.456', 'text'],
+    'cast-1.35 real to numeric remains real' => [123.456, 'NUMERIC', 123.456, 'real'],
+    'cast-1.37 real to blob uses text bytes' => [123.456, 'BLOB', new SQLiteBlobValue('123.456'), 'blob'],
+    'cast-1.39 real to integer truncates toward zero' => [123.456, 'INTEGER', 123, 'integer'],
+    // Upstream cast.test cast-1.41 through cast-1.53.
+    'cast-1.43 numeric-prefix text to text' => ['123abc', 'TEXT', '123abc', 'text'],
+    'cast-1.45 numeric-prefix text to numeric integer' => ['123abc', 'NUMERIC', 123, 'integer'],
+    'cast-1.47 numeric-prefix text to blob' => ['123abc', 'BLOB', new SQLiteBlobValue('123abc'), 'blob'],
+    'cast-1.49 numeric-prefix text to integer' => ['123abc', 'INTEGER', 123, 'integer'],
+    'cast-1.51 real-prefix text to numeric real' => ['123.5abc', 'NUMERIC', 123.5, 'real'],
+    'cast-1.53 real-prefix text to integer truncates' => ['123.5abc', 'INTEGER', 123, 'integer'],
+    // Upstream cast.test cast-1.60 through cast-1.69.
+    'cast-1.60 null to real stays null' => [null, 'REAL', null, 'null'],
+    'cast-1.62 integer to real' => [1, 'REAL', 1.0, 'real'],
+    'cast-1.64 numeric text to real' => ['1', 'REAL', 1.0, 'real'],
+    'cast-1.66 nonnumeric text to real zero' => ['abc', 'REAL', 0.0, 'real'],
+    'cast-1.68 numeric blob to real' => [new SQLiteBlobValue('1'), 'REAL', 1.0, 'real'],
+    // Upstream cast.test cast-2.1 through cast-2.2.
+    'cast-2.1 integer cast ignores leading spaces' => ['   123', 'INTEGER', 123, 'integer'],
+    'cast-2.2 real cast ignores leading spaces' => ['   -123.456', 'REAL', -123.456, 'real'],
+    // Upstream cast.test cast-3.31 and cast-4.1 through cast-4.4.
+    'cast-3.31 null to numeric stays null' => [null, 'NUMERIC', null, 'null'],
+    'cast-4.1 alpha text to integer zero' => ['abc', 'INTEGER', 0, 'integer'],
+    'cast-4.4 alpha text to real zero' => ['abc', 'REAL', 0.0, 'real'],
+    // Upstream cast.test cast-5.1 through cast-5.3 integer prefix boundaries.
+    'cast-5.1 positive integer overflow clamps' => ['9223372036854775808', 'INTEGER', PHP_INT_MAX, 'integer'],
+    'cast-5.1 positive padded integer overflow clamps' => ['  +000009223372036854775808', 'INTEGER', PHP_INT_MAX, 'integer'],
+    'cast-5.1 long positive integer overflow clamps' => ['12345678901234567890123', 'INTEGER', PHP_INT_MAX, 'integer'],
+    'cast-5.2 minimum integer stays minimum' => ['-9223372036854775808', 'INTEGER', PHP_INT_MIN, 'integer'],
+    'cast-5.2 negative integer overflow clamps' => ['-9223372036854775809', 'INTEGER', PHP_INT_MIN, 'integer'],
+    'cast-5.2 long negative integer overflow clamps' => ['-12345678901234567890123', 'INTEGER', PHP_INT_MIN, 'integer'],
+];
+
+foreach ($castCases as $name => [$value, $target, $expected, $storageClass]) {
+    $tests['real upstream expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($assertCastCase, $name, $value, $target, $expected, $storageClass): void {
+        $assertCastCase($t, $name, $value, $target, $expected, $storageClass);
+    };
+}
+
+$castTargetSpellingCases = [
+    // Upstream cast.test cast-7.* and cast-9.* affinity-name spelling behavior.
+    'cast-7.1 varchar target applies text affinity' => [123, 'VARCHAR(20)', '123', 'text'],
+    'cast-7.2 clob target applies text affinity' => [123, 'CLOB', '123', 'text'],
+    'cast-7.3 native character target applies text affinity' => [123, 'NATIVE CHARACTER', '123', 'text'],
+    'cast-7.4 nchar target applies text affinity' => [123, 'NCHAR', '123', 'text'],
+    'cast-7.10 float target applies real affinity' => ['123.25', 'FLOAT', 123.25, 'real'],
+    'cast-7.11 double target applies real affinity' => ['123.25', 'DOUBLE PRECISION', 123.25, 'real'],
+    'cast-7.12 real target applies real affinity' => ['123.25', 'REAL', 123.25, 'real'],
+    'cast-7.20 numeric target applies numeric affinity' => ['123.25', 'NUMERIC', 123.25, 'real'],
+    'cast-7.30 blob target applies none affinity' => [123.25, 'BLOB', new SQLiteBlobValue('123.25'), 'blob'],
+    'cast-7.31 no type target applies numeric affinity' => ['123.25', 'ANYTHING ELSE', 123.25, 'real'],
+    'cast-7.40 integer target applies integer affinity' => ['123.25', 'INTEGER', 123, 'integer'],
+    'cast-7.41 int target applies integer affinity' => ['123.25', 'INT', 123, 'integer'],
+    'cast-7.42 bigint target applies integer affinity' => ['123.25', 'BIGINT', 123, 'integer'],
+    'cast-7.43 unsigned integer target applies integer affinity' => ['123.25', 'UNSIGNED INTEGER', 123, 'integer'],
+    'cast-9.1 none target applies blob affinity' => [123.25, 'NONE', new SQLiteBlobValue('123.25'), 'blob'],
+    'cast-9.2 mixed blob target applies blob affinity' => [123.25, 'SOME BLOB TYPE', new SQLiteBlobValue('123.25'), 'blob'],
+    'cast-9.3 decimal target applies numeric affinity' => ['123.25', 'DECIMAL(10,5)', 123.25, 'real'],
+    'cast-9.4 boolean target applies numeric affinity' => ['1', 'BOOLEAN', 1, 'integer'],
+    'cast-9.5 date target applies numeric affinity' => ['2024-05-30', 'DATE', 2024, 'integer'],
+];
+
+foreach ($castTargetSpellingCases as $name => [$value, $target, $expected, $storageClass]) {
+    $tests['real upstream expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($assertCastCase, $name, $value, $target, $expected, $storageClass): void {
+        $assertCastCase($t, $name, $value, $target, $expected, $storageClass);
+    };
+}
+
+$castMatrixValues = [
+    // Upstream cast.test numeric-prefix and no-prefix families, widened into
+    // the same target-affinity matrix that cast.test exercises in sections 1,
+    // 2, 5, 7, and 9.
+    'plain integer text' => ['123', ['TEXT' => '123', 'NUMERIC' => 123, 'INTEGER' => 123, 'REAL' => 123.0, 'BLOB' => new SQLiteBlobValue('123')]],
+    'signed integer text' => ['-123', ['TEXT' => '-123', 'NUMERIC' => -123, 'INTEGER' => -123, 'REAL' => -123.0, 'BLOB' => new SQLiteBlobValue('-123')]],
+    'leading-space integer text' => ['   123', ['TEXT' => '   123', 'NUMERIC' => 123, 'INTEGER' => 123, 'REAL' => 123.0, 'BLOB' => new SQLiteBlobValue('   123')]],
+    'leading-space real text' => ['   -123.456', ['TEXT' => '   -123.456', 'NUMERIC' => -123.456, 'INTEGER' => -123, 'REAL' => -123.456, 'BLOB' => new SQLiteBlobValue('   -123.456')]],
+    'real-prefix text' => ['123.5abc', ['TEXT' => '123.5abc', 'NUMERIC' => 123.5, 'INTEGER' => 123, 'REAL' => 123.5, 'BLOB' => new SQLiteBlobValue('123.5abc')]],
+    'integer-prefix text' => ['123abc', ['TEXT' => '123abc', 'NUMERIC' => 123, 'INTEGER' => 123, 'REAL' => 123.0, 'BLOB' => new SQLiteBlobValue('123abc')]],
+    'no-prefix text' => ['abc', ['TEXT' => 'abc', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('abc')]],
+    'positive exponent text' => ['1.25e2tail', ['TEXT' => '1.25e2tail', 'NUMERIC' => 125, 'INTEGER' => 1, 'REAL' => 125.0, 'BLOB' => new SQLiteBlobValue('1.25e2tail')]],
+    'negative exponent text' => ['-1.25e2tail', ['TEXT' => '-1.25e2tail', 'NUMERIC' => -125, 'INTEGER' => -1, 'REAL' => -125.0, 'BLOB' => new SQLiteBlobValue('-1.25e2tail')]],
+    'numeric blob bytes' => [new SQLiteBlobValue('987.5tail'), ['TEXT' => '987.5tail', 'NUMERIC' => 987.5, 'INTEGER' => 987, 'REAL' => 987.5, 'BLOB' => new SQLiteBlobValue('987.5tail')]],
+    'nonnumeric blob bytes' => [new SQLiteBlobValue('xyz'), ['TEXT' => 'xyz', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('xyz')]],
+    'integer value' => [456, ['TEXT' => '456', 'NUMERIC' => 456, 'INTEGER' => 456, 'REAL' => 456.0, 'BLOB' => new SQLiteBlobValue('456')]],
+    'real value' => [456.25, ['TEXT' => '456.25', 'NUMERIC' => 456.25, 'INTEGER' => 456, 'REAL' => 456.25, 'BLOB' => new SQLiteBlobValue('456.25')]],
+];
+
+foreach ($castMatrixValues as $valueName => [$value, $targets]) {
+    foreach ($targets as $target => $expected) {
+        $storageClass = SQLiteRealExpressionAffinityCorpusPlan::storageClass($expected);
+        $name = "cast.test matrix {$valueName} to {$target}";
+        $tests['real upstream expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($assertCastCase, $name, $value, $target, $expected, $storageClass): void {
+            $assertCastCase($t, $name, $value, $target, $expected, $storageClass);
+        };
+    }
+}
+
+$castExtendedMatrixValues = [
+    // Upstream cast.test cast-5.3, cast-6.1, cast-7.1..7.43, and cast-9.1
+    // through cast-9.13 stress numeric prefixes, exponent handling, signed
+    // non-digits, zero-preserving NUMERIC casts, and FLEXNUM-style storage.
+    'exponent integer prefix' => ['123e+5', ['TEXT' => '123e+5', 'NUMERIC' => 12300000, 'INTEGER' => 123, 'REAL' => 12300000.0, 'BLOB' => new SQLiteBlobValue('123e+5')]],
+    'negative exponent integer prefix' => ['-123e+5', ['TEXT' => '-123e+5', 'NUMERIC' => -12300000, 'INTEGER' => -123, 'REAL' => -12300000.0, 'BLOB' => new SQLiteBlobValue('-123e+5')]],
+    'positive explicit exponent prefix' => ['+123e+5', ['TEXT' => '+123e+5', 'NUMERIC' => 12300000, 'INTEGER' => 123, 'REAL' => 12300000.0, 'BLOB' => new SQLiteBlobValue('+123e+5')]],
+    'fraction exponent prefix' => ['1.23e+5', ['TEXT' => '1.23e+5', 'NUMERIC' => 123000, 'INTEGER' => 1, 'REAL' => 123000.0, 'BLOB' => new SQLiteBlobValue('1.23e+5')]],
+    'large integer affinity trimmed right space' => ['9000000000000000001 ', ['TEXT' => '9000000000000000001 ', 'NUMERIC' => 9000000000000000001, 'INTEGER' => 9000000000000000001, 'REAL' => 9.0e18, 'BLOB' => new SQLiteBlobValue('9000000000000000001 ')]],
+    'large integer affinity trimmed left space' => [' 9000000000000000001', ['TEXT' => ' 9000000000000000001', 'NUMERIC' => 9000000000000000001, 'INTEGER' => 9000000000000000001, 'REAL' => 9.0e18, 'BLOB' => new SQLiteBlobValue(' 9000000000000000001')]],
+    'large integer affinity trimmed both sides' => [' 9000000000000000001 ', ['TEXT' => ' 9000000000000000001 ', 'NUMERIC' => 9000000000000000001, 'INTEGER' => 9000000000000000001, 'REAL' => 9.0e18, 'BLOB' => new SQLiteBlobValue(' 9000000000000000001 ')]],
+    'minus sign only' => ['-', ['TEXT' => '-', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('-')]],
+    'minus zero' => ['-0', ['TEXT' => '-0', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('-0')]],
+    'plus sign only' => ['+', ['TEXT' => '+', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('+')]],
+    'slash sign only' => ['/', ['TEXT' => '/', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('/')]],
+    'dot only' => ['.', ['TEXT' => '.', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('.')]],
+    'negative zero real text' => ['-0.0', ['TEXT' => '-0.0', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => -0.0, 'BLOB' => new SQLiteBlobValue('-0.0')]],
+    'zero real text' => ['0.0', ['TEXT' => '0.0', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('0.0')]],
+    'positive zero real text' => ['+0.0', ['TEXT' => '+0.0', 'NUMERIC' => 0, 'INTEGER' => 0, 'REAL' => 0.0, 'BLOB' => new SQLiteBlobValue('+0.0')]],
+    'negative one real text' => ['-1.0', ['TEXT' => '-1.0', 'NUMERIC' => -1, 'INTEGER' => -1, 'REAL' => -1.0, 'BLOB' => new SQLiteBlobValue('-1.0')]],
+    'flexnum integer literal' => [4, ['TEXT' => '4', 'NUMERIC' => 4, 'INTEGER' => 4, 'REAL' => 4.0, 'BLOB' => new SQLiteBlobValue('4')]],
+    'flexnum real integer literal' => [4.0, ['TEXT' => '4.0', 'NUMERIC' => 4.0, 'INTEGER' => 4, 'REAL' => 4.0, 'BLOB' => new SQLiteBlobValue('4.0')]],
+    'flexnum real fraction literal' => [4.5, ['TEXT' => '4.5', 'NUMERIC' => 4.5, 'INTEGER' => 4, 'REAL' => 4.5, 'BLOB' => new SQLiteBlobValue('4.5')]],
+    'integer to real union literal' => [44, ['TEXT' => '44', 'NUMERIC' => 44, 'INTEGER' => 44, 'REAL' => 44.0, 'BLOB' => new SQLiteBlobValue('44')]],
+];
+
+foreach ($castExtendedMatrixValues as $valueName => [$value, $targets]) {
+    foreach ($targets as $target => $expected) {
+        $storageClass = SQLiteRealExpressionAffinityCorpusPlan::storageClass($expected);
+        $name = "cast.test extended matrix {$valueName} to {$target}";
+        $tests['real upstream expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($assertCastCase, $name, $value, $target, $expected, $storageClass): void {
+            $assertCastCase($t, $name, $value, $target, $expected, $storageClass);
+        };
+    }
 }
 
 return $tests;

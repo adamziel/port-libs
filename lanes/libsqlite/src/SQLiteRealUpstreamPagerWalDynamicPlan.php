@@ -140,6 +140,110 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal2BusyRecoveryCases(): array
+    {
+        return [
+            [
+                'upstream' => 'wal2-3.0 wal2-3.1 wal2-3.2',
+                'busy_point' => 'read-lock',
+                'busy_attempts_before_unlock' => 4,
+                'busy_handler_return' => 0,
+                'initial_flags' => ['locked' => true, 'sabotage' => false],
+                'final_flags' => ['locked' => false, 'sabotage' => false],
+                'snapshot' => [4, 10],
+                'lock_sequence' => [
+                    ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared', 'result' => 'SQLITE_BUSY'],
+                    ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared', 'result' => 'SQLITE_BUSY'],
+                    ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared', 'result' => 'SQLITE_BUSY'],
+                    ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared', 'result' => 'SQLITE_OK'],
+                    ['slot' => 4, 'count' => 1, 'op' => 'unlock', 'level' => 'shared', 'result' => 'SQLITE_OK'],
+                ],
+                'source_file' => 'wal2.test',
+            ],
+            [
+                'upstream' => 'wal2-3.3 wal2-3.4 wal2-3.5',
+                'busy_point' => 'recover-lock',
+                'busy_attempts_before_unlock' => 4,
+                'busy_handler_return' => 0,
+                'initial_flags' => ['locked' => true, 'sabotage' => true],
+                'final_flags' => ['locked' => false, 'sabotage' => false],
+                'snapshot' => [4, 10],
+                'lock_sequence' => [
+                    ['slot' => 2, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_BUSY'],
+                    ['slot' => 2, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_BUSY'],
+                    ['slot' => 2, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_BUSY'],
+                    ['slot' => 2, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+                    ['slot' => 2, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+                    ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared', 'result' => 'SQLITE_OK'],
+                    ['slot' => 4, 'count' => 1, 'op' => 'unlock', 'level' => 'shared', 'result' => 'SQLITE_OK'],
+                ],
+                'source_file' => 'wal2.test',
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal2ExclusiveLockingCases(): array
+    {
+        $recovery = [
+            ['slot' => 0, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive'],
+            ['slot' => 1, 'count' => 2, 'op' => 'lock', 'level' => 'exclusive'],
+            ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive'],
+            ['slot' => 4, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive'],
+            ['slot' => 5, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive'],
+            ['slot' => 5, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive'],
+            ['slot' => 6, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive'],
+            ['slot' => 6, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive'],
+            ['slot' => 7, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive'],
+            ['slot' => 7, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive'],
+            ['slot' => 1, 'count' => 2, 'op' => 'unlock', 'level' => 'exclusive'],
+            ['slot' => 0, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive'],
+        ];
+        $readmark1Read = [
+            ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared'],
+            ['slot' => 4, 'count' => 1, 'op' => 'unlock', 'level' => 'shared'],
+        ];
+        $readmark1Set = [
+            ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive'],
+            ['slot' => 4, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive'],
+        ];
+        $readmark1Write = [
+            ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared'],
+            ['slot' => 0, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive'],
+            ['slot' => 0, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive'],
+            ['slot' => 4, 'count' => 1, 'op' => 'unlock', 'level' => 'shared'],
+        ];
+
+        $rows2 = [['I', 'II'], ['III', 'IV']];
+        $rows5 = [['I', 'II'], ['III', 'IV'], ['V', 'VI'], ['VII', 'VIII'], ['IX', 'X']];
+
+        return [
+            ['upstream' => 'wal2-6.1.1', 'phase' => 'wal-before-exclusive', 'journal_mode' => 'wal', 'locking_mode' => 'normal', 'lock_status' => ['main' => 'unlocked', 'temp' => 'closed'], 'rows' => [], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => [], 'reader_visible' => true, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.1.3', 'phase' => 'exclusive-after-schema-read', 'journal_mode' => 'wal', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => [[1, 2]], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $recovery, 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.1.4', 'phase' => 'normal-request-keeps-exclusive-until-read', 'journal_mode' => 'wal', 'locking_mode' => 'normal', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => [[1, 2]], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => [], 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.1.5', 'phase' => 'read-downgrades-exclusive-to-shared', 'journal_mode' => 'wal', 'locking_mode' => 'normal', 'lock_status' => ['main' => 'shared', 'temp' => 'closed'], 'rows' => [[1, 2]], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $readmark1Read, 'reader_visible' => true, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.2.1', 'phase' => 'exclusive-before-wal', 'journal_mode' => 'wal', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => [], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $recovery, 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.2.4', 'phase' => 'reopen-exclusive-read-starts-shared', 'journal_mode' => 'wal', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'shared', 'temp' => 'closed'], 'rows' => [[1, 2]], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $readmark1Read, 'reader_visible' => true, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.2.5', 'phase' => 'write-promotes-reopened-exclusive', 'journal_mode' => 'wal', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => [[1, 2], [3, 4]], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $readmark1Write, 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.2.7', 'phase' => 'begin-immediate-after-normal-shares-readmark', 'journal_mode' => 'wal', 'locking_mode' => 'normal', 'lock_status' => ['main' => 'shared', 'temp' => 'closed'], 'rows' => [[1, 2], [3, 4]], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $readmark1Read, 'reader_visible' => true, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.3.1', 'phase' => 'wal-file-before-delete-mode', 'journal_mode' => 'wal', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => [['Chico'], ['Harpo']], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $recovery, 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.3.2', 'phase' => 'delete-mode-removes-wal', 'journal_mode' => 'delete', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => [['Chico'], ['Harpo']], 'wal_exists' => false, 'journal_exists' => false, 'shm_locks' => [], 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.3.4.1', 'phase' => 'rollback-journal-created-after-delete-mode-write', 'journal_mode' => 'delete', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => [['Chico'], ['Harpo'], ['Groucho']], 'wal_exists' => false, 'journal_exists' => true, 'shm_locks' => [], 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.4.2', 'phase' => 'instrumented-wal-create-locks', 'journal_mode' => 'wal', 'locking_mode' => 'normal', 'lock_status' => ['main' => 'shared', 'temp' => 'closed'], 'rows' => [['Leonard'], ['Arthur']], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => array_merge($recovery, $readmark1Write), 'reader_visible' => true, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.4.3', 'phase' => 'instrumented-readmark-set-then-read', 'journal_mode' => 'wal', 'locking_mode' => 'normal', 'lock_status' => ['main' => 'shared', 'temp' => 'closed'], 'rows' => [['Leonard'], ['Arthur']], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => array_merge($readmark1Set, $readmark1Read), 'reader_visible' => true, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.4.7', 'phase' => 'exclusive-insert-omits-shm-lock', 'journal_mode' => 'wal', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => [['Leonard'], ['Arthur'], ['Julius Henry'], ['Karl']], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => [], 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.4.10', 'phase' => 'normal-delete-reuses-readmark-write-locks', 'journal_mode' => 'wal', 'locking_mode' => 'normal', 'lock_status' => ['main' => 'shared', 'temp' => 'closed'], 'rows' => [], 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $readmark1Write, 'reader_visible' => true, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.5.3', 'phase' => 'exclusive-checkpoint-after-mode-toggle', 'journal_mode' => 'wal', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => $rows2, 'wal_exists' => true, 'journal_exists' => false, 'checkpoint' => [0, 2, 2], 'shm_locks' => $recovery, 'reader_visible' => false, 'error' => null, 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.6.3', 'phase' => 'failed-readlock-keeps-exclusive-mode', 'journal_mode' => 'wal', 'locking_mode' => 'exclusive', 'lock_status' => ['main' => 'exclusive', 'temp' => 'closed'], 'rows' => array_slice($rows5, 0, 4), 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => [['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared', 'result' => 'SQLITE_IOERR']], 'reader_visible' => false, 'error' => 'database is locked', 'source_file' => 'wal2.test'],
+            ['upstream' => 'wal2-6.6.4', 'phase' => 'successful-readlock-exits-exclusive-mode', 'journal_mode' => 'wal', 'locking_mode' => 'normal', 'lock_status' => ['main' => 'shared', 'temp' => 'closed'], 'rows' => $rows5, 'wal_exists' => true, 'journal_exists' => false, 'shm_locks' => $readmark1Read, 'reader_visible' => true, 'error' => null, 'source_file' => 'wal2.test'],
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $locks
      */
     private static function countLocks(array $locks, string $op, string $level): int

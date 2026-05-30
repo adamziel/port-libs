@@ -729,6 +729,9 @@ final class SQLiteSelectSql
                     if ($column === $sql && isset($columns[$index + 1])) {
                         return $columns[$index + 1];
                     }
+                    if (str_contains($sql, '.') && substr($sql, strrpos($sql, '.') + 1) === $column && isset($columns[$index + 1])) {
+                        return $columns[$index + 1];
+                    }
                     if (str_contains($column, '.') && substr($column, strrpos($column, '.') + 1) === $sql && isset($columns[$index + 1])) {
                         return $columns[$index + 1];
                     }

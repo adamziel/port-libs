@@ -7,6 +7,52 @@ namespace PortLibs\LibSqlite;
 final class SQLiteVfsIoTransactionSequencePlan
 {
     /**
+     * @param list<string> $deviceFlags
+     * @return array{status:string,script:string,scenario:string,device_flags:list<string>,sector_size:int,max_page_size:int,selected_page_size:int,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function defaultPageSize(array $deviceFlags = [], int $sectorSize = 512, int $maxPageSize = 8192): array
+    {
+        if ($sectorSize <= 0) {
+            throw new \InvalidArgumentException('SQLite VFS I/O default page-size sector size must be positive');
+        }
+        if ($maxPageSize < 512 || ($maxPageSize & ($maxPageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite VFS I/O default page-size maximum must be a power of two at least 512');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $exactAtomic = self::explicitAtomicBytes($flags);
+        $selected = 1024;
+
+        if (in_array('atomic', $flags, true)) {
+            $selected = $maxPageSize;
+        } elseif ($exactAtomic !== null && $exactAtomic <= $maxPageSize) {
+            $selected = max($selected, $exactAtomic);
+        }
+
+        if ($sectorSize > $selected) {
+            $selected = min(self::nextPowerOfTwo($sectorSize), $maxPageSize);
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'scenario' => 'io-5.*',
+            'device_flags' => $flags,
+            'sector_size' => $sectorSize,
+            'max_page_size' => $maxPageSize,
+            'selected_page_size' => $selected,
+            'dependencies' => [
+                'vfs-io-default-page-size',
+                'vfs-io-transaction-sequence',
+                'real-upstream-corpus-io-test',
+            ],
+            'upstream' => [
+                'io.test io-5.*',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $steps
      * @param list<string> $deviceFlags
      * @return array{status:string,count:int,write_total:int,sync_total:int,journal_creates:int,steps:list<array<string, mixed>>,dependencies:list<string>,upstream:list<string>}
@@ -179,5 +225,48 @@ final class SQLiteVfsIoTransactionSequencePlan
         }
 
         return $pageSize;
+    }
+
+    /**
+     * @param list<string> $flags
+     */
+    private static function explicitAtomicBytes(array $flags): ?int
+    {
+        if (in_array('atomic64k', $flags, true)) {
+            return 65536;
+        }
+        if (in_array('atomic32k', $flags, true)) {
+            return 32768;
+        }
+        if (in_array('atomic16k', $flags, true)) {
+            return 16384;
+        }
+        if (in_array('atomic8k', $flags, true)) {
+            return 8192;
+        }
+        if (in_array('atomic4k', $flags, true)) {
+            return 4096;
+        }
+        if (in_array('atomic2k', $flags, true)) {
+            return 2048;
+        }
+        if (in_array('atomic1k', $flags, true)) {
+            return 1024;
+        }
+        if (in_array('atomic512', $flags, true)) {
+            return 512;
+        }
+
+        return null;
+    }
+
+    private static function nextPowerOfTwo(int $value): int
+    {
+        $power = 1;
+        while ($power < $value) {
+            $power <<= 1;
+        }
+
+        return $power;
     }
 }

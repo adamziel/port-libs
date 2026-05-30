@@ -1,0 +1,24 @@
+# Real Upstream Window Functions Dynamic Nulls Batch
+
+- Slice: `real-upstream-corpus-window-functions-dynamic-20260530T182246Z-0`
+- Base accepted HEAD: `f9e4e2d5498742752e9304fb10cad66aa60851fc`
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/windowA.test`
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/window9.test`
+- Ported scenarios:
+  - `windowA.test` `1.1` through `1.6`, `2.1` through `2.6`, and `3.1` through `3.4`: `ORDER BY d DESC NULLS FIRST/LAST` RANGE frames with bounded, current-row, and unbounded boundaries.
+  - `window9.test` `1.2`: `dense_rank()` over NOCASE peer groups.
+  - `window9.test` `10.1` through `10.3`: filtered `min()` over `ROWS BETWEEN 2 PRECEDING AND 1 FOLLOWING`.
+- Implementation:
+  - Added `SQLiteWindowFunction::aggregateOrderedRangeValues()` for explicit ASC/DESC and NULLS FIRST/LAST ordered RANGE aggregation.
+  - Added ordered RANGE boundary helpers for numeric DESC offsets and NULL peer-group fallback.
+- Focused evidence:
+  - New test file: `lanes/libsqlite/tests/SQLiteRealUpstreamWindowFunctionsDynamicNullsTest.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamWindowFunctionsDynamicNullsTest.php`
+  - Result: `1 test files, 9430 assertions, 0 failures`, `19` selected PASS lines.
+- Dashboard expectation:
+  - Countable as behavior assertion growth from real upstream SQLite cases. It is not mapped-denominator growth.
+- Dependency closure:
+  - No new support component needed; this reuses the lane-local `SQLiteWindowFunction` helper and extends its native RANGE frame ordering semantics.
+- Non-overlap:
+  - Avoids the accepted window3/window4 dynamic offset/ranking batch, accepted window7/window8 dynamic RANGE/GROUPS frame batch, SQL text window frames, JSON table windows, VFS/WAL/B-tree work, source-neutral cleanup, and suite metadata admission rows.

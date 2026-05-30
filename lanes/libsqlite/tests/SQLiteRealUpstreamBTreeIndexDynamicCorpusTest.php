@@ -234,4 +234,39 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index6PartialIndexRegressionCases() 
     };
 }
 
+// Source truth: SQLite upstream test/indexA.test sections 2.1 and 3.1. The
+// upstream script repeats the same partial-index affinity matrix for rowid and
+// WITHOUT ROWID tables; the batches below keep those dynamic combinations
+// distinct without adding generated fake script ids.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases(9) as $case) {
+    $tests['real upstream indexA partial affinity matrix ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->same('indexA.test sections 2.1 and 3.1', $case['source']);
+        $t->true($case['batch'] >= 1 && $case['batch'] <= 9);
+        $t->true($case['storage'] === 'rowid' || $case['storage'] === 'without-rowid');
+        $t->true(in_array($case['affinity'], ['TEXT', 'NUMERIC', 'REAL'], true));
+        $t->true($case['index_setup'] >= 0 && $case['index_setup'] <= 4);
+        $t->same($case['uses_partial_index'], str_starts_with($case['detail'], 'SEARCH ' . $case['table']));
+        $t->same('ok', $case['integrity']);
+        $t->true($case['selected_rows'] !== []);
+        foreach ($case['selected_rows'] as $row) {
+            $t->same($case['affinity'] === 'TEXT' ? 'text' : ($case['affinity'] === 'NUMERIC' ? 'integer' : 'real'), $row['type']);
+            $t->true(str_ends_with($row['b'], '-' . $case['batch']));
+            $t->true(str_ends_with($row['c'], '-' . $case['batch']));
+            if ($case['affinity'] === 'TEXT') {
+                $t->true($row['a'] === '2' || $row['a'] === '2.0');
+            } elseif ($case['affinity'] === 'NUMERIC') {
+                $t->same(2, $row['a']);
+            } else {
+                $t->same(2.0, $row['a']);
+            }
+        }
+        if ($case['uses_partial_index']) {
+            $t->true($case['index_name'] !== '');
+            $t->true(str_contains($case['detail'], 'USING COVERING INDEX ' . $case['index_name']));
+        } else {
+            $t->true($case['index_setup'] === 0 || str_starts_with($case['detail'], 'SCAN '));
+        }
+    };
+}
+
 return $tests;

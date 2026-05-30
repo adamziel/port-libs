@@ -656,6 +656,97 @@ final class SQLiteWindowFunction
      * @param iterable<mixed> $values
      * @param iterable<mixed> $orderKeys
      * @param iterable<bool|int|float|string|null>|null $filters
+     * @return list<mixed>
+     */
+    public static function aggregateOrderedRangeValues(
+        string $function,
+        iterable $values,
+        iterable $orderKeys,
+        string $direction,
+        string $nulls,
+        string $startBoundary,
+        string $endBoundary,
+        ?iterable $filters = null,
+        string $separator = ',',
+    ): array {
+        $function = strtolower($function);
+        if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
+            throw new \InvalidArgumentException("SQLite window aggregate {$function} is not supported");
+        }
+
+        $rows = self::rows($values);
+        $keys = self::rows($orderKeys);
+        if (count($rows) !== count($keys)) {
+            throw new \InvalidArgumentException('SQLite window values and ORDER BY keys must have the same row count');
+        }
+
+        $filterRows = $filters === null ? null : self::rows($filters);
+        if ($filterRows !== null && count($filterRows) !== count($rows)) {
+            throw new \InvalidArgumentException('SQLite window FILTER values must have the same row count');
+        }
+
+        $descending = match (strtoupper(trim($direction))) {
+            'ASC' => false,
+            'DESC' => true,
+            default => throw new \InvalidArgumentException('SQLite window ORDER BY direction is not supported'),
+        };
+        $nullsFirst = match (strtoupper(trim($nulls))) {
+            'FIRST' => true,
+            'LAST' => false,
+            default => throw new \InvalidArgumentException('SQLite window NULLS placement is not supported'),
+        };
+
+        $start = self::parseFrameBoundary($startBoundary);
+        $end = self::parseFrameBoundary($endBoundary);
+        $order = range(0, count($rows) - 1);
+        usort($order, static function (int $left, int $right) use ($keys, $descending, $nullsFirst): int {
+            $leftKey = $keys[$left];
+            $rightKey = $keys[$right];
+            if ($leftKey === null || $rightKey === null) {
+                if ($leftKey === null && $rightKey === null) {
+                    return $left <=> $right;
+                }
+
+                return ($leftKey === null) === $nullsFirst ? -1 : 1;
+            }
+
+            $comparison = self::compareSqlValues($leftKey, $rightKey);
+            if ($descending) {
+                $comparison *= -1;
+            }
+
+            return $comparison === 0 ? $left <=> $right : $comparison;
+        });
+
+        $resultByRow = [];
+        foreach ($order as $position => $rowIndex) {
+            $frameRows = self::orderedRangeFrameRows($order, $keys, $position, $descending, $start, $end);
+            if ($filterRows !== null) {
+                $frameRows = array_values(array_filter(
+                    $frameRows,
+                    static fn (int $frameIndex): bool => self::sqlTruthy($filterRows[$frameIndex]),
+                ));
+            }
+
+            $frameValues = array_map(static fn (int $frameIndex): mixed => $rows[$frameIndex], $frameRows);
+            $resultByRow[$rowIndex] = match ($function) {
+                'count' => count(array_filter($frameValues, static fn (mixed $value): bool => $value !== null)),
+                'sum' => self::sumFrameValues($frameValues),
+                'total' => self::totalFrameValues($frameValues),
+                'avg' => self::avgFrameValues($frameValues),
+                'min' => self::minMaxFrameValues($frameValues, true),
+                'max' => self::minMaxFrameValues($frameValues, false),
+                'group_concat' => self::groupConcatFrameValues($frameValues, $separator),
+            };
+        }
+
+        return array_map(static fn (int $rowIndex): mixed => $resultByRow[$rowIndex], array_keys($rows));
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @param iterable<mixed> $orderKeys
+     * @param iterable<bool|int|float|string|null>|null $filters
      * @return list<array{count:int,sum:int|float|null,groupConcat:string|null,frame:list<int>}>
      */
     public static function aggregateFrameBetweenRows(
@@ -886,6 +977,103 @@ final class SQLiteWindowFunction
         }
 
         return $indexes;
+    }
+
+    /**
+     * @param list<int> $order
+     * @param list<mixed> $keys
+     * @param array{type:string,offset:int|float|null} $start
+     * @param array{type:string,offset:int|float|null} $end
+     * @return list<int>
+     */
+    private static function orderedRangeFrameRows(array $order, array $keys, int $position, bool $descending, array $start, array $end): array
+    {
+        $count = count($order);
+        [$peerStart, $peerEnd] = self::orderedPeerBounds($order, $keys, $position);
+
+        $startPosition = self::orderedRangeBoundaryPosition($order, $keys, $position, $peerStart, $peerEnd, $descending, $start, true);
+        $endPosition = self::orderedRangeBoundaryPosition($order, $keys, $position, $peerStart, $peerEnd, $descending, $end, false);
+        if ($startPosition > $endPosition || $endPosition < 0 || $startPosition > $count - 1) {
+            return [];
+        }
+
+        return array_values(array_slice($order, max(0, $startPosition), min($count - 1, $endPosition) - max(0, $startPosition) + 1));
+    }
+
+    /**
+     * @param list<int> $order
+     * @param list<mixed> $keys
+     * @return array{0:int,1:int}
+     */
+    private static function orderedPeerBounds(array $order, array $keys, int $position): array
+    {
+        $start = $position;
+        $end = $position;
+        while ($start > 0 && self::compareSqlValues($keys[$order[$start - 1]], $keys[$order[$position]]) === 0) {
+            $start--;
+        }
+        while ($end + 1 < count($order) && self::compareSqlValues($keys[$order[$end + 1]], $keys[$order[$position]]) === 0) {
+            $end++;
+        }
+
+        return [$start, $end];
+    }
+
+    /**
+     * @param list<int> $order
+     * @param list<mixed> $keys
+     * @param array{type:string,offset:int|float|null} $boundary
+     */
+    private static function orderedRangeBoundaryPosition(
+        array $order,
+        array $keys,
+        int $position,
+        int $peerStart,
+        int $peerEnd,
+        bool $descending,
+        array $boundary,
+        bool $isStart,
+    ): int {
+        $count = count($order);
+        $type = $boundary['type'];
+        if ($type === 'UNBOUNDED PRECEDING') {
+            return 0;
+        }
+        if ($type === 'UNBOUNDED FOLLOWING') {
+            return $count - 1;
+        }
+        if ($type === 'CURRENT ROW') {
+            return $isStart ? $peerStart : $peerEnd;
+        }
+
+        $currentKey = $keys[$order[$position]];
+        if (!is_int($currentKey) && !is_float($currentKey) && !is_bool($currentKey)) {
+            return $isStart ? $peerStart : $peerEnd;
+        }
+
+        $current = $descending ? -(float) $currentKey : (float) $currentKey;
+        $offset = self::numericBoundaryOffset($boundary);
+        $target = $type === 'PRECEDING' ? $current - $offset : $current + $offset;
+
+        if ($isStart) {
+            for ($index = 0; $index < $count; $index++) {
+                $key = $keys[$order[$index]];
+                if ((is_int($key) || is_float($key) || is_bool($key)) && ($descending ? -(float) $key : (float) $key) >= $target - 1.0e-12) {
+                    return $index;
+                }
+            }
+
+            return $count;
+        }
+
+        for ($index = $count - 1; $index >= 0; $index--) {
+            $key = $keys[$order[$index]];
+            if ((is_int($key) || is_float($key) || is_bool($key)) && ($descending ? -(float) $key : (float) $key) <= $target + 1.0e-12) {
+                return $index;
+            }
+        }
+
+        return -1;
     }
 
     /**

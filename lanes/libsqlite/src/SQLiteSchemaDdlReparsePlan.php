@@ -56,7 +56,7 @@ final class SQLiteSchemaDdlReparsePlan
         $invalidated = [];
         if ($changed > 0) {
             foreach ($preparedStatements as $statement) {
-                if (($statement['schema_cookie'] ?? $schemaCookie) !== $afterCookie) {
+                if (($statement['expired_by_rollback'] ?? false) === true || ($statement['schema_cookie'] ?? $schemaCookie) !== $afterCookie) {
                     $invalidated[] = (string) $statement['id'];
                 }
             }
