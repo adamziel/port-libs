@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 22:24 UTC):
+  Accepted `f5bdff4f` (`libsqlite: add sixteenth rapid current corpus sweep`)
+  immediately after the fifteenth sweep. The batch integrated 12
+  behavior-producing real upstream handoffs across SELECT9 set-ops,
+  correlated RETURNING subqueries, pager/WAL protocol-no-shm and
+  rollback-savepoint dynamics, expression affinity `types2` and real
+  arithmetic, date affinity follow-up, VFS lock contention, PRAGMA schema
+  sixth-thousand coverage, B-tree `index9` bound parameters, trigger/FK
+  statement order, and UPSERT redundant-conflict extended behavior. Gates
+  passed: PHP lint for 16 changed/new PHP files, `git diff --check --
+  lanes/libsqlite`, added-lines source-neutral guard, focused selected tests
+  with `13 test files / 105715 assertions / 0 failures / 18387 PASS lines`,
+  and related regression tests with `11 test files / 383983 assertions / 0
+  failures / 30059 PASS lines`. Accepted-base comparison for the focused set
+  contributes only the existing `SQLiteNoDomainSpecificApiTest` 3 PASS lines,
+  so honest selected movement is `+18384`, bringing libsqlite to `948261 pass
+  / 0 fail`. Mapped coverage remains `1589 / 1589`.
+
 - 2026-05-30 supervisor continuation (integration sample 22:18 UTC):
   Accepted `7fd97850` (`libsqlite: add fifteenth rapid current corpus sweep`)
   on top of the published full-run parity fixes. The batch integrated 10
