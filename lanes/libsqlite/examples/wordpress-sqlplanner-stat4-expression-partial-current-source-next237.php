@@ -78,7 +78,7 @@ $prepared['indexes'][0]['rootPage'] = 23701;
 $prepared['indexes'][0]['stat4Samples'] = array_slice($source['indexes'][0]['stat4Samples'], 0, 3);
 $prepared['rows'] = array_slice($source['rows'], 3, 3);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext237(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceTrailingPayloadValidation(
     $prepared,
     $source,
     [

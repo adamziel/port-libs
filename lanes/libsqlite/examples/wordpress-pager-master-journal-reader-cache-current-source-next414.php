@@ -100,7 +100,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_reset_token' => 'stmt-vdbe-reset-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext414(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::readerCacheStatementFence(414,
     $database,
     $master,
     $masterBytes,

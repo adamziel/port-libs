@@ -131,7 +131,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_if_not_open_token' => 'stmt-vdbe-if_not_open-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext510(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::readerCacheStatementFence(510,
     $database,
     $master,
     $masterBytes,

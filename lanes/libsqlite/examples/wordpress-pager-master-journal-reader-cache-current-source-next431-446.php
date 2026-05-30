@@ -109,7 +109,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_deferred_seek_token' => 'stmt-vdbe-deferred-seek-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext446(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::readerCacheStatementFence(446,
     $database,
     $master,
     $masterBytes,

@@ -30,7 +30,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
 
                 $next = (int) $matches[1];
                 if ($next >= 366 && $next <= 573) {
-                    return self::readerCacheStatementFenceVariant($next, ...$args);
+                    return self::readerCacheStatementFence($next, ...$args);
                 }
 
                 $method = 'variantNext' . $matches[1];
@@ -113,55 +113,55 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
 
         if (count($args) < 121) {
-            return self::variantNext366(...$args);
+            return self::readerCacheStatementFence(366, ...$args);
         }
 
         if (count($args) < 129) {
-            return self::variantNext374(...$args);
+            return self::readerCacheStatementFence(374, ...$args);
         }
 
         if (count($args) < 145) {
-            return self::variantNext382(...$args);
+            return self::readerCacheStatementFence(382, ...$args);
         }
 
         if (count($args) < 161) {
-            return self::variantNext398(...$args);
+            return self::readerCacheStatementFence(398, ...$args);
         }
 
         if (count($args) < 177) {
-            return self::variantNext414(...$args);
+            return self::readerCacheStatementFence(414, ...$args);
         }
 
         if (count($args) < 193) {
-            return self::variantNext430(...$args);
+            return self::readerCacheStatementFence(430, ...$args);
         }
 
         if (count($args) < 209) {
-            return self::variantNext462(...$args);
+            return self::readerCacheStatementFence(462, ...$args);
         }
 
         if (count($args) < 225) {
-            return self::variantNext478(...$args);
+            return self::readerCacheStatementFence(478, ...$args);
         }
 
         if (count($args) < 241) {
-            return self::variantNext494(...$args);
+            return self::readerCacheStatementFence(494, ...$args);
         }
 
         if (count($args) < 257) {
-            return self::variantNext510(...$args);
+            return self::readerCacheStatementFence(510, ...$args);
         }
 
         if (count($args) < 273) {
-            return self::variantNext526(...$args);
+            return self::readerCacheStatementFence(526, ...$args);
         }
 
         if (count($args) < 289) {
-            return self::variantNext542(...$args);
+            return self::readerCacheStatementFence(542, ...$args);
         }
 
         if (count($args) < 305) {
-            return self::variantNext558(...$args);
+            return self::readerCacheStatementFence(558, ...$args);
         }
 
         if (count($args) < 321) {
@@ -335,18 +335,18 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($nextReadPages === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next158 requires next read pages');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $masterRecoveredPages = self::normalizeImages($masterRecoveredPages, $pageSize, 'master recovered');
                     $readerCachePages = self::normalizeReaderCache($readerCachePages, $pageSize);
                     self::assertPageList($nextReadPages, 'next read');
-            
+
                     $cachedMembers = self::members($cachedMasterJournalBytes);
                     $currentMembers = self::members($currentMasterJournalBytes);
                     $nextSourceId = self::sourceId($masterJournalPath, $currentMembers);
                     $nextEpoch = $currentSourceEpoch + 1;
                     $cacheStale = $cachedMembers !== $currentMembers;
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_reader_cache',
                         'path' => $masterJournalPath,
@@ -360,7 +360,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => 'cached_master_journal_members_do_not_match_current_source',
                         ];
                     }
-            
+
                     foreach ($masterRecoveredPages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next158 recovered page {$pageNumber} is outside the database image");
@@ -375,13 +375,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => 'recover_current_source_before_reader_cache_reuse',
                         ];
                     }
-            
+
                     $validReaderCache = [];
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
                     $rows = [];
-            
+
                     foreach ($readerCachePages as $pageNumber => $entry) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next158 reader page {$pageNumber} is outside the database image");
@@ -399,7 +399,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['image'] !== $currentImage && !$refreshCleanReaderCache) {
                             $reason = 'stale_reader_cache_refresh_disabled';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = [
                                 'page_number' => $pageNumber,
@@ -448,7 +448,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_page_matches_current_source',
                             ];
                         }
-            
+
                         $rows[$pageNumber] = [
                             'page_number' => $pageNumber,
                             'pinned' => $entry['pinned'],
@@ -461,7 +461,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($validReaderCache, SORT_NUMERIC);
-            
+
                     $readResults = [];
                     foreach ($nextReadPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -487,7 +487,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => 'next_read_uses_master_journal_reader_current_source',
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next158',
                         'reason' => 'master_journal_recovery_rebases_reader_cache_before_next_read',
@@ -528,7 +528,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -549,10 +549,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$pageNumber] = $image;
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,end_frame?:int,pinned?:bool,source?:string}> $pages
                  * @return array<int,array{image:string,source_id:string,epoch:int,end_frame:int,pinned:bool,source:string}>
@@ -586,10 +586,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => isset($entry['source']) && is_string($entry['source']) && $entry['source'] !== '' ? $entry['source'] : 'reader-cache-before-master-journal-recovery',
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -601,7 +601,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -615,10 +615,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'database-before-master-journal-reader-recovery',
                         ];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -634,10 +634,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param list<string> $members
                  */
@@ -645,7 +645,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     return 'master-reader-cache:' . substr(hash('sha256', $masterJournalPath . '|' . implode('|', $members)), 0, 16);
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  */
@@ -657,10 +657,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     for ($pageNumber = 1; $pageNumber <= $maxPage; $pageNumber++) {
                         $bytes .= $source[$pageNumber]['image'] ?? str_repeat("\0", $pageSize);
                     }
-            
+
                     return $bytes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -672,10 +672,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -687,10 +687,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $cache
                  * @return array<int,string>
@@ -702,10 +702,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($cache as $pageNumber => $entry) {
                         $sources[$pageNumber] = (string) $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 96), ".\0");
@@ -779,19 +779,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSourceEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next159 source epoch must be positive');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $masterRecoveredPages = self::normalizeImages($masterRecoveredPages, $pageSize, 'master recovered');
                     $readerCachePages = self::normalizeReaderCache($readerCachePages, $pageSize);
                     self::assertPageList($nextReadPages, 'next read');
                     $nextWritePages = self::normalizeImages($nextWritePages, $pageSize, 'next write', true);
-            
+
                     $cachedMembers = self::members($cachedMasterJournalBytes);
                     $currentMembers = self::members($currentMasterJournalBytes);
                     $recoveredSourceId = 'master-reader-cache:' . hash('sha256', $masterJournalPath . '|' . implode('|', $currentMembers));
                     $recoveredEpoch = $currentSourceEpoch + 1;
                     $cachedMembershipStale = $cachedMembers !== $currentMembers;
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_reader_cache',
                         'path' => $masterJournalPath,
@@ -805,7 +805,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_members' => $currentMembers,
                         ];
                     }
-            
+
                     foreach ($masterRecoveredPages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next159 recovered page {$pageNumber} is outside the database image");
@@ -821,7 +821,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'epoch' => $recoveredEpoch,
                         ];
                     }
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -831,7 +831,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next159 reader cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -843,7 +843,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['epoch'] !== $currentSourceEpoch) {
                             $reason = 'reader_cache_epoch_predates_current_master_source';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $pageNumber;
                             $operations[] = [
@@ -877,7 +877,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'epoch' => $recoveredEpoch,
                             ];
                         }
-            
+
                         $readerRows[] = [
                             'label' => $entry['label'],
                             'page_number' => $pageNumber,
@@ -892,7 +892,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $reason ?? ($entry['image'] === $currentImage ? 'reader_cache_matches_current_master_source' : 'reader_cache_refreshed_from_current_master_source'),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($nextReadPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -913,7 +913,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     $writes = [];
                     foreach ($nextWritePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -939,9 +939,9 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'epoch' => $recoveredEpoch,
                         ];
                     }
-            
+
                     ksort($database, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next159',
                         'reason' => 'current_master_journal_membership_rebases_reader_cache_before_next_source',
@@ -973,7 +973,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -990,10 +990,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'database-before-master-journal-reader-cache',
                         ];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -1014,10 +1014,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,pinned?:bool,dirty?:bool,label?:string}> $cachePages
                  * @return array<int,array{image:string,source_id:string,epoch:int,pinned:bool,dirty:bool,label:string}>
@@ -1050,10 +1050,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -1065,7 +1065,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -1081,15 +1081,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -1100,10 +1100,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -1114,10 +1114,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  */
@@ -1131,7 +1131,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $bytes .= $entry['image'];
                     }
-            
+
                     return $bytes;
                 }
         })->plan($databasePath, $masterJournalPath, $cachedMasterJournalBytes, $currentMasterJournalBytes, $databaseBytes, $pageSize, $masterRecoveredPages, $readerCachePages, $nextReadPages, $nextWritePages, $currentSourceId, $currentSourceEpoch);
@@ -1183,7 +1183,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $readerCache === [] || $readPages === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache reader fence requires current pages, reader cache, and read pages');
                     }
-            
+
                     $currentMembers = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $currentMembers, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache reader fence current master journal does not reference the database journal');
@@ -1193,7 +1193,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentPages = self::assertPages($currentPages, $pageSize, 'current');
                     $readerCache = self::assertCache($readerCache, $pageSize);
                     self::assertPageList($readPages);
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_reader_cache',
                         'path' => $masterJournalPath,
@@ -1207,7 +1207,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => 'cached_master_journal_members_do_not_match_current_source',
                         ];
                     }
-            
+
                     $retained = [];
                     $invalidated = [];
                     $cacheRows = [];
@@ -1231,7 +1231,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif (!hash_equals(self::digest($currentPages[$pageNumber]), self::digest($entry['image']))) {
                             $reason = 'reader_cache_image_mismatch';
                         }
-            
+
                         $cacheRows[$pageNumber] = [
                             'page_number' => $pageNumber,
                             'source' => $entry['source'],
@@ -1243,7 +1243,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'image_matches_current_source' => isset($currentPages[$pageNumber]) && hash_equals(self::digest($currentPages[$pageNumber]), self::digest($entry['image'])),
                             'reason' => $reason,
                         ];
-            
+
                         if ($reason !== null) {
                             $invalidated[] = [
                                 'page_number' => $pageNumber,
@@ -1261,7 +1261,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             ];
                             continue;
                         }
-            
+
                         $retained[$pageNumber] = $entry;
                         $operations[] = [
                             'op' => 'retain_master_journal_reader_cache_page',
@@ -1269,7 +1269,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'digest' => self::digest($entry['image']),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($currentPages[$pageNumber])) {
@@ -1292,10 +1292,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     ksort($retained, SORT_NUMERIC);
                     ksort($cacheRows, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager_master_journal_reader_cache_current_source_reader_fence',
                         'legacy_status' => 'pager_master_journal_reader_cache_current_source_next160',
@@ -1331,7 +1331,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -1347,10 +1347,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache reader fence {$label} page {$pageNumber} image must match page size");
                         }
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source?:string,source_id?:string,epoch?:int,dirty?:bool,pinned?:bool,master_members?:list<string>}> $cache
                  * @return array<int,array{image:string,source:string,source_id:string,epoch:int,dirty:bool,pinned:bool,master_members:list<string>}>
@@ -1384,10 +1384,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_members' => array_values(array_map('strval', $members)),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -1399,7 +1399,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -1415,10 +1415,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -1429,15 +1429,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($pages as $pageNumber => $image) {
                         $digests[$pageNumber] = self::digest($image);
                     }
-            
+
                     return $digests;
                 }
-            
+
                 private static function digest(string $image): string
                 {
                     return hash('sha256', $image);
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 96), ".\0");
@@ -1446,7 +1446,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext161(string $databasePath,
+    public static function planCurrentMasterJournalReaderCacheRebase(string $databasePath,
         string $masterJournalPath,
         ?string $cachedMasterJournalBytes,
         ?string $currentMasterJournalBytes,
@@ -1511,13 +1511,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSourceEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next161 source epoch must be positive');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $masterRecoveredPages = self::normalizeImages($masterRecoveredPages, $pageSize, 'master recovered');
                     $readerCachePages = self::normalizeReaderCache($readerCachePages, $pageSize);
                     self::assertPageList($nextReadPages, 'next read');
                     $nextWritePages = self::normalizeImages($nextWritePages, $pageSize, 'next write', true);
-            
+
                     $cachedMembers = self::members($cachedMasterJournalBytes);
                     $currentMembers = self::members($currentMasterJournalBytes);
                     $cachedDigest = self::memberDigest($cachedMembers);
@@ -1525,7 +1525,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $recoveredSourceId = 'master-reader-cache:' . hash('sha256', $masterJournalPath . '|' . implode('|', $currentMembers));
                     $recoveredEpoch = $currentSourceEpoch + 1;
                     $cachedMembershipStale = $cachedMembers !== $currentMembers;
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_reader_cache',
                         'path' => $masterJournalPath,
@@ -1539,7 +1539,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_members' => $currentMembers,
                         ];
                     }
-            
+
                     foreach ($masterRecoveredPages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next161 recovered page {$pageNumber} is outside the database image");
@@ -1555,7 +1555,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'epoch' => $recoveredEpoch,
                         ];
                     }
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -1565,7 +1565,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next161 reader cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -1579,7 +1579,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['epoch'] !== $currentSourceEpoch) {
                             $reason = 'reader_cache_epoch_predates_current_master_source';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $pageNumber;
                             $operations[] = [
@@ -1613,7 +1613,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'epoch' => $recoveredEpoch,
                             ];
                         }
-            
+
                         $readerRows[] = [
                             'label' => $entry['label'],
                             'page_number' => $pageNumber,
@@ -1631,7 +1631,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $reason ?? ($entry['image'] === $currentImage ? 'reader_cache_matches_current_master_source' : 'reader_cache_refreshed_from_current_master_source'),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($nextReadPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -1652,7 +1652,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     $writes = [];
                     foreach ($nextWritePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -1678,9 +1678,9 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'epoch' => $recoveredEpoch,
                         ];
                     }
-            
+
                     ksort($database, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next161',
                         'reason' => 'current_master_journal_membership_rebases_reader_cache_before_next_source',
@@ -1715,7 +1715,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -1732,10 +1732,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'database-before-master-journal-reader-cache',
                         ];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -1756,10 +1756,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,pinned?:bool,dirty?:bool,label?:string,master_journal_digest?:string}> $cachePages
                  * @return array<int,array{image:string,source_id:string,epoch:int,pinned:bool,dirty:bool,label:string,master_journal_digest:string}>
@@ -1797,10 +1797,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -1812,7 +1812,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -1828,10 +1828,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param list<string> $members
                  */
@@ -1839,12 +1839,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     return hash('sha256', implode("\n", $members));
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -1855,10 +1855,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -1869,10 +1869,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  */
@@ -1886,7 +1886,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $bytes .= $entry['image'];
                     }
-            
+
                     return $bytes;
                 }
         })->plan($databasePath, $masterJournalPath, $cachedMasterJournalBytes, $currentMasterJournalBytes, $databaseBytes, $pageSize, $masterRecoveredPages, $readerCachePages, $nextReadPages, $nextWritePages, $currentSourceId, $currentSourceEpoch);
@@ -1940,7 +1940,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $readerCache === [] || $nextReads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next162 requires pages, cache, and reads');
                     }
-            
+
                     $currentMembers = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $currentMembers, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next162 current master journal does not reference the database journal');
@@ -1950,7 +1950,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentPages = self::assertPages($currentPages, $pageSize, 'current');
                     $readerCache = self::assertReaderCache($readerCache, $pageSize);
                     $nextReads = self::assertNextReads($nextReads);
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_before_next_reader_cache_source',
                         'path' => $masterJournalPath,
@@ -1964,7 +1964,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_members' => $currentMembers,
                         ];
                     }
-            
+
                     $retained = [];
                     $invalidated = [];
                     $cacheRows = [];
@@ -1985,7 +1985,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif (!hash_equals(self::digest($currentPages[$pageNumber]), self::digest($entry['image']))) {
                             $reason = 'reader_cache_image_not_current';
                         }
-            
+
                         $row = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -1998,7 +1998,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $reason ?? 'cache_page_admitted_for_current_source_next_read',
                         ];
                         $cacheRows[$pageNumber] = $row;
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $row;
                             $operations[] = [
@@ -2009,7 +2009,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             ];
                             continue;
                         }
-            
+
                         $retained[$pageNumber] = $entry;
                         $operations[] = [
                             'op' => 'retain_reader_cache_for_current_source_next_read',
@@ -2018,7 +2018,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'digest' => self::digest($entry['image']),
                         ];
                     }
-            
+
                     $reads = [];
                     $reopenReaders = [];
                     foreach ($nextReads as $read) {
@@ -2052,10 +2052,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     ksort($retained, SORT_NUMERIC);
                     ksort($cacheRows, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next162',
                         'reason' => 'next_reader_sources_are_reopened_when_master_journal_recovery_changes_cache_membership',
@@ -2091,7 +2091,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -2107,10 +2107,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -2126,10 +2126,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next162 {$label} page {$pageNumber} image must match page size");
                         }
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,pinned?:bool,dirty?:bool,next_source?:bool}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,pinned:bool,dirty:bool,next_source:bool}>
@@ -2159,10 +2159,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'next_source' => (bool) ($entry['next_source'] ?? false),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,end_frame?:int}> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,end_frame?:int}>
@@ -2182,15 +2182,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             }
                         }
                     }
-            
+
                     return $reads;
                 }
-            
+
                 private static function digest(string $image): string
                 {
                     return hash('sha256', $image);
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 64), ".\0 ");
@@ -2251,7 +2251,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $nextPages === [] || $readerCache === [] || $readPages === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next163 requires current pages, next pages, reader cache, and reads');
                     }
-            
+
                     $currentMembers = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $currentMembers, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next163 current master journal does not reference the database journal');
@@ -2261,7 +2261,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $nextPages = self::assertPages($nextPages, $pageSize, 'next');
                     $readerCache = self::assertCache($readerCache, $pageSize);
                     self::assertPageList($readPages);
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_before_next_reader_source',
                         'path' => $masterJournalPath,
@@ -2273,7 +2273,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => 'cached_master_journal_members_do_not_match_current_source',
                         ];
                     }
-            
+
                     $decisions = [];
                     $blockers = [];
                     foreach ($readPages as $pageNumber) {
@@ -2288,7 +2288,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $source = 'next-master-journal-reader-source';
                         $cacheHit = false;
                         $reason = 'reader_cache_missing_next_source_page';
-            
+
                         if ($entry !== null) {
                             if ($entry['dirty']) {
                                 $reason = 'dirty_reader_cache_blocks_next_source_read';
@@ -2312,7 +2312,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 $reason = 'next_source_page_changed_after_master_journal_recovery';
                             }
                         }
-            
+
                         $decisions[] = [
                             'page_number' => $pageNumber,
                             'cache_hit' => $cacheHit,
@@ -2330,7 +2330,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $reason,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager_master_journal_reader_cache_current_source_next163',
                         'reason' => 'reader_cache_pages_are_reused_only_when_the_recovered_current_source_still_matches_the_next_source',
@@ -2356,7 +2356,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -2372,10 +2372,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next163 {$label} page {$pageNumber} image must match page size");
                         }
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source?:string,source_id?:string,epoch?:int,dirty?:bool,pinned?:bool,master_members?:list<string>}> $cache
                  * @return array<int,array{image:string,source:string,source_id:string,epoch:int,dirty:bool,pinned:bool,master_members:list<string>}>
@@ -2409,10 +2409,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_members' => array_values(array_map('strval', $members)),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -2424,7 +2424,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -2440,10 +2440,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -2454,15 +2454,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($pages as $pageNumber => $image) {
                         $digests[$pageNumber] = self::digest($image);
                     }
-            
+
                     return $digests;
                 }
-            
+
                 private static function digest(string $image): string
                 {
                     return hash('sha256', $image);
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 96), ".\0");
@@ -2525,18 +2525,18 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next164 current epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next164 current master journal does not reference the database journal');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $recoveredPages = self::normalizeImages($recoveredPages, $pageSize, 'recovered', false);
                     $readerCache = self::normalizeReaderCache($readerCache, $pageSize);
                     self::assertPageList($readPages, 'read');
                     $writePages = self::normalizeImages($writePages, $pageSize, 'write', true);
-            
+
                     foreach ($recoveredPages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next164 recovered page {$pageNumber} is outside the database image");
@@ -2546,7 +2546,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'master-journal-header-current-source',
                         ];
                     }
-            
+
                     $header = self::headerState($database[1]['image']);
                     $masterDigest = hash('sha256', implode("\n", $members));
                     $recoveredSourceId = 'master-reader-header:' . hash('sha256', $masterJournalPath . '|' . implode('|', $members) . '|' . implode(':', $header));
@@ -2557,7 +2557,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'members' => $members,
                         'header' => $header,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -2567,7 +2567,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next164 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -2587,7 +2587,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['epoch'] !== $currentEpoch) {
                             $reason = 'reader_cache_epoch_predates_current_header';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $pageNumber;
                             $operations[] = [
@@ -2616,7 +2616,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'page_number' => $pageNumber,
                             ];
                         }
-            
+
                         $rows[] = [
                             'label' => $entry['label'],
                             'page_number' => $pageNumber,
@@ -2636,7 +2636,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::label($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -2654,7 +2654,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'header_schema_cookie' => $header['schema_cookie'],
                         ];
                     }
-            
+
                     $writes = [];
                     foreach ($writePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -2678,7 +2678,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next164',
                         'reason' => 'master_journal_recovery_header_state_fences_reader_cache_before_next_source',
@@ -2711,7 +2711,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return array{change_counter:int,schema_cookie:int,version_valid_for:int}
                  */
@@ -2720,24 +2720,24 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if (strlen($pageOne) < 96) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next164 page one is too short for header state');
                     }
-            
+
                     return [
                         'change_counter' => self::u32(substr($pageOne, 24, 4)),
                         'schema_cookie' => self::u32(substr($pageOne, 40, 4)),
                         'version_valid_for' => self::u32(substr($pageOne, 92, 4)),
                     ];
                 }
-            
+
                 private static function u32(string $bytes): int
                 {
                     $value = unpack('N', $bytes);
                     if ($value === false) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next164 could not decode header integer');
                     }
-            
+
                     return (int) $value[1];
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -2747,10 +2747,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $map[$index + 1] = ['image' => $image, 'source' => 'database-before-master-header-recovery'];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -2771,10 +2771,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,dirty?:bool,pinned?:bool,label?:string,master_journal_digest?:string,change_counter?:int,schema_cookie?:int,version_valid_for?:int}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,dirty:bool,pinned:bool,label:string,master_journal_digest:string,change_counter:int,schema_cookie:int,version_valid_for:int}>
@@ -2817,10 +2817,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -2832,7 +2832,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -2845,15 +2845,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -2864,10 +2864,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -2878,10 +2878,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  */
@@ -2895,7 +2895,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $bytes .= $entry['image'];
                     }
-            
+
                     return $bytes;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $readPages, $writePages, $currentSourceId, $currentEpoch);
@@ -2951,21 +2951,21 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $readerCache === [] || $nextReads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next165 requires pages, cache, and reads');
                     }
-            
+
                     $currentMembers = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $currentMembers, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next165 current master journal does not reference the database journal');
                     }
-            
+
                     $currentPages = self::assertPages($currentPages, $pageSize, 'current');
                     if (!isset($currentPages[1])) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next165 requires current page 1 for generation fencing');
                     }
-            
+
                     $readerCache = self::assertReaderCache($readerCache, $pageSize);
                     $nextReads = self::assertNextReads($nextReads);
                     $currentDigest = self::memberDigest($currentMembers);
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_and_header_generation_before_reader_cache',
                         'path' => $masterJournalPath,
@@ -2974,7 +2974,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'schema_cookie' => $currentSchemaCookie,
                         'end_frame' => $currentEndFrame,
                     ]];
-            
+
                     $retained = [];
                     $invalidated = [];
                     $rows = [];
@@ -3001,7 +3001,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif (!$imageMatches) {
                             $reason = 'reader_cache_image_digest_not_current';
                         }
-            
+
                         $row = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -3017,7 +3017,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $reason ?? 'reader_cache_admitted_by_master_journal_header_generation',
                         ];
                         $rows[$pageNumber] = $row;
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $row;
                             $operations[] = [
@@ -3028,7 +3028,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             ];
                             continue;
                         }
-            
+
                         $retained[$pageNumber] = $entry;
                         $operations[] = [
                             'op' => 'retain_reader_cache_after_master_journal_header_generation_fence',
@@ -3037,7 +3037,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'digest' => self::digest($entry['image']),
                         ];
                     }
-            
+
                     $reads = [];
                     $reopen = [];
                     foreach ($nextReads as $read) {
@@ -3075,10 +3075,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     ksort($retained, SORT_NUMERIC);
                     ksort($rows, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next165',
                         'reason' => 'reader_cache_reuse_is_fenced_by_master_journal_membership_and_header_generation',
@@ -3115,7 +3115,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -3128,10 +3128,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param list<string> $members
                  */
@@ -3139,7 +3139,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     return hash('sha256', implode("\n", $members));
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -3155,10 +3155,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next165 {$label} page {$pageNumber} image must match page size");
                         }
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,master_journal_digest?:string,change_counter?:int,schema_cookie?:int,end_frame?:int,pinned?:bool,dirty?:bool}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,master_journal_digest:string,change_counter:int,schema_cookie:int,end_frame:int,pinned:bool,dirty:bool}>
@@ -3193,10 +3193,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'dirty' => (bool) ($entry['dirty'] ?? false),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,change_counter?:int,schema_cookie?:int,end_frame?:int}> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,change_counter?:int,schema_cookie?:int,end_frame?:int}>
@@ -3216,15 +3216,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             }
                         }
                     }
-            
+
                     return $reads;
                 }
-            
+
                 private static function digest(string $image): string
                 {
                     return hash('sha256', $image);
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 64), ".\0 ");
@@ -3294,7 +3294,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $nextPages === [] || $readerCache === [] || $nextReads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next166 requires current pages, next pages, reader cache, and reads');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next166 current master journal does not reference the database journal');
@@ -3303,20 +3303,20 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $nextPages = self::assertPages($nextPages, $pageSize, 'next');
                     $readerCache = self::assertCache($readerCache, $pageSize);
                     $nextReads = self::assertReads($nextReads);
-            
+
                     $currentPageCount = max(array_keys($currentPages));
                     $nextPageCount = max(array_keys($nextPages));
                     $masterDigest = self::digest($currentMasterJournalBytes);
                     $schemaChanged = $currentSchemaCookie !== $nextSchemaCookie;
                     $truncated = $nextPageCount < $currentPageCount;
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_before_reader_cache_next166',
                         'path' => $masterJournalPath,
                         'digest' => $masterDigest,
                         'members' => $members,
                     ]];
-            
+
                     $cacheRows = [];
                     $reusable = [];
                     $invalidated = [];
@@ -3347,7 +3347,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif (!hash_equals(self::digest($currentImage), self::digest($nextImage))) {
                             $reason = 'reader_cache_page_changed_in_next_source';
                         }
-            
+
                         $row = [
                             'page_number' => $pageNumber,
                             'source' => $entry['source'],
@@ -3363,7 +3363,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $reason ?? 'reader_cache_page_reusable_for_next_source',
                         ];
                         $cacheRows[$pageNumber] = $row;
-            
+
                         if ($reason === null) {
                             $reusable[$pageNumber] = $entry;
                             $operations[] = [
@@ -3373,7 +3373,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             ];
                             continue;
                         }
-            
+
                         $invalidated[$pageNumber] = $row;
                         $operations[] = [
                             'op' => 'invalidate_reader_cache_page_for_next166',
@@ -3381,7 +3381,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $reason,
                         ];
                     }
-            
+
                     $reads = [];
                     $reopenReaders = [];
                     foreach ($nextReads as $read) {
@@ -3419,11 +3419,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     ksort($cacheRows, SORT_NUMERIC);
                     ksort($reusable, SORT_NUMERIC);
                     ksort($invalidated, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next166',
                         'reason' => 'next reader cache is reused only after master-journal recovery when generation schema and page-count fences still match',
@@ -3465,7 +3465,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -3478,10 +3478,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -3497,10 +3497,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next166 {$label} page {$pageNumber} image must match page size");
                         }
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source?:string,source_id?:string,epoch?:int,generation?:int,schema_cookie?:int,page_count?:int,dirty?:bool,pinned?:bool,master_digest?:string}> $cache
                  * @return array<int,array{image:string,source:string,source_id:string,epoch:int,generation:int,schema_cookie:int,page_count:int,dirty:bool,pinned:bool,master_digest:string}>
@@ -3535,10 +3535,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_digest' => isset($entry['master_digest']) && is_string($entry['master_digest']) ? $entry['master_digest'] : '',
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,generation?:int,schema_cookie?:int,page_count?:int}> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,generation?:int,schema_cookie?:int,page_count?:int}>
@@ -3558,15 +3558,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             }
                         }
                     }
-            
+
                     return $reads;
                 }
-            
+
                 private static function digest(string $value): string
                 {
                     return hash('sha256', $value);
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 88), ".\0 ");
@@ -3622,16 +3622,16 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $readerCache === [] || $reads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next167 requires current pages, reader cache, and reads');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next167 current master journal does not reference the database journal');
                     }
-            
+
                     $currentPages = self::normalizePages($currentPages, $pageSize, 'current');
                     $readerCache = self::normalizeCache($readerCache, $pageSize);
                     $reads = self::normalizeReads($reads);
-            
+
                     $masterDigest = hash('sha256', implode("\n", $members));
                     $sourceTicket = [
                         'id' => $currentSourceId,
@@ -3640,7 +3640,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'master_journal_deleted' => $masterJournalDeleted,
                         'master_journal_digest' => $masterDigest,
                     ];
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_reader_cache_source_ticket',
                         'path' => $masterJournalPath,
@@ -3648,7 +3648,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'generation' => $currentMasterGeneration,
                         'deleted_after_recovery' => $masterJournalDeleted,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -3657,7 +3657,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($currentPages[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next167 cache page {$pageNumber} is outside current source");
                         }
-            
+
                         $currentImage = $currentPages[$pageNumber];
                         $imageMatches = hash_equals(self::digest($currentImage), self::digest($entry['image']));
                         $reason = null;
@@ -3674,7 +3674,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !$imageMatches) {
                             $reason = 'pinned_reader_cache_image_mismatch_after_master_delete';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = [
                                 'page_number' => $pageNumber,
@@ -3716,7 +3716,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reader_id' => $entry['reader_id'],
                             ];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -3734,7 +3734,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::prefix($currentImage),
                         ];
                     }
-            
+
                     $nextReads = [];
                     $reopenReaders = [];
                     foreach ($reads as $read) {
@@ -3768,7 +3768,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next167',
                         'reason' => 'master_journal_deleted_generation_is_part_of_reader_cache_current_source_ticket',
@@ -3796,7 +3796,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -3809,10 +3809,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -3830,10 +3830,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,master_generation?:int,master_deleted?:bool,dirty?:bool,pinned?:bool,shared?:bool}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,master_generation:int,master_deleted:bool,dirty:bool,pinned:bool,shared:bool}>
@@ -3870,10 +3870,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id?:string,page_number:int,source_id?:string,epoch?:int,master_generation?:int}> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,master_generation:int}>
@@ -3906,15 +3906,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_generation' => $generation,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 private static function prefix(string $bytes): string
                 {
                     return rtrim(substr($bytes, 0, 64), ".\0");
                 }
-            
+
                 private static function digest(string $bytes): string
                 {
                     return hash('sha256', $bytes);
@@ -3966,7 +3966,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSourceGeneration < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next168 source generation must be positive');
                     }
-            
+
                     $cacheSource = self::normalizeSourceFence($readerCache);
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext164(
                         $databasePath,
@@ -3981,7 +3981,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSourceId,
                         $currentEpoch,
                     );
-            
+
                     $expectedPageDigests = [];
                     foreach ($base['final_prefixes'] as $pageNumber => $_prefix) {
                         if (!isset($recoveredPages[$pageNumber])) {
@@ -3989,7 +3989,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $expectedPageDigests[$pageNumber] = self::pageDigest($currentSourceDigest, $currentSourceGeneration, $pageNumber, $recoveredPages[$pageNumber]);
                     }
-            
+
                     $sourceInvalidated = [];
                     $sourceRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -4002,16 +4002,16 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($source['page_source_digest'] !== $expectedDigest) {
                             $reason = 'reader_cache_page_source_digest_predates_current_source';
                         }
-            
+
                         $admittedByHeader = (bool) $row['admitted'];
                         if ($admittedByHeader && $reason !== null) {
                             $sourceInvalidated[] = $pageNumber;
                         }
-            
+
                         $sourceReason = $admittedByHeader
                             ? ($reason ?? 'reader_cache_source_digest_matches_current_source')
                             : $row['reason'];
-            
+
                         $sourceRows[] = $row + [
                             'source_admitted' => $admittedByHeader && $reason === null,
                             'source_reason' => $sourceReason,
@@ -4021,13 +4021,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_source_generation' => $currentSourceGeneration,
                         ];
                     }
-            
+
                     if ($sourceInvalidated !== []) {
                         $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $sourceInvalidated));
                         $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $sourceInvalidated));
                         $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $sourceInvalidated));
                         $base['requires_reader_reopen'] = true;
-            
+
                         foreach ($base['next_reads'] as &$read) {
                             if (in_array($read['page_number'], $sourceInvalidated, true)) {
                                 $read['cache_hit'] = false;
@@ -4036,7 +4036,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             }
                         }
                         unset($read);
-            
+
                         foreach ($sourceInvalidated as $pageNumber) {
                             $base['operations'][] = [
                                 'op' => 'invalidate_reader_cache_after_master_current_source_digest',
@@ -4045,7 +4045,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             ];
                         }
                     }
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next168';
                     $base['reason'] = 'master_journal_reader_cache_requires_current_source_digest_generation_fence';
                     $base['current_source_digest'] = $currentSourceDigest;
@@ -4055,10 +4055,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['source_digest'] = hash('sha256', $base['source_digest'] . '|' . $currentSourceDigest . '|' . $currentSourceGeneration . '|' . implode(',', $sourceInvalidated));
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next168';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-current-source-digest-fence';
-            
+
                     return $base;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array{page_source_digest:string,source_generation:int}>
@@ -4084,10 +4084,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array<string,mixed>>
@@ -4099,15 +4099,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['page_source_digest'], $entry['source_generation']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 private static function pageDigest(string $sourceDigest, int $generation, int $pageNumber, string $image): string
                 {
                     return hash('sha256', $sourceDigest . '|' . $generation . '|' . $pageNumber . '|' . hash('sha256', $image));
                 }
-            
+
                 /**
                  * @param list<int> $values
                  * @return list<int>
@@ -4116,7 +4116,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $readPages, $writePages, $currentSourceId, $currentEpoch, $currentSourceDigest, $currentSourceGeneration);
@@ -4169,27 +4169,27 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($memberStates === [] || $currentPages === [] || $readerCache === [] || $nextReads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next169 requires member states, current pages, reader cache, and next reads');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $databaseJournal = $databasePath . '-journal';
                     if (!in_array($databaseJournal, $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next169 current master journal does not reference the database journal');
                     }
-            
+
                     $memberStates = self::normalizeMemberStates($memberStates, $members);
                     $currentPages = self::normalizePages($currentPages, $pageSize);
                     $readerCache = self::normalizeReaderCache($readerCache, $pageSize);
                     $nextReads = self::normalizeNextReads($nextReads);
                     $unrecoveredMembers = self::unrecoveredMembers($memberStates);
                     $memberDigest = hash('sha256', implode("\n", $members) . '|' . self::memberStateDigest($memberStates));
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_member_states_before_reader_cache',
                         'path' => $masterJournalPath,
                         'members' => $members,
                         'unrecovered_members' => $unrecoveredMembers,
                     ]];
-            
+
                     $retained = [];
                     $invalidated = [];
                     $rows = [];
@@ -4199,7 +4199,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $imageMatches = isset($currentPages[$pageNumber])
                             && hash_equals(self::digest($currentPages[$pageNumber]), self::digest($entry['image']));
                         $reason = null;
-            
+
                         if ($state === null) {
                             $reason = 'reader_cache_member_not_in_current_master_journal';
                         } elseif ($unrecoveredMembers !== []) {
@@ -4223,7 +4223,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif (!$imageMatches) {
                             $reason = 'reader_cache_image_digest_not_current_member_source';
                         }
-            
+
                         $row = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -4240,7 +4240,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'prefix' => self::prefix($entry['image']),
                         ];
                         $rows[$pageNumber] = $row;
-            
+
                         if ($reason === null) {
                             $retained[$pageNumber] = $entry;
                             $operations[] = [
@@ -4251,7 +4251,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             ];
                             continue;
                         }
-            
+
                         $invalidated[] = $row;
                         $operations[] = [
                             'op' => 'invalidate_reader_cache_for_attached_master_member',
@@ -4261,7 +4261,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $reason,
                         ];
                     }
-            
+
                     $reads = [];
                     $reopenReaders = [];
                     foreach ($nextReads as $read) {
@@ -4302,10 +4302,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'member_journal' => $member,
                         ];
                     }
-            
+
                     ksort($rows, SORT_NUMERIC);
                     ksort($retained, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next169',
                         'reason' => 'attached_master_journal_member_recovery_state_fences_reader_cache_reuse',
@@ -4335,7 +4335,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -4348,10 +4348,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<string,array{generation:int,recovered?:bool,hot?:bool,deleted?:bool}> $states
                  * @param list<string> $members
@@ -4384,12 +4384,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next169 member {$member} is missing recovery state");
                         }
                     }
-            
+
                     ksort($normalized, SORT_STRING);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -4405,10 +4405,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next169 page {$pageNumber} image must match page size");
                         }
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,reader_id?:string,source_id?:string,epoch?:int,member_journal?:string,member_generation?:int,dirty?:bool,pinned?:bool}> $cache
                  * @return array<int,array{image:string,reader_id:string,source_id:string,epoch:int,member_journal:string,member_generation:int,dirty:bool,pinned:bool}>
@@ -4447,10 +4447,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pinned' => (bool) ($entry['pinned'] ?? false),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id:string,page_number:int,member_journal?:string,source_id?:string,epoch?:int}> $reads
                  * @return list<array{reader_id:string,page_number:int,member_journal:string,source_id?:string,epoch?:int}>
@@ -4473,10 +4473,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[] = $read + ['member_journal' => $member];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<string,array{generation:int,recovered:bool,hot:bool,deleted:bool}> $states
                  * @return list<string>
@@ -4489,10 +4489,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param array<string,array{generation:int,recovered:bool,hot:bool,deleted:bool}> $states
                  */
@@ -4502,15 +4502,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($states as $member => $state) {
                         $parts[] = $member . ':' . $state['generation'] . ':' . (int) $state['recovered'] . ':' . (int) $state['hot'] . ':' . (int) $state['deleted'];
                     }
-            
+
                     return hash('sha256', implode('|', $parts));
                 }
-            
+
                 private static function digest(string $image): string
                 {
                     return hash('sha256', $image);
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 72), ".\0 ");
@@ -4575,29 +4575,29 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next170 current epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $journalPath = $databasePath . '-journal';
                     if (!in_array($journalPath, $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next170 current master journal does not reference the database journal');
                     }
-            
+
                     $journal = SQLiteRollbackJournal::parse($currentRollbackJournalBytes, false);
                     if ($journal->header->pageSize !== $pageSize) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next170 rollback-journal page size must match pager page size');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $readerCache = self::normalizeReaderCache($readerCache, $pageSize);
                     self::assertPageList($readPages, 'read');
                     $writePages = self::normalizeImages($writePages, $pageSize, 'write', true);
-            
+
                     $masterDigest = hash('sha256', implode("\n", $members));
                     $journalPageNumbers = array_map(static fn (SQLiteRollbackJournalPage $page): int => $page->pageNumber, $journal->pages);
                     $journalSourceDigest = self::journalSourceDigest($journalPath, $currentRollbackJournalBytes, $journalPageNumbers, $journal->header);
                     $recoveredSourceId = 'master-reader-journal-source:' . hash('sha256', $masterJournalPath . '|' . $masterDigest . '|' . $journalSourceDigest);
                     $recoveredEpoch = $currentEpoch + 1;
-            
+
                     foreach ($journal->pages as $page) {
                         if (!isset($database[$page->pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next170 journal page {$page->pageNumber} is outside the database image");
@@ -4607,7 +4607,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'rollback-journal-current-source-before-reader-cache',
                         ];
                     }
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_rollback_reader_cache',
                         'path' => $masterJournalPath,
@@ -4618,7 +4618,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'journal_source_digest' => $journalSourceDigest,
                         'page_numbers' => $journalPageNumbers,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -4628,7 +4628,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next170 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -4650,7 +4650,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['epoch'] !== $currentEpoch) {
                             $reason = 'reader_cache_epoch_predates_current_rollback_source';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $pageNumber;
                             $operations[] = [
@@ -4680,7 +4680,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'page_number' => $pageNumber,
                             ];
                         }
-            
+
                         $rows[] = [
                             'label' => $entry['label'],
                             'page_number' => $pageNumber,
@@ -4703,7 +4703,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::label($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -4724,7 +4724,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     $writes = [];
                     foreach ($writePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -4748,7 +4748,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next170',
                         'reason' => 'current_rollback_journal_source_rebases_reader_cache_after_master_journal_membership',
@@ -4783,7 +4783,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @param list<int> $pageNumbers
                  */
@@ -4801,7 +4801,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         hash('sha256', $journalBytes),
                     ]));
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -4811,10 +4811,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $map[$index + 1] = ['image' => $image, 'source' => 'database-before-rollback-journal-reader-cache'];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -4835,10 +4835,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,dirty?:bool,pinned?:bool,label?:string,master_journal_digest?:string,journal_source_digest?:string,journal_page_count?:int,journal_initial_page_count?:int,journal_page_numbers?:list<int>}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,dirty:bool,pinned:bool,label:string,master_journal_digest:string,journal_source_digest:string,journal_page_count:int,journal_initial_page_count:int,journal_page_numbers:list<int>}>
@@ -4891,10 +4891,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -4906,7 +4906,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -4919,15 +4919,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -4938,10 +4938,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -4952,10 +4952,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  */
@@ -4969,7 +4969,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $bytes .= $entry['image'];
                     }
-            
+
                     return $bytes;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $currentRollbackJournalBytes, $databaseBytes, $pageSize, $readerCache, $readPages, $writePages, $currentSourceId, $currentEpoch);
@@ -5027,17 +5027,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $readerCache === [] || $reads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next171 requires current pages, reader cache, and reads');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next171 current master journal does not reference the database journal');
                     }
-            
+
                     $currentPages = self::normalizePages($currentPages, $pageSize, 'current');
                     $masterDigest = hash('sha256', implode("\n", $members));
                     $readerCache = self::normalizeCache($readerCache, $pageSize, $masterDigest);
                     $reads = self::normalizeReads($reads);
-            
+
                     $sourceTicket = [
                         'id' => $currentSourceId,
                         'epoch' => $currentEpoch,
@@ -5047,7 +5047,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'recovery_sequence' => $currentRecoverySequence,
                         'read_lock_generation' => $currentReadLockGeneration,
                     ];
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_reader_cache_recovery_ticket',
                         'path' => $masterJournalPath,
@@ -5057,7 +5057,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'read_lock_generation' => $currentReadLockGeneration,
                         'deleted_after_recovery' => $masterJournalDeleted,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -5066,7 +5066,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($currentPages[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next171 cache page {$pageNumber} is outside current source");
                         }
-            
+
                         $currentImage = $currentPages[$pageNumber];
                         $imageMatches = hash_equals(self::digest($currentImage), self::digest($entry['image']));
                         $reason = null;
@@ -5089,7 +5089,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !$imageMatches) {
                             $reason = 'pinned_reader_cache_image_mismatch_after_master_recovery';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = [
                                 'page_number' => $pageNumber,
@@ -5133,7 +5133,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reader_id' => $entry['reader_id'],
                             ];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -5154,7 +5154,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::prefix($currentImage),
                         ];
                     }
-            
+
                     $nextReads = [];
                     $reopenReaders = [];
                     foreach ($reads as $read) {
@@ -5192,7 +5192,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next171',
                         'reason' => 'master_journal_recovery_sequence_and_read_lock_are_part_of_reader_cache_ticket',
@@ -5220,7 +5220,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -5233,10 +5233,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -5254,10 +5254,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,master_generation?:int,master_deleted?:bool,master_digest?:string,recovery_sequence?:int,read_lock_generation?:int,dirty?:bool,pinned?:bool,shared?:bool}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,master_generation:int,master_deleted:bool,master_digest:string,recovery_sequence:int,read_lock_generation:int,dirty:bool,pinned:bool,shared:bool}>
@@ -5299,10 +5299,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id?:string,page_number:int,source_id?:string,epoch?:int,master_generation?:int,recovery_sequence?:int,read_lock_generation?:int}> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,master_generation:int,recovery_sequence:int,read_lock_generation:int}>
@@ -5339,15 +5339,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'read_lock_generation' => $readLockGeneration,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 private static function prefix(string $bytes): string
                 {
                     return rtrim(substr($bytes, 0, 64), ".\0");
                 }
-            
+
                 private static function digest(string $bytes): string
                 {
                     return hash('sha256', $bytes);
@@ -5397,21 +5397,21 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $readerCache === [] || $nextReads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next172 requires current pages, reader cache, and next reads');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $memberDatabases = self::memberDatabases($members);
                     $masterDigest = self::digest($currentMasterJournalBytes);
                     $currentPages = self::assertCurrentPages($currentPages, $pageSize, $memberDatabases);
                     $readerCache = self::assertReaderCache($readerCache, $pageSize);
                     $nextReads = self::assertNextReads($nextReads);
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_members_for_attached_reader_cache_next172',
                         'path' => $masterJournalPath,
                         'digest' => $masterDigest,
                         'member_count' => count($members),
                     ]];
-            
+
                     $cacheRows = [];
                     $retained = [];
                     $invalidated = [];
@@ -5439,7 +5439,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             } elseif (!hash_equals(self::digest($currentImage), self::digest($entry['image']))) {
                                 $reason = 'reader_cache_image_not_current_database_source';
                             }
-            
+
                             $row = [
                                 'database_path' => $entryDatabase,
                                 'cache_slot_database_path' => $slotDatabase,
@@ -5455,7 +5455,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => $reason ?? 'reader_cache_admitted_for_current_database_master_journal_member',
                             ];
                             $cacheRows[] = $row;
-            
+
                             if ($reason === null) {
                                 $retained[$entryDatabase][$pageNumber] = $entry;
                                 $operations[] = [
@@ -5466,7 +5466,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 ];
                                 continue;
                             }
-            
+
                             $invalidated[] = $row;
                             $operations[] = [
                                 'op' => 'invalidate_attached_database_reader_cache_after_master_journal_next172',
@@ -5477,7 +5477,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             ];
                         }
                     }
-            
+
                     $reads = [];
                     $reopen = [];
                     foreach ($nextReads as $read) {
@@ -5517,9 +5517,9 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reader_id' => $read['reader_id'],
                         ];
                     }
-            
+
                     ksort($retained);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next172',
                         'reason' => 'master-journal reader cache entries are scoped by attached database path before current-source reuse',
@@ -5546,7 +5546,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Scopes reader-cache reuse by attached database path and current master-journal membership; does not repeat next166 generation/schema/page-count fencing.',
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -5559,10 +5559,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param list<string> $members
                  * @return array<string,string>
@@ -5580,14 +5580,14 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $databases[$database] = $database;
                     }
-            
+
                     if ($databases === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next172 requires at least one member database');
                     }
-            
+
                     return $databases;
                 }
-            
+
                 /**
                  * @param array<string,array<int,string>> $pages
                  * @param array<string,string> $memberDatabases
@@ -5617,10 +5617,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $pages[$databasePath] = $databasePages;
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<string,array<int,array{image:string,database_path?:string,source_id?:string,epoch?:int,master_digest?:string,reader_id?:string,dirty?:bool,pinned?:bool}>> $cache
                  * @return array<string,array<int,array{image:string,database_path:string,source_id:string,epoch:int,master_digest:string,reader_id:string,dirty:bool,pinned:bool}>>
@@ -5662,10 +5662,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             ];
                         }
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id:string,database_path:string,page_number:int,source_id?:string,epoch?:int,master_digest?:string}> $reads
                  * @return list<array{reader_id:string,database_path:string,page_number:int,source_id?:string,epoch?:int,master_digest?:string}>
@@ -5684,10 +5684,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next172 read epochs must be non-negative');
                         }
                     }
-            
+
                     return $reads;
                 }
-            
+
                 /**
                  * @param array<string,array<int,array<string,mixed>>> $retained
                  * @return array<string,list<int>>
@@ -5699,10 +5699,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ksort($pages, SORT_NUMERIC);
                         $summary[$databasePath] = array_keys($pages);
                     }
-            
+
                     return $summary;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $invalidated
                  * @return array<string,string>
@@ -5714,15 +5714,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $key = $row['cache_slot_database_path'] . '|' . $row['database_path'] . '#' . $row['page_number'];
                         $reasons[$key] = (string) $row['reason'];
                     }
-            
+
                     return $reasons;
                 }
-            
+
                 private static function digest(string $bytes): string
                 {
                     return hash('sha256', $bytes);
                 }
-            
+
                 private static function prefix(string $bytes): string
                 {
                     return rtrim(substr($bytes, 0, 48), ".\0 ");
@@ -5774,18 +5774,18 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $readerCache === [] || $reads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next173 requires pages, reader cache, and reads');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next173 current master journal does not reference the database journal');
                     }
-            
+
                     $currentPages = self::normalizePages($currentPages, $pageSize, 'current');
                     $readerCache = self::normalizeCache($readerCache, $pageSize);
                     $reads = self::normalizeReads($reads);
                     $masterDigest = self::digestMembers($members);
                     $memberSignature = self::memberSignature($members);
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_reader_cache_membership_next173',
                         'path' => $masterJournalPath,
@@ -5793,7 +5793,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'member_count' => count($members),
                         'members' => $members,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -5802,7 +5802,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($currentPages[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next173 cache page {$pageNumber} is outside current source");
                         }
-            
+
                         $currentImage = $currentPages[$pageNumber];
                         $imageMatches = hash_equals(self::digest($currentImage), self::digest($entry['image']));
                         $cachedSignature = self::memberSignature($entry['master_members']);
@@ -5820,7 +5820,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !$imageMatches) {
                             $reason = 'pinned_reader_cache_image_mismatch_after_master_membership_read';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = [
                                 'page_number' => $pageNumber,
@@ -5864,7 +5864,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reader_id' => $entry['reader_id'],
                             ];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -5885,11 +5885,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::prefix($currentImage),
                         ];
                     }
-            
+
                     ksort($retained, SORT_NUMERIC);
                     ksort($refreshed, SORT_NUMERIC);
                     ksort($invalidated, SORT_NUMERIC);
-            
+
                     $nextReads = [];
                     $reopenReaders = [];
                     foreach ($reads as $read) {
@@ -5897,7 +5897,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($currentPages[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next173 read page {$pageNumber} is outside current source");
                         }
-            
+
                         $ticketCurrent = $read['source_id'] === $currentSourceId
                             && $read['epoch'] === $currentEpoch
                             && ($read['master_digest'] === '' || hash_equals($masterDigest, $read['master_digest']));
@@ -5924,7 +5924,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next173',
                         'reason' => 'fresh master-journal membership digest fences reader-cache reuse before current-source reads',
@@ -5957,7 +5957,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -5970,10 +5970,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -5991,10 +5991,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,master_digest?:string,master_members?:list<string>,dirty?:bool,pinned?:bool,shared?:bool}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,master_digest:string,master_members:list<string>,dirty:bool,pinned:bool,shared:bool}>
@@ -6032,7 +6032,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!is_string($masterDigest)) {
                             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next173 cache master digest must be text');
                         }
-            
+
                         $normalized[$pageNumber] = [
                             'image' => $entry['image'],
                             'source_id' => $sourceId,
@@ -6046,10 +6046,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id?:string,page_number:int,source_id?:string,epoch?:int,master_digest?:string}> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,master_digest:string}>
@@ -6085,10 +6085,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_digest' => $masterDigest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<string> $members
                  */
@@ -6096,7 +6096,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     return hash('sha256', implode("\n", $members));
                 }
-            
+
                 /**
                  * @param list<string> $members
                  */
@@ -6107,15 +6107,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $unique[$member] = $member;
                     }
                     ksort($unique, SORT_STRING);
-            
+
                     return implode("\n", $unique);
                 }
-            
+
                 private static function prefix(string $bytes): string
                 {
                     return rtrim(substr($bytes, 0, 64), ".\0");
                 }
-            
+
                 private static function digest(string $bytes): string
                 {
                     return hash('sha256', $bytes);
@@ -6180,30 +6180,30 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next174 current epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $canonicalMembers = self::canonicalMembers($members);
                     $journalPath = $databasePath . '-journal';
                     if (!in_array($journalPath, $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next174 current master journal does not reference the database journal');
                     }
-            
+
                     $journal = SQLiteRollbackJournal::parse($currentRollbackJournalBytes, false);
                     if ($journal->header->pageSize !== $pageSize) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next174 rollback-journal page size must match pager page size');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $readerCache = self::normalizeReaderCache($readerCache, $pageSize);
                     self::assertPageList($readPages, 'read');
                     $writePages = self::normalizeImages($writePages, $pageSize, 'write', true);
-            
+
                     $masterDigest = hash('sha256', implode("\n", $canonicalMembers));
                     $journalPageNumbers = array_map(static fn (SQLiteRollbackJournalPage $page): int => $page->pageNumber, $journal->pages);
                     $journalSourceDigest = self::journalSourceDigest($journalPath, $currentRollbackJournalBytes, $journalPageNumbers, $journal->header);
                     $recoveredSourceId = 'master-reader-journal-source:' . hash('sha256', $masterJournalPath . '|' . $masterDigest . '|' . $journalSourceDigest);
                     $recoveredEpoch = $currentEpoch + 1;
-            
+
                     foreach ($journal->pages as $page) {
                         if (!isset($database[$page->pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next174 journal page {$page->pageNumber} is outside the database image");
@@ -6213,7 +6213,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'rollback-journal-current-source-before-reader-cache',
                         ];
                     }
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_rollback_reader_cache',
                         'path' => $masterJournalPath,
@@ -6224,7 +6224,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'journal_source_digest' => $journalSourceDigest,
                         'page_numbers' => $journalPageNumbers,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -6234,7 +6234,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next174 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -6256,7 +6256,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['epoch'] !== $currentEpoch) {
                             $reason = 'reader_cache_epoch_predates_current_rollback_source';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $pageNumber;
                             $operations[] = [
@@ -6286,7 +6286,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'page_number' => $pageNumber,
                             ];
                         }
-            
+
                         $rows[] = [
                             'label' => $entry['label'],
                             'page_number' => $pageNumber,
@@ -6309,7 +6309,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::label($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -6330,7 +6330,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     $writes = [];
                     foreach ($writePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -6354,7 +6354,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next174',
                         'reason' => 'current_rollback_journal_source_rebases_reader_cache_after_master_journal_membership',
@@ -6391,7 +6391,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ],
                     ];
                 }
-            
+
                 /**
                  * @param list<int> $pageNumbers
                  */
@@ -6409,7 +6409,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         hash('sha256', $journalBytes),
                     ]));
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -6419,10 +6419,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $map[$index + 1] = ['image' => $image, 'source' => 'database-before-rollback-journal-reader-cache'];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -6443,10 +6443,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,dirty?:bool,pinned?:bool,label?:string,master_journal_digest?:string,journal_source_digest?:string,journal_page_count?:int,journal_initial_page_count?:int,journal_page_numbers?:list<int>}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,dirty:bool,pinned:bool,label:string,master_journal_digest:string,journal_source_digest:string,journal_page_count:int,journal_initial_page_count:int,journal_page_numbers:list<int>}>
@@ -6499,10 +6499,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -6514,7 +6514,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -6527,10 +6527,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param list<string> $members
                  * @return list<string>
@@ -6539,15 +6539,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     $canonical = $members;
                     sort($canonical, SORT_STRING);
-            
+
                     return $canonical;
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -6558,10 +6558,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -6572,10 +6572,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  */
@@ -6589,7 +6589,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $bytes .= $entry['image'];
                     }
-            
+
                     return $bytes;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $currentRollbackJournalBytes, $databaseBytes, $pageSize, $readerCache, $readPages, $writePages, $currentSourceId, $currentEpoch);
@@ -6646,23 +6646,23 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next175 epoch must be positive');
                     }
-            
+
                     $members = self::members($masterJournalBytes);
                     $journalPath = $databasePath . '-journal';
                     if (!in_array($journalPath, $members, true)) {
                         throw new \RuntimeException('SQLite pager reader-cache next175 master journal does not reference the database journal');
                     }
-            
+
                     $journal = SQLiteRollbackJournal::parse($rollbackJournalBytes, false);
                     if ($journal->header->pageSize !== $pageSize) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next175 rollback journal page size does not match');
                     }
-            
+
                     $database = self::pages($databaseBytes, $pageSize);
                     $readerCache = self::cache($readerCache, $pageSize);
                     self::pageList($readPages, 'read');
                     $writePages = self::images($writePages, $pageSize, 'write');
-            
+
                     $masterDigest = hash('sha256', implode("\n", $members));
                     $journalDigest = hash('sha256', $journalPath . '|' . strlen($rollbackJournalBytes) . '|' . hash('sha256', $rollbackJournalBytes));
                     $journalRows = [];
@@ -6692,7 +6692,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $corruptPages[$page->pageNumber] = $page->pageNumber;
                         }
                     }
-            
+
                     $operations = [[
                         'op' => 'read_master_journal_for_reader_cache_checksum_next175',
                         'path' => $masterJournalPath,
@@ -6703,7 +6703,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'valid_pages' => array_keys($validJournalPages),
                         'corrupt_pages' => array_values($corruptPages),
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -6729,7 +6729,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['journal_digest'] !== $journalDigest) {
                             $reason = 'reader_cache_journal_digest_mismatch_after_checksum_recovery';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = $reason;
                             $operations[] = ['op' => 'invalidate_reader_cache_checksum_next175', 'page_number' => $pageNumber, 'reason' => $reason];
@@ -6740,7 +6740,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $retained[$pageNumber] = $entry['image'];
                             $operations[] = ['op' => 'retain_reader_cache_checksum_current_source_next175', 'page_number' => $pageNumber];
                         }
-            
+
                         $cacheRows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -6757,7 +6757,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::prefix($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -6774,7 +6774,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                         $operations[] = ['op' => $quarantined ? 'next_read_blocks_on_rollback_journal_checksum_next175' : ($cacheImage !== null ? 'next_read_uses_checksum_verified_reader_cache_next175' : 'next_read_uses_checksum_verified_current_source_next175'), 'page_number' => $pageNumber];
                     }
-            
+
                     $writes = [];
                     foreach ($writePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -6793,7 +6793,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $operations[] = ['op' => $allowed ? 'capture_next_write_after_checksum_reader_cache_next175' : 'block_next_write_after_checksum_reader_cache_next175', 'page_number' => $pageNumber];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next175',
                         'reason' => 'rollback journal page checksums fence reader-cache reuse after master-journal recovery',
@@ -6828,7 +6828,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds checksum admission for rollback-journal pages before reader-cache reuse; avoids next170 source digest and next173 membership fences.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -6841,7 +6841,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return array_values($members);
                 }
-            
+
                 /** @return array<int,array{image:string,source:string}> */
                 private static function pages(string $bytes, int $pageSize): array
                 {
@@ -6851,7 +6851,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return $pages;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function cache(array $cache, int $pageSize): array
                 {
@@ -6876,7 +6876,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return $cache;
                 }
-            
+
                 /** @param list<int> $pages */
                 private static function pageList(array $pages, string $label): void
                 {
@@ -6886,7 +6886,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /** @param array<int,string> $images @return array<int,string> */
                 private static function images(array $images, int $pageSize, string $label): array
                 {
@@ -6898,7 +6898,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return $images;
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
@@ -6959,24 +6959,24 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $nextPages === [] || $readerCache === [] || $reads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next176 requires pages, reader cache, and reads');
                     }
-            
+
                     $currentMembers = self::members($currentMasterJournalBytes);
                     $nextMembers = self::members($nextMasterJournalBytes);
                     $databaseJournal = $databasePath . '-journal';
                     if (!in_array($databaseJournal, $currentMembers, true) || !in_array($databaseJournal, $nextMembers, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next176 master journals must reference the database journal');
                     }
-            
+
                     $currentPages = self::normalizePages($currentPages, $pageSize, 'current');
                     $nextPages = self::normalizePages($nextPages, $pageSize, 'next');
                     $readerCache = self::normalizeCache($readerCache, $pageSize);
                     $reads = self::normalizeReads($reads);
-            
+
                     $currentDigest = self::digestMembers($currentMembers);
                     $nextDigest = self::digestMembers($nextMembers);
                     $currentSignature = self::memberSignature($currentMembers);
                     $nextSignature = self::memberSignature($nextMembers);
-            
+
                     $operations = [[
                         'op' => 'read_current_and_next_master_journals_for_reader_cache_next176',
                         'path' => $masterJournalPath,
@@ -6984,7 +6984,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'next_digest' => $nextDigest,
                         'source_rollover' => true,
                     ]];
-            
+
                     $currentRetained = [];
                     $currentInvalidated = [];
                     $nextReusable = [];
@@ -6994,11 +6994,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($currentPages[$pageNumber]) || !isset($nextPages[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next176 cache page {$pageNumber} is outside current or next source");
                         }
-            
+
                         $cacheSignature = self::memberSignature($entry['master_members']);
                         $currentImageMatches = hash_equals(self::digest($currentPages[$pageNumber]), self::digest($entry['image']));
                         $nextImageMatches = hash_equals(self::digest($nextPages[$pageNumber]), self::digest($entry['image']));
-            
+
                         $currentReason = null;
                         if ($entry['dirty']) {
                             $currentReason = 'dirty_reader_cache_cannot_survive_current_source';
@@ -7013,7 +7013,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !$currentImageMatches) {
                             $currentReason = 'pinned_reader_cache_current_image_mismatch';
                         }
-            
+
                         if ($currentReason === null) {
                             $currentRetained[$pageNumber] = $entry;
                             $operations[] = [
@@ -7030,7 +7030,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => $currentReason,
                             ];
                         }
-            
+
                         $nextReason = null;
                         if ($entry['dirty']) {
                             $nextReason = 'dirty_reader_cache_cannot_survive_next_source';
@@ -7045,7 +7045,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !$nextImageMatches) {
                             $nextReason = 'pinned_reader_cache_next_image_mismatch';
                         }
-            
+
                         if ($nextReason === null) {
                             $nextReusable[$pageNumber] = $entry;
                             $operations[] = [
@@ -7062,7 +7062,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => $nextReason,
                             ];
                         }
-            
+
                         $cacheRows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -7084,7 +7084,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'next_prefix' => self::prefix($nextPages[$pageNumber]),
                         ];
                     }
-            
+
                     $readRows = [];
                     $reopen = [];
                     foreach ($reads as $read) {
@@ -7094,7 +7094,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($pages[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next176 read page {$pageNumber} is outside {$phase} source");
                         }
-            
+
                         $expectedSource = $phase === 'next' ? $nextSourceId : $currentSourceId;
                         $expectedEpoch = $phase === 'next' ? $nextEpoch : $currentEpoch;
                         $expectedDigest = $phase === 'next' ? $nextDigest : $currentDigest;
@@ -7126,7 +7126,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next176',
                         'reason' => 'next master-journal source rollover fences reader-cache reuse even when page images still match',
@@ -7155,7 +7155,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Extends accepted next173 current membership fencing by proving a subsequent master-journal source rollover cannot reuse a current-source reader cache, even for identical page images.',
                     ];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -7168,10 +7168,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -7189,10 +7189,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,master_digest:string,master_members:list<string>,dirty:bool,pinned:bool,shared:bool}>
@@ -7241,10 +7241,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,master_digest:string,phase:string}>
@@ -7274,10 +7274,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'phase' => $phase,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<string> $members
                  */
@@ -7285,7 +7285,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     return hash('sha256', implode("\n", $members));
                 }
-            
+
                 /**
                  * @param list<string> $members
                  */
@@ -7295,15 +7295,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         return '';
                     }
                     sort($members, SORT_STRING);
-            
+
                     return hash('sha256', implode("\n", $members));
                 }
-            
+
                 private static function digest(string $image): string
                 {
                     return hash('sha256', $image);
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 64), ".\0 ");
@@ -7360,23 +7360,23 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next177 epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next177 current master journal does not reference the database journal');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $recoveredPages = self::normalizeImages($recoveredPages, $pageSize, 'recovered', false);
                     $readerCache = self::normalizeReaderCache($readerCache, $pageSize);
                     $nextReads = self::normalizeReads($nextReads);
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_header_ticket_reader_cache_next177',
                         'path' => $masterJournalPath,
                         'members' => $members,
                     ]];
-            
+
                     foreach ($recoveredPages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next177 recovered page {$pageNumber} is outside the database image");
@@ -7390,15 +7390,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     if (!isset($database[1])) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next177 requires page 1 for header ticketing');
                     }
-            
+
                     $header = self::headerTicket($database[1]['image'], $pageSize);
                     $nextSourceId = 'master-reader-header-ticket:' . substr(hash('sha256', $databasePath . '|' . implode('|', $members) . '|' . $header['signature']), 0, 24);
                     $nextEpoch = $currentEpoch + 1;
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -7407,7 +7407,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next177 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -7421,7 +7421,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && $entry['image'] !== $currentImage) {
                             $reason = 'pinned_reader_cache_image_predates_header_ticket';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = [
                                 'page_number' => $pageNumber,
@@ -7462,7 +7462,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reader_id' => $entry['reader_id'],
                             ];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -7482,11 +7482,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'image_matches_current_source' => $entry['image'] === $currentImage,
                         ];
                     }
-            
+
                     ksort($retained, SORT_NUMERIC);
                     ksort($refreshed, SORT_NUMERIC);
                     ksort($invalidated, SORT_NUMERIC);
-            
+
                     $reads = [];
                     $reopenReaders = [];
                     foreach ($nextReads as $read) {
@@ -7521,7 +7521,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'ticket_current' => $ticketCurrent,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next177',
                         'reason' => 'master_journal_recovery_rechecks_page_one_header_ticket_before_reader_cache_reuse',
@@ -7555,7 +7555,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'next177 adds page-1 header change-counter/schema-cookie/freelist ticket fencing before reader-cache reuse and does not repeat next174 rollback-journal source digest, next173 master-membership, next172 attached database scoping, or next158 stale page-image refresh behavior.',
                     ];
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -7576,10 +7576,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$pageNumber] = $image;
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,header_signature?:string,dirty?:bool,pinned?:bool,shared?:bool,label?:string}> $pages
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,header_signature:string,dirty:bool,pinned:bool,shared:bool,label:string}>
@@ -7621,10 +7621,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'label' => is_string($label) && $label !== '' ? $label : ('page-' . $pageNumber),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id?:string,page_number:int,source_id?:string,epoch?:int,header_signature?:string}> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,header_signature:string}>
@@ -7652,10 +7652,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'header_signature' => $signature,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -7669,10 +7669,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'database-before-master-journal-reader-cache-header-ticket-next177',
                         ];
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @return array{change_counter:int,database_size:int,first_freelist_trunk:int,freelist_count:int,schema_cookie:int,signature:string}
                  */
@@ -7689,18 +7689,18 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'schema_cookie' => self::u32($pageOne, 40),
                     ];
                     $fields['signature'] = hash('sha256', implode('|', $fields));
-            
+
                     return $fields;
                 }
-            
+
                 private static function u32(string $bytes, int $offset): int
                 {
                     /** @var array{1:int} $unpacked */
                     $unpacked = unpack('N', substr($bytes, $offset, 4));
-            
+
                     return $unpacked[1];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -7713,10 +7713,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $line;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $database
                  * @return array<int,string>
@@ -7727,10 +7727,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($database as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $database
                  * @return array<int,string>
@@ -7741,10 +7741,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($database as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $database
                  */
@@ -7755,10 +7755,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($database as $entry) {
                         $bytes .= str_pad(substr($entry['image'], 0, $pageSize), $pageSize, "\0", STR_PAD_RIGHT);
                     }
-            
+
                     return $bytes;
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(strtok($image, "\0") ?: $image, ". \0");
@@ -7821,27 +7821,27 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next178 epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $journalPath = $databasePath . '-journal';
                     if (!in_array($journalPath, $members, true)) {
                         throw new \RuntimeException('SQLite pager reader-cache next178 current master journal does not reference the database journal');
                     }
-            
+
                     $database = self::pages($databaseBytes, $pageSize);
                     $recoveredPages = self::images($recoveredPages, $pageSize, 'recovered');
                     $readerCache = self::cache($readerCache, $pageSize);
                     $memberStates = self::memberStates($memberStates, $members);
                     self::pageList($readPages, 'read');
                     $writePages = self::images($writePages, $pageSize, 'write');
-            
+
                     foreach ($recoveredPages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager reader-cache next178 recovered page {$pageNumber} is outside the database image");
                         }
                         $database[$pageNumber] = ['image' => $image, 'source' => 'master-journal-member-generation-current-source-next178'];
                     }
-            
+
                     $masterDigest = hash('sha256', implode("\n", $members));
                     $memberRows = [];
                     foreach ($members as $member) {
@@ -7855,7 +7855,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reason' => $state['deleted'] && $state['recovered'] ? 'member_journal_recovered_and_deleted' : ($state['recovered'] ? 'member_journal_not_deleted_after_recovery' : 'member_journal_not_recovered'),
                         ];
                     }
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_member_generation_next178',
                         'path' => $masterJournalPath,
@@ -7864,7 +7864,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'op' => 'verify_member_journal_recovery_and_delete_state_next178',
                         'member_states' => $memberRows,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -7894,7 +7894,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['master_digest'] !== $masterDigest) {
                             $reason = 'reader_cache_master_digest_mismatch_after_member_recovery';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = $reason;
                             $operations[] = ['op' => 'invalidate_reader_cache_member_generation_next178', 'page_number' => $pageNumber, 'reason' => $reason];
@@ -7905,7 +7905,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $retained[$pageNumber] = $entry['image'];
                             $operations[] = ['op' => 'retain_reader_cache_member_generation_next178', 'page_number' => $pageNumber];
                         }
-            
+
                         $cacheRows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -7920,7 +7920,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::prefix($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -7935,7 +7935,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                         $operations[] = ['op' => $cacheImage !== null ? 'next_read_uses_member_generation_reader_cache_next178' : 'next_read_uses_member_generation_current_source_next178', 'page_number' => $pageNumber];
                     }
-            
+
                     $writes = [];
                     foreach ($writePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -7951,7 +7951,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                         $operations[] = ['op' => 'capture_next_write_after_member_generation_reader_cache_next178', 'page_number' => $pageNumber];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next178',
                         'reason' => 'current master-journal member generations and delete state fence reader-cache reuse',
@@ -7984,7 +7984,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds member journal generation and delete-state admission for reader-cache reuse; avoids next175 checksum fencing and accepted next169 membership-only cache reuse.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -7997,7 +7997,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return array_values($members);
                 }
-            
+
                 /** @return array<int,array{image:string,source:string}> */
                 private static function pages(string $bytes, int $pageSize): array
                 {
@@ -8007,7 +8007,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return $pages;
                 }
-            
+
                 /** @param array<int,string> $images @return array<int,string> */
                 private static function images(array $images, int $pageSize, string $label): array
                 {
@@ -8019,7 +8019,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return $images;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function cache(array $cache, int $pageSize): array
                 {
@@ -8045,7 +8045,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return $cache;
                 }
-            
+
                 /**
                  * @param array<string,array<string,mixed>> $states
                  * @param list<string> $members
@@ -8070,7 +8070,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return $normalized;
                 }
-            
+
                 /** @param list<int> $pages */
                 private static function pageList(array $pages, string $label): void
                 {
@@ -8080,12 +8080,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /** @param array<int,array{image:string,source:string}> $pages */
                 private static function bytes(array $pages, int $pageSize): string
                 {
@@ -8151,23 +8151,23 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next180 epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next180 current master journal does not reference the database journal');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $recoveredPages = self::normalizeImages($recoveredPages, $pageSize, 'recovered');
                     $readerCache = self::normalizeReaderCache($readerCache, $pageSize);
                     $nextReads = self::normalizeReads($nextReads);
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_format_ticket_reader_cache_next180',
                         'path' => $masterJournalPath,
                         'members' => $members,
                     ]];
-            
+
                     foreach ($recoveredPages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next180 recovered page {$pageNumber} is outside the database image");
@@ -8184,11 +8184,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if (!isset($database[1])) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next180 requires page 1 for format ticketing');
                     }
-            
+
                     $format = self::formatTicket($database[1]['image'], $pageSize);
                     $nextSourceId = 'master-reader-format-ticket:' . substr(hash('sha256', $databasePath . '|' . implode('|', $members) . '|' . $format['signature']), 0, 24);
                     $nextEpoch = $currentEpoch + 1;
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -8197,7 +8197,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next180 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -8211,7 +8211,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && $entry['image'] !== $currentImage) {
                             $reason = 'pinned_reader_cache_image_predates_format_ticket';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = [
                                 'page_number' => $pageNumber,
@@ -8252,7 +8252,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reader_id' => $entry['reader_id'],
                             ];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -8272,11 +8272,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'image_matches_current_source' => $entry['image'] === $currentImage,
                         ];
                     }
-            
+
                     ksort($retained, SORT_NUMERIC);
                     ksort($refreshed, SORT_NUMERIC);
                     ksort($invalidated, SORT_NUMERIC);
-            
+
                     $reads = [];
                     $reopenReaders = [];
                     foreach ($nextReads as $read) {
@@ -8311,7 +8311,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'ticket_current' => $ticketCurrent,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next180',
                         'reason' => 'master_journal_recovery_rechecks_page_one_format_ticket_before_reader_cache_reuse',
@@ -8345,7 +8345,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'next180 adds page-1 format-ticket fencing for page size, reserved bytes, text encoding, user version, and application id before reader-cache reuse and does not repeat next177 change-counter/schema-cookie/freelist ticketing or next174 rollback-journal source fencing.',
                     ];
                 }
-            
+
                 /**
                  * @param array<int,string> $pages
                  * @return array<int,string>
@@ -8366,10 +8366,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$pageNumber] = $image;
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,format_signature?:string,dirty?:bool,pinned?:bool,shared?:bool,label?:string}> $pages
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,format_signature:string,dirty:bool,pinned:bool,shared:bool,label:string}>
@@ -8411,10 +8411,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'label' => is_string($label) && $label !== '' ? $label : ('page-' . $pageNumber),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array{reader_id?:string,page_number:int,source_id?:string,epoch?:int,format_signature?:string}> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,format_signature:string}>
@@ -8442,10 +8442,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'format_signature' => $signature,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -8459,10 +8459,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'database-before-master-journal-reader-cache-format-ticket-next180',
                         ];
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @return array{header_page_size:int,reserved_bytes:int,text_encoding:int,user_version:int,application_id:int,signature:string}
                  */
@@ -8483,26 +8483,26 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'application_id' => self::u32($pageOne, 68),
                     ];
                     $fields['signature'] = hash('sha256', implode('|', $fields));
-            
+
                     return $fields;
                 }
-            
+
                 private static function u16(string $bytes, int $offset): int
                 {
                     /** @var array{1:int} $unpacked */
                     $unpacked = unpack('n', substr($bytes, $offset, 2));
-            
+
                     return $unpacked[1];
                 }
-            
+
                 private static function u32(string $bytes, int $offset): int
                 {
                     /** @var array{1:int} $unpacked */
                     $unpacked = unpack('N', substr($bytes, $offset, 4));
-            
+
                     return $unpacked[1];
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -8515,10 +8515,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $line;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $database
                  * @return array<int,string>
@@ -8529,10 +8529,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($database as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $database
                  * @return array<int,string>
@@ -8543,10 +8543,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($database as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $database
                  */
@@ -8557,10 +8557,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($database as $entry) {
                         $bytes .= str_pad(substr($entry['image'], 0, $pageSize), $pageSize, "\0", STR_PAD_RIGHT);
                     }
-            
+
                     return $bytes;
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(strtok($image, "\0") ?: $image, ". \0");
@@ -8627,7 +8627,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next181 current epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $pendingMembers = self::members($pendingMasterJournalBytes);
                     $journalPath = $databasePath . '-journal';
@@ -8637,17 +8637,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($pendingMembers === $members) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next181 pending master journal must differ from current membership');
                     }
-            
+
                     $journal = SQLiteRollbackJournal::parse($currentRollbackJournalBytes, false);
                     if ($journal->header->pageSize !== $pageSize) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next181 rollback-journal page size must match pager page size');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $readerCache = self::normalizeReaderCache($readerCache, $pageSize);
                     self::assertPageList($readPages, 'read');
                     $writePages = self::normalizeImages($writePages, $pageSize, 'write', true);
-            
+
                     $masterDigest = hash('sha256', implode("\n", $members));
                     $pendingMasterDigest = hash('sha256', implode("\n", $pendingMembers));
                     $addedPendingMembers = array_values(array_diff($pendingMembers, $members));
@@ -8656,7 +8656,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $journalSourceDigest = self::journalSourceDigest($journalPath, $currentRollbackJournalBytes, $journalPageNumbers, $journal->header);
                     $recoveredSourceId = 'master-reader-journal-source:' . hash('sha256', $masterJournalPath . '|' . $masterDigest . '|' . $journalSourceDigest);
                     $recoveredEpoch = $currentEpoch + 1;
-            
+
                     foreach ($journal->pages as $page) {
                         if (!isset($database[$page->pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next181 journal page {$page->pageNumber} is outside the database image");
@@ -8666,7 +8666,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'rollback-journal-current-source-before-reader-cache',
                         ];
                     }
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_rollback_reader_cache',
                         'path' => $masterJournalPath,
@@ -8677,7 +8677,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'journal_source_digest' => $journalSourceDigest,
                         'page_numbers' => $journalPageNumbers,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -8687,7 +8687,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next181 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -8711,7 +8711,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['epoch'] !== $currentEpoch) {
                             $reason = 'reader_cache_epoch_predates_current_rollback_source';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $pageNumber;
                             $operations[] = [
@@ -8741,7 +8741,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'page_number' => $pageNumber,
                             ];
                         }
-            
+
                         $rows[] = [
                             'label' => $entry['label'],
                             'page_number' => $pageNumber,
@@ -8765,7 +8765,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::label($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -8786,7 +8786,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     $writes = [];
                     foreach ($writePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -8810,7 +8810,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next181',
                         'reason' => 'current_master_journal_membership_rejects_pending_source_reader_cache',
@@ -8851,7 +8851,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds pending master-journal membership rejection for reader-cache entries whose bytes may still match current recovery; avoids next170 rollback-journal source digest/page-set fencing and next178 member generation/delete-state fencing.',
                     ];
                 }
-            
+
                 /**
                  * @param list<int> $pageNumbers
                  */
@@ -8869,7 +8869,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         hash('sha256', $journalBytes),
                     ]));
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -8879,10 +8879,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $map[$index + 1] = ['image' => $image, 'source' => 'database-before-rollback-journal-reader-cache'];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -8903,10 +8903,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,dirty?:bool,pinned?:bool,label?:string,master_journal_digest?:string,journal_source_digest?:string,journal_page_count?:int,journal_initial_page_count?:int,journal_page_numbers?:list<int>}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,dirty:bool,pinned:bool,label:string,master_journal_digest:string,journal_source_digest:string,journal_page_count:int,journal_initial_page_count:int,journal_page_numbers:list<int>}>
@@ -8959,10 +8959,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -8974,7 +8974,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -8987,15 +8987,15 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -9006,10 +9006,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -9020,10 +9020,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  */
@@ -9037,7 +9037,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $bytes .= $entry['image'];
                     }
-            
+
                     return $bytes;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $pendingMasterJournalBytes, $currentRollbackJournalBytes, $databaseBytes, $pageSize, $readerCache, $readPages, $writePages, $currentSourceId, $currentEpoch);
@@ -9094,23 +9094,23 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next182 epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $journalPath = $databasePath . '-journal';
                     if (!in_array($journalPath, $members, true)) {
                         throw new \RuntimeException('SQLite pager reader-cache next182 current master journal does not reference the database journal');
                     }
-            
+
                     $journal = SQLiteRollbackJournal::parse($rollbackJournalBytes, true);
                     if ($journal->header->pageSize !== $pageSize) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next182 rollback-journal page size must match pager page size');
                     }
-            
+
                     $database = self::pages($databaseBytes, $pageSize);
                     $readerCache = self::cache($readerCache, $pageSize);
                     self::pageList($readPages, 'read');
                     $writePages = self::images($writePages, $pageSize, 'write');
-            
+
                     $masterDigest = self::digestMembers($members);
                     $journalPageNumbers = [];
                     foreach ($journal->pages as $page) {
@@ -9130,7 +9130,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'id' => 'master-journal-checksum-source:' . hash('sha256', $masterDigest . '|' . $journalDigest),
                         'epoch' => $currentEpoch + 1,
                     ];
-            
+
                     $operations = [[
                         'op' => 'read_current_master_journal_for_checksum_reader_cache_next182',
                         'path' => $masterJournalPath,
@@ -9142,7 +9142,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'record_count' => $recordCount,
                         'checksum_nonce' => $journal->header->checksumNonce,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -9151,7 +9151,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager reader-cache next182 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -9173,7 +9173,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !hash_equals($entry['image'], $currentImage)) {
                             $reason = 'pinned_reader_cache_image_predates_checksum_recovery';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = $reason;
                             $operations[] = ['op' => 'invalidate_reader_cache_checksum_source_next182', 'page_number' => $pageNumber, 'reason' => $reason];
@@ -9184,7 +9184,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $retained[$pageNumber] = $entry['image'];
                             $operations[] = ['op' => 'retain_reader_cache_checksum_source_next182', 'page_number' => $pageNumber];
                         }
-            
+
                         $cacheRows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -9205,7 +9205,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::prefix($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -9222,7 +9222,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                         $operations[] = ['op' => $cacheImage !== null ? 'next_read_uses_checksum_reader_cache_next182' : 'next_read_reopens_checksum_current_source_next182', 'page_number' => $pageNumber];
                     }
-            
+
                     $writes = [];
                     foreach ($writePages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
@@ -9238,7 +9238,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                         $operations[] = ['op' => 'capture_next_write_after_checksum_reader_cache_next182', 'page_number' => $pageNumber];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next182',
                         'reason' => 'checksum-validated unknown-count rollback journal fences master-journal reader cache',
@@ -9277,7 +9277,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds checksum nonce, record-count, and unknown-page-count EOF-scan fencing for master-journal reader-cache admission; avoids accepted membership, generation, page-count, and canonical member-set slices.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -9288,16 +9288,16 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /** @param list<string> $members */
                 private static function digestMembers(array $members): string
                 {
                     return hash('sha256', implode("\n", $members));
                 }
-            
+
                 /**
                  * @param list<int> $pageNumbers
                  */
@@ -9315,7 +9315,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         hash('sha256', $journalBytes),
                     ]));
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -9325,10 +9325,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $pages[$index + 1] = ['image' => $image, 'source' => 'database-before-checksum-reader-cache-next182'];
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -9346,10 +9346,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,master_digest?:string,journal_digest?:string,checksum_nonce?:int,journal_record_count?:int,journal_page_numbers?:list<int>,dirty?:bool,pinned?:bool}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,master_digest:string,journal_digest:string,checksum_nonce:int,journal_record_count:int,journal_page_numbers:list<int>,dirty:bool,pinned:bool}>
@@ -9389,7 +9389,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 throw new \InvalidArgumentException('SQLite pager reader-cache next182 cache journal page numbers must be one-based integers');
                             }
                         }
-            
+
                         $normalized[$pageNumber] = [
                             'image' => $entry['image'],
                             'source_id' => $sourceId,
@@ -9405,10 +9405,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /** @param list<int> $pages */
                 private static function pageList(array $pages, string $label): void
                 {
@@ -9418,12 +9418,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $pages
                  */
@@ -9437,7 +9437,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $bytes .= $page['image'];
                     }
-            
+
                     return $bytes;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $rollbackJournalBytes, $databaseBytes, $pageSize, $readerCache, $readPages, $writePages, $currentSourceId, $currentEpoch);
@@ -9484,10 +9484,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentMasterSourceDigest === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next183 requires a current master source digest');
                     }
-            
+
                     $cache = self::normalizePublicationCache($readerCache);
                     $reads = self::normalizePublicationReads($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext180(
                         $databasePath,
                         $masterJournalPath,
@@ -9506,7 +9506,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSourceId,
                         $currentEpoch,
                     );
-            
+
                     $publicationInvalidated = [];
                     $publicationRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -9518,11 +9518,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($publication['publication_generation'] !== $currentPublicationGeneration) {
                             $reason = 'reader_cache_publication_generation_predates_current_source';
                         }
-            
+
                         if ((bool) $row['admitted'] && $reason !== null) {
                             $publicationInvalidated[] = $pageNumber;
                         }
-            
+
                         $publicationRows[] = $row + [
                             'publication_admitted' => (bool) $row['admitted'] && $reason === null,
                             'publication_reason' => (bool) $row['admitted']
@@ -9535,17 +9535,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_source_digest_matches' => $publication['master_source_digest'] === $currentMasterSourceDigest,
                         ];
                     }
-            
+
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $publicationInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $publicationInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $publicationInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $readById = [];
                     foreach ($reads as $read) {
                         $readById[$read['reader_id']] = $read;
                     }
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $publication = $readById[$read['reader_id']];
@@ -9571,7 +9571,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next183';
                     $base['reason'] = 'master_journal_reader_cache_publication_generation_fences_current_source_reuse';
                     $base['current_publication_generation'] = $currentPublicationGeneration;
@@ -9584,10 +9584,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next183';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-publication-generation-fence';
                     $base['non_overlap'] = 'next183 fences reader-cache publication generation and master-source digest after master-journal recovery; it does not repeat next180 format-ticket checks, next168 source-page digest fences, or accepted pager master-journal reader-cache publication coverage.';
-            
+
                     return $base;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array{publication_generation:int,master_source_digest:string}>
@@ -9609,10 +9609,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_source_digest' => $digest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,format_signature:string,publication_generation:int,master_source_digest:string}>
@@ -9636,10 +9636,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_source_digest' => $digest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array<string,mixed>>
@@ -9651,10 +9651,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['publication_generation'], $entry['master_source_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /**
                  * @param list<int> $values
                  * @return list<int>
@@ -9663,10 +9663,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /**
                  * @param list<string> $readerIds
                  * @return list<string>
@@ -9679,10 +9679,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($leftNumber !== null && $rightNumber !== null && $leftNumber !== $rightNumber) {
                             return $leftNumber <=> $rightNumber;
                         }
-            
+
                         return $left <=> $right;
                     });
-            
+
                     return $readerIds;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest);
@@ -9740,12 +9740,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next184 current epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     if (!in_array($databasePath . '-journal', $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next184 current master journal does not reference the database journal');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize);
                     $stat = self::normalizeMasterStat($currentMasterStat, strlen($currentMasterJournalBytes));
                     $readToken = self::readToken($masterJournalPath, $members, $stat, $currentMasterJournalBytes);
@@ -9753,7 +9753,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $readerCache = self::normalizeReaderCache($readerCache, $pageSize);
                     self::assertPageList($readPages, 'read');
                     $refreshedPages = self::normalizeImages($refreshedPages, $pageSize, 'refreshed', true);
-            
+
                     foreach ($refreshedPages as $pageNumber => $image) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next184 refreshed page {$pageNumber} is outside the database image");
@@ -9763,7 +9763,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'master-journal-read-token-current-source-next184',
                         ];
                     }
-            
+
                     $nextSourceId = 'master-reader-cache-read-token:' . substr(hash('sha256', $masterJournalPath . '|' . $readToken), 0, 28);
                     $nextEpoch = $currentEpoch + 1;
                     $operations = [[
@@ -9772,7 +9772,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'members' => $members,
                         'read_token' => $readToken,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -9781,7 +9781,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next184 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -9801,7 +9801,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && $entry['image'] !== $currentImage) {
                             $reason = 'pinned_reader_cache_image_predates_master_read_token';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $pageNumber;
                             $operations[] = [
@@ -9823,7 +9823,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'page_number' => $pageNumber,
                             ];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'label' => $entry['label'],
@@ -9848,7 +9848,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::label($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -9868,7 +9868,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number' => $pageNumber,
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next184',
                         'reason' => 'master_journal_read_token_fences_reader_cache_across_recreated_current_source',
@@ -9899,7 +9899,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds master-journal file generation/read-token fencing for unlink/recreate current-source changes; avoids next181 pending membership, rollback-journal source digest/page-set, and member delete/recovered-state fences.',
                     ];
                 }
-            
+
                 /**
                  * @return array{device:string,inode:string,size:int,mtime:int,ctime:int,generation:string,readOffset:int,readLength:int}
                  */
@@ -9923,7 +9923,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($size !== $byteLength || $readLength !== $byteLength || $readOffset !== 0) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next184 master stat must describe a complete current read');
                     }
-            
+
                     return [
                         'device' => (string) $stat['device'],
                         'inode' => (string) $stat['inode'],
@@ -9935,7 +9935,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'readLength' => $readLength,
                     ];
                 }
-            
+
                 /**
                  * @param list<string> $members
                  * @param array{device:string,inode:string,size:int,mtime:int,ctime:int,generation:string,readOffset:int,readLength:int} $stat
@@ -9956,7 +9956,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         hash('sha256', $bytes),
                     ]));
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -9969,10 +9969,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -9982,10 +9982,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $map[$index + 1] = ['image' => $image, 'source' => 'database-before-master-read-token-reader-cache-next184'];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -10006,10 +10006,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,dirty?:bool,pinned?:bool,label?:string,master_members?:list<string>,master_read_token?:string,master_generation?:int|string,master_size?:int}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,dirty:bool,pinned:bool,label:string,master_members:list<string>,master_read_token:string,master_generation:int|string,master_size:int}>
@@ -10063,10 +10063,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<int> $pages
                  */
@@ -10078,12 +10078,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -10094,10 +10094,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $source
                  * @return array<int,string>
@@ -10108,7 +10108,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $sources[$pageNumber] = $entry['source'];
                     }
-            
+
                     return $sources;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $currentMasterStat, $databaseBytes, $pageSize, $readerCache, $readPages, $refreshedPages, $currentSourceId, $currentEpoch);
@@ -10165,13 +10165,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next185 epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $journalPath = $databasePath . '-journal';
                     if (!in_array($journalPath, $members, true)) {
                         throw new \RuntimeException('SQLite pager reader-cache next185 current master journal does not reference the database journal');
                     }
-            
+
                     $journal = SQLiteRollbackJournal::parse($rollbackJournalBytes, true);
                     if ($journal->header->pageSize !== $pageSize) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next185 rollback-journal page size must match pager page size');
@@ -10179,17 +10179,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($journal->header->pageCount === SQLiteRollbackJournalHeader::UNKNOWN_PAGE_COUNT) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next185 requires a finite rollback-journal page count');
                     }
-            
+
                     $database = self::pages($databaseBytes, $pageSize);
                     $originalPageCount = $journal->header->initialDatabasePageCount;
                     if ($originalPageCount < 1 || $originalPageCount > count($database)) {
                         throw new \InvalidArgumentException('SQLite pager reader-cache next185 initial database page count must truncate within the current image');
                     }
-            
+
                     $readerCache = self::cache($readerCache, $pageSize);
                     self::pageList($readPages, 'read');
                     $writePages = self::images($writePages, $pageSize, 'write');
-            
+
                     $masterDigest = self::digestMembers($members);
                     $journalPageNumbers = [];
                     $ignoredJournalPageNumbers = [];
@@ -10207,7 +10207,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'finite-master-journal-recovered-current-source-next185',
                         ];
                     }
-            
+
                     $truncatedPageNumbers = [];
                     foreach (array_keys($database) as $pageNumber) {
                         if ($pageNumber > $originalPageCount) {
@@ -10215,7 +10215,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             unset($database[$pageNumber]);
                         }
                     }
-            
+
                     $journalDigest = self::journalDigest($journalPath, $rollbackJournalBytes, $journalPageNumbers, $journal->header);
                     $nextSource = [
                         'id' => 'master-journal-finite-truncate-source:' . substr(hash('sha256', $masterDigest . '|' . $journalDigest . '|' . $originalPageCount), 0, 32),
@@ -10237,7 +10237,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($ignoredJournalPageNumbers as $pageNumber) {
                         $operations[] = ['op' => 'ignore_journal_page_beyond_finite_database_size_next185', 'page_number' => $pageNumber];
                     }
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -10264,7 +10264,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && $currentImage !== null && !hash_equals($entry['image'], $currentImage)) {
                             $reason = 'pinned_reader_cache_image_predates_finite_recovery';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = $reason;
                             $operations[] = ['op' => 'invalidate_reader_cache_finite_truncate_next185', 'page_number' => $pageNumber, 'reason' => $reason];
@@ -10275,7 +10275,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $retained[$pageNumber] = $entry['image'];
                             $operations[] = ['op' => 'retain_reader_cache_finite_truncate_next185', 'page_number' => $pageNumber];
                         }
-            
+
                         $cacheRows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -10294,7 +10294,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => $currentImage === null ? null : self::prefix($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     $blockedReads = [];
                     foreach ($readPages as $pageNumber) {
@@ -10325,7 +10325,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                         $operations[] = ['op' => $cacheImage !== null ? 'next_read_uses_finite_reader_cache_next185' : 'next_read_reopens_finite_current_source_next185', 'page_number' => $pageNumber];
                     }
-            
+
                     $writes = [];
                     $blockedWrites = [];
                     foreach ($writePages as $pageNumber => $image) {
@@ -10352,7 +10352,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                         $operations[] = ['op' => 'capture_next_write_after_finite_reader_cache_next185', 'page_number' => $pageNumber];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next185',
                         'reason' => 'finite rollback-journal original database size truncates reader-cache current source before next reads',
@@ -10392,7 +10392,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds finite rollback-journal original database-size truncation before reader-cache reuse; avoids next182 unknown-page-count checksum EOF scanning, next180 page-one format-ticket fences, and accepted rollback commit/apply paths.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -10403,16 +10403,16 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[$line] = $line;
                         }
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /** @param list<string> $members */
                 private static function digestMembers(array $members): string
                 {
                     return hash('sha256', implode("\n", $members));
                 }
-            
+
                 /**
                  * @param list<int> $pageNumbers
                  */
@@ -10430,7 +10430,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         hash('sha256', $journalBytes),
                     ]));
                 }
-            
+
                 /**
                  * @return array<int,array{image:string,source:string}>
                  */
@@ -10440,10 +10440,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $pages[$index + 1] = ['image' => $image, 'source' => 'database-before-finite-reader-cache-next185'];
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -10461,10 +10461,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,master_digest?:string,journal_digest?:string,initial_database_page_count?:int,journal_page_numbers?:list<int>,dirty?:bool,pinned?:bool}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,master_digest:string,journal_digest:string,initial_database_page_count:int,journal_page_numbers:list<int>,dirty:bool,pinned:bool}>
@@ -10501,7 +10501,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 throw new \InvalidArgumentException('SQLite pager reader-cache next185 cache journal page numbers must be one-based integers');
                             }
                         }
-            
+
                         $normalized[$pageNumber] = [
                             'image' => $entry['image'],
                             'source_id' => $sourceId,
@@ -10516,10 +10516,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /** @param list<int> $pages */
                 private static function pageList(array $pages, string $label): void
                 {
@@ -10529,12 +10529,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source:string}> $pages
                  */
@@ -10548,7 +10548,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $bytes .= $page['image'];
                     }
-            
+
                     return $bytes;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $rollbackJournalBytes, $databaseBytes, $pageSize, $readerCache, $readPages, $writePages, $currentSourceId, $currentEpoch);
@@ -10594,11 +10594,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentRecoverySequence < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next186 recovery sequence must be positive');
                     }
-            
+
                     $currentRecoveredPageSetDigest = self::recoveredPageSetDigest($recoveredPages, $pageSize);
                     $cache = self::normalizeRecoveryCache($readerCache);
                     $reads = self::normalizeRecoveryReads($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext183(
                         $databasePath,
                         $masterJournalPath,
@@ -10621,7 +10621,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentPublicationGeneration,
                         $currentMasterSourceDigest,
                     );
-            
+
                     $recoveryInvalidated = [];
                     $recoveryRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -10633,11 +10633,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($fence['recovered_page_set_digest'] !== $currentRecoveredPageSetDigest) {
                             $reason = 'reader_cache_recovered_page_set_digest_predates_current_source';
                         }
-            
+
                         if ((bool) ($row['publication_admitted'] ?? false) && $reason !== null) {
                             $recoveryInvalidated[] = $pageNumber;
                         }
-            
+
                         $recoveryRows[] = $row + [
                             'recovery_admitted' => (bool) ($row['publication_admitted'] ?? false) && $reason === null,
                             'recovery_reason' => (bool) ($row['publication_admitted'] ?? false)
@@ -10650,17 +10650,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'recovered_page_set_digest_matches' => $fence['recovered_page_set_digest'] === $currentRecoveredPageSetDigest,
                         ];
                     }
-            
+
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $recoveryInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $recoveryInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $recoveryInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $readById = [];
                     foreach ($reads as $read) {
                         $readById[$read['reader_id']] = $read;
                     }
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $ticket = $readById[$read['reader_id']];
@@ -10686,7 +10686,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next186';
                     $base['reason'] = 'master_journal_reader_cache_recovered_page_set_sequence_fences_current_source_reuse';
                     $base['current_recovery_sequence'] = $currentRecoverySequence;
@@ -10699,10 +10699,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next186';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-recovered-page-set-sequence-fence';
                     $base['non_overlap'] = 'next186 fences reader-cache reuse on the exact recovered-page set and recovery sequence after master-journal recovery; it does not repeat next183 publication-generation/master-source digest fencing or next180 page-1 format-ticket checks.';
-            
+
                     return $base;
                 }
-            
+
                 /**
                  * @param array<int,string> $recoveredPages
                  */
@@ -10711,7 +10711,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($recoveredPages === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next186 requires recovered pages');
                     }
-            
+
                     ksort($recoveredPages, SORT_NUMERIC);
                     $parts = [];
                     foreach ($recoveredPages as $pageNumber => $image) {
@@ -10720,10 +10720,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $parts[] = $pageNumber . ':' . hash('sha256', $image);
                     }
-            
+
                     return hash('sha256', implode('|', $parts));
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array{recovery_sequence:int,recovered_page_set_digest:string}>
@@ -10745,10 +10745,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'recovered_page_set_digest' => $digest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,format_signature:string,publication_generation:int,master_source_digest:string,recovery_sequence:int,recovered_page_set_digest:string}>
@@ -10774,10 +10774,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'recovered_page_set_digest' => $digest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array<string,mixed>>
@@ -10789,10 +10789,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['recovery_sequence'], $entry['recovered_page_set_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /**
                  * @param list<int> $values
                  * @return list<int>
@@ -10801,10 +10801,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /**
                  * @param list<string> $readerIds
                  * @return list<string>
@@ -10817,10 +10817,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($leftNumber !== null && $rightNumber !== null && $leftNumber !== $rightNumber) {
                             return $leftNumber <=> $rightNumber;
                         }
-            
+
                         return $left <=> $right;
                     });
-            
+
                     return $readerIds;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence);
@@ -10875,7 +10875,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next187 current epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $mainJournal = $databasePath . '-journal';
                     if (!in_array($mainJournal, $members, true)) {
@@ -10894,10 +10894,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'master-journal-complete-read-current-source-next187',
                         ];
                     }
-            
+
                     $cache = self::normalizeReaderCache($readerCache, $pageSize);
                     self::assertPageList($readPages, 'read');
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -10910,12 +10910,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'member_ordinals' => $ordinals,
                         'complete_read_digest' => $completeReadDigest,
                     ]];
-            
+
                     foreach ($cache as $pageNumber => $entry) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next187 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $reason = null;
                         $missingMembers = array_values(array_diff($members, array_keys($entry['master_member_ordinals'])));
                         $ordinalMismatch = self::ordinalMismatch($entry['master_member_ordinals'], $ordinals);
@@ -10937,7 +10937,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && $entry['image'] !== $currentImage) {
                             $reason = 'pinned_reader_cache_image_predates_complete_master_read';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[] = $pageNumber;
                             $operations[] = [
@@ -10960,7 +10960,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'page_number' => $pageNumber,
                             ];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'label' => $entry['label'],
@@ -10978,7 +10978,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::label($currentImage),
                         ];
                     }
-            
+
                     $nextReads = [];
                     $nextSourceId = 'master-reader-cache-complete-read:' . substr(hash('sha256', $completeReadDigest), 0, 28);
                     foreach ($readPages as $pageNumber) {
@@ -10995,7 +10995,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'prefix' => self::label($database[$pageNumber]['image']),
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next187',
                         'reason' => 'complete_master_journal_read_membership_fences_prefix_reader_cache',
@@ -11024,7 +11024,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds complete master-journal byte-span membership ordinal fencing for prefix-read reader cache entries; avoids next184 file read-token/stat fencing and accepted next170 rollback-journal source identity fences.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -11035,10 +11035,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 /** @param list<string> $members @return array<string,int> */
                 private static function ordinals(array $members): array
                 {
@@ -11046,16 +11046,16 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($members as $index => $member) {
                         $ordinals[$member] = $index + 1;
                     }
-            
+
                     return $ordinals;
                 }
-            
+
                 /** @param list<string> $members */
                 private static function completeReadDigest(string $path, string $bytes, array $members): string
                 {
                     return hash('sha256', $path . '|' . strlen($bytes) . '|' . implode("\n", $members) . '|' . hash('sha256', $bytes));
                 }
-            
+
                 /** @return array<int,array{image:string,source:string}> */
                 private static function sourceMap(string $bytes, int $pageSize): array
                 {
@@ -11063,10 +11063,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $map[$index + 1] = ['image' => $image, 'source' => 'database-before-complete-master-read-next187'];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /** @param array<int,string> $images @return array<int,string> */
                 private static function normalizeImages(array $images, int $pageSize, bool $allowEmpty): array
                 {
@@ -11084,10 +11084,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $cache
                  * @return array<int,array{image:string,label:string,source_id:string,epoch:int,master_member_ordinals:array<string,int>,master_complete_read_digest:string,master_byte_length:int,dirty:bool,pinned:bool}>
@@ -11136,10 +11136,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /** @param array<string,int> $cache @param array<string,int> $current @return array<string,array{before:int,current:int}> */
                 private static function ordinalMismatch(array $cache, array $current): array
                 {
@@ -11149,10 +11149,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $mismatch[$member] = ['before' => $cache[$member], 'current' => $ordinal];
                         }
                     }
-            
+
                     return $mismatch;
                 }
-            
+
                 /** @param list<int> $pages */
                 private static function assertPageList(array $pages, string $label): void
                 {
@@ -11162,12 +11162,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 private static function label(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
                 }
-            
+
                 /** @param array<int,array{image:string,source:string}> $source @return array<int,string> */
                 private static function prefixes(array $source): array
                 {
@@ -11175,7 +11175,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($source as $pageNumber => $entry) {
                         $prefixes[$pageNumber] = self::label($entry['image']);
                     }
-            
+
                     return $prefixes;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $readerCache, $readPages, $currentPages, $currentSourceId, $currentEpoch);
@@ -11230,13 +11230,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next188 current epoch must be positive');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $journalPath = $databasePath . '-journal';
                     if (!in_array($journalPath, $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next188 current master journal does not reference the database journal');
                     }
-            
+
                     $database = self::pages($databaseBytes, $pageSize);
                     $readerCache = self::readerCache($readerCache, $pageSize);
                     self::pageList($readPages, 'read');
@@ -11250,7 +11250,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'nul-sector-master-journal-current-source-next188',
                         ];
                     }
-            
+
                     $memberToken = self::memberToken($members);
                     $memberDigest = hash('sha256', implode("\n", $members));
                     $nextSource = [
@@ -11263,7 +11263,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'members' => $members,
                         'member_token' => $memberToken,
                     ]];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -11272,7 +11272,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next188 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -11288,7 +11288,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !hash_equals($entry['image'], $currentImage)) {
                             $reason = 'pinned_reader_cache_image_predates_nul_master_read';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = $reason;
                             $operations[] = ['op' => 'invalidate_reader_cache_after_nul_master_journal_parse_next188', 'page_number' => $pageNumber, 'reason' => $reason];
@@ -11299,7 +11299,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $retained[$pageNumber] = $entry['image'];
                             $operations[] = ['op' => 'retain_reader_cache_after_nul_master_journal_parse_next188', 'page_number' => $pageNumber];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -11319,7 +11319,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::prefix($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -11336,7 +11336,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                         $operations[] = ['op' => $cacheImage !== null ? 'next_read_uses_nul_master_reader_cache_next188' : 'next_read_reopens_after_nul_master_parse_next188', 'page_number' => $pageNumber];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next188',
                         'reason' => 'sector-padded NUL master-journal member bytes fence reader-cache current-source admission',
@@ -11366,7 +11366,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds sector-padded NUL-separated master-journal member parsing and token fencing; avoids next185 finite rollback truncation, next184 file generation tokens, next181 pending membership, and rollback-journal apply/commit paths.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -11378,16 +11378,16 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     ksort($members, SORT_STRING);
-            
+
                     return array_values($members);
                 }
-            
+
                 /** @param list<string> $members */
                 private static function memberToken(array $members): string
                 {
                     return 'nul-sector-members:' . substr(hash('sha256', implode("\n", $members)), 0, 40);
                 }
-            
+
                 /** @return array<int,array{image:string,source:string}> */
                 private static function pages(string $bytes, int $pageSize): array
                 {
@@ -11395,10 +11395,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $pages[$index + 1] = ['image' => $image, 'source' => 'database-before-nul-master-reader-cache-next188'];
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -11416,10 +11416,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,member_token?:string,member_digest?:string,dirty?:bool,pinned?:bool}> $cache
                  * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,member_token:string,member_digest:string,dirty:bool,pinned:bool}>
@@ -11454,10 +11454,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /** @param list<int> $pages */
                 private static function pageList(array $pages, string $label): void
                 {
@@ -11467,7 +11467,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
@@ -11519,7 +11519,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $memberDigests = self::normalizeMemberDigests($currentMemberJournalDigests, $members);
                     $cacheFence = self::normalizeMemberCache($readerCache);
                     $readFence = self::normalizeMemberReads($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext186(
                         $databasePath,
                         $masterJournalPath,
@@ -11545,7 +11545,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterSourceDigest,
                         $currentRecoverySequence,
                     );
-            
+
                     $memberInvalidated = [];
                     $memberRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -11558,11 +11558,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif (!hash_equals($fence['member_journal_digest'], $currentDigest)) {
                             $reason = 'reader_cache_member_journal_digest_predates_current_source';
                         }
-            
+
                         if ((bool) ($row['recovery_admitted'] ?? false) && $reason !== null) {
                             $memberInvalidated[] = $pageNumber;
                         }
-            
+
                         $memberRows[] = $row + [
                             'member_journal_admitted' => (bool) ($row['recovery_admitted'] ?? false) && $reason === null,
                             'member_journal_reason' => (bool) ($row['recovery_admitted'] ?? false)
@@ -11574,17 +11574,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'member_journal_digest_matches' => $currentDigest !== null && hash_equals($fence['member_journal_digest'], $currentDigest),
                         ];
                     }
-            
+
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $memberInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $memberInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $memberInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $readById = [];
                     foreach ($readFence as $read) {
                         $readById[$read['reader_id']] = $read;
                     }
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $ticket = $readById[$read['reader_id']];
@@ -11611,7 +11611,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next189';
                     $base['reason'] = 'master_journal_reader_cache_member_journal_digest_fences_current_source_reuse';
                     $base['current_member_journal_digests'] = $memberDigests;
@@ -11623,10 +11623,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next189';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-member-journal-digest-fence';
                     $base['non_overlap'] = 'next189 fences reader-cache reuse on per-member rollback-journal digests from the current master-journal source; it does not repeat next186 recovered page-set sequence, next183 publication generation, next180 format ticket checks, or finite rollback truncation.';
-            
+
                     return $base;
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -11639,10 +11639,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $members[] = $member;
                         }
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param array<string,string> $digests
                  * @param list<string> $members
@@ -11669,7 +11669,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array{member_journal_path:string,member_journal_digest:string}>
@@ -11691,10 +11691,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'member_journal_digest' => $digest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,format_signature:string,publication_generation:int,master_source_digest:string,recovery_sequence:int,recovered_page_set_digest:string,member_journal_path:string,member_journal_digest:string}>
@@ -11722,10 +11722,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'member_journal_digest' => $digest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array<string,mixed>>
@@ -11737,10 +11737,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['member_journal_path'], $entry['member_journal_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /**
                  * @param array<string,string> $digests
                  */
@@ -11750,10 +11750,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($digests as $path => $digest) {
                         $parts[] = $path . '=' . $digest;
                     }
-            
+
                     return hash('sha256', implode('|', $parts));
                 }
-            
+
                 /**
                  * @param list<int> $values
                  * @return list<int>
@@ -11762,10 +11762,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /**
                  * @param list<string> $readerIds
                  * @return list<string>
@@ -11778,10 +11778,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($leftNumber !== null && $rightNumber !== null && $leftNumber !== $rightNumber) {
                             return $leftNumber <=> $rightNumber;
                         }
-            
+
                         return $left <=> $right;
                     });
-            
+
                     return $readerIds;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalDigests);
@@ -11834,7 +11834,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSourceId,
                         $currentEpoch,
                     );
-            
+
                     $sources = self::sourceMap($databaseBytes, $pageSize, $currentPages, $currentPageSources);
                     $cacheDigests = self::cachePageSourceDigests($readerCache);
                     $readDigests = self::readPageSourceDigests($nextReads);
@@ -11842,7 +11842,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($sources as $pageNumber => $source) {
                         $currentDigests[$pageNumber] = self::pageSourceDigest($pageNumber, $source['image'], $source['source']);
                     }
-            
+
                     $sourceInvalidated = [];
                     $sourceRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -11851,17 +11851,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($currentDigest === null) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next190 page {$pageNumber} is outside the current source map");
                         }
-            
+
                         $cacheDigest = $cacheDigests[$pageNumber] ?? '';
                         $sourceReason = null;
                         if ($cacheDigest !== $currentDigest) {
                             $sourceReason = 'reader_cache_page_source_digest_predates_current_source';
                         }
-            
+
                         if ((bool) ($row['admitted'] ?? false) && $sourceReason !== null) {
                             $sourceInvalidated[] = $pageNumber;
                         }
-            
+
                         $sourceRows[] = $row + [
                             'source_admitted' => (bool) ($row['admitted'] ?? false) && $sourceReason === null,
                             'source_reason' => (bool) ($row['admitted'] ?? false)
@@ -11873,12 +11873,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_page_source' => $sources[$pageNumber]['source'],
                         ];
                     }
-            
+
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $sourceInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $sourceInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $sourceInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = [];
                     foreach ($base['next_reads'] as &$read) {
                         $pageNumber = $read['page_number'];
@@ -11907,7 +11907,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next190';
                     $base['reason'] = 'master_journal_reader_cache_page_source_digest_fences_current_source_reuse';
                     $base['reader_rows'] = $sourceRows;
@@ -11920,10 +11920,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next190';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-page-source-digest-fence';
                     $base['non_overlap'] = 'next190 fences per-page current-source provenance for reader-cache reuse after a complete master-journal read; it does not repeat next187 complete membership ordinal/digest fencing or next186 recovered-page-set sequence fencing.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return list<int> */
                 private static function readPages(array $reads): array
                 {
@@ -11938,10 +11938,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $pages[] = $page;
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripPageSourceDigest(array $cache): array
                 {
@@ -11950,10 +11950,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['page_source_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cachePageSourceDigests(array $cache): array
                 {
@@ -11965,10 +11965,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readPageSourceDigests(array $reads): array
                 {
@@ -11981,10 +11981,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads */
                 private static function readerIdForPage(array $reads, int $pageNumber): string
                 {
@@ -11993,10 +11993,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             return (string) ($read['reader_id'] ?? ('read-' . $pageNumber));
                         }
                     }
-            
+
                     return 'read-' . $pageNumber;
                 }
-            
+
                 /**
                  * @param array<int,string> $currentPages
                  * @param array<int,string> $currentPageSources
@@ -12021,29 +12021,29 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $map[$pageNumber] = ['image' => $image, 'source' => $source];
                     }
-            
+
                     return $map;
                 }
-            
+
                 private static function pageSourceDigest(int $pageNumber, string $image, string $source): string
                 {
                     return hash('sha256', $pageNumber . '|' . $source . '|' . hash('sha256', $image));
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortedStrings(array $values): array
                 {
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $readerCache, $nextReads, $currentPages, $currentPageSources, $currentSourceId, $currentEpoch);
@@ -12100,13 +12100,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1 || $directorySyncGeneration < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next191 requires positive epoch and directory sync generation');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $mainJournal = $databasePath . '-journal';
                     if (!in_array($mainJournal, $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next191 current master journal does not reference the database journal');
                     }
-            
+
                     $database = self::pages($databaseBytes, $pageSize);
                     $currentPages = self::images($currentPages, $pageSize, 'current');
                     foreach ($currentPages as $pageNumber => $image) {
@@ -12118,7 +12118,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'source' => 'master-journal-delete-synced-current-source-next191',
                         ];
                     }
-            
+
                     $cache = self::readerCache($readerCache, $pageSize);
                     self::pageList($readPages, 'read');
                     $memberDigest = hash('sha256', implode("\n", $members));
@@ -12127,7 +12127,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'id' => 'master-journal-delete-synced-source:' . substr(hash('sha256', $deleteToken . '|' . $currentSourceId), 0, 32),
                         'epoch' => $currentEpoch + 1,
                     ];
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -12140,12 +12140,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'delete_token' => $deleteToken,
                         'directory_sync_generation' => $directorySyncGeneration,
                     ]];
-            
+
                     foreach ($cache as $pageNumber => $entry) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next191 cache page {$pageNumber} is outside the database image");
                         }
-            
+
                         $currentImage = $database[$pageNumber]['image'];
                         $reason = null;
                         if ($entry['dirty']) {
@@ -12161,7 +12161,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !hash_equals($entry['image'], $currentImage)) {
                             $reason = 'pinned_reader_cache_image_predates_master_journal_delete';
                         }
-            
+
                         if ($reason !== null) {
                             $invalidated[$pageNumber] = $reason;
                             $operations[] = ['op' => 'invalidate_reader_cache_after_master_journal_delete_next191', 'page_number' => $pageNumber, 'reason' => $reason];
@@ -12172,7 +12172,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $retained[$pageNumber] = $entry['image'];
                             $operations[] = ['op' => 'retain_reader_cache_after_master_journal_delete_next191', 'page_number' => $pageNumber];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'reader_id' => $entry['reader_id'],
@@ -12192,7 +12192,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_prefix' => self::prefix($currentImage),
                         ];
                     }
-            
+
                     $reads = [];
                     foreach ($readPages as $pageNumber) {
                         if (!isset($database[$pageNumber])) {
@@ -12208,7 +12208,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'prefix' => self::prefix($cacheImage ?? $database[$pageNumber]['image']),
                         ];
                     }
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next191',
                         'reason' => 'master_journal_delete_and_directory_sync_fence_reader_cache_admission',
@@ -12239,7 +12239,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'Adds master-journal delete proof plus directory-sync-generation fencing; avoids next188 NUL member parsing, next187 complete-read membership, next185 finite truncation, rollback-journal commit/apply, super-journal commit, and VFS sync-plan/apply paths.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -12251,16 +12251,16 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     ksort($members, SORT_STRING);
-            
+
                     return array_values($members);
                 }
-            
+
                 /** @param list<string> $members */
                 private static function deleteToken(string $path, array $members, int $directorySyncGeneration): string
                 {
                     return 'master-delete-synced:' . substr(hash('sha256', $path . '|' . $directorySyncGeneration . '|' . implode("\n", $members)), 0, 40);
                 }
-            
+
                 /** @return array<int,array{image:string,source:string}> */
                 private static function pages(string $bytes, int $pageSize): array
                 {
@@ -12268,10 +12268,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach (str_split($bytes, $pageSize) as $index => $image) {
                         $pages[$index + 1] = ['image' => $image, 'source' => 'database-before-master-delete-reader-cache-next191'];
                     }
-            
+
                     return $pages;
                 }
-            
+
                 /**
                  * @param array<int,string> $images
                  * @return array<int,string>
@@ -12289,10 +12289,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$pageNumber] = $image;
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,reader_id?:string,source_id?:string,epoch?:int,master_delete_token?:string,directory_sync_generation?:int,dirty?:bool,pinned?:bool}> $cache
                  * @return array<int,array{image:string,reader_id:string,source_id:string,epoch:int,master_delete_token:string,directory_sync_generation:int,dirty:bool,pinned:bool}>
@@ -12327,10 +12327,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         ];
                     }
                     ksort($normalized, SORT_NUMERIC);
-            
+
                     return $normalized;
                 }
-            
+
                 /** @param list<int> $pages */
                 private static function pageList(array $pages, string $label): void
                 {
@@ -12340,7 +12340,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 80), ". \0");
@@ -12393,7 +12393,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentTokenDigest = self::memberJournalTokenDigest($currentTokens);
                     $cacheTokens = self::normalizeCacheTokens($readerCache, $members);
                     $reads = self::normalizeReads($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext186(
                         $databasePath,
                         $masterJournalPath,
@@ -12419,7 +12419,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterSourceDigest,
                         $currentRecoverySequence,
                     );
-            
+
                     $memberInvalidated = [];
                     $memberRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -12435,11 +12435,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($mismatchedMembers !== []) {
                             $reason = 'reader_cache_attached_member_journal_token_changed';
                         }
-            
+
                         if ((bool) ($row['recovery_admitted'] ?? false) && $reason !== null) {
                             $memberInvalidated[] = $pageNumber;
                         }
-            
+
                         $memberRows[] = $row + [
                             'member_token_admitted' => (bool) ($row['recovery_admitted'] ?? false) && $reason === null,
                             'member_token_reason' => (bool) ($row['recovery_admitted'] ?? false)
@@ -12452,17 +12452,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'mismatched_member_journals' => $mismatchedMembers,
                         ];
                     }
-            
+
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $memberInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $memberInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $memberInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $readById = [];
                     foreach ($reads as $read) {
                         $readById[$read['reader_id']] = $read;
                     }
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $ticket = $readById[$read['reader_id']];
@@ -12486,7 +12486,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next192';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_attached_member_journal_tokens_before_current_source_reuse';
                     $base['current_member_journal_tokens'] = $currentTokens;
@@ -12499,10 +12499,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next192';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-attached-member-journal-token-fence';
                     $base['non_overlap'] = 'next192 fences reader-cache reuse on attached member rollback-journal tokens after master-journal recovery; it does not repeat next186 recovered-page-set sequencing, next183 publication fencing, next185 finite truncation, or accepted super-journal commit/apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /**
                  * @return list<string>
                  */
@@ -12512,10 +12512,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($members === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next192 requires master-journal members');
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param array<string,string> $tokens
                  * @param list<string> $members
@@ -12532,10 +12532,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$member] = $token;
                     }
                     ksort($normalized, SORT_STRING);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @param list<string> $members
@@ -12554,10 +12554,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$pageNumber] = self::normalizeMemberJournalTokens($tokens, $members);
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,format_signature:string,publication_generation:int,master_source_digest:string,recovery_sequence:int,recovered_page_set_digest:string,member_journal_token_digest:string}>
@@ -12583,10 +12583,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'member_journal_token_digest' => $digest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array<string,mixed>>
@@ -12598,10 +12598,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['member_journal_tokens']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /**
                  * @param array<string,string> $tokens
                  */
@@ -12612,10 +12612,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($tokens as $member => $token) {
                         $parts[] = $member . '=' . $token;
                     }
-            
+
                     return hash('sha256', implode('|', $parts));
                 }
-            
+
                 /**
                  * @param list<int> $values
                  * @return list<int>
@@ -12624,10 +12624,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /**
                  * @param list<string> $readerIds
                  * @return list<string>
@@ -12640,10 +12640,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($leftNumber !== null && $rightNumber !== null && $leftNumber !== $rightNumber) {
                             return $leftNumber <=> $rightNumber;
                         }
-            
+
                         return $left <=> $right;
                     });
-            
+
                     return $readerIds;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens);
@@ -12695,7 +12695,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $stable = self::stableRead($masterJournalPath, $currentMasterJournalBytes, $currentMasterReadDigests);
                     $cacheFence = self::normalizeStableCache($readerCache);
                     $readFence = self::normalizeStableReads($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext189(
                         $databasePath,
                         $masterJournalPath,
@@ -12724,7 +12724,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentRecoverySequence,
                         $currentMemberJournalDigests,
                     );
-            
+
                     $stableInvalidated = [];
                     $stableRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -12734,11 +12734,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if (!hash_equals($fence['stable_master_read_token'], $stable['token'])) {
                             $reason = 'reader_cache_stable_master_read_token_predates_current_source';
                         }
-            
+
                         if ((bool) ($row['member_journal_admitted'] ?? false) && $reason !== null) {
                             $stableInvalidated[] = $pageNumber;
                         }
-            
+
                         $stableRows[] = $row + [
                             'stable_master_read_admitted' => (bool) ($row['member_journal_admitted'] ?? false) && $reason === null,
                             'stable_master_read_reason' => (bool) ($row['member_journal_admitted'] ?? false)
@@ -12749,17 +12749,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'stable_master_read_token_matches' => hash_equals($fence['stable_master_read_token'], $stable['token']),
                         ];
                     }
-            
+
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $stableInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $stableInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $stableInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $readById = [];
                     foreach ($readFence as $read) {
                         $readById[$read['reader_id']] = $read;
                     }
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $ticket = $readById[$read['reader_id']];
@@ -12783,7 +12783,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next193';
                     $base['reason'] = 'stable_repeated_master_journal_read_token_fences_reader_cache_reuse';
                     $base['stable_master_read'] = $stable;
@@ -12795,10 +12795,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next193';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-stable-master-journal-read-token';
                     $base['non_overlap'] = 'next193 fences reader-cache reuse on a stable repeated master-journal read token; it does not repeat next189 member rollback-journal digest checks, next187 complete-read membership ordinals, next184 file read tokens, next183 publication generation, or next180 format-ticket fences.';
-            
+
                     return $base;
                 }
-            
+
                 /**
                  * @param list<string> $digests
                  * @return array{token:string,digest:string,read_count:int,byte_digest:string}
@@ -12825,7 +12825,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if (!hash_equals($byteDigest, $first)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next193 stable read digest does not match current master-journal bytes');
                     }
-            
+
                     return [
                         'token' => 'stable-master-read:' . substr(hash('sha256', $path . '|' . $byteDigest . '|' . count($digests)), 0, 40),
                         'digest' => $first,
@@ -12833,7 +12833,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'byte_digest' => $byteDigest,
                     ];
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array{stable_master_read_token:string}>
@@ -12851,10 +12851,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$pageNumber] = ['stable_master_read_token' => $token];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array<string,mixed>>
@@ -12871,10 +12871,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $read['reader_id'] = (string) ($read['reader_id'] ?? '');
                         $normalized[] = $read;
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array<string,mixed>>
@@ -12886,19 +12886,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['stable_master_read_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $readerIds @return list<string> */
                 private static function sortReaderIds(array $readerIds): array
                 {
@@ -12908,10 +12908,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($leftNumber !== null && $rightNumber !== null && $leftNumber !== $rightNumber) {
                             return $leftNumber <=> $rightNumber;
                         }
-            
+
                         return $left <=> $right;
                     });
-            
+
                     return $readerIds;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalDigests, $currentMasterReadDigests);
@@ -12953,7 +12953,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 ): array {
                     $readGroups = self::readGroups($nextReads);
                     $cacheGroups = self::cacheGroups($readerCache);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext190(
                         $databasePath,
                         $masterJournalPath,
@@ -12971,10 +12971,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSourceId,
                         $currentEpoch,
                     );
-            
+
                     $currentDigests = $base['current_page_source_digests'];
                     $currentSnapshotDigests = self::currentSnapshotDigests($readGroups, $currentDigests);
-            
+
                     $snapshotInvalidated = [];
                     $snapshotRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -12984,18 +12984,18 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($currentDigest === null) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next194 cache transaction {$groupId} is not represented by current reads");
                         }
-            
+
                         $snapshotReason = null;
                         if (!hash_equals($cacheGroups[$pageNumber]['reader_snapshot_digest'], $currentDigest)) {
                             $snapshotReason = 'reader_cache_transaction_snapshot_predates_current_master_source';
                         }
-            
+
                         if ((bool) ($row['source_admitted'] ?? false) && $snapshotReason !== null) {
                             foreach (array_keys($readGroups[$groupId]) as $groupPage) {
                                 $snapshotInvalidated[] = $groupPage;
                             }
                         }
-            
+
                         $snapshotRows[] = $row + [
                             'reader_transaction_id' => $groupId,
                             'snapshot_admitted' => (bool) ($row['source_admitted'] ?? false) && $snapshotReason === null,
@@ -13007,19 +13007,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reader_snapshot_digest_matches' => hash_equals($cacheGroups[$pageNumber]['reader_snapshot_digest'], $currentDigest),
                         ];
                     }
-            
+
                     $snapshotInvalidated = self::sortedUnique($snapshotInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $snapshotInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $snapshotInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $snapshotInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $readById = [];
                     foreach ($nextReads as $read) {
                         $readerId = (string) ($read['reader_id'] ?? ('read-' . $read['page_number']));
                         $readById[$readerId] = $read;
                     }
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'] ?? [], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -13033,7 +13033,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($groupId === '' || $expectedSnapshot === '') {
                             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next194 reads require transaction id and snapshot digest');
                         }
-            
+
                         $snapshotCurrent = hash_equals($expectedSnapshot, $currentSnapshot);
                         $groupInvalidated = in_array($read['page_number'], $snapshotInvalidated, true);
                         $read['reader_transaction_id'] = $groupId;
@@ -13058,7 +13058,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next194';
                     $base['reason'] = 'master_journal_reader_cache_transaction_snapshot_fences_current_source_reuse';
                     $base['reader_rows'] = $snapshotRows;
@@ -13070,17 +13070,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next194';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-transaction-snapshot-fence';
                     $base['non_overlap'] = 'next194 adds transaction-wide reader snapshot cohesion after next190 per-page current-source digest fencing; it does not repeat next190 per-page source digests, next189 member rollback-journal digests, next187 complete master membership, or accepted WAL/VFS rollback application clusters.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,array<int,true>> */
                 private static function readGroups(array $reads): array
                 {
                     if ($reads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next194 requires reads');
                     }
-            
+
                     $groups = [];
                     foreach ($reads as $read) {
                         $group = (string) ($read['reader_transaction_id'] ?? '');
@@ -13091,10 +13091,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $groups[$group][$page] = true;
                     }
-            
+
                     return $groups;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array{reader_transaction_id:string,reader_snapshot_digest:string}> */
                 private static function cacheGroups(array $cache): array
                 {
@@ -13110,10 +13110,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reader_snapshot_digest' => $snapshot,
                         ];
                     }
-            
+
                     return $groups;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripSnapshotFence(array $cache): array
                 {
@@ -13122,10 +13122,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['reader_transaction_id'], $entry['reader_snapshot_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /**
                  * @param array<string,array<int,true>> $groups
                  * @param array<int,string> $currentDigests
@@ -13146,24 +13146,24 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         sort($parts, SORT_NATURAL);
                         $digests[$group] = hash('sha256', $group . '|' . implode('|', $parts));
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortedStrings(array $values): array
                 {
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $readerCache, $nextReads, $currentPages, $currentPageSources, $currentSourceId, $currentEpoch);
@@ -13208,7 +13208,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($nextReads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next195 requires next reads');
                     }
-            
+
                     $readPages = [];
                     foreach ($nextReads as $read) {
                         $page = $read['page_number'] ?? 0;
@@ -13217,7 +13217,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $readPages[] = $page;
                     }
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext191(
                         $databasePath,
                         $masterJournalPath,
@@ -13231,7 +13231,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentEpoch,
                         $directorySyncGeneration,
                     );
-            
+
                     $currentTickets = self::memberTickets(
                         $base['current_members'],
                         $currentJournalDigests,
@@ -13242,7 +13242,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $readTickets = self::readTickets($nextReads);
                     $ticketInvalidated = [];
                     $readerRows = [];
-            
+
                     foreach ($base['reader_rows'] as $row) {
                         $pageNumber = $row['page_number'];
                         $cacheTicket = $cacheTickets[$pageNumber] ?? '';
@@ -13250,11 +13250,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $ticketReason = $cacheTicket === $currentTicket
                             ? 'reader_cache_master_member_ticket_matches_current_source'
                             : 'reader_cache_master_member_ticket_predates_current_source';
-            
+
                         if ((bool) ($row['admitted'] ?? false) && $cacheTicket !== $currentTicket) {
                             $ticketInvalidated[] = $pageNumber;
                         }
-            
+
                         $readerRows[] = $row + [
                             'member_ticket_admitted' => (bool) ($row['admitted'] ?? false) && $cacheTicket === $currentTicket,
                             'member_ticket_reason' => (bool) ($row['admitted'] ?? false)
@@ -13265,12 +13265,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_member_ticket_matches' => $cacheTicket === $currentTicket,
                         ];
                     }
-            
+
                     $base['invalidated_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_page_numbers'], $ticketInvalidated));
                     $base['retained_page_numbers'] = array_values(array_diff($base['retained_page_numbers'], $ticketInvalidated));
                     $base['refreshed_page_numbers'] = array_values(array_diff($base['refreshed_page_numbers'], $ticketInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_page_numbers'] !== [];
-            
+
                     $reopenReaders = [];
                     foreach ($base['next_reads'] as &$read) {
                         $pageNumber = $read['page_number'];
@@ -13298,7 +13298,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next195';
                     $base['reason'] = 'master_journal_reader_cache_member_ticket_fences_current_source_reuse';
                     $base['reader_rows'] = $readerRows;
@@ -13310,10 +13310,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next195';
                     $base['dependencies'][] = 'sqlite-pager-master-member-ticket-fence';
                     $base['non_overlap'] = 'next195 adds per-master-member journal digest tickets after the accepted next191 delete-sync reader-cache fence; it does not repeat next191 directory-sync/delete-token fencing, next190 per-page source digests, or rollback-journal/VFS writer application.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripMemberTicket(array $cache): array
                 {
@@ -13322,10 +13322,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_member_ticket']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheTickets(array $cache): array
                 {
@@ -13337,10 +13337,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tickets[$pageNumber] = $ticket;
                     }
-            
+
                     return $tickets;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readTickets(array $reads): array
                 {
@@ -13353,10 +13353,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tickets[$readerId] = $ticket;
                     }
-            
+
                     return $tickets;
                 }
-            
+
                 /**
                  * @param list<string> $members
                  * @param array<string,string> $digests
@@ -13373,19 +13373,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $tickets[$member] = 'master-member-ticket:' . substr(hash('sha256', $member . '|' . $digest . '|' . $deleteToken . '|' . $directorySyncGeneration), 0, 40);
                     }
                     ksort($tickets, SORT_STRING);
-            
+
                     return $tickets;
                 }
-            
+
                 /** @param array<string,string> $tickets */
                 private static function pageTicket(int $pageNumber, array $tickets): string
                 {
                     $values = array_values($tickets);
                     $index = ($pageNumber - 1) % count($values);
-            
+
                     return $values[$index];
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads */
                 private static function readerIdForPage(array $reads, int $pageNumber): string
                 {
@@ -13394,24 +13394,24 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             return (string) ($read['reader_id'] ?? ('read-' . $pageNumber));
                         }
                     }
-            
+
                     return 'read-' . $pageNumber;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortedStrings(array $values): array
                 {
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $readerCache, $nextReads, $currentPages, $currentSourceId, $currentEpoch, $directorySyncGeneration, $currentJournalDigests);
@@ -13465,7 +13465,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentHeaderDigest = self::memberMapDigest($currentHeaders);
                     $cacheHeaders = self::normalizeCacheHeaders($readerCache, $members);
                     $reads = self::normalizeReads($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::attachedMemberJournalTokenFence(
                         $databasePath,
                         $masterJournalPath,
@@ -13493,7 +13493,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentRecoverySequence,
                         $currentMemberJournalTokens,
                     );
-            
+
                     $headerInvalidated = [];
                     $headerRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -13509,11 +13509,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($mismatchedMembers !== []) {
                             $reason = 'reader_cache_attached_member_journal_header_changed';
                         }
-            
+
                         if ((bool) ($row['member_token_admitted'] ?? false) && $reason !== null) {
                             $headerInvalidated[] = $pageNumber;
                         }
-            
+
                         $headerRows[] = $row + [
                             'member_header_admitted' => (bool) ($row['member_token_admitted'] ?? false) && $reason === null,
                             'member_header_reason' => (bool) ($row['member_token_admitted'] ?? false)
@@ -13526,17 +13526,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'mismatched_member_journal_headers' => $mismatchedMembers,
                         ];
                     }
-            
+
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $headerInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $headerInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $headerInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $readById = [];
                     foreach ($reads as $read) {
                         $readById[$read['reader_id']] = $read;
                     }
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $ticket = $readById[$read['reader_id']];
@@ -13560,7 +13560,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next196';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_attached_member_journal_headers_before_current_source_reuse';
                     $base['current_member_journal_header_digests'] = $currentHeaders;
@@ -13573,10 +13573,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next196';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-attached-member-journal-header-fence';
                     $base['non_overlap'] = 'next196 fences reader-cache reuse on attached member rollback-journal header digests when file tokens still match; it does not repeat next192 member token fencing, next191 master-delete directory sync, next186 recovered-page-set sequencing, or accepted super-journal commit/apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -13584,10 +13584,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($members === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next196 requires master-journal members');
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param array<string,string> $values
                  * @param list<string> $members
@@ -13604,10 +13604,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$member] = $value;
                     }
                     ksort($normalized, SORT_STRING);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @param list<string> $members
@@ -13626,10 +13626,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$pageNumber] = self::normalizeMemberMap($headers, $members, 'cache header digest');
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,format_signature:string,publication_generation:int,master_source_digest:string,recovery_sequence:int,recovered_page_set_digest:string,member_journal_token_digest:string,member_journal_header_digest:string}>
@@ -13657,10 +13657,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'member_journal_header_digest' => $headerDigest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array<string,mixed>>
@@ -13672,10 +13672,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['member_journal_header_digests']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,string> $values */
                 private static function memberMapDigest(array $values): string
                 {
@@ -13684,19 +13684,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($values as $member => $value) {
                         $parts[] = $member . '=' . $value;
                     }
-            
+
                     return hash('sha256', implode('|', $parts));
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $readerIds @return list<string> */
                 private static function sortReaderIds(array $readerIds): array
                 {
@@ -13706,10 +13706,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($leftNumber !== null && $rightNumber !== null && $leftNumber !== $rightNumber) {
                             return $leftNumber <=> $rightNumber;
                         }
-            
+
                         return $left <=> $right;
                     });
-            
+
                     return $readerIds;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests);
@@ -13769,7 +13769,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentEpoch < 1 || $checkpointGeneration < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next200 requires positive epoch and checkpoint generation');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $mainJournal = $databasePath . '-journal';
                     if (!in_array($mainJournal, $members, true)) {
@@ -13780,7 +13780,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $cache = self::cache($readerCache, $pageSize);
                     $reads = self::reads($nextReads);
                     $groups = self::readGroups($reads, $sourceMap, $memberTokens);
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -13792,7 +13792,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'member_generation_tokens' => $memberTokens,
                         'checkpoint_generation' => $checkpointGeneration,
                     ]];
-            
+
                     foreach ($cache as $pageNumber => $entry) {
                         if (!isset($sourceMap[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next200 cache page {$pageNumber} is outside the database image");
@@ -13803,7 +13803,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($currentGroupToken === null) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next200 cache transaction {$groupId} is not represented by next reads");
                         }
-            
+
                         $reason = null;
                         if ($entry['dirty']) {
                             $reason = 'dirty_reader_cache_cannot_cross_member_generation_fence';
@@ -13820,7 +13820,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !hash_equals($entry['image'], $current['image'])) {
                             $reason = 'pinned_reader_cache_image_predates_member_generation';
                         }
-            
+
                         if ($reason !== null) {
                             foreach (array_keys($groups[$groupId]['pages']) as $groupPage) {
                                 $invalidated[$groupPage] = $reason;
@@ -13838,7 +13838,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $retained[$pageNumber] = $entry['image'];
                             $operations[] = ['op' => 'retain_reader_cache_member_generation_after_master_current_source_next200', 'page_number' => $pageNumber];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'label' => $entry['label'],
@@ -13861,7 +13861,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pinned' => $entry['pinned'],
                         ];
                     }
-            
+
                     $next = [];
                     $reopenReaders = [];
                     foreach ($reads as $read) {
@@ -13895,14 +13895,14 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'prefix' => self::prefix($cacheImage ?? $current['image']),
                         ];
                     }
-            
+
                     $invalidatedPages = array_keys($invalidated);
                     sort($invalidatedPages, SORT_NUMERIC);
                     $retainedPages = array_values(array_diff(array_keys($retained), $invalidatedPages));
                     $refreshedPages = array_values(array_diff(array_keys($refreshed), $invalidatedPages));
                     sort($retainedPages, SORT_NUMERIC);
                     sort($refreshedPages, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next200',
                         'reason' => 'master_journal_member_generation_fences_reader_cache_current_source_reuse',
@@ -13931,7 +13931,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'next200 adds member-journal generation and transaction member-generation ticket fencing after master-journal recovery; it does not repeat next194 transaction snapshot digests, next193 stable master reads, next191 delete-directory-sync fencing, VFS rollback/commit/sync application, or WAL checkpoint/savepoint byte truncation.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -13943,10 +13943,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     ksort($members, SORT_STRING);
-            
+
                     return array_values($members);
                 }
-            
+
                 /** @param list<string> $members @param array<string,int> $generations @return array<string,string> */
                 private static function memberTokens(array $members, array $generations, string $masterPath, string $masterBytes, int $checkpointGeneration): array
                 {
@@ -13958,10 +13958,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$member] = 'member-source-generation:' . substr(hash('sha256', $masterPath . '|' . hash('sha256', $masterBytes) . '|' . $checkpointGeneration . '|' . $member . '|' . $generation), 0, 40);
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /**
                  * @param array<int,array{image:string,member_journal_path:string}> $currentPages
                  * @param array<string,string> $memberTokens
@@ -13992,10 +13992,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_source_digest' => self::pageDigest($pageNumber, $image, $member, $memberTokens[$member]),
                         ];
                     }
-            
+
                     return $map;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function cache(array $cache, int $pageSize): array
                 {
@@ -14019,10 +14019,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $entry['pinned'] = (bool) ($entry['pinned'] ?? false);
                         $normalized[$pageNumber] = $entry;
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return list<array<string,mixed>> */
                 private static function reads(array $reads): array
                 {
@@ -14043,10 +14043,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[] = $read;
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @param array<int,array{image:string,member_journal_path:string,member_generation_token:string,page_source_digest:string}> $sourceMap
@@ -14078,25 +14078,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pages' => $pages[$group],
                         ];
                     }
-            
+
                     return $groups;
                 }
-            
+
                 private static function pageDigest(int $pageNumber, string $image, string $member, string $token): string
                 {
                     return hash('sha256', $pageNumber . '|' . $member . '|' . $token . '|' . hash('sha256', $image));
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 64), ".\0 ");
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortedStrings(array $values): array
                 {
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $readerCache, $nextReads, $currentPages, $memberSourceGenerations, $currentSourceId, $currentEpoch, $checkpointGeneration);
@@ -14153,7 +14153,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentPlaybackDigest = self::memberMapDigest($currentPlayback);
                     $cachePlayback = self::normalizeCachePlayback($readerCache, $members);
                     $reads = self::normalizeReads($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext196(
                         $databasePath,
                         $masterJournalPath,
@@ -14183,7 +14183,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalTokens,
                         $currentMemberJournalHeaderDigests,
                     );
-            
+
                     $playbackInvalidated = [];
                     $playbackRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -14195,12 +14195,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 $mismatchedMembers[] = $member;
                             }
                         }
-            
+
                         $reason = $mismatchedMembers === [] ? null : 'reader_cache_attached_member_journal_playback_changed';
                         if ((bool) ($row['member_header_admitted'] ?? false) && $reason !== null) {
                             $playbackInvalidated[] = $pageNumber;
                         }
-            
+
                         $playbackRows[] = $row + [
                             'member_playback_admitted' => (bool) ($row['member_header_admitted'] ?? false) && $reason === null,
                             'member_playback_reason' => (bool) ($row['member_header_admitted'] ?? false)
@@ -14213,17 +14213,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'mismatched_member_journal_playbacks' => $mismatchedMembers,
                         ];
                     }
-            
+
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $playbackInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $playbackInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $playbackInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $readById = [];
                     foreach ($reads as $read) {
                         $readById[$read['reader_id']] = $read;
                     }
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $ticket = $readById[$read['reader_id']];
@@ -14247,7 +14247,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next202';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_attached_member_journal_playback_before_current_source_reuse';
                     $base['current_member_journal_playback_digests'] = $currentPlayback;
@@ -14260,10 +14260,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next202';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-attached-member-journal-playback-fence';
                     $base['non_overlap'] = 'next202 fences reader-cache reuse on attached rollback-journal playback/body digests when member tokens and headers still match; it does not repeat next196 header fencing, next192 token fencing, next191 delete/sync fencing, or accepted super-journal commit/apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -14271,10 +14271,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($members === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next202 requires master-journal members');
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param array<string,string> $values
                  * @param list<string> $members
@@ -14291,10 +14291,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$member] = $value;
                     }
                     ksort($normalized, SORT_STRING);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @param list<string> $members
@@ -14313,10 +14313,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$pageNumber] = self::normalizeMemberMap($playback, $members, 'cache playback digest');
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,format_signature:string,publication_generation:int,master_source_digest:string,recovery_sequence:int,recovered_page_set_digest:string,member_journal_token_digest:string,member_journal_header_digest:string,member_journal_playback_digest:string}>
@@ -14346,10 +14346,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'member_journal_playback_digest' => $playbackDigest,
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @return array<int,array<string,mixed>>
@@ -14361,10 +14361,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['member_journal_playback_digests']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,string> $values */
                 private static function memberMapDigest(array $values): string
                 {
@@ -14373,19 +14373,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($values as $member => $value) {
                         $parts[] = $member . '=' . $value;
                     }
-            
+
                     return hash('sha256', implode('|', $parts));
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $readerIds @return list<string> */
                 private static function sortReaderIds(array $readerIds): array
                 {
@@ -14395,10 +14395,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($leftNumber !== null && $rightNumber !== null && $leftNumber !== $rightNumber) {
                             return $leftNumber <=> $rightNumber;
                         }
-            
+
                         return $left <=> $right;
                     });
-            
+
                     return $readerIds;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMemberJournalPlaybackDigests);
@@ -14451,7 +14451,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentOrderDigest = self::memberOrderDigest($members);
                     $cacheOrderDigests = self::cacheOrderDigests($readerCache);
                     $readOrderDigests = self::readOrderDigests($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext196(
                         $databasePath,
                         $masterJournalPath,
@@ -14481,7 +14481,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalTokens,
                         $currentMemberJournalHeaderDigests,
                     );
-            
+
                     $orderInvalidated = [];
                     $orderRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -14490,11 +14490,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheDigest === $currentOrderDigest
                             ? null
                             : 'reader_cache_master_member_order_changed';
-            
+
                         if ((bool) ($row['member_header_admitted'] ?? false) && $reason !== null) {
                             $orderInvalidated[] = $pageNumber;
                         }
-            
+
                         $orderRows[] = $row + [
                             'master_member_order_admitted' => (bool) ($row['member_header_admitted'] ?? false) && $reason === null,
                             'master_member_order_reason' => (bool) ($row['member_header_admitted'] ?? false)
@@ -14505,13 +14505,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_member_order_digest_matches' => $cacheDigest === $currentOrderDigest,
                         ];
                     }
-            
+
                     $orderInvalidated = self::sortedUnique($orderInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $orderInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $orderInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $orderInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -14535,7 +14535,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next203';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_member_order_before_current_source_reuse';
                     $base['current_master_member_order_digest'] = $currentOrderDigest;
@@ -14547,10 +14547,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next203';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-master-member-order-fence';
                     $base['non_overlap'] = 'next203 fences reader-cache reuse on the ordered master-journal member list when token/header maps still match; it does not repeat next196 member header digests, next192 member tokens, next187 prefix membership admission, or accepted super-journal commit/apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -14558,16 +14558,16 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($members === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next203 requires master-journal members');
                     }
-            
+
                     return $members;
                 }
-            
+
                 /** @param list<string> $members */
                 private static function memberOrderDigest(array $members): string
                 {
                     return hash('sha256', implode("\n", $members));
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheOrderDigests(array $cache): array
                 {
@@ -14579,10 +14579,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readOrderDigests(array $reads): array
                 {
@@ -14595,10 +14595,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripOrderDigest(array $cache): array
                 {
@@ -14607,25 +14607,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_member_order_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests);
@@ -14686,19 +14686,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPages === [] || $readerCache === [] || $nextReads === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next205 requires pages, cache entries, and reads');
                     }
-            
+
                     $members = self::members($currentMasterJournalBytes);
                     $mainJournal = $databasePath . '-journal';
                     if (!in_array($mainJournal, $members, true)) {
                         throw new \RuntimeException('SQLite pager master-journal reader-cache next205 current master journal does not reference the database journal');
                     }
-            
+
                     $database = self::sourceMap($databaseBytes, $pageSize, $currentPages, $pageMemberJournals);
                     $masterNameDigests = self::masterNameDigests($members, $memberMasterNames, $masterJournalPath);
                     $cache = self::cache($readerCache, $pageSize);
                     $reads = self::reads($nextReads);
                     $groups = self::readGroups($reads, $database, $masterNameDigests);
-            
+
                     $retained = [];
                     $refreshed = [];
                     $invalidated = [];
@@ -14709,7 +14709,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'members' => $members,
                         'member_master_name_digests' => $masterNameDigests,
                     ]];
-            
+
                     foreach ($cache as $pageNumber => $entry) {
                         if (!isset($database[$pageNumber])) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next205 cache page {$pageNumber} is outside the database image");
@@ -14720,7 +14720,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($groupDigest === null) {
                             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next205 cache transaction {$group} is not represented by next reads");
                         }
-            
+
                         $reason = null;
                         if ($entry['dirty']) {
                             $reason = 'dirty_reader_cache_cannot_cross_member_master_name_fence';
@@ -14737,7 +14737,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($entry['pinned'] && !hash_equals($entry['image'], $current['image'])) {
                             $reason = 'pinned_reader_cache_image_predates_current_master_name';
                         }
-            
+
                         if ($reason !== null) {
                             foreach (array_keys($groups[$group]['pages']) as $groupPage) {
                                 $invalidated[$groupPage] = $reason;
@@ -14761,7 +14761,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'page_number' => $pageNumber,
                             ];
                         }
-            
+
                         $rows[] = [
                             'page_number' => $pageNumber,
                             'label' => $entry['label'],
@@ -14784,7 +14784,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pinned' => $entry['pinned'],
                         ];
                     }
-            
+
                     $next = [];
                     $reopenReaders = [];
                     foreach ($reads as $read) {
@@ -14818,14 +14818,14 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'prefix' => self::prefix($cacheImage ?? $current['image']),
                         ];
                     }
-            
+
                     $invalidatedPages = array_keys($invalidated);
                     sort($invalidatedPages, SORT_NUMERIC);
                     $retainedPages = array_values(array_diff(array_keys($retained), $invalidatedPages));
                     $refreshedPages = array_values(array_diff(array_keys($refreshed), $invalidatedPages));
                     sort($retainedPages, SORT_NUMERIC);
                     sort($refreshedPages, SORT_NUMERIC);
-            
+
                     return [
                         'status' => 'pager-master-journal-reader-cache-current-source-next205',
                         'reason' => 'member_rollback_journal_master_name_fences_reader_cache_current_source_reuse',
@@ -14854,7 +14854,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         'non_overlap' => 'next205 adds member rollback-journal master-name tickets after master-journal recovery; it does not repeat next203 member order, next200 member generations, next196 member header digests, next192 member tokens, next191 delete/sync proof, or accepted rollback/super-journal/VFS application paths.',
                     ];
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -14868,10 +14868,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($members === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next205 requires members');
                     }
-            
+
                     return array_values($members);
                 }
-            
+
                 /**
                  * @param list<string> $members
                  * @param array<string,string> $names
@@ -14890,10 +14890,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$member] = hash('sha256', $member . '|' . $name);
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /**
                  * @param array<int,string> $databasePages
                  * @param array<int,string> $currentPages
@@ -14915,7 +14915,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $pages[$pageNumber] = $image;
                     }
-            
+
                     $source = [];
                     foreach ($pages as $pageNumber => $image) {
                         $member = $pageMembers[$pageNumber] ?? null;
@@ -14929,10 +14929,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_source_digest' => hash('sha256', $pageNumber . '|' . $member . '|' . hash('sha256', $image)),
                         ];
                     }
-            
+
                     return $source;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $cache
                  * @return array<int,array{image:string,label:string,reader_id:string,reader_transaction_id:string,member_journal_path:string,member_master_name_digest:string,transaction_master_name_digest:string,page_source_digest:string,source_id:string,epoch:int,dirty:bool,pinned:bool}>
@@ -14960,10 +14960,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pinned' => (bool) ($entry['pinned'] ?? false),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @return list<array{reader_id:string,reader_transaction_id:string,page_number:int,member_journal_path:string,member_master_name_digest:string,transaction_master_name_digest:string,page_source_digest:string}>
@@ -14986,10 +14986,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_source_digest' => self::string($read, 'page_source_digest'),
                         ];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param list<array<string,mixed>> $reads
                  * @param array<int,array<string,string>> $database
@@ -15009,7 +15009,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $page['page_source_digest'] = hash('sha256', $pageNumber . '|' . $member . '|' . $digest . '|' . hash('sha256', $page['image']));
                     }
                     unset($page);
-            
+
                     foreach ($reads as $read) {
                         $pageNumber = $read['page_number'];
                         if (!isset($database[$pageNumber])) {
@@ -15030,10 +15030,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $group['transaction_master_name_digest'] = hash('sha256', implode('|', $parts));
                     }
                     unset($group);
-            
+
                     return $groups;
                 }
-            
+
                 /** @param array<string,mixed> $entry */
                 private static function string(array $entry, string $key, ?string $default = null): string
                 {
@@ -15041,10 +15041,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if (!is_string($value) || $value === '') {
                         throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next205 requires {$key}");
                     }
-            
+
                     return $value;
                 }
-            
+
                 /** @param array<string,mixed> $entry */
                 private static function positiveInt(array $entry, string $key): int
                 {
@@ -15052,21 +15052,21 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if (!is_int($value) || $value < 1) {
                         throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next205 requires positive {$key}");
                     }
-            
+
                     return $value;
                 }
-            
+
                 private static function prefix(string $image): string
                 {
                     return rtrim(substr($image, 0, 72), ".\0 ");
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortedStrings(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $currentPages, $readerCache, $nextReads, $pageMemberJournals, $memberMasterNames, $currentSourceId, $currentEpoch);
@@ -15120,10 +15120,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentMasterJournalFileToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next206 requires a current master-journal file token');
                     }
-            
+
                     $cacheTokens = self::cacheMasterJournalTokens($readerCache);
                     $readTokens = self::readMasterJournalTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext203(
                         $databasePath,
                         $masterJournalPath,
@@ -15154,7 +15154,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalTokens,
                         $currentMemberJournalHeaderDigests,
                     );
-            
+
                     $masterTokenInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -15163,11 +15163,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheToken === $currentMasterJournalFileToken
                             ? null
                             : 'reader_cache_master_journal_file_token_changed';
-            
+
                         if ((bool) ($row['master_member_order_admitted'] ?? false) && $reason !== null) {
                             $masterTokenInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'master_journal_file_token_admitted' => (bool) ($row['master_member_order_admitted'] ?? false) && $reason === null,
                             'master_journal_file_token_reason' => (bool) ($row['master_member_order_admitted'] ?? false)
@@ -15178,13 +15178,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_journal_file_token_matches' => $cacheToken === $currentMasterJournalFileToken,
                         ];
                     }
-            
+
                     $masterTokenInvalidated = self::sortedUnique($masterTokenInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $masterTokenInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $masterTokenInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $masterTokenInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -15208,7 +15208,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next206';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_master_journal_file_token_before_current_source_reuse';
                     $base['current_master_journal_file_token'] = $currentMasterJournalFileToken;
@@ -15220,10 +15220,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next206';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-master-journal-file-token-fence';
                     $base['non_overlap'] = 'next206 fences reader-cache reuse on the master-journal sidecar file token after member order, member token, and member header maps still match; it does not repeat next203 member order, next196 member headers, next192 member tokens, next191 delete sync, or accepted rollback/WAL/VFS apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheMasterJournalTokens(array $cache): array
                 {
@@ -15235,10 +15235,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readMasterJournalTokens(array $reads): array
                 {
@@ -15251,10 +15251,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripMasterJournalToken(array $cache): array
                 {
@@ -15263,25 +15263,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_journal_file_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken);
@@ -15337,10 +15337,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabaseFileToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next207 requires a current database file token');
                     }
-            
+
                     $cacheTokens = self::cacheDatabaseTokens($readerCache);
                     $readTokens = self::readDatabaseTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext206(
                         $databasePath,
                         $masterJournalPath,
@@ -15373,7 +15373,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalHeaderDigests,
                         $currentMasterJournalFileToken,
                     );
-            
+
                     $databaseTokenInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -15382,11 +15382,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheToken === $currentDatabaseFileToken
                             ? null
                             : 'reader_cache_database_file_token_changed_after_master_recovery';
-            
+
                         if ((bool) ($row['master_journal_file_token_admitted'] ?? false) && $reason !== null) {
                             $databaseTokenInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'database_file_token_admitted' => (bool) ($row['master_journal_file_token_admitted'] ?? false) && $reason === null,
                             'database_file_token_reason' => (bool) ($row['master_journal_file_token_admitted'] ?? false)
@@ -15397,13 +15397,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_file_token_matches' => $cacheToken === $currentDatabaseFileToken,
                         ];
                     }
-            
+
                     $databaseTokenInvalidated = self::sortedUnique($databaseTokenInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $databaseTokenInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $databaseTokenInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $databaseTokenInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -15427,7 +15427,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next207';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_file_token_before_current_source_reuse';
                     $base['current_database_file_token'] = $currentDatabaseFileToken;
@@ -15439,10 +15439,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next207';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-database-file-token-fence';
                     $base['non_overlap'] = 'next207 fences reader-cache reuse on the database file token after master-journal file token, member order, member token, and member header maps still match; it does not repeat next206 master-journal sidecar token, next203 member order, rollback-journal commit/apply, WAL byte truncation, or VFS writer/sync paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheDatabaseTokens(array $cache): array
                 {
@@ -15454,10 +15454,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readDatabaseTokens(array $reads): array
                 {
@@ -15470,10 +15470,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabaseToken(array $cache): array
                 {
@@ -15482,25 +15482,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_file_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken);
@@ -15554,10 +15554,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentMasterReadSnapshotDigest === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next208 requires a current master read snapshot digest');
                     }
-            
+
                     $cacheSnapshots = self::cacheSnapshotDigests($readerCache);
                     $readSnapshots = self::readSnapshotDigests($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext203(
                         $databasePath,
                         $masterJournalPath,
@@ -15588,7 +15588,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalTokens,
                         $currentMemberJournalHeaderDigests,
                     );
-            
+
                     $snapshotInvalidated = [];
                     $snapshotRows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -15597,11 +15597,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheDigest === $currentMasterReadSnapshotDigest
                             ? null
                             : 'reader_cache_master_journal_read_snapshot_changed';
-            
+
                         if ((bool) ($row['master_member_order_admitted'] ?? false) && $reason !== null) {
                             $snapshotInvalidated[] = $pageNumber;
                         }
-            
+
                         $snapshotRows[] = $row + [
                             'master_read_snapshot_admitted' => (bool) ($row['master_member_order_admitted'] ?? false) && $reason === null,
                             'master_read_snapshot_reason' => (bool) ($row['master_member_order_admitted'] ?? false)
@@ -15612,13 +15612,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_read_snapshot_digest_matches' => $cacheDigest === $currentMasterReadSnapshotDigest,
                         ];
                     }
-            
+
                     $snapshotInvalidated = self::sortedUnique($snapshotInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $snapshotInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $snapshotInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $snapshotInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -15642,7 +15642,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next208';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_master_read_snapshot_before_current_source_reuse';
                     $base['current_master_read_snapshot_digest'] = $currentMasterReadSnapshotDigest;
@@ -15654,10 +15654,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next208';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-master-read-snapshot-fence';
                     $base['non_overlap'] = 'next208 fences reader-cache reuse on the master-journal byte-range read snapshot when member tokens, member headers, and ordered member lists still match; it does not repeat next203 member order, next196 member header digests, next192 member tokens, or accepted master-journal commit/apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheSnapshotDigests(array $cache): array
                 {
@@ -15669,10 +15669,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readSnapshotDigests(array $reads): array
                 {
@@ -15685,10 +15685,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripSnapshotDigest(array $cache): array
                 {
@@ -15697,25 +15697,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_read_snapshot_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterReadSnapshotDigest);
@@ -15769,7 +15769,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentBytesDigest = hash('sha256', $currentMasterJournalBytes);
                     $cacheDigests = self::cacheMasterJournalBytesDigests($readerCache);
                     $readDigests = self::readMasterJournalBytesDigests($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext206(
                         $databasePath,
                         $masterJournalPath,
@@ -15802,7 +15802,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalHeaderDigests,
                         $currentMasterJournalFileToken,
                     );
-            
+
                     $bytesInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -15811,11 +15811,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheDigest === $currentBytesDigest
                             ? null
                             : 'reader_cache_master_journal_bytes_digest_changed';
-            
+
                         if ((bool) ($row['master_journal_file_token_admitted'] ?? false) && $reason !== null) {
                             $bytesInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'master_journal_bytes_digest_admitted' => (bool) ($row['master_journal_file_token_admitted'] ?? false) && $reason === null,
                             'master_journal_bytes_digest_reason' => (bool) ($row['master_journal_file_token_admitted'] ?? false)
@@ -15826,13 +15826,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_journal_bytes_digest_matches' => $cacheDigest === $currentBytesDigest,
                         ];
                     }
-            
+
                     $bytesInvalidated = self::sortedUnique($bytesInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $bytesInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $bytesInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $bytesInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -15856,7 +15856,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next209';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_raw_master_journal_bytes_before_current_source_reuse';
                     $base['current_master_journal_bytes_digest'] = $currentBytesDigest;
@@ -15868,10 +15868,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next209';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-master-journal-raw-bytes-fence';
                     $base['non_overlap'] = 'next209 fences reader-cache reuse on the raw master-journal bytes digest after member order and file token still match; it does not repeat next206 file-token, next203 member-order, next196 member-header, next192 member-token, next191 delete-sync, or accepted rollback/WAL/VFS apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheMasterJournalBytesDigests(array $cache): array
                 {
@@ -15883,10 +15883,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readMasterJournalBytesDigests(array $reads): array
                 {
@@ -15899,10 +15899,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripMasterJournalBytesDigest(array $cache): array
                 {
@@ -15911,25 +15911,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_journal_bytes_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken);
@@ -15987,7 +15987,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     }
                     $cacheTokens = self::cacheMasterJournalReadSourceTokens($readerCache);
                     $readTokens = self::readMasterJournalReadSourceTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext209(
                         $databasePath,
                         $masterJournalPath,
@@ -16021,7 +16021,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalHeaderDigests,
                         $currentMasterJournalFileToken,
                     );
-            
+
                     $readSourceInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -16030,11 +16030,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheToken === $currentMasterJournalReadSourceToken
                             ? null
                             : 'reader_cache_master_journal_read_source_token_changed';
-            
+
                         if ((bool) ($row['master_journal_bytes_digest_admitted'] ?? false) && $reason !== null) {
                             $readSourceInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'master_journal_read_source_token_admitted' => (bool) ($row['master_journal_bytes_digest_admitted'] ?? false) && $reason === null,
                             'master_journal_read_source_token_reason' => (bool) ($row['master_journal_bytes_digest_admitted'] ?? false)
@@ -16045,13 +16045,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_journal_read_source_token_matches' => $cacheToken === $currentMasterJournalReadSourceToken,
                         ];
                     }
-            
+
                     $readSourceInvalidated = self::sortedUnique($readSourceInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $readSourceInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $readSourceInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $readSourceInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -16075,7 +16075,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next210';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_vfs_read_source_before_current_source_reuse';
                     $base['current_master_journal_read_source_token'] = $currentMasterJournalReadSourceToken;
@@ -16087,10 +16087,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next210';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-master-journal-vfs-read-source-fence';
                     $base['non_overlap'] = 'next210 fences reader-cache reuse on the VFS master-journal read-source token after raw bytes, file token, member order, member headers, and member tokens still match; it does not repeat next209 raw bytes, next206 file-token, next203 member-order, next196 member-header, next192 member-token, next191 delete-sync, or accepted rollback/WAL/VFS apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheMasterJournalReadSourceTokens(array $cache): array
                 {
@@ -16102,10 +16102,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $token;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readMasterJournalReadSourceTokens(array $reads): array
                 {
@@ -16118,10 +16118,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $token;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripMasterJournalReadSourceToken(array $cache): array
                 {
@@ -16130,25 +16130,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_journal_read_source_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentMasterJournalReadSourceToken);
@@ -16207,7 +16207,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentRecoveredDigest = self::memberMapDigest($currentRecovered);
                     $cacheRecovered = self::normalizeCacheRecoveredPages($readerCache, $members);
                     $readRecoveredDigests = self::readRecoveredPageDigests($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext209(
                         $databasePath,
                         $masterJournalPath,
@@ -16241,7 +16241,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalHeaderDigests,
                         $currentMasterJournalFileToken,
                     );
-            
+
                     $recoveredInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -16256,11 +16256,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $mismatchedMembers === []
                             ? null
                             : 'reader_cache_attached_member_recovered_page_set_changed';
-            
+
                         if ((bool) ($row['master_journal_bytes_digest_admitted'] ?? false) && $reason !== null) {
                             $recoveredInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'member_recovered_page_admitted' => (bool) ($row['master_journal_bytes_digest_admitted'] ?? false) && $reason === null,
                             'member_recovered_page_reason' => (bool) ($row['master_journal_bytes_digest_admitted'] ?? false)
@@ -16273,13 +16273,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'mismatched_member_journal_recovered_pages' => $mismatchedMembers,
                         ];
                     }
-            
+
                     $recoveredInvalidated = self::sortedUnique($recoveredInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $recoveredInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $recoveredInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $recoveredInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -16303,7 +16303,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next211';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_attached_member_recovered_page_sets_before_current_source_reuse';
                     $base['current_member_journal_recovered_page_digests'] = $currentRecovered;
@@ -16316,10 +16316,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next211';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-attached-member-recovered-page-set-fence';
                     $base['non_overlap'] = 'next211 fences reader-cache reuse on attached member recovered-page-set digests after raw master-journal bytes, file token, member order, member headers, and member tokens still match; it does not repeat next209 raw bytes, next206 file-token, next203 member-order, next196 member-header, next192 member-token, or accepted rollback/WAL/VFS apply paths.';
-            
+
                     return $base;
                 }
-            
+
                 /** @return list<string> */
                 private static function members(string $bytes): array
                 {
@@ -16327,10 +16327,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($members === []) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next211 requires master-journal members');
                     }
-            
+
                     return $members;
                 }
-            
+
                 /**
                  * @param array<string,string> $values
                  * @param list<string> $members
@@ -16347,10 +16347,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $normalized[$member] = $value;
                     }
                     ksort($normalized, SORT_STRING);
-            
+
                     return $normalized;
                 }
-            
+
                 /**
                  * @param array<int,array<string,mixed>> $readerCache
                  * @param list<string> $members
@@ -16369,10 +16369,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$pageNumber] = self::normalizeMemberMap($digests, $members, 'cache recovered page digest');
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readRecoveredPageDigests(array $reads): array
                 {
@@ -16385,10 +16385,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripRecoveredPageDigests(array $cache): array
                 {
@@ -16397,10 +16397,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['member_journal_recovered_page_digests']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,string> $values */
                 private static function memberMapDigest(array $values): string
                 {
@@ -16409,25 +16409,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     foreach ($values as $member => $value) {
                         $parts[] = $member . '=' . $value;
                     }
-            
+
                     return hash('sha256', implode('|', $parts));
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMemberJournalRecoveredPageDigests, $currentMasterJournalFileToken);
@@ -16483,10 +16483,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabaseFileToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next212 requires a current database file token');
                     }
-            
+
                     $cacheTokens = self::cacheDatabaseFileTokens($readerCache);
                     $readTokens = self::readDatabaseFileTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext209(
                         $databasePath,
                         $masterJournalPath,
@@ -16520,7 +16520,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMemberJournalHeaderDigests,
                         $currentMasterJournalFileToken,
                     );
-            
+
                     $databaseTokenInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -16529,11 +16529,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheToken === $currentDatabaseFileToken
                             ? null
                             : 'reader_cache_database_file_token_changed_after_master_journal_recovery';
-            
+
                         if ((bool) ($row['master_journal_bytes_digest_admitted'] ?? false) && $reason !== null) {
                             $databaseTokenInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'database_file_token_admitted' => (bool) ($row['master_journal_bytes_digest_admitted'] ?? false) && $reason === null,
                             'database_file_token_reason' => (bool) ($row['master_journal_bytes_digest_admitted'] ?? false)
@@ -16544,13 +16544,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_file_token_matches' => $cacheToken === $currentDatabaseFileToken,
                         ];
                     }
-            
+
                     $databaseTokenInvalidated = self::sortedUnique($databaseTokenInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $databaseTokenInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $databaseTokenInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $databaseTokenInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -16574,7 +16574,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next212';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_file_token_before_current_source_reuse';
                     $base['current_database_file_token'] = $currentDatabaseFileToken;
@@ -16586,10 +16586,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next212';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-database-file-token-fence';
                     $base['non_overlap'] = 'next212 fences reader-cache reuse on the recovered database file token after the accepted next209 raw master-journal bytes, next206 master file-token, next203 member-order, next196 member-header, next192 member-token, and next191 delete-sync fences have admitted the page; it does not repeat WAL, rollback-journal, VFS writer, or master-journal bytes behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheDatabaseFileTokens(array $cache): array
                 {
@@ -16601,10 +16601,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readDatabaseFileTokens(array $reads): array
                 {
@@ -16617,10 +16617,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabaseFileToken(array $cache): array
                 {
@@ -16629,25 +16629,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_file_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken);
@@ -16703,7 +16703,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentHeaderDigest = self::currentDatabaseHeaderDigest($databaseBytes, $pageSize, $recoveredPages);
                     $cacheHeaderDigests = self::cacheDatabaseHeaderDigests($readerCache);
                     $readHeaderDigests = self::readDatabaseHeaderDigests($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext212(
                         $databasePath,
                         $masterJournalPath,
@@ -16739,7 +16739,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterJournalFileToken,
                         $currentDatabaseFileToken,
                     );
-            
+
                     $headerInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -16748,11 +16748,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheDigest === $currentHeaderDigest
                             ? null
                             : 'reader_cache_database_header_digest_changed_after_master_journal_recovery';
-            
+
                         if ((bool) ($row['database_file_token_admitted'] ?? false) && $reason !== null) {
                             $headerInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'database_header_digest_admitted' => (bool) ($row['database_file_token_admitted'] ?? false) && $reason === null,
                             'database_header_digest_reason' => (bool) ($row['database_file_token_admitted'] ?? false)
@@ -16763,13 +16763,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_header_digest_matches' => $cacheDigest === $currentHeaderDigest,
                         ];
                     }
-            
+
                     $headerInvalidated = self::sortedUnique($headerInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $headerInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $headerInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $headerInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -16793,7 +16793,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next213';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_header_digest_before_current_source_reuse';
                     $base['current_database_header_digest'] = $currentHeaderDigest;
@@ -16805,10 +16805,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next213';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-database-header-digest-fence';
                     $base['non_overlap'] = 'next213 fences reader-cache reuse on the recovered database page-1 header digest after accepted next212 database file-token, next209 master bytes, next206 master file-token, next203 member-order, next196 member-header, and next192 member-token fences admit a page; it does not repeat WAL, rollback-journal, VFS writer, database file-token, or older header-ticket helper behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /**
                  * @param array<int,string> $recoveredPages
                  */
@@ -16821,10 +16821,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if (!is_string($pageOne) || strlen($pageOne) !== $pageSize) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next213 requires a page-size page-one image');
                     }
-            
+
                     return hash('sha256', substr($pageOne, 0, 100));
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheDatabaseHeaderDigests(array $cache): array
                 {
@@ -16836,10 +16836,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readDatabaseHeaderDigests(array $reads): array
                 {
@@ -16852,10 +16852,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabaseHeaderDigest(array $cache): array
                 {
@@ -16864,25 +16864,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_header_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken);
@@ -16940,10 +16940,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabaseHeaderDigest === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next217 requires a current database header digest');
                     }
-            
+
                     $cacheHeaders = self::cacheDatabaseHeaderDigests($readerCache);
                     $readHeaders = self::readDatabaseHeaderDigests($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext212(
                         $databasePath,
                         $masterJournalPath,
@@ -16979,7 +16979,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterJournalFileToken,
                         $currentDatabaseFileToken,
                     );
-            
+
                     $headerInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -16988,11 +16988,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheHeader === $currentDatabaseHeaderDigest
                             ? null
                             : 'reader_cache_database_header_digest_changed_after_master_journal_recovery';
-            
+
                         if ((bool) ($row['database_file_token_admitted'] ?? false) && $reason !== null) {
                             $headerInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'database_header_digest_admitted' => (bool) ($row['database_file_token_admitted'] ?? false) && $reason === null,
                             'database_header_digest_reason' => (bool) ($row['database_file_token_admitted'] ?? false)
@@ -17003,13 +17003,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_header_digest_matches' => $cacheHeader === $currentDatabaseHeaderDigest,
                         ];
                     }
-            
+
                     $headerInvalidated = self::sortedUnique($headerInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $headerInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $headerInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $headerInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -17033,7 +17033,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next217';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_header_digest_before_current_source_reuse';
                     $base['current_database_header_digest'] = $currentDatabaseHeaderDigest;
@@ -17045,10 +17045,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next217';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-database-header-digest-fence';
                     $base['non_overlap'] = 'next217 fences reader-cache reuse on the recovered database header digest after next212 database file-token admission; it does not repeat raw master-journal bytes, member-token/header/order, file-token, rollback-journal apply, WAL, VFS writer, or super-journal commit behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheDatabaseHeaderDigests(array $cache): array
                 {
@@ -17060,10 +17060,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readDatabaseHeaderDigests(array $reads): array
                 {
@@ -17076,10 +17076,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabaseHeaderDigest(array $cache): array
                 {
@@ -17088,25 +17088,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_header_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest);
@@ -17164,10 +17164,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentMasterJournalCleanupToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next218 requires a current master-journal cleanup token');
                     }
-            
+
                     $cacheCleanupTokens = self::cacheCleanupTokens($readerCache);
                     $readCleanupTokens = self::readCleanupTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext212(
                         $databasePath,
                         $masterJournalPath,
@@ -17187,7 +17187,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterJournalFileToken,
                         $currentDatabaseFileToken,
                     );
-            
+
                     $cleanupInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -17196,11 +17196,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheToken === $currentMasterJournalCleanupToken
                             ? null
                             : 'reader_cache_master_journal_cleanup_token_changed_after_recovery';
-            
+
                         if ((bool) ($row['database_file_token_admitted'] ?? false) && $reason !== null) {
                             $cleanupInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'master_journal_cleanup_token_admitted' => (bool) ($row['database_file_token_admitted'] ?? false) && $reason === null,
                             'master_journal_cleanup_token_reason' => (bool) ($row['database_file_token_admitted'] ?? false)
@@ -17211,13 +17211,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_journal_cleanup_token_matches' => $cacheToken === $currentMasterJournalCleanupToken,
                         ];
                     }
-            
+
                     $cleanupInvalidated = self::sortedUnique($cleanupInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $cleanupInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $cleanupInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $cleanupInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -17241,7 +17241,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next218';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_cleanup_token_before_current_source_reuse';
                     $base['current_master_journal_cleanup_token'] = $currentMasterJournalCleanupToken;
@@ -17253,10 +17253,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next218';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-master-journal-cleanup-token-fence';
                     $base['non_overlap'] = 'next218 fences reader-cache reuse after master-journal cleanup/deletion tokens change, layered after next212 database file-token admission; it does not repeat rollback-journal apply, super-journal commit, database file-token, recovered-page, raw bytes, file-token, member-order, member-header, or member-token fences.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheCleanupTokens(array $cache): array
                 {
@@ -17268,10 +17268,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readCleanupTokens(array $reads): array
                 {
@@ -17284,10 +17284,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripCleanupToken(array $cache): array
                 {
@@ -17296,33 +17296,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_journal_cleanup_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneCleanupToken(array $read): array
                 {
                     unset($read['master_journal_cleanup_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken);
@@ -17382,10 +17382,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabasePageCount < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next219 requires a positive current database page count');
                     }
-            
+
                     $cachePageCounts = self::cacheDatabasePageCounts($readerCache);
                     $readPageCounts = self::readDatabasePageCounts($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext217(
                         $databasePath,
                         $masterJournalPath,
@@ -17423,7 +17423,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseFileToken,
                         $currentDatabaseHeaderDigest,
                     );
-            
+
                     $pageCountInvalidated = [];
                     $truncatedPageNumbers = [];
                     $rows = [];
@@ -17437,14 +17437,14 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             $pageCountChanged => 'reader_cache_database_page_count_changed_after_master_journal_recovery',
                             default => null,
                         };
-            
+
                         if ((bool) ($row['database_header_digest_admitted'] ?? false) && $reason !== null) {
                             $pageCountInvalidated[] = $pageNumber;
                             if ($pagePastEnd) {
                                 $truncatedPageNumbers[] = $pageNumber;
                             }
                         }
-            
+
                         $rows[] = $row + [
                             'database_page_count_admitted' => (bool) ($row['database_header_digest_admitted'] ?? false) && $reason === null,
                             'database_page_count_reason' => (bool) ($row['database_header_digest_admitted'] ?? false)
@@ -17456,14 +17456,14 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_number_within_current_page_count' => !$pagePastEnd,
                         ];
                     }
-            
+
                     $pageCountInvalidated = self::sortedUnique($pageCountInvalidated);
                     $truncatedPageNumbers = self::sortedUnique($truncatedPageNumbers);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $pageCountInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $pageCountInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $pageCountInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -17492,7 +17492,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next219';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_page_count_before_current_source_reuse';
                     $base['current_database_page_count'] = $currentDatabasePageCount;
@@ -17505,10 +17505,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next219';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-database-page-count-fence';
                     $base['non_overlap'] = 'next219 fences reader-cache reuse on the recovered database page count and out-of-range reads after next217 database header admission; it does not repeat raw master-journal bytes, member-token/header/order, file-token, database-header digest, rollback-journal apply, WAL, VFS writer, or super-journal commit behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,int> */
                 private static function cacheDatabasePageCounts(array $cache): array
                 {
@@ -17520,10 +17520,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $counts[$pageNumber] = $pageCount;
                     }
-            
+
                     return $counts;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,int> */
                 private static function readDatabasePageCounts(array $reads): array
                 {
@@ -17536,10 +17536,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $counts[$readerId] = $pageCount;
                     }
-            
+
                     return $counts;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabasePageCount(array $cache): array
                 {
@@ -17548,25 +17548,25 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_page_count']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest, $currentDatabasePageCount);
@@ -17627,7 +17627,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $currentTicket = self::normalizePagerHeaderTicket($currentPagerHeaderTicket, 'current');
                     $cacheTickets = self::cachePagerHeaderTickets($readerCache);
                     $readTickets = self::readPagerHeaderTickets($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext217(
                         $databasePath,
                         $masterJournalPath,
@@ -17665,7 +17665,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseFileToken,
                         $currentDatabaseHeaderDigest,
                     );
-            
+
                     $ticketInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -17675,11 +17675,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $matches
                             ? null
                             : 'reader_cache_pager_header_ticket_changed_after_master_journal_recovery';
-            
+
                         if ((bool) ($row['database_header_digest_admitted'] ?? false) && $reason !== null) {
                             $ticketInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'pager_header_ticket_admitted' => (bool) ($row['database_header_digest_admitted'] ?? false) && $reason === null,
                             'pager_header_ticket_reason' => (bool) ($row['database_header_digest_admitted'] ?? false)
@@ -17690,13 +17690,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pager_header_ticket_matches' => $matches,
                         ];
                     }
-            
+
                     $ticketInvalidated = self::sortedUnique($ticketInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $ticketInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $ticketInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $ticketInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -17720,7 +17720,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next221';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_structured_pager_header_ticket_before_current_source_reuse';
                     $base['current_pager_header_ticket'] = $currentTicket;
@@ -17732,10 +17732,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next221';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-structured-header-ticket-fence';
                     $base['non_overlap'] = 'next221 fences reader-cache reuse on the structured recovered page-1 change-counter/schema-cookie/version-valid-for/page-count ticket after next217 database header digest admission; it does not repeat opaque header digest, database file-token, master-journal bytes, member-token/header/order, WAL, VFS writer, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<string,mixed> $ticket @return array{change_counter:int,schema_cookie:int,version_valid_for:int,page_count:int} */
                 private static function normalizePagerHeaderTicket(array $ticket, string $label): array
                 {
@@ -17747,10 +17747,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $normalized[$key] = $ticket[$key];
                     }
-            
+
                     return $normalized;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,int>> */
                 private static function cachePagerHeaderTickets(array $cache): array
                 {
@@ -17761,10 +17761,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tickets[$pageNumber] = self::normalizePagerHeaderTicket($entry['pager_header_ticket'], 'cache');
                     }
-            
+
                     return $tickets;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,array<string,int>> */
                 private static function readPagerHeaderTickets(array $reads): array
                 {
@@ -17776,10 +17776,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tickets[$readerId] = self::normalizePagerHeaderTicket($read['pager_header_ticket'], 'read');
                     }
-            
+
                     return $tickets;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripPagerHeaderTicket(array $cache): array
                 {
@@ -17788,39 +17788,39 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['pager_header_ticket']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,int> $left @param array<string,int> $right */
                 private static function ticketsMatch(array $left, array $right): bool
                 {
                     return self::ticketDigest($left) === self::ticketDigest($right);
                 }
-            
+
                 /** @param array<string,int> $ticket */
                 private static function ticketDigest(array $ticket): string
                 {
                     ksort($ticket, SORT_STRING);
-            
+
                     return hash('sha256', json_encode($ticket, JSON_THROW_ON_ERROR));
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest, $currentPagerHeaderTicket);
@@ -17880,10 +17880,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentReaderLeaseToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next224 requires a current reader lease token');
                     }
-            
+
                     $cacheLeaseTokens = self::cacheReaderLeaseTokens($readerCache);
                     $readLeaseTokens = self::readReaderLeaseTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext218(
                         $databasePath,
                         $masterJournalPath,
@@ -17904,7 +17904,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseFileToken,
                         $currentMasterJournalCleanupToken,
                     );
-            
+
                     $leaseInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -17913,11 +17913,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheToken === $currentReaderLeaseToken
                             ? null
                             : 'reader_cache_reader_lease_token_predates_master_journal_current_source';
-            
+
                         if ((bool) ($row['master_journal_cleanup_token_admitted'] ?? false) && $reason !== null) {
                             $leaseInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'reader_lease_token_admitted' => (bool) ($row['master_journal_cleanup_token_admitted'] ?? false) && $reason === null,
                             'reader_lease_token_reason' => (bool) ($row['master_journal_cleanup_token_admitted'] ?? false)
@@ -17928,13 +17928,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reader_lease_token_matches' => $cacheToken === $currentReaderLeaseToken,
                         ];
                     }
-            
+
                     $leaseInvalidated = self::sortedUnique($leaseInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $leaseInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $leaseInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $leaseInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -17958,7 +17958,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next224';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_reader_lease_before_current_source_reuse';
                     $base['current_reader_lease_token'] = $currentReaderLeaseToken;
@@ -17970,10 +17970,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next224';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-reader-lease-fence';
                     $base['non_overlap'] = 'next224 fences reader-cache reuse on the pager reader lease after next218 master-journal cleanup and next212 database file-token admission have already passed; it does not repeat cleanup-token, database file-token, raw master bytes, member-journal, rollback-journal, WAL, VFS writer, or sync-plan behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheReaderLeaseTokens(array $cache): array
                 {
@@ -17985,10 +17985,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readReaderLeaseTokens(array $reads): array
                 {
@@ -18001,10 +18001,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripReaderLeaseToken(array $cache): array
                 {
@@ -18013,33 +18013,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['reader_lease_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneReaderLeaseToken(array $read): array
                 {
                     unset($read['reader_lease_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken);
@@ -18103,10 +18103,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentChangeCounter < 0 || $currentVersionValidFor < 0) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next225 requires non-negative cache validity counters');
                     }
-            
+
                     $cacheCounters = self::cacheValidityCounters($readerCache);
                     $readCounters = self::readValidityCounters($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext219(
                         $databasePath,
                         $masterJournalPath,
@@ -18128,7 +18128,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseHeaderDigest,
                         $currentDatabasePageCount,
                     );
-            
+
                     $currentToken = self::validityToken($currentChangeCounter, $currentVersionValidFor);
                     $counterInvalidated = [];
                     $rows = [];
@@ -18141,11 +18141,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         } elseif ($cache['version_valid_for'] !== $currentVersionValidFor) {
                             $reason = 'reader_cache_version_valid_for_changed_after_master_journal_recovery';
                         }
-            
+
                         if ((bool) ($row['database_page_count_admitted'] ?? false) && $reason !== null) {
                             $counterInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'database_cache_validity_admitted' => (bool) ($row['database_page_count_admitted'] ?? false) && $reason === null,
                             'database_cache_validity_reason' => (bool) ($row['database_page_count_admitted'] ?? false)
@@ -18161,13 +18161,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_version_valid_for_matches' => $cache['version_valid_for'] === $currentVersionValidFor,
                         ];
                     }
-            
+
                     $counterInvalidated = self::sortedUnique($counterInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $counterInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $counterInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $counterInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -18199,7 +18199,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next225';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_change_counter_and_version_valid_for_before_current_source_reuse';
                     $base['current_database_change_counter'] = $currentChangeCounter;
@@ -18213,10 +18213,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next225';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-change-counter-version-valid-for-fence';
                     $base['non_overlap'] = 'next225 fences reader-cache reuse on the SQLite page-1 change-counter/version-valid-for tuple after next219 page-count admission; it does not repeat database header digest, page-count truncation, master-journal bytes/tokens, rollback-journal apply, WAL, VFS writer, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array{change_counter:int,version_valid_for:int}> */
                 private static function cacheValidityCounters(array $cache): array
                 {
@@ -18235,10 +18235,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'version_valid_for' => $versionValidFor,
                         ];
                     }
-            
+
                     return $counters;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,array{change_counter:int,version_valid_for:int}> */
                 private static function readValidityCounters(array $reads): array
                 {
@@ -18255,10 +18255,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'version_valid_for' => $versionValidFor,
                         ];
                     }
-            
+
                     return $counters;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripValidityCounters(array $cache): array
                 {
@@ -18267,38 +18267,38 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_change_counter'], $entry['database_version_valid_for']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneValidityCounter(array $read): array
                 {
                     unset($read['database_change_counter'], $read['database_version_valid_for']);
-            
+
                     return $read;
                 }
-            
+
                 private static function validityToken(int $changeCounter, int $versionValidFor): string
                 {
                     return hash('sha256', $changeCounter . ':' . $versionValidFor);
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest, $currentDatabasePageCount, $currentChangeCounter, $currentVersionValidFor);
@@ -18365,10 +18365,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabaseChangeCounter !== $currentVersionValidFor) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next226 requires current change-counter/version-valid-for coherence');
                     }
-            
+
                     $cacheCounters = self::cacheHeaderCounters($readerCache);
                     $readCounters = self::readHeaderCounters($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext219(
                         $databasePath,
                         $masterJournalPath,
@@ -18390,7 +18390,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseHeaderDigest,
                         $currentDatabasePageCount,
                     );
-            
+
                     $counterInvalidated = [];
                     $incoherentCachePages = [];
                     $rows = [];
@@ -18405,14 +18405,14 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             !$counterCurrent => 'reader_cache_header_counter_pair_changed_after_master_journal_recovery',
                             default => null,
                         };
-            
+
                         if ((bool) ($row['database_page_count_admitted'] ?? false) && $reason !== null) {
                             $counterInvalidated[] = $pageNumber;
                             if (!$cacheCoherent) {
                                 $incoherentCachePages[] = $pageNumber;
                             }
                         }
-            
+
                         $rows[] = $row + [
                             'header_counter_pair_admitted' => (bool) ($row['database_page_count_admitted'] ?? false) && $reason === null,
                             'header_counter_pair_reason' => (bool) ($row['database_page_count_admitted'] ?? false)
@@ -18426,14 +18426,14 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'header_counter_pair_matches' => $counterCurrent,
                         ];
                     }
-            
+
                     $counterInvalidated = self::sortedUnique($counterInvalidated);
                     $incoherentCachePages = self::sortedUnique($incoherentCachePages);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $counterInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $counterInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $counterInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -18465,7 +18465,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next226';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_change_counter_version_valid_for_before_current_source_reuse';
                     $base['current_database_change_counter'] = $currentDatabaseChangeCounter;
@@ -18479,10 +18479,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next226';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-header-counter-fence';
                     $base['non_overlap'] = 'next226 fences reader-cache reuse on SQLite page-1 change-counter/version-valid-for coherence after next219 database page-count admission; it does not repeat master-journal bytes, member token/header/order, cleanup token, database file-token, header digest, page-count, rollback-journal apply, WAL, or VFS writer behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array{change:int,valid:int}> */
                 private static function cacheHeaderCounters(array $cache): array
                 {
@@ -18495,10 +18495,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $counters[$pageNumber] = ['change' => $change, 'valid' => $valid];
                     }
-            
+
                     return $counters;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,array{change:int,valid:int}> */
                 private static function readHeaderCounters(array $reads): array
                 {
@@ -18512,10 +18512,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $counters[$readerId] = ['change' => $change, 'valid' => $valid];
                     }
-            
+
                     return $counters;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripHeaderCounters(array $cache): array
                 {
@@ -18524,33 +18524,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_change_counter'], $entry['version_valid_for']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneHeaderCounter(array $read): array
                 {
                     unset($read['database_change_counter'], $read['version_valid_for']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest, $currentDatabasePageCount, $currentDatabaseChangeCounter, $currentVersionValidFor);
@@ -18610,7 +18610,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $cacheImageDigests = self::cacheImageDigests($readerCache);
                     $readImageDigests = self::readImageDigests($nextReads);
                     $currentImageDigests = self::currentImageDigests($databaseBytes, $pageSize, $recoveredPages);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext224(
                         $databasePath,
                         $masterJournalPath,
@@ -18632,7 +18632,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterJournalCleanupToken,
                         $currentReaderLeaseToken,
                     );
-            
+
                     $payloadInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -18642,7 +18642,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($currentDigest === '') {
                             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next228 cache page is outside current source');
                         }
-            
+
                         $baseAdmitted = (bool) ($row['reader_lease_token_admitted'] ?? false);
                         $payloadMatches = $cacheDigest === $currentDigest;
                         if ($baseAdmitted && !$payloadMatches) {
@@ -18653,7 +18653,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_page_payload_digest_predates_current_master_journal_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'page_payload_digest_admitted' => $baseAdmitted && $payloadMatches,
                             'page_payload_digest_reason' => $baseAdmitted
@@ -18666,13 +18666,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_payload_digest_matches' => $payloadMatches,
                         ];
                     }
-            
+
                     $payloadInvalidated = self::sortedUnique($payloadInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $payloadInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $payloadInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $payloadInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -18699,7 +18699,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next228';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_page_payload_digest_before_current_source_reuse';
                     $base['reader_rows'] = $rows;
@@ -18711,10 +18711,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next228';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-page-payload-digest-fence';
                     $base['non_overlap'] = 'next228 adds only per-page payload digest admission after next224 reader-lease cleanup and next218/next212 source-token fences have passed; it does not repeat master-journal membership, cleanup-token, database file-token, reader-lease, VFS/WAL writer, rollback-journal commit/apply, or page relocation behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheImageDigests(array $cache): array
                 {
@@ -18726,10 +18726,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readImageDigests(array $reads): array
                 {
@@ -18742,17 +18742,17 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,string> $recoveredPages @return array<int,string> */
                 private static function currentImageDigests(string $databaseBytes, int $pageSize, array $recoveredPages): array
                 {
                     if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0 || $databaseBytes === '' || strlen($databaseBytes) % $pageSize !== 0) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next228 requires page-size aligned database bytes');
                     }
-            
+
                     $digests = [];
                     foreach (str_split($databaseBytes, $pageSize) as $index => $image) {
                         $digests[$index + 1] = hash('sha256', $image);
@@ -18763,10 +18763,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = hash('sha256', $image);
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripImageDigest(array $cache): array
                 {
@@ -18774,33 +18774,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['page_payload_digest']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneImageDigest(array $read): array
                 {
                     unset($read['page_payload_digest']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken);
@@ -18862,10 +18862,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPagerCacheSourceToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next229 requires a current pager cache source token');
                     }
-            
+
                     $cacheTokens = self::cachePagerCacheSourceTokens($readerCache);
                     $readTokens = self::readPagerCacheSourceTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext224(
                         $databasePath,
                         $masterJournalPath,
@@ -18887,7 +18887,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterJournalCleanupToken,
                         $currentReaderLeaseToken,
                     );
-            
+
                     $cacheSourceInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -18896,11 +18896,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = hash_equals($cacheToken, $currentPagerCacheSourceToken)
                             ? null
                             : 'reader_cache_pager_cache_source_token_predates_master_journal_current_source';
-            
+
                         if ((bool) ($row['reader_lease_token_admitted'] ?? false) && $reason !== null) {
                             $cacheSourceInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'pager_cache_source_token_admitted' => (bool) ($row['reader_lease_token_admitted'] ?? false) && $reason === null,
                             'pager_cache_source_token_reason' => (bool) ($row['reader_lease_token_admitted'] ?? false)
@@ -18911,13 +18911,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pager_cache_source_token_matches' => hash_equals($cacheToken, $currentPagerCacheSourceToken),
                         ];
                     }
-            
+
                     $cacheSourceInvalidated = self::sortedUnique($cacheSourceInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $cacheSourceInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $cacheSourceInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $cacheSourceInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -18941,7 +18941,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next229';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_pager_cache_source_before_current_source_reuse';
                     $base['current_pager_cache_source_token'] = $currentPagerCacheSourceToken;
@@ -18953,10 +18953,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next229';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-source-generation-fence';
                     $base['non_overlap'] = 'next229 fences reader-cache reuse on the pager cache source token after next224 reader-lease, next218 cleanup-token, and next212 database file-token admission have already passed; it does not repeat reader-lease, cleanup-token, database file-token, raw master bytes, member-journal, rollback-journal, WAL, VFS writer, sync-plan, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cachePagerCacheSourceTokens(array $cache): array
                 {
@@ -18968,10 +18968,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readPagerCacheSourceTokens(array $reads): array
                 {
@@ -18984,10 +18984,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripPagerCacheSourceToken(array $cache): array
                 {
@@ -18996,33 +18996,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['pager_cache_source_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOnePagerCacheSourceToken(array $read): array
                 {
                     unset($read['pager_cache_source_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken);
@@ -19088,10 +19088,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSqliteVersionNumber < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next230 requires a positive SQLite version-number stamp');
                     }
-            
+
                     $cacheVersions = self::cacheSqliteVersionNumbers($readerCache);
                     $readVersions = self::readSqliteVersionNumbers($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext226(
                         $databasePath,
                         $masterJournalPath,
@@ -19115,7 +19115,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseChangeCounter,
                         $currentVersionValidFor,
                     );
-            
+
                     $versionInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -19124,11 +19124,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheVersion === $currentSqliteVersionNumber
                             ? null
                             : 'reader_cache_sqlite_version_number_changed_after_master_journal_recovery';
-            
+
                         if ((bool) ($row['header_counter_pair_admitted'] ?? false) && $reason !== null) {
                             $versionInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'sqlite_version_number_admitted' => (bool) ($row['header_counter_pair_admitted'] ?? false) && $reason === null,
                             'sqlite_version_number_reason' => (bool) ($row['header_counter_pair_admitted'] ?? false)
@@ -19139,13 +19139,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'sqlite_version_number_matches' => $cacheVersion === $currentSqliteVersionNumber,
                         ];
                     }
-            
+
                     $versionInvalidated = self::sortedUnique($versionInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $versionInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $versionInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $versionInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -19169,7 +19169,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next230';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_sqlite_version_number_before_current_source_reuse';
                     $base['current_sqlite_version_number'] = $currentSqliteVersionNumber;
@@ -19181,10 +19181,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next230';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-sqlite-version-number-fence';
                     $base['non_overlap'] = 'next230 fences reader-cache reuse on the SQLite page-1 version-number stamp after next226 header counter admission; it does not repeat format signatures, change-counter/version-valid-for coherence, page-count, database header digest, master-journal bytes, member token/header/order, cleanup-token, rollback-journal apply, WAL, or VFS writer behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,int> */
                 private static function cacheSqliteVersionNumbers(array $cache): array
                 {
@@ -19196,10 +19196,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $versions[$pageNumber] = $version;
                     }
-            
+
                     return $versions;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,int> */
                 private static function readSqliteVersionNumbers(array $reads): array
                 {
@@ -19212,10 +19212,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $versions[$readerId] = $version;
                     }
-            
+
                     return $versions;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripSqliteVersionNumber(array $cache): array
                 {
@@ -19224,33 +19224,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['sqlite_version_number']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneSqliteVersionNumber(array $read): array
                 {
                     unset($read['sqlite_version_number']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest, $currentDatabasePageCount, $currentDatabaseChangeCounter, $currentVersionValidFor, $currentSqliteVersionNumber);
@@ -19324,10 +19324,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentFreelistTrunkPage > $currentDatabasePageCount) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next231 current freelist trunk exceeds database page count');
                     }
-            
+
                     $cacheFreelists = self::cacheFreelistHeaders($readerCache);
                     $readFreelists = self::readFreelistHeaders($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext226(
                         $databasePath,
                         $masterJournalPath,
@@ -19351,7 +19351,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseChangeCounter,
                         $currentVersionValidFor,
                     );
-            
+
                     $freelistInvalidated = [];
                     $incoherentFreelistPages = [];
                     $trunkPastEndPages = [];
@@ -19369,7 +19369,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             !$freelistCurrent => 'reader_cache_freelist_header_changed_after_master_journal_recovery',
                             default => null,
                         };
-            
+
                         if ((bool) ($row['header_counter_pair_admitted'] ?? false) && $reason !== null) {
                             $freelistInvalidated[] = $pageNumber;
                             if (!$cacheCoherent) {
@@ -19379,7 +19379,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 $trunkPastEndPages[] = $pageNumber;
                             }
                         }
-            
+
                         $rows[] = $row + [
                             'freelist_header_admitted' => (bool) ($row['header_counter_pair_admitted'] ?? false) && $reason === null,
                             'freelist_header_reason' => (bool) ($row['header_counter_pair_admitted'] ?? false)
@@ -19394,7 +19394,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'freelist_trunk_within_current_page_count' => $freelist['trunk'] <= $currentDatabasePageCount,
                         ];
                     }
-            
+
                     $freelistInvalidated = self::sortedUnique($freelistInvalidated);
                     $incoherentFreelistPages = self::sortedUnique($incoherentFreelistPages);
                     $trunkPastEndPages = self::sortedUnique($trunkPastEndPages);
@@ -19402,7 +19402,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $freelistInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $freelistInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -19435,7 +19435,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next231';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_freelist_header_before_current_source_reuse';
                     $base['current_freelist_trunk_page'] = $currentFreelistTrunkPage;
@@ -19450,19 +19450,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next231';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-freelist-header-fence';
                     $base['non_overlap'] = 'next231 fences reader-cache reuse on SQLite page-1 freelist trunk/count state after next226 header-counter admission; it does not repeat master-journal bytes, member token/header/order, cleanup token, database file-token, header digest, page-count, change-counter, rollback-journal apply, WAL, VFS writer, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 private static function freelistHeaderCoherent(int $trunkPage, int $pageCount, int $databasePageCount): bool
                 {
                     if ($trunkPage < 0 || $pageCount < 0 || $trunkPage > $databasePageCount) {
                         return false;
                     }
-            
+
                     return !($trunkPage === 0 && $pageCount !== 0);
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array{trunk:int,count:int}> */
                 private static function cacheFreelistHeaders(array $cache): array
                 {
@@ -19475,10 +19475,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $headers[$pageNumber] = ['trunk' => $trunk, 'count' => $count];
                     }
-            
+
                     return $headers;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,array{trunk:int,count:int}> */
                 private static function readFreelistHeaders(array $reads): array
                 {
@@ -19492,10 +19492,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $headers[$readerId] = ['trunk' => $trunk, 'count' => $count];
                     }
-            
+
                     return $headers;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripFreelistHeaders(array $cache): array
                 {
@@ -19504,33 +19504,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['freelist_trunk_page'], $entry['freelist_page_count']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneFreelistHeader(array $read): array
                 {
                     unset($read['freelist_trunk_page'], $read['freelist_page_count']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest, $currentDatabasePageCount, $currentDatabaseChangeCounter, $currentVersionValidFor, $currentFreelistTrunkPage, $currentFreelistPageCount);
@@ -19594,10 +19594,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabasePathToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next232 requires a current database path token');
                     }
-            
+
                     $cachePathTokens = self::cacheDatabasePathTokens($readerCache);
                     $readPathTokens = self::readDatabasePathTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext229(
                         $databasePath,
                         $masterJournalPath,
@@ -19620,7 +19620,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentReaderLeaseToken,
                         $currentPagerCacheSourceToken,
                     );
-            
+
                     $pathInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -19629,11 +19629,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = hash_equals($cacheToken, $currentDatabasePathToken)
                             ? null
                             : 'reader_cache_database_path_token_crosses_master_journal_database_slot';
-            
+
                         if ((bool) ($row['pager_cache_source_token_admitted'] ?? false) && $reason !== null) {
                             $pathInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'database_path_token_admitted' => (bool) ($row['pager_cache_source_token_admitted'] ?? false) && $reason === null,
                             'database_path_token_reason' => (bool) ($row['pager_cache_source_token_admitted'] ?? false)
@@ -19644,13 +19644,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_path_token_matches' => hash_equals($cacheToken, $currentDatabasePathToken),
                         ];
                     }
-            
+
                     $pathInvalidated = self::sortedUnique($pathInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $pathInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $pathInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $pathInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -19674,7 +19674,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next232';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_path_namespace_before_current_source_reuse';
                     $base['current_database_path_token'] = $currentDatabasePathToken;
@@ -19686,10 +19686,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next232';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-database-path-namespace-fence';
                     $base['non_overlap'] = 'next232 fences reader-cache reuse on the current database path/attachment namespace after next229 pager-cache-source, next224 reader-lease, next218 cleanup-token, and next212 database file-token admission have already passed; it does not repeat pager cache source, reader lease, cleanup token, database file token, master-journal bytes, member-journal, WAL, VFS writer, sync-plan, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheDatabasePathTokens(array $cache): array
                 {
@@ -19701,10 +19701,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readDatabasePathTokens(array $reads): array
                 {
@@ -19717,10 +19717,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabasePathToken(array $cache): array
                 {
@@ -19729,33 +19729,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_path_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneDatabasePathToken(array $read): array
                 {
                     unset($read['database_path_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentDatabasePathToken);
@@ -19819,10 +19819,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentReadTransactionToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next233 requires a current read transaction token');
                     }
-            
+
                     $cacheTokens = self::cacheReadTransactionTokens($readerCache);
                     $readTokens = self::readTransactionTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext229(
                         $databasePath,
                         $masterJournalPath,
@@ -19845,7 +19845,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentReaderLeaseToken,
                         $currentPagerCacheSourceToken,
                     );
-            
+
                     $transactionInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -19861,7 +19861,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_read_transaction_token_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'read_transaction_token_admitted' => $baseAdmitted && $tokenMatches,
                             'read_transaction_token_reason' => $baseAdmitted
@@ -19874,13 +19874,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'read_transaction_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $transactionInvalidated = self::sortedUnique($transactionInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $transactionInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $transactionInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $transactionInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -19904,7 +19904,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next233';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_read_transaction_before_current_source_reuse';
                     $base['current_read_transaction_token'] = $currentReadTransactionToken;
@@ -19916,10 +19916,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next233';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-read-transaction-fence';
                     $base['non_overlap'] = 'next233 fences reader-cache reuse on the read-transaction token after next229 pager-cache source, next224 reader-lease, and next218 cleanup-token admission have already passed; it does not repeat payload-digest, pager-cache source, reader-lease, cleanup-token, database file-token, member-journal, rollback-journal, WAL, VFS writer, or B-tree behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheReadTransactionTokens(array $cache): array
                 {
@@ -19931,10 +19931,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readTransactionTokens(array $reads): array
                 {
@@ -19947,10 +19947,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripReadTransactionToken(array $cache): array
                 {
@@ -19959,33 +19959,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['read_transaction_token']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneReadTransactionToken(array $read): array
                 {
                     unset($read['read_transaction_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken);
@@ -20053,10 +20053,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentUserVersion < 0 || $currentApplicationId < 0) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next234 requires non-negative user_version and application_id values');
                     }
-            
+
                     $cacheMetadata = self::cacheApplicationMetadata($readerCache);
                     $readMetadata = self::readApplicationMetadata($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext226(
                         $databasePath,
                         $masterJournalPath,
@@ -20080,7 +20080,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseChangeCounter,
                         $currentVersionValidFor,
                     );
-            
+
                     $metadataInvalidated = [];
                     $userVersionInvalidated = [];
                     $applicationIdInvalidated = [];
@@ -20096,7 +20096,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             !$appCurrent => 'reader_cache_application_id_changed_after_master_journal_recovery',
                             default => null,
                         };
-            
+
                         if ((bool) ($row['header_counter_pair_admitted'] ?? false) && $reason !== null) {
                             $metadataInvalidated[] = $pageNumber;
                             if (!$userCurrent) {
@@ -20106,7 +20106,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 $applicationIdInvalidated[] = $pageNumber;
                             }
                         }
-            
+
                         $rows[] = $row + [
                             'application_metadata_admitted' => (bool) ($row['header_counter_pair_admitted'] ?? false) && $reason === null,
                             'application_metadata_reason' => (bool) ($row['header_counter_pair_admitted'] ?? false)
@@ -20120,7 +20120,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'application_id_matches' => $appCurrent,
                         ];
                     }
-            
+
                     $metadataInvalidated = self::sortedUnique($metadataInvalidated);
                     $userVersionInvalidated = self::sortedUnique($userVersionInvalidated);
                     $applicationIdInvalidated = self::sortedUnique($applicationIdInvalidated);
@@ -20128,7 +20128,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $metadataInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $metadataInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -20157,7 +20157,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next234';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_user_version_application_id_before_current_source_reuse';
                     $base['current_user_version'] = $currentUserVersion;
@@ -20172,10 +20172,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next234';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-application-metadata-fence';
                     $base['non_overlap'] = 'next234 fences reader-cache reuse on SQLite page-1 user_version/application_id metadata after next226 header-counter admission; it does not repeat next230 SQLite version-number, next231 freelist header, master-journal bytes, member token/header/order, cleanup token, database file-token, header digest, page-count, rollback-journal apply, WAL, VFS writer, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array{user:int,app:int}> */
                 private static function cacheApplicationMetadata(array $cache): array
                 {
@@ -20188,10 +20188,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $metadata[$pageNumber] = ['user' => $user, 'app' => $app];
                     }
-            
+
                     return $metadata;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,array{user:int,app:int}> */
                 private static function readApplicationMetadata(array $reads): array
                 {
@@ -20205,10 +20205,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $metadata[$readerId] = ['user' => $user, 'app' => $app];
                     }
-            
+
                     return $metadata;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripApplicationMetadata(array $cache): array
                 {
@@ -20216,33 +20216,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['user_version'], $entry['application_id']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneApplicationMetadata(array $read): array
                 {
                     unset($read['user_version'], $read['application_id']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest, $currentDatabasePageCount, $currentDatabaseChangeCounter, $currentVersionValidFor, $currentUserVersion, $currentApplicationId);
@@ -20308,10 +20308,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabaseChangeCounter < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next235 requires a positive current database change counter');
                     }
-            
+
                     $cacheCounters = self::cacheDatabaseChangeCounters($readerCache);
                     $readCounters = self::readDatabaseChangeCounters($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext232(
                         $databasePath,
                         $masterJournalPath,
@@ -20335,7 +20335,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentPagerCacheSourceToken,
                         $currentDatabasePathToken,
                     );
-            
+
                     $counterInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -20344,11 +20344,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = $cacheCounter === $currentDatabaseChangeCounter
                             ? null
                             : 'reader_cache_database_change_counter_predates_master_journal_current_source';
-            
+
                         if ((bool) ($row['database_path_token_admitted'] ?? false) && $reason !== null) {
                             $counterInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'database_change_counter_admitted' => (bool) ($row['database_path_token_admitted'] ?? false) && $reason === null,
                             'database_change_counter_reason' => (bool) ($row['database_path_token_admitted'] ?? false)
@@ -20359,13 +20359,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_change_counter_matches' => $cacheCounter === $currentDatabaseChangeCounter,
                         ];
                     }
-            
+
                     $counterInvalidated = self::sortedUnique($counterInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $counterInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $counterInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $counterInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -20389,7 +20389,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next235';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_change_counter_before_current_source_reuse';
                     $base['current_database_change_counter'] = $currentDatabaseChangeCounter;
@@ -20401,10 +20401,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next235';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-database-change-counter-fence';
                     $base['non_overlap'] = 'next235 fences reader-cache reuse on the SQLite database-header change counter after next232 database path namespace, next229 pager-cache-source, next224 reader-lease, and next218 cleanup-token admission have already passed; it does not repeat database path, page count, database header digest, file token, cleanup token, pager-cache-source, reader lease, master-journal bytes, member-journal, WAL, VFS writer, sync-plan, rollback-journal apply, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,int> */
                 private static function cacheDatabaseChangeCounters(array $cache): array
                 {
@@ -20416,10 +20416,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $counters[$pageNumber] = $counter;
                     }
-            
+
                     return $counters;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,int> */
                 private static function readDatabaseChangeCounters(array $reads): array
                 {
@@ -20432,10 +20432,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $counters[$readerId] = $counter;
                     }
-            
+
                     return $counters;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabaseChangeCounter(array $cache): array
                 {
@@ -20444,33 +20444,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_change_counter']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneDatabaseChangeCounter(array $read): array
                 {
                     unset($read['database_change_counter']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentDatabasePathToken, $currentDatabaseChangeCounter);
@@ -20536,10 +20536,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSchemaReparseToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next236 requires a current schema reparse token');
                     }
-            
+
                     $cacheTokens = self::cacheSchemaReparseTokens($readerCache);
                     $readTokens = self::readSchemaReparseTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext233(
                         $databasePath,
                         $masterJournalPath,
@@ -20563,7 +20563,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentPagerCacheSourceToken,
                         $currentReadTransactionToken,
                     );
-            
+
                     $schemaInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -20579,7 +20579,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_schema_reparse_token_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'schema_reparse_token_admitted' => $baseAdmitted && $tokenMatches,
                             'schema_reparse_token_reason' => $baseAdmitted
@@ -20592,13 +20592,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'schema_reparse_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $schemaInvalidated = self::sortedUnique($schemaInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $schemaInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $schemaInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $schemaInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -20622,7 +20622,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next236';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_schema_reparse_before_current_source_reuse';
                     $base['current_schema_reparse_token'] = $currentSchemaReparseToken;
@@ -20634,10 +20634,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next236';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-schema-reparse-fence';
                     $base['non_overlap'] = 'next236 fences reader-cache reuse on a schema-reparse token after next233 read-transaction, next229 pager-cache source, next224 reader-lease, and next218 cleanup-token admission have already passed; it does not repeat page-count, payload-digest, file-token, member-journal, rollback-journal, WAL, VFS writer, B-tree, JSON, or SELECT behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheSchemaReparseTokens(array $cache): array
                 {
@@ -20649,10 +20649,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readSchemaReparseTokens(array $reads): array
                 {
@@ -20665,10 +20665,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripSchemaReparseToken(array $cache): array
                 {
@@ -20676,33 +20676,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['schema_reparse_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneSchemaReparseToken(array $read): array
                 {
                     unset($read['schema_reparse_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken);
@@ -20772,10 +20772,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSchemaFormatNumber < 1 || $currentSchemaFormatNumber > 4) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next237 requires a schema format number from 1 through 4');
                     }
-            
+
                     $cacheFormats = self::cacheSchemaFormats($readerCache);
                     $readFormats = self::readSchemaFormats($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext234(
                         $databasePath,
                         $masterJournalPath,
@@ -20801,7 +20801,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentUserVersion,
                         $currentApplicationId,
                     );
-            
+
                     $formatInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -20811,7 +20811,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ((bool) ($row['application_metadata_admitted'] ?? false) && !$formatMatches) {
                             $formatInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'schema_format_number_admitted' => (bool) ($row['application_metadata_admitted'] ?? false) && $formatMatches,
                             'schema_format_number_reason' => (bool) ($row['application_metadata_admitted'] ?? false)
@@ -20824,13 +20824,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'schema_format_number_matches' => $formatMatches,
                         ];
                     }
-            
+
                     $formatInvalidated = self::sortedUnique($formatInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $formatInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $formatInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $formatInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -20854,7 +20854,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next237';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_schema_format_number_before_current_source_reuse';
                     $base['current_schema_format_number'] = $currentSchemaFormatNumber;
@@ -20866,10 +20866,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next237';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-schema-format-fence';
                     $base['non_overlap'] = 'next237 fences reader-cache reuse on the SQLite page-1 schema-format number after next234 application metadata admission; it does not repeat next230 SQLite version-number, next231 freelist header, next234 user_version/application_id, schema-cookie, master-journal bytes, rollback-journal apply, WAL, VFS writer, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,int> */
                 private static function cacheSchemaFormats(array $cache): array
                 {
@@ -20881,10 +20881,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $formats[$pageNumber] = $format;
                     }
-            
+
                     return $formats;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,int> */
                 private static function readSchemaFormats(array $reads): array
                 {
@@ -20897,10 +20897,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $formats[$readerId] = $format;
                     }
-            
+
                     return $formats;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripSchemaFormat(array $cache): array
                 {
@@ -20909,33 +20909,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['schema_format_number']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneSchemaFormat(array $read): array
                 {
                     unset($read['schema_format_number']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentDatabaseHeaderDigest, $currentDatabasePageCount, $currentDatabaseChangeCounter, $currentVersionValidFor, $currentUserVersion, $currentApplicationId, $currentSchemaFormatNumber);
@@ -21003,10 +21003,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSchemaRootDigest === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next238 requires a current schema root digest');
                     }
-            
+
                     $cacheSchemaRootDigests = self::cacheSchemaRootDigests($readerCache);
                     $readSchemaRootDigests = self::readSchemaRootDigests($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext235(
                         $databasePath,
                         $masterJournalPath,
@@ -21031,7 +21031,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabasePathToken,
                         $currentDatabaseChangeCounter,
                     );
-            
+
                     $schemaInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -21040,11 +21040,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $reason = hash_equals($cacheDigest, $currentSchemaRootDigest)
                             ? null
                             : 'reader_cache_schema_root_digest_predates_master_journal_current_source';
-            
+
                         if ((bool) ($row['database_change_counter_admitted'] ?? false) && $reason !== null) {
                             $schemaInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'schema_root_digest_admitted' => (bool) ($row['database_change_counter_admitted'] ?? false) && $reason === null,
                             'schema_root_digest_reason' => (bool) ($row['database_change_counter_admitted'] ?? false)
@@ -21055,13 +21055,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'schema_root_digest_matches' => hash_equals($cacheDigest, $currentSchemaRootDigest),
                         ];
                     }
-            
+
                     $schemaInvalidated = self::sortedUnique($schemaInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $schemaInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $schemaInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $schemaInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -21085,7 +21085,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next238';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_schema_root_digest_before_current_source_reuse';
                     $base['current_schema_root_digest'] = $currentSchemaRootDigest;
@@ -21097,10 +21097,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next238';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-schema-root-digest-fence';
                     $base['non_overlap'] = 'next238 fences reader-cache reuse on the recovered sqlite_schema root digest after next235 database change-counter, next232 database path, next229 pager-cache-source, next224 reader-lease, and next218 cleanup-token admission have already passed; it does not repeat schema-cookie, page-count, database header digest, change-counter, database path, master-journal bytes, member-journal, WAL, VFS writer, sync-plan, rollback-journal apply, or super-journal behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheSchemaRootDigests(array $cache): array
                 {
@@ -21112,10 +21112,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$pageNumber] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readSchemaRootDigests(array $reads): array
                 {
@@ -21128,10 +21128,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $digests[$readerId] = $digest;
                     }
-            
+
                     return $digests;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripSchemaRootDigest(array $cache): array
                 {
@@ -21140,33 +21140,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['schema_root_digest']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneSchemaRootDigest(array $read): array
                 {
                     unset($read['schema_root_digest']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentDatabasePathToken, $currentDatabaseChangeCounter, $currentSchemaRootDigest);
@@ -21234,10 +21234,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSharedCacheGenerationToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next239 requires a current shared-cache generation token');
                     }
-            
+
                     $cacheTokens = self::cacheSharedCacheGenerationTokens($readerCache);
                     $readTokens = self::readSharedCacheGenerationTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext236(
                         $databasePath,
                         $masterJournalPath,
@@ -21262,7 +21262,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentReadTransactionToken,
                         $currentSchemaReparseToken,
                     );
-            
+
                     $generationInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -21278,7 +21278,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_shared_cache_generation_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'shared_cache_generation_token_admitted' => $baseAdmitted && $tokenMatches,
                             'shared_cache_generation_token_reason' => $baseAdmitted
@@ -21291,13 +21291,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'shared_cache_generation_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $generationInvalidated = self::sortedUnique($generationInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $generationInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $generationInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $generationInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -21321,7 +21321,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next239';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_shared_cache_generation_before_current_source_reuse';
                     $base['current_shared_cache_generation_token'] = $currentSharedCacheGenerationToken;
@@ -21333,10 +21333,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next239';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-shared-generation-fence';
                     $base['non_overlap'] = 'next239 fences reader-cache reuse on a shared schema-cache generation after next236 schema-reparse admission, next233 read-transaction, next229 pager-cache source, next224 reader-lease, and next218 cleanup-token admission have already passed; it does not repeat schema-reparse tokens, page-count, payload-digest, file-token, member-journal, rollback-journal, WAL, VFS writer, B-tree, JSON, or SELECT behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheSharedCacheGenerationTokens(array $cache): array
                 {
@@ -21348,10 +21348,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readSharedCacheGenerationTokens(array $reads): array
                 {
@@ -21364,10 +21364,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripSharedCacheGenerationToken(array $cache): array
                 {
@@ -21375,33 +21375,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['shared_cache_generation_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneSharedCacheGenerationToken(array $read): array
                 {
                     unset($read['shared_cache_generation_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentSharedCacheGenerationToken);
@@ -21469,10 +21469,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentStatementSchemaRootToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next240 requires a current statement schema-root token');
                     }
-            
+
                     $cacheTokens = self::cacheStatementSchemaRootTokens($readerCache);
                     $readTokens = self::readStatementSchemaRootTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext236(
                         $databasePath,
                         $masterJournalPath,
@@ -21497,7 +21497,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentReadTransactionToken,
                         $currentSchemaReparseToken,
                     );
-            
+
                     $statementInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -21513,7 +21513,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_statement_schema_root_token_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'statement_schema_root_token_admitted' => $baseAdmitted && $tokenMatches,
                             'statement_schema_root_token_reason' => $baseAdmitted
@@ -21526,13 +21526,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'statement_schema_root_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $statementInvalidated = self::sortedUnique($statementInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $statementInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $statementInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $statementInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -21556,7 +21556,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next240';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_statement_schema_root_before_current_source_reuse';
                     $base['current_statement_schema_root_token'] = $currentStatementSchemaRootToken;
@@ -21568,10 +21568,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next240';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-statement-schema-root-fence';
                     $base['non_overlap'] = 'next240 fences reader-cache reuse on prepared-statement schema-root tokens after next236 schema-reparse, next233 read-transaction, next229 pager-cache source, next224 reader-lease, and next218 cleanup-token admission have already passed; it does not repeat application metadata, change-counter, page-count, payload digest, file-token, member-journal, cleanup-token, rollback-journal apply, WAL checkpoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheStatementSchemaRootTokens(array $cache): array
                 {
@@ -21583,10 +21583,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readStatementSchemaRootTokens(array $reads): array
                 {
@@ -21599,10 +21599,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripStatementSchemaRootToken(array $cache): array
                 {
@@ -21610,33 +21610,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['statement_schema_root_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneStatementSchemaRootToken(array $read): array
                 {
                     unset($read['statement_schema_root_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken);
@@ -21706,10 +21706,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSchemaCookie < 1) {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next241 requires a positive schema cookie');
                     }
-            
+
                     $cacheCookies = self::cacheSchemaCookies($readerCache);
                     $readCookies = self::readSchemaCookies($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext238(
                         $databasePath,
                         $masterJournalPath,
@@ -21735,7 +21735,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseChangeCounter,
                         $currentSchemaRootDigest,
                     );
-            
+
                     $cookieInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -21746,7 +21746,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         if ($baseAdmitted && !$cookieMatches) {
                             $cookieInvalidated[] = $pageNumber;
                         }
-            
+
                         $rows[] = $row + [
                             'schema_cookie_admitted' => $baseAdmitted && $cookieMatches,
                             'schema_cookie_reason' => $baseAdmitted
@@ -21759,13 +21759,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'schema_cookie_matches' => $cookieMatches,
                         ];
                     }
-            
+
                     $cookieInvalidated = self::sortedUnique($cookieInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $cookieInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $cookieInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $cookieInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -21789,7 +21789,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next241';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_schema_cookie_before_current_source_reuse';
                     $base['current_schema_cookie'] = $currentSchemaCookie;
@@ -21801,10 +21801,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next241';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-schema-cookie-fence';
                     $base['non_overlap'] = 'next241 fences reader-cache reuse on the page-1 schema cookie after next238 schema-root digest and next235 change-counter admission have already passed; it does not repeat schema-root digest, database path, cleanup token, master-journal bytes, member-journal headers, WAL savepoints, rollback-journal apply, VFS writer/sync/lock, B-tree, JSON, or SELECT behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,int> */
                 private static function cacheSchemaCookies(array $cache): array
                 {
@@ -21816,10 +21816,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $cookies[$pageNumber] = $cookie;
                     }
-            
+
                     return $cookies;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,int> */
                 private static function readSchemaCookies(array $reads): array
                 {
@@ -21832,10 +21832,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $cookies[$readerId] = $cookie;
                     }
-            
+
                     return $cookies;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripSchemaCookie(array $cache): array
                 {
@@ -21844,33 +21844,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['schema_cookie']);
                         $stripped[$pageNumber] = $entry;
                     }
-            
+
                     return $stripped;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneSchemaCookie(array $read): array
                 {
                     unset($read['schema_cookie']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentDatabasePathToken, $currentDatabaseChangeCounter, $currentSchemaRootDigest, $currentSchemaCookie);
@@ -21940,10 +21940,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentStatementSnapshotToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next242 requires a current statement snapshot token');
                     }
-            
+
                     $cacheTokens = self::cacheStatementSnapshotTokens($readerCache);
                     $readTokens = self::readStatementSnapshotTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext239(
                         $databasePath,
                         $masterJournalPath,
@@ -21969,7 +21969,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSchemaReparseToken,
                         $currentSharedCacheGenerationToken,
                     );
-            
+
                     $snapshotInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -21985,7 +21985,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_statement_snapshot_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'statement_snapshot_token_admitted' => $baseAdmitted && $tokenMatches,
                             'statement_snapshot_token_reason' => $baseAdmitted
@@ -21998,13 +21998,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'statement_snapshot_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $snapshotInvalidated = self::sortedUnique($snapshotInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $snapshotInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $snapshotInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $snapshotInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -22028,7 +22028,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next242';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_statement_snapshot_before_current_source_reuse';
                     $base['current_statement_snapshot_token'] = $currentStatementSnapshotToken;
@@ -22040,10 +22040,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next242';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-statement-snapshot-fence';
                     $base['non_overlap'] = 'next242 fences reader-cache reuse on a prepared-statement snapshot token after next239 shared schema-cache generation, next236 schema-reparse, next233 read-transaction, next229 pager-cache source, next224 reader-lease, and next218 cleanup-token admission have already passed; it does not repeat shared-generation, schema-reparse, page-count, payload-digest, file-token, member-journal, rollback-journal, WAL, VFS writer, B-tree, JSON, or SELECT behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheStatementSnapshotTokens(array $cache): array
                 {
@@ -22055,10 +22055,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readStatementSnapshotTokens(array $reads): array
                 {
@@ -22071,10 +22071,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripStatementSnapshotToken(array $cache): array
                 {
@@ -22082,33 +22082,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['statement_snapshot_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneStatementSnapshotToken(array $read): array
                 {
                     unset($read['statement_snapshot_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentSharedCacheGenerationToken, $currentStatementSnapshotToken);
@@ -22178,10 +22178,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSourceProvenanceToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next243 requires a current-source provenance token');
                     }
-            
+
                     $cacheTokens = self::cacheCurrentSourceProvenanceTokens($readerCache);
                     $readTokens = self::readCurrentSourceProvenanceTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext240(
                         $databasePath,
                         $masterJournalPath,
@@ -22207,7 +22207,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSchemaReparseToken,
                         $currentStatementSchemaRootToken,
                     );
-            
+
                     $provenanceInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -22223,7 +22223,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_current_source_provenance_predates_master_journal_recovery',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'current_source_provenance_token_admitted' => $baseAdmitted && $tokenMatches,
                             'current_source_provenance_token_reason' => $baseAdmitted
@@ -22236,13 +22236,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_source_provenance_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $provenanceInvalidated = self::sortedUnique($provenanceInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $provenanceInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $provenanceInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $provenanceInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -22266,7 +22266,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next243';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_current_source_provenance_before_reuse';
                     $base['current_source_provenance_token'] = $currentSourceProvenanceToken;
@@ -22278,10 +22278,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next243';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-current-source-provenance-fence';
                     $base['non_overlap'] = 'next243 fences reader-cache reuse on current-source provenance after next240 statement schema-root admission; it does not repeat next240 statement-root, next236 schema-reparse, next233 read-transaction, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheCurrentSourceProvenanceTokens(array $cache): array
                 {
@@ -22293,10 +22293,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readCurrentSourceProvenanceTokens(array $reads): array
                 {
@@ -22309,10 +22309,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripCurrentSourceProvenanceToken(array $cache): array
                 {
@@ -22320,33 +22320,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['current_source_provenance_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneCurrentSourceProvenanceToken(array $read): array
                 {
                     unset($read['current_source_provenance_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken);
@@ -22416,10 +22416,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPageImageDigestReceiptToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next244 requires a current page-image digest receipt token');
                     }
-            
+
                     $cacheTokens = self::cachePageImageDigestReceiptTokens($readerCache);
                     $readTokens = self::readPageImageDigestReceiptTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext240(
                         $databasePath,
                         $masterJournalPath,
@@ -22445,7 +22445,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSchemaReparseToken,
                         $currentStatementSchemaRootToken,
                     );
-            
+
                     $digestInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -22461,7 +22461,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_page_image_digest_receipt_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'page_image_digest_receipt_admitted' => $baseAdmitted && $tokenMatches,
                             'page_image_digest_receipt_reason' => $baseAdmitted
@@ -22474,13 +22474,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_image_digest_receipt_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $digestInvalidated = self::sortedUnique($digestInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $digestInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $digestInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $digestInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -22504,7 +22504,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next244';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_page_image_digest_receipts_before_current_source_reuse';
                     $base['current_page_image_digest_receipt_token'] = $currentPageImageDigestReceiptToken;
@@ -22516,10 +22516,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next244';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-page-image-digest-receipt-fence';
                     $base['non_overlap'] = 'next244 fences reader-cache reuse on page-image digest receipts after next240 statement schema-root, next236 schema-reparse, next233 read-transaction, next229 pager-cache source, next224 reader-lease, and next218 cleanup-token admission have already passed; it does not repeat page-count, page-1 header counters, statement schema-root tokens, member-journal, rollback-journal apply, WAL checkpoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cachePageImageDigestReceiptTokens(array $cache): array
                 {
@@ -22531,10 +22531,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readPageImageDigestReceiptTokens(array $reads): array
                 {
@@ -22547,10 +22547,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripPageImageDigestReceiptToken(array $cache): array
                 {
@@ -22558,33 +22558,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['page_image_digest_receipt_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOnePageImageDigestReceiptToken(array $read): array
                 {
                     unset($read['page_image_digest_receipt_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentPageImageDigestReceiptToken);
@@ -22656,10 +22656,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentRootpageMapToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next245 requires a current rootpage map token');
                     }
-            
+
                     $cacheTokens = self::cacheRootpageMapTokens($readerCache);
                     $readTokens = self::readRootpageMapTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext242(
                         $databasePath,
                         $masterJournalPath,
@@ -22686,7 +22686,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSharedCacheGenerationToken,
                         $currentStatementSnapshotToken,
                     );
-            
+
                     $rootpageInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -22702,7 +22702,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_rootpage_map_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'rootpage_map_token_admitted' => $baseAdmitted && $tokenMatches,
                             'rootpage_map_token_reason' => $baseAdmitted
@@ -22715,13 +22715,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'rootpage_map_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $rootpageInvalidated = self::sortedUnique($rootpageInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $rootpageInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $rootpageInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $rootpageInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -22745,7 +22745,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next245';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_schema_rootpage_map_before_current_source_reuse';
                     $base['current_rootpage_map_token'] = $currentRootpageMapToken;
@@ -22757,10 +22757,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next245';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-rootpage-map-fence';
                     $base['non_overlap'] = 'next245 fences reader-cache reuse on the schema rootpage map after next242 statement snapshots, next239 shared schema-cache generation, next236 schema reparse, next233 read transactions, next229 pager-cache source, next224 reader leases, and next218 cleanup-token admission have already passed; it does not repeat those token fences, master-journal bytes, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/lock/sync, B-tree page relocation, JSON table, SELECT, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheRootpageMapTokens(array $cache): array
                 {
@@ -22772,10 +22772,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readRootpageMapTokens(array $reads): array
                 {
@@ -22788,10 +22788,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripRootpageMapToken(array $cache): array
                 {
@@ -22799,33 +22799,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['rootpage_map_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneRootpageMapToken(array $read): array
                 {
                     unset($read['rootpage_map_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentSharedCacheGenerationToken, $currentStatementSnapshotToken, $currentRootpageMapToken);
@@ -22897,10 +22897,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSourceVersionVectorToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next246 requires a current-source version-vector token');
                     }
-            
+
                     $cacheTokens = self::cacheVersionVectorTokens($readerCache);
                     $readTokens = self::readVersionVectorTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext243(
                         $databasePath,
                         $masterJournalPath,
@@ -22927,7 +22927,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentStatementSchemaRootToken,
                         $currentSourceProvenanceToken,
                     );
-            
+
                     $vectorInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -22943,7 +22943,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_current_source_version_vector_predates_master_journal_recovery',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'current_source_version_vector_token_admitted' => $baseAdmitted && $tokenMatches,
                             'current_source_version_vector_token_reason' => $baseAdmitted
@@ -22956,13 +22956,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_source_version_vector_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $vectorInvalidated = self::sortedUnique($vectorInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $vectorInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $vectorInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $vectorInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -22986,7 +22986,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next246';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_current_source_version_vector_before_reuse';
                     $base['current_source_version_vector_token'] = $currentSourceVersionVectorToken;
@@ -22998,10 +22998,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next246';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-current-source-version-vector-fence';
                     $base['non_overlap'] = 'next246 fences reader-cache reuse on a current-source version-vector token after next243 provenance admission; it does not repeat next243 provenance, statement-root/schema/read-transaction tokens, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheVersionVectorTokens(array $cache): array
                 {
@@ -23013,10 +23013,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readVersionVectorTokens(array $reads): array
                 {
@@ -23029,10 +23029,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripVersionVectorToken(array $cache): array
                 {
@@ -23040,33 +23040,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['current_source_version_vector_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneVersionVectorToken(array $read): array
                 {
                     unset($read['current_source_version_vector_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentSourceVersionVectorToken);
@@ -23138,10 +23138,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPagerReaderCacheGenerationToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next247 requires a pager reader-cache generation token');
                     }
-            
+
                     $cacheTokens = self::cachePagerReaderCacheGenerationTokens($readerCache);
                     $readTokens = self::readPagerReaderCacheGenerationTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext243(
                         $databasePath,
                         $masterJournalPath,
@@ -23168,7 +23168,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentStatementSchemaRootToken,
                         $currentSourceProvenanceToken,
                     );
-            
+
                     $generationInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -23184,7 +23184,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'pager_reader_cache_generation_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'pager_reader_cache_generation_token_admitted' => $baseAdmitted && $tokenMatches,
                             'pager_reader_cache_generation_token_reason' => $baseAdmitted
@@ -23197,13 +23197,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pager_reader_cache_generation_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $generationInvalidated = self::sortedUnique($generationInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $generationInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $generationInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $generationInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -23227,7 +23227,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next247';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_pager_generation_before_reuse';
                     $base['current_pager_reader_cache_generation_token'] = $currentPagerReaderCacheGenerationToken;
@@ -23239,10 +23239,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next247';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-generation-fence';
                     $base['non_overlap'] = 'next247 fences reader-cache reuse on the pager cache generation after next243 current-source provenance has already passed; it does not repeat next243 provenance, next240 statement-root, next236 schema-reparse, next233 read-transaction, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cachePagerReaderCacheGenerationTokens(array $cache): array
                 {
@@ -23254,10 +23254,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readPagerReaderCacheGenerationTokens(array $reads): array
                 {
@@ -23270,10 +23270,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripPagerReaderCacheGenerationToken(array $cache): array
                 {
@@ -23281,33 +23281,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['pager_reader_cache_generation_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOnePagerReaderCacheGenerationToken(array $read): array
                 {
                     unset($read['pager_reader_cache_generation_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken);
@@ -23381,10 +23381,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPageOwnerMapToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next248 requires a current page-owner map token');
                     }
-            
+
                     $cacheTokens = self::cachePageOwnerMapTokens($readerCache);
                     $readTokens = self::readPageOwnerMapTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext245(
                         $databasePath,
                         $masterJournalPath,
@@ -23412,7 +23412,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentStatementSnapshotToken,
                         $currentRootpageMapToken,
                     );
-            
+
                     $ownerInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -23428,7 +23428,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_page_owner_map_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'page_owner_map_token_admitted' => $baseAdmitted && $tokenMatches,
                             'page_owner_map_token_reason' => $baseAdmitted
@@ -23441,13 +23441,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'page_owner_map_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $ownerInvalidated = self::sortedUnique($ownerInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $ownerInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $ownerInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $ownerInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -23471,7 +23471,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next248';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_btree_page_owner_map_before_current_source_reuse';
                     $base['current_page_owner_map_token'] = $currentPageOwnerMapToken;
@@ -23483,10 +23483,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next248';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-page-owner-map-fence';
                     $base['non_overlap'] = 'next248 fences reader-cache reuse on the recovered B-tree page-owner map after next245 rootpage-map, next242 statement snapshots, next239 shared schema-cache generation, next236 schema reparse, next233 read transactions, next229 pager-cache source, next224 reader leases, and next218 cleanup-token admission have already passed; it does not repeat rootpage-map token checks, page-image digest receipts, page-count/header fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/lock/sync, B-tree page relocation/freeblock materialization, JSON table, SELECT, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cachePageOwnerMapTokens(array $cache): array
                 {
@@ -23498,10 +23498,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readPageOwnerMapTokens(array $reads): array
                 {
@@ -23514,10 +23514,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripPageOwnerMapToken(array $cache): array
                 {
@@ -23525,33 +23525,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['page_owner_map_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOnePageOwnerMapToken(array $read): array
                 {
                     unset($read['page_owner_map_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentSharedCacheGenerationToken, $currentStatementSnapshotToken, $currentRootpageMapToken, $currentPageOwnerMapToken);
@@ -23625,10 +23625,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentReaderCacheSourceHandoffToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next249 requires a current reader-cache source handoff token');
                     }
-            
+
                     $cacheTokens = self::cacheHandoffTokens($readerCache);
                     $readTokens = self::readHandoffTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext246(
                         $databasePath,
                         $masterJournalPath,
@@ -23656,7 +23656,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSourceProvenanceToken,
                         $currentSourceVersionVectorToken,
                     );
-            
+
                     $handoffInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -23672,7 +23672,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_source_handoff_predates_master_journal_recovery',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'reader_cache_source_handoff_token_admitted' => $baseAdmitted && $tokenMatches,
                             'reader_cache_source_handoff_token_reason' => $baseAdmitted
@@ -23685,13 +23685,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reader_cache_source_handoff_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $handoffInvalidated = self::sortedUnique($handoffInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $handoffInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $handoffInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $handoffInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -23715,7 +23715,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next249';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_source_handoff_before_reuse';
                     $base['reader_cache_source_handoff_token'] = $currentReaderCacheSourceHandoffToken;
@@ -23727,10 +23727,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next249';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-source-handoff-fence';
                     $base['non_overlap'] = 'next249 fences reader-cache reuse on the source-handoff token after next246 version-vector admission; it does not repeat next246 version-vector/provenance, statement-root/schema/read-transaction tokens, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheHandoffTokens(array $cache): array
                 {
@@ -23742,10 +23742,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readHandoffTokens(array $reads): array
                 {
@@ -23758,10 +23758,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripHandoffToken(array $cache): array
                 {
@@ -23769,33 +23769,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['reader_cache_source_handoff_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneHandoffToken(array $read): array
                 {
                     unset($read['reader_cache_source_handoff_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentSourceVersionVectorToken, $currentReaderCacheSourceHandoffToken);
@@ -23867,10 +23867,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentMasterJournalReaderSnapshotToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next250 requires a master-journal reader snapshot token');
                     }
-            
+
                     $cacheTokens = self::cacheMasterJournalReaderSnapshotTokens($readerCache);
                     $readTokens = self::readMasterJournalReaderSnapshotTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext243(
                         $databasePath,
                         $masterJournalPath,
@@ -23897,7 +23897,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentStatementSchemaRootToken,
                         $currentSourceProvenanceToken,
                     );
-            
+
                     $snapshotInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -23913,7 +23913,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'master_journal_reader_snapshot_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'master_journal_reader_snapshot_token_admitted' => $baseAdmitted && $tokenMatches,
                             'master_journal_reader_snapshot_token_reason' => $baseAdmitted
@@ -23926,13 +23926,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_journal_reader_snapshot_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $snapshotInvalidated = self::sortedUnique($snapshotInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $snapshotInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $snapshotInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $snapshotInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -23956,7 +23956,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next250';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_master_journal_reader_snapshot_before_reuse';
                     $base['current_master_journal_reader_snapshot_token'] = $currentMasterJournalReaderSnapshotToken;
@@ -23968,10 +23968,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next250';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-snapshot-fence';
                     $base['non_overlap'] = 'next250 fences reader-cache reuse on the master-journal reader snapshot after next243 current-source provenance has already passed; it does not repeat next243 provenance, next240 statement-root, next236 schema-reparse, next233 read-transaction, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheMasterJournalReaderSnapshotTokens(array $cache): array
                 {
@@ -23983,10 +23983,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readMasterJournalReaderSnapshotTokens(array $reads): array
                 {
@@ -23999,10 +23999,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripMasterJournalReaderSnapshotToken(array $cache): array
                 {
@@ -24010,33 +24010,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_journal_reader_snapshot_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneMasterJournalReaderSnapshotToken(array $read): array
                 {
                     unset($read['master_journal_reader_snapshot_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentMasterJournalReaderSnapshotToken);
@@ -24110,10 +24110,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentReaderSnapshotToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next251 requires a current reader snapshot token');
                     }
-            
+
                     $cacheTokens = self::cacheReaderSnapshotTokens($readerCache);
                     $readTokens = self::readReaderSnapshotTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext247(
                         $databasePath,
                         $masterJournalPath,
@@ -24141,7 +24141,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSourceProvenanceToken,
                         $currentPagerReaderCacheGenerationToken,
                     );
-            
+
                     $snapshotInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -24157,7 +24157,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_snapshot_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'reader_snapshot_token_admitted' => $baseAdmitted && $tokenMatches,
                             'reader_snapshot_token_reason' => $baseAdmitted
@@ -24170,13 +24170,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reader_snapshot_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $snapshotInvalidated = self::sortedUnique($snapshotInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $snapshotInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $snapshotInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $snapshotInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -24200,7 +24200,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next251';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_reader_snapshot_before_reuse';
                     $base['current_reader_snapshot_token'] = $currentReaderSnapshotToken;
@@ -24212,10 +24212,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next251';
                     $base['dependencies'][] = 'sqlite-pager-reader-snapshot-current-source-fence';
                     $base['non_overlap'] = 'next251 fences reader-cache reuse on the active reader snapshot after next247 pager-generation admission; it does not repeat next247 generation, next243 provenance, statement-root/schema/read-transaction tokens, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheReaderSnapshotTokens(array $cache): array
                 {
@@ -24227,10 +24227,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readReaderSnapshotTokens(array $reads): array
                 {
@@ -24243,10 +24243,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripReaderSnapshotToken(array $cache): array
                 {
@@ -24254,33 +24254,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['reader_snapshot_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneReaderSnapshotToken(array $read): array
                 {
                     unset($read['reader_snapshot_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken);
@@ -24356,10 +24356,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentMasterMemberManifestToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next252 requires a current master-member manifest token');
                     }
-            
+
                     $cacheTokens = self::cacheManifestTokens($readerCache);
                     $readTokens = self::readManifestTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext248(
                         $databasePath,
                         $masterJournalPath,
@@ -24388,7 +24388,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentRootpageMapToken,
                         $currentPageOwnerMapToken,
                     );
-            
+
                     $manifestInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -24404,7 +24404,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_master_member_manifest_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'master_member_manifest_token_admitted' => $baseAdmitted && $tokenMatches,
                             'master_member_manifest_token_reason' => $baseAdmitted
@@ -24417,13 +24417,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_member_manifest_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $manifestInvalidated = self::sortedUnique($manifestInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $manifestInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $manifestInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $manifestInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -24447,7 +24447,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next252';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_recovered_member_manifest_before_current_source_reuse';
                     $base['current_master_member_manifest_token'] = $currentMasterMemberManifestToken;
@@ -24459,10 +24459,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next252';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-master-member-manifest-fence';
                     $base['non_overlap'] = 'next252 fences reader-cache reuse on the recovered master-journal member manifest after next248 page-owner-map admission; it does not repeat page-owner, rootpage, statement snapshot, shared generation, schema reparse, read transaction, cleanup-token, page-image receipt, WAL checkpoint/savepoint, rollback-journal commit/apply, VFS writer/lock/sync, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheManifestTokens(array $cache): array
                 {
@@ -24474,10 +24474,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readManifestTokens(array $reads): array
                 {
@@ -24490,10 +24490,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripManifestToken(array $cache): array
                 {
@@ -24501,33 +24501,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_member_manifest_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneManifestToken(array $read): array
                 {
                     unset($read['master_member_manifest_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentSharedCacheGenerationToken, $currentStatementSnapshotToken, $currentRootpageMapToken, $currentPageOwnerMapToken, $currentMasterMemberManifestToken);
@@ -24599,10 +24599,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabaseHeaderChangeCounterToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next253 requires a database header change-counter token');
                     }
-            
+
                     $cacheTokens = self::cacheDatabaseHeaderChangeCounterTokens($readerCache);
                     $readTokens = self::readDatabaseHeaderChangeCounterTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext243(
                         $databasePath,
                         $masterJournalPath,
@@ -24629,7 +24629,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentStatementSchemaRootToken,
                         $currentSourceProvenanceToken,
                     );
-            
+
                     $changeCounterInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -24645,7 +24645,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'database_header_change_counter_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'database_header_change_counter_token_admitted' => $baseAdmitted && $tokenMatches,
                             'database_header_change_counter_token_reason' => $baseAdmitted
@@ -24658,13 +24658,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_header_change_counter_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $changeCounterInvalidated = self::sortedUnique($changeCounterInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $changeCounterInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $changeCounterInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $changeCounterInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -24688,7 +24688,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next253';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_header_change_counter_before_reuse';
                     $base['current_database_header_change_counter_token'] = $currentDatabaseHeaderChangeCounterToken;
@@ -24700,10 +24700,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next253';
                     $base['dependencies'][] = 'sqlite-database-header-change-counter-fence';
                     $base['non_overlap'] = 'next253 fences reader-cache reuse on the database header change-counter after next243 current-source provenance has already passed; it does not repeat next243 provenance, next240 statement-root, next236 schema-reparse, next233 read-transaction, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheDatabaseHeaderChangeCounterTokens(array $cache): array
                 {
@@ -24715,10 +24715,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readDatabaseHeaderChangeCounterTokens(array $reads): array
                 {
@@ -24731,10 +24731,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabaseHeaderChangeCounterToken(array $cache): array
                 {
@@ -24742,33 +24742,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_header_change_counter_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneDatabaseHeaderChangeCounterToken(array $read): array
                 {
                     unset($read['database_header_change_counter_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentDatabaseHeaderChangeCounterToken);
@@ -24844,10 +24844,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentMasterJournalRecoveryReceiptToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next254 requires a master-journal recovery receipt token');
                     }
-            
+
                     $cacheTokens = self::cacheRecoveryReceiptTokens($readerCache);
                     $readTokens = self::readRecoveryReceiptTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext251(
                         $databasePath,
                         $masterJournalPath,
@@ -24876,7 +24876,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentPagerReaderCacheGenerationToken,
                         $currentReaderSnapshotToken,
                     );
-            
+
                     $receiptInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -24892,7 +24892,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_master_journal_recovery_receipt_predates_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'master_journal_recovery_receipt_token_admitted' => $baseAdmitted && $tokenMatches,
                             'master_journal_recovery_receipt_token_reason' => $baseAdmitted
@@ -24905,13 +24905,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'master_journal_recovery_receipt_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $receiptInvalidated = self::sortedUnique($receiptInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $receiptInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $receiptInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $receiptInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -24935,7 +24935,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next254';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_recovery_receipt_before_reuse';
                     $base['current_master_journal_recovery_receipt_token'] = $currentMasterJournalRecoveryReceiptToken;
@@ -24947,10 +24947,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next254';
                     $base['dependencies'][] = 'sqlite-pager-master-journal-recovery-receipt-reader-cache-fence';
                     $base['non_overlap'] = 'next254 fences reader-cache reuse on a completed master-journal recovery receipt after next251 reader-snapshot admission; it does not repeat next251 snapshots, next247 generation, next243 provenance, statement-root/schema/read-transaction tokens, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheRecoveryReceiptTokens(array $cache): array
                 {
@@ -24962,10 +24962,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readRecoveryReceiptTokens(array $reads): array
                 {
@@ -24978,10 +24978,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripRecoveryReceiptToken(array $cache): array
                 {
@@ -24989,33 +24989,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['master_journal_recovery_receipt_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneRecoveryReceiptToken(array $read): array
                 {
                     unset($read['master_journal_recovery_receipt_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken);
@@ -25091,10 +25091,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentReaderPageMapDigestToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next255 requires a current reader page-map digest token');
                     }
-            
+
                     $cacheTokens = self::cacheReaderPageMapDigestTokens($readerCache);
                     $readTokens = self::readReaderPageMapDigestTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext251(
                         $databasePath,
                         $masterJournalPath,
@@ -25123,7 +25123,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentPagerReaderCacheGenerationToken,
                         $currentReaderSnapshotToken,
                     );
-            
+
                     $pageMapInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -25139,7 +25139,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_page_map_digest_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'reader_page_map_digest_token_admitted' => $baseAdmitted && $tokenMatches,
                             'reader_page_map_digest_token_reason' => $baseAdmitted
@@ -25152,13 +25152,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'reader_page_map_digest_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $pageMapInvalidated = self::sortedUnique($pageMapInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $pageMapInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $pageMapInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $pageMapInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -25182,7 +25182,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next255';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_reader_page_map_digest_before_reuse';
                     $base['current_reader_page_map_digest_token'] = $currentReaderPageMapDigestToken;
@@ -25194,10 +25194,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next255';
                     $base['dependencies'][] = 'sqlite-pager-reader-page-map-digest-current-source-fence';
                     $base['non_overlap'] = 'next255 fences reader-cache reuse on the reader page-map digest after next251 reader-snapshot admission; it does not repeat next251 snapshot, next247 generation, next243 provenance, statement-root/schema/read-transaction tokens, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheReaderPageMapDigestTokens(array $cache): array
                 {
@@ -25209,10 +25209,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readReaderPageMapDigestTokens(array $reads): array
                 {
@@ -25225,10 +25225,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripReaderPageMapDigestToken(array $cache): array
                 {
@@ -25236,33 +25236,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['reader_page_map_digest_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneReaderPageMapDigestToken(array $read): array
                 {
                     unset($read['reader_page_map_digest_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentReaderPageMapDigestToken);
@@ -25336,10 +25336,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabaseHeaderSchemaCookieToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next256 requires a database header schema-cookie token');
                     }
-            
+
                     $cacheTokens = self::cacheDatabaseHeaderSchemaCookieTokens($readerCache);
                     $readTokens = self::readDatabaseHeaderSchemaCookieTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::sourceProvenanceChangeCounterFence(
                         $databasePath,
                         $masterJournalPath,
@@ -25367,7 +25367,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentSourceProvenanceToken,
                         $currentDatabaseHeaderChangeCounterToken,
                     );
-            
+
                     $changeCounterInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -25383,7 +25383,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'database_header_schema_cookie_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'database_header_schema_cookie_token_admitted' => $baseAdmitted && $tokenMatches,
                             'database_header_schema_cookie_token_reason' => $baseAdmitted
@@ -25396,13 +25396,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_header_schema_cookie_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $changeCounterInvalidated = self::sortedUnique($changeCounterInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $changeCounterInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $changeCounterInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $changeCounterInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -25426,7 +25426,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next256';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_header_schema_cookie_before_reuse';
                     $base['current_database_header_schema_cookie_token'] = $currentDatabaseHeaderSchemaCookieToken;
@@ -25438,10 +25438,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next256';
                     $base['dependencies'][] = 'sqlite-database-header-schema-cookie-fence';
                     $base['non_overlap'] = 'next256 fences reader-cache reuse on the database header schema-cookie after next253 database header change-counter admission has already passed; it does not repeat next253 change-counter, next243 provenance, next240 statement-root, next236 schema-reparse, next233 read-transaction, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheDatabaseHeaderSchemaCookieTokens(array $cache): array
                 {
@@ -25453,10 +25453,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readDatabaseHeaderSchemaCookieTokens(array $reads): array
                 {
@@ -25469,10 +25469,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabaseHeaderSchemaCookieToken(array $cache): array
                 {
@@ -25480,33 +25480,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_header_schema_cookie_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneDatabaseHeaderSchemaCookieToken(array $read): array
                 {
                     unset($read['database_header_schema_cookie_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentDatabaseHeaderChangeCounterToken, $currentDatabaseHeaderSchemaCookieToken);
@@ -25584,10 +25584,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentRecoveredPageChecksumReceiptToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next257 requires a recovered page checksum receipt token');
                     }
-            
+
                     $cacheTokens = self::cacheChecksumReceiptTokens($readerCache);
                     $readTokens = self::readChecksumReceiptTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext254(
                         $databasePath,
                         $masterJournalPath,
@@ -25617,7 +25617,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentReaderSnapshotToken,
                         $currentMasterJournalRecoveryReceiptToken,
                     );
-            
+
                     $checksumInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -25633,7 +25633,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_recovered_page_checksum_receipt_predates_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'recovered_page_checksum_receipt_token_admitted' => $baseAdmitted && $tokenMatches,
                             'recovered_page_checksum_receipt_token_reason' => $baseAdmitted
@@ -25646,13 +25646,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'recovered_page_checksum_receipt_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $checksumInvalidated = self::sortedUnique($checksumInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $checksumInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $checksumInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $checksumInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -25676,7 +25676,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next257';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_recovered_page_checksum_receipt_before_reuse';
                     $base['current_recovered_page_checksum_receipt_token'] = $currentRecoveredPageChecksumReceiptToken;
@@ -25688,10 +25688,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next257';
                     $base['dependencies'][] = 'sqlite-pager-recovered-page-checksum-receipt-reader-cache-fence';
                     $base['non_overlap'] = 'next257 fences reader-cache reuse on recovered page checksum receipts after next254 master-journal recovery-receipt admission; it does not repeat next254 recovery receipts, next251 snapshots, next247 generation, current-source provenance, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheChecksumReceiptTokens(array $cache): array
                 {
@@ -25703,10 +25703,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readChecksumReceiptTokens(array $reads): array
                 {
@@ -25719,10 +25719,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripChecksumReceiptToken(array $cache): array
                 {
@@ -25730,33 +25730,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['recovered_page_checksum_receipt_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneChecksumReceiptToken(array $read): array
                 {
                     unset($read['recovered_page_checksum_receipt_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentRecoveredPageChecksumReceiptToken);
@@ -25834,10 +25834,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPagerSpillDrainToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next258 requires a pager spill-drain token');
                     }
-            
+
                     $cacheTokens = self::cachePagerSpillDrainTokens($readerCache);
                     $readTokens = self::readPagerSpillDrainTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext254(
                         $databasePath,
                         $masterJournalPath,
@@ -25867,7 +25867,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentReaderSnapshotToken,
                         $currentMasterJournalRecoveryReceiptToken,
                     );
-            
+
                     $spillInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -25883,7 +25883,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_pager_spill_drain_predates_current_master_journal_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'pager_spill_drain_token_admitted' => $baseAdmitted && $tokenMatches,
                             'pager_spill_drain_token_reason' => $baseAdmitted
@@ -25896,13 +25896,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'pager_spill_drain_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $spillInvalidated = self::sortedUnique($spillInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $spillInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $spillInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $spillInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -25926,7 +25926,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next258';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_pager_spill_drain_before_reuse';
                     $base['current_pager_spill_drain_token'] = $currentPagerSpillDrainToken;
@@ -25938,10 +25938,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next258';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-spill-drain-fence';
                     $base['non_overlap'] = 'next258 fences reader-cache reuse on the pager spill-drain token after next254 master-journal recovery receipt admission; it does not repeat next254 receipt, next251 snapshots, next247 generation, next243 provenance, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, PRAGMA, trigger, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cachePagerSpillDrainTokens(array $cache): array
                 {
@@ -25953,10 +25953,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readPagerSpillDrainTokens(array $reads): array
                 {
@@ -25969,10 +25969,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripPagerSpillDrainToken(array $cache): array
                 {
@@ -25980,33 +25980,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['pager_spill_drain_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOnePagerSpillDrainToken(array $read): array
                 {
                     unset($read['pager_spill_drain_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken);
@@ -26082,10 +26082,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentDatabaseHeaderVersionValidForToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next259 requires a database header version-valid-for token');
                     }
-            
+
                     $cacheTokens = self::cacheDatabaseHeaderVersionValidForTokens($readerCache);
                     $readTokens = self::readDatabaseHeaderVersionValidForTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext256(
                         $databasePath,
                         $masterJournalPath,
@@ -26114,7 +26114,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentDatabaseHeaderChangeCounterToken,
                         $currentDatabaseHeaderSchemaCookieToken,
                     );
-            
+
                     $versionInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -26130,7 +26130,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'database_header_version_valid_for_predates_master_journal_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'database_header_version_valid_for_token_admitted' => $baseAdmitted && $tokenMatches,
                             'database_header_version_valid_for_token_reason' => $baseAdmitted
@@ -26143,13 +26143,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'database_header_version_valid_for_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $versionInvalidated = self::sortedUnique($versionInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $versionInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $versionInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $versionInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -26173,7 +26173,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next259';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_database_header_version_valid_for_before_reuse';
                     $base['current_database_header_version_valid_for_token'] = $currentDatabaseHeaderVersionValidForToken;
@@ -26185,10 +26185,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next259';
                     $base['dependencies'][] = 'sqlite-database-header-version-valid-for-fence';
                     $base['non_overlap'] = 'next259 fences reader-cache reuse on SQLite header version-valid-for after next256 schema-cookie admission has already passed; it does not repeat next256 schema-cookie, next253 change-counter, current-source provenance, statement-root, schema-reparse, read-transaction, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheDatabaseHeaderVersionValidForTokens(array $cache): array
                 {
@@ -26200,10 +26200,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readDatabaseHeaderVersionValidForTokens(array $reads): array
                 {
@@ -26216,10 +26216,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripDatabaseHeaderVersionValidForToken(array $cache): array
                 {
@@ -26227,33 +26227,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['database_header_version_valid_for_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneDatabaseHeaderVersionValidForToken(array $read): array
                 {
                     unset($read['database_header_version_valid_for_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentDatabaseHeaderChangeCounterToken, $currentDatabaseHeaderSchemaCookieToken, $currentDatabaseHeaderVersionValidForToken);
@@ -26333,10 +26333,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentSourceReaderTicketToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next260 requires a current source reader ticket token');
                     }
-            
+
                     $cacheTokens = self::cacheCurrentSourceReaderTicketTokens($readerCache);
                     $readTokens = self::readCurrentSourceReaderTicketTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext257(
                         $databasePath,
                         $masterJournalPath,
@@ -26367,7 +26367,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterJournalRecoveryReceiptToken,
                         $currentRecoveredPageChecksumReceiptToken,
                     );
-            
+
                     $ticketInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -26383,7 +26383,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_current_source_reader_ticket_predates_current_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'current_source_reader_ticket_token_admitted' => $baseAdmitted && $tokenMatches,
                             'current_source_reader_ticket_token_reason' => $baseAdmitted
@@ -26396,13 +26396,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'current_source_reader_ticket_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $ticketInvalidated = self::sortedUnique($ticketInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $ticketInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $ticketInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $ticketInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -26426,7 +26426,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next260';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_current_source_reader_ticket_before_reuse';
                     $base['current_source_reader_ticket_token'] = $currentSourceReaderTicketToken;
@@ -26438,10 +26438,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next260';
                     $base['dependencies'][] = 'sqlite-pager-current-source-reader-ticket-fence';
                     $base['non_overlap'] = 'next260 fences reader-cache reuse on the current-source reader ticket after next257 recovered page checksum receipt admission; it does not repeat next257 checksum receipts, next254 recovery receipts, next251 snapshots, next247 generation, current-source provenance, master-journal byte/token/member fences, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cacheCurrentSourceReaderTicketTokens(array $cache): array
                 {
@@ -26453,10 +26453,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readCurrentSourceReaderTicketTokens(array $reads): array
                 {
@@ -26469,10 +26469,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripCurrentSourceReaderTicketToken(array $cache): array
                 {
@@ -26480,33 +26480,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['current_source_reader_ticket_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOneCurrentSourceReaderTicketToken(array $read): array
                 {
                     unset($read['current_source_reader_ticket_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentRecoveredPageChecksumReceiptToken, $currentSourceReaderTicketToken);
@@ -26589,10 +26589,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     if ($currentPagerRollbackJournalReaderSourceToken === '') {
                         throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next261 requires a rollback-journal reader-source token');
                     }
-            
+
                     $cacheTokens = self::cachePagerRollbackJournalReaderSourceTokens($readerCache);
                     $readTokens = self::readPagerRollbackJournalReaderSourceTokens($nextReads);
-            
+
                     $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext258(
                         $databasePath,
                         $masterJournalPath,
@@ -26623,7 +26623,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         $currentMasterJournalRecoveryReceiptToken,
                         $currentPagerSpillDrainToken,
                     );
-            
+
                     $rollbackSourceInvalidated = [];
                     $rows = [];
                     foreach ($base['reader_rows'] as $row) {
@@ -26639,7 +26639,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                                 'reason' => 'reader_cache_rollback_journal_reader_source_predates_current_master_journal_source',
                             ];
                         }
-            
+
                         $rows[] = $row + [
                             'rollback_journal_reader_source_token_admitted' => $baseAdmitted && $tokenMatches,
                             'rollback_journal_reader_source_token_reason' => $baseAdmitted
@@ -26652,13 +26652,13 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                             'rollback_journal_reader_source_token_matches' => $tokenMatches,
                         ];
                     }
-            
+
                     $rollbackSourceInvalidated = self::sortedUnique($rollbackSourceInvalidated);
                     $base['invalidated_cache_page_numbers'] = self::sortedUnique(array_merge($base['invalidated_cache_page_numbers'], $rollbackSourceInvalidated));
                     $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $rollbackSourceInvalidated));
                     $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $rollbackSourceInvalidated));
                     $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
-            
+
                     $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
                     foreach ($base['next_reads'] as &$read) {
                         $readerId = (string) $read['reader_id'];
@@ -26682,7 +26682,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                     }
                     unset($read);
-            
+
                     $base['status'] = 'pager-master-journal-reader-cache-current-source-next261';
                     $base['reason'] = 'master_journal_reader_cache_rechecks_rollback_journal_reader_source_before_reuse';
                     $base['current_rollback_journal_reader_source_token'] = $currentPagerRollbackJournalReaderSourceToken;
@@ -26694,10 +26694,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-next261';
                     $base['dependencies'][] = 'sqlite-pager-reader-cache-rollback-source-fence';
                     $base['non_overlap'] = 'next261 fences reader-cache reuse on the rollback-journal reader-source token after next258 pager spill-drain and next254 master-journal recovery receipt admission; it does not repeat next258 spill drain, next254 receipt, next251 snapshots, next247 generation, next243 provenance, rollback-journal apply/commit, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, PRAGMA, trigger, or encoding behavior.';
-            
+
                     return $base;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,string> */
                 private static function cachePagerRollbackJournalReaderSourceTokens(array $cache): array
                 {
@@ -26709,10 +26709,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$pageNumber] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param list<array<string,mixed>> $reads @return array<string,string> */
                 private static function readPagerRollbackJournalReaderSourceTokens(array $reads): array
                 {
@@ -26725,10 +26725,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         }
                         $tokens[$readerId] = $token;
                     }
-            
+
                     return $tokens;
                 }
-            
+
                 /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
                 private static function stripPagerRollbackJournalReaderSourceToken(array $cache): array
                 {
@@ -26736,33 +26736,33 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                         unset($entry['rollback_journal_reader_source_token']);
                     }
                     unset($entry);
-            
+
                     return $cache;
                 }
-            
+
                 /** @param array<string,mixed> $read @return array<string,mixed> */
                 private static function stripOnePagerRollbackJournalReaderSourceToken(array $read): array
                 {
                     unset($read['rollback_journal_reader_source_token']);
-            
+
                     return $read;
                 }
-            
+
                 /** @param list<int> $values @return list<int> */
                 private static function sortedUnique(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NUMERIC);
-            
+
                     return $values;
                 }
-            
+
                 /** @param list<string> $values @return list<string> */
                 private static function sortReaderIds(array $values): array
                 {
                     $values = array_values(array_unique($values));
                     sort($values, SORT_NATURAL);
-            
+
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken);
@@ -27929,21 +27929,8 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_malloc_count_token', $currentToken, 365, 'reader_cache_malloc_count', 'reader_cache_malloc_count_must_match_current_malloc_count_state');
     }
 
-    /** @return array<string,mixed> */
-    public static function __callStatic(string $name, array $args): array
-    {
-        if (preg_match('/^variantNext(\d+)$/', $name, $matches) === 1) {
-            $next = (int) $matches[1];
-            if ($next >= 366 && $next <= 573) {
-                return self::readerCacheStatementFenceVariant($next, ...$args);
-            }
-        }
-
-        throw new \BadMethodCallException('Unknown SQLite pager master-journal reader-cache plan method ' . $name);
-    }
-
     /** @param mixed ...$args @return array<string,mixed> */
-    private static function readerCacheStatementFenceVariant(int $endNext, mixed ...$args): array
+    public static function readerCacheStatementFence(int $endNext, mixed ...$args): array
     {
         $metadata = self::readerCacheStatementFenceMetadata();
         if (!isset($metadata[$endNext])) {
@@ -28189,7 +28176,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next574 requires stmt-vdbe-if-branch token');
         }
-        $base = self::variantNext573(...$args);
+        $base = self::readerCacheStatementFence(573, ...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_token', $currentToken, 574, 'reader_cache_stmt_vdbe_if_branch', 'reader_cache_stmt_vdbe_if_branch_must_match_current_stmt_vdbe_if_branch_state');
     }

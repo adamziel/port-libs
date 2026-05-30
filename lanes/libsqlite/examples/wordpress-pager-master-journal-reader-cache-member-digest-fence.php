@@ -25,7 +25,7 @@ $recovered = [
 ];
 $sourceBefore = 'wp-next161-before-current-master-source';
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext161(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planCurrentMasterJournalReaderCacheRebase(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n/srv/wp-content/database/old-plugin-next161.sqlite-journal\n",
@@ -45,7 +45,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext161
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next161',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-member-digest-fence',
     'status' => $plan['status'],
     'cachedMembershipStale' => $plan['cached_membership_stale'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
@@ -67,9 +67,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['requiresReaderReopen'] !== true
     || $summary['nextWriteBeforePrefix'] !== 'wp next161 recovered active_plugins from current master journal'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next161 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-member-digest-fence self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next161 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-member-digest-fence self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

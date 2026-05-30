@@ -17820,7 +17820,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if ($limit < 0 || $offset < 0) {
                 throw new \InvalidArgumentException('SQLite next230 limit and offset must be non-negative');
             }
-            $sampleWindowLimit = self::currentWindowSampleCountNext230($currentSource, $whereTerms);
+            $sampleWindowLimit = self::currentSourceGapDensitySampleCount($currentSource, $whereTerms);
             $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext226(
                 $preparedSource,
                 $currentSource,
@@ -17829,8 +17829,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $sampleWindowLimit,
                 $offset,
             );
-            $matchedRows = self::currentMatchedRowsNext230($currentSource, $whereTerms, $limit, $offset);
-            $gapFence = self::gapDensityFenceNext230($matchedRows, self::windowSampleRowidsNext230($base), $whereTerms);
+            $matchedRows = self::currentSourceGapDensityMatchedRows($currentSource, $whereTerms, $limit, $offset);
+            $gapFence = self::currentSourceGapDensityFence($matchedRows, self::stat4WindowSampleRowidsForGapDensity($base), $whereTerms);
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next226-ready'
                 && $gapFence['ready'] === true
                 && $gapFence['rowidsRejectedByGapFence'] === [];
@@ -17838,8 +17838,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return array_replace($base, [
                 'status' => $ready ? 'stat4-expression-partial-current-source-next230-ready' : 'requires-current-source-stat4-gap-reprepare',
                 'matchedRows' => $matchedRows,
-                'matchedRowids' => array_map(static fn (array $row): int => self::rowidNext230($row), $matchedRows),
-                'projectedRows' => self::projectRowsNext230($matchedRows, $neededColumns),
+                'matchedRowids' => array_map(static fn (array $row): int => self::gapDensityRowid($row), $matchedRows),
+                'projectedRows' => self::projectGapDensityRows($matchedRows, $neededColumns),
                 'stat4GapDensityFence' => $gapFence,
                 'selectedPlan' => array_replace(is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [], [
                     'next230Ready' => $ready,
@@ -17854,7 +17854,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next230ProofSignature' => $gapFence['proofSignature'],
                     'next230GapReady' => $ready,
                 ]),
-                'cursorProgram' => self::cursorProgramNext230(
+                'cursorProgram' => self::cursorProgramWithGapDensityProof(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $gapFence,
@@ -17879,9 +17879,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @param list<array<string,mixed>> $whereTerms
          */
-        private static function currentWindowSampleCountNext230(array $source, array $whereTerms): int
+        private static function currentSourceGapDensitySampleCount(array $source, array $whereTerms): int
         {
-            $bounds = self::boundsNext230($whereTerms);
+            $bounds = self::gapDensityBounds($whereTerms);
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes) || !isset($indexes[0]) || !is_array($indexes[0])) {
                 throw new \InvalidArgumentException('SQLite next230 current source needs expression index list');
@@ -17913,7 +17913,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $whereTerms
          * @return list<array<string,mixed>>
          */
-        private static function currentMatchedRowsNext230(array $source, array $whereTerms, int $limit, int $offset): array
+        private static function currentSourceGapDensityMatchedRows(array $source, array $whereTerms, int $limit, int $offset): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -17924,21 +17924,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next230 current rows must be arrays');
                 }
-                if (self::rowSatisfiesTermsNext230($row, $whereTerms)) {
+                if (self::rowSatisfiesGapDensityTerms($row, $whereTerms)) {
                     $matched[] = [
-                        'rowid' => self::rowidNext230($row),
-                        'expressionKey' => self::rowExpressionKeyNext230($row),
+                        'rowid' => self::gapDensityRowid($row),
+                        'expressionKey' => self::gapDensityRowExpressionKey($row),
                         'payload' => $row,
                     ];
                 }
             }
             usort($matched, static function (array $left, array $right): int {
-                $comparison = strcmp(self::expressionKeyNext230($right), self::expressionKeyNext230($left));
+                $comparison = strcmp(self::gapDensityExpressionKey($right), self::gapDensityExpressionKey($left));
                 if ($comparison !== 0) {
                     return $comparison;
                 }
 
-                return self::rowidNext230($left) <=> self::rowidNext230($right);
+                return self::gapDensityRowid($left) <=> self::gapDensityRowid($right);
             });
 
             return array_slice($matched, $offset, $limit);
@@ -17948,7 +17948,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param list<array<string,mixed>> $whereTerms
          */
-        private static function rowSatisfiesTermsNext230(array $row, array $whereTerms): bool
+        private static function rowSatisfiesGapDensityTerms(array $row, array $whereTerms): bool
         {
             foreach ($whereTerms as $term) {
                 $left = $term['left'] ?? null;
@@ -17956,20 +17956,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     return false;
                 }
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
-                $value = array_key_exists('expression', $left) ? self::rowExpressionKeyNext230($row) : ($row[(string) ($left['column'] ?? '')] ?? null);
+                $value = array_key_exists('expression', $left) ? self::gapDensityRowExpressionKey($row) : ($row[(string) ($left['column'] ?? '')] ?? null);
                 if ($operator === '=' && $value != ($term['right'] ?? null)) {
                     return false;
                 }
                 if ($operator === 'IS NOT NULL' && $value === null) {
                     return false;
                 }
-                if ($operator === 'LIKE' && !self::likePrefixNext230((string) $value, (string) ($term['right'] ?? ''))) {
+                if ($operator === 'LIKE' && !self::gapDensityLikePrefixMatches((string) $value, (string) ($term['right'] ?? ''))) {
                     return false;
                 }
                 if ($operator === 'BETWEEN') {
                     $stringValue = strtolower((string) $value);
-                    $lower = self::stringOrNullNext230($term['lower'] ?? null);
-                    $upper = self::stringOrNullNext230($term['upper'] ?? null);
+                    $lower = self::gapDensityStringOrNull($term['lower'] ?? null);
+                    $upper = self::gapDensityStringOrNull($term['upper'] ?? null);
                     if (($lower !== null && $stringValue < $lower) || ($upper !== null && $stringValue > $upper)) {
                         return false;
                     }
@@ -17979,7 +17979,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function likePrefixNext230(string $value, string $pattern): bool
+        private static function gapDensityLikePrefixMatches(string $value, string $pattern): bool
         {
             if (str_ends_with($pattern, '%') && !str_contains(substr($pattern, 0, -1), '_')) {
                 return str_starts_with(strtolower($value), strtolower(substr($pattern, 0, -1)));
@@ -17992,7 +17992,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowExpressionKeyNext230(array $row): string
+        private static function gapDensityRowExpressionKey(array $row): string
         {
             if (!array_key_exists('option_name', $row)) {
                 throw new \InvalidArgumentException('SQLite next230 current row needs option_name');
@@ -18006,7 +18006,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function projectRowsNext230(array $rows, array $neededColumns): array
+        private static function projectGapDensityRows(array $rows, array $neededColumns): array
         {
             $projected = [];
             foreach ($rows as $row) {
@@ -18030,19 +18030,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $whereTerms
          * @return array<string,mixed>
          */
-        private static function gapDensityFenceNext230(array $matchedRows, array $sampleRowids, array $whereTerms): array
+        private static function currentSourceGapDensityFence(array $matchedRows, array $sampleRowids, array $whereTerms): array
         {
             $sampleSet = array_fill_keys(array_map('strval', $sampleRowids), true);
             $sampleKeys = [];
             $gapRows = [];
             $rejected = [];
-            $bounds = self::boundsNext230($whereTerms);
+            $bounds = self::gapDensityBounds($whereTerms);
             $lower = $bounds['lower'];
             $upper = $bounds['upper'];
 
             foreach ($matchedRows as $position => $row) {
-                $rowid = self::rowidNext230($row);
-                $key = self::expressionKeyNext230($row);
+                $rowid = self::gapDensityRowid($row);
+                $key = self::gapDensityExpressionKey($row);
                 if (isset($sampleSet[(string) $rowid])) {
                     $sampleKeys[$key][] = $rowid;
                     continue;
@@ -18089,8 +18089,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'gapRowCount' => count($gapRows),
                 'anchoredGapRowCount' => count($gapRows) - count($rejected),
                 'rowidsRejectedByGapFence' => array_values(array_unique($rejected)),
-                'gapSignature' => self::signatureNext230([$proof['gapRowids'], $gapKeys, $anchoredSampleRowids]),
-                'proofSignature' => self::signatureNext230($proof),
+                'gapSignature' => self::gapDensitySignature([$proof['gapRowids'], $gapKeys, $anchoredSampleRowids]),
+                'proofSignature' => self::gapDensitySignature($proof),
             ];
         }
 
@@ -18098,7 +18098,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $whereTerms
          * @return array{lower:?string,upper:?string}
          */
-        private static function boundsNext230(array $whereTerms): array
+        private static function gapDensityBounds(array $whereTerms): array
         {
             $lower = null;
             $upper = null;
@@ -18108,12 +18108,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($left) || !array_key_exists('expression', $left)) {
                     continue;
                 }
-                if (self::normalExpressionNext230((string) $left['expression']) !== 'lower(option_name)') {
+                if (self::normalGapDensityExpression((string) $left['expression']) !== 'lower(option_name)') {
                     continue;
                 }
                 if ($operator === 'BETWEEN') {
-                    $lower = self::stringOrNullNext230($term['lower'] ?? null);
-                    $upper = self::stringOrNullNext230($term['upper'] ?? null);
+                    $lower = self::gapDensityStringOrNull($term['lower'] ?? null);
+                    $upper = self::gapDensityStringOrNull($term['upper'] ?? null);
                 }
             }
 
@@ -18121,7 +18121,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $base @return list<array<string,mixed>> */
-        private static function matchedRowsNext230(array $base): array
+        private static function baseMatchedRowsForGapDensity(array $base): array
         {
             $rows = $base['matchedRows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -18137,7 +18137,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $base @return list<int> */
-        private static function windowSampleRowidsNext230(array $base): array
+        private static function stat4WindowSampleRowidsForGapDensity(array $base): array
         {
             $rowids = $base['stat4SampleWindowFence']['currentWindowRowids'] ?? null;
             if (!is_array($rowids) || !array_is_list($rowids)) {
@@ -18148,7 +18148,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function expressionKeyNext230(array $row): string
+        private static function gapDensityExpressionKey(array $row): string
         {
             if (array_key_exists('expressionKey', $row)) {
                 return strtolower((string) $row['expressionKey']);
@@ -18162,7 +18162,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext230(array $row): int
+        private static function gapDensityRowid(array $row): int
         {
             if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
                 throw new \InvalidArgumentException('SQLite next230 matched rowid must be an integer');
@@ -18176,7 +18176,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $gapFence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext230(array $program, bool $ready, array $gapFence): array
+        private static function cursorProgramWithGapDensityProof(array $program, bool $ready, array $gapFence): array
         {
             if (!$ready) {
                 return $program;
@@ -18193,17 +18193,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function normalExpressionNext230(string $expression): string
+        private static function normalGapDensityExpression(string $expression): string
         {
             return strtolower((string) preg_replace('/\s+/', '', $expression));
         }
 
-        private static function stringOrNullNext230(mixed $value): ?string
+        private static function gapDensityStringOrNull(mixed $value): ?string
         {
             return $value === null ? null : strtolower((string) $value);
         }
 
-        private static function signatureNext230(mixed $value): string
+        private static function gapDensitySignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -19905,7 +19905,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext236(
+        public static function materializeCurrentSourceStat4DensityVectorValidation(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -19925,7 +19925,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $limit,
                 $offset,
             );
-            $guard = self::densityVectorGuardNext236($currentSource, $whereTerms, self::currentWindowSamplesNext236($base));
+            $guard = self::densityVectorGuardCurrentSourceStat4DensityVectorValidation($currentSource, $whereTerms, self::currentWindowSamplesCurrentSourceStat4DensityVectorValidation($base));
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next233-ready'
                 && $guard['ready'] === true;
 
@@ -19945,7 +19945,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next236ProofSignature' => $guard['proofSignature'],
                     'next236DensityReady' => $ready,
                 ]),
-                'cursorProgram' => self::cursorProgramNext236(
+                'cursorProgram' => self::cursorProgramCurrentSourceStat4DensityVectorValidation(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $guard,
@@ -19972,9 +19972,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $samples
          * @return array<string,mixed>
          */
-        private static function densityVectorGuardNext236(array $source, array $whereTerms, array $samples): array
+        private static function densityVectorGuardCurrentSourceStat4DensityVectorValidation(array $source, array $whereTerms, array $samples): array
         {
-            $rows = self::partialRowsNext236($source, $whereTerms);
+            $rows = self::partialRowsCurrentSourceStat4DensityVectorValidation($source, $whereTerms);
             $keys = array_map(static fn (array $row): string => $row['expressionKey'], $rows);
             $distinctKeys = array_values(array_unique($keys));
             sort($distinctKeys, SORT_STRING);
@@ -19985,16 +19985,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $sampleRows = [];
 
             foreach ($samples as $sample) {
-                [$sampleKey, $rowid] = self::sampleKeyAndRowidNext236($sample);
-                $expected = self::expectedDensityNext236($sample);
-                $actual = self::actualDensityNext236($sampleKey, $keys, $distinctKeys);
-                $rowExists = self::rowidExistsNext236($rows, $rowid);
+                [$sampleKey, $rowid] = self::sampleKeyAndRowidCurrentSourceStat4DensityVectorValidation($sample);
+                $expected = self::expectedDensityCurrentSourceStat4DensityVectorValidation($sample);
+                $actual = self::actualDensityCurrentSourceStat4DensityVectorValidation($sampleKey, $keys, $distinctKeys);
+                $rowExists = self::rowidExistsCurrentSourceStat4DensityVectorValidation($rows, $rowid);
                 $matches = $rowExists && $expected === $actual;
                 if ($matches) {
                     $validated[] = $rowid;
                 } else {
                     $rejected[] = $rowid;
-                    $reasons[$rowid] = self::rejectionReasonNext236($rowExists, $expected, $actual);
+                    $reasons[$rowid] = self::rejectionReasonCurrentSourceStat4DensityVectorValidation($rowExists, $expected, $actual);
                 }
                 $sampleRows[] = [
                     'rowid' => $rowid,
@@ -20022,8 +20022,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'sampleRowCount' => count($samples),
                 'validatedSampleRowCount' => count($validated),
                 'rejectedSampleRowCount' => count($rejected),
-                'densitySignature' => self::signatureNext236([$sampleRows, $keys, $distinctKeys]),
-                'proofSignature' => self::signatureNext236($proof),
+                'densitySignature' => self::signatureCurrentSourceStat4DensityVectorValidation([$sampleRows, $keys, $distinctKeys]),
+                'proofSignature' => self::signatureCurrentSourceStat4DensityVectorValidation($proof),
             ];
         }
 
@@ -20032,7 +20032,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $whereTerms
          * @return list<array{rowid:int,expressionKey:string,row:array<string,mixed>}>
          */
-        private static function partialRowsNext236(array $source, array $whereTerms): array
+        private static function partialRowsCurrentSourceStat4DensityVectorValidation(array $source, array $whereTerms): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -20043,10 +20043,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next236 current rows must be arrays');
                 }
-                if (self::rowSatisfiesTermsNext236($row, $whereTerms)) {
+                if (self::rowSatisfiesTermsCurrentSourceStat4DensityVectorValidation($row, $whereTerms)) {
                     $out[] = [
-                        'rowid' => self::rowidNext236($row),
-                        'expressionKey' => self::rowExpressionKeyNext236($row),
+                        'rowid' => self::rowidCurrentSourceStat4DensityVectorValidation($row),
+                        'expressionKey' => self::rowExpressionKeyCurrentSourceStat4DensityVectorValidation($row),
                         'row' => $row,
                     ];
                 }
@@ -20066,7 +20066,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param list<array{rowid:int,expressionKey:string,row:array<string,mixed>}> $rows
          */
-        private static function rowidExistsNext236(array $rows, int $rowid): bool
+        private static function rowidExistsCurrentSourceStat4DensityVectorValidation(array $rows, int $rowid): bool
         {
             foreach ($rows as $row) {
                 if ($row['rowid'] === $rowid) {
@@ -20082,7 +20082,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $distinctKeys
          * @return array{neq:int,nlt:int,ndlt:int}
          */
-        private static function actualDensityNext236(string $sampleKey, array $keys, array $distinctKeys): array
+        private static function actualDensityCurrentSourceStat4DensityVectorValidation(string $sampleKey, array $keys, array $distinctKeys): array
         {
             $neq = 0;
             $nlt = 0;
@@ -20105,16 +20105,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $sample @return array{neq:int,nlt:int,ndlt:int} */
-        private static function expectedDensityNext236(array $sample): array
+        private static function expectedDensityCurrentSourceStat4DensityVectorValidation(array $sample): array
         {
             return [
-                'neq' => self::firstStatIntNext236($sample['neq'] ?? null, 'neq'),
-                'nlt' => self::firstStatIntNext236($sample['nlt'] ?? null, 'nlt'),
-                'ndlt' => self::firstStatIntNext236($sample['ndlt'] ?? null, 'ndlt'),
+                'neq' => self::firstStatIntCurrentSourceStat4DensityVectorValidation($sample['neq'] ?? null, 'neq'),
+                'nlt' => self::firstStatIntCurrentSourceStat4DensityVectorValidation($sample['nlt'] ?? null, 'nlt'),
+                'ndlt' => self::firstStatIntCurrentSourceStat4DensityVectorValidation($sample['ndlt'] ?? null, 'ndlt'),
             ];
         }
 
-        private static function firstStatIntNext236(mixed $value, string $name): int
+        private static function firstStatIntCurrentSourceStat4DensityVectorValidation(mixed $value, string $name): int
         {
             if (is_int($value)) {
                 return $value;
@@ -20131,7 +20131,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $base @return list<array<string,mixed>> */
-        private static function currentWindowSamplesNext236(array $base): array
+        private static function currentWindowSamplesCurrentSourceStat4DensityVectorValidation(array $base): array
         {
             $samples = $base['stat4SampleWindowFence']['currentWindowSamples'] ?? null;
             if (!is_array($samples) || !array_is_list($samples)) {
@@ -20147,7 +20147,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $sample @return array{0:string,1:int} */
-        private static function sampleKeyAndRowidNext236(array $sample): array
+        private static function sampleKeyAndRowidCurrentSourceStat4DensityVectorValidation(array $sample): array
         {
             $values = $sample['sample'] ?? null;
             if (!is_array($values) || !array_key_exists(0, $values) || !array_key_exists(1, $values)) {
@@ -20161,7 +20161,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param list<array<string,mixed>> $whereTerms
          */
-        private static function rowSatisfiesTermsNext236(array $row, array $whereTerms): bool
+        private static function rowSatisfiesTermsCurrentSourceStat4DensityVectorValidation(array $row, array $whereTerms): bool
         {
             foreach ($whereTerms as $term) {
                 $left = $term['left'] ?? null;
@@ -20169,20 +20169,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     return false;
                 }
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
-                $value = array_key_exists('expression', $left) ? self::rowExpressionKeyNext236($row) : ($row[(string) ($left['column'] ?? '')] ?? null);
+                $value = array_key_exists('expression', $left) ? self::rowExpressionKeyCurrentSourceStat4DensityVectorValidation($row) : ($row[(string) ($left['column'] ?? '')] ?? null);
                 if ($operator === '=' && $value != ($term['right'] ?? null)) {
                     return false;
                 }
                 if ($operator === 'IS NOT NULL' && $value === null) {
                     return false;
                 }
-                if ($operator === 'LIKE' && !self::likePrefixNext236((string) $value, (string) ($term['right'] ?? ''))) {
+                if ($operator === 'LIKE' && !self::likePrefixCurrentSourceStat4DensityVectorValidation((string) $value, (string) ($term['right'] ?? ''))) {
                     return false;
                 }
                 if ($operator === 'BETWEEN') {
                     $stringValue = strtolower((string) $value);
-                    $lower = self::stringOrNullNext236($term['lower'] ?? null);
-                    $upper = self::stringOrNullNext236($term['upper'] ?? null);
+                    $lower = self::stringOrNullCurrentSourceStat4DensityVectorValidation($term['lower'] ?? null);
+                    $upper = self::stringOrNullCurrentSourceStat4DensityVectorValidation($term['upper'] ?? null);
                     if (($lower !== null && $stringValue < $lower) || ($upper !== null && $stringValue > $upper)) {
                         return false;
                     }
@@ -20202,7 +20202,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function likePrefixNext236(string $value, string $pattern): bool
+        private static function likePrefixCurrentSourceStat4DensityVectorValidation(string $value, string $pattern): bool
         {
             if ($pattern === 'plugin_%') {
                 return str_starts_with(strtolower($value), 'plugin_');
@@ -20215,7 +20215,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowExpressionKeyNext236(array $row): string
+        private static function rowExpressionKeyCurrentSourceStat4DensityVectorValidation(array $row): string
         {
             if (!array_key_exists('option_name', $row)) {
                 throw new \InvalidArgumentException('SQLite next236 current row needs option_name');
@@ -20225,7 +20225,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext236(array $row): int
+        private static function rowidCurrentSourceStat4DensityVectorValidation(array $row): int
         {
             if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
                 throw new \InvalidArgumentException('SQLite next236 rowid must be an integer');
@@ -20238,7 +20238,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array{neq:int,nlt:int,ndlt:int} $expected
          * @param array{neq:int,nlt:int,ndlt:int} $actual
          */
-        private static function rejectionReasonNext236(bool $rowExists, array $expected, array $actual): string
+        private static function rejectionReasonCurrentSourceStat4DensityVectorValidation(bool $rowExists, array $expected, array $actual): string
         {
             if (!$rowExists) {
                 return 'sample-row-not-in-current-partial-set';
@@ -20258,7 +20258,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $guard
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext236(array $program, bool $ready, array $guard): array
+        private static function cursorProgramCurrentSourceStat4DensityVectorValidation(array $program, bool $ready, array $guard): array
         {
             if (!$ready) {
                 return $program;
@@ -20275,12 +20275,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function stringOrNullNext236(mixed $value): ?string
+        private static function stringOrNullCurrentSourceStat4DensityVectorValidation(mixed $value): ?string
         {
             return $value === null ? null : strtolower((string) $value);
         }
 
-        private static function signatureNext236(mixed $value): string
+        private static function signatureCurrentSourceStat4DensityVectorValidation(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -20295,7 +20295,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $trailingColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext237(
+        public static function materializeCurrentSourceTrailingPayloadValidation(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -20317,12 +20317,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $offset,
             );
             $selectedName = (string) ($base['selectedPlan']['name'] ?? '');
-            $currentIndex = self::indexByNameNext237($currentSource, $selectedName);
-            $rowsByRowid = self::rowsByRowidNext237($currentSource);
-            $fence = self::trailingPayloadFenceNext237(
+            $currentIndex = self::indexByNameCurrentSourceTrailingPayloadValidation($currentSource, $selectedName);
+            $rowsByRowid = self::rowsByRowidCurrentSourceTrailingPayloadValidation($currentSource);
+            $fence = self::trailingPayloadFenceCurrentSourceTrailingPayloadValidation(
                 $rowsByRowid,
-                self::stat4TrailingPayloadsNext237($currentIndex, $trailingColumns),
-                self::matchedSampleRowidsNext237($base),
+                self::stat4TrailingPayloadsCurrentSourceTrailingPayloadValidation($currentIndex, $trailingColumns),
+                self::matchedSampleRowidsCurrentSourceTrailingPayloadValidation($base),
                 $trailingColumns,
             );
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next228-ready'
@@ -20348,7 +20348,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next237TrailingPayloadSignature' => $fence['trailingPayloadSignature'],
                     'next237ProofSignature' => $fence['proofSignature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext237(
+                'cursorProgram' => self::cursorProgramCurrentSourceTrailingPayloadValidation(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
@@ -20370,7 +20370,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext237(array $source, string $name): array
+        private static function indexByNameCurrentSourceTrailingPayloadValidation(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -20389,7 +20389,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return array<int,array<string,mixed>> */
-        private static function rowsByRowidNext237(array $source): array
+        private static function rowsByRowidCurrentSourceTrailingPayloadValidation(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -20400,7 +20400,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next237 current source rows must be arrays');
                 }
-                $out[self::rowidNext237($row, 'current rowid')] = $row;
+                $out[self::rowidCurrentSourceTrailingPayloadValidation($row, 'current rowid')] = $row;
             }
 
             return $out;
@@ -20411,7 +20411,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $trailingColumns
          * @return list<array{expressionKey:string,rowid:int,trailing:array<string,mixed>,neqVector:list<int>,nltVector:list<int>}>
          */
-        private static function stat4TrailingPayloadsNext237(array $index, array $trailingColumns): array
+        private static function stat4TrailingPayloadsCurrentSourceTrailingPayloadValidation(array $index, array $trailingColumns): array
         {
             $samples = $index['stat4Samples'] ?? null;
             if (!is_array($samples) || !array_is_list($samples) || $samples === []) {
@@ -20431,10 +20431,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $out[] = [
                     'expressionKey' => strtolower((string) $sample['sample'][0]),
-                    'rowid' => self::rowidNext237(['rowid' => $sample['sample'][1]], 'stat4 sample rowid'),
+                    'rowid' => self::rowidCurrentSourceTrailingPayloadValidation(['rowid' => $sample['sample'][1]], 'stat4 sample rowid'),
                     'trailing' => $trailing,
-                    'neqVector' => self::statVectorNext237($sample['neq'] ?? null),
-                    'nltVector' => self::statVectorNext237($sample['nlt'] ?? null),
+                    'neqVector' => self::statVectorCurrentSourceTrailingPayloadValidation($sample['neq'] ?? null),
+                    'nltVector' => self::statVectorCurrentSourceTrailingPayloadValidation($sample['nlt'] ?? null),
                 ];
             }
 
@@ -20442,7 +20442,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return list<int> */
-        private static function statVectorNext237(mixed $value): array
+        private static function statVectorCurrentSourceTrailingPayloadValidation(mixed $value): array
         {
             if (is_int($value)) {
                 return [$value];
@@ -20463,7 +20463,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $base @return list<int> */
-        private static function matchedSampleRowidsNext237(array $base): array
+        private static function matchedSampleRowidsCurrentSourceTrailingPayloadValidation(array $base): array
         {
             $rowids = $base['stat4SamplePartialPredicateFence']['matchedSampleRowids'] ?? null;
             if (!is_array($rowids) || !array_is_list($rowids)) {
@@ -20480,7 +20480,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $trailingColumns
          * @return array<string,mixed>
          */
-        private static function trailingPayloadFenceNext237(array $rowsByRowid, array $payloads, array $matchedSampleRowids, array $trailingColumns): array
+        private static function trailingPayloadFenceCurrentSourceTrailingPayloadValidation(array $rowsByRowid, array $payloads, array $matchedSampleRowids, array $trailingColumns): array
         {
             $matchedLookup = array_fill_keys($matchedSampleRowids, true);
             $proofs = [];
@@ -20510,7 +20510,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 foreach ($trailingColumns as $column) {
                     $sampleValue = $payload['trailing'][$column] ?? null;
                     $currentValue = $row[$column] ?? null;
-                    $matches = self::valuesMatchNext237($sampleValue, $currentValue);
+                    $matches = self::valuesMatchCurrentSourceTrailingPayloadValidation($sampleValue, $currentValue);
                     $columnProofs[] = [
                         'column' => $column,
                         'sampleValue' => $sampleValue,
@@ -20549,12 +20549,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'missingCurrentTrailingPayloadRowids' => array_values(array_unique($missing)),
                 'sampleRowidsRejectedByTrailingPayload' => array_values(array_unique($rejected)),
                 'matchedSampleRowidsRejectedByTrailingPayload' => array_values(array_unique($matchedRejected)),
-                'trailingPayloadSignature' => self::signatureNext237([$trailingColumns, $payloads, $matchedSampleRowids]),
-                'proofSignature' => self::signatureNext237([$trailingColumns, $payloads, $matchedSampleRowids, $proofs, $missing, $rejected, $matchedRejected]),
+                'trailingPayloadSignature' => self::signatureCurrentSourceTrailingPayloadValidation([$trailingColumns, $payloads, $matchedSampleRowids]),
+                'proofSignature' => self::signatureCurrentSourceTrailingPayloadValidation([$trailingColumns, $payloads, $matchedSampleRowids, $proofs, $missing, $rejected, $matchedRejected]),
             ];
         }
 
-        private static function valuesMatchNext237(mixed $left, mixed $right): bool
+        private static function valuesMatchCurrentSourceTrailingPayloadValidation(mixed $left, mixed $right): bool
         {
             if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
                 return (float) $left === (float) $right;
@@ -20564,7 +20564,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext237(array $row, string $label): int
+        private static function rowidCurrentSourceTrailingPayloadValidation(array $row, string $label): int
         {
             if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
                 throw new \InvalidArgumentException('SQLite next237 ' . $label . ' must be an integer');
@@ -20578,7 +20578,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext237(array $program, bool $ready, array $fence): array
+        private static function cursorProgramCurrentSourceTrailingPayloadValidation(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
@@ -20595,7 +20595,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext237(mixed $value): string
+        private static function signatureCurrentSourceTrailingPayloadValidation(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         }
@@ -21014,7 +21014,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext236(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceStat4DensityVectorValidation(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -21318,7 +21318,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext237(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceTrailingPayloadValidation(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,

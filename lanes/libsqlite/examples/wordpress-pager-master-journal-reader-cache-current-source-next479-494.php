@@ -126,7 +126,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_compare_token' => 'stmt-vdbe-compare-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext494(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::readerCacheStatementFence(494,
     $database,
     $master,
     $masterBytes,

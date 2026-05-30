@@ -380,7 +380,7 @@ $read = static fn (int $pageNumber, array $extra = []): array => array_merge([
     'reader_cache_stmt_vdbe_reset_token' => $base['reader_cache_stmt_vdbe_reset_token'],
 ], $extra);
 $plan = static function (?array $cache = null, ?array $reads = null) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $base, $tokens, $headers, $cacheEntry, $read): array {
-    return SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext414($database, $master, $masterBytes, implode('', $before), $pageSize, $recovered, $cache ?? [
+    return SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::readerCacheStatementFence(414, $database, $master, $masterBytes, implode('', $before), $pageSize, $recovered, $cache ?? [
         1 => $cacheEntry('schema-stale-module', $recovered[1], ['reader_cache_module_schema_token' => 'module-schema-old']),
         2 => $cacheEntry('options-stale-pragma', $recovered[2], ['reader_cache_pragma_schema_token' => 'pragma-schema-old']),
         3 => $cacheEntry('plugins-stale-collation', $recovered[3], ['reader_cache_collation_schema_token' => 'collation-schema-old']),

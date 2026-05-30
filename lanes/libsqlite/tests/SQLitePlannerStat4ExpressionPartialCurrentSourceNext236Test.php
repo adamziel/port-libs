@@ -90,7 +90,7 @@ $terms236 = static fn (): array => [
     $like236('option_name', 'plugin_%'),
 ];
 
-$plan236 = static fn (int $limit = 6, int $offset = 0, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext236(
+$plan236 = static fn (int $limit = 6, int $offset = 0, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceStat4DensityVectorValidation(
     $prepared ?? $prepared236(),
     $current ?? $current236(),
     $terms ?? $terms236(),

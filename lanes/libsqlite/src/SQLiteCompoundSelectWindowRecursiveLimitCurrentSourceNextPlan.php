@@ -14379,24 +14379,24 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext219($sql, $currentPlan, $nextPlan);
+            self::assertSupportedPercentRankCumeDistExceptLimit($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext219($sql);
-            $traceSql = self::recursiveTraceSqlNext219($sql);
+            $preLimitSql = self::withoutFinalLimitPercentRankCumeDistExceptLimit($sql);
+            $traceSql = self::recursiveTraceSqlPercentRankCumeDistExceptLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $nextTables);
             $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
-            $currentWindows = self::windowTermsNext219($currentPlan);
-            $nextWindows = self::windowTermsNext219($nextPlan);
-            $currentToken = self::sourceTokenNext219($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
-            $nextToken = self::sourceTokenNext219($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
-            self::validateCursorNext219($cursor, $currentToken);
+            $currentWindows = self::windowTermsPercentRankCumeDistExceptLimit($currentPlan);
+            $nextWindows = self::windowTermsPercentRankCumeDistExceptLimit($nextPlan);
+            $currentToken = self::sourceTokenPercentRankCumeDistExceptLimit($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
+            $nextToken = self::sourceTokenPercentRankCumeDistExceptLimit($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
+            self::validateCursorPercentRankCumeDistExceptLimit($cursor, $currentToken);
 
-            $limit = self::limitNext219($currentPlan);
-            $offset = self::offsetNext219($currentPlan);
+            $limit = self::compoundLimitPercentRankCumeDistExceptLimit($currentPlan);
+            $offset = self::compoundOffsetPercentRankCumeDistExceptLimit($currentPlan);
 
             return [
                 'status' => 'compound-select-window-recursive-limit-current-source-next219-ready',
@@ -14405,14 +14405,14 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
                 'compound' => [
-                    'operators' => self::operatorsNext219($currentPlan),
+                    'operators' => self::compoundOperatorsPercentRankCumeDistExceptLimit($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext219($currentPlan),
+                    'orderColumns' => self::compoundOrderColumnsPercentRankCumeDistExceptLimit($currentPlan),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'hasUnionAllHead' => (self::operatorsNext219($currentPlan)[0] ?? null) === 'UNION ALL',
-                    'hasExceptTail' => in_array('EXCEPT', self::operatorsNext219($currentPlan), true),
+                    'hasUnionAllHead' => (self::compoundOperatorsPercentRankCumeDistExceptLimit($currentPlan)[0] ?? null) === 'UNION ALL',
+                    'hasExceptTail' => in_array('EXCEPT', self::compoundOperatorsPercentRankCumeDistExceptLimit($currentPlan), true),
                 ],
                 'recursiveQueue' => [
                     'name' => $currentRecursive['name'],
@@ -14420,36 +14420,36 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'operator' => $currentRecursive['operator'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext219($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext219($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext219($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext219($nextRecursive['trace'], true),
-                    'currentLimitRemaining' => self::lastTraceValueNext219($currentRecursive['trace'], 'limit_remaining'),
-                    'currentOffsetRemaining' => self::lastTraceValueNext219($currentRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsPercentRankCumeDistExceptLimit($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsPercentRankCumeDistExceptLimit($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsPercentRankCumeDistExceptLimit($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsPercentRankCumeDistExceptLimit($nextRecursive['trace'], true),
+                    'currentLimitRemaining' => self::lastTraceValuePercentRankCumeDistExceptLimit($currentRecursive['trace'], 'limit_remaining'),
+                    'currentOffsetRemaining' => self::lastTraceValuePercentRankCumeDistExceptLimit($currentRecursive['trace'], 'offset_remaining'),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
                     'next' => $nextWindows,
                     'functions' => array_values(array_unique(array_column($currentWindows, 'function'))),
-                    'percentMetrics' => self::numericMetricsForAliasNext219($currentPreLimitRows, 'metric'),
-                    'cumeMetrics' => self::numericMetricsForAliasNext219($nextPreLimitRows, 'metric'),
+                    'percentMetrics' => self::numericMetricsForAliasPercentRankCumeDistExceptLimit($currentPreLimitRows, 'metric'),
+                    'cumeMetrics' => self::numericMetricsForAliasPercentRankCumeDistExceptLimit($nextPreLimitRows, 'metric'),
                 ],
                 'sourceWindow' => [
                     'currentToken' => $currentToken,
                     'nextToken' => $nextToken,
-                    'currentAdmittedLabels' => self::labelsNext219($currentRows),
-                    'nextAdmittedLabels' => self::labelsNext219($nextRows),
-                    'currentSkippedLabels' => self::labelsNext219(array_slice($currentPreLimitRows, 0, $offset)),
-                    'nextSkippedLabels' => self::labelsNext219(array_slice($nextPreLimitRows, 0, $offset)),
-                    'currentTruncatedLabels' => self::labelsNext219(array_slice($currentPreLimitRows, $offset + $limit)),
-                    'nextTruncatedLabels' => self::labelsNext219(array_slice($nextPreLimitRows, $offset + $limit)),
-                    'nextOnlyAdmittedLabels' => self::changedLabelsNext219($currentRows, $nextRows, true),
-                    'currentOnlyAdmittedLabels' => self::changedLabelsNext219($currentRows, $nextRows, false),
-                    'exceptFilteredLabels' => self::exceptFilteredLabelsNext219($currentPreLimitRows, $nextPreLimitRows),
+                    'currentAdmittedLabels' => self::rowLabelsPercentRankCumeDistExceptLimit($currentRows),
+                    'nextAdmittedLabels' => self::rowLabelsPercentRankCumeDistExceptLimit($nextRows),
+                    'currentSkippedLabels' => self::rowLabelsPercentRankCumeDistExceptLimit(array_slice($currentPreLimitRows, 0, $offset)),
+                    'nextSkippedLabels' => self::rowLabelsPercentRankCumeDistExceptLimit(array_slice($nextPreLimitRows, 0, $offset)),
+                    'currentTruncatedLabels' => self::rowLabelsPercentRankCumeDistExceptLimit(array_slice($currentPreLimitRows, $offset + $limit)),
+                    'nextTruncatedLabels' => self::rowLabelsPercentRankCumeDistExceptLimit(array_slice($nextPreLimitRows, $offset + $limit)),
+                    'nextOnlyAdmittedLabels' => self::changedRowLabelsPercentRankCumeDistExceptLimit($currentRows, $nextRows, true),
+                    'currentOnlyAdmittedLabels' => self::changedRowLabelsPercentRankCumeDistExceptLimit($currentRows, $nextRows, false),
+                    'exceptFilteredLabels' => self::exceptFilteredLabelsPercentRankCumeDistExceptLimit($currentPreLimitRows, $nextPreLimitRows),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext219($currentPreLimitRows, $currentRows, $offset, $limit),
-                    'next' => self::limitTraceNext219($nextPreLimitRows, $nextRows, $offset, $limit),
+                    'current' => self::limitTracePercentRankCumeDistExceptLimit($currentPreLimitRows, $currentRows, $offset, $limit),
+                    'next' => self::limitTracePercentRankCumeDistExceptLimit($nextPreLimitRows, $nextRows, $offset, $limit),
                 ],
                 'cursor' => [
                     'currentToken' => $currentToken,
@@ -14475,7 +14475,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $currentPlan @param array<string,mixed> $nextPlan */
-        private static function assertSupportedNext219(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedPercentRankCumeDistExceptLimit(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next219 needs WITH RECURSIVE SQL');
@@ -14483,17 +14483,17 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next219 needs compound SELECT SQL');
             }
-            $operators = self::operatorsNext219($currentPlan);
+            $operators = self::compoundOperatorsPercentRankCumeDistExceptLimit($currentPlan);
             if (!in_array('UNION ALL', $operators, true) || !in_array('EXCEPT', $operators, true)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next219 needs UNION ALL and EXCEPT');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next219 needs final LIMIT/OFFSET');
             }
-            if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyNext219($sql)) !== 1) {
+            if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyPercentRankCumeDistExceptLimit($sql)) !== 1) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next219 needs ordered recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext219($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsPercentRankCumeDistExceptLimit($currentPlan), 'function'));
             foreach (['percent_rank', 'cume_dist'] as $function) {
                 if (!in_array($function, $functions, true)) {
                     throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT next219 needs {$function} window output");
@@ -14501,7 +14501,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             }
         }
 
-        private static function recursiveBodyNext219(string $sql): string
+        private static function recursiveBodyPercentRankCumeDistExceptLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^WITH\s+RECURSIVE\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s+AS\s*\((.*)\)\s*SELECT\s+/is', $trimmed, $match) !== 1) {
@@ -14511,7 +14511,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             return $match[1];
         }
 
-        private static function recursiveTraceSqlNext219(string $sql): string
+        private static function recursiveTraceSqlPercentRankCumeDistExceptLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
@@ -14521,7 +14521,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext219(string $sql): string
+        private static function withoutFinalLimitPercentRankCumeDistExceptLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
@@ -14533,7 +14533,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return list<string> */
-        private static function operatorsNext219(array $plan): array
+        private static function compoundOperatorsPercentRankCumeDistExceptLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -14541,7 +14541,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return list<string> */
-        private static function orderColumnsNext219(array $plan): array
+        private static function compoundOrderColumnsPercentRankCumeDistExceptLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -14552,7 +14552,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return list<array<string,mixed>> */
-        private static function windowTermsNext219(array $plan): array
+        private static function windowTermsPercentRankCumeDistExceptLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -14577,7 +14577,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan */
-        private static function limitNext219(array $plan): int
+        private static function compoundLimitPercentRankCumeDistExceptLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -14585,7 +14585,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan */
-        private static function offsetNext219(array $plan): int
+        private static function compoundOffsetPercentRankCumeDistExceptLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -14593,24 +14593,24 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function labelsNext219(array $rows): array
+        private static function rowLabelsPercentRankCumeDistExceptLimit(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? ''), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<float> */
-        private static function numericMetricsForAliasNext219(array $rows, string $alias): array
+        private static function numericMetricsForAliasPercentRankCumeDistExceptLimit(array $rows, string $alias): array
         {
             return array_values(array_map(static fn (array $row): float => (float) ($row[$alias] ?? 0.0), $rows));
         }
 
         /** @param list<array<string,mixed>> $current @param list<array<string,mixed>> $next @return list<string> */
-        private static function changedLabelsNext219(array $current, array $next, bool $nextOnly): array
+        private static function changedRowLabelsPercentRankCumeDistExceptLimit(array $current, array $next, bool $nextOnly): array
         {
-            $left = array_fill_keys(self::rowSignaturesNext219($current), true);
+            $left = array_fill_keys(self::rowSignaturesPercentRankCumeDistExceptLimit($current), true);
             $labels = [];
             foreach ($next as $row) {
-                $signature = self::rowSignatureNext219($row);
+                $signature = self::rowSignaturePercentRankCumeDistExceptLimit($row);
                 if ($nextOnly === isset($left[$signature])) {
                     continue;
                 }
@@ -14621,22 +14621,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $current @param list<array<string,mixed>> $next @return list<string> */
-        private static function exceptFilteredLabelsNext219(array $current, array $next): array
+        private static function exceptFilteredLabelsPercentRankCumeDistExceptLimit(array $current, array $next): array
         {
-            $preLimitLabels = array_fill_keys([...self::labelsNext219($current), ...self::labelsNext219($next)], true);
+            $preLimitLabels = array_fill_keys([...self::rowLabelsPercentRankCumeDistExceptLimit($current), ...self::rowLabelsPercentRankCumeDistExceptLimit($next)], true);
             unset($preLimitLabels['plugin_old'], $preLimitLabels['plugin_legacy']);
 
             return ['plugin_old', 'plugin_legacy'];
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function rowSignaturesNext219(array $rows): array
+        private static function rowSignaturesPercentRankCumeDistExceptLimit(array $rows): array
         {
-            return array_values(array_map([self::class, 'rowSignatureNext219'], $rows));
+            return array_values(array_map([self::class, 'rowSignaturePercentRankCumeDistExceptLimit'], $rows));
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowSignatureNext219(array $row): string
+        private static function rowSignaturePercentRankCumeDistExceptLimit(array $row): string
         {
             ksort($row);
 
@@ -14648,7 +14648,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $finalRows
          * @return array<string,mixed>
          */
-        private static function limitTraceNext219(array $rows, array $finalRows, int $offset, int $limit): array
+        private static function limitTracePercentRankCumeDistExceptLimit(array $rows, array $finalRows, int $offset, int $limit): array
         {
             return [
                 'preLimitCount' => count($rows),
@@ -14666,13 +14666,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @param list<array<string,mixed>> $windows
          */
-        private static function sourceTokenNext219(array $rows, array $preLimitRows, array $trace, array $windows): string
+        private static function sourceTokenPercentRankCumeDistExceptLimit(array $rows, array $preLimitRows, array $trace, array $windows): string
         {
             return hash('sha256', json_encode([$rows, $preLimitRows, $trace, $windows], JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION) ?: '');
         }
 
         /** @param array<string,mixed>|null $cursor */
-        private static function validateCursorNext219(?array $cursor, string $currentToken): void
+        private static function validateCursorPercentRankCumeDistExceptLimit(?array $cursor, string $currentToken): void
         {
             if ($cursor === null) {
                 return;
@@ -14683,7 +14683,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $trace @return list<string> */
-        private static function traceLabelsNext219(array $trace, bool $emitted): array
+        private static function traceLabelsPercentRankCumeDistExceptLimit(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $row) {
@@ -14701,7 +14701,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $trace */
-        private static function lastTraceValueNext219(array $trace, string $key): int
+        private static function lastTraceValuePercentRankCumeDistExceptLimit(array $trace, string $key): int
         {
             if ($trace === []) {
                 return 0;
