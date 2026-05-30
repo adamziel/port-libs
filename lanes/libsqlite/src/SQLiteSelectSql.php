@@ -892,13 +892,41 @@ final class SQLiteSelectSql
             $rows = SQLiteSelectCompound::combine($rows, $armRows, (string) $compound['operators'][$index - 1], self::compoundSelectCollations($compound['arms'][0]));
         }
 
+        $rows ??= [];
+        if (self::compoundUsesDistinctSetOrder($compound['operators'])) {
+            $setOrderBy = [];
+            $collations = is_array($compound['arms'][0] ?? null) ? self::compoundSelectCollations($compound['arms'][0]) : [];
+            foreach ($columns ?? [] as $column) {
+                $term = ['column' => $column];
+                if (isset($collations[$column]) && is_string($collations[$column])) {
+                    $term['collation'] = $collations[$column];
+                }
+                $setOrderBy[] = $term;
+            }
+            $rows = SQLiteSelectResult::execute($rows, null, $setOrderBy);
+        }
+
         return SQLiteSelectResult::execute(
-            $rows ?? [],
+            $rows,
             null,
             isset($compound['orderBy']) && is_array($compound['orderBy']) ? $compound['orderBy'] : [],
             isset($compound['limit']) && is_int($compound['limit']) ? $compound['limit'] : null,
             isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0,
         );
+    }
+
+    /**
+     * @param list<mixed> $operators
+     */
+    private static function compoundUsesDistinctSetOrder(array $operators): bool
+    {
+        foreach ($operators as $operator) {
+            if (strtoupper((string) $operator) !== 'UNION ALL') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

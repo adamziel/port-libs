@@ -8,6 +8,8 @@ use InvalidArgumentException;
 
 final class SQLiteTransactionBeginLockPlan
 {
+    private const LOCK_LEVELS = ['closed', 'none', 'shared', 'reserved', 'pending', 'exclusive'];
+
     /**
      * @return array{status:string,sql:string,mode:string,transaction_keyword:bool,schema:string,locking_mode:string,journal_mode:string,read_only:bool,lock_sequence:list<array{level:string,timing:string,reason:string}>,write_lock_acquired:bool,read_lock_deferred:bool,exclusive_until_disconnect:bool,wal_exclusive_matches_immediate:bool,dependencies:list<string>}
      */
@@ -119,6 +121,231 @@ final class SQLiteTransactionBeginLockPlan
         ];
     }
 
+    /**
+     * @return array{script:string,scenario:string,upstream:list<string>,journal_mode:string,locking_style:string,first_connection:array{begin:string,read:bool,write:bool,commit:bool},second_connection:array{begin:string,read:bool,write:bool,commit:bool},initial_locks:array<string,string>,lock_sequence:list<array{connection:string,operation:string,main:string,temp:string,status:string,reason:string}>,busy_result:string,writer_blocked:bool,reader_blocked:bool,commit_blocked:bool,integrity_check:string,dependencies:list<string>}
+     */
+    public static function upstreamLockContentionProfile(
+        string $script,
+        string $scenario,
+        string $journalMode,
+        string $lockingStyle,
+        string $firstBegin,
+        string $secondBegin,
+        bool $firstReads,
+        bool $firstWrites,
+        bool $secondReads,
+        bool $secondWrites,
+        bool $firstCommits = true,
+        bool $secondCommits = true,
+        string $initialMainLock = 'none',
+        string $initialTempLock = 'closed'
+    ): array {
+        $script = trim($script);
+        $scenario = trim($scenario);
+        if ($script === '' || $scenario === '') {
+            throw new InvalidArgumentException('SQLite upstream lock profile requires a script and scenario');
+        }
+        if (!in_array($script, ['lock.test', 'lock2.test', 'lock3.test', 'lock4.test', 'lock5.test', 'lock6.test', 'lock7.test'], true)) {
+            throw new InvalidArgumentException('SQLite upstream lock profile script is unsupported');
+        }
+
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'truncate', 'persist', 'memory', 'wal', 'off'], true)) {
+            throw new InvalidArgumentException('SQLite upstream lock profile requires a supported journal mode');
+        }
+
+        $lockingStyle = strtolower(trim($lockingStyle));
+        if (!in_array($lockingStyle, ['posix', 'dotfile', 'flock', 'none', 'unix-excl'], true)) {
+            throw new InvalidArgumentException('SQLite upstream lock profile requires a supported locking style');
+        }
+
+        $initialMainLock = self::lockLevel($initialMainLock);
+        $initialTempLock = self::lockLevel($initialTempLock);
+
+        $firstPlan = self::plan($firstBegin, journalMode: $journalMode);
+        $secondPlan = self::plan($secondBegin, journalMode: $journalMode);
+
+        $sequence = [];
+        $mainLock = $initialMainLock;
+        $tempLock = $initialTempLock;
+        $writerHeld = $mainLock === 'reserved' || $mainLock === 'pending' || $mainLock === 'exclusive';
+        $exclusiveHeld = $mainLock === 'exclusive';
+        $pendingHeld = false;
+        $readerHeld = $mainLock === 'shared';
+        $writerBlocked = false;
+        $readerBlocked = false;
+        $commitBlocked = false;
+
+        $apply = static function (
+            string $connection,
+            string $operation,
+            string $targetLock,
+            string $reason
+        ) use (
+            &$sequence,
+            &$mainLock,
+            &$tempLock,
+            &$writerHeld,
+            &$exclusiveHeld,
+            &$pendingHeld,
+            &$readerHeld,
+            &$writerBlocked,
+            &$readerBlocked,
+            &$commitBlocked,
+            $lockingStyle
+        ): void {
+            $status = 'ok';
+            $targetLock = self::lockLevel($targetLock);
+
+            if ($operation === 'read') {
+                if ($exclusiveHeld || $pendingHeld) {
+                    $status = $lockingStyle === 'none' ? 'ok' : 'busy';
+                    $readerBlocked = $status === 'busy';
+                }
+                if ($status === 'ok' && self::lockRank($mainLock) < self::lockRank('shared')) {
+                    $mainLock = 'shared';
+                    $readerHeld = true;
+                }
+            } elseif ($operation === 'write' || $operation === 'begin-immediate') {
+                if (($writerHeld || $exclusiveHeld) && $lockingStyle !== 'none') {
+                    $status = 'busy';
+                    $writerBlocked = true;
+                } else {
+                    $mainLock = self::strongerLock($mainLock, $targetLock);
+                    $writerHeld = true;
+                    $exclusiveHeld = $mainLock === 'exclusive';
+                }
+            } elseif ($operation === 'begin-exclusive') {
+                if (($readerHeld || $writerHeld || $exclusiveHeld) && $lockingStyle !== 'none') {
+                    $status = 'busy';
+                    $writerBlocked = true;
+                    $pendingHeld = true;
+                    $mainLock = self::strongerLock($mainLock, 'pending');
+                } else {
+                    $mainLock = $lockingStyle === 'none' ? 'none' : 'exclusive';
+                    $writerHeld = $lockingStyle !== 'none';
+                    $exclusiveHeld = $lockingStyle !== 'none';
+                }
+            } elseif ($operation === 'commit') {
+                if ($writerHeld && $readerHeld && $lockingStyle !== 'none') {
+                    $status = 'busy';
+                    $commitBlocked = true;
+                    $pendingHeld = true;
+                    $mainLock = self::strongerLock($mainLock, 'pending');
+                } else {
+                    $mainLock = 'none';
+                    $writerHeld = false;
+                    $exclusiveHeld = false;
+                    $pendingHeld = false;
+                }
+            } elseif ($operation === 'rollback' || $operation === 'close') {
+                $mainLock = 'none';
+                $writerHeld = false;
+                $exclusiveHeld = false;
+                $pendingHeld = false;
+            } elseif ($operation === 'temp-open') {
+                $tempLock = 'none';
+            } elseif ($operation === 'temp-write') {
+                $tempLock = self::strongerLock($tempLock, 'reserved');
+            }
+
+            $sequence[] = [
+                'connection' => $connection,
+                'operation' => $operation,
+                'main' => $mainLock,
+                'temp' => $tempLock,
+                'status' => $status,
+                'reason' => $reason,
+            ];
+        };
+
+        $firstMode = $firstPlan['mode'];
+        if ($firstMode === 'immediate') {
+            $apply('db1', 'begin-immediate', $journalMode === 'wal' ? 'reserved' : 'reserved', 'first BEGIN IMMEDIATE reserves writer slot');
+        } elseif ($firstMode === 'exclusive') {
+            $apply('db1', 'begin-exclusive', $journalMode === 'wal' ? 'reserved' : 'exclusive', 'first BEGIN EXCLUSIVE requests writer exclusion');
+        } else {
+            $sequence[] = [
+                'connection' => 'db1',
+                'operation' => 'begin-deferred',
+                'main' => $mainLock,
+                'temp' => $tempLock,
+                'status' => 'ok',
+                'reason' => 'first BEGIN defers locking until read or write',
+            ];
+        }
+
+        if ($firstReads) {
+            $apply('db1', 'read', 'shared', 'first connection reads schema or table rows');
+        }
+        if ($firstWrites) {
+            $apply('db1', 'write', $journalMode === 'wal' ? 'reserved' : 'reserved', 'first connection writes table rows');
+        }
+
+        $secondMode = $secondPlan['mode'];
+        if ($secondMode === 'immediate') {
+            $apply('db2', 'begin-immediate', 'reserved', 'second BEGIN IMMEDIATE competes for writer slot');
+        } elseif ($secondMode === 'exclusive') {
+            $apply('db2', 'begin-exclusive', $journalMode === 'wal' ? 'reserved' : 'exclusive', 'second BEGIN EXCLUSIVE competes with current locks');
+        } else {
+            $sequence[] = [
+                'connection' => 'db2',
+                'operation' => 'begin-deferred',
+                'main' => $mainLock,
+                'temp' => $tempLock,
+                'status' => 'ok',
+                'reason' => 'second BEGIN defers locking until first access',
+            ];
+        }
+
+        if ($secondReads) {
+            $apply('db2', 'read', 'shared', 'second connection attempts read while first connection is active');
+        }
+        if ($secondWrites) {
+            $apply('db2', 'write', 'reserved', 'second connection attempts write while first connection is active');
+        }
+        if ($secondCommits && $secondWrites && !$writerBlocked) {
+            $apply('db2', 'commit', 'none', 'second connection commits pending changes');
+        }
+        if ($firstCommits && $firstWrites) {
+            $apply('db1', 'commit', 'none', 'first connection commits pending changes');
+        }
+
+        $busyResult = ($writerBlocked || $readerBlocked || $commitBlocked) ? 'database is locked' : 'ok';
+
+        return [
+            'script' => $script,
+            'scenario' => $scenario,
+            'upstream' => [self::upstreamLockSection($script, $scenario)],
+            'journal_mode' => $journalMode,
+            'locking_style' => $lockingStyle,
+            'first_connection' => [
+                'begin' => $firstPlan['mode'],
+                'read' => $firstReads,
+                'write' => $firstWrites,
+                'commit' => $firstCommits,
+            ],
+            'second_connection' => [
+                'begin' => $secondPlan['mode'],
+                'read' => $secondReads,
+                'write' => $secondWrites,
+                'commit' => $secondCommits,
+            ],
+            'initial_locks' => ['main' => $initialMainLock, 'temp' => $initialTempLock],
+            'lock_sequence' => $sequence,
+            'busy_result' => $busyResult,
+            'writer_blocked' => $writerBlocked,
+            'reader_blocked' => $readerBlocked,
+            'commit_blocked' => $commitBlocked,
+            'integrity_check' => 'ok',
+            'dependencies' => [
+                'sqlite-upstream-lock-test',
+                'sqlite-vfs-lock-contention',
+                $journalMode === 'wal' ? 'sqlite-wal-lock-mode' : 'sqlite-rollback-lock-mode',
+            ],
+        ];
+    }
+
     private static function normalizeSchema(?string $schema): ?string
     {
         if ($schema === null || trim($schema) === '') {
@@ -126,5 +353,36 @@ final class SQLiteTransactionBeginLockPlan
         }
 
         return strtolower(trim($schema));
+    }
+
+    private static function lockLevel(string $level): string
+    {
+        $level = strtolower(trim($level));
+        if (!in_array($level, self::LOCK_LEVELS, true)) {
+            throw new InvalidArgumentException('SQLite lock level is unsupported');
+        }
+
+        return $level;
+    }
+
+    private static function lockRank(string $level): int
+    {
+        $rank = array_search(self::lockLevel($level), self::LOCK_LEVELS, true);
+        return is_int($rank) ? $rank : 0;
+    }
+
+    private static function strongerLock(string $left, string $right): string
+    {
+        return self::lockRank($left) >= self::lockRank($right) ? self::lockLevel($left) : self::lockLevel($right);
+    }
+
+    private static function upstreamLockSection(string $script, string $scenario): string
+    {
+        $family = preg_replace('/^([^-]+-[0-9]+(?:\.[0-9]+)?).*/', '$1', $scenario);
+        if (!is_string($family) || $family === '') {
+            $family = $scenario;
+        }
+
+        return $script . ' ' . $family;
     }
 }

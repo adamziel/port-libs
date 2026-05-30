@@ -137,6 +137,87 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream:string,index_name:string,predicate_value:int,where_value:mixed,where_value_type:string,operand_order:string,order_by:string|null,qpsg:bool,uses_partial_index:bool,objects:list<string>,detail:string}>
+     */
+    public static function index9DynamicBoundPartialIndexCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index9 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'upstream' => 'index9-1.1/1.5',
+                'index' => 't1x',
+                'predicate' => 45,
+                'values' => [45, 45.0, '45', 44, 46, null],
+                'order' => null,
+                'operandOrders' => ['column-left'],
+                'qpsgSlots' => [false],
+            ],
+            [
+                'upstream' => 'index9-2.1/2.4',
+                'index' => 't1x2',
+                'predicate' => -20111000111,
+                'values' => [-20111000111, -20111000110, -20111000112, '-20111000111', null],
+                'order' => 'x',
+                'operandOrders' => ['column-left'],
+                'qpsgSlots' => [false],
+            ],
+            [
+                'upstream' => 'index9-3.1/3.5',
+                'index' => 't1x3',
+                'predicate' => 9223372036854775807,
+                'values' => [9223372036854775807, 9.223372036854776E+18, 9223372036854775806, '9223372036854775807'],
+                'order' => 'x',
+                'operandOrders' => ['column-left'],
+                'qpsgSlots' => [false, true],
+            ],
+            [
+                'upstream' => 'index9-4.1/4.5',
+                'index' => 't1x4',
+                'predicate' => -9223372036854775807 - 1,
+                'values' => [-9223372036854775807 - 1, -9223372036854775807, -9.223372036854776E+18, '-9223372036854775808'],
+                'order' => 'x',
+                'operandOrders' => ['column-left', 'literal-left'],
+                'qpsgSlots' => [false, true],
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $value = $template['values'][($batch - 1) % count($template['values'])];
+            $operandOrder = $template['operandOrders'][($batch - 1) % count($template['operandOrders'])];
+            $qpsg = $template['qpsgSlots'][($batch - 1) % count($template['qpsgSlots'])];
+            $usesPartialIndex = !$qpsg
+                && ($operandOrder === 'column-left' || $template['index'] === 't1x4')
+                && self::sqlitePartialIndexBoundValueMatches($template['predicate'], $value);
+
+            $out[] = [
+                'source' => 'index9.test sections 1.1 through 4.5',
+                'case' => $case,
+                'upstream' => $template['upstream'] . '.dynamic-' . $batch,
+                'index_name' => $template['index'],
+                'predicate_value' => $template['predicate'],
+                'where_value' => $value,
+                'where_value_type' => gettype($value),
+                'operand_order' => $operandOrder,
+                'order_by' => $template['order'],
+                'qpsg' => $qpsg,
+                'uses_partial_index' => $usesPartialIndex,
+                'objects' => $usesPartialIndex ? ['t1', $template['index']] : ['t1'],
+                'detail' => $usesPartialIndex
+                    ? 'OpenRead t1 and ' . $template['index'] . ' for bound partial-index proof'
+                    : 'OpenRead t1 only; bound value does not prove partial-index predicate',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,table:string,rowid_column:string,rowid_literal:mixed,result:list<mixed>,detail:string}>
      */
     public static function indexedByRowidAffinityCases(): array
@@ -3159,5 +3240,10 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         }
 
         throw new \InvalidArgumentException('SQLite dynamic index lookup fixture has no matching row');
+    }
+
+    private static function sqlitePartialIndexBoundValueMatches(int $predicate, mixed $value): bool
+    {
+        return is_int($value) && $value === $predicate;
     }
 }
