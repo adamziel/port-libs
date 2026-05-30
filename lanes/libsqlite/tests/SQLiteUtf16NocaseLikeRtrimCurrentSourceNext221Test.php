@@ -57,7 +57,7 @@ $plan221 = static fn (
     string $nextSource = 'main.wp_options@221',
     int $currentCookie = 220,
     int $nextCookie = 221,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedByteSignaturePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedByteSignaturePlan(
     $current ?? $currentRows221,
     $next ?? $nextRows221,
     $enc221($pattern, $currentPatternEncoding),
@@ -179,7 +179,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoOne stable source still
         $row221(2, 'Plugin_Cache  ', 'UTF-16BE'),
         $row221(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedByteSignaturePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedByteSignaturePlan(
         $rows,
         $rows,
         $enc221('plugin!_cache%', 'UTF-16LE'),
@@ -209,7 +209,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoOne identical prepared 
         $row221(2, 'Plugin_Cache  ', 'UTF-16BE'),
         $row221(3, 'theme_plugin_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedByteSignaturePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedByteSignaturePlan(
         $rows,
         $rows,
         $enc221('plugin!_cache%', 'UTF-16LE'),
@@ -239,7 +239,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoOne escape byte signatu
         $row221(1, 'plugin_cache', 'UTF-16LE'),
         $row221(2, 'plugin-cache', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedByteSignaturePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedByteSignaturePlan(
         $rows,
         $rows,
         $enc221('plugin!_cache%', 'UTF-16LE'),
@@ -265,7 +265,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoOne escape byte signatu
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoTwoOne rejects malformed prepared bytes'] = static function (TestRunner $t) use ($currentRows221, $nextRows221, $enc221): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedByteSignaturePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedByteSignaturePlan(
         $currentRows221,
         $nextRows221,
         "\x00\xd8",

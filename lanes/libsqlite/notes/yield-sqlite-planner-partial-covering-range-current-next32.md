@@ -31,7 +31,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-partial-covering-range-plan.php
+php lanes/libsqlite/examples/application-partial-covering-range-plan.php
 ```
 
 ## Non-overlap

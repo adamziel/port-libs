@@ -17,7 +17,7 @@ the cache observed an older page digest.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Test.php`
   - `1 test files, 64 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next192.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next192.php`
   - self-test JSON reports status `wal-hot-journal-savepoint-checkpoint-current-source-next192`
 
 ## Non-Overlap

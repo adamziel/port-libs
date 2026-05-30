@@ -8,13 +8,13 @@ Patch:
 
 - Threads the selected index collation into expression residual checks.
 - Applies that collation to expression `=`, `IN`, `BETWEEN`, and range comparisons.
-- Adds focused NOCASE current-source reprepare assertions and a WordPress smoke.
+- Adds focused NOCASE current-source reprepare assertions and a Application smoke.
 
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialReprepareTest.php` passed: `1 test files, 71 assertions, 0 failures`.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php` passed: `133 test files, 7561 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-nocase-reprepare.php --self-test` passed.
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-nocase-reprepare.php --self-test` passed.
 
 Dependency closure: no new support component is needed. This reuses existing lane-local STAT4 sample parsing, expression value extraction, partial predicate implication, and current-source reprepare diagnostics.
 

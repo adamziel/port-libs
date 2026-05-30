@@ -14,7 +14,7 @@ Focused movement:
 - Rewrites aggregate expressions in implicit HAVING predicates, including
   non-projected aggregate functions such as `SELECT count(*) ... HAVING
   sum(bytes) > 0`.
-- Added a WordPress copied `wp_options` smoke for aggregate preflight checks
+- Added a Application copied `wp_options` smoke for aggregate preflight checks
   without ext/sqlite.
 
 Focused verification:

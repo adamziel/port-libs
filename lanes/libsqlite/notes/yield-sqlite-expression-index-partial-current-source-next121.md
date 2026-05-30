@@ -4,7 +4,7 @@
 
 Adds `SQLiteExpressionIndexPartialCurrentSourceNextPlan`, a bounded planner
 handoff for current-source reprepare of partial expression indexes over copied
-WordPress `wp_options` rows.
+Application `wp_options` rows.
 
 The slice covers:
 
@@ -26,10 +26,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 63 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-expression-index-partial-current-source-next121.php
+php lanes/libsqlite/examples/application-expression-index-partial-current-source-next121.php
 ```
 
 Expected dashboard movement: `phpPass +63` from the focused lane test. No new

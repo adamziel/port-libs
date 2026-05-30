@@ -14,8 +14,8 @@
   - `1 test files, 94 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext*Test.php`
   - `60 test files, 4618 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next157.php --self-test`
-  - emitted the expected WordPress UTF-16 NOCASE/RTRIM diagnostic JSON and exited successfully.
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next157.php --self-test`
+  - emitted the expected Application UTF-16 NOCASE/RTRIM diagnostic JSON and exited successfully.
 
 ## Dependency closure
 

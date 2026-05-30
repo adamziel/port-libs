@@ -45,7 +45,7 @@ $plan237 = static fn (
     string $nextSource = 'main.wp_options@237',
     int $currentCookie = 236,
     int $nextCookie = 237,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan(
     $current ?? $current237,
     $next ?? $nextTwoThreeSeven,
     $pattern,
@@ -189,8 +189,8 @@ $tests['encoding collation affinity like current source nextTwoThreeSeven escape
         ['option_id' => 1, 'option_value' => 'plugin_%literal'],
         ['option_id' => 2, 'option_value' => 'pluginX%literal'],
     ];
-    $escaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($rows, $rows, 'plugin!_%!%%', '!', 'NOCASE', false, 'same', 'same', 1, 1);
-    $unescaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($rows, $rows, 'plugin_%!%%', '!', 'NOCASE', false, 'same', 'same', 1, 1);
+    $escaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan($rows, $rows, 'plugin!_%!%%', '!', 'NOCASE', false, 'same', 'same', 1, 1);
+    $unescaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan($rows, $rows, 'plugin_%!%%', '!', 'NOCASE', false, 'same', 'same', 1, 1);
 
     $t->same([1], $escaped['currentMatchedRowids']);
     $t->same([1, 2], $unescaped['currentMatchedRowids']);
@@ -213,16 +213,16 @@ $tests['encoding collation affinity like current source nextTwoThreeSeven binary
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven rejects multi character escape'] = static function (TestRunner $t) use ($current237): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($current237, [], '%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan($current237, [], '%', '!!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven rejects bad collation'] = static function (TestRunner $t) use ($current237): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($current237, [], '%', '!', 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan($current237, [], '%', '!', 'UNICODE'));
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven records nonscalar value as malformed'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => ['plugin_%bad']]];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($rows, [], '%', null, 'BINARY', true, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan($rows, [], '%', null, 'BINARY', true, 'same', 'same', 1, 1);
 
     $t->same([1], $plan['currentMalformedRowids']);
     $t->same('SQLite encoding collation affinity LIKE nextTwoThreeSeven rows require scalar option_value', $plan['currentErrors'][1]);
@@ -230,12 +230,12 @@ $tests['encoding collation affinity like current source nextTwoThreeSeven record
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven rejects missing option id'] = static function (TestRunner $t): void {
     $rows = [['option_value' => 'plugin_%bad']];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($rows, []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan($rows, []));
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSeven rejects missing option value'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($rows, []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueEscapePlan($rows, []));
 };
 
 return $tests;

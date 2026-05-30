@@ -5,16 +5,16 @@ Prepares the direct follow-on to the consolidated rewrite shadow window:
 - extends the established `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan` canonical source class with `currentSourceNext509524()`;
 - avoids a new numbered source class because the local attach/TEMP/WAL schema-cache pattern keeps this domain in the existing next92 canonical planner;
 - adds focused coverage for next509-524 dependencies, schema-cookie carry-forward, TEMP index rename expiry, dropped attached index expiry, detached attached schema expiry, renamed attached table writer retry blocking, and ignored uncommitted WAL churn;
-- adds a WordPress-oriented self-test example for the same attach/TEMP/WAL schema-cache lifecycle.
+- adds a Application-oriented self-test example for the same attach/TEMP/WAL schema-cache lifecycle.
 
 Validation commands:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext509524Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next509-524.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next509-524.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext509524Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next509-524.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next509-524.php --self-test
 git diff --check
 ```
 

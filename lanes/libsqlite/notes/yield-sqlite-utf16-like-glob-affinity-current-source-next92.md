@@ -6,8 +6,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16LikeGlobAffinityCurrentSourceNext92Test.php`
 - Result: focused test run passed with 1 file / 61 assertions / 0 failures.
-- `php lanes/libsqlite/examples/wordpress-utf16-like-glob-affinity-current-source-next92.php --self-test`
-- Result: `wordpress-utf16-like-glob-affinity-current-source-next92 self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-like-glob-affinity-current-source-next92.php --self-test`
+- Result: `application-utf16-like-glob-affinity-current-source-next92 self-test passed`
 
 Dashboard delta:
 

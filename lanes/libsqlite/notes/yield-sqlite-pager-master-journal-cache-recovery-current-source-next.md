@@ -17,7 +17,7 @@ stale cached pages.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalCacheRecoveryCurrentSourceNext122Test.php`
   - `1 test files, 62 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-cache-recovery-current-source-next122.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-cache-recovery-current-source-next122.php`
   - reports `master_journal_cache_recovery_current_source_next122` with stale
     cache rejection and two recovered attached databases.
 - PHP lint and `git diff --check -- lanes/libsqlite` were run for the changed

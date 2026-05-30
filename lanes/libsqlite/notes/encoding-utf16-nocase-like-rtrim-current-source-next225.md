@@ -11,7 +11,7 @@ its stored source bytes move between UTF-16LE, UTF-16BE, and UTF-8. SQLite SQL
 comparison results stay stable, but a current-source cursor must still fence
 replay because the raw cell payload and text encoding changed.
 
-WordPress smoke: `examples/wordpress-utf16-nocase-like-rtrim-current-source-next225.php`
+Application smoke: `examples/application-utf16-nocase-like-rtrim-current-source-next225.php`
 models copied `wp_options` option names whose decoded plugin cache keys remain
 matched while source bytes and endian labels change.
 
@@ -19,9 +19,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext225Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next225.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next225.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext225Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next225.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next225.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected focused movement: `+73` PASS lines in the new focused test file.

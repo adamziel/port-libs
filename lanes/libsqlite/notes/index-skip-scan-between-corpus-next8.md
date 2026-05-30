@@ -10,13 +10,13 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteIndexSkipScanBetweenCorpusTest.php`
   passed with `1 test files, 63 assertions, 0 failures` and 56 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-index-skip-scan-between.php`
+- `php lanes/libsqlite/examples/application-index-skip-scan-between.php`
   passed and reported three distinct autoload-prefix seek loops over copied
   `wp_options` rows.
 - `php -l lanes/libsqlite/src/SQLiteIndexSkipScanPlan.php` passed.
 - `php -l lanes/libsqlite/tests/SQLiteIndexSkipScanBetweenCorpusTest.php`
   passed.
-- `php -l lanes/libsqlite/examples/wordpress-index-skip-scan-between.php`
+- `php -l lanes/libsqlite/examples/application-index-skip-scan-between.php`
   passed.
 - `git diff --check -- lanes/libsqlite` passed.
 

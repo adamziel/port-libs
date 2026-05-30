@@ -14,11 +14,11 @@ transaction to reopen before the next read.
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext205Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext205Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next205.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next205.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext205Test.php`
   - `1 test files, 75 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next205.php`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next205 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next205.php`
+  - `application-pager-master-journal-reader-cache-current-source-next205 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard delta: `phpPass` increases by 75 focused PASS lines after

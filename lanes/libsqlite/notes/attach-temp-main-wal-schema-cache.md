@@ -11,8 +11,8 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempMainWalSchemaCacheTest.php`
 - `php -l lanes/libsqlite/src/SQLiteAttachTempMainWalSchemaCachePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteAttachTempMainWalSchemaCacheTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-attach-temp-main-wal-schema-cache.php`
-- `php lanes/libsqlite/examples/wordpress-attach-temp-main-wal-schema-cache.php --self-test`
+- `php -l lanes/libsqlite/examples/application-attach-temp-main-wal-schema-cache.php`
+- `php lanes/libsqlite/examples/application-attach-temp-main-wal-schema-cache.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The slice reuses

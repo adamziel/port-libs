@@ -54,7 +54,7 @@ $plan231 = static fn (
     string $nextSource = 'main.wp_options@231',
     int $currentCookie = 230,
     int $nextCookie = 231,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiOnlyNocasePlan(
     $current ?? $current231,
     $next ?? $nextTwoThreeOne,
     $pattern,
@@ -161,7 +161,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne stable ascii fold
         $row231(1, 'PLUGIN_CAFÉ_MAIN ', 'UTF-16LE'),
         $row231(2, 'plugin_cafÉ_aux', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiOnlyNocasePlan(
         $rows,
         $rows,
         'plugin_cafÉ%',
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne lower e acute doe
         $row231(1, 'plugin_café_main', 'UTF-16LE'),
         $row231(2, 'plugin_cafÉ_main', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiOnlyNocasePlan(
         $rows,
         $rows,
         'plugin_cafÉ%',
@@ -206,7 +206,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne ascii prefix stil
         $row231(2, 'plugin_cafÉ_main', 'UTF-16BE'),
         $row231(3, 'Plugin_CafÉ_extra', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiOnlyNocasePlan(
         $rows,
         $rows,
         'plugin_cafÉ%',
@@ -224,7 +224,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne ascii prefix stil
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeOne rejects malformed row shape'] = static function (TestRunner $t) use ($enc231): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc231('plugin_cafÉ_main', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiOnlyNocasePlan($rows, $rows));
 };
 
 return $tests;

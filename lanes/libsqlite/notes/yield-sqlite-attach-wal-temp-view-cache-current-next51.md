@@ -3,8 +3,8 @@
 ## Scope
 
 - Added `SQLiteAttachWalTempViewCachePlan` to compose existing ATTACH temp view-trigger yield routing, WAL checkpoint/append current-next planning, and schema-cache resolution snapshots.
-- Covers main, temp, and attached-schema WordPress `wp_options` view-trigger writes where prepared table/index winners remain current after ordinary WAL DML, but require reprepare after schema-record changes alter rootpage or schema resolution.
-- Added `wordpress-attach-wal-temp-view-cache-current-next51.php` as the WordPress smoke for active plugin imports over copied `wp_options` metadata.
+- Covers main, temp, and attached-schema Application `wp_options` view-trigger writes where prepared table/index winners remain current after ordinary WAL DML, but require reprepare after schema-record changes alter rootpage or schema resolution.
+- Added `application-attach-wal-temp-view-cache-current-next51.php` as the Application smoke for active plugin imports over copied `wp_options` metadata.
 
 ## Focused Evidence
 

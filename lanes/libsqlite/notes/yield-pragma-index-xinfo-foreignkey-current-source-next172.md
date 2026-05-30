@@ -14,7 +14,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next172.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next172.php --self-test`
 - PHP lint and `git diff --check -- lanes/libsqlite` were run before handoff.
 
 ## Non-overlap

@@ -14,7 +14,7 @@ This slice prepares the independent current-source follow-on after the ready nex
 Validation targets:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next334-341.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next334-341.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext334341Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext334341Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next334-341.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next334-341.php --self-test`

@@ -118,7 +118,7 @@ $cases237 = [
     'plan partition four summary' => [static fn (): mixed => $plan237()['exclude_current_partition_summary']['4'], ['count' => 2, 'rowids' => [12, 11], 'peer_counts' => [1, 1], 'peer_rowids' => [[11], [12]]]],
     'plan token lengths' => [static fn (): mixed => [strlen($plan237()['current_source_token']), strlen($plan237()['window_token'])], [64, 64]],
     'plan tokens differ' => [static fn (): mixed => $plan237()['current_source_token'] !== $plan237()['window_token'], true],
-    'plan dependencies' => [static fn (): mixed => $plan237()['dependencies'], ['sqlite-rowvalue-returning-window-exclude-current-next237', 'sqlite-rowvalue-delete-returning-window-peer-frame-next237', 'wordpress-rowvalue-returning-window-current-source-next237']],
+    'plan dependencies' => [static fn (): mixed => $plan237()['dependencies'], ['sqlite-rowvalue-returning-window-exclude-current-next237', 'sqlite-rowvalue-delete-returning-window-peer-frame-next237', 'application-rowvalue-returning-window-current-source-next237']],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan237()['dependency_closure_next237'], 'no new support component needed'), true],
     'plan non overlap' => [static fn (): mixed => str_contains($plan237()['non_overlap_next237'], 'avoids accepted next233/next234'), true],
     'custom savepoint' => [static fn (): mixed => $customPlan237()['savepoint'], 'wp_custom_returning_window_next237'],

@@ -4,7 +4,7 @@
 
 `SQLiteAttachedSchemaCatalog` now resolves schema-qualified table-valued
 `pragma_index_xinfo()` targets whose schema and index names contain dots, such
-as a WordPress archive database attached as `wp.archive` with an index named
+as a Application archive database attached as `wp.archive` with an index named
 `wp.archive.option_names.name.u`. The resolved local index name is passed to the
 owning schema catalog before `index_xinfo` rows are materialized, and the FK /
 index / integrity current-source cursor keeps its source hash stable across
@@ -19,8 +19,8 @@ index name instead of interpolating a bare dotted identifier.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityForeignKeyIndexXinfoCurrentSourceNext118Test.php`
   - `1 test files, 49 assertions, 0 failures`
   - `44` new PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-current-source-next118.php --self-test`
-  - `wordpress-pragma-index-xinfo-current-source-next118 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-current-source-next118.php --self-test`
+  - `application-pragma-index-xinfo-current-source-next118 self-test passed`
 
 ## Non-Overlap
 

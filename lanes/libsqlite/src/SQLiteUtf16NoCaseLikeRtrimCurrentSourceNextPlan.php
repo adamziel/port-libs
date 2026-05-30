@@ -11,7 +11,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePlan(
+    public static function optionRowNamePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -340,7 +340,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameNormalizedPatternPlan(
+    public static function optionRowNameNormalizedPatternPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -356,7 +356,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl
         int $currentSchemaCookie = 161,
         int $nextSchemaCookie = 162,
     ): array {
-        $base = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan(
+        $base = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::optionRowNamePatternPlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,

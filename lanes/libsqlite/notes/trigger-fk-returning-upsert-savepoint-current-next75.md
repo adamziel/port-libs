@@ -15,9 +15,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerFkReturningUpsertSavepointCurrentNext75Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerFkReturningUpsertSavepointCurrentNext75Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-fk-returning-upsert-savepoint-current-next75.php`
+- `php -l lanes/libsqlite/examples/application-trigger-fk-returning-upsert-savepoint-current-next75.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerFkReturningUpsertSavepointCurrentNext75Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-fk-returning-upsert-savepoint-current-next75.php --self-test`
+- `php lanes/libsqlite/examples/application-trigger-fk-returning-upsert-savepoint-current-next75.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The slice reuses the

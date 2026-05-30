@@ -4,7 +4,7 @@ Status: focused PHP corpus growth for bounded ATTACH database VFS-open state and
 
 - Added `SQLiteAttachTempVfsOpenPlan` for current ATTACH open planning without touching native files.
 - Covers SQLite `ATTACH '' AS schema` temp-file database admission, database-list empty filename preservation, temp rollback-journal sidecar planning, ordinary attached file WAL/SHM/journal sidecars, URI create/read-only/immutable/busy-lock states, quoted schema normalization, and bounded rejection of unsafe attach expressions.
-- Added `wordpress-attach-temp-vfs-open-current-next23.php` to smoke a copied WordPress import scratch attachment plus a shared-cache site attachment without requiring `ext/sqlite`.
+- Added `application-attach-temp-vfs-open-current-next23.php` to smoke a copied Application import scratch attachment plus a shared-cache site attachment without requiring `ext/sqlite`.
 
 Focused verification:
 

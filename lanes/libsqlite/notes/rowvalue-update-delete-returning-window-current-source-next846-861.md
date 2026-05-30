@@ -9,8 +9,8 @@ This slice extends the consolidated `SQLiteRowValueUpdateDeleteReturningWindowCu
 Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next846-861.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next846-861.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext846861Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext830845Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext846861Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next846-861.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next846-861.php --self-test`
 - `git diff --check`

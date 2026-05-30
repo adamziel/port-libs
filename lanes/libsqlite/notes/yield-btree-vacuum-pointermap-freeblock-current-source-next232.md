@@ -3,7 +3,7 @@
 - Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext232Plan`.
 - Builds on accepted next229 resume-window rows and adds the next-writer handoff gate for vacuumed pointer-map/freeblock current-source reads.
 - Proves handoff token chaining, pointer-map admission before payload pages, carried leaf freeblock receipts, monotonic admitted-page windows, and fenced tail pages after incremental vacuum.
-- WordPress smoke: `examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next232.php`.
+- Application smoke: `examples/application-btree-vacuum-pointermap-freeblock-current-source-next232.php`.
 - Focused test: `tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext232Test.php`.
 
 ## Verification
@@ -13,9 +13,9 @@ Commands run:
 ```bash
 php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext232Plan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext232Test.php
-php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next232.php
+php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next232.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext232Test.php
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next232.php
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next232.php
 git diff --check -- lanes/libsqlite
 ```
 

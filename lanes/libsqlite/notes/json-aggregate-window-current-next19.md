@@ -20,11 +20,11 @@ New focused PASS-line delta:
 
 - `SQLiteJsonAggregateWindowCurrentNext19Test.php`: 31 new PASS cases.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-aggregate-window-current-next.php --self-test
-wordpress-json-aggregate-window-current-next self-test passed
+php lanes/libsqlite/examples/application-json-aggregate-window-current-next.php --self-test
+application-json-aggregate-window-current-next self-test passed
 ```
 
 Non-overlap:

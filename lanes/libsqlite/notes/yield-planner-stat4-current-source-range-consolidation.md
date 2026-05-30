@@ -4,15 +4,15 @@
 
 - Consolidated the numbered `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` range production entry point into `materializeStat4CurrentRange()`.
 - Renamed the associated private helper family to `*Stat4CurrentRange`.
-- Migrated the direct focused test and WordPress smoke away from numbered filenames and references.
+- Migrated the direct focused test and Application smoke away from numbered filenames and references.
 
 ## Evidence
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php` - pass
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceRangeTest.php` - pass
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-range.php` - pass
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-range.php` - pass
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceRangeTest.php` - `1 test files, 55 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-range.php --self-test` - pass
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-range.php --self-test` - pass
 
 ## Dependency Closure
 

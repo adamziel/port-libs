@@ -10,9 +10,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next224.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next224.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next224.php --self-test`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next224.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: +74 focused PASS lines from the new test file.

@@ -7,7 +7,7 @@ deferred action records, commit-time child-key rewrites, `SET NULL`,
 `SET DEFAULT`, `NO ACTION`, `RESTRICT`, rollback preview, and malformed input
 guards over copied row arrays.
 
-The WordPress smoke uses a copied option-group migration shape: renumbering an
+The Application smoke uses a copied option-group migration shape: renumbering an
 option group cascades the `group_id` stored on related option rows without
 requiring `ext/sqlite`.
 
@@ -24,7 +24,7 @@ PASS foreign key on update rejects missing child column
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-foreign-key-on-update-cascade.php
+php lanes/libsqlite/examples/application-foreign-key-on-update-cascade.php
 {
     "groups": [
         10,

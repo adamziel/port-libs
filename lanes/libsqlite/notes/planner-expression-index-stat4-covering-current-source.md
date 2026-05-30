@@ -19,7 +19,7 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerExpressionIndexStat4CoveringCurrentSourceTest.php`
 - Result: `1 test files, 64 assertions, 0 failures` with 56 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-planner-expression-index-stat4-covering-current-source.php`
+- `php lanes/libsqlite/examples/application-planner-expression-index-stat4-covering-current-source.php`
 - Result: selected `current` source, `idx_wp_options_channel_covering_stat4_current_stable`, four covered rows, keys `alpha,beta,beta,stable`.
 
 Non-overlap:

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a post-publication reopened-handle fence after the accepted next224 reset publication. The new plan admits the checkpoint current source only when reopened WordPress import readers match the published source token, writer generation, database digest, non-stale WAL digest, clean savepoint/hot-journal state, lock/sync receipts, and all checkpoint page digests.
+Adds a post-publication reopened-handle fence after the accepted next224 reset publication. The new plan admits the checkpoint current source only when reopened Application import readers match the published source token, writer generation, database digest, non-stale WAL digest, clean savepoint/hot-journal state, lock/sync receipts, and all checkpoint page digests.
 
 Blocked handles keep the previous current source visible when a reader reuses an old source token, stale writer generation, previous WAL digest, dirty cache, open savepoint scope, visible hot journal, missing lock/sync receipt, or stale/missing page image.
 
@@ -10,7 +10,7 @@ Blocked handles keep the previous current source visible when a reader reuses an
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Test.php`
 - Result: `1 test files, 55 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next229.php`
+- Application smoke: `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next229.php`
 
 ## Non-Overlap
 

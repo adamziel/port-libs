@@ -44,7 +44,7 @@ $wal = SQLiteWal::parse($walBytes, $pageSize, true);
 
 $makeStack = static function () use ($page): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wordpress-import');
+    $stack->beginTransaction('application-import');
     $stack->recordPageImageWrite(1, $page('next149 schema base'));
     $stack->recordWalFrameWrite(1, 1);
     $stack->recordPageImageWrite(2, $page('next149 options base'));
@@ -130,7 +130,7 @@ $cases = [
     'single page transitions' => [static fn (): mixed => $single()['source_transitions'], ['wal>wal>database']],
     'single page rolled back pages unchanged' => [static fn (): mixed => $single()['rolled_back_pages'], [2, 3, 4]],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-wal-checkpoint-reader-savepoint-current-source-next149', $restart()['dependencies'], true), true],
-    'dependency wordpress marker' => [static fn (): mixed => in_array('wordpress-import-wal-current-reader-savepoint-boundary', $restart()['dependencies'], true), true],
+    'dependency application marker' => [static fn (): mixed => in_array('application-import-wal-current-reader-savepoint-boundary', $restart()['dependencies'], true), true],
     'dependency current prefix marker' => [static fn (): mixed => in_array('sqlite-savepoint-wal-current-prefix', $restart()['dependencies'], true), true],
     'dependency checkpoint marker' => [static fn (): mixed => in_array('sqlite-wal-savepoint-checkpoint-current', $restart()['dependencies'], true), true],
 ];

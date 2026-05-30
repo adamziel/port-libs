@@ -104,7 +104,7 @@ $cases = [
     'wal sha carried' => [static fn (): mixed => $plan()['next_wal_sha256'], hash('sha256', 'next193-next-wal')],
     'dependency next187 carried' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next187', $plan()['dependencies'], true), true],
     'dependency next193' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next193', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-wal-import-retry-reader-mark-publication', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-wal-import-retry-reader-mark-publication', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat hot-journal recovery'), true],
     'stale handoff status' => [static fn (): mixed => $plan($staleHandoff)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next193'],

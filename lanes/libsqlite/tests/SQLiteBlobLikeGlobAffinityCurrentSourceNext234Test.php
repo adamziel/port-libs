@@ -56,7 +56,7 @@ $rowById234 = static function (array $trace, int $rowid): array {
     throw new RuntimeException("Missing trace row {$rowid}");
 };
 
-$implicitLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
+$implicitLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
     $currentRows234,
     $nextRows234,
     'plugin:%',
@@ -67,7 +67,7 @@ $implicitLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourc
     false,
 );
 
-$castLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
+$castLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
     $currentRows234,
     $nextRows234,
     'plugin:%',
@@ -78,7 +78,7 @@ $castLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNex
     true,
 );
 
-$implicitGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
+$implicitGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
     $currentRows234,
     $nextRows234,
     'plugin:*',
@@ -89,7 +89,7 @@ $implicitGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourc
     false,
 );
 
-$castGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
+$castGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
     $currentRows234,
     $nextRows234,
     'plugin:*',
@@ -231,7 +231,7 @@ $tests['blob like glob affinity current source next234 stable implicit scan is r
         ['option_id' => 1, 'option_value' => 'plugin:cache'],
         ['option_id' => 2, 'option_value' => new SQLiteBlobValue('plugin:cache')],
     ];
-    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'plugin:%', 'LIKE', 'BINARY', null, false, false, 'stable', 'stable', 7, 7);
+    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'plugin:%', 'LIKE', 'BINARY', null, false, false, 'stable', 'stable', 7, 7);
     $t->same(true, $plan['cursorReusable']);
     $t->same([1], $plan['currentRowids']);
     $t->same([2], $plan['currentBlobSkippedRowids']);
@@ -242,34 +242,34 @@ $tests['blob like glob affinity current source next234 stable cast scan admits b
         ['option_id' => 1, 'option_value' => 'plugin:cache'],
         ['option_id' => 2, 'option_value' => new SQLiteBlobValue('plugin:cache')],
     ];
-    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'plugin:%', 'LIKE', 'BINARY', null, false, true, 'stable', 'stable', 7, 7);
+    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'plugin:%', 'LIKE', 'BINARY', null, false, true, 'stable', 'stable', 7, 7);
     $t->same(true, $plan['cursorReusable']);
     $t->same([1, 2], $plan['currentRowids']);
     $t->same([], $plan['currentBlobSkippedRowids']);
 };
 
 $tests['blob like glob affinity current source next234 rejects bad operator'] = static function (TestRunner $t) use ($currentRows234): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows234, [], '%', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($currentRows234, [], '%', 'REGEXP'));
 };
 
 $tests['blob like glob affinity current source next234 rejects glob escape'] = static function (TestRunner $t) use ($currentRows234): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows234, [], '*', 'GLOB', 'BINARY', '\\'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($currentRows234, [], '*', 'GLOB', 'BINARY', '\\'));
 };
 
 $tests['blob like glob affinity current source next234 rejects bad collation'] = static function (TestRunner $t) use ($currentRows234): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows234, [], '%', 'LIKE', 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($currentRows234, [], '%', 'LIKE', 'UNICODE'));
 };
 
 $tests['blob like glob affinity current source next234 rejects missing rowid'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_value' => 'plugin']], [], '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan([['option_value' => 'plugin']], [], '%'));
 };
 
 $tests['blob like glob affinity current source next234 rejects missing value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => 1]], [], '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1]], [], '%'));
 };
 
 $tests['blob like glob affinity current source next234 nonscalar value becomes malformed row'] = static function (TestRunner $t): void {
-    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => 1, 'option_value' => []]], [], '%');
+    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1, 'option_value' => []]], [], '%');
     $t->same([1], $plan['currentMalformedRowids']);
     $t->same('SQLite BLOB LIKE/GLOB affinity next234 rows require scalar option_value values', $plan['currentErrors'][1]);
 };

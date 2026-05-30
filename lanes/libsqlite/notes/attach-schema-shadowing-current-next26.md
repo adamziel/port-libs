@@ -4,7 +4,7 @@
 
 - Added parser-level `SQLiteSelectSql` table-source resolution for schema-qualified table names such as `main.wp_options`, `temp.wp_options`, and `site.wp_options`.
 - Unqualified table names now prefer `temp.<name>`, then `main.<name>`, then attached schema-qualified table keys in provided attach order, while legacy bare table arrays still work.
-- Qualified table names pin the requested source and bypass TEMP shadowing for copied WordPress import/staging previews.
+- Qualified table names pin the requested source and bypass TEMP shadowing for copied Application import/staging previews.
 
 ## Verification
 
@@ -14,9 +14,9 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachSchemaShadowingCurrentNext26Test.php lanes/libsqlite/tests/SQLiteAttachSchemaShadowingCurrentNext16Test.php lanes/libsqlite/tests/SQLiteAttachTempSchemaCorpusTest.php`
   - `Focused test run: 3 selected test files (root lock skipped)`
   - `3 test files, 166 assertions, 0 failures`
-- `php -l lanes/libsqlite/src/SQLiteSelectSql.php && php -l lanes/libsqlite/tests/SQLiteAttachSchemaShadowingCurrentNext26Test.php && php -l lanes/libsqlite/examples/wordpress-select-sql-attach-shadowing.php`
+- `php -l lanes/libsqlite/src/SQLiteSelectSql.php && php -l lanes/libsqlite/tests/SQLiteAttachSchemaShadowingCurrentNext26Test.php && php -l lanes/libsqlite/examples/application-select-sql-attach-shadowing.php`
   - no syntax errors
-- `php lanes/libsqlite/examples/wordpress-select-sql-attach-shadowing.php`
+- `php lanes/libsqlite/examples/application-select-sql-attach-shadowing.php`
   - reports TEMP `wp_options` shadowing for unqualified SELECT, plus explicit main/attached schema results.
 - `git diff --check -- lanes/libsqlite`
   - clean

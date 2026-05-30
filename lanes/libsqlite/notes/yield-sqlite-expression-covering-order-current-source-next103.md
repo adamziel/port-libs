@@ -10,8 +10,8 @@ Behavior:
 Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteExpressionCoveringOrderCurrentSourceNext103Test.php`
 - Result: `1 test files, 76 assertions, 0 failures` with 76 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-expression-covering-order-current-source-next103.php --self-test`
-- Result: `wordpress-expression-covering-order-current-source-next103 self-test passed`
+- `php lanes/libsqlite/examples/application-expression-covering-order-current-source-next103.php --self-test`
+- Result: `application-expression-covering-order-current-source-next103 self-test passed`
 
 Dashboard/status delta:
 - `lane-status.json` `phpPass`: `39474 -> 39550` (+76 verified focused PASS lines).

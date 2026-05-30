@@ -21,7 +21,7 @@ Verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteRowValueSavepointUpsertCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpsertReturningConflictCurrentSourceNext134Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-upsert-returning-conflict-current-source-next134.php
+php -l lanes/libsqlite/examples/application-rowvalue-upsert-returning-conflict-current-source-next134.php
 No syntax errors detected in changed PHP files
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpsertReturningConflictCurrentSourceNext134Test.php
@@ -30,8 +30,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpsertReturningConfl
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueSavepointUpsertCurrentSourceNext131Test.php lanes/libsqlite/tests/SQLiteRowValueUpsertReturningConflictCurrentSourceNext134Test.php
 2 test files, 109 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-upsert-returning-conflict-current-source-next134.php
-wordpress-rowvalue-upsert-returning-conflict-current-source-next134 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-upsert-returning-conflict-current-source-next134.php
+application-rowvalue-upsert-returning-conflict-current-source-next134 self-test passed
 ```
 
 Non-overlap: avoids accepted next131 row-value savepoint rollback, next128

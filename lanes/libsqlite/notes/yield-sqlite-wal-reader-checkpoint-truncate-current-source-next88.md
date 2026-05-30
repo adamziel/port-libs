@@ -17,10 +17,10 @@ and from accepted WAL reader-pin restart/truncate handoff surfaces.
 
 - `php -l lanes/libsqlite/src/SQLiteWal.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointTruncateCurrentSourceNext88Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-truncate-current-source-next88.php`
+- `php -l lanes/libsqlite/examples/application-wal-reader-checkpoint-truncate-current-source-next88.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointTruncateCurrentSourceNext88Test.php`
   - `1 test files, 68 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-truncate-current-source-next88.php`
+- `php lanes/libsqlite/examples/application-wal-reader-checkpoint-truncate-current-source-next88.php`
   - reports `reader-pinned-truncate-preserves-wal`, `preserve_wal` while pinned,
     and `truncate_wal` after reader release.
 

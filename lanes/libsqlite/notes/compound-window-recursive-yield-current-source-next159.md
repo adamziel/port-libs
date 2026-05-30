@@ -13,7 +13,7 @@ Verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowRecursiveYieldCurrentSourceNext159Test.php
-php lanes/libsqlite/examples/wordpress-compound-window-recursive-yield-current-source-next159.php --self-test
+php lanes/libsqlite/examples/application-compound-window-recursive-yield-current-source-next159.php --self-test
 ```
 
 Expected dashboard movement: `phpPass +63` from the new focused test file. `benchmarkDenominator.mapped` remains unchanged; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory, not a newly hydrated upstream row.

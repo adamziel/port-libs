@@ -8,15 +8,15 @@ Behavior:
 - The planner checkpoints the retained WAL prefix after `ROLLBACK TO`, excludes discarded current/nested savepoint frames from the database image, and reports reset/truncate eligibility for PASSIVE/FULL/RESTART/TRUNCATE modes.
 - Reader-pinned RESTART checkpoints remain busy against the retained prefix, matching SQLite's rule that current readers can block WAL reset even after savepoint rollback has discarded later frames.
 - Added `SQLiteWalSavepointCheckpointCurrentNext15Test.php` with 46 independent PASS cases.
-- Added `wordpress-wal-savepoint-checkpoint-current.php` to smoke a copied `wp_options` plugin-settings import that rolls back a failed savepoint before a TRUNCATE checkpoint.
+- Added `application-wal-savepoint-checkpoint-current.php` to smoke a copied `wp_options` plugin-settings import that rolls back a failed savepoint before a TRUNCATE checkpoint.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteWalSavepointCheckpointCurrentNext15Test.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-wal-savepoint-checkpoint-current.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/application-wal-savepoint-checkpoint-current.php`: no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointCheckpointCurrentNext15Test.php`: 1 test files, 46 assertions, 0 failures.
-- `php lanes/libsqlite/examples/wordpress-wal-savepoint-checkpoint-current.php --self-test`: passed; reported 2 retained frames, 2 discarded frames, `truncate_wal`, and no discarded plugin draft in the checkpoint database image.
+- `php lanes/libsqlite/examples/application-wal-savepoint-checkpoint-current.php --self-test`: passed; reported 2 retained frames, 2 discarded frames, `truncate_wal`, and no discarded plugin draft in the checkpoint database image.
 
 Dashboard delta:
 

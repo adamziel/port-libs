@@ -13,7 +13,7 @@ What changed:
   admits the next source after the current drain completes.
 - The plan records source signatures, cursor names, page counts, trigger
   source tokens, and blocked/admitted next-source pages so stale view-trigger
-  RETURNING rows cannot leak into a WordPress import preview.
+  RETURNING rows cannot leak into a Application import preview.
 
 Focused verification:
 
@@ -24,11 +24,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 58 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-$ php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next167.php --self-test
-wordpress-trigger-recursive-view-returning-current-source-next167 self-test passed
+$ php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next167.php --self-test
+application-trigger-recursive-view-returning-current-source-next167 self-test passed
 ```
 
 Non-overlap:

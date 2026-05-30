@@ -189,7 +189,7 @@ $cases = [
     'reopen digest length' => [static fn (): mixed => strlen($ok()['reopen_digest']), 64],
     'dependency next181' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next181', $ok()['dependencies'], true), true],
     'dependency reopen' => [static fn (): mixed => in_array('sqlite-wal-post-apply-reopen-validated', $ok()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-reopen-wal-frames', $ok()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-reopen-wal-frames', $ok()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($ok()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($ok()['non_overlap'], 'does not repeat publish-apply'), true],
     'receipt status' => [static fn (): mixed => $receipt()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next178'],

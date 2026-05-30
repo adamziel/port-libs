@@ -9,11 +9,11 @@
 ## Focused evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateDistinctCurrentNext76Test.php`
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-distinct-current-next76.php`
+- `php lanes/libsqlite/examples/application-json-aggregate-distinct-current-next76.php`
 - `php -l lanes/libsqlite/src/SQLiteSelectSql.php`
 - `php -l lanes/libsqlite/src/SQLiteGroupedAggregate.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonAggregateDistinctCurrentNext76Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-aggregate-distinct-current-next76.php`
+- `php -l lanes/libsqlite/examples/application-json-aggregate-distinct-current-next76.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap
@@ -22,4 +22,4 @@ This avoids accepted `jsonagg73` aggregate-local `ORDER BY` plus `FILTER` execut
 
 ## Dependency closure
 
-No new support component is needed. The slice reuses the existing native PHP SELECT SQL parser, grouped aggregate executor, JSON constructor, JSONB encoder/decoder, and WordPress smoke harness.
+No new support component is needed. The slice reuses the existing native PHP SELECT SQL parser, grouped aggregate executor, JSON constructor, JSONB encoder/decoder, and Application smoke harness.

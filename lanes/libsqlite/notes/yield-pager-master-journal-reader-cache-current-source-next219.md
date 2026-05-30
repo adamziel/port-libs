@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a pager reader-cache current-source fence for the recovered database page count after master-journal recovery. A reader-cache page can only be reused after the existing next217 database-header admission if its cached database page count matches the current recovered source and the requested page number is still inside the current database. This covers copied WordPress SQLite databases where a crash recovery truncates the database and stale pinned readers still hold cache entries for pages that no longer exist.
+Adds a pager reader-cache current-source fence for the recovered database page count after master-journal recovery. A reader-cache page can only be reused after the existing next217 database-header admission if its cached database page count matches the current recovered source and the requested page number is still inside the current database. This covers copied Application SQLite databases where a crash recovery truncates the database and stale pinned readers still hold cache entries for pages that no longer exist.
 
 ## Non-overlap
 
@@ -16,11 +16,11 @@ Focused command:
 
 Expected focused result after this patch: `1 test files, 70 assertions, 0 failures`.
 
-WordPress smoke:
+Application smoke:
 
-`php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next219.php --self-test`
+`php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next219.php --self-test`
 
-Expected smoke result: `wordpress-pager-master-journal-reader-cache-current-source-next219 self-test passed`.
+Expected smoke result: `application-pager-master-journal-reader-cache-current-source-next219 self-test passed`.
 
 ## Dependency closure
 

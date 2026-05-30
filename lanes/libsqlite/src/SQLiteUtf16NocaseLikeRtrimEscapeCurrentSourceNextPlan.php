@@ -6,14 +6,14 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan
 {
-    public static function wordpressOptionNameEscapePlan(mixed ...$args): array
+    public static function optionRowNameEscapePlan(mixed ...$args): array
     {
-        return SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl::wordpressOptionNameEscapePlan(...$args);
+        return SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl::optionRowNameEscapePlan(...$args);
     }
 
-    public static function wordpressOptionNameEscapeReplayPlan(mixed ...$args): array
+    public static function optionRowNameEscapeReplayPlan(mixed ...$args): array
     {
-        return SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl::wordpressOptionNameEscapeReplayPlan(...$args);
+        return SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl::optionRowNameEscapeReplayPlan(...$args);
     }
 
 }
@@ -25,7 +25,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEscapePlan(
+    public static function optionRowNameEscapePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -48,7 +48,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
         self::assertSingleCharacterEscape($currentTrimmedEscape, 'current');
         self::assertSingleCharacterEscape($nextTrimmedEscape, 'next');
 
-        $base = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -62,7 +62,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
             $nextSchemaCookie,
         );
 
-        $nextBase = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
+        $nextBase = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
             $nextRows,
             $nextRows,
             $nextPatternBytes,
@@ -211,7 +211,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEscapeReplayPlan(
+    public static function optionRowNameEscapeReplayPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -271,7 +271,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl
 
         $base = null;
         if ($pattern['value'] !== null && $nextEscape['value'] !== null && $nextEscape['width'] === 1) {
-            $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan(
+            $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameTokenFingerprintPlan(
                 $currentRows,
                 $nextRows,
                 $pattern['value'],

@@ -1,10 +1,10 @@
-# yield-sqlite-wordpress-options-multisite-wal-current-next42
+# yield-sqlite-application-options-multisite-wal-current-next42
 
 ## Scope
 
-Adds `SQLiteWordPressMultisiteOptionsWalPlan` for copied WordPress multisite option imports that span `wp_sitemeta` plus per-blog `wp_{blog_id}_options` tables in one committed WAL append transaction.
+Adds `SQLiteMultisiteOptionsWalPlan` for copied Application multisite option imports that span `wp_sitemeta` plus per-blog `wp_{blog_id}_options` tables in one committed WAL append transaction.
 
-The slice is intentionally separate from accepted single-site `SQLiteWordPressOptionsWalImportPlan`, WAL append transaction persistence, WAL byte truncation, VFS file writer, VFS savepoint rollback, rollback-journal commit, checkpoint transaction, JSON table, B-tree page move, and SQL text executor clusters.
+The slice is intentionally separate from accepted single-site `SQLiteOptionRowsWalImportPlan`, WAL append transaction persistence, WAL byte truncation, VFS file writer, VFS savepoint rollback, rollback-journal commit, checkpoint transaction, JSON table, B-tree page move, and SQL text executor clusters.
 
 ## Behavior
 
@@ -12,14 +12,14 @@ The slice is intentionally separate from accepted single-site `SQLiteWordPressOp
 - Preserves table-local `option_id` values for updates and allocates inserted IDs from the matching table only.
 - Materializes one WAL commit containing rewritten option pages plus one autoload index page per multisite table.
 - Reports current-reader visibility before the commit and next-reader visibility after the appended commit.
-- Applies the generated WAL append through `SQLiteVfsFileWriter::applyWalAppendTransactions()` for a WordPress smoke path.
+- Applies the generated WAL append through `SQLiteVfsFileWriter::applyWalAppendTransactions()` for a Application smoke path.
 
 ## Verification
 
 Focused command:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressOptionsMultisiteWalCurrentNext42Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteOptionRowsMultisiteWalCurrentNext42Test.php
 ```
 
 Output:

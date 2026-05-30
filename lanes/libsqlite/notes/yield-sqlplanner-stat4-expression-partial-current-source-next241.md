@@ -17,9 +17,9 @@ Focused verification command:
 
 Expected focused growth: 60 PASS lines for the new next241 test file.
 
-WordPress smoke:
+Application smoke:
 
-`php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next241.php`
+`php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next241.php`
 
 ## Non-Overlap
 

@@ -45,7 +45,7 @@ $nextTwoTwoNine = [
     $bad229(10, "x\0y", 2),
 ];
 
-$plan229 = static fn (?array $current = null, ?array $next = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
+$plan229 = static fn (?array $current = null, ?array $next = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeSpaceRtrimPlan(
     $current ?? $current229,
     $next ?? $nextTwoTwoNine,
     'plugin!_cache%',
@@ -156,7 +156,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoNine reusable when unic
         $row229(2, "plugin_cache\u{00a0}", 'UTF-16BE'),
         $row229(3, "plugin_cache\u{3000}", 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeSpaceRtrimPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -184,7 +184,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoNine detects ascii spac
         $row229(1, "plugin_cache\u{00a0}", 'UTF-16LE'),
         $row229(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeSpaceRtrimPlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -205,7 +205,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoNine detects ascii spac
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoTwoNine rejects invalid page size through base keyset plan'] = static function (TestRunner $t) use ($current229, $nextTwoTwoNine, $enc229): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeSpaceRtrimPlan(
         $current229,
         $nextTwoTwoNine,
         'plugin!_cache%',

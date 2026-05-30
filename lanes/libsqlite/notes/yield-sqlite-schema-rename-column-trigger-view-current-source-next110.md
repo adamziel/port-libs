@@ -15,10 +15,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 69 assertions, 0 failures
 ```
 
-## WordPress Smoke
+## Application Smoke
 
 ```text
-php lanes/libsqlite/examples/wordpress-schema-rename-column-trigger-view-current-source-next110.php
+php lanes/libsqlite/examples/application-schema-rename-column-trigger-view-current-source-next110.php
 ```
 
 The smoke previews a copied `wp_options` rename-column migration where dependent trigger/view/index SQL is rewritten from current schema rows, stale prepared statements are invalidated, and an unrelated `wp_postmeta` view remains unchanged.

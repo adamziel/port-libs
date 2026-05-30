@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for row-value `UPDATE`/`DELETE ... RETURNING
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext158Plan`. It models the SQLite boundary where `ROLLBACK TO savepoint` discards speculative RETURNING rows, restores the savepoint image as the current source, keeps the savepoint active, and lets the next UPDATE/DELETE statements run and yield rows from that restored source before release.
 
-WordPress smoke: `wordpress-rowvalue-update-delete-returning-savepoint-current-source-next158.php` covers a copied `wp_options` import cleanup that stages option-name rewrites and transient deletes, rolls back that speculative pass, then retries the rewrite/delete batch from the original savepoint image.
+Application smoke: `application-rowvalue-update-delete-returning-savepoint-current-source-next158.php` covers a copied `wp_options` import cleanup that stages option-name rewrites and transient deletes, rolls back that speculative pass, then retries the rewrite/delete batch from the original savepoint image.
 
 Verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext158Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext158Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next158.php
+php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next158.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext158Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next158.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next158.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

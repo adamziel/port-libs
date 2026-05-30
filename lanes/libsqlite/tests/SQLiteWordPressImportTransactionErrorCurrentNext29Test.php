@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressImportTransactionErrorYieldPlan;
+use PortLibs\LibSqlite\SQLiteImportTransactionErrorYieldPlan;
 
 $currentRows = static fn (): array => [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
@@ -17,19 +17,19 @@ $stagedRows = static fn (): array => [
     ['option_name' => 'rewrite_rules', 'option_value' => 'rules', 'autoload' => 'no'],
 ];
 
-$abortPlan = static fn (): array => SQLiteWordPressImportTransactionErrorYieldPlan::plan(
+$abortPlan = static fn (): array => SQLiteImportTransactionErrorYieldPlan::plan(
     $currentRows(),
     $stagedRows(),
     ['database_path' => '/tmp/wp-import-error-current-next29.sqlite', 'page_size' => 1024]
 );
 
-$partialPlan = static fn (): array => SQLiteWordPressImportTransactionErrorYieldPlan::plan(
+$partialPlan = static fn (): array => SQLiteImportTransactionErrorYieldPlan::plan(
     $currentRows(),
     $stagedRows(),
     ['database_path' => '/tmp/wp-import-error-current-next29.sqlite', 'page_size' => 1024, 'fail_on_error' => false]
 );
 
-$cleanPlan = static fn (): array => SQLiteWordPressImportTransactionErrorYieldPlan::plan(
+$cleanPlan = static fn (): array => SQLiteImportTransactionErrorYieldPlan::plan(
     $currentRows(),
     [
         ['option_name' => 'blogdescription', 'option_value' => 'Imported Site', 'autoload' => 'yes'],
@@ -39,7 +39,7 @@ $cleanPlan = static fn (): array => SQLiteWordPressImportTransactionErrorYieldPl
     ['database_path' => '/tmp/wp-import-clean-current-next29.sqlite', 'page_size' => 1024]
 );
 
-$invalidPlan = static fn (): array => SQLiteWordPressImportTransactionErrorYieldPlan::plan(
+$invalidPlan = static fn (): array => SQLiteImportTransactionErrorYieldPlan::plan(
     $currentRows(),
     [
         ['option_name' => 'blogdescription', 'option_value' => 'Imported Site', 'autoload' => 'yes'],
@@ -90,7 +90,7 @@ $cases = [
     'page size preserved' => [static fn (): mixed => $abortPlan()['page_size'], 1024],
     'current row count tracked' => [static fn (): mixed => $abortPlan()['current_count'], 4],
     'staged row count tracked' => [static fn (): mixed => $abortPlan()['staged_count'], 3],
-    'dependency names current next29' => [static fn (): mixed => in_array('sqlite-wordpress-import-transaction-error-yield-current-next29', $abortPlan()['dependencies'], true), true],
+    'dependency names current next29' => [static fn (): mixed => in_array('sqlite-application-import-transaction-error-yield-current-next29', $abortPlan()['dependencies'], true), true],
     'partial status records statement errors' => [static fn (): mixed => $partialPlan()['status'], 'partial_errors'],
     'partial keeps applied count after continuing' => [static fn (): mixed => $partialPlan()['applied_count'], 2],
     'partial yields all staged rows' => [static fn (): mixed => count($partialPlan()['yielded']), 3],
@@ -111,13 +111,13 @@ $cases = [
     'invalid row maps to import error code' => [static fn (): mixed => $invalidPlan()['errors'][0]['code'], 'sqlite_import_error'],
     'invalid row error data exception class' => [static fn (): mixed => $invalidPlan()['errors'][0]['data']['exception'], InvalidArgumentException::class],
     'invalid row rolls back transaction' => [static fn (): mixed => $invalidPlan()['rollback']['transaction_rolled_back'], true],
-    'custom statement prefix is used' => [static fn (): mixed => SQLiteWordPressImportTransactionErrorYieldPlan::plan($currentRows(), [$stagedRows()[0]], ['statement_prefix' => 'copy_options'])['yielded'][0]['statement'], 'copy_options_1'],
-    'exclusive begin is accepted' => [static fn (): mixed => SQLiteWordPressImportTransactionErrorYieldPlan::plan($currentRows(), [$stagedRows()[0]], ['begin' => 'BEGIN EXCLUSIVE'])['begin']['mode'], 'exclusive'],
+    'custom statement prefix is used' => [static fn (): mixed => SQLiteImportTransactionErrorYieldPlan::plan($currentRows(), [$stagedRows()[0]], ['statement_prefix' => 'copy_options'])['yielded'][0]['statement'], 'copy_options_1'],
+    'exclusive begin is accepted' => [static fn (): mixed => SQLiteImportTransactionErrorYieldPlan::plan($currentRows(), [$stagedRows()[0]], ['begin' => 'BEGIN EXCLUSIVE'])['begin']['mode'], 'exclusive'],
     'continue option is reported' => [static fn (): mixed => $partialPlan()['fail_on_error'], false],
     'abort option is reported' => [static fn (): mixed => $abortPlan()['fail_on_error'], true],
     'relative path is rejected' => [static function () use ($currentRows, $stagedRows): mixed {
         try {
-            SQLiteWordPressImportTransactionErrorYieldPlan::plan($currentRows(), $stagedRows(), ['database_path' => 'wp.sqlite']);
+            SQLiteImportTransactionErrorYieldPlan::plan($currentRows(), $stagedRows(), ['database_path' => 'wp.sqlite']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -125,7 +125,7 @@ $cases = [
     }, 'rejected'],
     'bad page size is rejected' => [static function () use ($currentRows, $stagedRows): mixed {
         try {
-            SQLiteWordPressImportTransactionErrorYieldPlan::plan($currentRows(), $stagedRows(), ['page_size' => 1000]);
+            SQLiteImportTransactionErrorYieldPlan::plan($currentRows(), $stagedRows(), ['page_size' => 1000]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -133,7 +133,7 @@ $cases = [
     }, 'rejected'],
     'deferred begin is rejected' => [static function () use ($currentRows, $stagedRows): mixed {
         try {
-            SQLiteWordPressImportTransactionErrorYieldPlan::plan($currentRows(), $stagedRows(), ['begin' => 'BEGIN DEFERRED']);
+            SQLiteImportTransactionErrorYieldPlan::plan($currentRows(), $stagedRows(), ['begin' => 'BEGIN DEFERRED']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -141,7 +141,7 @@ $cases = [
     }, 'rejected'],
     'duplicate current names are rejected' => [static function (): mixed {
         try {
-            SQLiteWordPressImportTransactionErrorYieldPlan::plan([
+            SQLiteImportTransactionErrorYieldPlan::plan([
                 ['option_id' => 1, 'option_name' => 'home', 'option_value' => 'a'],
                 ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'b'],
             ], []);
@@ -152,7 +152,7 @@ $cases = [
     }, 'rejected'],
     'duplicate current rowids are rejected' => [static function (): mixed {
         try {
-            SQLiteWordPressImportTransactionErrorYieldPlan::plan([
+            SQLiteImportTransactionErrorYieldPlan::plan([
                 ['option_id' => 1, 'option_name' => 'home', 'option_value' => 'a'],
                 ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'b'],
             ], []);
@@ -165,7 +165,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['sqlite wordpress import transaction error current next29 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['sqlite application import transaction error current next29 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }

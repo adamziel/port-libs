@@ -6,21 +6,21 @@
 - Composes existing native PHP `SQLiteTransactionBeginLockPlan`, `SQLiteLockByteRangePlan`, and `SQLiteVfsLockState`.
 - Covers deferred BEGIN first-read shared locks, BEGIN IMMEDIATE writer reservation, rollback-journal commit promotion to exclusive, WAL exclusive-as-immediate reservation, exclusive `PRAGMA locking_mode`, read-only write blockers, and commit/rollback release.
 
-## WordPress Smoke
+## Application Smoke
 
-- Added `examples/wordpress-vfs-transaction-lock-current.php`.
-- Models a copied WordPress SQLite import where a CLI export holds a deferred shared read lock, an admin import reserves the writer slot with `BEGIN IMMEDIATE`, commit promotion waits for the reader to finish, then the exclusive rollback-journal commit lock is released.
+- Added `examples/application-vfs-transaction-lock-current.php`.
+- Models a copied Application SQLite import where a CLI export holds a deferred shared read lock, an admin import reserves the writer slot with `BEGIN IMMEDIATE`, commit promotion waits for the reader to finish, then the exclusive rollback-journal commit lock is released.
 
 ## Verification
 
-- `php -l lanes/libsqlite/src/SQLiteVfsTransactionLockPlan.php && php -l lanes/libsqlite/tests/SQLiteVfsTransactionLockPlanTest.php && php -l lanes/libsqlite/examples/wordpress-vfs-transaction-lock-current.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsTransactionLockPlan.php && php -l lanes/libsqlite/tests/SQLiteVfsTransactionLockPlanTest.php && php -l lanes/libsqlite/examples/application-vfs-transaction-lock-current.php`
   - No syntax errors detected in all three changed PHP files.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsTransactionLockPlanTest.php`
   - Focused test run: 1 selected test files (root lock skipped)
   - 5 PASS lines
   - 1 test files, 72 assertions, 0 failures
-- `php lanes/libsqlite/examples/wordpress-vfs-transaction-lock-current.php --self-test`
-  - `wordpress-vfs-transaction-lock-current self-test passed`
+- `php lanes/libsqlite/examples/application-vfs-transaction-lock-current.php --self-test`
+  - `application-vfs-transaction-lock-current self-test passed`
 
 ## Non-Overlap
 

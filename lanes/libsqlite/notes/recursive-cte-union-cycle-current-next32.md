@@ -11,10 +11,10 @@
 - Focused tests: `SQLiteRecursiveCteUnionCycleCurrentNext32Test.php` adds 54
   PASS cases for ascending/descending queue order, cycle de-duplication,
   depth-state rows that remain distinct, LIMIT/OFFSET emission, named and
-  positional bind roots, ordinary CTE roots, WordPress `wp_options` joins and
+  positional bind roots, ordinary CTE roots, Application `wp_options` joins and
   predicates, and malformed trace admission.
-- WordPress smoke:
-  `examples/wordpress-recursive-cte-union-cycle-current-next32.php --self-test`
+- Application smoke:
+  `examples/application-recursive-cte-union-cycle-current-next32.php --self-test`
   reports copied `wp_options` option graph traversal through a cyclic recursive
   UNION CTE, visited/current ids, skipped cycle ids, and dependency tags
   without requiring `ext/sqlite`.
@@ -35,6 +35,6 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 54 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-recursive-cte-union-cycle-current-next32.php --self-test
-wordpress-recursive-cte-union-cycle-current-next32 self-test passed
+php lanes/libsqlite/examples/application-recursive-cte-union-cycle-current-next32.php --self-test
+application-recursive-cte-union-cycle-current-next32 self-test passed
 ```

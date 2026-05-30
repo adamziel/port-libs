@@ -43,7 +43,7 @@ $plan245 = static fn (
     string $nextSource = 'main.wp_options@245',
     int $currentCookie = 244,
     int $nextCookie = 245,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDanglingEscapeLikePlan(
     $current ?? $current245,
     $next ?? $nextTwoFourFive,
     $pattern,
@@ -200,15 +200,15 @@ $tests['encoding collation affinity like current source nextTwoFourFive direct d
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFive rejects multi character escape'] = static function (TestRunner $t) use ($current245, $nextTwoFourFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan($current245, $nextTwoFourFive, 'plugin!!_cache!!', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDanglingEscapeLikePlan($current245, $nextTwoFourFive, 'plugin!!_cache!!', '!!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFive rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan([['option_id' => 1]], $nextTwoFourFive));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDanglingEscapeLikePlan([['option_id' => 1]], $nextTwoFourFive));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFive rejects non scalar option name'] = static function (TestRunner $t) use ($nextTwoFourFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourFive));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDanglingEscapeLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourFive));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFive note fields stay explicit'] = static function (TestRunner $t) use ($plan245): void {

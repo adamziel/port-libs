@@ -16,12 +16,12 @@ Focused evidence:
 ```bash
 php -l lanes/libsqlite/src/SQLiteSelectQuery.php
 php -l lanes/libsqlite/tests/SQLiteJsonAggregateDefaultWindowCurrentSourceNext100Test.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-default-window-current-source-next100.php
+php -l lanes/libsqlite/examples/application-json-aggregate-default-window-current-source-next100.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateDefaultWindowCurrentSourceNext100Test.php
 # 1 test files, 67 assertions, 0 failures
 # 59 PASS lines
-php lanes/libsqlite/examples/wordpress-json-aggregate-default-window-current-source-next100.php
-# wordpress-json-aggregate-default-window-current-source-next100 self-test passed
+php lanes/libsqlite/examples/application-json-aggregate-default-window-current-source-next100.php
+# application-json-aggregate-default-window-current-source-next100 self-test passed
 git diff --check -- lanes/libsqlite
 ```
 

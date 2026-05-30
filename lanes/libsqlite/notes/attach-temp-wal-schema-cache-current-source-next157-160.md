@@ -2,9 +2,9 @@
 
 Prepares the next attach/TEMP/WAL schema-cache handoff after next153-156:
 
-- next157 covers dropping a TEMP shadow `wp_postmeta` table so an unqualified WordPress reader resolves to `main` on reprepare;
+- next157 covers dropping a TEMP shadow `wp_postmeta` table so an unqualified Application reader resolves to `main` on reprepare;
 - next158 covers renaming an attached archive posts table, causing a qualified writer to fail with `SQLITE_SCHEMA` before retry;
-- next159 covers `ATTACH` of a network schema resolving a previously detached qualified WordPress options reader;
+- next159 covers `ATTACH` of a network schema resolving a previously detached qualified Application options reader;
 - next160 covers a current-source `INDEXED BY` reader whose active snapshot can finish after the main schema index disappears.
 
 Focused checks:
@@ -13,11 +13,11 @@ Focused checks:
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext153156Test.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext157160Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next153-156.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next157-160.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next153-156.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next157-160.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext153156Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext157160Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next153-156.php --self-test
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next157-160.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next153-156.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next157-160.php --self-test
 git diff --check
 ```
 

@@ -31,7 +31,7 @@ The admitted row records exact focused PHP admission of `96` PASS lines, expecte
 
 ## Non-Overlap
 
-This is a suite/countability blocker-removal slice only. It does not touch B-tree, JSON table, VFS, WAL, planner, PRAGMA, ATTACH, window, VDBE, WordPress behavior, or release/all parity surfaces. It avoids accepted veryquick-shard rows through next276 and preserves broad release/all parity as unclaimed.
+This is a suite/countability blocker-removal slice only. It does not touch B-tree, JSON table, VFS, WAL, planner, PRAGMA, ATTACH, window, VDBE, Application behavior, or release/all parity surfaces. It avoids accepted veryquick-shard rows through next276 and preserves broad release/all parity as unclaimed.
 
 ## Dependency Closure
 

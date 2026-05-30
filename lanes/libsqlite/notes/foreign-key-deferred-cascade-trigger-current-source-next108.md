@@ -7,10 +7,10 @@ It covers current child/grandchild source changes between statement delete and
 commit, BEFORE/AFTER child trigger ordering, grandchild cascade interactions,
 NO ACTION deferred violations, and RESTRICT immediate blocking.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-foreign-key-deferred-cascade-trigger-current-source-next108.php --self-test`
-- Result: `wordpress-foreign-key-deferred-cascade-trigger-current-source-next108 self-test passed`
+- `php lanes/libsqlite/examples/application-foreign-key-deferred-cascade-trigger-current-source-next108.php --self-test`
+- Result: `application-foreign-key-deferred-cascade-trigger-current-source-next108 self-test passed`
 
 Focused verification:
 

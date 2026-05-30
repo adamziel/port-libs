@@ -12,10 +12,10 @@ Behavior slice: `json-table-generated-path-rowid-cost-current-source-next228-232
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext232Test.php`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next232.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next232.php --self-test`
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext232Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next232.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next232.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

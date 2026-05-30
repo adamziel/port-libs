@@ -7,7 +7,7 @@ Change:
 - Renamed the post-ANALYZE STAT4 sample-window production entrypoint from its
   legacy numbered name to
   `materializePostAnalyzeSampleWindowFence()`.
-- Migrated the direct focused test and WordPress smoke to stable filenames and
+- Migrated the direct focused test and Application smoke to stable filenames and
   the stable production entrypoint.
 - Preserved observable planner result metadata: `next167*` result keys, status
   strings, dependency strings, cursor opcodes, detail text, non-overlap text,
@@ -19,12 +19,12 @@ Verification:
   passed.
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPostAnalyzeSampleWindowTest.php`
   passed.
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-post-analyze-sample-window.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-post-analyze-sample-window.php`
   passed.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPostAnalyzeSampleWindowTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext173Test.php`
   passed: 2 files / 124 assertions / 0 failures.
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-post-analyze-sample-window.php --self-test`
-  passed: printed `wordpress-sqlplanner-stat4-expression-partial-post-analyze-sample-window self-test passed`.
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-post-analyze-sample-window.php --self-test`
+  passed: printed `application-sqlplanner-stat4-expression-partial-post-analyze-sample-window self-test passed`.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php`
   passed: 133 files / 7539 assertions / 0 failures.
 - `git diff --check -- lanes/libsqlite`

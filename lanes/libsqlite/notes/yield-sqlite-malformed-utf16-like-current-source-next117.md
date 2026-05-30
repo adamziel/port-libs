@@ -4,7 +4,7 @@
 
 `SQLiteMalformedLikeGlobSourceNextPlan` now reports `currentMalformedCandidateRowids` and `nextMalformedCandidateRowids`: malformed UTF-16 rows whose raw encoded bytes still fall under the literal LIKE/GLOB prefix that an index/source cursor would seek before text decoding fails.
 
-This keeps malformed-row diagnostics broad (`currentMalformedRowids`) while giving the current/next invalidation path a narrower prefix-candidate set for WordPress-style `wp_options.option_name LIKE 'plugin%'` and `GLOB 'plugin_*'` scans.
+This keeps malformed-row diagnostics broad (`currentMalformedRowids`) while giving the current/next invalidation path a narrower prefix-candidate set for Application-style `wp_options.option_name LIKE 'plugin%'` and `GLOB 'plugin_*'` scans.
 
 ## Evidence
 
@@ -13,9 +13,9 @@ This keeps malformed-row diagnostics broad (`currentMalformedRowids`) while givi
 
 Expected dashboard movement: `phpPass` +51, from accepted `44622` to `44673`. No mapped upstream denominator change claimed.
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-malformed-utf16-like-current-source-next117.php`
+- `php lanes/libsqlite/examples/application-malformed-utf16-like-current-source-next117.php`
 
 The smoke covers copied `wp_options` rows with malformed UTF-16LE plugin/theme option names and verifies prefix-scoped plugin candidates across current/next source cookies.
 

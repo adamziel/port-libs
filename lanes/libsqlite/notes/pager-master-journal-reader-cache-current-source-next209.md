@@ -16,12 +16,12 @@ source representation before the next reader.
   - no syntax errors
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext209Test.php`
   - no syntax errors
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next209.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next209.php`
   - no syntax errors
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext209Test.php`
   - `1 test files, 54 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next209.php --self-test`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next209 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next209.php --self-test`
+  - `application-pager-master-journal-reader-cache-current-source-next209 self-test passed`
 
 Expected dashboard delta: `phpPass` moves from `100087` to `100141` from 54
 new focused PASS/assertion lines. Mapped upstream coverage remains

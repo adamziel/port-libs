@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds bounded WAL transaction append planning and VFS application for copied WordPress database imports:
+Adds bounded WAL transaction append planning and VFS application for copied Application database imports:
 
 - appends committed and uncommitted WAL transaction frames after an existing WAL;
 - preserves SQLite WAL chained checksum seeds from the previous frame or header;
@@ -24,7 +24,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-append-transaction.php
+php lanes/libsqlite/examples/application-wal-append-transaction.php
 ```
 
 ## Status delta

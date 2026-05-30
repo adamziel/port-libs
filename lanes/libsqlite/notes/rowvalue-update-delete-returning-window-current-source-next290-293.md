@@ -8,9 +8,9 @@ Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext290293.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext290293Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next290-293.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next290-293.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext290293Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next290-293.php`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next290-293.php`
 - `git diff --check`
 
 Non-overlap: avoids accepted rowvalue next219 negative LIMIT/OFFSET, next224 and next230 nested savepoint releases, next231 compound tuple sources, next289 all-stream window receipts, JSON table next285-288/289-300 work, WAL/VFS, planner, trigger, suite-countability, and B-tree clusters. The behavior surface is statement-partitioned RETURNING-window receipt stability across current-source rollback and retry.

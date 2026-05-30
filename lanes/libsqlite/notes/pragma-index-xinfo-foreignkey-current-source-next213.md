@@ -14,16 +14,16 @@ Behavior:
   `SET DEFAULT` targets a child column with no explicit default, or when a
   `NOT NULL` child column has a `NULL` default;
 - preserves current/next source hashes, pagination, stale-cursor rejection,
-  inherited `index_xinfo` and FK diagnostics, and a WordPress postmeta import
+  inherited `index_xinfo` and FK diagnostics, and a Application postmeta import
   smoke.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next213.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next213.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next213.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next213.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

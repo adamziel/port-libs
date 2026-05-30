@@ -7,7 +7,7 @@
   - `OR IGNORE` restores skipped conflicting rows and yields no `RETURNING` row for those skipped attempts.
   - `OR REPLACE` deletes the conflicting current row before yielding the replacement row, including chained replacement where a later row conflicts with a row replaced earlier in the same statement.
   - `OR ROLLBACK` aborts the savepoint transaction, restores the savepoint image, clears yielded streams, and reports the rollback conflict.
-- Adds a WordPress copied `wp_options` smoke for import cleanup/rekeying where row-value assignments collide with existing `(blog_id, option_name)` keys.
+- Adds a Application copied `wp_options` smoke for import cleanup/rekeying where row-value assignments collide with existing `(blog_id, option_name)` keys.
 
 ## Focused Evidence
 

@@ -30,10 +30,10 @@ $ php -l lanes/libsqlite/tests/SQLitePragmaForeignKeyListCurrentNext18Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaForeignKeyListCurrentNext18Test.php
 $ php -l lanes/libsqlite/tests/SQLitePragmaIndexTableValuedCurrentNext21Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexTableValuedCurrentNext21Test.php
-$ php -l lanes/libsqlite/examples/wordpress-pragma-index-table-valued-current-next21.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-table-valued-current-next21.php
+$ php -l lanes/libsqlite/examples/application-pragma-index-table-valued-current-next21.php
+No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-table-valued-current-next21.php
 
-$ php lanes/libsqlite/examples/wordpress-pragma-index-table-valued-current-next21.php
+$ php lanes/libsqlite/examples/application-pragma-index-table-valued-current-next21.php
 Printed copied wp_options table-valued PRAGMA current-source JSON with temp
 wp_options columns, main option-name index metadata, and network
 wp_sitemeta index collation metadata.

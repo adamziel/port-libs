@@ -5,7 +5,7 @@
 Adds `SQLiteAttachTempWalSchemaTriggerPlan::triggerDependencyCookiePlan()` for prepared
 trigger invalidation when a TEMP trigger body has unqualified table references
 that resolve to different schemas between the current and next schema source.
-The slice covers WordPress import/audit triggers where an unqualified
+The slice covers Application import/audit triggers where an unqualified
 `wp_audit` write resolves to `temp.wp_audit` while the current trigger keeps
 running, then resolves to `main.wp_audit` after TEMP schema reload. It also
 keeps qualified attached-schema body references in the dependency set so WAL
@@ -16,8 +16,8 @@ page-one schema-cookie changes for `site` expire the prepared trigger.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaTriggerDependencyCookieTest.php`
   - `1 test files, 58 assertions, 0 failures`
   - `58` PASS lines
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-trigger-dependency-cookie.php --self-test`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-attach-temp-wal-schema-trigger-dependency-cookie.php --self-test`
 
 ## Non-Overlap
 

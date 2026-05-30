@@ -9,7 +9,7 @@ Behavior slice: JSONB generated-column covering `DELETE` planning for current ro
   - return `DELETE ... RETURNING`-style rows from covering index payloads, including generated JSONB values;
   - report non-covering chosen plans as skipped covering returns rather than pretending a table fetch is unnecessary.
 - Added focused tests in `SQLiteJsonbGeneratedCoveringDeleteCurrentNext52Test.php`.
-- Added WordPress smoke `wordpress-jsonb-generated-covering-delete-current-next52.php` for copied `wp_options` plugin-setting cleanup.
+- Added Application smoke `application-jsonb-generated-covering-delete-current-next52.php` for copied `wp_options` plugin-setting cleanup.
 
 Non-overlap: this does not repeat accepted JSONB generated partial UPSERT, JSONB table upsert covering, expression-index range costs, JSON hidden/visible constraints, JSON table SELECT sources/cursors, or B-tree/WAL/VFS accepted clusters. The new surface is current-row `DELETE` maintenance over generated JSONB covering indexes.
 
@@ -23,15 +23,15 @@ Focused test run: 1 selected test files (root lock skipped)
 57 PASS lines
 1 test files, 67 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-jsonb-generated-covering-delete-current-next52.php
-wordpress-jsonb-generated-covering-delete-current-next52 self-test passed
+$ php lanes/libsqlite/examples/application-jsonb-generated-covering-delete-current-next52.php
+application-jsonb-generated-covering-delete-current-next52 self-test passed
 
 $ php -l lanes/libsqlite/src/SQLiteJsonbPatchGeneratedIndexPlan.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteJsonbPatchGeneratedIndexPlan.php
 $ php -l lanes/libsqlite/tests/SQLiteJsonbGeneratedCoveringDeleteCurrentNext52Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonbGeneratedCoveringDeleteCurrentNext52Test.php
-$ php -l lanes/libsqlite/examples/wordpress-jsonb-generated-covering-delete-current-next52.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-jsonb-generated-covering-delete-current-next52.php
+$ php -l lanes/libsqlite/examples/application-jsonb-generated-covering-delete-current-next52.php
+No syntax errors detected in lanes/libsqlite/examples/application-jsonb-generated-covering-delete-current-next52.php
 
 $ php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'
 lane-status json ok

@@ -99,7 +99,7 @@ $cases257 = [
     'current source table removes retry deletes' => [static fn (): mixed => array_values(array_intersect([4, 10], array_column($plan257()['current_source_tables']['wp_options'], 'option_id'))), []],
     'suppressed attempt delete remains in table' => [static fn (): mixed => in_array(8, array_column($plan257()['current_source_tables']['wp_options'], 'option_id'), true), true],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-current-source-tombstone-gate-next257', $plan257()['dependencies_next257'], true), true],
-    'wordpress marker' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-delete-retry-publication', $plan257()['dependencies_next257'], true), true],
+    'application marker' => [static fn (): mixed => in_array('application-rowvalue-returning-window-delete-retry-publication', $plan257()['dependencies_next257'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan257()['dependency_closure_next257'], 'no new support component needed'), true],
     'non overlap next253' => [static fn (): mixed => str_contains($plan257()['non_overlap_next257'], 'next253'), true],
     'non overlap wal' => [static fn (): mixed => str_contains($plan257()['non_overlap_next257'], 'WAL/VFS'), true],

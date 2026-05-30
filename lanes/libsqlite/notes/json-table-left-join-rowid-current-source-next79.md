@@ -24,10 +24,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 24 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-left-join-rowid-current-source-next79.php
+php lanes/libsqlite/examples/application-json-table-left-join-rowid-current-source-next79.php
 ```
 
 Non-overlap: this avoids accepted parser-level JSON table SELECT source/cursor

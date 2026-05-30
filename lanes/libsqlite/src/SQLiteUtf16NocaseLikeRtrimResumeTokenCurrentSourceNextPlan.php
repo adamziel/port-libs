@@ -11,7 +11,7 @@ final class SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameResumeTokenPlan(
+    public static function optionRowNameResumeTokenPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -36,7 +36,7 @@ final class SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan
         $currentToken = self::decodeToken($currentTokenKeyBytes, $currentTokenKeyEncoding, $currentTokenRowid, 'current');
         $nextToken = self::decodeToken($nextTokenKeyBytes, $nextTokenKeyEncoding, $nextTokenRowid, 'next');
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumePlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,

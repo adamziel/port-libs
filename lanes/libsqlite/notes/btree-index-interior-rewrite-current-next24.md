@@ -11,7 +11,7 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeIndexInteriorRewriteCurrentNext24Test.php`
 - Result: `1 test files, 58 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-index-interior-rewrite-current-next24.php`
+- `php lanes/libsqlite/examples/application-index-interior-rewrite-current-next24.php`
 
 Non-overlap: this avoids accepted index-interior merge, table/index page
 relocation, root collapse, overflow freelist release, freepage allocation,

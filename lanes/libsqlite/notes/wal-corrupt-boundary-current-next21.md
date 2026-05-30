@@ -22,8 +22,8 @@ Additional verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteWalCorruptBoundaryCurrentNext21Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-corrupt-boundary-current-next.php
-php lanes/libsqlite/examples/wordpress-wal-corrupt-boundary-current-next.php --self-test
+php -l lanes/libsqlite/examples/application-wal-corrupt-boundary-current-next.php
+php lanes/libsqlite/examples/application-wal-corrupt-boundary-current-next.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

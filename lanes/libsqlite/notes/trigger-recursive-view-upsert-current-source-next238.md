@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for recursive `INSTEAD OF` view-trigger UPSE
 
 This slice adds `SQLiteTriggerRecursiveViewUpsertCurrentSourceNext238Plan`, a current-source resume-receipt gate layered after the accepted next235 UPSERT yield tickets. Current recursive view UPSERT rows must be acknowledged against the resume source, resume cursor, resume epoch, existing next235 yield ticket, view source, trigger program, event, depth, ordinal, trigger name, old value, option name, and option value before next-source rows can publish.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next238.php` models a copied `wp_options` import view where a `siteurl` UPSERT recursively yields `home` and `rewrite_rules` before plugin migration rows from the next source become visible. The next source remains held until the current resume receipts are acknowledged.
+Application path: `application-trigger-recursive-view-upsert-current-source-next238.php` models a copied `wp_options` import view where a `siteurl` UPSERT recursively yields `home` and `rewrite_rules` before plugin migration rows from the next source become visible. The next source remains held until the current resume receipts are acknowledged.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext238Test.php`
   - `1 test files, 94 assertions, 0 failures`
   - 94 PASS lines
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next238.php --self-test`
-  - `wordpress-trigger-recursive-view-upsert-current-source-next238 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next238.php --self-test`
+  - `application-trigger-recursive-view-upsert-current-source-next238 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - passed
 

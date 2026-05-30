@@ -1,11 +1,11 @@
 # UTF-16 pattern LIKE/GLOB affinity current-source next114
 
-Status: focused PHP behavior growth for UTF-16 decoded LIKE/GLOB patterns and ESCAPE values over WordPress `wp_options.option_value` scans, including text-affinity scalar matching and current/next source invalidation diagnostics.
+Status: focused PHP behavior growth for UTF-16 decoded LIKE/GLOB patterns and ESCAPE values over Application `wp_options.option_value` scans, including text-affinity scalar matching and current/next source invalidation diagnostics.
 
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNext114Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-pattern-like-glob-affinity-current-source-next114.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-pattern-like-glob-affinity-current-source-next114.php --self-test`
 
 Dashboard delta:
 

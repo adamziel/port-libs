@@ -3,7 +3,7 @@
 ## Behavior
 
 Adds `SQLiteVfsLockByteUriShmCurrentSourceNext`, a bounded VFS planner for
-WordPress SQLite import/open paths where a SHM or WAL sidecar can be opened
+Application SQLite import/open paths where a SHM or WAL sidecar can be opened
 before the main database. The planner canonicalizes `file:` URI paths back to a
 single owner database path, routes main POSIX byte-range locks and WAL SHM locks
 through the current source handle, and preserves owner-level conflicts across
@@ -18,8 +18,8 @@ unhandled combined URI owner/source routing case for lock bytes plus SHM locks.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNextTest.php`
   - `1 test files, 77 assertions, 0 failures`
   - `77` focused PASS lines
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-vfs-lock-byte-uri-shm-current-source-next97.php --self-test`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-vfs-lock-byte-uri-shm-current-source-next97.php --self-test`
 
 ## Dependency Closure
 

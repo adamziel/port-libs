@@ -15,8 +15,8 @@ statement-partitioned retry windows:
 - the release boundary records the final current-source tuple window IDs and
   digest.
 
-WordPress smoke:
-`wordpress-rowvalue-returning-window-current-source-next243.php` models copied
+Application smoke:
+`application-rowvalue-returning-window-current-source-next243.php` models copied
 `wp_options` import cleanup where a failed attempt deletes a transient row,
 `ROLLBACK TO` restores the current source, and retry `UPDATE`/`DELETE
 RETURNING` rows are released with tuple-window frame receipts.
@@ -30,8 +30,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next243.php --self-test
-wordpress-rowvalue-returning-window-current-source-next243 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next243.php --self-test
+application-rowvalue-returning-window-current-source-next243 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +60` from the new focused test file.

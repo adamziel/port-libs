@@ -1,6 +1,6 @@
 # PRAGMA Index Integrity Foreign-Key Current Source Next121
 
-This slice adds a current-source cursor that pages a copied WordPress schema
+This slice adds a current-source cursor that pages a copied Application schema
 preflight stream made from three existing native PHP behaviors:
 
 - `PRAGMA index_xinfo(...)` rows for an index involved in an import lookup.
@@ -15,7 +15,7 @@ changes, preventing stale import diagnostics after schema rebuilds.
 Verification for this handoff:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexIntegrityForeignKeyCurrentSourceNext121Test.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-integrity-foreign-key-current-source-next121.php`
+- `php lanes/libsqlite/examples/application-pragma-index-integrity-foreign-key-current-source-next121.php`
 - PHP lint for changed PHP files.
 - `git diff --check -- lanes/libsqlite`
 

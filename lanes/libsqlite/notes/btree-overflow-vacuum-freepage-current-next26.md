@@ -24,9 +24,9 @@ Focused test run: 1 selected test files (root lock skipped)
 
 `phpPass` delta: `8739 -> 8798` (`+59` verified PASS lines).
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-overflow-vacuum-freepage-current-next26.php` reports copied `wp_options` transient table/index overflow pages vacuumed into current freelist page images, with auto-vacuum pointer-map free-page rewrites and bounded next-allocation order.
+`lanes/libsqlite/examples/application-overflow-vacuum-freepage-current-next26.php` reports copied `wp_options` transient table/index overflow pages vacuumed into current freelist page images, with auto-vacuum pointer-map free-page rewrites and bounded next-allocation order.
 
 ## Non-Overlap
 

@@ -126,14 +126,14 @@ $tests['encoding collation source next82 matched rows preserve payload and sourc
     $t->same('yes', $rows[0]['payload']['autoload']);
 };
 
-$tests['encoding collation source next82 wordpress option scan maps copied columns'] = static function (TestRunner $t): void {
+$tests['encoding collation source next82 application option scan maps copied columns'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_100%_enabled', 'UTF-16LE'), 'text_encoding' => 2, 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('Plugin_100%_Enabled', 'UTF-8'), 'text_encoding' => 1, 'autoload' => 'no'],
         ['option_id' => 3, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_100x_enabled', 'UTF-16BE'), 'text_encoding' => 3, 'autoload' => 'yes'],
     ];
 
-    $matched = SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan($rows, 'plugin\_100\%%', 'LIKE', 'NOCASE', '\\');
+    $matched = SQLiteEncodingCollationSourceCursor::optionRowNameScan($rows, 'plugin\_100\%%', 'LIKE', 'NOCASE', '\\');
     $t->same([1, 2], array_column($matched, 'rowid'));
     $t->same(['UTF-16LE', 'UTF-8'], array_column($matched, 'textEncoding'));
 };
@@ -186,8 +186,8 @@ $tests['encoding collation source next82 rejects non integer rowid'] = static fu
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteEncodingCollationSourceCursor([['keyBytes' => 'p', 'textEncoding' => 1, 'rowid' => '1', 'payload' => []]], 'p%'));
 };
 
-$tests['encoding collation source next82 wordpress scan rejects missing encoding column'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan([['option_id' => 1, 'option_name_bytes' => 'plugin']], 'p%'));
+$tests['encoding collation source next82 application scan rejects missing encoding column'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationSourceCursor::optionRowNameScan([['option_id' => 1, 'option_name_bytes' => 'plugin']], 'p%'));
 };
 
 return $tests;

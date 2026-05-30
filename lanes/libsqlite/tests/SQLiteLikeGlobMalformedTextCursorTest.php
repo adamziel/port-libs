@@ -125,7 +125,7 @@ foreach ($databaseCases as $name => [$value, $pattern, $escape, $caseSensitive, 
     };
 }
 
-$tests['like glob malformed text current source next84 matched rows preserve wordpress payload'] = static function (TestRunner $t) use ($likeCursor): void {
+$tests['like glob malformed text current source next84 matched rows preserve application payload'] = static function (TestRunner $t) use ($likeCursor): void {
     $rows = $likeCursor("plugin\_\xc3%", 'BINARY', '\\', true)->matchedRows();
     $t->same('yes', $rows[0]['payload']['autoload']);
     $t->same("plugin_\xc3", $rows[0]['payload']['option_name']);

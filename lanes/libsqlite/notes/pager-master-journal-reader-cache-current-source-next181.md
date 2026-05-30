@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext181Plan`. It extends the accepted next170 rollback-journal source digest/page-set fence and next178 member generation/delete-state fence with a narrower current-source rule: a reader-cache entry keyed from a pending master-journal membership is rejected even when its page bytes and rollback-journal source digest still match the current recovered image.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next181.php` covers a copied `wp_options` recovery where `active_plugins` was cached under a pending master-journal source that includes a not-yet-current member journal. The next reader misses cache for that page and the next write journals from the current rollback source.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next181.php` covers a copied `wp_options` recovery where `active_plugins` was cached under a pending master-journal source that includes a not-yet-current member journal. The next reader misses cache for that page and the next write journals from the current rollback source.
 
 Verification:
 
@@ -15,8 +15,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next181.php
-wordpress-pager-master-journal-reader-cache-current-source-next181 self-test passed
+php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next181.php
+application-pager-master-journal-reader-cache-current-source-next181 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `85432` to `85542` for the 110 verified focused PASS lines. Mapped upstream coverage remains `614 / 1589`; this is fresh focused PHP pager behavior over already mapped master-journal reader-cache primitives rather than a new upstream inventory unit.

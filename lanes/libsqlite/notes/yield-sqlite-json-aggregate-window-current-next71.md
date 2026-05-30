@@ -26,11 +26,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 46 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-aggregate-window-current-next.php --self-test
-wordpress-json-aggregate-window-current-next self-test passed
+php lanes/libsqlite/examples/application-json-aggregate-window-current-next.php --self-test
+application-json-aggregate-window-current-next self-test passed
 ```
 
 ## Non-overlap

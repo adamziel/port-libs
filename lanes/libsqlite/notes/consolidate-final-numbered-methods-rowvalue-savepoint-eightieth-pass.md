@@ -10,11 +10,11 @@ Verification:
 
 - `php -l lanes/libsqlite/tests/SQLiteRowValueOrderedSubquerySavepointRetryTest.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueSubqueryLimitSavepointRetryTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-ordered-subquery-savepoint-retry.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-subquery-limit-savepoint-retry.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-ordered-subquery-savepoint-retry.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-subquery-limit-savepoint-retry.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueOrderedSubquerySavepointRetryTest.php lanes/libsqlite/tests/SQLiteRowValueSubqueryLimitSavepointRetryTest.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepoint*.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-subquery-limit-savepoint-retry.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-subquery-limit-savepoint-retry.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this cleanup reuses the

@@ -193,7 +193,7 @@ $cases = [
     'operation reuse' => [static fn (): mixed => in_array('reuse_checkpoint_wal_sidecar_current_source_next237', $plan()['operation_names'], true), true],
     'dependency next237' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next237', $plan()['dependencies'], true), true],
     'dependency sidecar' => [static fn (): mixed => in_array('sqlite-wal-sidecar-boundary-current-source', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-wal-sidecar-boundary-after-hot-journal', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-wal-sidecar-boundary-after-hot-journal', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat durable sync receipt admission'), true],
     'row admitted' => [static fn (): mixed => $plan()['sidecar_rows'][0]['admitted'], true],

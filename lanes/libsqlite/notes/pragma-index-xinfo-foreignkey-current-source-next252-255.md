@@ -17,7 +17,7 @@ current-source slices next252 through next255:
 ## Focused Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext252255Test.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next252-255.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next252-255.php --self-test`
 
 ## Non-Overlap
 

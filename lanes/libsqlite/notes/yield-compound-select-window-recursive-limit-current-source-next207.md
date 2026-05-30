@@ -2,7 +2,7 @@
 
 Status delta: adds current-source focused coverage for a recursive CTE feeding a compound SELECT whose `lead()` and `nth_value()` window outputs are materialized before `UNION ALL`, whose first recursive window row is removed by an `EXCEPT` fence, and whose surviving rows are checked through an `INTERSECT` membership arm before final `ORDER BY ... LIMIT ... OFFSET` admission.
 
-WordPress smoke: `examples/wordpress-compound-select-window-recursive-limit-current-source-next207.php` models copied `wp_options` preview rows where a stale recursive dependency row is fenced before staged next-source autoload rows shift the final current/next LIMIT boundary.
+Application smoke: `examples/application-compound-select-window-recursive-limit-current-source-next207.php` models copied `wp_options` preview rows where a stale recursive dependency row is fenced before staged next-source autoload rows shift the final current/next LIMIT boundary.
 
 Verification:
 

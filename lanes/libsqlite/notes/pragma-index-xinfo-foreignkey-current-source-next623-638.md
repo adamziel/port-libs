@@ -15,9 +15,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext623638Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next623-638.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next623-638.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext623638Test.php
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next623-638.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next623-638.php --self-test
 git diff --check
 ```
 

@@ -65,7 +65,7 @@ $shortWalBytes = $makeWalBytes(85, 0x85858585, 0x58585858, 3);
 
 $savepoints = static function (): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wordpress-import-next85');
+    $stack->beginTransaction('application-import-next85');
     $stack->recordWalFrameWrite(1, 1, false);
     $stack->recordWalFrameWrite(2, 2, true);
     $stack->savepoint('plugin-settings-next85');

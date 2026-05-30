@@ -8,7 +8,7 @@ Scope:
 - Wires parser-level `SQLiteSelectSql` `ORDER BY` terms to preserve collation
   and NULL-placement metadata for direct columns, hidden expression order
   columns, aliases, grouped SELECT output, and compound SELECT tails.
-- Adds a WordPress-shaped smoke for deterministic copied `wp_options` ordering
+- Adds a Application-shaped smoke for deterministic copied `wp_options` ordering
   without the SQLite extension.
 
 Focused evidence:
@@ -30,10 +30,10 @@ Focused test run: 3 selected test files (root lock skipped)
 php -l lanes/libsqlite/src/SQLiteSelectResult.php
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteOrderByCollateNullsCorpusTest.php
-php -l lanes/libsqlite/examples/wordpress-select-order-collate-nulls.php
+php -l lanes/libsqlite/examples/application-select-order-collate-nulls.php
 No syntax errors detected in all changed PHP files.
 
-php lanes/libsqlite/examples/wordpress-select-order-collate-nulls.php
+php lanes/libsqlite/examples/application-select-order-collate-nulls.php
 orderedOptionIds: [2, 1, 4, 3, 5, 6]
 
 git diff --check -- lanes/libsqlite

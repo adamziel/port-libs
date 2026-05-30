@@ -1,6 +1,6 @@
 # compound-except-window-recursive-limit-current-source-next161
 
-Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE queue and a WordPress option table arm compute window values before an `EXCEPT` arm removes skip rows, then the final compound `ORDER BY ... LIMIT/OFFSET` determines the current/next yield boundary.
+Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE queue and a Application option table arm compute window values before an `EXCEPT` arm removes skip rows, then the final compound `ORDER BY ... LIMIT/OFFSET` determines the current/next yield boundary.
 
 Behavior covered:
 
@@ -14,10 +14,10 @@ Verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Test.php
-php lanes/libsqlite/examples/wordpress-compound-except-window-recursive-limit-current-source-next161.php --self-test
+php lanes/libsqlite/examples/application-compound-except-window-recursive-limit-current-source-next161.php --self-test
 php -l lanes/libsqlite/src/SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-except-window-recursive-limit-current-source-next161.php
+php -l lanes/libsqlite/examples/application-compound-except-window-recursive-limit-current-source-next161.php
 git diff --check -- lanes/libsqlite
 ```
 

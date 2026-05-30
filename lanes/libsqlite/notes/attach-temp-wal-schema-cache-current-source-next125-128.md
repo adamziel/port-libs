@@ -12,10 +12,10 @@ Focused checks:
 ```text
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext125128Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next125-128.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next125-128.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext121124Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext125128Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next121-124.php --self-test
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next125-128.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next121-124.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next125-128.php --self-test
 git diff --check
 ```
 

@@ -131,7 +131,7 @@ $tests['comma json_each join supports cte materialization'] = static function (T
     $t->same(['Dave', 'Cindy', 'Alice'], array_column($rows, 'name'));
 };
 
-$tests['comma json_tree join walks wordpress option rules dynamically'] = static function (TestRunner $t) use ($settings): void {
+$tests['comma json_tree join walks application option rules dynamically'] = static function (TestRunner $t) use ($settings): void {
     $rows = SQLiteSelectSql::execute(
         "SELECT wp_options.option_name AS option_name, json_tree.atom AS priority FROM wp_options, json_tree(wp_options.option_value, '$.rules') WHERE json_tree.key = 'priority' ORDER BY priority DESC",
         ['wp_options' => $settings],

@@ -6,7 +6,7 @@ This slice adds bounded native PHP support for upstream-style table-scoped
 `PRAGMA integrity_check(table)` and `PRAGMA quick_check(table)` planning. It
 collects the target table plus associated index root pages from the parsed
 `sqlite_schema`, filters existing integrity diagnostics down to that table
-scope, and exposes current/next pagination for WordPress repair screens that
+scope, and exposes current/next pagination for Application repair screens that
 need to inspect `wp_options` without surfacing unrelated table, freelist, or
 database-wide root-limit diagnostics.
 
@@ -33,7 +33,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Smoke evidence:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-integrity-table-scope-current-next65.php
+$ php lanes/libsqlite/examples/application-pragma-integrity-table-scope-current-next65.php
 ```
 
 Non-overlap:

@@ -6,6 +6,6 @@
 - Focused verification:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRecursiveCteMaterializedCurrentNext26Test.php` -> `1 test files, 76 assertions, 0 failures`.
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRecursiveCteCurrentSourceTest.php lanes/libsqlite/tests/SQLiteCompoundMaterializedCteCurrentNext15Test.php lanes/libsqlite/tests/SQLiteRecursiveCteMaterializedCurrentNext26Test.php` -> `3 test files, 133 assertions, 0 failures`.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-select-recursive-cte-materialized-current-next26.php --self-test` verifies copied `wp_options` import-window selection `[3,4,5]` through a bounded recursive materialized CTE.
+- Application smoke: `php lanes/libsqlite/examples/application-select-recursive-cte-materialized-current-next26.php --self-test` verifies copied `wp_options` import-window selection `[3,4,5]` through a bounded recursive materialized CTE.
 - Non-overlap: avoids accepted batch23 derived-table materialization, accepted non-recursive CTE materialization, accepted recursive CTE current-source baseline, grouped SELECT SQL text, subquery text, expression ORDER BY, JSON table sources/cursors/constraints, B-tree, WAL, and VFS clusters.
 - Dependency closure: no new support component is needed; this reuses the existing native `SQLiteSelectSql` parser/executor and focused PHP runner.

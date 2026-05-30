@@ -24,12 +24,12 @@ Focused test run: 1 selected test files (root lock skipped)
 
 Expected dashboard movement from this isolated worktree: `phpPass` increases by the verified PASS-line delta only, `4362 -> 4409`. No mapped upstream denominator change is claimed.
 
-## WordPress Smoke
+## Application Smoke
 
 Command:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-select-sql-window-text.php
+php lanes/libsqlite/examples/application-select-sql-window-text.php
 ```
 
 The smoke emits copied `wp_options` rows ranked within `autoload` partitions and reports the previous option in each partition without requiring `ext/sqlite`.

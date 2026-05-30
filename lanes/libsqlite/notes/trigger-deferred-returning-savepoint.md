@@ -3,7 +3,7 @@
 ## Scope
 
 This slice adds `SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan`
-to model the upstream SQLite behavior needed by WordPress import/copy paths
+to model the upstream SQLite behavior needed by Application import/copy paths
 that run `UPDATE ... RETURNING` under recursive triggers, deferred foreign
 keys, and a current-source `ROLLBACK TO` savepoint.
 
@@ -27,14 +27,14 @@ Syntax checks:
 ```text
 php -l lanes/libsqlite/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerDeferredReturningSavepointTest.php
-php -l lanes/libsqlite/examples/wordpress-trigger-deferred-returning-savepoint.php
+php -l lanes/libsqlite/examples/application-trigger-deferred-returning-savepoint.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-deferred-returning-savepoint.php --self-test
-wordpress-trigger-deferred-returning-savepoint self-test passed
+php lanes/libsqlite/examples/application-trigger-deferred-returning-savepoint.php --self-test
+application-trigger-deferred-returning-savepoint self-test passed
 ```
 
 ## Dependency Closure

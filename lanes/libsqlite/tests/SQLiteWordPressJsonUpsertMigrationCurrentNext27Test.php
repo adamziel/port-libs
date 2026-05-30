@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressJsonUpsertMigrationPlan;
+use PortLibs\LibSqlite\SQLiteJsonUpsertMigrationPlan;
 
 $tests = [];
 
@@ -64,14 +64,14 @@ $jsonSetValues = [
     '$.wp_import' => ['json' => '{"tool":"data-liberation","batch":27}'],
 ];
 
-$plan = static fn (): array => SQLiteWordPressJsonUpsertMigrationPlan::execute(
+$plan = static fn (): array => SQLiteJsonUpsertMigrationPlan::execute(
     $currentRows,
     $incomingRows,
     $jsonSetValues,
     static fn (array $current, array $excluded): bool => (int) ($excluded['migration_generation'] ?? 0) >= (int) ($current['migration_generation'] ?? 0),
 );
 
-$repeatPlan = static fn (): array => SQLiteWordPressJsonUpsertMigrationPlan::execute(
+$repeatPlan = static fn (): array => SQLiteJsonUpsertMigrationPlan::execute(
     $currentRows,
     [
         [
@@ -92,7 +92,7 @@ $repeatPlan = static fn (): array => SQLiteWordPressJsonUpsertMigrationPlan::exe
     $jsonSetValues,
 );
 
-$skipPlan = static fn (): array => SQLiteWordPressJsonUpsertMigrationPlan::execute(
+$skipPlan = static fn (): array => SQLiteJsonUpsertMigrationPlan::execute(
     $currentRows,
     [
         [
@@ -157,25 +157,25 @@ $cases = [
     'stale conflict makes no changes' => [static fn (): mixed => $skipPlan()['changes'], 0],
     'stale conflict leaves active plugins unchanged' => [static fn (): mixed => $skipPlan()['after'][2]['option_value'], $currentRows[2]['option_value']],
     'stale conflict returns no decoded rows' => [static fn (): mixed => $skipPlan()['decoded_returning'], []],
-    'empty json set values rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, []), InvalidArgumentException::class],
-    'malformed json set path rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['source' => 1]), InvalidArgumentException::class],
-    'missing incoming option value rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, [['option_name' => 'x']], $jsonSetValues), InvalidArgumentException::class],
-    'non-text incoming option value rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, [['option_name' => 'x', 'option_value' => 1]], $jsonSetValues), InvalidArgumentException::class],
-    'missing excluded column rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['$.x' => ['excluded_column' => 'missing']]), InvalidArgumentException::class],
-    'missing current column rejected on update' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[0]], ['$.x' => ['current_column' => 'missing']]), InvalidArgumentException::class],
-    'missing current column is null on insert' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[1]], ['$.x' => ['current_column' => 'missing']])['decoded_returning'][0]['decoded_option_value']['x'], null],
-    'malformed value expression rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['$.x' => ['bad' => 'shape']]), InvalidArgumentException::class],
-    'non-string json literal rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['$.x' => ['json' => ['bad']]]), InvalidArgumentException::class],
-    'empty excluded json path rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['$.x' => ['excluded_json' => '']]), InvalidArgumentException::class],
-    'bad incoming JSON rejected' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, [['option_name' => 'bad', 'option_value' => '{']], $jsonSetValues), Throwable::class],
-    'bad current JSON rejected on update' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute([['option_name' => 'widget_text', 'option_value' => '{']], [$incomingRows[0]], $jsonSetValues), Throwable::class],
-    'literal null can be set into JSON' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[1]], ['$.nullable' => ['literal' => null]])['decoded_returning'][0]['decoded_option_value']['nullable'], null],
-    'literal false can be set into JSON' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[1]], ['$.flag' => ['literal' => false]])['decoded_returning'][0]['decoded_option_value']['flag'], false],
-    'literal string can be set into JSON' => [static fn (): mixed => SQLiteWordPressJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[1]], ['$.label' => 'copied'])['decoded_returning'][0]['decoded_option_value']['label'], 'copied'],
+    'empty json set values rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, []), InvalidArgumentException::class],
+    'malformed json set path rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['source' => 1]), InvalidArgumentException::class],
+    'missing incoming option value rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, [['option_name' => 'x']], $jsonSetValues), InvalidArgumentException::class],
+    'non-text incoming option value rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, [['option_name' => 'x', 'option_value' => 1]], $jsonSetValues), InvalidArgumentException::class],
+    'missing excluded column rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['$.x' => ['excluded_column' => 'missing']]), InvalidArgumentException::class],
+    'missing current column rejected on update' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[0]], ['$.x' => ['current_column' => 'missing']]), InvalidArgumentException::class],
+    'missing current column is null on insert' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[1]], ['$.x' => ['current_column' => 'missing']])['decoded_returning'][0]['decoded_option_value']['x'], null],
+    'malformed value expression rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['$.x' => ['bad' => 'shape']]), InvalidArgumentException::class],
+    'non-string json literal rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['$.x' => ['json' => ['bad']]]), InvalidArgumentException::class],
+    'empty excluded json path rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, $incomingRows, ['$.x' => ['excluded_json' => '']]), InvalidArgumentException::class],
+    'bad incoming JSON rejected' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, [['option_name' => 'bad', 'option_value' => '{']], $jsonSetValues), Throwable::class],
+    'bad current JSON rejected on update' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute([['option_name' => 'widget_text', 'option_value' => '{']], [$incomingRows[0]], $jsonSetValues), Throwable::class],
+    'literal null can be set into JSON' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[1]], ['$.nullable' => ['literal' => null]])['decoded_returning'][0]['decoded_option_value']['nullable'], null],
+    'literal false can be set into JSON' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[1]], ['$.flag' => ['literal' => false]])['decoded_returning'][0]['decoded_option_value']['flag'], false],
+    'literal string can be set into JSON' => [static fn (): mixed => SQLiteJsonUpsertMigrationPlan::execute($currentRows, [$incomingRows[1]], ['$.label' => 'copied'])['decoded_returning'][0]['decoded_option_value']['label'], 'copied'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wordpress json upsert migration current next27 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application json upsert migration current next27 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

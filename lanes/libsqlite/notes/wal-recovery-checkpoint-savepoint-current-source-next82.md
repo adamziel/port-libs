@@ -2,7 +2,7 @@
 
 ## Behavior
 
-`SQLiteWalSavepointCheckpointPlan::crashRecoveryCurrentNextAfterRollbackTo()` now validates that the supplied WAL bytes are the same current source as the parsed `SQLiteWal` before savepoint WAL byte truncation and checkpoint crash-recovery planning. This prevents a WordPress import retry from checkpointing or resetting stale WAL bytes from a previous salt, checkpoint sequence, or shorter frame prefix after rolling back a failed plugin savepoint.
+`SQLiteWalSavepointCheckpointPlan::crashRecoveryCurrentNextAfterRollbackTo()` now validates that the supplied WAL bytes are the same current source as the parsed `SQLiteWal` before savepoint WAL byte truncation and checkpoint crash-recovery planning. This prevents a Application import retry from checkpointing or resetting stale WAL bytes from a previous salt, checkpoint sequence, or shorter frame prefix after rolling back a failed plugin savepoint.
 
 ## Focused evidence
 

@@ -10,7 +10,7 @@ This slice adds `SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan`, 
 - `ON DELETE CASCADE`, `SET NULL`, immediate `RESTRICT`, and deferred `NO ACTION` current/next boundaries;
 - rollback page-image, dirty-page, and WAL-frame diagnostics for the savepoint restore path.
 
-WordPress path: `wordpress-trigger-returning-fk-delete-savepoint-current-source-next120.php` models plugin-import cleanup of copied `wp_options` rows while metadata rows still reference deleted options. The smoke proves deferred FK rollback restores the option rows and suppresses the visible RETURNING stream.
+Application path: `application-trigger-returning-fk-delete-savepoint-current-source-next120.php` models plugin-import cleanup of copied `wp_options` rows while metadata rows still reference deleted options. The smoke proves deferred FK rollback restores the option rows and suppresses the visible RETURNING stream.
 
 Verification:
 
@@ -21,16 +21,16 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerReturningFkDeleteS
 php -l lanes/libsqlite/tests/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Test.php
 
-php -l lanes/libsqlite/examples/wordpress-trigger-returning-fk-delete-savepoint-current-source-next120.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-returning-fk-delete-savepoint-current-source-next120.php
+php -l lanes/libsqlite/examples/application-trigger-returning-fk-delete-savepoint-current-source-next120.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-returning-fk-delete-savepoint-current-source-next120.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Test.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 60 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-trigger-returning-fk-delete-savepoint-current-source-next120.php --self-test
-wordpress-trigger-returning-fk-delete-savepoint-current-source-next120 self-test passed
+php lanes/libsqlite/examples/application-trigger-returning-fk-delete-savepoint-current-source-next120.php --self-test
+application-trigger-returning-fk-delete-savepoint-current-source-next120 self-test passed
 ```
 
 Dashboard delta: `phpPass` increases by 60 focused PASS lines, from `46412` to `46472`. Mapped upstream coverage remains `604 / 1589`; this is fresh focused PHP behavior over an already mapped trigger/RETURNING/FK/savepoint surface rather than a newly hydrated Tcl inventory unit.

@@ -11,8 +11,8 @@ that attempted UPDATE/DELETE RETURNING rows sourced from duplicated
 `wp_optionmeta` tuples are rolled back to the savepoint image, and retry
 statements re-read the de-duplicated current source.
 
-WordPress smoke:
-`wordpress-rowvalue-distinct-tuple-savepoint-next227.php` models a copied
+Application smoke:
+`application-rowvalue-distinct-tuple-savepoint-next227.php` models a copied
 `wp_options` import where duplicate optionmeta rows drive a distinct tuple
 batch for option updates, transient deletion, rollback, and retry.
 
@@ -23,7 +23,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturnin
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 67 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-distinct-tuple-savepoint-next227.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-distinct-tuple-savepoint-next227.php --self-test
 ```
 
 Expected dashboard delta: `phpPass` moves from `110487` to `110554` from 67

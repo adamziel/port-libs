@@ -7,16 +7,16 @@ Changed the remaining STAT4 expression-payload covering production entry point a
 Direct caller cleanup:
 
 - The direct planner test now uses the descriptive expression-payload covering fence filename.
-- The WordPress smoke now uses the descriptive expression-payload covering fence filename.
+- The Application smoke now uses the descriptive expression-payload covering fence filename.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php` - no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialExpressionPayloadCoveringFenceTest.php` - no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-payload-covering-fence.php` - no syntax errors.
+- `php -l lanes/libsqlite/examples/application-planner-stat4-expression-payload-covering-fence.php` - no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialExpressionPayloadCoveringFenceTest.php` - 1 test file, 70 assertions, 0 failures.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*.php` - 133 test files, 7547 assertions, 0 failures.
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-payload-covering-fence.php` - emitted ready payload-covering summary.
+- `php lanes/libsqlite/examples/application-planner-stat4-expression-payload-covering-fence.php` - emitted ready payload-covering summary.
 - `git diff --check -- lanes/libsqlite` - clean.
 
 Dependency closure: no new support component needed; this is a naming consolidation over the existing STAT4 expression partial planner evidence.

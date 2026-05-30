@@ -11,10 +11,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenGeneratedOrde
 # 1 test files, 57 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-json-table-hidden-generated-order.php
+php lanes/libsqlite/examples/application-json-table-hidden-generated-order.php
 # emits current ordered rowids [1,9,5] and next ordered rowids [5,9,13,1]
 ```
 

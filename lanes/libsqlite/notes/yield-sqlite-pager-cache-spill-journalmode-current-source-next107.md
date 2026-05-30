@@ -15,9 +15,9 @@
   - `60` PASS lines
 - `php -l lanes/libsqlite/src/SQLitePagerDirtyPageCacheSpillPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerCacheSpillJournalModeCurrentSourceNext107Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-cache-spill-journalmode-current-source-next107.php`
-- `php lanes/libsqlite/examples/wordpress-pager-cache-spill-journalmode-current-source-next107.php`
-  - `wordpress-pager-cache-spill-journalmode-current-source-next107 self-test passed`
+- `php -l lanes/libsqlite/examples/application-pager-cache-spill-journalmode-current-source-next107.php`
+- `php lanes/libsqlite/examples/application-pager-cache-spill-journalmode-current-source-next107.php`
+  - `application-pager-cache-spill-journalmode-current-source-next107 self-test passed`
 
 ## Non-overlap
 

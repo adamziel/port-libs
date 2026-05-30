@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../../../tools/bootstrap.php';
+
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
+
+$rows = require __DIR__ . '/application-rowvalue-returning-window-current-source-next268-fixture.php';
+$yieldStatements = [
+    "UPDATE wp_options SET (status, option_value, bytes) = ('yield272', option_value || ':yield272', bytes + 30) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id",
+    "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id",
+];
+$attemptStatements = [
+    "UPDATE wp_options SET (status, option_value, bytes) = ('attempt272', option_value || ':attempt272', bytes + 5) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id",
+    "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3, 'orphaned_cache')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id",
+];
+$retryStatements = [
+    "UPDATE wp_options SET (status, option_value, bytes) = ('retry272', option_value || ':retry272', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id",
+    "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id",
+];
+
+$next269 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourceClosure(['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]);
+$next270 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeDeleteReturningGuard(['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]);
+$next271 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeUpdateReturningFence(['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]);
+$next272 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterCurrentSummary(['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]);
+
+$statuses = [$next269['status'], $next270['status'], $next271['status'], $next272['status']];
+assert($statuses === [
+    'rowvalue-update-delete-returning-window-current-source-next269',
+    'rowvalue-update-delete-returning-window-current-source-next270',
+    'rowvalue-update-delete-returning-window-current-source-next271',
+    'rowvalue-update-delete-returning-window-current-source-next272',
+]);
+assert($next272['after_current_ready_next272'] === true);
+
+$summary = [
+    'status' => 'rowvalue-update-delete-returning-window-current-source-closure-after-current',
+    'candidateStatuses' => $statuses,
+    'closureReceipt' => $next269['current_source_closure_next269']['closure_receipt_next269'],
+    'deleteGuard' => $next270['delete_returning_guard_next270']['delete_returning_guard_next270'],
+    'updateFence' => $next271['update_returning_fence_next271']['update_returning_fence_next271'],
+    'afterCurrentReceipt' => $next272['after_current_summary_next272']['after_current_receipt_next272'],
+    'afterCurrentReady' => $next272['after_current_ready_next272'],
+    'applicationUse' => 'Copied wp_options imports can validate the prepared closure after-current row-value UPDATE/DELETE RETURNING handoff as closure receipts, DELETE guards, UPDATE fences, and final after-current readiness.',
+];
+
+if (($argv[1] ?? null) === '--self-test') {
+    echo "application-rowvalue-returning-window-current-source-closure-after-current self-test passed\n";
+    return;
+}
+
+return $summary;

@@ -8,16 +8,16 @@ worker-numbered diagnostics.
   names.
 - Renamed the direct focused test to
   `SQLiteRowValueSelectRetrySavepointReleaseTest.php`.
-- Renamed the WordPress smoke to
-  `wordpress-rowvalue-select-retry-savepoint-release.php`.
+- Renamed the Application smoke to
+  `application-rowvalue-select-retry-savepoint-release.php`.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueSelectRetrySavepointReleaseTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-select-retry-savepoint-release.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-select-retry-savepoint-release.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueSelectRetrySavepointReleaseTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-select-retry-savepoint-release.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-select-retry-savepoint-release.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this cleanup reuses the

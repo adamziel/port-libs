@@ -2,7 +2,7 @@
 
 This consolidation removes direct production method names in the WAL/pager-WAL
 surface that ended in generated `CurrentNextNN` or `CurrentSourceNextNN`
-suffixes, and migrates their direct tests and WordPress examples to stable
+suffixes, and migrates their direct tests and Application examples to stable
 descriptive method names.
 
 Canonical method examples:
@@ -20,7 +20,7 @@ Focused verification:
   passed for all changed PHP files.
 - `php tools/run-tests.php $(git diff --name-only -- lanes/libsqlite/tests | rg '\.php$')`
   passed with `36 test files, 12157 assertions, 0 failures`.
-- Changed WordPress examples passed with `php <example> --self-test`.
+- Changed Application examples passed with `php <example> --self-test`.
 - `git diff --check -- lanes/libsqlite` passed.
 
 Dependency closure: no new support component is needed; this is a naming
@@ -38,12 +38,12 @@ step dispatcher rather than hidden compatibility shims.
 - Removed the public numbered WAL checkpoint wrappers
   `next1140AfterCurrentCheckpoint()` through `next1149AfterCurrentCheckpoint()`
   and `next1151AfterCurrentCheckpoint()` through `next1155AfterCurrentCheckpoint()`.
-- Migrated the direct focused test and WordPress smoke to the stable
+- Migrated the direct focused test and Application smoke to the stable
   `afterReadyCheckpointVerification()` dispatcher, while keeping the existing
   `pageCacheSourceTokenAfterCurrentCheckpoint()` descriptive step helper.
 - Verification: `php -l` passed for the changed production, test, and example
   PHP files; focused test
   `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext11401155Test.php`
   passed with `1 test files, 78 assertions, 0 failures`; example smoke
-  `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next1155.php --self-test`
+  `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next1155.php --self-test`
   passed; `git diff --check -- lanes/libsqlite` passed.

@@ -9,10 +9,10 @@ Focused verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext217Test.php`
 - Result: `1 test files, 96 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next217.php`
-- Expected output: `wordpress-trigger-recursive-view-returning-current-source-next217 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next217.php`
+- Expected output: `application-trigger-recursive-view-returning-current-source-next217 self-test passed`
 
 Non-overlap:
 

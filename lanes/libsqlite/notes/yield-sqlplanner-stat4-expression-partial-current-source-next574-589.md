@@ -8,8 +8,8 @@ Validation:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext574589Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next574-589.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next574-589.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext574589Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext558573Test.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next574-589.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next574-589.php --self-test`
 - `git diff --check`

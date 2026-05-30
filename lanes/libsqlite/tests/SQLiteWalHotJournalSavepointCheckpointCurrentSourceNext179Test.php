@@ -71,7 +71,7 @@ $cases = [
     'blocked reasons empty' => [static fn (): mixed => $plan()['blocked_reasons'], []],
     'dependency next179' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next179', $plan()['dependencies'], true), true],
     'dependency next178' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next178', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-reopen-current-source', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-reopen-current-source', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'next178 post-apply receipt digests'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next176'), true],
     'blocked receipt status' => [static fn (): mixed => $blockedReceipt()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next179'],

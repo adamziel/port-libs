@@ -3,7 +3,7 @@
 ## Behavior
 
 Adds a focused current-source plan for SQLite `LIKE_DOESNT_MATCH_BLOBS`
-behavior over WordPress `wp_options.option_value` scans:
+behavior over Application `wp_options.option_value` scans:
 
 - implicit `LIKE` / `GLOB` skips `SQLiteBlobValue` rows even when the bytes
   look like matching text;
@@ -20,9 +20,9 @@ behavior over WordPress `wp_options.option_value` scans:
   - `1 test files, 90 assertions, 0 failures`
   - 90 focused PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-blob-like-glob-affinity-current-source-next234.php --self-test`
+- `php lanes/libsqlite/examples/application-blob-like-glob-affinity-current-source-next234.php --self-test`
   - validates implicit BLOB exclusion and explicit CAST admission for copied
     `wp_options` values.
 

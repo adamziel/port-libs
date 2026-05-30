@@ -15,7 +15,7 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateOrderDistinctCurrentSourceNext86Test.php`
 - Result: `1 test files, 64 assertions, 0 failures`, with 51 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-order-distinct-current-source-next86.php`
+- `php lanes/libsqlite/examples/application-json-aggregate-order-distinct-current-source-next86.php`
 - Result: copied `wp_options` grouped ASC/DESC distinct JSON summaries matched
   the expected current-source order.
 

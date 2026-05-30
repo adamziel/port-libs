@@ -65,10 +65,10 @@ PASS composite deferred update key missing new second column is rejected
 1 test files, 40 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-foreign-key-deferred-composite-restrict.php
+php lanes/libsqlite/examples/application-foreign-key-deferred-composite-restrict.php
 {
     "restrict_delete": "blocked-before-deferred-commit",
     "cascade_remaining_meta": [

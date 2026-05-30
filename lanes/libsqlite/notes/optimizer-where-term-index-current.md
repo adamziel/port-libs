@@ -9,7 +9,7 @@ true. Covering-index and multicolumn range planning now treat `IS NULL` as an
 equality-like prefix term, preserve suffix `ORDER BY` usability, and let STAT4
 sample matching count NULL keys.
 
-The WordPress path is copied `wp_options` cleanup/import planning for rows
+The Application path is copied `wp_options` cleanup/import planning for rows
 whose `option_value` is intentionally SQL NULL while `option_name` remains a
 covering suffix.
 
@@ -34,8 +34,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-optimizer-where-term-index-current.php --self-test
-wordpress-optimizer-where-term-index-current self-test passed
+php lanes/libsqlite/examples/application-optimizer-where-term-index-current.php --self-test
+application-optimizer-where-term-index-current self-test passed
 ```
 
 Related planner family check:

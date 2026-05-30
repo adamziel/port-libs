@@ -6,7 +6,7 @@ This slice adds a current/next source cursor for declared schema metadata:
 It is intentionally separate from accepted `foreign_key_check`,
 quick_check/integrity rootpage, pointer-map, index-list enumeration, and
 table-valued row-cursor surfaces. The new behavior detects schema-catalog drift
-between current and next copied WordPress `wp_options` catalogs before resuming
+between current and next copied Application `wp_options` catalogs before resuming
 an import diagnostic cursor.
 
 Verification:
@@ -14,8 +14,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 75 assertions, 0 failures`
   - `70` PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next154.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next154 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next154.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next154 self-test passed`
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing attached schema catalog, schema PRAGMA parser, table-valued PRAGMA

@@ -27,16 +27,16 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The run emitted 143 focused PASS lines.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next213.php
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next213.php
 ```
 
 Result:
 
 ```text
-wordpress-btree-vacuum-pointermap-freeblock-current-source-next213 self-test passed
+application-btree-vacuum-pointermap-freeblock-current-source-next213 self-test passed
 ```
 
 ## Non-Overlap

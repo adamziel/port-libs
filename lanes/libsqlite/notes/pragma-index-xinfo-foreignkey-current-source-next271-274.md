@@ -19,4 +19,4 @@ Validation:
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext271274Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext271274Test.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next271-274.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next271-274.php --self-test`

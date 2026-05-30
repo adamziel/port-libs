@@ -13,10 +13,10 @@ for a copied `wp_options` batch with two savepoint boundaries:
 - retry statements read from the rollback image, preserving the previously
   released current-source changes while discarding speculative rows.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-negated-savepoint-current-source-next190.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-negated-savepoint-current-source-next190.php --self-test
 ```
 
 Focused verification:
@@ -24,7 +24,7 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext190Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext190Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-negated-savepoint-current-source-next190.php
+php -l lanes/libsqlite/examples/application-rowvalue-negated-savepoint-current-source-next190.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext190Test.php
 ```
 

@@ -10,12 +10,12 @@
 
 - `php -l lanes/libsqlite/src/SQLiteAlterTableColumnCorpus.php`
 - `php -l lanes/libsqlite/tests/SQLiteAlterTableAddDropColumnCorpusTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-alter-table-add-drop-column-corpus.php`
+- `php -l lanes/libsqlite/examples/application-alter-table-add-drop-column-corpus.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAlterTableAddDropColumnCorpusTest.php`
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 66 assertions, 0 failures`
   - PASS-line delta: `+66`
-- `php lanes/libsqlite/examples/wordpress-alter-table-add-drop-column-corpus.php`
+- `php lanes/libsqlite/examples/application-alter-table-add-drop-column-corpus.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Status Delta

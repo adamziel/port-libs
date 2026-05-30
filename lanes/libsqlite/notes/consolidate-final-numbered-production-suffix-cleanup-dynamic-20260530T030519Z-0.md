@@ -7,7 +7,7 @@ inside `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`:
   `materializeDuplicateSampleFanout()`;
 - renamed the private `*Next173` helpers to descriptive duplicate-fanout helper
   names;
-- migrated the direct focused test and WordPress smoke example to descriptive
+- migrated the direct focused test and Application smoke example to descriptive
   filenames and the canonical method name.
 
 Observable plan metadata is intentionally preserved, including the existing
@@ -20,10 +20,10 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialDuplicateSampleFanoutTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-duplicate-sample-fanout.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-duplicate-sample-fanout.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialDuplicateSampleFanoutTest.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-duplicate-sample-fanout.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-duplicate-sample-fanout.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this cleanup reuses the

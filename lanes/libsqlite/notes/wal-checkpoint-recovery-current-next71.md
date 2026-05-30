@@ -7,10 +7,10 @@ Adds `SQLiteWalCheckpointCrashRecoveryPlan::recoverFromWalBytes()` for the raw-W
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointRecoveryCurrentNext71Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-checkpoint-recovery-current-next71.php --self-test`
+- `php lanes/libsqlite/examples/application-wal-checkpoint-recovery-current-next71.php --self-test`
 - `php -l lanes/libsqlite/src/SQLiteWalCheckpointCrashRecoveryPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalCheckpointRecoveryCurrentNext71Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-recovery-current-next71.php`
+- `php -l lanes/libsqlite/examples/application-wal-checkpoint-recovery-current-next71.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

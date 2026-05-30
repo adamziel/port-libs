@@ -6,7 +6,7 @@ It is separate from the accepted schema PRAGMA table-valued batch21 work:
 these rows describe registered runtime capabilities, not sqlite_schema
 tables or indexes.
 
-WordPress path: copied `wp_options` import/preflight code can check that
+Application path: copied `wp_options` import/preflight code can check that
 SQLite-compatible collations, JSON table modules, and extension-like helper
 functions are available before planning JSON virtual-table scans or option-name
 comparisons without requiring ext/sqlite.
@@ -16,8 +16,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaRuntimeModuleCollationCurrentNext24Test.php`
 - `php -l lanes/libsqlite/src/SQLitePragmaRuntimeCatalog.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaRuntimeModuleCollationCurrentNext24Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-runtime-module-collation-current-next24.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-runtime-module-collation-current-next24.php`
+- `php -l lanes/libsqlite/examples/application-pragma-runtime-module-collation-current-next24.php`
+- `php lanes/libsqlite/examples/application-pragma-runtime-module-collation-current-next24.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: avoids accepted batch21 `pragma_table_info`,

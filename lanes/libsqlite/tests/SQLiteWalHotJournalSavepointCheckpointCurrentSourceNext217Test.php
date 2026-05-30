@@ -138,7 +138,7 @@ $cases = [
     'operation next217 fence' => [static fn (): mixed => in_array('verify_reopen_fence_receipts_next217', $plan()['operation_names'], true), true],
     'dependency next211 carried' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next211', $plan()['dependencies'], true), true],
     'dependency next217' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next217', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-reopen-receipts', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-reopen-receipts', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next211'), true],
     'missing ack status' => [static fn (): mixed => $plan(null, $missingAck)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next217'],

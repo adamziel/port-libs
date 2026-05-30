@@ -15,8 +15,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-window-groups-filter-exclude-current-next49.php --self-test
-wordpress-vdbe-window-groups-filter-exclude-current-next49 self-test passed
+php lanes/libsqlite/examples/application-vdbe-window-groups-filter-exclude-current-next49.php --self-test
+application-vdbe-window-groups-filter-exclude-current-next49 self-test passed
 ```
 
 ## Counter delta

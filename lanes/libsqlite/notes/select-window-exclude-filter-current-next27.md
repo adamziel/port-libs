@@ -23,7 +23,7 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 51 assertions, 0 failures
 ```
 
-Additional verification for this handoff is recorded in the final worker response: PHP lint for changed PHP files, the WordPress smoke example, and `git diff --check -- lanes/libsqlite`.
+Additional verification for this handoff is recorded in the final worker response: PHP lint for changed PHP files, the Application smoke example, and `git diff --check -- lanes/libsqlite`.
 
 ## Status Delta
 

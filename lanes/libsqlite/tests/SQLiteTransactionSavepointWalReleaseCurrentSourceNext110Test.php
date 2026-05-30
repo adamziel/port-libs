@@ -40,7 +40,7 @@ $staleWalBytes = $makeWalBytes(110, 0x11011012, 0x22022022, [
 
 $makeStack = static function (): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wordpress-import');
+    $stack->beginTransaction('application-import');
     $stack->recordWalFrameWrite(1, 1);
     $stack->recordWalFrameWrite(2, 2, true);
     $stack->savepoint('plugin-batch');
@@ -77,8 +77,8 @@ $cases = [
     'checkpoint sequence' => [static fn (): mixed => $releaseNext()['current_wal_checkpoint_sequence'], 110],
     'salt one' => [static fn (): mixed => $releaseNext()['current_wal_salt1'], 0x11011011],
     'salt two' => [static fn (): mixed => $releaseNext()['current_wal_salt2'], 0x22022022],
-    'names before release' => [static fn (): mixed => $releaseNext()['names_before_release'], ['wordpress-import', 'plugin-batch', 'transient-batch']],
-    'names after release' => [static fn (): mixed => $releaseNext()['names_after_release'], ['wordpress-import']],
+    'names before release' => [static fn (): mixed => $releaseNext()['names_before_release'], ['application-import', 'plugin-batch', 'transient-batch']],
+    'names after release' => [static fn (): mixed => $releaseNext()['names_after_release'], ['application-import']],
     'release plan savepoint' => [static fn (): mixed => $releaseNext()['release_plan']['savepoint'], 'plugin-batch'],
     'release found index' => [static fn (): mixed => $releaseNext()['release_plan']['found_index'], 1],
     'release frame names' => [static fn (): mixed => $releaseNext()['release_plan']['released_frame_names'], ['plugin-batch', 'transient-batch']],
@@ -110,7 +110,7 @@ $cases = [
     'draft next pending frames' => [static fn (): mixed => $releaseDraftNext()['pending_wal_frame_indexes_after_next'], [1, 2, 3, 4, 5, 6, 7]],
     'dependency release current source' => [static fn (): mixed => in_array('sqlite-savepoint-release-current-wal-source-next110', $releaseNext()['dependencies'], true), true],
     'dependency next frame' => [static fn (): mixed => in_array('sqlite-wal-release-current-source-next-frame', $releaseNext()['dependencies'], true), true],
-    'dependency wordpress import' => [static fn (): mixed => in_array('wordpress-import-release-savepoint-wal-current-source', $releaseNext()['dependencies'], true), true],
+    'dependency application import' => [static fn (): mixed => in_array('application-import-release-savepoint-wal-current-source', $releaseNext()['dependencies'], true), true],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

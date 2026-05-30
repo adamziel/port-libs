@@ -7,10 +7,10 @@ Adds a post-next260 reader-cache fence for hot-journal/savepoint/checkpoint curr
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next262.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next262.php`
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next262.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next262.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

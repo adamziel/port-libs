@@ -28,16 +28,16 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteWindowFunction.php
 php -l lanes/libsqlite/tests/SQLiteWindowPeerRangeCurrentNext16Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteWindowPeerRangeCurrentNext16Test.php
 
-php -l lanes/libsqlite/examples/wordpress-window-peer-range-current-next.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-window-peer-range-current-next.php
+php -l lanes/libsqlite/examples/application-window-peer-range-current-next.php
+No syntax errors detected in lanes/libsqlite/examples/application-window-peer-range-current-next.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowPeerRangeCurrentNext16Test.php
 Focused test run: 1 selected test files (root lock skipped)
 58 PASS lines
 1 test files, 58 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-window-peer-range-current-next.php --self-test
-wordpress window peer RANGE current/following smoke passed
+php lanes/libsqlite/examples/application-window-peer-range-current-next.php --self-test
+application window peer RANGE current/following smoke passed
 ```
 
 ## Status Delta

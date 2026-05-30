@@ -29,10 +29,10 @@ Result:
 1 test files, 55 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next96.php
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next96.php
 ```
 
 ## Non-Overlap

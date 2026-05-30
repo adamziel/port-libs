@@ -26,7 +26,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-recursive-dml-current-source.php
+php lanes/libsqlite/examples/application-recursive-dml-current-source.php
 ```
 
 Expected `phpPass` movement: `9342 -> 9353` from 11 newly verified focused PASS

@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-cu
 
 This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It composes the accepted next250 cache/readmark invalidation fence with a new current-source lease admission layer for prepared schema statements, table root pages, index root pages, and read transactions after hot-journal recovery plus savepoint checkpoint publication.
 
-WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next254.php` covers copied `wp_options` import retry behavior where schema/table/index/read-transaction leases are reusable only when they cite the same source token, generation, schema cookie, database digest, page-cache digest, checkpoint frame, committed WAL frames, reopened readers, and cache-fence receipts.
+Application smoke: `application-wal-hot-journal-savepoint-checkpoint-current-source-next254.php` covers copied `wp_options` import retry behavior where schema/table/index/read-transaction leases are reusable only when they cite the same source token, generation, schema cookie, database digest, page-cache digest, checkpoint frame, committed WAL frames, reopened readers, and cache-fence receipts.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next254.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next254.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next254.php --self-test`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next254.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Focused result: `1 test files, 105 assertions, 0 failures`, adding 105 focused PASS lines in `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Test.php`. Expected dashboard delta: `phpPass` moves from `131296` to `131401`; mapped upstream coverage is unchanged because this is focused WAL/pager current-source behavior over existing mapped hot-journal/savepoint/checkpoint inventory.

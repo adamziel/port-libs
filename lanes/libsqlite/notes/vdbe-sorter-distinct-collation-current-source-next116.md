@@ -9,10 +9,10 @@
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeSorterDistinctCollationCurrentSourceNext116Test.php`
-- `php lanes/libsqlite/examples/wordpress-vdbe-sorter-distinct-collation-current-source-next116.php --self-test`
+- `php lanes/libsqlite/examples/application-vdbe-sorter-distinct-collation-current-source-next116.php --self-test`
 - `php -l lanes/libsqlite/src/SQLiteVdbeSorterDistinctSourceTransitionPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteVdbeSorterDistinctCollationCurrentSourceNext116Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-vdbe-sorter-distinct-collation-current-source-next116.php`
+- `php -l lanes/libsqlite/examples/application-vdbe-sorter-distinct-collation-current-source-next116.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

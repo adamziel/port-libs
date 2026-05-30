@@ -12,7 +12,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValueMalformedByteLikePlan(
+    public static function optionRowValueMalformedByteLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -260,7 +260,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValueNotLikePlan(
+    public static function optionRowValueNotLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -555,7 +555,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEscapedLikePlan(
+    public static function optionRowNameEscapedLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -778,7 +778,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValueEscapePlan(
+    public static function optionRowValueEscapePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_%!%%',
@@ -1096,7 +1096,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressRealTextAffinityLikePlan(
+    public static function applicationRealTextAffinityLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = '100.%',
@@ -1344,7 +1344,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValueNumericLikePlan(
+    public static function optionRowValueNumericLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -1558,7 +1558,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameByteAwareLikePlan(
+    public static function optionRowNameByteAwareLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -1860,7 +1860,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressEmbeddedNulLikePlan(
+    public static function applicationEmbeddedNulLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = "plugin\0cache!_%",
@@ -2127,7 +2127,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressRtrimLikeResidualPlan(
+    public static function applicationRtrimLikeResidualPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'cache_%',
@@ -2410,7 +2410,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressUtf16OptionNameLikePlan(
+    public static function applicationUtf16OptionNameLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -2535,7 +2535,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      */
     private static function nextTwoFourFour_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, string $collation): array
     {
-        return SQLiteEncodingCollationSourceCursor::wordpressOptionNameRangeScan(
+        return SQLiteEncodingCollationSourceCursor::optionRowNameRangeScan(
             self::nextTwoFourFour_normalizeRows($rows),
             $pattern,
             'LIKE',
@@ -2639,7 +2639,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressDanglingEscapeLikePlan(
+    public static function applicationDanglingEscapeLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache!',
@@ -2971,7 +2971,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressDynamicEscapeLikePlan(
+    public static function applicationDynamicEscapeLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -3277,7 +3277,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressUnicodeNoCaseLikePlan(
+    public static function applicationUnicodeNoCaseLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -3584,7 +3584,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressNonAsciiEscapeLikePlan(
+    public static function applicationNonAsciiEscapeLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'pluginé_cacheé%%',
@@ -3924,7 +3924,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressRtrimLikeSourcePlan(
+    public static function applicationRtrimLikeSourcePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache',
@@ -4239,7 +4239,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressRtrimLikeResidualSourcePlan(        array $currentRows,
+    public static function applicationRtrimLikeResidualSourcePlan(        array $currentRows,
         array $nextRows,
         string $pattern,
         ?string $escape = null,
@@ -4538,7 +4538,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressPreparedPatternAffinityPlan(
+    public static function applicationPreparedPatternAffinityPlan(
         array $currentRows,
         array $nextRows,
         mixed $currentPattern,
@@ -4788,7 +4788,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressAutoloadValuePlan(
+    public static function applicationAutoloadValuePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'yes%',
@@ -5123,7 +5123,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressNullableEscapeLikePlan(
+    public static function applicationNullableEscapeLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_%',
@@ -5411,7 +5411,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressGlobClassFallbackPlan(
+    public static function applicationGlobClassFallbackPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -5650,7 +5650,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressPatternAffinityPlan(
+    public static function applicationPatternAffinityPlan(
         array $currentRows,
         array $nextRows,
         mixed $currentPattern,
@@ -6039,7 +6039,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameNumericAffinityLikePlan(
+    public static function optionRowNameNumericAffinityLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = '2024%',
@@ -6373,7 +6373,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressCaseSensitiveLikeTransitionPlan(
+    public static function applicationCaseSensitiveLikeTransitionPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'PLUGIN!_%',
@@ -6498,7 +6498,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
                 'sqlite-current-source-nexttwoFiveEight',
             ],
             'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, text-affinity coercion, ASCII NOCASE matching, BINARY matching, and current-source invalidation diagnostics',
-            'non_overlap' => 'nextTwoFiveEight covers PRAGMA case_sensitive_like transitions for escaped WordPress option_name LIKE cursors; avoids accepted Unicode GLOB ranges, explicit SQL NULL ESCAPE nextTwoFiveFour, prepared pattern storage nextTwoFiveOne, non-ASCII NOCASE prefix nextTwoFourSeven, UTF-16 malformed guards, and SQL/JSON/WAL/VFS/B-tree clusters',
+            'non_overlap' => 'nextTwoFiveEight covers PRAGMA case_sensitive_like transitions for escaped Application option_name LIKE cursors; avoids accepted Unicode GLOB ranges, explicit SQL NULL ESCAPE nextTwoFiveFour, prepared pattern storage nextTwoFiveOne, non-ASCII NOCASE prefix nextTwoFourSeven, UTF-16 malformed guards, and SQL/JSON/WAL/VFS/B-tree clusters',
         ];
     }
 
@@ -6620,7 +6620,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressBinaryCollationDefaultLikePlan(
+    public static function applicationBinaryCollationDefaultLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'Plugin%',
@@ -6974,7 +6974,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressRtrimCollationLikeResidualPlan(
+    public static function applicationRtrimCollationLikeResidualPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_cache',
@@ -7318,7 +7318,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressUtf16NameAndValueLikePlan(
+    public static function applicationUtf16NameAndValueLikePlan(
         array $currentRows,
         array $nextRows,
         string $namePatternBytes,

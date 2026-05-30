@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWordPressJsonImportRollbackWalPlan;
+use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 
 $pageSize = 512;
 
@@ -76,7 +76,7 @@ $mutations = static fn (): array => [
     ],
 ];
 
-$plan = static fn (array $options = [], ?array $planRows = null, ?array $planMutations = null): array => SQLiteWordPressJsonImportRollbackWalPlan::plan(
+$plan = static fn (array $options = [], ?array $planRows = null, ?array $planMutations = null): array => SQLiteJsonImportRollbackWalPlan::plan(
     $planRows ?? $rows(),
     $planMutations ?? $mutations(),
     array_replace([
@@ -135,7 +135,7 @@ $cases = [
     'import failed rollback restored broken page only at statement level' => static fn (): mixed => $plan()['import_plan']['failed'][0]['rollback']['restored_page_numbers'],
     'import failed rollback discarded failed frame only at statement level' => static fn (): mixed => array_column($plan()['import_plan']['failed'][0]['rollback']['discarded_wal_frames'], 'frame_index'),
     'import final rows still show applied text before outer rollback' => static fn (): mixed => json_decode((string) $plan()['import_plan']['final_rows'][0]['option_value'], true)['enabled'],
-    'dependency includes json import savepoint' => static fn (): mixed => in_array('sqlite-wordpress-json-import-savepoint-current', $plan()['dependencies'], true),
+    'dependency includes json import savepoint' => static fn (): mixed => in_array('sqlite-application-json-import-savepoint-current', $plan()['dependencies'], true),
     'dependency includes wal rollback' => static fn (): mixed => in_array('sqlite-savepoint-wal-rollback-current', $plan()['dependencies'], true),
     'dependency includes byte truncation' => static fn (): mixed => in_array('sqlite-wal-current-batch-byte-truncation', $plan()['dependencies'], true),
     'all valid json import stays ready' => static fn (): mixed => $plan([], $rows(), $validMutations)['status'],
@@ -200,7 +200,7 @@ $cases = [
 $expected = [
     'failed json import rolls back current batch status' => 'rolled_back_current_json_batch',
     'rollback is required by default on failed statement' => true,
-    'transaction name is forwarded' => 'wordpress_json_import',
+    'transaction name is forwarded' => 'application_json_import',
     'savepoint name is forwarded' => 'current_json_batch',
     'page size is forwarded' => 512,
     'applied statement count includes successful json writes' => 2,
@@ -252,7 +252,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress import rollback wal json current next38 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application import rollback wal json current next38 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

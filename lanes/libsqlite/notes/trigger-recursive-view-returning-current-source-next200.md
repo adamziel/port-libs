@@ -11,7 +11,7 @@ drain count, last current resume token, and generation epoch; stale partial
 drain metadata keeps next-source rows quarantined even when the lower done gate
 would otherwise admit them.
 
-WordPress relevance: copied `wp_options` imports routed through recursive views
+Application relevance: copied `wp_options` imports routed through recursive views
 can finish previewing all current-source yielded `RETURNING` rows before a
 reparsed next view/trigger source contributes rows to the same import cursor.
 
@@ -20,8 +20,8 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext200Test.php`
   - `1 test files, 80 assertions, 0 failures`
   - 80 PASS lines
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next200.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next200 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next200.php`
+  - `application-trigger-recursive-view-returning-current-source-next200 self-test passed`
 
 Expected dashboard movement: `phpPass +80` from the new focused test file.
 Mapped upstream coverage remains unchanged; this is current-source PHP behavior

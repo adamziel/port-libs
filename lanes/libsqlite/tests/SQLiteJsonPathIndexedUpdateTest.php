@@ -236,7 +236,7 @@ $tests['json path indexed update supports append index expression'] = static fun
     $t->same([], $plan['index_updates']);
 };
 
-$tests['json path indexed update keeps wordpress option name columns intact'] = static function (TestRunner $t) use ($planFor): void {
+$tests['json path indexed update keeps application option name columns intact'] = static function (TestRunner $t) use ($planFor): void {
     $plan = $planFor(2, [['function' => 'json_set', 'path' => '$.plugin.version', 'value' => 22]]);
     $t->same('plugin_beta', $plan['after'][1]['option_name']);
 };
@@ -295,7 +295,7 @@ $tests['json path indexed update supports multi index no op filtering'] = static
     $t->same(['idx_version'], array_column($plan['index_updates'], 'index'));
 };
 
-$tests['json path indexed update supports wordpress staged option payload'] = static function (TestRunner $t): void {
+$tests['json path indexed update supports application staged option payload'] = static function (TestRunner $t): void {
     $plan = SQLiteJsonPathIndexedUpdatePlan::plan($GLOBALS['rows'](), $GLOBALS['indexes'], [
         ['rowid' => 1, 'mutations' => [
             ['function' => 'json_set', 'path' => '$.plugin.enabled', 'value' => true],

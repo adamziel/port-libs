@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressSchemaMigrationTransactionPlan;
+use PortLibs\LibSqlite\SQLiteSchemaMigrationTransactionPlan;
 
 $columns = static fn (): array => [
     ['name' => 'option_id', 'type' => 'INTEGER', 'primary_key' => true],
@@ -17,7 +17,7 @@ $rows = static fn (): array => [
     ['option_id' => 65, 'option_name' => 'active_plugins', 'option_value' => 'a:0:{}', 'autoload' => 'no'],
 ];
 
-$plan = static fn (array $options = []): array => SQLiteWordPressSchemaMigrationTransactionPlan::plan(
+$plan = static fn (array $options = []): array => SQLiteSchemaMigrationTransactionPlan::plan(
     'wp_options',
     $columns(),
     $rows(),
@@ -88,7 +88,7 @@ $cases = [
     'rollback restores schema version' => static fn (): mixed => $plan()['rollback']['restore_schema_version'],
     'rollback restores foreign key state' => static fn (): mixed => $plan()['rollback']['restore_foreign_keys'],
     'rollback records discarded statements' => static fn (): mixed => $plan()['rollback']['discarded_statements'],
-    'dependency names schema migration' => static fn (): mixed => in_array('sqlite-wordpress-schema-migration-transaction', $plan()['dependencies'], true),
+    'dependency names schema migration' => static fn (): mixed => in_array('sqlite-application-schema-migration-transaction', $plan()['dependencies'], true),
     'exclusive begin is accepted' => static fn (): mixed => $plan(['begin' => 'BEGIN EXCLUSIVE TRANSACTION'])['begin']['mode'],
     'foreign keys off skips disable statement' => static fn (): mixed => $plan(['foreign_keys' => false])['statements'][0]['op'],
     'foreign keys off skips check statement' => static fn (): mixed => in_array('PRAGMA foreign_key_check', array_column($plan(['foreign_keys' => false])['statements'], 'sql'), true),
@@ -101,11 +101,11 @@ $cases = [
         for ($i = 1; $i <= 97; $i++) {
             $many[] = ['option_id' => $i, 'option_name' => 'option_' . $i, 'option_value' => 'v', 'autoload' => 'no'];
         }
-        return SQLiteWordPressSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $many, ['database_path' => '/tmp/wp-schema-migration.sqlite'])['dirty_pages'];
+        return SQLiteSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $many, ['database_path' => '/tmp/wp-schema-migration.sqlite'])['dirty_pages'];
     },
     'deferred begin is rejected' => static function () use ($columns, $rows): mixed {
         try {
-            SQLiteWordPressSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['begin' => 'BEGIN DEFERRED']);
+            SQLiteSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['begin' => 'BEGIN DEFERRED']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -113,7 +113,7 @@ $cases = [
     },
     'unsafe database path is rejected' => static function () use ($columns, $rows): mixed {
         try {
-            SQLiteWordPressSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['database_path' => '../wp.sqlite']);
+            SQLiteSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['database_path' => '../wp.sqlite']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -121,7 +121,7 @@ $cases = [
     },
     'invalid table name is rejected' => static function () use ($columns, $rows): mixed {
         try {
-            SQLiteWordPressSchemaMigrationTransactionPlan::plan('wp-options', $columns(), $rows());
+            SQLiteSchemaMigrationTransactionPlan::plan('wp-options', $columns(), $rows());
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -129,7 +129,7 @@ $cases = [
     },
     'invalid copy expression target is rejected' => static function () use ($columns, $rows): mixed {
         try {
-            SQLiteWordPressSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['copy_expressions' => ['missing' => '1']]);
+            SQLiteSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['copy_expressions' => ['missing' => '1']]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -204,7 +204,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress schema migration transaction current next30 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application schema migration transaction current next30 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

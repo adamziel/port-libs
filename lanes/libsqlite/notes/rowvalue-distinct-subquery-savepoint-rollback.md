@@ -9,13 +9,13 @@ Adds native row-value `IN (SELECT DISTINCT ...)` tuple-source handling for bound
 - `php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php`
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueDistinctSubquerySavepointRollbackTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-distinct-subquery-savepoint-rollback.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-distinct-subquery-savepoint-rollback.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueDistinctSubquerySavepointRollbackTest.php`
   - `1 test files, 65 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext219Test.php`
   - `1 test files, 64 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-distinct-subquery-savepoint-rollback.php --self-test`
-  - WordPress smoke passed and reported `attempt_selected` `[7, 8]`, `retry_selected` `[9, 8]`, and final option ids `[7, 8, 9]`.
+- `php lanes/libsqlite/examples/application-rowvalue-distinct-subquery-savepoint-rollback.php --self-test`
+  - Application smoke passed and reported `attempt_selected` `[7, 8]`, `retry_selected` `[9, 8]`, and final option ids `[7, 8, 9]`.
 
 ## Non-Overlap
 

@@ -4,7 +4,7 @@
 
 Adds a current-source handoff admission layer after the next248
 pointer-map/freeblock publication seal. The slice verifies that vacuum
-freeblock reuse for a deleted overflow-backed WordPress option row is admitted
+freeblock reuse for a deleted overflow-backed Application option row is admitted
 only after:
 
 - the next248 seal page order is preserved;

@@ -7,7 +7,7 @@ This slice adds `SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan`, whi
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-freeblock-current-source-next127.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-pointermap-vacuum-freeblock-current-source-next127.php --self-test`
 - Expected focused movement: 73 new PASS lines in one lane-scoped test file.
 
 ## Non-Overlap

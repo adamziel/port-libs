@@ -40,9 +40,9 @@ Expected dashboard movement: `phpPass +60` from `5433` to `5493`. Mapped
 upstream denominator is unchanged because this is a focused behavior executor
 slice, not a newly mapped upstream inventory unit.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-upsert-returning-where-current.php` previews
+`lanes/libsqlite/examples/application-upsert-returning-where-current.php` previews
 copied `wp_options` import rows where a conflict updates only when the current
 row satisfies the `WHERE` clause, while skipped conflicts produce no RETURNING
 row.

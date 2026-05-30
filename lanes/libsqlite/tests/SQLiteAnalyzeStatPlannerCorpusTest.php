@@ -122,7 +122,7 @@ foreach ($guardCases as $name => $callback) {
     };
 }
 
-$wordpressCases = [
+$applicationCases = [
     'copied autoload option scan prefers unique option_name lookup' => ['wp_options', [['column' => 'option_name', 'operator' => '=', 'value' => 'active_plugins']], 'wp_options_name', ['option_name']],
     'copied transient cleanup prefers name range over broad autoload' => ['wp_options', [['column' => 'autoload', 'operator' => '=', 'value' => 'no'], ['column' => 'option_name', 'operator' => '>=', 'value' => '_transient_']], 'wp_options_name', ['option_name']],
     'copied postmeta lookup prefers post key composite' => ['wp_postmeta', [['column' => 'post_id', 'operator' => '=', 'value' => 42], ['column' => 'meta_key', 'operator' => '=', 'value' => '_wp_attached_file']], 'wp_postmeta_post_key', ['post_id', 'meta_key']],
@@ -130,8 +130,8 @@ $wordpressCases = [
     'copied options unsupported LIKE remains table scan' => ['wp_options', [['column' => 'option_name', 'operator' => 'LIKE', 'value' => '_transient_%']], null, []],
 ];
 
-foreach ($wordpressCases as $name => [$table, $constraints, $expectedIndex, $expectedColumns]) {
-    $tests['analyze stat1 planner wordpress ' . $name] = static function (TestRunner $t) use ($statRows, $indexes, $table, $constraints, $expectedIndex, $expectedColumns): void {
+foreach ($applicationCases as $name => [$table, $constraints, $expectedIndex, $expectedColumns]) {
+    $tests['analyze stat1 planner application ' . $name] = static function (TestRunner $t) use ($statRows, $indexes, $table, $constraints, $expectedIndex, $expectedColumns): void {
         $plan = SQLiteAnalyzeStatPlanner::choose($statRows, $indexes, $table, $constraints);
         $t->same($expectedIndex, $plan['index'] ?? null);
         $t->same($expectedColumns, $plan['matchedColumns']);

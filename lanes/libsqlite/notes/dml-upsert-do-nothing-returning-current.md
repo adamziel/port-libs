@@ -16,9 +16,9 @@ Behavior covered:
 - RETURNING aliases, wildcard rows, and expression projections evaluate only
   over inserted final rows; skipped rows do not evaluate RETURNING expressions.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-upsert-do-nothing-returning-current.php`
+- `lanes/libsqlite/examples/application-upsert-do-nothing-returning-current.php`
   models idempotent copied `wp_options` import rows that return only newly
   admitted options while existing `siteurl` / `home` rows remain unchanged.
 
@@ -26,13 +26,13 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUpsertReturningSql.php`
 - `php -l lanes/libsqlite/tests/SQLiteUpsertDoNothingReturningCurrentTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-upsert-do-nothing-returning-current.php`
+- `php -l lanes/libsqlite/examples/application-upsert-do-nothing-returning-current.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpsertDoNothingReturningCurrentTest.php`
   - Result: `1 test files, 31 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpsertReturningSqlTest.php lanes/libsqlite/tests/SQLiteUpsertReturningExpressionCurrentNext70Test.php lanes/libsqlite/tests/SQLiteUpsertDoNothingReturningCurrentTest.php`
   - Result: `3 test files, 144 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-upsert-do-nothing-returning-current.php --self-test`
-  - Result: `wordpress-upsert-do-nothing-returning-current self-test passed`
+- `php lanes/libsqlite/examples/application-upsert-do-nothing-returning-current.php --self-test`
+  - Result: `application-upsert-do-nothing-returning-current self-test passed`
 
 Dependency closure:
 

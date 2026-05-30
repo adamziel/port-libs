@@ -14,7 +14,7 @@ range predicates before returning rows from a covering partial
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext200Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next200.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next200.php --self-test`
 - Syntax/lint: changed PHP files linted with `php -l`
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 

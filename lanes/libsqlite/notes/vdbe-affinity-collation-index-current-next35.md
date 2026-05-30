@@ -13,7 +13,7 @@ Focused movement:
   boundaries, numeric and BLOB affinity probes, rowid tie order, prefix seeks,
   EOF current/next records, invalid selected key columns, and bad affinity /
   collation guards.
-- Added `wordpress-vdbe-index-affinity-collation-current-next35.php` to smoke
+- Added `application-vdbe-index-affinity-collation-current-next35.php` to smoke
   copied `wp_options` option-name index current/next records and boundary
   comparisons without requiring ext/sqlite.
 - Updated `lane-status.json` `phpPass` from 12271 to 12327 by the verified
@@ -25,7 +25,7 @@ Verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeIndexAffinityCollationCurrentNext35Test.php
 # 1 test files, 56 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-vdbe-index-affinity-collation-current-next35.php
+php lanes/libsqlite/examples/application-vdbe-index-affinity-collation-current-next35.php
 # prints autoload plugin rowids [10,20], cache current/next records, and network rowid 60
 ```
 

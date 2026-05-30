@@ -9,7 +9,7 @@ $tests = [];
 $databasePath = '/srv/www/wp-content/database/wp-next226.sqlite';
 $walPath = $databasePath . '-wal';
 $journalPath = $databasePath . '-journal';
-$databaseBytes = str_repeat('next226 checkpointed wordpress options database image', 12);
+$databaseBytes = str_repeat('next226 checkpointed application options database image', 12);
 $restartWalBytes = 'SQLite format wal restart next226 header salt frame zero';
 $truncateWalBytes = "\0";
 $databaseDigest = hash('sha256', $databaseBytes);
@@ -146,7 +146,7 @@ $cases = [
     'publication digest length' => [static fn (): mixed => strlen($plan()['publication_digest']), 64],
     'dependency next226' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next226', $plan()['dependencies'], true), true],
     'dependency reopen fence' => [static fn (): mixed => in_array('sqlite-wal-reset-file-state-reopen-fence', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-wal-reset-file-state-reopen', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-wal-reset-file-state-reopen', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next218 reset admission'), true],
     'database file matched' => [static fn (): mixed => $plan()['file_rows'][0]['matched'], true],

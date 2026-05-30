@@ -9,10 +9,10 @@ Status: isolated behavior-backed libsqlite slice for prepared trigger-program ca
 - Keeps active current trigger programs usable while routing next reprepare decisions through trigger SQL, target table/view roots, body-table dependencies, schema-cookie WAL metadata, and main/temp/attached schema scope.
 - Non-temp trigger bodies resolve unqualified body tables inside their owning schema; temp triggers can follow temp/main/attached search order.
 
-## WordPress smoke
+## Application smoke
 
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-trigger-cache-current-source.php --self-test`
-- Result: `wordpress-attach-temp-wal-trigger-cache-current-source self-test passed`
+- `php lanes/libsqlite/examples/application-attach-temp-wal-trigger-cache-current-source.php --self-test`
+- Result: `application-attach-temp-wal-trigger-cache-current-source self-test passed`
 
 ## Focused evidence
 

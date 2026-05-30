@@ -41,7 +41,7 @@ Status delta:
 
 Non-overlap:
 
-This avoids accepted release-runner parity ledger, current/next count, audit extension, artifact hydration, hydration cluster, guarded countability preflight, focused runner artifact admission, and release-blocker closure wrappers. It also avoids accepted SQL, JSON, WAL, VFS, B-tree, encoding, and WordPress behavior clusters; the only new surface is the current-next37 upstream gap proof before launching a next-source guarded runner.
+This avoids accepted release-runner parity ledger, current/next count, audit extension, artifact hydration, hydration cluster, guarded countability preflight, focused runner artifact admission, and release-blocker closure wrappers. It also avoids accepted SQL, JSON, WAL, VFS, B-tree, encoding, and Application behavior clusters; the only new surface is the current-next37 upstream gap proof before launching a next-source guarded runner.
 
 Dependency closure:
 

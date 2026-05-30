@@ -9,11 +9,11 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableHiddenConstraintSourceCurrentSourceNext102Test.php
-php -l lanes/libsqlite/examples/wordpress-json-table-hidden-constraint-source-current-source-next102.php
+php -l lanes/libsqlite/examples/application-json-table-hidden-constraint-source-current-source-next102.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenConstraintSourceCurrentSourceNext102Test.php
 # 1 test files, 52 assertions, 0 failures
-php lanes/libsqlite/examples/wordpress-json-table-hidden-constraint-source-current-source-next102.php --self-test
-# wordpress-json-table-hidden-constraint-source-current-source-next102 self-test passed
+php lanes/libsqlite/examples/application-json-table-hidden-constraint-source-current-source-next102.php --self-test
+# application-json-table-hidden-constraint-source-current-source-next102 self-test passed
 ```
 
 Dashboard delta: `phpPass` +52 from newly verified focused PASS lines. Mapped upstream coverage is unchanged because this composes already mapped JSON table planner/current-source primitives.

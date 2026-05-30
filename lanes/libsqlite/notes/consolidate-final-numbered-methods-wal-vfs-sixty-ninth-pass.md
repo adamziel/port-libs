@@ -6,7 +6,7 @@ methods from `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`.
 The stable production entry point is now
 `afterReadyCheckpointSourceEpochStage()`, which maps descriptive stage names to
 the same existing checkpoint receipt behavior. The direct focused test and
-WordPress smoke were renamed away from numbered filenames and migrated to the
+Application smoke were renamed away from numbered filenames and migrated to the
 stable entry point.
 
 Dependency closure: no new support component is needed; this reuses the
@@ -17,7 +17,7 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointSourceEpochStageTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-source-epoch-stage.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-source-epoch-stage.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointSourceEpochStageTest.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-source-epoch-stage.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-source-epoch-stage.php`
 - `git diff --check -- lanes/libsqlite`

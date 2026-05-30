@@ -25,11 +25,11 @@ Focused test run: 3 selected test files (root lock skipped)
 3 test files, 179 assertions, 0 failures
 ```
 
-## WordPress Smoke
+## Application Smoke
 
 ```text
-php lanes/libsqlite/examples/wordpress-vfs-uri-shm-filecontrol-regression-current-source-next141.php --self-test
-wordpress-vfs-uri-shm-filecontrol-regression-current-source-next141 self-test passed
+php lanes/libsqlite/examples/application-vfs-uri-shm-filecontrol-regression-current-source-next141.php --self-test
+application-vfs-uri-shm-filecontrol-regression-current-source-next141 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `61676` to `61728` from 52 new focused PASS lines if accepted. Mapped upstream coverage remains `606 / 1589`; this is a focused PHP regression over already mapped VFS URI/SHM/file-control primitives rather than a fresh manifest-backed upstream row.

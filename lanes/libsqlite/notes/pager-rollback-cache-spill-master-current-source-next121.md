@@ -19,10 +19,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerRollbackCacheSpillMaste
 Result: `1 test files, 71 assertions, 0 failures`.
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pager-rollback-cache-spill-master-current-source-next121.php --self-test
+php lanes/libsqlite/examples/application-pager-rollback-cache-spill-master-current-source-next121.php --self-test
 ```
 
-Result: `wordpress-pager-rollback-cache-spill-master-current-source-next121 self-test passed`.
+Result: `application-pager-rollback-cache-spill-master-current-source-next121 self-test passed`.
 
 ## Non-Overlap
 

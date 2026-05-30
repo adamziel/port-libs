@@ -50,7 +50,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@127',
     int $currentCookie = 126,
     int $nextCookie = 127,
-): array => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::wordpressOptionValuePlan(
+): array => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::optionRowValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $castTarget,
@@ -160,7 +160,7 @@ $tests['cast rtrim glob range current source next127 stable exact padded peer is
         ['option_id' => 1, 'option_value' => 'plugin_cache'],
         ['option_id' => 2, 'option_value' => 'plugin_cache '],
     ];
-    $plan = SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'TEXT', 'plugin_cache', 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'TEXT', 'plugin_cache', 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentCandidateRowids']);
     $t->same([2], $plan['currentResidualRejectedRowids']);
     $t->same([1], $plan['currentRowids']);
@@ -170,26 +170,26 @@ $tests['cast rtrim glob range current source next127 stable exact padded peer is
 
 $tests['cast rtrim glob range current source next127 stable leading class keeps no prefix reason'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => 'plugin_cache']];
-    $plan = SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'TEXT', '[Pp]lugin_*', 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'TEXT', '[Pp]lugin_*', 'stable', 'stable', 7, 7);
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentRowids']);
     $t->same(['no-prefix-range'], $plan['invalidationReasons']);
 };
 
 $tests['cast rtrim glob range current source next127 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'TEXT); DROP TABLE wp_options; --', 'plugin*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $nextRows, 'TEXT); DROP TABLE wp_options; --', 'plugin*'));
 };
 
 $tests['cast rtrim glob range current source next127 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::wordpressOptionValuePlan([['option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::optionRowValuePlan([['option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin*'));
 };
 
 $tests['cast rtrim glob range current source next127 rejects missing option value'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => 1]], $nextRows, 'TEXT', 'plugin*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1]], $nextRows, 'TEXT', 'plugin*'));
 };
 
 $tests['cast rtrim glob range current source next127 rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => '1', 'option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::optionRowValuePlan([['option_id' => '1', 'option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin*'));
 };
 
 return $tests;

@@ -8,8 +8,8 @@ This slice adds `SQLiteJsonTablePlan::generatedPathRowidMaterializationPlan()`, 
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidMaterializationPlanTest.php`
 - Result: `1 test files, 66 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-materialization.php --self-test`
-- Result: `wordpress-json-table-generated-path-rowid-materialization self-test passed`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-materialization.php --self-test`
+- Result: `application-json-table-generated-path-rowid-materialization self-test passed`
 
 ## Non-Overlap
 

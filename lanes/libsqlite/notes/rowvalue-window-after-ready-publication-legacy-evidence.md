@@ -12,7 +12,7 @@ UPDATE/DELETE RETURNING window current-source plan: handoff metadata,
 current/next source hash auditing, throughput preflight counters, and final
 ready seals.
 
-WordPress smoke: `wordpress-rowvalue-returning-window-after-ready-publication.php`
+Application smoke: `application-rowvalue-returning-window-after-ready-publication.php`
 models copied `wp_options` UPDATE and DELETE RETURNING phases that yield,
 roll back attempted rows, retry from the current source, and verify that both
 new ready seals preserve the current-source handoff.
@@ -20,10 +20,10 @@ new ready seals preserve the current-source handoff.
 Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-after-ready-publication.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-after-ready-publication.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowAfterReadyPublicationTest.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowAfterReadyPublicationTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-after-ready-publication.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-after-ready-publication.php --self-test`
 
 Expected dashboard movement: `phpPass +1` from the focused test file.
 `benchmarkDenominator.mapped` remains unchanged; this is current-source PHP

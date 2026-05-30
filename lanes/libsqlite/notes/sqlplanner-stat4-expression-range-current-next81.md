@@ -8,7 +8,7 @@ unchanged, while bounded expression ranges, `BETWEEN`, and single-ended range
 constraints now expose the current/next STAT4 sample pair that brackets the
 range lower and upper bounds.
 
-WordPress path: copied `wp_options` imports can preview a
+Application path: copied `wp_options` imports can preview a
 `lower(option_name)` expression-index range scan and see which sqlite_stat4
 samples bracket plugin/transient option-name ranges before choosing a native
 PHP query/import plan.

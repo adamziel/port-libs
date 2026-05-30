@@ -9,7 +9,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-rowvalue-fail-rollback-retry-current-source-next161.php`
+- Application smoke: `php lanes/libsqlite/examples/application-rowvalue-fail-rollback-retry-current-source-next161.php`
 - Dependency closure: no new support component needed; this composes existing native PHP row-value UPDATE/DELETE RETURNING and savepoint current-source modeling.
 
 ## Non-overlap

@@ -9,7 +9,7 @@ class. The canonical class keeps both accepted entry points:
 - `page()` for the single-image quick-check current-source paginator.
 - `currentNextPage()` for the current/next quick-check repair gate.
 
-The behavior remains scoped to copied WordPress SQLite images: `PRAGMA
+The behavior remains scoped to copied Application SQLite images: `PRAGMA
 index_xinfo` rows stay tied to the same database/catalog source hash, exact
 `PRAGMA quick_check` rows are appended and enriched with rootpage diagnostics,
 and current/next admission rejects stale cursors until the next database image
@@ -21,11 +21,11 @@ Focused evidence:
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexRootpageQuickcheckCurrentSourceNextPageTest.php lanes/libsqlite/tests/SQLitePragmaIndexRootpageQuickcheckCurrentSourceNextCurrentNextPageTest.php
 # 2 test files, 162 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pragma-index-rootpage-quickcheck-current-source-next-page.php --self-test
-# wordpress-pragma-index-rootpage-quickcheck-current-source-next-page self-test passed
+php lanes/libsqlite/examples/application-pragma-index-rootpage-quickcheck-current-source-next-page.php --self-test
+# application-pragma-index-rootpage-quickcheck-current-source-next-page self-test passed
 
-php lanes/libsqlite/examples/wordpress-pragma-index-rootpage-quickcheck-current-source-next-current-next-page.php --self-test
-# wordpress-pragma-index-rootpage-quickcheck-current-source-next-current-next-page self-test passed
+php lanes/libsqlite/examples/application-pragma-index-rootpage-quickcheck-current-source-next-current-next-page.php --self-test
+# application-pragma-index-rootpage-quickcheck-current-source-next-current-next-page self-test passed
 ```
 
 Non-overlap: this is a consolidation-only patch for the assigned

@@ -54,7 +54,7 @@ $plan193 = static fn (
     string $nextSource = 'main.wp_options@193',
     int $currentCookie = 192,
     int $nextCookie = 193,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLimitOffsetPlan(
     $current ?? $current193,
     $next ?? $nextOneNineThree,
     'plugin!_cache%',
@@ -155,7 +155,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineThree stable limit win
         $row193(4, 'plugin_cache_delta', 'UTF-16LE'),
         $row193(5, 'plugin_cache_zeta', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLimitOffsetPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -186,7 +186,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineThree inserted offset 
         $row193(3, 'plugin_cache_beta', 'UTF-16LE'),
         $row193(4, 'plugin_cache_delta', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLimitOffsetPlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -211,7 +211,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineThree zero limit track
         $row193(2, 'plugin_cache_alpha', 'UTF-16LE'),
         $row193(3, 'plugin_cache_beta', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLimitOffsetPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -231,7 +231,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineThree zero limit track
 
 $tests['utf16 nocase like rtrim current source nextOneNineThree rejects negative limit'] = static function (TestRunner $t) use ($row193): void {
     $rows = [$row193(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLimitOffsetPlan(
         $rows,
         $rows,
         'plugin%',
@@ -243,7 +243,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineThree rejects negative
 
 $tests['utf16 nocase like rtrim current source nextOneNineThree rejects negative offset'] = static function (TestRunner $t) use ($row193): void {
     $rows = [$row193(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLimitOffsetPlan(
         $rows,
         $rows,
         'plugin%',

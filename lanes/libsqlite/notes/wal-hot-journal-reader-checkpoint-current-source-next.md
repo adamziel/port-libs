@@ -9,9 +9,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalReaderCheckpointCurrentSourceNextTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-reader-checkpoint-current-source-next.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-reader-checkpoint-current-source-next.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalReaderCheckpointCurrentSourceNextTest.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-reader-checkpoint-current-source-next.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-reader-checkpoint-current-source-next.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

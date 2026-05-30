@@ -2,16 +2,16 @@
 
 Status: focused PHP corpus growth for WAL checkpoint-then-append current/next visibility.
 
-This slice adds `SQLiteWalAppendPlan::checkpointAppendCurrentNext()` for copied WordPress database imports. It composes a completed RESTART/TRUNCATE checkpoint with the next WAL writer transaction, generates a fresh WAL header when TRUNCATE leaves an empty sidecar, appends committed and uncommitted transaction frames with chained checksums, and reports current-reader versus next-reader page visibility.
+This slice adds `SQLiteWalAppendPlan::checkpointAppendCurrentNext()` for copied Application database imports. It composes a completed RESTART/TRUNCATE checkpoint with the next WAL writer transaction, generates a fresh WAL header when TRUNCATE leaves an empty sidecar, appends committed and uncommitted transaction frames with chained checksums, and reports current-reader versus next-reader page visibility.
 
 Verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteWalAppendPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalCheckpointAppendCurrentNext25Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-append-current-next25.php
+php -l lanes/libsqlite/examples/application-wal-checkpoint-append-current-next25.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointAppendCurrentNext25Test.php
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-append-current-next25.php
+php lanes/libsqlite/examples/application-wal-checkpoint-append-current-next25.php
 git diff --check -- lanes/libsqlite
 ```
 

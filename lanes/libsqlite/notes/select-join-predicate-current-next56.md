@@ -11,7 +11,7 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectJoinPredicateCurrentNext56Test.php`
 - Result: `1 test files, 100 assertions, 0 failures`
 - PASS-line delta: `+50`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-select-join-predicate-current-next56.php`
+- Application smoke: `php lanes/libsqlite/examples/application-select-join-predicate-current-next56.php`
 
 Non-overlap: this avoids accepted SELECT SQL JOIN text dispatch, subqueries,
 GROUP BY/HAVING text, expression ORDER BY, JSON table source/cursor/constraint

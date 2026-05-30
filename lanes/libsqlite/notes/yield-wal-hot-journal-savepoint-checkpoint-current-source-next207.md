@@ -4,7 +4,7 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 write-cursor admission fence layered after the accepted next206 reopened
-statement generation check. A WordPress import write cursor may commit after
+statement generation check. A Application import write cursor may commit after
 hot-journal recovery, savepoint rollback, WAL checkpoint publication, and
 statement reprepare only when it:
 
@@ -24,10 +24,10 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext207Test.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next207.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next207.php
 ```
 
 ## Dashboard Delta

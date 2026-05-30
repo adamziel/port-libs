@@ -11,8 +11,8 @@
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext175Test.php`
 - Result: `1 test files, 55 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next175.php --self-test`
-- Result: `wordpress-json-table-generated-path-rowid-cost-current-source-next175 self-test passed`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next175.php --self-test`
+- Result: `application-json-table-generated-path-rowid-cost-current-source-next175 self-test passed`
 
 ## Non-Overlap
 

@@ -6,13 +6,13 @@ Adds `SQLitePragmaIntegritySourceCursor`, a source-bound wrapper around the
 accepted PRAGMA integrity/FK current-next paginator. Resume cursors now carry a
 stable `source_id` derived from the database image, integrity PRAGMA SQL,
 targeted `foreign_key_check` SQL, and staged FK source rows. A next-page resume
-is rejected if any of those inputs changed, preventing copied WordPress repair
+is rejected if any of those inputs changed, preventing copied Application repair
 preflights from combining pointer-map findings from one database image with FK
 violations from a later source.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-foreignkey-current-source-next83.php`
+`lanes/libsqlite/examples/application-pragma-integrity-pointermap-foreignkey-current-source-next83.php`
 models a copied `wp_options` integrity preflight where page 1 ends in
 pointer-map findings and page 2 resumes with the same source cursor.
 
@@ -29,8 +29,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-foreignkey-current-source-next83.php --self-test
-wordpress-pragma-integrity-pointermap-foreignkey-current-source-next83 self-test passed
+php lanes/libsqlite/examples/application-pragma-integrity-pointermap-foreignkey-current-source-next83.php --self-test
+application-pragma-integrity-pointermap-foreignkey-current-source-next83 self-test passed
 ```
 
 Syntax:
@@ -38,7 +38,7 @@ Syntax:
 ```text
 php -l lanes/libsqlite/src/SQLitePragmaIntegritySourceCursor.php
 php -l lanes/libsqlite/tests/SQLitePragmaIntegrityPointerMapForeignKeyCurrentSourceNext83Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-foreignkey-current-source-next83.php
+php -l lanes/libsqlite/examples/application-pragma-integrity-pointermap-foreignkey-current-source-next83.php
 No syntax errors detected in all changed PHP files.
 ```
 

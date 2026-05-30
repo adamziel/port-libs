@@ -10,9 +10,9 @@
   admitted stream records and verifies SQLite rowid tie-break ordering for
   those peers.
 
-## WordPress smoke
+## Application smoke
 
-- `lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next210.php`
+- `lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next210.php`
 - Scenario: copied `wp_options` diagnostics using a stale prepared
   `lower(option_name)` partial expression index after ANALYZE/schema refresh,
   preserving deterministic rowid order for duplicate plugin option names
@@ -23,7 +23,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext210Test.php`
   - `1 test files, 58 assertions, 0 failures`
   - `58` PASS lines
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next210.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next210.php`
   - self-test passed and emitted ready JSON.
 
 ## Non-Overlap

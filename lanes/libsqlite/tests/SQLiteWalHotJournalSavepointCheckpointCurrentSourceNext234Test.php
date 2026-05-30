@@ -164,7 +164,7 @@ $cases = [
     'operation serve' => [static fn (): mixed => in_array('serve_durable_reopened_checkpoint_source_next234', $plan()['operation_names'], true), true],
     'dependency next234' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next234', $plan()['dependencies'], true), true],
     'dependency sync receipts' => [static fn (): mixed => in_array('sqlite-wal-durable-handoff-sync-receipts', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-durable-wal-current-source-handoff', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-durable-wal-current-source-handoff', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next231 readmark reopen checks'), true],
     'row durable' => [static fn (): mixed => $plan()['receipt_rows'][0]['durable'], true],

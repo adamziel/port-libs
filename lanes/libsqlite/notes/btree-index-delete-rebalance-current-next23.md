@@ -27,7 +27,7 @@ PHP lint:
 ```bash
 php -l lanes/libsqlite/src/SQLiteBTreeIndexDeleteRebalancePlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeIndexDeleteRebalanceCurrentNext23Test.php
-php -l lanes/libsqlite/examples/wordpress-index-delete-rebalance-current-next23.php
+php -l lanes/libsqlite/examples/application-index-delete-rebalance-current-next23.php
 ```
 
 ## Dashboard Delta

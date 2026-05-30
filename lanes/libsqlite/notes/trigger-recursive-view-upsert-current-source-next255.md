@@ -10,7 +10,7 @@ rows remain held until the current RETURNING cursor token matches, required
 RETURNING aliases are present on every current payload, every current payload
 receipt is acknowledged, and the optional drain-order guard is satisfied.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next255.php`
+Application path: `application-trigger-recursive-view-upsert-current-source-next255.php`
 models a copied `wp_options` recursive import view where current UPSERT rows
 must drain their view-trigger RETURNING cursor before plugin migration rows
 from the next source are published.
@@ -19,9 +19,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext255Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext255Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next255.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next255.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext255Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next255.php`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next255.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +84` from focused lane-local PASS lines.

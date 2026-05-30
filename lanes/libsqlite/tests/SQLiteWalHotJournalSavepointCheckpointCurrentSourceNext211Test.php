@@ -148,7 +148,7 @@ $cases = [
     'operation admit next' => [static fn (): mixed => in_array('admit_checkpoint_next_source_after_hot_journal_next211', $ok()['operation_names'], true), true],
     'dependency previous' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next205', $ok()['dependencies'], true), true],
     'dependency next211' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next211', $ok()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-checkpoint-reader-reopen-fence', $ok()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-checkpoint-reader-reopen-fence', $ok()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($ok()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($ok()['non_overlap'], 'does not repeat next205 page-image validation'), true],
     'missing ack status' => [static fn (): mixed => $plan(null, $missingAck)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next211'],

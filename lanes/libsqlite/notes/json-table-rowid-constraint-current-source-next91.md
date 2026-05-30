@@ -10,9 +10,9 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableRowidConstraintCurrentSourceNext91Test.php`
 - Result: `1 test files, 46 assertions, 0 failures` with 46 PASS lines.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-json-table-rowid-constraint-current-source-next91.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-rowid-constraint-current-source-next91.php --self-test`
 - Reports copied `wp_options` plugin-rule JSON scans where rowid constraints
   are planned as `visible:id:=` against current and next option values.
 

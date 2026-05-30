@@ -8,7 +8,7 @@
   `UNION` compound SELECT keeps SQLite set-operator storage-class boundaries
   (`1`, `1.0`, and `'1'`) before final compound `ORDER BY ... LIMIT/OFFSET`
   pagination is applied.
-- WordPress path: copied `wp_options` import staging can recursively walk
+- Application path: copied `wp_options` import staging can recursively walk
   option dependency edges and page a migration preview without collapsing text
   and numeric option metadata too early.
 - Non-overlap: avoids accepted batch144 compound UNION limit affinity,
@@ -21,6 +21,6 @@
   executor.
 - Focused evidence:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectRecursiveAffinityLimitTest.php`
-  - `php lanes/libsqlite/examples/wordpress-select-sql-compound-recursive-affinity-limit.php`
+  - `php lanes/libsqlite/examples/application-select-sql-compound-recursive-affinity-limit.php`
   - PHP lint for changed PHP files
   - `git diff --check -- lanes/libsqlite`

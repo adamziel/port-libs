@@ -14,10 +14,10 @@ Focused test:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext179Test.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next179.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next179.php
 ```
 
 ## Dependency Closure

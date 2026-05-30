@@ -27,7 +27,7 @@ Result:
 Smoke command:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-compound-select-order-limit-current-source-next110.php
+php lanes/libsqlite/examples/application-compound-select-order-limit-current-source-next110.php
 ```
 
 Result: valid JSON with selected names

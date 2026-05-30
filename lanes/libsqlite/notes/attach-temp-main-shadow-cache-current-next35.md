@@ -28,11 +28,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 88 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```
-php lanes/libsqlite/examples/wordpress-attach-temp-main-shadow-cache-current-next35.php --self-test
-wordpress-attach-temp-main-shadow-cache-current-next35 self-test passed
+php lanes/libsqlite/examples/application-attach-temp-main-shadow-cache-current-next35.php --self-test
+application-attach-temp-main-shadow-cache-current-next35 self-test passed
 ```
 
 ## Dashboard Delta

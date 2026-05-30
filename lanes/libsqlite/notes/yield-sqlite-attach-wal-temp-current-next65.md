@@ -19,11 +19,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 79 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next.php --self-test
-wordpress-attach-wal-temp-current-next self-test passed
+php lanes/libsqlite/examples/application-attach-wal-temp-current-next.php --self-test
+application-attach-wal-temp-current-next self-test passed
 ```
 
 Status delta:

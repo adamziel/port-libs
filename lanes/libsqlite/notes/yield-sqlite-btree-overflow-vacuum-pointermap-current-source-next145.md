@@ -17,10 +17,10 @@ The slice records:
 - Result: `1 test files, 283 assertions, 0 failures`
 - New focused PASS lines: `79`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-vacuum-pointermap-current-source-next145.php --self-test`
-- Result: `wordpress-btree-overflow-vacuum-pointermap-current-source-next145 self-test passed`
+- `php lanes/libsqlite/examples/application-btree-overflow-vacuum-pointermap-current-source-next145.php --self-test`
+- Result: `application-btree-overflow-vacuum-pointermap-current-source-next145 self-test passed`
 
 ## Non-overlap
 

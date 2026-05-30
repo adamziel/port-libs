@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined ready-publication final continuation seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-ready-publication-final-continuation.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-ready-publication-final-continuation.php';
 
         $t->same('rowvalue-update-delete-returning-window-ready-publication-final-continuation', $result['status']);
         $t->same([

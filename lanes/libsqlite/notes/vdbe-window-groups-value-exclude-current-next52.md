@@ -9,7 +9,7 @@ Status delta:
   CURRENT ROW`, including peer groups, next-row recomputation, SQL FILTER
   truthiness, partition boundaries, empty frames, custom rowid columns, and EOF
   guards.
-- Added a WordPress smoke for copied `wp_options` diagnostics that previews
+- Added a Application smoke for copied `wp_options` diagnostics that previews
   current/next GROUPS value frames without requiring ext/sqlite.
 - Updated `lane-status.json` `phpPass` from `19277` to `19327` by the verified
   focused PASS-line delta.
@@ -20,8 +20,8 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowGroupsValueExcludeCurrentNext52Test.php
 # 1 test files, 50 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-vdbe-window-groups-value-exclude-current-next52.php --self-test
-# wordpress-vdbe-window-groups-value-exclude-current-next52 self-test passed
+php lanes/libsqlite/examples/application-vdbe-window-groups-value-exclude-current-next52.php --self-test
+# application-vdbe-window-groups-value-exclude-current-next52 self-test passed
 ```
 
 Non-overlap:

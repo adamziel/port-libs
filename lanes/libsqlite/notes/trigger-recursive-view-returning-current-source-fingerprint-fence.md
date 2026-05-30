@@ -10,10 +10,10 @@ Adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSo
   - `1 test files, 74 assertions, 0 failures`
   - 74 PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-fingerprint-fence.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-fingerprint-fence self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-fingerprint-fence.php`
+  - `application-trigger-recursive-view-returning-current-source-fingerprint-fence self-test passed`
 
 ## Non-Overlap
 

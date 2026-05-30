@@ -11,8 +11,8 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectDistinctSqlTest.php` passed: `1 test files, 63 assertions, 0 failures` with 31 PASS lines.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 9701 assertions, 0 failures`.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php lanes/libsqlite/tests/SQLiteSelectDistinctSqlTest.php` passed: `2 test files, 9764 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-select-sql-distinct.php` passed and reported 4 deduplicated copied `wp_options` rows.
-- `php -l lanes/libsqlite/src/SQLiteSelectSql.php`, `php -l lanes/libsqlite/src/SQLiteSelectQuery.php`, `php -l lanes/libsqlite/tests/SQLiteSelectDistinctSqlTest.php`, and `php -l lanes/libsqlite/examples/wordpress-select-sql-distinct.php` passed.
+- `php lanes/libsqlite/examples/application-select-sql-distinct.php` passed and reported 4 deduplicated copied `wp_options` rows.
+- `php -l lanes/libsqlite/src/SQLiteSelectSql.php`, `php -l lanes/libsqlite/src/SQLiteSelectQuery.php`, `php -l lanes/libsqlite/tests/SQLiteSelectDistinctSqlTest.php`, and `php -l lanes/libsqlite/examples/application-select-sql-distinct.php` passed.
 - `git diff --check -- lanes/libsqlite` passed.
 
 Expected dashboard movement: `phpPass` increases by the verified +31 focused PASS lines from `SQLiteSelectDistinctSqlTest.php`; mapped denominator is unchanged.

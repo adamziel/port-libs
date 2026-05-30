@@ -5,7 +5,7 @@
 - Adds `SQLitePragmaAutoindexForeignKeyPreflight` for current/next schema gates that combine PRAGMA `index_list`/`index_xinfo` autoindex metadata with foreign-key parent-key coverage.
 - Reports generated `sqlite_autoindex_*` root pages, key columns, collations, `origin='u'`, uniqueness, and blocked states for missing roots, missing catalog rows, or collation mismatches.
 - Treats INTEGER PRIMARY KEY parent columns as rowid-alias coverage so `PRAGMA foreign_key_check` parent validation does not require a separate autoindex.
-- Adds a copied WordPress `wp_options` / `wp_option_names` smoke for checking that parent UNIQUE autoindexes are current before the next import write.
+- Adds a copied Application `wp_options` / `wp_option_names` smoke for checking that parent UNIQUE autoindexes are current before the next import write.
 
 ## Focused Evidence
 

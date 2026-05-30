@@ -15,7 +15,7 @@ foreign-key action diagnostics over `PRAGMA foreign_key_list`, child
 - The focused tests assert current clean lookup rows stay empty, next broken
   lookup rows appear once, operation names are slice-specific, and action
   column/action metadata is preserved.
-- The WordPress example self-test verifies all page methods exist and the
+- The Application example self-test verifies all page methods exist and the
   current/next row counts remain `0 -> 1` for each next703-718 status.
 
 ## Validation
@@ -23,11 +23,11 @@ foreign-key action diagnostics over `PRAGMA foreign_key_list`, child
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext703718Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next703-718.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next703-718.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext703718Test.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext687702Test.php
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next703-718.php --self-test
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next687-702.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next703-718.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next687-702.php --self-test
 git diff --check
 ```
 

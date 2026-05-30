@@ -27,8 +27,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityQuickCheckCor
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-integrity-check-table-execute.php --self-test
-wordpress-pragma-integrity-check-table-execute self-test passed
+php lanes/libsqlite/examples/application-pragma-integrity-check-table-execute.php --self-test
+application-pragma-integrity-check-table-execute self-test passed
 ```
 
 ## Non-Overlap

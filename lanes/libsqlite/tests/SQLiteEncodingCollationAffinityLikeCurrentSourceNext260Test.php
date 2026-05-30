@@ -52,7 +52,7 @@ $plan260 = static fn (
     string $nextSource = 'main.wp_options@260',
     int $currentCookie = 259,
     int $nextCookie = 260,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimCollationLikeResidualPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimCollationLikeResidualPlan(
     $current ?? $current260,
     $next ?? $nextTwoSixZero,
     $pattern,
@@ -221,11 +221,11 @@ $tests['encoding collation affinity like current source nextTwoSixZero invalid e
 };
 
 $tests['encoding collation affinity like current source nextTwoSixZero rejects missing option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimCollationLikeResidualPlan([['option_id' => 1]], []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimCollationLikeResidualPlan([['option_id' => 1]], []));
 };
 
 $tests['encoding collation affinity like current source nextTwoSixZero records bad byte row as malformed'] = static function (TestRunner $t): void {
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimCollationLikeResidualPlan([
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimCollationLikeResidualPlan([
         ['option_id' => 1, 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 'UTF-8'],
     ], []);
 

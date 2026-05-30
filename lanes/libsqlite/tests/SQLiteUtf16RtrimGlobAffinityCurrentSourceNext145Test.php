@@ -80,7 +80,7 @@ $plan = static fn (
     int $nextSchemaCookie = 32,
     int $currentCollationVersion = 8,
     int $nextCollationVersion = 9,
-): array => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan(
+): array => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::optionRowNameValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -228,15 +228,15 @@ $tests['utf16 rtrim glob affinity current source nextOneFourFive rejects non num
 };
 
 $tests['utf16 rtrim glob affinity current source nextOneFourFive rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::optionRowNameValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 $tests['utf16 rtrim glob affinity current source nextOneFourFive rejects missing value bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::optionRowNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 $tests['utf16 rtrim glob affinity current source nextOneFourFive rejects missing value encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::optionRowNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 return $tests;

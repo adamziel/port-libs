@@ -17,15 +17,15 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-hot-journal-savepoint-current-source-next114.php
+php -l lanes/libsqlite/examples/application-wal-checkpoint-hot-journal-savepoint-current-source-next114.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Test.php
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-hot-journal-savepoint-current-source-next114.php --self-test
+php lanes/libsqlite/examples/application-wal-checkpoint-hot-journal-savepoint-current-source-next114.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 
 Focused result: `1 test files, 83 assertions, 0 failures` with 83 PASS lines.
 
-WordPress smoke: `wordpress-wal-checkpoint-hot-journal-savepoint-current-source-next114 self-test passed`.
+Application smoke: `application-wal-checkpoint-hot-journal-savepoint-current-source-next114 self-test passed`.
 
 Non-overlap: avoids accepted WAL MVCC hot-journal checkpoint next107, WAL recovery checkpoint savepoint next100, WAL savepoint release/checkpoint next84/85/105, WAL byte truncation, WAL checkpoint transactions, VFS savepoint rollback apply, rollback-journal apply/commit/super-journal paths, WAL checksum/salt recovery, and hot-journal statement/cache current-source slices. The new surface is specifically the ordering and current-source handoff across hot rollback-journal recovery, committed WAL prefix recovery, savepoint rollback, and restart/truncate checkpoint visibility.
 

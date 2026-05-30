@@ -6,15 +6,15 @@ Files:
 
 - `src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `tests/SQLiteCompoundSelectWindowRecursiveLimitFinalOrderResumeTest.php`
-- `examples/wordpress-compound-select-window-recursive-limit-final-order-resume.php`
+- `examples/application-compound-select-window-recursive-limit-final-order-resume.php`
 
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitFinalOrderResumeTest.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-final-order-resume.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-final-order-resume.php`
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitFinalOrderResumeTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-final-order-resume.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-final-order-resume.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this composes existing compound SELECT execution, recursive LIMIT/OFFSET, avg/first_value window dispatch, current-source token fencing, and final LIMIT helpers.

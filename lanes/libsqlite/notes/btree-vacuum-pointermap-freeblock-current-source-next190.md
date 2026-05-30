@@ -10,10 +10,10 @@ next reader lease.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext190Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next190.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next190.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext190Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext190Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next190.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next190.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

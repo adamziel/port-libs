@@ -4,7 +4,7 @@ Behavior slice: adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidSeekCo
 
 The new layer composes the accepted generated-path rowid cost planner (`next145`) and records seekable `=`, `IN`, and bounded `BETWEEN` rowid constraints, deduplicated rowid seek sets, matched/missing rowids, hit tapes, effective seek cost, and current/next replan reasons.
 
-WordPress path: `examples/wordpress-json-table-generated-path-rowid-seek-cost-current-source-next159.php` covers copied `wp_options` plugin rule JSON where generated path scans are filtered by `_rowid_ IN (...)` while the next option source changes.
+Application path: `examples/application-json-table-generated-path-rowid-seek-cost-current-source-next159.php` covers copied `wp_options` plugin rule JSON where generated path scans are filtered by `_rowid_ IN (...)` while the next option source changes.
 
 Focused verification:
 

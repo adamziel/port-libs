@@ -12,7 +12,7 @@ current-source diagnostic for parser-level compound SELECTs that combine:
 - final `LIMIT` / `OFFSET`, and
 - current-source vs next-source row-boundary and affinity-class deltas.
 
-The WordPress smoke models copied `wp_options` rows being compared against a
+The Application smoke models copied `wp_options` rows being compared against a
 network/options source before a bounded dashboard/import preview is sliced by
 the final compound limit. It records both the pre-limit rowset and the visible
 limited boundary so the clean integrator can distinguish set-removal changes

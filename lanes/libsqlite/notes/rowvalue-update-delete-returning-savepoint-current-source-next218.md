@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for row-value UPDATE/DELETE RETURNING
 savepoint `ROLLBACK TO` current-source handling.
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext218Plan`
-and focused coverage for a copied WordPress `wp_options` import where:
+and focused coverage for a copied Application `wp_options` import where:
 
 - row-value UPDATE/DELETE RETURNING statements run inside an active savepoint;
 - later attempted UPDATE/DELETE RETURNING rows are recorded as suppressed when
@@ -14,8 +14,8 @@ and focused coverage for a copied WordPress `wp_options` import where:
 - deleted transient rows and updated option values from the attempted stream do
   not leak into the retry source.
 
-WordPress smoke:
-`wordpress-rowvalue-rollback-to-current-source-next218.php` models copied
+Application smoke:
+`application-rowvalue-rollback-to-current-source-next218.php` models copied
 options-table cleanup where speculative option rewrites are rolled back and the
 retry stream starts from the original savepoint image.
 
@@ -24,9 +24,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext218Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext218Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-current-source-next218.php
+php -l lanes/libsqlite/examples/application-rowvalue-rollback-to-current-source-next218.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext218Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-current-source-next218.php
+php lanes/libsqlite/examples/application-rowvalue-rollback-to-current-source-next218.php
 git diff --check -- lanes/libsqlite
 ```
 

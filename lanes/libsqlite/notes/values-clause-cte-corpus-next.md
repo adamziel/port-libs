@@ -31,10 +31,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 54 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-sql-values-cte.php
+php lanes/libsqlite/examples/application-select-sql-values-cte.php
 ```
 
 Result: emitted copied `wp_options` staging rows matched through a

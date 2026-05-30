@@ -22,10 +22,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The 82 focused PASS lines cover ready reuse, duplicate `neq` density for `plugin_forms`, `nlt` and `ndlt` vectors for later sample keys, cursor-program admission, selected-plan/stat4 fence signatures, stale `neq`, stale `nlt`, stale `ndlt`, combined stale-vector rejection, malformed stat strings, and invalid input guards.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next236.php
+$ php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next236.php
 ```
 
 The smoke models copied `wp_options` plugin rows where ANALYZE/current-source churn can leave valid sample rowids with stale density vectors.

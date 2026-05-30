@@ -14,7 +14,7 @@ Behavior covered:
 - Accepted write controls bump the owner data-version generation and leave
   already-open SHM handles stale until they observe `file_control(data_version)`.
 - SHM locks and main database byte-range holders are released together for the
-  same WordPress connection during yield/retry.
+  same Application connection during yield/retry.
 
 Focused verification:
 

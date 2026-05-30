@@ -3,7 +3,7 @@
 Status delta: adds `SQLiteCompoundHavingWindowCurrentSourceNextPlan`, a
 current/next diagnostic wrapper around native `SQLiteSelectSql` compound SELECT
 execution for arms that combine aggregate `HAVING` gates, correlated subqueries,
-and window projections. The WordPress smoke models copied `wp_options` current
+and window projections. The Application smoke models copied `wp_options` current
 and staging rows where the next source admits a new plugin flag through the
 compound HAVING/window pipeline.
 
@@ -25,11 +25,11 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundHavingWindowCurre
 php -l lanes/libsqlite/tests/SQLiteCompoundHavingWindowCurrentSourceNext128Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteCompoundHavingWindowCurrentSourceNext128Test.php
 
-php -l lanes/libsqlite/examples/wordpress-compound-having-window-current-source-next128.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-compound-having-window-current-source-next128.php
+php -l lanes/libsqlite/examples/application-compound-having-window-current-source-next128.php
+No syntax errors detected in lanes/libsqlite/examples/application-compound-having-window-current-source-next128.php
 
-php lanes/libsqlite/examples/wordpress-compound-having-window-current-source-next128.php --self-test
-wordpress-compound-having-window-current-source-next128 self-test passed
+php lanes/libsqlite/examples/application-compound-having-window-current-source-next128.php --self-test
+application-compound-having-window-current-source-next128 self-test passed
 ```
 
 Non-overlap: avoids accepted compound correlated aggregate next124, compound

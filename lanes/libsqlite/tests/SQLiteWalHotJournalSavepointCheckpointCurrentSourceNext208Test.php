@@ -287,7 +287,7 @@ $cases = [
     'reader slot digest length' => [static fn (): mixed => strlen($plan()['reader_slot_digest']), 64],
     'dependency next208' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next208', $plan()['dependencies'], true), true],
     'dependency slot map' => [static fn (): mixed => in_array('sqlite-checkpoint-reader-slot-current-source-map', $plan()['dependencies'], true), true],
-    'dependency wordpress reopen' => [static fn (): mixed => in_array('wordpress-import-reader-slot-reopen-after-checkpoint', $plan()['dependencies'], true), true],
+    'dependency application reopen' => [static fn (): mixed => in_array('application-import-reader-slot-reopen-after-checkpoint', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next206 prepared-statement quarantine'), true],
     'blocked status' => [static fn (): mixed => $blocked()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next208'],

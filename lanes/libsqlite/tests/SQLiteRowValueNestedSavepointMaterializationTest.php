@@ -116,7 +116,7 @@ $cases224 = [
     'plan receipt restored tables' => [static fn (): mixed => $plan224()['rollback_receipt_next224']['restored_tables'], ['wp_options']],
     'plan dependency release rollback' => [static fn (): mixed => in_array('sqlite-rowvalue-nested-release-rolled-back-by-outer-savepoint-next224', $plan224()['dependencies'], true), true],
     'plan dependency returning suppressed' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-suppressed-after-outer-rollback-next224', $plan224()['dependencies'], true), true],
-    'plan dependency wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-nested-savepoint-retry-current-source-next224', $plan224()['dependencies'], true), true],
+    'plan dependency application' => [static fn (): mixed => in_array('application-rowvalue-nested-savepoint-retry-current-source-next224', $plan224()['dependencies'], true), true],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan224()['dependency_closure_next224'], 'no new support component needed'), true],
     'plan non overlap mentions next218' => [static fn (): mixed => str_contains($plan224()['non_overlap_next224'], 'next218'), true],
     'custom savepoints' => [static fn (): mixed => [$customPlan224()['outer_savepoint'], $customPlan224()['inner_savepoint']], ['outer_custom224', 'inner_custom224']],

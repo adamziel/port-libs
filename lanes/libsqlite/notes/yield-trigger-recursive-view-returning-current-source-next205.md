@@ -8,17 +8,17 @@ Behavior covered:
 - Holds next-source RETURNING rows until the current-source sequence is acknowledged with matching current and next source tokens.
 - Preserves current-source RETURNING visibility while next-source rows are held.
 - Records missing, unexpected, reordered, stale-current-token, stale-next-token, and inherited base-hold blockers.
-- Tags current and next rows with source-sequence metadata for WordPress import diagnostics.
+- Tags current and next rows with source-sequence metadata for Application import diagnostics.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext205Test.php`
 - Result: `1 test files, 93 assertions, 0 failures` with 93 PASS lines.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next205.php`
-- Result: `wordpress-trigger-recursive-view-returning-current-source-next205 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next205.php`
+- Result: `application-trigger-recursive-view-returning-current-source-next205 self-test passed`
 
 Dependency closure:
 

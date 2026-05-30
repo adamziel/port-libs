@@ -6,14 +6,14 @@ combined with deferred foreign-key checking and view materialization.
 
 The new surface is intentionally narrower than accepted next118/next126
 recursive trigger RETURNING work: current recursive RETURNING rows are drained,
-a WordPress-style autoloaded-options view is materialized from that current
+a Application-style autoloaded-options view is materialized from that current
 source, and only then does deferred FK validation decide whether the next source
 can advance or must roll back to the original current source.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-trigger-returning-deferred-view-current-source-next128.php --self-test`
-- Result: `wordpress-trigger-returning-deferred-view-current-source-next128 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-returning-deferred-view-current-source-next128.php --self-test`
+- Result: `application-trigger-returning-deferred-view-current-source-next128 self-test passed`
 
 Focused verification:
 

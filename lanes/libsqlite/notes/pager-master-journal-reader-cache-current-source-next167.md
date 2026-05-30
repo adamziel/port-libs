@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext167Plan`, a bounded pager planner for the edge where master-journal recovery has advanced the current source and deleted/retired the master journal file. The next reader cache ticket now includes the master-journal generation and deleted-present state, so a page image that still matches cannot be reused from a stale master generation. Clean current-generation pages are retained, clean image-mismatched pages are refreshed from current source bytes, and dirty/pinned/stale-generation entries force a reader reopen.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next167.php` models a copied `wp_options` database after master-journal deletion. It keeps a shared schema cache page, refreshes a stale options page, and reopens an `active_plugins` reader whose ticket belongs to the previous master-journal generation.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next167.php` models a copied `wp_options` database after master-journal deletion. It keeps a shared schema cache page, refreshes a stale options page, and reopens an `active_plugins` reader whose ticket belongs to the previous master-journal generation.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext167Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext167Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next167.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next167.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext167Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next167.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next167.php`
 - `git diff --check -- lanes/libsqlite`
 
 Focused result: `1 test files, 85 assertions, 0 failures`, all 85 PASS lines newly added in this lane.

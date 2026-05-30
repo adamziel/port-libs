@@ -10,8 +10,8 @@ current WAL to a retained prefix, a live reader pins that retained prefix, and
 releases. After release, the same current images are checkpointed into the
 database and the WAL sidecar truncates to zero bytes.
 
-WordPress smoke:
-`wordpress-wal-checkpoint-reader-truncate-savepoint-current-source-next.php`
+Application smoke:
+`application-wal-checkpoint-reader-truncate-savepoint-current-source-next.php`
 models a copied `wp_options` import where a plugin settings savepoint discards
 tail frames for autoload/transient/active_plugins updates while the current
 reader keeps the retained schema/siteurl prefix visible.

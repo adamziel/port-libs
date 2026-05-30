@@ -17,8 +17,8 @@ The implementation keeps the aggregate input sorter independent from the window 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateDistinctOrderWindowCurrentSourceNext90Test.php`
   - `1 test files, 58 assertions, 0 failures`
   - `57` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-distinct-order-window-current-source-next90.php`
-  - `wordpress-json-aggregate-distinct-order-window-current-source-next90 self-test passed`
+- `php lanes/libsqlite/examples/application-json-aggregate-distinct-order-window-current-source-next90.php`
+  - `application-json-aggregate-distinct-order-window-current-source-next90 self-test passed`
 
 ## Non-overlap
 

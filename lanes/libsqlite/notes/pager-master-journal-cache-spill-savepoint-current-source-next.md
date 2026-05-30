@@ -14,7 +14,7 @@ Status: focused PHP behavior growth for pager master-journal recovery followed b
 ```bash
 php -l lanes/libsqlite/src/SQLitePagerMasterJournalCacheSpillSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerMasterJournalCacheSpillSavepointCurrentSourceNext114Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-master-journal-cache-spill-savepoint-current-source-next114.php
+php -l lanes/libsqlite/examples/application-pager-master-journal-cache-spill-savepoint-current-source-next114.php
 ```
 
 All three changed PHP files reported no syntax errors.
@@ -26,10 +26,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalCacheSpill
 Result: `1 test files, 51 assertions, 0 failures`.
 
 ```bash
-php lanes/libsqlite/examples/wordpress-pager-master-journal-cache-spill-savepoint-current-source-next114.php --self-test
+php lanes/libsqlite/examples/application-pager-master-journal-cache-spill-savepoint-current-source-next114.php --self-test
 ```
 
-Result: `wordpress-pager-master-journal-cache-spill-savepoint-current-source-next114 self-test passed`.
+Result: `application-pager-master-journal-cache-spill-savepoint-current-source-next114 self-test passed`.
 
 ## Non-Overlap
 

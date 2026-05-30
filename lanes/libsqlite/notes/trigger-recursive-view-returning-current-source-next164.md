@@ -11,8 +11,8 @@ tracking rows suppressed by trigger conditions before they can emit
 and keeping next-source attempts diagnostic-only until the next source is
 admitted.
 
-WordPress path:
-`wordpress-trigger-recursive-view-returning-current-source-next164.php` models a
+Application path:
+`application-trigger-recursive-view-returning-current-source-next164.php` models a
 copied `wp_options` import view where a plugin import recursively creates retry
 rows, skips disabled imports via trigger-body ignore behavior, replaces the
 current `siteurl`, and plans a next-source view that would replace `home` and
@@ -27,8 +27,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewRetur
 $ php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Test.php
 
-$ php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next164.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next164.php
+$ php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next164.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next164.php
 
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Test.php
 Focused test run: 1 selected test files (root lock skipped)

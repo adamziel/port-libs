@@ -7,7 +7,7 @@ Implementation:
 - `SQLiteSchemaDdlReparsePlan` now reports `dependent_reparse_count`, `star_expansion_records`, `generated_column_view_records`, `resolved_trigger_records`, `unresolved_trigger_records`, and `trigger_missing_references` for `ALTER TABLE ... ADD COLUMN`.
 - The report is computed after the table SQL is rewritten, so triggers that reference the newly admitted generated column resolve against the next current source.
 - SELECT-star views that read the changed table are explicitly reported for expansion reparse, while unrelated views/triggers remain outside the dependent set.
-- Added a WordPress smoke for a copied `wp_options` import that adds `option_name_lc`, invalidates stale prepared statements, and reparses a SELECT-star autoload view plus an audit trigger.
+- Added a Application smoke for a copied `wp_options` import that adds `option_name_lc`, invalidates stale prepared statements, and reparses a SELECT-star autoload view plus an audit trigger.
 
 Focused verification:
 
@@ -18,11 +18,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 46 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-schema-view-trigger-generated-reparse-current-source-next131.php --self-test
-wordpress-schema-view-trigger-generated-reparse-current-source-next131 self-test passed
+$ php lanes/libsqlite/examples/application-schema-view-trigger-generated-reparse-current-source-next131.php --self-test
+application-schema-view-trigger-generated-reparse-current-source-next131 self-test passed
 ```
 
 Dashboard delta:

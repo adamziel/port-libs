@@ -4,17 +4,17 @@ Status: focused PHP behavior growth for current-source compound SELECTs where fi
 
 This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next240 spillover drain behavior. The new replay fence binds the current final page to row ordinal, row id, label, window metric, recursive emitted/skipped lineage, spillover token, and next-source labels. Stale replay tokens, stale signatures, missing tickets, and unexpected tickets reject next-source promotion.
 
-WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next243.php` models copied `wp_options` rows where a new autoloaded plugin option crosses the final `UNION ALL` / `INTERSECT` / `EXCEPT` page while recursive seed rows keep their window metric lineage.
+Application path: `application-compound-select-window-recursive-limit-current-source-next243.php` models copied `wp_options` rows where a new autoloaded plugin option crosses the final `UNION ALL` / `INTERSECT` / `EXCEPT` page while recursive seed rows keep their window metric lineage.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext243Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next243.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next243.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext243Test.php`
   - Result: `1 test files, 453 assertions, 0 failures`, `83` PASS lines.
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next243.php --self-test`
-  - Result: `wordpress-compound-select-window-recursive-limit-current-source-next243 self-test passed`.
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next243.php --self-test`
+  - Result: `application-compound-select-window-recursive-limit-current-source-next243 self-test passed`.
 
 Expected dashboard movement: `phpPass +83` from focused lane-local PASS lines. Mapped upstream coverage remains `647 / 1589`; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory.
 

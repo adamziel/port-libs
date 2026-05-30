@@ -5,7 +5,7 @@ Session: `port-dev-sqlite-yield-consol-meth-btreevac-o`
 Scope:
 
 - Consolidated the B-tree vacuum pointer-map freeblock `Next217`, `Next218`, `Next219`, `Next220`, and `Next223` public production entry wrappers into stable descriptive methods on `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`.
-- Updated direct production chaining, focused tests, and paired WordPress examples to call the descriptive entrypoints.
+- Updated direct production chaining, focused tests, and paired Application examples to call the descriptive entrypoints.
 - Left behavior unchanged; the canonical entrypoints still route to the existing descriptive variant classes.
 
 Stable entrypoints:

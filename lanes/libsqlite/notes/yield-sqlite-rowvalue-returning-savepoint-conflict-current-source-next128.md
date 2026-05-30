@@ -12,14 +12,14 @@
 - Added a next128 savepoint wrapper that records current-source tables,
   attempted next-source tables, yielded/attempted RETURNING streams, ignored
   rows, replacement deletes, conflict metadata, and rollback status for
-  row-value selected WordPress option imports.
+  row-value selected Application option imports.
 
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Test.php`
   - `1 test files, 55 assertions, 0 failures`
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-rowvalue-returning-savepoint-conflict-current-source-next128.php --self-test`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-rowvalue-returning-savepoint-conflict-current-source-next128.php --self-test`
 
 ## Non-Overlap
 

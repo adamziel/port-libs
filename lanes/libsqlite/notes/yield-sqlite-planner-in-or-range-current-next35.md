@@ -16,7 +16,7 @@ planning:
 - next-column ranges after the first usable current range remain residual
   predicates.
 
-The WordPress smoke models copied `wp_options` predicates over
+The Application smoke models copied `wp_options` predicates over
 `blog_id IN (...) AND option_name >= ...` OR
 `autoload = ... AND option_name BETWEEN ...`, reporting the selected index set
 and current/next loop count without requiring `ext/sqlite`.
@@ -37,16 +37,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 90 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-planner-in-or-range-current-next35.php --self-test
+php lanes/libsqlite/examples/application-planner-in-or-range-current-next35.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-planner-in-or-range-current-next35 self-test passed
+application-planner-in-or-range-current-next35 self-test passed
 ```
 
 ## Non-Overlap

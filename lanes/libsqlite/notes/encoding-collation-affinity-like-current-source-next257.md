@@ -3,16 +3,16 @@
 ## Behavior
 
 - Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext257Plan`.
-- Covers a WordPress `wp_options.option_name COLLATE NOCASE LIKE ?` cursor where current/next source rows change between UTF text, integer, and real storage. SQLite applies TEXT affinity before LIKE matching, so numeric option names can enter or leave the `2024%` prefix cursor while BLOB and NULL rows remain outside the LIKE result.
+- Covers a Application `wp_options.option_name COLLATE NOCASE LIKE ?` cursor where current/next source rows change between UTF text, integer, and real storage. SQLite applies TEXT affinity before LIKE matching, so numeric option names can enter or leave the `2024%` prefix cursor while BLOB and NULL rows remain outside the LIKE result.
 - Tracks current/next candidate rowids, residual matches, storage/encoding byte changes, ASCII-only NOCASE keys, malformed UTF-16 rows, and cursor invalidation reasons.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext257Test.php`
-- `php lanes/libsqlite/examples/wordpress-option-name-numeric-like-current-source-next257.php --self-test`
+- `php lanes/libsqlite/examples/application-option-name-numeric-like-current-source-next257.php --self-test`
 - `php -l lanes/libsqlite/src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext257Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext257Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-option-name-numeric-like-current-source-next257.php`
+- `php -l lanes/libsqlite/examples/application-option-name-numeric-like-current-source-next257.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap and dependency closure

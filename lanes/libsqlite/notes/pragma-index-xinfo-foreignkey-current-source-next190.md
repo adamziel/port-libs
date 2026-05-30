@@ -12,16 +12,16 @@ Behavior:
   named table columns, not expression terms;
 - records expression/ordinary term counts, shadowing by a repaired full parent
   key, pagination cursors, source hashes, and repaired deltas;
-- includes a WordPress smoke for copied option slug imports where an index on
+- includes a Application smoke for copied option slug imports where an index on
   `lower(locale)` cannot satisfy `REFERENCES wp_option_slug(slug, locale)`.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next190.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next190.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next190.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next190.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: avoids accepted next187 partial UNIQUE parent-index diagnostics,

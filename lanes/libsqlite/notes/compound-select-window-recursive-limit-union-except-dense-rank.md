@@ -20,10 +20,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiv
 The test file adds 73 PASS cases for the distinct compound/window boundary,
 including generated current/next source shifts and stale cursor rejection.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-union-except-dense-rank.php
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-union-except-dense-rank.php
 ```
 
 ## Non-Overlap

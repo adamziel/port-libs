@@ -12,17 +12,17 @@ Behavior covered:
   evaluation;
 - sibling `wp_options` window arm ranks visible autoload rows without leaked
   recursive seed rows;
-- final compound LIMIT/OFFSET moves the WordPress current/next boundary when a
+- final compound LIMIT/OFFSET moves the Application current/next boundary when a
   new `rewrite_rules` row enters ahead of the older rows.
 
 Focused verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundExhaustedRecursiveWindowLimitCurrentSourceTest.php
-php lanes/libsqlite/examples/wordpress-compound-exhausted-recursive-window-limit-current-source.php --self-test
+php lanes/libsqlite/examples/application-compound-exhausted-recursive-window-limit-current-source.php --self-test
 php -l lanes/libsqlite/src/SQLiteCompoundExhaustedRecursiveWindowLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundExhaustedRecursiveWindowLimitCurrentSourceTest.php
-php -l lanes/libsqlite/examples/wordpress-compound-exhausted-recursive-window-limit-current-source.php
+php -l lanes/libsqlite/examples/application-compound-exhausted-recursive-window-limit-current-source.php
 git diff --check -- lanes/libsqlite
 ```
 

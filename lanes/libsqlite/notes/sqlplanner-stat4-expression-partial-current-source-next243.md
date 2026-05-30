@@ -7,7 +7,7 @@ Adds a current-source `sqlite_stat4` expression sample-tape fence for partial ex
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext243Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next243.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next243.php --self-test`
 - PHP lint: changed PHP files under `lanes/libsqlite`
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 

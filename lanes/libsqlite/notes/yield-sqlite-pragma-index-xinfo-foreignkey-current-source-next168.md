@@ -26,10 +26,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 84 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next168.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next168.php --self-test
 ```
 
 ## Non-overlap

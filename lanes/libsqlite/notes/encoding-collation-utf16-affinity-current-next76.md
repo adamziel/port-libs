@@ -20,9 +20,9 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteSelectExpression.php`
 - `php -l lanes/libsqlite/src/SQLiteLikeCurrentNextCursor.php`
 - `php -l lanes/libsqlite/tests/SQLiteRtrimCollationGlobCursorTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rtrim-collation-glob-cursor.php`
+- `php -l lanes/libsqlite/examples/application-rtrim-collation-glob-cursor.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRtrimCollationGlobCursorTest.php`
-- `php lanes/libsqlite/examples/wordpress-rtrim-collation-glob-cursor.php --self-test`
+- `php lanes/libsqlite/examples/application-rtrim-collation-glob-cursor.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

@@ -20,8 +20,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectSqlNamedWindowSubqueryCurrentSourceNext107Test.php`
 - Result: `1 test files, 46 assertions, 0 failures`
 - PASS lines: `46`
-- `php lanes/libsqlite/examples/wordpress-select-sql-named-window-subquery-current-source-next107.php --self-test`
-- Result: `wordpress-select-sql-named-window-subquery-current-source-next107 self-test passed`
+- `php lanes/libsqlite/examples/application-select-sql-named-window-subquery-current-source-next107.php --self-test`
+- Result: `application-select-sql-named-window-subquery-current-source-next107 self-test passed`
 
 Non-overlap:
 

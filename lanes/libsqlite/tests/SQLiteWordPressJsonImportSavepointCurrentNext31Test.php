@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteWordPressJsonImportSavepointPlan;
+use PortLibs\LibSqlite\SQLiteJsonImportSavepointPlan;
 
 $currentRows = static fn (): array => [
     [
@@ -59,7 +59,7 @@ $mutations = static fn (): array => [
     ],
 ];
 
-$plan = static fn (array $options = [], ?array $rows = null, ?array $steps = null): array => SQLiteWordPressJsonImportSavepointPlan::plan(
+$plan = static fn (array $options = [], ?array $rows = null, ?array $steps = null): array => SQLiteJsonImportSavepointPlan::plan(
     $rows ?? $currentRows(),
     $steps ?? $mutations(),
     array_replace(['page_size' => 512], $options)
@@ -75,7 +75,7 @@ $decodeOption = static function (mixed $value): mixed {
 
 $cases = [
     'status reports partial rollback when one json statement fails' => static fn (): mixed => $plan()['status'],
-    'transaction name defaults to wordpress json import' => static fn (): mixed => $plan()['transaction'],
+    'transaction name defaults to application json import' => static fn (): mixed => $plan()['transaction'],
     'savepoint name defaults to current json batch' => static fn (): mixed => $plan()['savepoint'],
     'page size is preserved' => static fn (): mixed => $plan()['page_size'],
     'two json statements are applied' => static fn (): mixed => count($plan()['applied']),
@@ -142,7 +142,7 @@ $cases = [
     ])['failed'][0]['statement'],
     'invalid page size is rejected' => static function () use ($currentRows, $mutations): mixed {
         try {
-            SQLiteWordPressJsonImportSavepointPlan::plan($currentRows(), $mutations(), ['page_size' => 513]);
+            SQLiteJsonImportSavepointPlan::plan($currentRows(), $mutations(), ['page_size' => 513]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -152,7 +152,7 @@ $cases = [
         $rows = $currentRows();
         $rows[] = $rows[0] + ['option_id' => 200];
         try {
-            SQLiteWordPressJsonImportSavepointPlan::plan($rows, $mutations());
+            SQLiteJsonImportSavepointPlan::plan($rows, $mutations());
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -168,7 +168,7 @@ $cases = [
 
 $expected = [
     'status reports partial rollback when one json statement fails' => 'partial_rollback',
-    'transaction name defaults to wordpress json import' => 'wordpress_json_import',
+    'transaction name defaults to application json import' => 'application_json_import',
     'savepoint name defaults to current json batch' => 'current_json_batch',
     'page size is preserved' => 512,
     'two json statements are applied' => 2,
@@ -209,7 +209,7 @@ $expected = [
     'final jsonb row contains nested accent' => 'green',
     'failed final row remains malformed original text' => '{"enabled":',
     'database bytes changed after applied statements' => true,
-    'savepoint state has transaction frame' => 'wordpress_json_import',
+    'savepoint state has transaction frame' => 'application_json_import',
     'savepoint state has current savepoint frame' => 'current_json_batch',
     'savepoint frame tracks applied pages after failed statement rollback' => [2, 3],
     'failed statement journal is cleared from state' => ['enable_plugin', 'theme_accent'],
@@ -218,7 +218,7 @@ $expected = [
     'rollback to savepoint keeps transaction active' => true,
     'wal rollback to savepoint discards applied frames' => [1, 2],
     'wal rollback to savepoint points at frame before savepoint' => 0,
-    'commit plan includes transaction and savepoint' => ['wordpress_json_import', 'current_json_batch'],
+    'commit plan includes transaction and savepoint' => ['application_json_import', 'current_json_batch'],
     'commit plan commits applied pages only' => [2, 3],
     'commit plan releases one savepoint' => 1,
     'dependencies include json mutation' => true,
@@ -235,7 +235,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress json import savepoint current next31 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application json import savepoint current next31 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

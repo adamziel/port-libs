@@ -3,7 +3,7 @@
 ## Scope
 
 This slice adds a bounded native PHP LIKE prefix planner for SQLite collation
-rules around WordPress `wp_options.option_name` scans. It does not repeat the
+rules around Application `wp_options.option_name` scans. It does not repeat the
 accepted malformed UTF-8 pattern splitter, Unicode GLOB ranges, SELECT ORDER BY
 collation handling, or expression-index collation cursor work.
 

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a bounded current-source diagnostic for resumed WordPress `wp_options` scans shaped like:
+Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a bounded current-source diagnostic for resumed Application `wp_options` scans shaped like:
 
 ```sql
 rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?
@@ -23,11 +23,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 87 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next224.php
-wordpress-utf16-nocase-like-rtrim-current-source-next224 self-test passed
+php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next224.php
+application-utf16-nocase-like-rtrim-current-source-next224 self-test passed
 ```
 
 ## Non-Overlap

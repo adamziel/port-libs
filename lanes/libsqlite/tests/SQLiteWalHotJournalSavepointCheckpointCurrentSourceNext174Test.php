@@ -191,7 +191,7 @@ $cases = [
     'blocked recovery false' => [static fn (): mixed => $plan([], null, 'restart', true)['recovery_admitted'], false],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next174', $plan()['dependencies'], true), true],
     'dependency file resume' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-checkpoint-file-resume', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-hot-journal-savepoint-file-replay', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-hot-journal-savepoint-file-replay', $plan()['dependencies'], true), true],
     'dependency closure text' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap text' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'extends next169'), true],
 ];

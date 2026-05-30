@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for source-next writer handoff after current
 
 This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`. It builds on the accepted next192 reader-validation rows and admits the next writer only after validation tokens still match, pointer-map pages are carried forward before payload pages, leaf freeblock receipts survive the handoff, token chains remain continuous, and fenced tail pages remain blocked from the next writable source.
 
-WordPress smoke: `wordpress-btree-vacuum-pointermap-freeblock-current-source-next196.php` models deleting an overflow-backed copied `wp_options` transient, validating the post-vacuum current source, and carrying the validated header, pointer-map, leaf freeblock, and replacement overflow pages into the next writer source.
+Application smoke: `application-btree-vacuum-pointermap-freeblock-current-source-next196.php` models deleting an overflow-backed copied `wp_options` transient, validating the post-vacuum current source, and carrying the validated header, pointer-map, leaf freeblock, and replacement overflow pages into the next writer source.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext196Test.php`
   - `1 test files, 589 assertions, 0 failures`
   - 109 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next196.php`
-  - `wordpress-btree-vacuum-pointermap-freeblock-current-source-next196 self-test passed`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next196.php`
+  - `application-btree-vacuum-pointermap-freeblock-current-source-next196 self-test passed`
 
 Expected dashboard movement: `phpPass +109` from the new focused test file. Mapped upstream coverage remains unchanged; this is current-source PHP behavior over already mapped B-tree vacuum, pointer-map, freeblock, overflow, and source-next writer inventory.
 

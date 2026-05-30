@@ -14,7 +14,7 @@ comments.
   - Previous accepted rename-table corpus: `1 test files, 50 assertions, 0 failures`
   - Current rename-table plus rename-column corpus: `1 test files, 98 assertions, 0 failures`
   - +48 focused PASS lines from the rename-column index/trigger/view cases.
-- `php lanes/libsqlite/examples/wordpress-alter-rename-trigger-view.php`
+- `php lanes/libsqlite/examples/application-alter-rename-trigger-view.php`
   - Emits copied `wp_options` view, trigger, and index SQL rewritten to
     `wp_options_imported`, plus copied `option_name` dependent index/view/
     trigger SQL rewritten to `option_key`, while preserving object names,

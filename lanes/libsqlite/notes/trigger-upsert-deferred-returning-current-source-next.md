@@ -7,8 +7,8 @@ deferred trigger-side parent-key violation at source release, suppresses the
 attempted current stream, rolls back to the savepoint source, and admits the
 next-source retry rows.
 
-WordPress smoke:
-`wordpress-trigger-upsert-deferred-returning-current-source-next137.php` models
+Application smoke:
+`application-trigger-upsert-deferred-returning-current-source-next137.php` models
 a copied `wp_options` import where plugin trigger rewrites the `siteurl` row
 before `RETURNING`, but deferred source validation rejects the current source
 and the retry source starts from the original savepoint rows.
@@ -18,9 +18,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-upsert-deferred-returning-current-source-next137.php
+php -l lanes/libsqlite/examples/application-trigger-upsert-deferred-returning-current-source-next137.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Test.php
-php lanes/libsqlite/examples/wordpress-trigger-upsert-deferred-returning-current-source-next137.php --self-test
+php lanes/libsqlite/examples/application-trigger-upsert-deferred-returning-current-source-next137.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

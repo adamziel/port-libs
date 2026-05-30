@@ -6,7 +6,7 @@ This cleanup pass consolidates one remaining numbered production method/helper f
 - Renamed `executeNext203()` to `executeCurrentGenerationReceipt()`.
 - Renamed the private `*Next203` helpers used by that entrypoint to descriptive
   current-generation receipt names.
-- Updated the direct focused test and WordPress smoke caller.
+- Updated the direct focused test and Application smoke caller.
 - Kept existing result keys, status strings, dependency labels, and asserted
   payloads stable so this is a naming consolidation only.
 

@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for trigger `RETURNING` streams where parent
 
 - Added `SQLiteTriggerReturningFkSavepointCurrentNext74Plan` for bounded UPDATE execution over copied `wp_options`-style parent rows and metadata child rows.
 - Covers `ON UPDATE CASCADE`, `SET NULL`, immediate `NO ACTION` rollback, deferred `NO ACTION` release with violation evidence, BEFORE trigger `set-new`, BEFORE trigger `RAISE(IGNORE)`, AFTER trigger `RAISE(ROLLBACK)`, committed RETURNING rows, and attempted current-yield diagnostics suppressed by savepoint rollback.
-- Added `wordpress-trigger-returning-fk-savepoint-current-next74.php` as a copied WordPress smoke showing option id rekeying, metadata cascade, and RETURNING old/current key diagnostics.
+- Added `application-trigger-returning-fk-savepoint-current-next74.php` as a copied Application smoke showing option id rekeying, metadata cascade, and RETURNING old/current key diagnostics.
 
 Verification:
 

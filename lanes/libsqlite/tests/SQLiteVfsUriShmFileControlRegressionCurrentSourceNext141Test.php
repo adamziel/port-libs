@@ -10,7 +10,7 @@ $run141 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByt
     'filename' => 'file:/srv/www/wp-content/database/wp%20close.sqlite?mode=rw&cache=shared&role=default',
 ]);
 
-$wordpress = static function () use ($run141): array {
+$application = static function () use ($run141): array {
     static $result = null;
     if ($result === null) {
         $result = $run141([
@@ -66,41 +66,41 @@ $missingClose = static fn (): array => $run141([
     ['op' => 'close', 'source' => 'shm', 'connection' => 'wp-reader'],
 ]);
 
-$tests['vfs uri shm filecontrol regression current source next141 dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-uri-shm-filecontrol-regression-current-source-next141', $wordpress()['dependencies'], true));
-$tests['vfs uri shm filecontrol regression current source next141 uri dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-uri-file-control', $wordpress()['dependencies'], true));
-$tests['vfs uri shm filecontrol regression current source next141 data version dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-file-control-data-version', $wordpress()['dependencies'], true));
-$tests['vfs uri shm filecontrol regression current source next141 final status ok'] = static fn (TestRunner $t) => $t->same('ok', $wordpress()['status']);
-$tests['vfs uri shm filecontrol regression current source next141 event count'] = static fn (TestRunner $t) => $t->same(16, count($wordpress()['events']));
-$tests['vfs uri shm filecontrol regression current source next141 first open shm'] = static fn (TestRunner $t) => $t->same('shm', $wordpress()['events'][0]['source']);
-$tests['vfs uri shm filecontrol regression current source next141 owner decoded'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp close.sqlite', $wordpress()['events'][0]['owner']);
-$tests['vfs uri shm filecontrol regression current source next141 read lock acquired'] = static fn (TestRunner $t) => $t->same('acquired', $wordpress()['events'][1]['status']);
-$tests['vfs uri shm filecontrol regression current source next141 read lock stored'] = static fn (TestRunner $t) => $t->same(['wp-reader' => 'shared'], $wordpress()['events'][1]['next']['owners']['/srv/www/wp-content/database/wp close.sqlite']['shm_locks']['read0']);
-$tests['vfs uri shm filecontrol regression current source next141 uri role reader'] = static fn (TestRunner $t) => $t->same('reader', $wordpress()['events'][2]['value']);
-$tests['vfs uri shm filecontrol regression current source next141 close reports connection'] = static fn (TestRunner $t) => $t->same('wp-reader', $wordpress()['events'][3]['released_connection']);
-$tests['vfs uri shm filecontrol regression current source next141 close reports shm release'] = static fn (TestRunner $t) => $t->same(true, $wordpress()['events'][3]['released_shm_locks']);
-$tests['vfs uri shm filecontrol regression current source next141 close removes read0 holder'] = static fn (TestRunner $t) => $t->same([], $wordpress()['events'][3]['next']['owners']['/srv/www/wp-content/database/wp close.sqlite']['shm_locks']['read0']);
-$tests['vfs uri shm filecontrol regression current source next141 close clears open shm'] = static fn (TestRunner $t) => $t->same(['main' => 0, 'wal' => 0, 'shm' => 0], $wordpress()['events'][3]['next']['open_by_source'] ?? ['main' => 0, 'wal' => 0, 'shm' => 0]);
-$tests['vfs uri shm filecontrol regression current source next141 reopened shm generation one'] = static fn (TestRunner $t) => $t->same(1, $wordpress()['events'][4]['next']['handles']['vfs97-2']['source_generation']);
-$tests['vfs uri shm filecontrol regression current source next141 checkpoint exclusive acquired'] = static fn (TestRunner $t) => $t->same('acquired', $wordpress()['events'][5]['status']);
-$tests['vfs uri shm filecontrol regression current source next141 checkpoint holder stored'] = static fn (TestRunner $t) => $t->same(['wp-checkpoint' => 'exclusive'], $wordpress()['events'][5]['next']['owners']['/srv/www/wp-content/database/wp close.sqlite']['shm_locks']['read0']);
-$tests['vfs uri shm filecontrol regression current source next141 readmark from reopened shm'] = static fn (TestRunner $t) => $t->same(2, $wordpress()['events'][6]['value']);
-$tests['vfs uri shm filecontrol regression current source next141 main open same owner'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp close.sqlite', $wordpress()['events'][7]['owner']);
-$tests['vfs uri shm filecontrol regression current source next141 reserved lock planned'] = static fn (TestRunner $t) => $t->same('planned', $wordpress()['events'][8]['status']);
-$tests['vfs uri shm filecontrol regression current source next141 persist wal ok'] = static fn (TestRunner $t) => $t->same('ok', $wordpress()['events'][9]['status']);
-$tests['vfs uri shm filecontrol regression current source next141 persist wal bumps generation'] = static fn (TestRunner $t) => $t->same(2, $wordpress()['events'][9]['source_generation']);
-$tests['vfs uri shm filecontrol regression current source next141 persist wal marks reopened shm stale'] = static fn (TestRunner $t) => $t->same(['vfs97-2'], $wordpress()['events'][9]['stale_handles']);
-$tests['vfs uri shm filecontrol regression current source next141 source shm selected'] = static fn (TestRunner $t) => $t->same('shm', $wordpress()['events'][10]['source']);
-$tests['vfs uri shm filecontrol regression current source next141 stale shm detects generation'] = static fn (TestRunner $t) => $t->same(true, $wordpress()['events'][11]['stale_current_source']);
-$tests['vfs uri shm filecontrol regression current source next141 stale shm opened generation one'] = static fn (TestRunner $t) => $t->same(1, $wordpress()['events'][11]['opened_generation']);
-$tests['vfs uri shm filecontrol regression current source next141 stale shm current generation two'] = static fn (TestRunner $t) => $t->same(2, $wordpress()['events'][11]['value']);
-$tests['vfs uri shm filecontrol regression current source next141 refresh changed'] = static fn (TestRunner $t) => $t->same(true, $wordpress()['events'][12]['changed']);
-$tests['vfs uri shm filecontrol regression current source next141 refresh clears stale'] = static fn (TestRunner $t) => $t->same(false, $wordpress()['events'][12]['stale_current_source']);
-$tests['vfs uri shm filecontrol regression current source next141 refreshed data version fresh'] = static fn (TestRunner $t) => $t->same(false, $wordpress()['events'][13]['stale_current_source']);
-$tests['vfs uri shm filecontrol regression current source next141 main data version fresh'] = static fn (TestRunner $t) => $t->same(false, $wordpress()['events'][15]['stale_current_source']);
-$tests['vfs uri shm filecontrol regression current source next141 final current source main'] = static fn (TestRunner $t) => $t->same('main', $wordpress()['next']['current_source']);
-$tests['vfs uri shm filecontrol regression current source next141 final open by source'] = static fn (TestRunner $t) => $t->same(['main' => 1, 'wal' => 0, 'shm' => 1], $wordpress()['next']['open_by_source']);
-$tests['vfs uri shm filecontrol regression current source next141 final shm lock count'] = static fn (TestRunner $t) => $t->same(1, $wordpress()['next']['shm_lock_count']);
-$tests['vfs uri shm filecontrol regression current source next141 final control count'] = static fn (TestRunner $t) => $t->same(1, $wordpress()['next']['persistent_control_count']);
+$tests['vfs uri shm filecontrol regression current source next141 dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-uri-shm-filecontrol-regression-current-source-next141', $application()['dependencies'], true));
+$tests['vfs uri shm filecontrol regression current source next141 uri dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-uri-file-control', $application()['dependencies'], true));
+$tests['vfs uri shm filecontrol regression current source next141 data version dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-file-control-data-version', $application()['dependencies'], true));
+$tests['vfs uri shm filecontrol regression current source next141 final status ok'] = static fn (TestRunner $t) => $t->same('ok', $application()['status']);
+$tests['vfs uri shm filecontrol regression current source next141 event count'] = static fn (TestRunner $t) => $t->same(16, count($application()['events']));
+$tests['vfs uri shm filecontrol regression current source next141 first open shm'] = static fn (TestRunner $t) => $t->same('shm', $application()['events'][0]['source']);
+$tests['vfs uri shm filecontrol regression current source next141 owner decoded'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp close.sqlite', $application()['events'][0]['owner']);
+$tests['vfs uri shm filecontrol regression current source next141 read lock acquired'] = static fn (TestRunner $t) => $t->same('acquired', $application()['events'][1]['status']);
+$tests['vfs uri shm filecontrol regression current source next141 read lock stored'] = static fn (TestRunner $t) => $t->same(['wp-reader' => 'shared'], $application()['events'][1]['next']['owners']['/srv/www/wp-content/database/wp close.sqlite']['shm_locks']['read0']);
+$tests['vfs uri shm filecontrol regression current source next141 uri role reader'] = static fn (TestRunner $t) => $t->same('reader', $application()['events'][2]['value']);
+$tests['vfs uri shm filecontrol regression current source next141 close reports connection'] = static fn (TestRunner $t) => $t->same('wp-reader', $application()['events'][3]['released_connection']);
+$tests['vfs uri shm filecontrol regression current source next141 close reports shm release'] = static fn (TestRunner $t) => $t->same(true, $application()['events'][3]['released_shm_locks']);
+$tests['vfs uri shm filecontrol regression current source next141 close removes read0 holder'] = static fn (TestRunner $t) => $t->same([], $application()['events'][3]['next']['owners']['/srv/www/wp-content/database/wp close.sqlite']['shm_locks']['read0']);
+$tests['vfs uri shm filecontrol regression current source next141 close clears open shm'] = static fn (TestRunner $t) => $t->same(['main' => 0, 'wal' => 0, 'shm' => 0], $application()['events'][3]['next']['open_by_source'] ?? ['main' => 0, 'wal' => 0, 'shm' => 0]);
+$tests['vfs uri shm filecontrol regression current source next141 reopened shm generation one'] = static fn (TestRunner $t) => $t->same(1, $application()['events'][4]['next']['handles']['vfs97-2']['source_generation']);
+$tests['vfs uri shm filecontrol regression current source next141 checkpoint exclusive acquired'] = static fn (TestRunner $t) => $t->same('acquired', $application()['events'][5]['status']);
+$tests['vfs uri shm filecontrol regression current source next141 checkpoint holder stored'] = static fn (TestRunner $t) => $t->same(['wp-checkpoint' => 'exclusive'], $application()['events'][5]['next']['owners']['/srv/www/wp-content/database/wp close.sqlite']['shm_locks']['read0']);
+$tests['vfs uri shm filecontrol regression current source next141 readmark from reopened shm'] = static fn (TestRunner $t) => $t->same(2, $application()['events'][6]['value']);
+$tests['vfs uri shm filecontrol regression current source next141 main open same owner'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp close.sqlite', $application()['events'][7]['owner']);
+$tests['vfs uri shm filecontrol regression current source next141 reserved lock planned'] = static fn (TestRunner $t) => $t->same('planned', $application()['events'][8]['status']);
+$tests['vfs uri shm filecontrol regression current source next141 persist wal ok'] = static fn (TestRunner $t) => $t->same('ok', $application()['events'][9]['status']);
+$tests['vfs uri shm filecontrol regression current source next141 persist wal bumps generation'] = static fn (TestRunner $t) => $t->same(2, $application()['events'][9]['source_generation']);
+$tests['vfs uri shm filecontrol regression current source next141 persist wal marks reopened shm stale'] = static fn (TestRunner $t) => $t->same(['vfs97-2'], $application()['events'][9]['stale_handles']);
+$tests['vfs uri shm filecontrol regression current source next141 source shm selected'] = static fn (TestRunner $t) => $t->same('shm', $application()['events'][10]['source']);
+$tests['vfs uri shm filecontrol regression current source next141 stale shm detects generation'] = static fn (TestRunner $t) => $t->same(true, $application()['events'][11]['stale_current_source']);
+$tests['vfs uri shm filecontrol regression current source next141 stale shm opened generation one'] = static fn (TestRunner $t) => $t->same(1, $application()['events'][11]['opened_generation']);
+$tests['vfs uri shm filecontrol regression current source next141 stale shm current generation two'] = static fn (TestRunner $t) => $t->same(2, $application()['events'][11]['value']);
+$tests['vfs uri shm filecontrol regression current source next141 refresh changed'] = static fn (TestRunner $t) => $t->same(true, $application()['events'][12]['changed']);
+$tests['vfs uri shm filecontrol regression current source next141 refresh clears stale'] = static fn (TestRunner $t) => $t->same(false, $application()['events'][12]['stale_current_source']);
+$tests['vfs uri shm filecontrol regression current source next141 refreshed data version fresh'] = static fn (TestRunner $t) => $t->same(false, $application()['events'][13]['stale_current_source']);
+$tests['vfs uri shm filecontrol regression current source next141 main data version fresh'] = static fn (TestRunner $t) => $t->same(false, $application()['events'][15]['stale_current_source']);
+$tests['vfs uri shm filecontrol regression current source next141 final current source main'] = static fn (TestRunner $t) => $t->same('main', $application()['next']['current_source']);
+$tests['vfs uri shm filecontrol regression current source next141 final open by source'] = static fn (TestRunner $t) => $t->same(['main' => 1, 'wal' => 0, 'shm' => 1], $application()['next']['open_by_source']);
+$tests['vfs uri shm filecontrol regression current source next141 final shm lock count'] = static fn (TestRunner $t) => $t->same(1, $application()['next']['shm_lock_count']);
+$tests['vfs uri shm filecontrol regression current source next141 final control count'] = static fn (TestRunner $t) => $t->same(1, $application()['next']['persistent_control_count']);
 
 $tests['vfs uri shm filecontrol regression current source next141 no connection close leaves read lock'] = static fn (TestRunner $t) => $t->same(['wp-reader' => 'shared'], $noConnectionClose()['events'][2]['next']['owners']['/srv/www/wp-content/database/wp blocked.sqlite']['shm_locks']['read0']);
 $tests['vfs uri shm filecontrol regression current source next141 no connection close reports no release'] = static fn (TestRunner $t) => $t->same(false, $noConnectionClose()['events'][2]['released_shm_locks']);

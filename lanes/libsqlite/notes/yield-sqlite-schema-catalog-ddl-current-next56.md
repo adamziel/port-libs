@@ -3,7 +3,7 @@
 ## Behavior
 
 Adds `SQLiteSchemaCatalogDdlPlan`, a bounded current/next `sqlite_schema`
-catalog planner for WordPress migration DDL batches. The slice covers CREATE,
+catalog planner for Application migration DDL batches. The slice covers CREATE,
 DROP, and `ALTER TABLE ... RENAME TO` effects over schema records, preserving
 root pages and rowids for renamed objects, allocating root pages for new table
 and index records, rewriting dependent object `tbl_name` fields, and advancing
@@ -19,10 +19,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaCatalogDdlCurrentNext5
 
 Focused growth: 66 PASS cases from the new test file.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-schema-catalog-ddl-current-next56.php
+php lanes/libsqlite/examples/application-schema-catalog-ddl-current-next56.php
 ```
 
 ## Non-overlap

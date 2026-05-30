@@ -10,10 +10,10 @@ Adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext187Plan`, extending th
   - `1 test files, 59 assertions, 0 failures`
   - 59 PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next187.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next187 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next187.php`
+  - `application-trigger-recursive-view-returning-current-source-next187 self-test passed`
 
 ## Non-Overlap
 

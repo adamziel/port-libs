@@ -21,8 +21,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Focused PASS-line delta: `+47` new independent `TestRunner` PASS cases.
 
 ```text
-php lanes/libsqlite/examples/wordpress-jsonb-index-delete-current-next51.php --self-test
-wordpress-jsonb-index-delete-current-next51 self-test passed
+php lanes/libsqlite/examples/application-jsonb-index-delete-current-next51.php --self-test
+application-jsonb-index-delete-current-next51 self-test passed
 ```
 
 ## Non-overlap

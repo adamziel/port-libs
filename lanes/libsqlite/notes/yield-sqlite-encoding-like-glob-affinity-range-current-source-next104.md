@@ -6,10 +6,10 @@
 - Covers SQLite `LIKE` and `GLOB` option-value scans where scalar values are coerced with text affinity, prefix ranges are exposed for current-source cursors, residual matching is preserved, and current/next invalidation records source, schema-cookie, storage, text, encoded-byte, range-class, and matched-rowset changes.
 - Includes numeric, boolean, SQL NULL, escaped wildcard, Unicode, and malformed UTF-8 guard coverage for copied `wp_options` values.
 
-## WordPress Smoke
+## Application Smoke
 
-- Added `examples/wordpress-like-glob-affinity-range-current-source-next.php`.
-- The smoke models copied WordPress option import diagnostics for plugin option-value LIKE/GLOB range scans and numeric text-affinity changes without requiring `ext/sqlite`.
+- Added `examples/application-like-glob-affinity-range-current-source-next.php`.
+- The smoke models copied Application option import diagnostics for plugin option-value LIKE/GLOB range scans and numeric text-affinity changes without requiring `ext/sqlite`.
 
 ## Verification
 

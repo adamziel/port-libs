@@ -7,7 +7,7 @@ The new behavior keeps current-source yielded RETURNING window rows visible, exp
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext251Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next251.php`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next251.php`
 
 Expected dashboard movement: `phpPass +56` from the new focused test file. `benchmarkDenominator.mapped` is unchanged; this is current-source PHP behavior over already mapped row-value DML, RETURNING, savepoint retry, current-source publication, and window inventory.
 

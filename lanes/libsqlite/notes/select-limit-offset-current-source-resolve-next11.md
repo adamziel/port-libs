@@ -9,7 +9,7 @@ compound SELECT sources before final row slicing.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectLimitOffsetCurrentSourceTest.php`
-- `php lanes/libsqlite/examples/wordpress-select-sql-limit-current-source.php`
+- `php lanes/libsqlite/examples/application-select-sql-limit-current-source.php`
 
 The focused test adds 25 independent PASS cases and 63 assertions for scalar
 subquery LIMIT, OFFSET, comma LIMIT offset/count, arithmetic composition,

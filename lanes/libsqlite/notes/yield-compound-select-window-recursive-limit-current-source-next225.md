@@ -13,7 +13,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext225Test.php`
 - Result: `1 test files, 393 assertions, 0 failures` with 70 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next225.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next225.php`
 - Result: JSON self-test payload emitted with `plugin_prime` in `nextOnlyRows`.
 
 Expected dashboard movement: `phpPass +70` from the new focused test file. `benchmarkDenominator.mapped` remains unchanged because this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory.

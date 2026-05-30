@@ -17,9 +17,9 @@ ORDER BY, or parser-level SELECT text dispatch.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerOrPartialCoveringCurrentNext34Test.php`
 - Result: `1 test files, 69 assertions, 0 failures`
 
-## WordPress smoke
+## Application smoke
 
-- `php lanes/libsqlite/examples/wordpress-planner-or-partial-covering-current-next34.php`
+- `php lanes/libsqlite/examples/application-planner-or-partial-covering-current-next34.php`
 - Reports copied `wp_options` OR predicates where every arm can be served by a
   safe partial covering expression index without a table b-tree fetch.
 

@@ -145,7 +145,7 @@ final class SQLiteAffinityRangeCurrentSourceCursor
      * @param array<string,mixed> $filters
      * @return list<array{key:mixed,rowid:int,payload:array<string,mixed>,position:int,storage:string}>
      */
-    public static function wordpressOptionRange(
+    public static function optionRowRange(
         array $rows,
         string $column,
         mixed $lowerInclusive,
@@ -157,7 +157,7 @@ final class SQLiteAffinityRangeCurrentSourceCursor
         $entries = [];
         foreach ($rows as $index => $row) {
             if (!array_key_exists($column, $row)) {
-                throw new \InvalidArgumentException("WordPress option range row is missing {$column}");
+                throw new \InvalidArgumentException("Application option range row is missing {$column}");
             }
             foreach ($filters as $filterColumn => $expected) {
                 if (!array_key_exists($filterColumn, $row) || $row[$filterColumn] !== $expected) {

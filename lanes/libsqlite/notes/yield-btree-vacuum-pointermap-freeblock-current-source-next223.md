@@ -6,7 +6,7 @@
 - Builds on next218 per-page write receipts and publishes current-source source receipts for those pages.
 - Confirms pointer-map source receipts are visible before payload source receipts for each vacuum cursor.
 - Carries secure-delete freeblock receipts and keeps fenced vacuum tail pages out of the source publication set.
-- Adds WordPress smoke coverage for deleting an overflow-backed copied `wp_options` transient before vacuum source publication.
+- Adds Application smoke coverage for deleting an overflow-backed copied `wp_options` transient before vacuum source publication.
 
 ## Non-overlap
 
@@ -25,11 +25,11 @@ Focused test run: 1 selected test files (root lock skipped)
 
 PASS-line delta: `+148` focused PASS lines.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next223.php
-wordpress-btree-vacuum-pointermap-freeblock-current-source-next223 self-test passed
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next223.php
+application-btree-vacuum-pointermap-freeblock-current-source-next223 self-test passed
 ```
 
 Dependency closure: no new support component needed; next223 reuses native B-tree page parsing, pointer-map metadata, next218 write receipts, and existing current-source fixtures.

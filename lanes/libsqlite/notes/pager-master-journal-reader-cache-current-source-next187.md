@@ -8,8 +8,8 @@ without repeating them: after a complete current master-journal read, cache
 entries built from a prefix master-journal byte span are rejected when they lack
 attached journal members or current member ordinals.
 
-WordPress smoke:
-`wordpress-pager-master-journal-reader-cache-current-source-next187.php` covers
+Application smoke:
+`application-pager-master-journal-reader-cache-current-source-next187.php` covers
 a copied `wp_options` recovery where `active_plugins` was cached from a prefix
 master-journal read that saw only the main journal before the attached metadata
 journal member became visible. The next read misses cache and reopens, while

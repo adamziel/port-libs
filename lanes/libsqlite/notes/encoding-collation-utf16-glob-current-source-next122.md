@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for UTF-16 GLOB current-source literal brack
 
 This slice fixes `SQLiteDatabase::globPrefixRangeBounds()` so unmatched `[` is treated like SQLite's GLOB matcher treats it: a literal byte in the fixed prefix, not an automatic character-class opener. Valid bracket classes still stop prefix planning at the class boundary.
 
-WordPress path: `wordpress-utf16-glob-literal-bracket-current-source-next122.php` models copied `wp_options` plugin keys containing literal bracket markers such as `plugin_[draft]`, where a prepared UTF-16 GLOB scan must keep a narrow range across a current/next source transition and report range-byte invalidation when the cursor encoding changes.
+Application path: `application-utf16-glob-literal-bracket-current-source-next122.php` models copied `wp_options` plugin keys containing literal bracket markers such as `plugin_[draft]`, where a prepared UTF-16 GLOB scan must keep a narrow range across a current/next source transition and report range-byte invalidation when the cursor encoding changes.
 
 Verification:
 
 - `php -l lanes/libsqlite/tests/SQLiteUtf16GlobLiteralBracketCurrentSourceNext122Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16GlobLiteralBracketCurrentSourceNext122Test.php`
   - `1 test files, 51 assertions, 0 failures`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-glob-literal-bracket-current-source-next122.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-glob-literal-bracket-current-source-next122.php --self-test`
-  - `wordpress-utf16-glob-literal-bracket-current-source-next122 self-test passed`
+- `php -l lanes/libsqlite/examples/application-utf16-glob-literal-bracket-current-source-next122.php`
+- `php lanes/libsqlite/examples/application-utf16-glob-literal-bracket-current-source-next122.php --self-test`
+  - `application-utf16-glob-literal-bracket-current-source-next122 self-test passed`
 
 PASS delta: `+51` focused assertions. `lane-status.json` `phpPass` moves from `47656` to `47707`. Mapped upstream coverage remains `604 / 1589`; this reuses already mapped GLOB, UTF-16 range encoding, and current-source invalidation inventory.
 

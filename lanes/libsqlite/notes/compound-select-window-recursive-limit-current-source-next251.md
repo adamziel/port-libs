@@ -4,14 +4,14 @@ Status: focused PHP behavior growth for current-source compound SELECTs where a 
 
 This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next248 next-source promotion receipts. The new fence binds promotion to the `UNION ALL` / `INTERSECT` / `EXCEPT` operator sequence, final current/next page ordinals, labels, ids, metrics, recursive lineage, and next248 promotion token. Stale audit tokens, stale signatures, missing receipts, unexpected receipts, and non-list receipts reject admission.
 
-WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next251.php` models copied `wp_options` rows where a new autoloaded plugin option changes the final compound page. The next source remains held until the operator/final-page audit matches the replayed current result and next delta.
+Application path: `application-compound-select-window-recursive-limit-current-source-next251.php` models copied `wp_options` rows where a new autoloaded plugin option changes the final compound page. The next source remains held until the operator/final-page audit matches the replayed current result and next delta.
 
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext251Test.php`
   - Result: `1 test files, 454 assertions, 0 failures` with `85` PASS lines.
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next251.php --self-test`
-  - Result: `wordpress-compound-select-window-recursive-limit-current-source-next251 self-test passed`.
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next251.php --self-test`
+  - Result: `application-compound-select-window-recursive-limit-current-source-next251 self-test passed`.
 
 Expected dashboard movement: `phpPass +85` from focused lane-local PASS lines. Mapped upstream coverage remains unchanged; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory.
 

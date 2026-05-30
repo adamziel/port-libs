@@ -103,7 +103,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('admit_checkpoint_current_source_next229', $plan()['operation_names'], true), true],
     'dependency next224 inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next224', $plan()['dependencies'], true), true],
     'dependency next229 added' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next229', $plan()['dependencies'], true), true],
-    'wordpress dependency added' => [static fn (): mixed => in_array('wordpress-import-hot-journal-savepoint-checkpoint-reopen', $plan()['dependencies'], true), true],
+    'application dependency added' => [static fn (): mixed => in_array('application-import-hot-journal-savepoint-checkpoint-reopen', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat reset admission'), true],
     'stale token blocked' => [static fn (): mixed => $blockedHandle(['source_token' => 'old-source'])['blocked_handle_reasons'], ['handle_source_token_mismatch']],

@@ -10,9 +10,9 @@ Focused evidence:
 - Result: `1 test files, 67 assertions, 0 failures`
 - PASS-line delta: `+52`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-pager-rollback-journal-current.php --self-test`
+- `php lanes/libsqlite/examples/application-pager-rollback-journal-current.php --self-test`
 
 Dependency closure: no new support component needed; this reuses lane-local
 rollback journal parsing, checksum validation, and pager current-page image

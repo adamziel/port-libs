@@ -12,9 +12,9 @@ This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext239Plan`, 
 - Expected `phpPass`: `119121 -> 119259`
 - Mapped coverage: unchanged at `642 / 1589`
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next239.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next239.php`
 - Covers a `wp_options` transient delete with overflow cleanup where pointer-map page `105` is visited twice and must drain before payload/freeblock reuse.
 
 ## Non-Overlap

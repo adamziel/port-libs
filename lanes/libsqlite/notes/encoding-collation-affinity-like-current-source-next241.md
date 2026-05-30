@@ -4,7 +4,7 @@
 
 Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan`, a byte-aware
 current-source cursor audit for `option_name COLLATE NOCASE LIKE ? ESCAPE ?`
-over copied WordPress `wp_options` rows.
+over copied Application `wp_options` rows.
 
 The slice covers embedded-NUL option names and malformed UTF-8 byte strings as
 SQLite LIKE text tokens, not C-string terminators. It records prefix range
@@ -16,11 +16,11 @@ current and next sources.
 
 - `php -l lanes/libsqlite/src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-encoding-collation-affinity-like-current-source-next241.php`
+- `php -l lanes/libsqlite/examples/application-encoding-collation-affinity-like-current-source-next241.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Test.php`
   - `1 test files, 74 assertions, 0 failures`
   - `66` PASS lines
-- `php lanes/libsqlite/examples/wordpress-encoding-collation-affinity-like-current-source-next241.php`
+- `php lanes/libsqlite/examples/application-encoding-collation-affinity-like-current-source-next241.php`
 
 ## Non-Overlap
 

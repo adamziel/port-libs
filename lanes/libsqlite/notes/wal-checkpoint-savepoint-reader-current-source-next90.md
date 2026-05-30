@@ -10,9 +10,9 @@ The planner now reports exact frame-source rows with frame index, page number, c
 
 This does not repeat accepted WAL byte truncation, savepoint rollback application, checkpoint transaction planning, reader-pin restart/truncate handoff, or batch88 WAL reader checkpoint/truncate visibility. It only tightens the current-source proof for a pinned-reader savepoint rollback/checkpoint path and adds frame-level source evidence.
 
-## WordPress Smoke
+## Application Smoke
 
-`examples/wordpress-wal-checkpoint-savepoint-reader-current-source-next90.php` models a copied `wp_options` import where a failed `plugin-settings` savepoint rolls back while a reader remains pinned. The smoke proves the checkpoint remains busy, preserves the retained WAL prefix, and exposes exact frame-source rows for repair diagnostics.
+`examples/application-wal-checkpoint-savepoint-reader-current-source-next90.php` models a copied `wp_options` import where a failed `plugin-settings` savepoint rolls back while a reader remains pinned. The smoke proves the checkpoint remains busy, preserves the retained WAL prefix, and exposes exact frame-source rows for repair diagnostics.
 
 ## Verification
 

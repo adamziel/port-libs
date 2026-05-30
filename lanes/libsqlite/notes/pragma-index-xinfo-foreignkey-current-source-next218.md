@@ -3,16 +3,16 @@
 This slice adds a current-source PRAGMA diagnostic for SQLite's `RESTRICT`
 timing rule on deferrable foreign keys. SQLite still applies `ON DELETE
 RESTRICT` and `ON UPDATE RESTRICT` immediately, even when the constraint is
-`DEFERRABLE INITIALLY DEFERRED`; copied WordPress schema-repair tooling needs
+`DEFERRABLE INITIALLY DEFERRED`; copied Application schema-repair tooling needs
 that distinction before assuming all deferrable FK work can wait until commit.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next218.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next218.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next218.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next218.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

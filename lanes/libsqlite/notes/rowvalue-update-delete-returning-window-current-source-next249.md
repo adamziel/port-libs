@@ -4,7 +4,7 @@
 
 - Adds `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext249Plan` for row-value `UPDATE`/`DELETE ... RETURNING` streams that yield current-source window rows in acknowledgement chunks before retry rows are exposed.
 - The slice records window sequence tokens, lag/lead RETURNING tickets, chunk resume tokens, and a held/resumed next-source gate for missing or unexpected current-source acknowledgements.
-- WordPress path: copied `wp_options` imports can checkpoint row-value RETURNING windows in bounded chunks and resume retried option rows only after the current-source yield rows are complete.
+- Application path: copied `wp_options` imports can checkpoint row-value RETURNING windows in bounded chunks and resume retried option rows only after the current-source yield rows are complete.
 
 ## Non-Overlap
 
@@ -21,13 +21,13 @@
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext249Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueChunkedYieldResumeWindowTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueChunkedYieldResumeWindowTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-chunked-yield-resume-window.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-chunked-yield-resume-window.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-chunked-yield-resume-window.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-rowvalue-chunked-yield-resume-window.php`
 - `php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'`
   - `lane-status json ok`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueChunkedYieldResumeWindowTest.php`
   - `1 test files, 60 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-chunked-yield-resume-window.php`
+- `php lanes/libsqlite/examples/application-rowvalue-chunked-yield-resume-window.php`
   - exited `0`
 - `git diff --check -- lanes/libsqlite`
   - exited `0`

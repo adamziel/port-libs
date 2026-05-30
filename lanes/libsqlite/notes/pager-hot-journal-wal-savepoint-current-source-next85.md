@@ -11,7 +11,7 @@ This avoids the accepted hot-journal apply, WAL byte-truncation, VFS savepoint r
 - Focused command: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalWalSavepointCurrentSourceNext85Test.php`
 - Result: `1 test files, 64 assertions, 0 failures`
 - New focused PASS lines: `64`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-pager-hot-journal-wal-savepoint-current-source-next85.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-pager-hot-journal-wal-savepoint-current-source-next85.php --self-test`
 
 ## Dependency Closure
 

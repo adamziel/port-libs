@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressSchemaImportSavepointPlan;
+use PortLibs\LibSqlite\SQLiteSchemaImportSavepointPlan;
 
 $batches = static fn (): array => [
     [
@@ -53,7 +53,7 @@ SQL,
     ],
 ];
 
-$plan = static fn (array $extra = [], ?array $sourceBatches = null): array => SQLiteWordPressSchemaImportSavepointPlan::plan(
+$plan = static fn (array $extra = [], ?array $sourceBatches = null): array => SQLiteSchemaImportSavepointPlan::plan(
     ['wp_commentmeta' => ['type' => 'table', 'sql' => 'CREATE TABLE wp_commentmeta(meta_id INTEGER);']],
     $sourceBatches ?? $batches(),
     array_replace(['schema_version' => 30, 'data_version' => 6, 'next_rootpage' => 12, 'page_size' => 1024], $extra)
@@ -124,11 +124,11 @@ $cases = [
     'post batch schema version starts after open plugin batch' => static fn (): mixed => $valueAt($plan(), 'batches.3.schema_version_before'),
     'post batch data version starts after open plugin batch' => static fn (): mixed => $valueAt($plan(), 'batches.3.data_version_before'),
     'savepoint state keeps open plugin savepoint' => static fn (): mixed => count($plan()['savepoint_state']),
-    'dependency includes schema import savepoint marker' => static fn (): mixed => in_array('sqlite-wordpress-schema-import-savepoint-current', $plan()['dependencies'], true),
+    'dependency includes schema import savepoint marker' => static fn (): mixed => in_array('sqlite-application-schema-import-savepoint-current', $plan()['dependencies'], true),
     'dependency includes savepoint rollback marker' => static fn (): mixed => in_array('sqlite-savepoint-current-rollback', $plan()['dependencies'], true),
     'empty batch list rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaImportSavepointPlan::plan([], []);
+            SQLiteSchemaImportSavepointPlan::plan([], []);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -136,7 +136,7 @@ $cases = [
     },
     'bad savepoint name rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaImportSavepointPlan::plan([], [['name' => 'bad-name', 'dump' => 'CREATE TABLE x(id);']]);
+            SQLiteSchemaImportSavepointPlan::plan([], [['name' => 'bad-name', 'dump' => 'CREATE TABLE x(id);']]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -144,7 +144,7 @@ $cases = [
     },
     'missing SQL dump rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaImportSavepointPlan::plan([], [['name' => 'missing']]);
+            SQLiteSchemaImportSavepointPlan::plan([], [['name' => 'missing']]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -152,7 +152,7 @@ $cases = [
     },
     'bad on error action rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaImportSavepointPlan::plan([], [['name' => 'b', 'dump' => 'CREATE TABLE x(id);', 'on_error' => 'ignore']]);
+            SQLiteSchemaImportSavepointPlan::plan([], [['name' => 'b', 'dump' => 'CREATE TABLE x(id);', 'on_error' => 'ignore']]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -168,7 +168,7 @@ $cases = [
     },
     'abort on duplicate rethrows' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaImportSavepointPlan::plan(['wp_options' => []], [[
+            SQLiteSchemaImportSavepointPlan::plan(['wp_options' => []], [[
                 'name' => 'abort_duplicate',
                 'dump' => 'CREATE TABLE wp_options(id INTEGER);',
                 'on_error' => 'abort',
@@ -178,15 +178,15 @@ $cases = [
         }
         return 'missed';
     },
-    'if not exists duplicate skips and releases' => static fn (): mixed => SQLiteWordPressSchemaImportSavepointPlan::plan(['wp_options' => []], [[
+    'if not exists duplicate skips and releases' => static fn (): mixed => SQLiteSchemaImportSavepointPlan::plan(['wp_options' => []], [[
         'name' => 'skip_existing',
         'dump' => 'CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);',
     ]])['batches'][0]['status'],
-    'if not exists duplicate increments no schema version' => static fn (): mixed => SQLiteWordPressSchemaImportSavepointPlan::plan(['wp_options' => []], [[
+    'if not exists duplicate increments no schema version' => static fn (): mixed => SQLiteSchemaImportSavepointPlan::plan(['wp_options' => []], [[
         'name' => 'skip_existing',
         'dump' => 'CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);',
     ]], ['schema_version' => 4])['schema_version_after'],
-    'if not exists duplicate creates no dirty pages' => static fn (): mixed => SQLiteWordPressSchemaImportSavepointPlan::plan(['wp_options' => []], [[
+    'if not exists duplicate creates no dirty pages' => static fn (): mixed => SQLiteSchemaImportSavepointPlan::plan(['wp_options' => []], [[
         'name' => 'skip_existing',
         'dump' => 'CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);',
     ]])['dirty_pages'],
@@ -257,7 +257,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress schema import savepoint current next40 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application schema import savepoint current next40 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

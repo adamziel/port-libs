@@ -22,8 +22,8 @@ Focused verification:
 php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159Test.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyImplicitParentCurrentSourceNext162Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next159.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next159.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162.php
 # all reported no syntax errors
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159Test.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyImplicitParentCurrentSourceNext162Test.php
@@ -32,11 +32,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCu
 php tools/run-tests.php $(rg --files lanes/libsqlite/tests | rg 'SQLitePragmaIndexXinfoForeignKey.*CurrentSourceNext.*Test\.php' | sort)
 # 169 test files, 13929 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next159.php
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next159.php
 # status ok, next_ready true, delta_total_blockers -3
 
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162.php --self-test
-# wordpress-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162 self-test passed
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162.php --self-test
+# application-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162 self-test passed
 
 git diff --check -- lanes/libsqlite
 # clean

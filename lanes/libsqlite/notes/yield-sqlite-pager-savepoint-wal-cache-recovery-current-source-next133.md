@@ -10,7 +10,7 @@ The behavior modeled here is current-source pager cache validation: cache pages 
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointWalCacheRecoveryCurrentSourceNext133Test.php`
   - `1 test files, 81 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-savepoint-wal-cache-recovery-current-source-next133.php`
+- `php lanes/libsqlite/examples/application-pager-savepoint-wal-cache-recovery-current-source-next133.php`
   - emits `status: pager-savepoint-wal-cache-recovery-current-source-next133`
 
 ## Dashboard delta

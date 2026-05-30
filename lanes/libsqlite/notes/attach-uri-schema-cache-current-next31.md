@@ -26,8 +26,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-attach-uri-schema-cache-current-next31.php --self-test
-wordpress-attach-uri-schema-cache-current-next31 self-test passed
+php lanes/libsqlite/examples/application-attach-uri-schema-cache-current-next31.php --self-test
+application-attach-uri-schema-cache-current-next31 self-test passed
 ```
 
 ## Non-overlap

@@ -13,7 +13,7 @@ records whose bodies read generated columns, generated-column indexes, or views.
   sqlite_schema reparse. It does not repeat accepted `ALTER TABLE ADD COLUMN`
   dependent view/trigger reparse, generated-index view reparse, attach/temp
   schema-cache invalidation, or table rename/rename-column token rewriting.
-- WordPress smoke covers copied `wp_options` migration triggers that audit
+- Application smoke covers copied `wp_options` migration triggers that audit
   generated-column index reads and generated-column view reads before stale
   prepared import statements resume.
 
@@ -34,13 +34,13 @@ Result:
 Example smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-schema-view-trigger-index-reparse-current-source-next135.php --self-test
+php lanes/libsqlite/examples/application-schema-view-trigger-index-reparse-current-source-next135.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-schema-view-trigger-index-reparse-current-source-next135 self-test passed
+application-schema-view-trigger-index-reparse-current-source-next135 self-test passed
 ```
 
 ## Dashboard Delta

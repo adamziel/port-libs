@@ -27,10 +27,10 @@ Focused test run: 1 selected test files (root lock skipped)
 The focused run emits 50 PASS lines, so `lane-status.json` moves `phpPass`
 from 10687 to 10737.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-planner-skipscan-current-next31.php
+php lanes/libsqlite/examples/application-select-planner-skipscan-current-next31.php
 ```
 
 Dependency closure: no new support component is needed. The slice reuses the

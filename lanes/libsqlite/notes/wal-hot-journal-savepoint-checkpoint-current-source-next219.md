@@ -15,8 +15,8 @@ scope readers do not overlap stale readers still fenced for reopen.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Test.php`
 - Result: `1 test files, 62 assertions, 0 failures`
 - PASS-line delta: `+62`
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next219.php`
+- Application smoke:
+  `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next219.php`
 
 ## Non-overlap
 

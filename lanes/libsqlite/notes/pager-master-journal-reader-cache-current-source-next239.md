@@ -4,17 +4,17 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It layers a shared schema-cache generation fence after the accepted next236 schema-reparse admission. A reader-cache page that already passes master-journal cleanup, reader lease, pager-cache-source, read-transaction, and schema-reparse checks still reopens when its shared-cache generation token predates the recovered current source.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next239.php` models copied `wp_options` import behavior where the schema page remains cached, but stale option-root and `active_plugins` readers reopen after master-journal recovery before plugin import continues.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next239.php` models copied `wp_options` import behavior where the schema page remains cached, but stale option-root and `active_plugins` readers reopen after master-journal recovery before plugin import continues.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext239Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next239.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next239.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext239Test.php`
   - `1 test files, 81 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next239.php`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next239 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next239.php`
+  - `application-pager-master-journal-reader-cache-current-source-next239 self-test passed`
 
 Expected dashboard delta: `phpPass` moves from `119121` to `119202` from 81 newly passing focused PASS lines. Mapped upstream coverage remains `642 / 1589`; this is focused pager reader-cache current-source behavior over existing master-journal inventory rather than a fresh manifest row.
 

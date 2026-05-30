@@ -1,7 +1,7 @@
 # PRAGMA foreign key pointer-map integrity current next52
 
 This slice adds `SQLitePragmaForeignKeyPointerMapIntegrityYield`, a bounded
-current/next52 yield over the two integrity surfaces a WordPress import repair
+current/next52 yield over the two integrity surfaces a Application import repair
 screen needs to page together: pointer-map/freelist integrity diagnostics and
 `PRAGMA foreign_key_check` rows. The row shape keeps pointer-map page metadata
 and foreign-key schema/table/rowid metadata in one cursor without materializing
@@ -13,9 +13,9 @@ Verification:
   - Result: `1 test files, 84 assertions, 0 failures`.
 - `php -l lanes/libsqlite/src/SQLitePragmaForeignKeyPointerMapIntegrityYield.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaForeignKeyPointerMapIntegrityCurrentNext52Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-foreignkey-pointermap-integrity-current-next52.php`
+- `php -l lanes/libsqlite/examples/application-pragma-foreignkey-pointermap-integrity-current-next52.php`
   - Result: no syntax errors in all three changed PHP files.
-- `php lanes/libsqlite/examples/wordpress-pragma-foreignkey-pointermap-integrity-current-next52.php`
+- `php lanes/libsqlite/examples/application-pragma-foreignkey-pointermap-integrity-current-next52.php`
   - Result: `status=ok`, `count=52`, `total=55`, `next_offset=52`,
     `integrity_pointer_map=53`, `foreign_key_violations=2`.
 - `git diff --check -- lanes/libsqlite`

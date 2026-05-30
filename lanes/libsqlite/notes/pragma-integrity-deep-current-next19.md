@@ -13,10 +13,10 @@ Verification from this worktree:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityDeepCurrentNext19Test.php`: `1 test files, 31 assertions, 0 failures` with 31 PASS lines.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityQuickCheckCorpusTest.php lanes/libsqlite/tests/SQLitePragmaIntegrityDeepCurrentNext19Test.php`: `2 test files, 65 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-quickcheck.php`: printed quick-check `ok`, limited header corruption, and deep b-tree `ok` rows for copied `wp_options`-style page images.
+- `php lanes/libsqlite/examples/application-pragma-integrity-quickcheck.php`: printed quick-check `ok`, limited header corruption, and deep b-tree `ok` rows for copied `wp_options`-style page images.
 - `php -l lanes/libsqlite/src/SQLitePragmaIntegrityCheck.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLitePragmaIntegrityDeepCurrentNext19Test.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-pragma-integrity-quickcheck.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/application-pragma-integrity-quickcheck.php`: no syntax errors.
 - `git diff --check -- lanes/libsqlite`: no whitespace errors.
 
 Dashboard delta:

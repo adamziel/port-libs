@@ -19,13 +19,13 @@ The matching private fence and cursor-program helpers were renamed to the same d
 
 ## Direct Callers
 
-Renamed the five focused test files and five WordPress smoke examples to descriptive prepared-handoff continuation names, then updated their direct calls to the canonical unsuffixed production methods.
+Renamed the five focused test files and five Application smoke examples to descriptive prepared-handoff continuation names, then updated their direct calls to the canonical unsuffixed production methods.
 
 ## Verification
 
 - `php -l` on the changed production class, five renamed tests, and five renamed examples: pass.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFirstContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffSecondContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffThirdContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFourthContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFifthContinuationTest.php`: `5 test files, 195 assertions, 0 failures`.
-- All five renamed WordPress examples passed `--self-test`.
+- All five renamed Application examples passed `--self-test`.
 
 ## Dependency Closure
 

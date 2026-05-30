@@ -6,9 +6,9 @@ Focused coverage:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeTransactionVirtualBranchFenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-transaction-virtual-branch-fence.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-transaction-virtual-branch-fence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeTransactionVirtualBranchFenceTest.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-transaction-virtual-branch-fence.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-transaction-virtual-branch-fence.php`
 
 Non-overlap: consolidates the already accepted statement VDBE transaction and virtual-table branch fence surface without changing WAL, VFS, B-tree, JSON, SQL executor, PRAGMA, trigger, encoding, or earlier reader-cache behavior.
 

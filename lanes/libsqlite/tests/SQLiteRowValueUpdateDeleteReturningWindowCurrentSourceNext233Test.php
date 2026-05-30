@@ -118,7 +118,7 @@ $cases233 = [
     'plan wp options row count after release' => [static fn (): mixed => $plan233()['row_counts']['wp_options'], 8],
     'plan dependency rowvalue window' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-window-next233', $plan233()['dependencies'], true), true],
     'plan dependency release' => [static fn (): mixed => in_array('sqlite-returning-window-rollback-to-release-current-source-next233', $plan233()['dependencies'], true), true],
-    'plan dependency wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-current-source-next233', $plan233()['dependencies'], true), true],
+    'plan dependency application' => [static fn (): mixed => in_array('application-rowvalue-returning-window-current-source-next233', $plan233()['dependencies'], true), true],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan233()['dependency_closure_next233'], 'no new support component needed'), true],
     'plan non overlap mentions next229' => [static fn (): mixed => str_contains($plan233()['non_overlap_next233'], 'next229'), true],
     'custom plan savepoint' => [static fn (): mixed => $customPlan233()['savepoint'], 'custom_window_233'],

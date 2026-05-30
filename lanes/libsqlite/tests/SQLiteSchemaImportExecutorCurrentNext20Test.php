@@ -17,7 +17,7 @@ $recordByName = static function (array $records, string $name): SQLiteSchemaReco
     throw new RuntimeException("Missing schema record {$name}");
 };
 
-$wordpressSchema = <<<'SQL'
+$applicationSchema = <<<'SQL'
 CREATE TABLE wp_options(
     option_id INTEGER PRIMARY KEY,
     option_name TEXT NOT NULL UNIQUE,
@@ -43,30 +43,30 @@ CREATE TABLE archive.wp_options_archive(
 SQL;
 
 return [
-    'wordpress schema import executes all statements' => static function (TestRunner $t) use ($wordpressSchema): void {
+    'application schema import executes all statements' => static function (TestRunner $t) use ($applicationSchema): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $result = $executor->executeScript($wordpressSchema, 'main');
+        $result = $executor->executeScript($applicationSchema, 'main');
         $t->same('ok', $result['status']);
         $t->same(6, count($result['statements']));
     },
-    'main schema receives wp_options table and explicit indexes' => static function (TestRunner $t) use ($wordpressSchema, $recordNames, $recordTypes): void {
+    'main schema receives wp_options table and explicit indexes' => static function (TestRunner $t) use ($applicationSchema, $recordNames, $recordTypes): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $records = $executor->schemaRecords('main');
         $t->same(['wp_options', 'sqlite_autoindex_wp_options_1', 'sqlite_autoindex_wp_options_2', 'wp_options_autoload_name', 'wp_options_name_value'], $recordNames($records));
         $t->same(['table', 'index', 'index', 'index', 'index'], $recordTypes($records));
     },
-    'main table record preserves original create sql' => static function (TestRunner $t) use ($wordpressSchema, $recordByName): void {
+    'main table record preserves original create sql' => static function (TestRunner $t) use ($applicationSchema, $recordByName): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $table = $recordByName($executor->schemaRecords('main'), 'wp_options');
         $t->same('table', $table->type);
         $t->same('wp_options', $table->tableName);
         $t->same(true, str_contains($table->sql ?? '', 'CHECK(autoload IN'));
     },
-    'main autoindexes are generated for inline primary key and unique constraints' => static function (TestRunner $t) use ($wordpressSchema, $recordByName): void {
+    'main autoindexes are generated for inline primary key and unique constraints' => static function (TestRunner $t) use ($applicationSchema, $recordByName): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $primary = $recordByName($executor->schemaRecords('main'), 'sqlite_autoindex_wp_options_1');
         $unique = $recordByName($executor->schemaRecords('main'), 'sqlite_autoindex_wp_options_2');
         $t->same('index', $primary->type);
@@ -76,9 +76,9 @@ return [
         $t->same('wp_options', $unique->tableName);
         $t->same(null, $unique->sql);
     },
-    'explicit indexes preserve target table and uniqueness' => static function (TestRunner $t) use ($wordpressSchema, $recordByName): void {
+    'explicit indexes preserve target table and uniqueness' => static function (TestRunner $t) use ($applicationSchema, $recordByName): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $plans = $executor->executeScript($wordpressSchema, 'main')['statements'];
+        $plans = $executor->executeScript($applicationSchema, 'main')['statements'];
         $plain = $recordByName($executor->schemaRecords('main'), 'wp_options_autoload_name');
         $unique = $recordByName($executor->schemaRecords('main'), 'wp_options_name_value');
         $t->same('wp_options', $plain->tableName);
@@ -87,37 +87,37 @@ return [
         $t->same(true, $plans[2]['unique']);
         $t->same(true, str_starts_with($unique->sql ?? '', 'CREATE UNIQUE INDEX'));
     },
-    'root pages are allocated monotonically per schema' => static function (TestRunner $t) use ($wordpressSchema): void {
+    'root pages are allocated monotonically per schema' => static function (TestRunner $t) use ($applicationSchema): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $rootPages = array_map(static fn (SQLiteSchemaRecord $record): ?int => $record->rootPage, $executor->schemaRecords('main'));
         $t->same([2, 3, 4, 5, 6], $rootPages);
     },
-    'rowids are allocated monotonically per schema' => static function (TestRunner $t) use ($wordpressSchema): void {
+    'rowids are allocated monotonically per schema' => static function (TestRunner $t) use ($applicationSchema): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $rowIds = array_map(static fn (SQLiteSchemaRecord $record): int => $record->rowId, $executor->schemaRecords('main'));
         $t->same([1, 2, 3, 4, 5], $rowIds);
     },
-    'temp schema receives temporary staging table and index' => static function (TestRunner $t) use ($wordpressSchema, $recordNames): void {
+    'temp schema receives temporary staging table and index' => static function (TestRunner $t) use ($applicationSchema, $recordNames): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $t->same(['wp_options_stage', 'sqlite_autoindex_wp_options_stage_1', 'sqlite_autoindex_wp_options_stage_2', 'wp_options_stage_source'], $recordNames($executor->schemaRecords('temp')));
     },
-    'temp schema root pages are independent from main' => static function (TestRunner $t) use ($wordpressSchema): void {
+    'temp schema root pages are independent from main' => static function (TestRunner $t) use ($applicationSchema): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $rootPages = array_map(static fn (SQLiteSchemaRecord $record): ?int => $record->rootPage, $executor->schemaRecords('temp'));
         $t->same([2, 3, 4, 5], $rootPages);
     },
-    'attached schema is created on demand for qualified table' => static function (TestRunner $t) use ($wordpressSchema, $recordNames): void {
+    'attached schema is created on demand for qualified table' => static function (TestRunner $t) use ($applicationSchema, $recordNames): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $t->same(['wp_options_archive', 'sqlite_autoindex_wp_options_archive_1', 'sqlite_autoindex_wp_options_archive_2'], $recordNames($executor->schemaRecords('archive')));
     },
-    'attached table constraints create independent autoindexes' => static function (TestRunner $t) use ($wordpressSchema, $recordByName): void {
+    'attached table constraints create independent autoindexes' => static function (TestRunner $t) use ($applicationSchema, $recordByName): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $records = $executor->schemaRecords('archive');
         $t->same('wp_options_archive', $recordByName($records, 'sqlite_autoindex_wp_options_archive_1')->tableName);
         $t->same('wp_options_archive', $recordByName($records, 'sqlite_autoindex_wp_options_archive_2')->tableName);
@@ -198,23 +198,23 @@ return [
         $t->same(true, in_array('wp options', array_map(static fn (SQLiteSchemaRecord $record): string => $record->name, $records), true));
         $t->same('wp options', $recordByName($records, 'wp options name')->tableName);
     },
-    'catalog handoff exposes imported table info' => static function (TestRunner $t) use ($wordpressSchema): void {
+    'catalog handoff exposes imported table info' => static function (TestRunner $t) use ($applicationSchema): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $pragma = $executor->catalog()->executeSchemaPragma('PRAGMA table_info(wp_options)');
         $t->same('main', $pragma['schema']);
         $t->same(['option_id', 'option_name', 'option_value', 'autoload'], array_column($pragma['rows'], 'name'));
     },
-    'catalog handoff exposes temp table shadowing' => static function (TestRunner $t) use ($wordpressSchema): void {
+    'catalog handoff exposes temp table shadowing' => static function (TestRunner $t) use ($applicationSchema): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $pragma = $executor->catalog()->executeSchemaPragma('PRAGMA table_info(wp_options_stage)');
         $t->same('temp', $pragma['schema']);
         $t->same(['option_name', 'option_value', 'source'], array_column($pragma['rows'], 'name'));
     },
-    'catalog handoff exposes explicit indexes' => static function (TestRunner $t) use ($wordpressSchema): void {
+    'catalog handoff exposes explicit indexes' => static function (TestRunner $t) use ($applicationSchema): void {
         $executor = new SQLiteSchemaImportExecutor();
-        $executor->executeScript($wordpressSchema, 'main');
+        $executor->executeScript($applicationSchema, 'main');
         $pragma = $executor->catalog()->executeSchemaPragma('PRAGMA index_list(wp_options)');
         $t->same('main', $pragma['schema']);
         $t->same(true, in_array('wp_options_autoload_name', array_column($pragma['rows'], 'name'), true));

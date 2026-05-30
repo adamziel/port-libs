@@ -24,7 +24,7 @@ $generation = [
     'dependencies' => [
         'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next194',
         'sqlite-reopened-reader-generation-seal',
-        'wordpress-import-retry-checkpoint-reader-exposure',
+        'application-import-retry-checkpoint-reader-exposure',
     ],
 ];
 $hotDigest = hash('sha256', 'next200 recovered hot journal page set');
@@ -127,7 +127,7 @@ $cases = [
     'row released' => [static fn (): mixed => $plan()['receipt_rows'][0]['savepoint_release_observed'], true],
     'dependency next194' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next194', $plan()['dependencies'], true), true],
     'dependency next200' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next200', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-retry-checkpoint-durable-reader-admission', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-retry-checkpoint-durable-reader-admission', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'bad generation status blocks' => [static fn (): mixed => $plan($badStatus)['blocked_reasons'], ['next194_reader_generation_seal_required']],

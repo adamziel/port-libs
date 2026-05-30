@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for UTF-16 NOCASE LIKE/RTRIM current-source scans with duplicate comparison-key peer resume safety.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next196.php` models a copied `wp_options.option_name` scan where UTF-16LE, UTF-16BE, and UTF-8 rows collapse to the same `RTRIM(option_name) COLLATE NOCASE` key. A yielded scan token can resume only when duplicate-key peers before the token are unchanged; inserted or changed peers require replay from the range start so duplicated option-name rows are not skipped.
+Application path: `application-utf16-nocase-like-rtrim-current-source-next196.php` models a copied `wp_options.option_name` scan where UTF-16LE, UTF-16BE, and UTF-8 rows collapse to the same `RTRIM(option_name) COLLATE NOCASE` key. A yielded scan token can resume only when duplicate-key peers before the token are unchanged; inserted or changed peers require replay from the range start so duplicated option-name rows are not skipped.
 
 Focused verification:
 

@@ -10,10 +10,10 @@ the deleted transient cell out of the current source.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext186Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next186.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next186.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext186Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next186.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next186.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:
@@ -21,7 +21,7 @@ Non-overlap:
 - Does not repeat next183 commit receipts, next180 apply ordering, next177
   batch construction, overflow freelist release, root collapse, page relocation,
   or bulk overflow freeblock materialization.
-- Adds only the current-source cursor/resume-token layer that a WordPress
+- Adds only the current-source cursor/resume-token layer that a Application
   transient cleanup replay would use after vacuum pointer-map/freeblock pages
   are committed.
 

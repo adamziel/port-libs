@@ -24,16 +24,16 @@ No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKe
 $ php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 
-$ php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next233.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next233.php
+$ php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next233.php
+No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next233.php
 
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 61 assertions, 0 failures
 48 PASS lines
 
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next233.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-current-source-next233 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next233.php --self-test
+application-pragma-index-xinfo-foreignkey-current-source-next233 self-test passed
 ```
 
 ## Non-overlap
@@ -42,7 +42,7 @@ This does not repeat accepted next230 parent pseudo-rowid handling, next227
 generic suffix child-index handling, next212 partial child-index action lookup,
 or next194 partial child-index diagnostics. The new rows are specifically for
 expression key terms (`cid = -2`, `name = NULL`) that precede child FK columns
-and explain why a WordPress staging index must be reordered.
+and explain why a Application staging index must be reordered.
 
 ## Dependency Closure
 

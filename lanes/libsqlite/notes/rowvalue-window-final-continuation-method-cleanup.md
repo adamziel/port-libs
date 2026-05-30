@@ -3,16 +3,16 @@
 ## Scope
 
 - Consolidated the `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan` final-continuation production entry points into descriptive canonical methods.
-- Renamed the direct focused test and WordPress example away from the numbered current-source suffix.
+- Renamed the direct focused test and Application example away from the numbered current-source suffix.
 - Preserved existing payload keys and assertions so behavior coverage remains stable while production method names stop carrying worker numbers.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowFinalContinuationSealTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-final-continuation-seal.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-final-continuation-seal.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowFinalContinuationSealTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-final-continuation-seal.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-final-continuation-seal.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

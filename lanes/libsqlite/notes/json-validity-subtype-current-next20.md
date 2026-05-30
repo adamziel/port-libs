@@ -16,7 +16,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-validity-subtype-current-next20.php
+php lanes/libsqlite/examples/application-json-validity-subtype-current-next20.php
 strict subtype row: strict_ok=1, json5_ok=1, jsonb_ok=0
 JSON5 text row: strict_ok=0, json5_ok=1, jsonb_ok=0
 JSONB row: strict_ok=0, json5_ok=0, jsonb_ok=1

@@ -15,14 +15,14 @@ Focused evidence:
 
 ```sh
 php -l lanes/libsqlite/tests/SQLiteCompoundExceptIntersectAffinityTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-compound-affinity.php
+php -l lanes/libsqlite/examples/application-select-sql-compound-affinity.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundExceptIntersectAffinityTest.php
-php -r 'var_export(require "lanes/libsqlite/examples/wordpress-select-sql-compound-affinity.php"); echo PHP_EOL;'
+php -r 'var_export(require "lanes/libsqlite/examples/application-select-sql-compound-affinity.php"); echo PHP_EOL;'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: the focused test command reported `1 test files, 25 assertions, 0
-failures` with 25 PASS lines. The WordPress smoke reported text `1` surviving
+failures` with 25 PASS lines. The Application smoke reported text `1` surviving
 `EXCEPT` against numeric `1`, numeric `1` matching real `1.0`, BLOB `X'31'`
 surviving `EXCEPT` against text `1`, and NULL matching through `INTERSECT`.
 `lane-status.json` moves `phpPass` from 3796 to 3821 for this clean worktree by

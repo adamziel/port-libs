@@ -11,26 +11,26 @@ Focused evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeDeleteOverflowMaterializationPlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeDeleteOverflowMaterializationCurrentNext75Test.php
-php -l lanes/libsqlite/examples/wordpress-btree-delete-overflow-materialization-current-next75.php
+php -l lanes/libsqlite/examples/application-btree-delete-overflow-materialization-current-next75.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeDeleteOverflowMaterializationCurrentNext75Test.php
 ```
 
 Result: `1 test files, 58 assertions, 0 failures`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-delete-overflow-materialization-current-next75.php
+php lanes/libsqlite/examples/application-btree-delete-overflow-materialization-current-next75.php
 ```
 
 Output:
 
 ```text
-WordPress btree75 materialized action: btree-empty-leaf-batch-free
-WordPress btree75 next freelist trunk: 3
-WordPress btree75 next freelist count: 190
-WordPress btree75 pointer-map transitions: 3,5,6,9,10
-WordPress btree75 updated pages: 1,2,3,5,6,9,10
+Application btree75 materialized action: btree-empty-leaf-batch-free
+Application btree75 next freelist trunk: 3
+Application btree75 next freelist count: 190
+Application btree75 pointer-map transitions: 3,5,6,9,10
+Application btree75 updated pages: 1,2,3,5,6,9,10
 ```
 
 Non-overlap: this does not repeat accepted overflow freelist release, bulk

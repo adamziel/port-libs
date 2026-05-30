@@ -44,7 +44,7 @@ $nextRows = [
     $row(7, '2', 'UTF-16LE', 'wp_plugin_priority_new'),
 ];
 
-$numericPlan = static fn (): array => SQLiteUtf16CollationAffinitySourceSwitchPlan::wordpressOptionValueSourceSwitch(
+$numericPlan = static fn (): array => SQLiteUtf16CollationAffinitySourceSwitchPlan::optionRowValueSourceSwitch(
     $currentRows,
     $nextRows,
     ['valueBytes' => $enc('2', 'UTF-16LE'), 'textEncoding' => 2],
@@ -114,7 +114,7 @@ $textNextRows = [
     $row(13, 'theme_alpha', 'UTF-8', 'wp_theme_slug'),
 ];
 
-$textPlan = static fn (): array => SQLiteUtf16CollationAffinitySourceSwitchPlan::wordpressOptionValueSourceSwitch(
+$textPlan = static fn (): array => SQLiteUtf16CollationAffinitySourceSwitchPlan::optionRowValueSourceSwitch(
     $textCurrentRows,
     $textNextRows,
     'plugin_alpha ',
@@ -159,21 +159,21 @@ $stableRows = [
 ];
 
 $tests['utf16 collation affinity source switch nextOneZeroZero stable source does not invalidate'] = static function (TestRunner $t) use ($stableRows, $enc): void {
-    $plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::wordpressOptionValueSourceSwitch($stableRows, $stableRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE', 'BINARY', 'same', 'same');
+    $plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::optionRowValueSourceSwitch($stableRows, $stableRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE', 'BINARY', 'same', 'same');
     $t->same(false, $plan['cursorInvalidated']);
 };
 
 $tests['utf16 collation affinity source switch nextOneZeroZero stable source has no reasons'] = static function (TestRunner $t) use ($stableRows, $enc): void {
-    $plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::wordpressOptionValueSourceSwitch($stableRows, $stableRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE', 'BINARY', 'same', 'same');
+    $plan = SQLiteUtf16CollationAffinitySourceSwitchPlan::optionRowValueSourceSwitch($stableRows, $stableRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE', 'BINARY', 'same', 'same');
     $t->same([], $plan['invalidationReasons']);
 };
 
 $tests['utf16 collation affinity source switch nextOneZeroZero rejects malformed next utf16 bytes'] = static function (TestRunner $t) use ($stableRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinitySourceSwitchPlan::wordpressOptionValueSourceSwitch($stableRows, [['option_id' => 1, 'option_value_bytes' => "\x70", 'text_encoding' => 2]], 'p'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinitySourceSwitchPlan::optionRowValueSourceSwitch($stableRows, [['option_id' => 1, 'option_value_bytes' => "\x70", 'text_encoding' => 2]], 'p'));
 };
 
 $tests['utf16 collation affinity source switch nextOneZeroZero rejects unsupported collation'] = static function (TestRunner $t) use ($stableRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinitySourceSwitchPlan::wordpressOptionValueSourceSwitch($stableRows, $stableRows, 'p', 'TEXT', 'TEXT', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinitySourceSwitchPlan::optionRowValueSourceSwitch($stableRows, $stableRows, 'p', 'TEXT', 'TEXT', 'WP_LOCALE'));
 };
 
 return $tests;

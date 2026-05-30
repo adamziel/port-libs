@@ -57,7 +57,7 @@ $plan219 = static fn (
     string $nextSource = 'main.wp_options@219',
     int $currentCookie = 218,
     int $nextCookie = 219,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSupplementaryWildcardPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSupplementaryWildcardPlan(
     $current ?? $currentRows219,
     $next ?? $nextRows219,
     $pattern,
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneNine stable supplementa
         $row219(1, 'plugin_cache' . $emoji219, 'UTF-16LE'),
         $row219(2, 'plugin_cacheA', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSupplementaryWildcardPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSupplementaryWildcardPlan(
         $rows,
         $rows,
         'plugin!_cache_',
@@ -192,7 +192,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneNine two underscores do
         $row219(1, 'plugin_cache' . $emoji219, 'UTF-16LE'),
         $row219(2, 'plugin_cacheAB', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSupplementaryWildcardPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSupplementaryWildcardPlan(
         $rows,
         $rows,
         'plugin!_cache__',
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneNine ascii-space rtrim 
         $row219(2, 'plugin_cache  ', 'UTF-16BE'),
         $row219(3, 'plugin_cache' . "\t", 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSupplementaryWildcardPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSupplementaryWildcardPlan(
         $rows,
         $rows,
         'plugin!_cache_',
@@ -233,7 +233,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneNine ascii-space rtrim 
 
 $tests['utf16 nocase like rtrim current source nextTwoOneNine rejects malformed row shape'] = static function (TestRunner $t) use ($enc219): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc219('plugin_cacheA', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSupplementaryWildcardPlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSupplementaryWildcardPlan($rows, $rows));
 };
 
 return $tests;

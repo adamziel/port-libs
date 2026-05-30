@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext()` for the WAL timeline where a failed WordPress import rolls back to a savepoint, verifies the current WAL source bytes, keeps the current reader on the retained prefix, releases the reader so restart/truncate can reset the WAL generation, and appends a retry transaction for the next reader.
+Adds `SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext()` for the WAL timeline where a failed Application import rolls back to a savepoint, verifies the current WAL source bytes, keeps the current reader on the retained prefix, releases the reader so restart/truncate can reset the WAL generation, and appends a retry transaction for the next reader.
 
 This is narrower than accepted batch99 savepoint reader checkpoint behavior. Batch99 covered pinned/released checkpoint current-source evidence; this slice adds the post-release restart/truncate plus retry append current/next source transition in one behavior surface.
 
@@ -20,8 +20,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-savepoint-restart-reader-current-source-next103.php --self-test
-wordpress-wal-savepoint-restart-reader-current-source-next103 self-test passed
+php lanes/libsqlite/examples/application-wal-savepoint-restart-reader-current-source-next103.php --self-test
+application-wal-savepoint-restart-reader-current-source-next103 self-test passed
 ```
 
 ## Dashboard Delta

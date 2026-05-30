@@ -10,7 +10,7 @@ source-generation seal over the final compound LIMIT boundary: the current and
 next admitted labels, skipped offset rows, truncated rows, and page hashes must
 match explicit acknowledgements before a next-source cursor is published.
 
-WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next238.php`
+Application path: `application-compound-select-window-recursive-limit-current-source-next238.php`
 models a copied `wp_options` import preview where a new autoloaded plugin row
 moves across the compound `UNION`/`EXCEPT` final `LIMIT/OFFSET` page while
 recursive dependency rows keep their window rank.
@@ -19,9 +19,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext238Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next238.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next238.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext238Test.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next238.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next238.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +76` from the new focused test file.

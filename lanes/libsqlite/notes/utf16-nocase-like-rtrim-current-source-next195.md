@@ -11,10 +11,10 @@ longer keys such as `plugin_%_cache_alpha`, but those rows are residual false
 positives for `LIKE 'plugin!_!%!_cache' ESCAPE '!'`; a current cursor must
 recheck false-positive transitions before it is reused on the next source.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next195.php --self-test
+php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next195.php --self-test
 ```
 
 Evidence:

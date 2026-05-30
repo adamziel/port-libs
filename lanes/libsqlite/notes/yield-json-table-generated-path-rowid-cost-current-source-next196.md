@@ -16,11 +16,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 55 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next196.php --self-test
-wordpress-json-table-generated-path-rowid-cost-current-source-next196 self-test passed
+php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next196.php --self-test
+application-json-table-generated-path-rowid-cost-current-source-next196 self-test passed
 ```
 
 Non-overlap:

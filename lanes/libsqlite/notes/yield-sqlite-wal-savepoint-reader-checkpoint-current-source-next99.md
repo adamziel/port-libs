@@ -4,7 +4,7 @@
 
 Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointRecoveryCurrentSourceNext()` for a current-source WAL savepoint rollback/checkpoint timeline.
 
-The slice is narrower than accepted batch90/batch94 coverage. Batch90 verifies exact current WAL bytes for pinned-reader savepoint rollback, and batch94 verifies reader release can unblock restart/truncate checkpoint. This next99 slice combines those into one source timeline with current WAL SHA-256, retained WAL SHA-256, pinned next-source summary, released next-source summary, frame source offsets, source transitions, and current/next reader evidence for WordPress import diagnostics.
+The slice is narrower than accepted batch90/batch94 coverage. Batch90 verifies exact current WAL bytes for pinned-reader savepoint rollback, and batch94 verifies reader release can unblock restart/truncate checkpoint. This next99 slice combines those into one source timeline with current WAL SHA-256, retained WAL SHA-256, pinned next-source summary, released next-source summary, frame source offsets, source transitions, and current/next reader evidence for Application import diagnostics.
 
 ## Verification
 
@@ -20,8 +20,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-savepoint-reader-checkpoint-current-source-next99.php --self-test
-wordpress-wal-savepoint-reader-checkpoint-current-source-next99 self-test passed
+php lanes/libsqlite/examples/application-wal-savepoint-reader-checkpoint-current-source-next99.php --self-test
+application-wal-savepoint-reader-checkpoint-current-source-next99 self-test passed
 ```
 
 ## Dashboard Delta

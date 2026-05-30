@@ -13,7 +13,7 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext146149Test.php lanes/libsqlite/tests/SQLiteVfsCloseReopenCurrentSourceTest.php`
-- `php lanes/libsqlite/examples/wordpress-vfs-current-source-next146-149.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-current-source-next146-149.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. This is a production

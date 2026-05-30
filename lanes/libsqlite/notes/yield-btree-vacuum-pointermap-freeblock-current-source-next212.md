@@ -6,7 +6,7 @@ Date: 2026-05-28T16:56:00Z
 
 Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, a current-source page-apply admission layer on top of next209 writer-source latch rows. The plan turns the latched pointer-map/freeblock source rows into ordered apply rows, requires pointer-map apply rows before payload apply rows for each cursor, carries leaf freeblock receipts, and keeps truncated tail pages fenced from the apply set.
 
-This is intended for the WordPress copied `wp_options` delete/vacuum path where an overflow-backed transient is deleted, tail overflow pages are truncated, and the writer must apply only the latched current-source pointer-map/freeblock pages before reuse.
+This is intended for the Application copied `wp_options` delete/vacuum path where an overflow-backed transient is deleted, tail overflow pages are truncated, and the writer must apply only the latched current-source pointer-map/freeblock pages before reuse.
 
 ## Focused Evidence
 
@@ -25,16 +25,16 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The focused run produced 136 PASS lines for the new next212 test file.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next212.php
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next212.php
 ```
 
 Expected self-test line:
 
 ```text
-wordpress-btree-vacuum-pointermap-freeblock-current-source-next212 self-test passed
+application-btree-vacuum-pointermap-freeblock-current-source-next212 self-test passed
 ```
 
 ## Non-Overlap

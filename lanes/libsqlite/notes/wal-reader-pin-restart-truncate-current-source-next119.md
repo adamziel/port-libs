@@ -17,8 +17,8 @@ WAL sidecar whose read marks pin an older committed frame. The plan verifies:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
   - `1 test files, 9900 assertions, 0 failures`
   - focused assertion delta: `9834 -> 9900` (`+66`)
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-wal-reader-pin-restart-truncate-current-source-next119.php --self-test`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-wal-reader-pin-restart-truncate-current-source-next119.php --self-test`
 
 ## Non-Overlap
 

@@ -8,11 +8,11 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalCacheCurrentNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalCacheCurrentNext77Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-cache-current-next77.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-cache-current-next77.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalCacheCurrentNext77Test.php`
   - `1 test files, 64 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-cache-current-next77.php --self-test`
-  - `wordpress-pager-master-journal-cache-current-next77 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-cache-current-next77.php --self-test`
+  - `application-pager-master-journal-cache-current-next77 self-test passed`
 
 Expected dashboard movement: `phpPass` +64, from 28917 to 28981. `benchmarkDenominator.mapped` is unchanged because this is focused native pager behavior coverage, not a newly mapped upstream inventory unit.
 

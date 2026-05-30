@@ -14,14 +14,14 @@ Evidence:
 ```text
 php -l lanes/libsqlite/src/SQLiteBTreeDeleteRebalanceFreeblockApplyPlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeWriteApplyRebalanceCorruptionCurrentSourceNext106Test.php
-php -l lanes/libsqlite/examples/wordpress-btree-write-apply-corruption-current-source-next106.php
+php -l lanes/libsqlite/examples/application-btree-write-apply-corruption-current-source-next106.php
 No syntax errors detected.
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeWriteApplyRebalanceCorruptionCurrentSourceNext106Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 40 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-btree-write-apply-corruption-current-source-next106.php
+php lanes/libsqlite/examples/application-btree-write-apply-corruption-current-source-next106.php
 stale_delete_result_status: SQLite delete rebalance freeblock apply rejected stale table leaf delete result
 ```
 

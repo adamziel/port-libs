@@ -1343,7 +1343,7 @@ final class SQLiteSavepointStack
             'dependencies' => [
                 'sqlite-savepoint-release-current-wal-source-next110',
                 'sqlite-wal-release-current-source-next-frame',
-                'wordpress-import-release-savepoint-wal-current-source',
+                'application-import-release-savepoint-wal-current-source',
             ],
         ];
     }

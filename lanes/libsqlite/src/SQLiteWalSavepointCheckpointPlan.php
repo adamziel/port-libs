@@ -494,7 +494,7 @@ final class SQLiteWalSavepointCheckpointPlan
             'images_match' => $currentImages === $nextImages,
             'dependencies' => array_values(array_unique(array_merge(
                 $checkpoint['dependencies'],
-                ['sqlite-wal-savepoint-release-reader-current-next', 'wordpress-import-release-reader-current-next']
+                ['sqlite-wal-savepoint-release-reader-current-next', 'application-import-release-reader-current-next']
             ))),
         ];
     }
@@ -592,7 +592,7 @@ final class SQLiteWalSavepointCheckpointPlan
             'yield_count' => 3 * count($pageNumbers),
             'dependencies' => array_values(array_unique(array_merge(
                 $durable['dependencies'],
-                ['sqlite-wal-savepoint-checkpoint-yield-current-next', 'wordpress-import-yield-savepoint-current-next']
+                ['sqlite-wal-savepoint-checkpoint-yield-current-next', 'application-import-yield-savepoint-current-next']
             ))),
         ];
     }
@@ -864,7 +864,7 @@ final class SQLiteWalSavepointCheckpointPlan
             'yield_count' => 3 * count($pageNumbers),
             'dependencies' => array_values(array_unique(array_merge(
                 $durable['dependencies'],
-                ['sqlite-wal-savepoint-release-checkpoint-current-next', 'wordpress-import-release-savepoint-current-next']
+                ['sqlite-wal-savepoint-release-checkpoint-current-next', 'application-import-release-savepoint-current-next']
             ))),
         ];
     }
@@ -2781,7 +2781,7 @@ final class SQLiteWalSavepointCheckpointPlan
             'current_durable' => $durable,
             'dependencies' => array_values(array_unique(array_merge(
                 $checkpoint['dependencies'],
-                ['sqlite-wal-savepoint-commit-current-next72', 'wordpress-import-savepoint-commit-current-next72']
+                ['sqlite-wal-savepoint-commit-current-next72', 'application-import-savepoint-commit-current-next72']
             ))),
         ];
     }
@@ -2908,7 +2908,7 @@ final class SQLiteWalSavepointCheckpointPlan
             'database_bytes_length' => strlen((string) $durable['database_bytes']),
             'dependencies' => array_values(array_unique(array_merge(
                 $checkpoint['dependencies'],
-                ['sqlite-wal-checkpoint-reader-savepoint-current-source-next149', 'wordpress-import-wal-current-reader-savepoint-boundary']
+                ['sqlite-wal-checkpoint-reader-savepoint-current-source-next149', 'application-import-wal-current-reader-savepoint-boundary']
             ))),
         ];
     }

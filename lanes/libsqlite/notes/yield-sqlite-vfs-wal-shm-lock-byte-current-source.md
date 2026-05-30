@@ -20,9 +20,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteVfsWalShmLockByteCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLiteVfsWalShmLockByteCurrentSourceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-vfs-wal-shm-lock-byte-current-source.php`
+- `php -l lanes/libsqlite/examples/application-vfs-wal-shm-lock-byte-current-source.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsWalShmLockByteCurrentSourceTest.php`
-- `php lanes/libsqlite/examples/wordpress-vfs-wal-shm-lock-byte-current-source.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-wal-shm-lock-byte-current-source.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

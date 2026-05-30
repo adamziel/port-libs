@@ -104,7 +104,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('admit_reopened_checkpoint_reader_slots_next232', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next229', $plan()['dependencies'], true), true],
     'dependency next232' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next232', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-reader-slots', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-reader-slots', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat reset publication'), true],
     'source token blocked' => [static fn (): mixed => $blockedSlot(['source_token' => 'old-source'])['blocked_reader_slot_reasons'], ['slot_source_token_mismatch']],

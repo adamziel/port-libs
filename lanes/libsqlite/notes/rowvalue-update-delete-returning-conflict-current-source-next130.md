@@ -13,16 +13,16 @@ php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningConflictCurrentSourceNext130Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningConflictCurrentSourceNext130Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-conflict-current-source-next130.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-conflict-current-source-next130.php
+php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-conflict-current-source-next130.php
+No syntax errors detected in lanes/libsqlite/examples/application-rowvalue-update-delete-returning-conflict-current-source-next130.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningConflictCurrentSourceNext130Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 50 assertions, 0 failures
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpdateDeleteReturningSqlTest.php lanes/libsqlite/tests/SQLiteUpdateDeleteRowValueReturningCurrentSourceNext117Test.php lanes/libsqlite/tests/SQLiteUpdateDeleteReturningRowValueCurrentSourceNext125Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningConflictCurrentSourceNext130Test.php
 Focused test run: 4 selected test files (root lock skipped)
 4 test files, 185 assertions, 0 failures
-php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-conflict-current-source-next130.php --self-test
-wordpress-rowvalue-update-delete-returning-conflict-current-source-next130 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-conflict-current-source-next130.php --self-test
+application-rowvalue-update-delete-returning-conflict-current-source-next130 self-test passed
 git diff --check -- lanes/libsqlite
 ```
 

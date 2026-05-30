@@ -5,15 +5,15 @@
   query collations must match the indexed expression collation before the
   planner can use the expression index.
 - Partial-index proof now evaluates expression predicates with the matched
-  expression/index collation. This admits WordPress-style
+  expression/index collation. This admits Application-style
   `lower(option_name) COLLATE NOCASE` partial indexes where mixed-case current
   source literals prove `lower(option_name) >= 'plugin_'`.
 - STAT4 point/range estimates, sample ordering, matched samples, and
   current/next boundary evidence use the matched collation, so mixed-case
   samples such as `PLUGIN_ALPHA`, `plugin_beta`, and `Theme_Mods_TwentySix`
   are ranked with SQLite `NOCASE` semantics.
-- WordPress smoke:
-  `examples/wordpress-expression-index-collation-partial-current-source-next110.php`
+- Application smoke:
+  `examples/application-expression-index-collation-partial-current-source-next110.php`
   models copied `wp_options` autoload/plugin scans over a partial expression
   index on `lower(option_name) COLLATE NOCASE`.
 

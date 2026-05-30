@@ -2,9 +2,9 @@
 
 Status: focused current-source behavior growth for recursive `INSTEAD OF` view-trigger `RETURNING` source handoff sealing.
 
-This slice adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext193Plan`. It builds on the accepted next189 row-ack admission model, but does not repeat it: after the current post-reset `RETURNING` rows are acknowledged and next-source rows are admitted, next193 requires a matching handoff token, source sequence token, next-row count, and source signature before those next-source `RETURNING` rows are published to the WordPress import stream. Mismatched tokens, row counts, or signatures keep the next source quarantined.
+This slice adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext193Plan`. It builds on the accepted next189 row-ack admission model, but does not repeat it: after the current post-reset `RETURNING` rows are acknowledged and next-source rows are admitted, next193 requires a matching handoff token, source sequence token, next-row count, and source signature before those next-source `RETURNING` rows are published to the Application import stream. Mismatched tokens, row counts, or signatures keep the next source quarantined.
 
-WordPress smoke: `wordpress-trigger-recursive-view-returning-current-source-next193.php` models a copied `wp_options` recursive import view. It verifies that next-source rows for `home` and `next_plugin` are only visible after the current source is drained, acknowledged, and sealed.
+Application smoke: `application-trigger-recursive-view-returning-current-source-next193.php` models a copied `wp_options` recursive import view. It verifies that next-source rows for `home` and `next_plugin` are only visible after the current source is drained, acknowledged, and sealed.
 
 Verification:
 
@@ -12,9 +12,9 @@ Verification:
   - `1 test files, 78 assertions, 0 failures`
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext193Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext193Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next193.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next193.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next193 self-test passed`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next193.php`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next193.php`
+  - `application-trigger-recursive-view-returning-current-source-next193 self-test passed`
 
 Expected dashboard movement: `phpPass +78` from `92140` to `92218`. `benchmarkDenominator.mapped` is unchanged; this is additional current-source PHP behavior over already mapped trigger/view/RETURNING surfaces, not a newly hydrated upstream Tcl row.
 

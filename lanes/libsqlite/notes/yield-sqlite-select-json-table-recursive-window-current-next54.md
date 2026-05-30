@@ -3,7 +3,7 @@
 ## Scope
 
 - Added focused parser-level SELECT coverage for recursive CTE rows sourced from `json_tree()` / `json_each()` over copied `wp_options` text JSON and JSONB option values, then consumed by current/next window functions.
-- Added the WordPress smoke `wordpress-select-json-recursive-window-current-next54.php` for navigation import previews using `lead()` and `last_value()` over recursive JSON rows.
+- Added the Application smoke `application-select-json-recursive-window-current-next54.php` for navigation import previews using `lead()` and `last_value()` over recursive JSON rows.
 
 ## Focused Evidence
 
@@ -11,8 +11,8 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectJsonRecursiveWindowCurrentNext54Test.php`
   - `1 test files, 80 assertions, 0 failures`
   - `56` PASS lines
-- `php lanes/libsqlite/examples/wordpress-select-json-recursive-window-current-next54.php --self-test`
-  - `wordpress-select-json-recursive-window-current-next54 self-test passed`
+- `php lanes/libsqlite/examples/application-select-json-recursive-window-current-next54.php --self-test`
+  - `application-select-json-recursive-window-current-next54 self-test passed`
 
 ## Non-Overlap
 

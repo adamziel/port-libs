@@ -6,7 +6,7 @@ This slice adds `SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan`,
 
 Non-overlap: avoids accepted next143 row-value conflict retry and next144 DELETE-only rollback surfaces. This next148 slice is about row-value DISTINCT/NOT DISTINCT predicates plus RETURNING stream de-duplication across rollback/retry.
 
-WordPress smoke: `examples/wordpress-rowvalue-savepoint-returning-distinct-current-source-next.php` models copied option cleanup where stale cache rows are reviewed, an inner attempted retry rolls back, and the final retry starts from the restored current source.
+Application smoke: `examples/application-rowvalue-savepoint-returning-distinct-current-source-next.php` models copied option cleanup where stale cache rows are reviewed, an inner attempted retry rolls back, and the final retry starts from the restored current source.
 
 Verification:
 

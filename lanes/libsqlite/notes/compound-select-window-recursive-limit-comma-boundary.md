@@ -1,6 +1,6 @@
 # compound-select-window-recursive-limit-comma-boundary
 
-Status: migrated from generated worker-numbered entry/helper names to the stable comma-boundary compound SELECT entry point. The covered parser-level behavior is unchanged: recursive CTE comma-form `LIMIT offset,count` rows feed per-arm window evaluation and a final compound comma-form LIMIT selects the current/next WordPress boundary.
+Status: migrated from generated worker-numbered entry/helper names to the stable comma-boundary compound SELECT entry point. The covered parser-level behavior is unchanged: recursive CTE comma-form `LIMIT offset,count` rows feed per-arm window evaluation and a final compound comma-form LIMIT selects the current/next Application boundary.
 
 Behavior covered:
 
@@ -14,9 +14,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCommaBoundaryTest.php
-php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-comma-boundary.php
+php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-comma-boundary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCommaBoundaryTest.php
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-comma-boundary.php
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-comma-boundary.php
 git diff --check -- lanes/libsqlite
 ```
 

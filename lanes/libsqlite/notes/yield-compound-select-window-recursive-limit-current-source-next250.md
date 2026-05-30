@@ -9,7 +9,7 @@ Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, extending 
 - current and next final compound pages after `UNION ALL` / `INTERSECT` / `EXCEPT`;
 - window replay and spillover lineage before next-source exposure.
 
-This keeps a WordPress `wp_options` import/retry scan from exposing the next compound page until the current recursive/window source page has a matching resume token and admission acknowledgements.
+This keeps a Application `wp_options` import/retry scan from exposing the next compound page until the current recursive/window source page has a matching resume token and admission acknowledgements.
 
 ## Evidence
 
@@ -18,9 +18,9 @@ This keeps a WordPress `wp_options` import/retry scan from exposing the next com
 - PASS lines: `79`
 - Expected `phpPass`: `128615 -> 128694`
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next250.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next250.php --self-test`
 
 ## Non-Overlap
 

@@ -2,7 +2,7 @@
 
 Behavior slice: adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Plan` for `UPDATE OR ROLLBACK` row-value assignment conflicts inside a savepoint. The failed conflict cancels the whole savepoint transaction, suppresses speculative RETURNING rows, restores the transaction image, and retries UPDATE/DELETE RETURNING from that restored current source.
 
-WordPress smoke: `wordpress-rowvalue-rollback-retry-current-source-next164.php --self-test` models copied `wp_options` staging rows where a duplicate `(blog_id, option_name)` conflict rolls back speculative option-name rewrites before retry cleanup.
+Application smoke: `application-rowvalue-rollback-retry-current-source-next164.php --self-test` models copied `wp_options` staging rows where a duplicate `(blog_id, option_name)` conflict rolls back speculative option-name rewrites before retry cleanup.
 
 Verification:
 
@@ -11,8 +11,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturnin
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 61 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-rollback-retry-current-source-next164.php --self-test
-wordpress-rowvalue-rollback-retry-current-source-next164 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-rollback-retry-current-source-next164.php --self-test
+application-rowvalue-rollback-retry-current-source-next164 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +61 for the new focused PASS lines. Mapped upstream coverage is unchanged because this is a current-source PHP behavior slice over already mapped row-value UPDATE/DELETE RETURNING/savepoint behavior, not a newly hydrated upstream manifest row.

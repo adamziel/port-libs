@@ -5,7 +5,7 @@ accepted next241 PRAGMA/FK page. The new current-source behavior joins
 `PRAGMA foreign_key_list` child/parent columns to `table_info` declared types
 and reports the parent affinity SQLite applies during FK comparison.
 
-This covers WordPress import/copy DDL where copied rows may arrive with text
+This covers Application import/copy DDL where copied rows may arrive with text
 or blob staging columns before the final schema replay:
 
 - shorthand `REFERENCES wp_posts` resolves through the parent primary key and
@@ -21,14 +21,14 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 69 assertions, 0 failures`
   - 53 focused `PASS` lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next243.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next243 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next243.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next243 self-test passed`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next243.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next243.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next243.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next243.php`
 - `git diff --check -- lanes/libsqlite`
   - clean
 

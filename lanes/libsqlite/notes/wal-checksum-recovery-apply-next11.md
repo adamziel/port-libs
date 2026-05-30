@@ -20,8 +20,8 @@ Additional verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteWalChecksumRecoveryApplyTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-checksum-recovery-apply.php
-php lanes/libsqlite/examples/wordpress-wal-checksum-recovery-apply.php --self-test
+php -l lanes/libsqlite/examples/application-wal-checksum-recovery-apply.php
+php lanes/libsqlite/examples/application-wal-checksum-recovery-apply.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

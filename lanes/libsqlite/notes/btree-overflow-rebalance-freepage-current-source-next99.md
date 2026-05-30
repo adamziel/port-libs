@@ -9,13 +9,13 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext99Test.php`
 - Result: `1 test files, 62 assertions, 0 failures`
 - New focused PASS lines: `62`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-overflow-rebalance-freepage-current-source-next99.php`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-overflow-rebalance-freepage-current-source-next99.php`
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext99Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext99Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-overflow-rebalance-freepage-current-source-next99.php`
+- `php -l lanes/libsqlite/examples/application-btree-overflow-rebalance-freepage-current-source-next99.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. This reuses the existing native PHP B-tree leaf delete, defragmentation, freelist, pointer-map, and database page-image helpers.

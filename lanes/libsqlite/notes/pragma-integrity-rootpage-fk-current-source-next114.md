@@ -11,8 +11,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityRootpageFkCurrentSourceNext114Test.php`
 - `php -l lanes/libsqlite/src/SQLitePragmaIntegrityRootpageForeignKeyCurrentSourceYield.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIntegrityRootpageFkCurrentSourceNext114Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-integrity-rootpage-fk-current-source-next114.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-rootpage-fk-current-source-next114.php --self-test`
+- `php -l lanes/libsqlite/examples/application-pragma-integrity-rootpage-fk-current-source-next114.php`
+- `php lanes/libsqlite/examples/application-pragma-integrity-rootpage-fk-current-source-next114.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this avoids accepted PRAGMA FK pagination, index/FK admission,

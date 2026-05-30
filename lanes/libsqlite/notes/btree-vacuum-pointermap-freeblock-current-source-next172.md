@@ -12,7 +12,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext172Test.php`
   - `1 test files, 751 assertions, 0 failures`
   - `103` PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next172.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next172.php`
   - self-test passed
 
 ## Non-overlap

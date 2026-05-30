@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for row-value UPDATE/DELETE RETURNING
 current-source savepoint handling.
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext192Plan`
-and focused coverage for a WordPress-style copied `wp_options` cleanup where:
+and focused coverage for a Application-style copied `wp_options` cleanup where:
 
 - outer row-value UPDATE work is preserved as the current source for an inner
   savepoint;
@@ -15,8 +15,8 @@ and focused coverage for a WordPress-style copied `wp_options` cleanup where:
 - retry UPDATE/DELETE RETURNING statements read from the preserved inner
   current source and then release both savepoints.
 
-WordPress smoke:
-`wordpress-rowvalue-abort-savepoint-current-source-next192.php` models copied
+Application smoke:
+`application-rowvalue-abort-savepoint-current-source-next192.php` models copied
 options-table cleanup where transient deletion and orphaned-cache staging are
 kept after an aborting duplicate option-name rewrite, while retry cleanup
 yields the final current-source stream.
@@ -26,9 +26,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext192Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext192Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-abort-savepoint-current-source-next192.php
+php -l lanes/libsqlite/examples/application-rowvalue-abort-savepoint-current-source-next192.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext192Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-abort-savepoint-current-source-next192.php
+php lanes/libsqlite/examples/application-rowvalue-abort-savepoint-current-source-next192.php
 git diff --check -- lanes/libsqlite
 ```
 

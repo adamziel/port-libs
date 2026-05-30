@@ -8,10 +8,10 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeBitAndHandoffFenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-bit-and-handoff-fence.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-bit-and-handoff-fence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeBitAndHandoffFenceTest.php`
   - `1 test files, 15 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-bit-and-handoff-fence.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-bit-and-handoff-fence.php`
   - emitted `pager-master-journal-reader-cache-current-source-next638` with `read-options` reopened and page `1` invalidated.
 - `git diff --check -- lanes/libsqlite`
 

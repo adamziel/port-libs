@@ -28,7 +28,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectCaseWindowCurrentNext1
 Result: `2 test files, 100 assertions, 0 failures`.
 
 ```sh
-php lanes/libsqlite/examples/wordpress-expression-collation-affinity-current-next21.php
+php lanes/libsqlite/examples/application-expression-collation-affinity-current-next21.php
 ```
 
 Result: copied `wp_options` rows bucketed with NOCASE simple CASE labels and

@@ -16,11 +16,11 @@ This deliberately avoids the accepted table/index page relocation, root collapse
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext156Test.php`
   - `1 test files, 368 assertions, 0 failures`
   - `74` PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next156.php --self-test`
-  - `wordpress-btree-vacuum-pointermap-freeblock-current-source-next156 self-test passed`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next156.php --self-test`
+  - `application-btree-vacuum-pointermap-freeblock-current-source-next156 self-test passed`
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext156Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next156.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next156.php`
 - `git diff --check -- lanes/libsqlite`
   - no output
 

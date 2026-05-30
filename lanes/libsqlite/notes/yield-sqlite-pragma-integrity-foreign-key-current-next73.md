@@ -9,10 +9,10 @@ integrity rows are followed by only the requested child table's FK violations,
 including schema-qualified `temp` checks, quoted target identifiers, `quick_check`
 integration, empty tail pages, and parser guards.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-pragma-integrity-foreign-key-current-next73.php`
-models a copied WordPress temp `wp_options` import preflight: pointer-map
+`lanes/libsqlite/examples/application-pragma-integrity-foreign-key-current-next73.php`
+models a copied Application temp `wp_options` import preflight: pointer-map
 integrity findings fill the first current page and targeted
 `temp.foreign_key_check(wp_options)` rows continue on the next page without
 including unrelated main or temp tables.
@@ -32,15 +32,15 @@ Syntax:
 ```text
 php -l lanes/libsqlite/src/SQLitePragmaIntegrityCurrentNextYield.php
 php -l lanes/libsqlite/tests/SQLitePragmaIntegrityForeignKeyCurrentNext73Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-integrity-foreign-key-current-next73.php
+php -l lanes/libsqlite/examples/application-pragma-integrity-foreign-key-current-next73.php
 No syntax errors detected in all changed PHP files.
 ```
 
 Smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-integrity-foreign-key-current-next73.php --self-test
-wordpress-pragma-integrity-foreign-key-current-next73 self-test passed
+php lanes/libsqlite/examples/application-pragma-integrity-foreign-key-current-next73.php --self-test
+application-pragma-integrity-foreign-key-current-next73 self-test passed
 ```
 
 Diff hygiene:

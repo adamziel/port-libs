@@ -49,7 +49,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@cookie105',
     int $currentSchemaCookie = 104,
     int $nextSchemaCookie = 105,
-): array => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValueDynamicLikeGlobPlan(
+): array => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicLikeGlobPlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -154,7 +154,7 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['encoding utf16 affinity like glob current source next105 stable cursor reusable'] = static function (TestRunner $t) use ($currentRows): void {
-    $stable = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValueDynamicLikeGlobPlan(
+    $stable = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicLikeGlobPlan(
         $currentRows,
         $currentRows,
         'option_value',
@@ -173,7 +173,7 @@ $tests['encoding utf16 affinity like glob current source next105 stable cursor r
 };
 
 $tests['encoding utf16 affinity like glob current source next105 source switch invalidates first'] = static function (TestRunner $t) use ($currentRows): void {
-    $switched = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValueDynamicLikeGlobPlan(
+    $switched = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicLikeGlobPlan(
         $currentRows,
         $currentRows,
         'option_value',
@@ -192,20 +192,20 @@ $tests['encoding utf16 affinity like glob current source next105 source switch i
 };
 
 $tests['encoding utf16 affinity like glob current source next105 rejects glob escape column'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValueDynamicLikeGlobPlan($currentRows, $nextRows, 'option_value', 'glob_pattern', 'GLOB', 'glob_escape'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicLikeGlobPlan($currentRows, $nextRows, 'option_value', 'glob_pattern', 'GLOB', 'glob_escape'));
 };
 
 $tests['encoding utf16 affinity like glob current source next105 rejects missing pattern column'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValueDynamicLikeGlobPlan([['option_id' => 1, 'option_value' => 'x']], $nextRows, 'option_value', 'glob_pattern', 'GLOB'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicLikeGlobPlan([['option_id' => 1, 'option_value' => 'x']], $nextRows, 'option_value', 'glob_pattern', 'GLOB'));
 };
 
 $tests['encoding utf16 affinity like glob current source next105 rejects malformed pattern'] = static function (TestRunner $t) use ($nextRows): void {
     $current = [['option_id' => 1, 'option_value' => 'plugin_alpha', 'glob_pattern' => "plugin_\xc3*"]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValueDynamicLikeGlobPlan($current, $nextRows, 'option_value', 'glob_pattern', 'GLOB'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicLikeGlobPlan($current, $nextRows, 'option_value', 'glob_pattern', 'GLOB'));
 };
 
 $tests['encoding utf16 affinity like glob current source next105 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValueDynamicLikeGlobPlan($currentRows, $nextRows, 'option_value', 'glob_pattern', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicLikeGlobPlan($currentRows, $nextRows, 'option_value', 'glob_pattern', 'REGEXP'));
 };
 
 return $tests;

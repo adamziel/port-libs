@@ -20,10 +20,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 62 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-foreign-key-cascade-update-trigger-current-next29.php
+php lanes/libsqlite/examples/application-foreign-key-cascade-update-trigger-current-next29.php
 ```
 
 Non-overlap: this does not repeat accepted deferred parent-key cascades,

@@ -14,9 +14,9 @@
 - Result: `1 test files, 845 assertions, 0 failures`
 - PASS-line delta: `+125`
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next208.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next208.php`
 - Scenario: copied `wp_options` transient overflow delete plus vacuum source handoff.
 
 ## Dependency Closure

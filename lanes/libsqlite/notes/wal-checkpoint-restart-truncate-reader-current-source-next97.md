@@ -15,8 +15,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointRestartTruncate
 Additional verification:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-restart-truncate-reader-current-source-next97.php --self-test
-# wordpress-wal-checkpoint-restart-truncate-reader-current-source-next97 self-test passed
+php lanes/libsqlite/examples/application-wal-checkpoint-restart-truncate-reader-current-source-next97.php --self-test
+# application-wal-checkpoint-restart-truncate-reader-current-source-next97 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +62, from 36750 to 36812, from the 62 independent PASS lines in `SQLiteWalCheckpointRestartTruncateReaderCurrentSourceNext97Test.php`. Mapped upstream coverage is unchanged because this composes already mapped WAL restart, truncate, read-mark, checksum, and current-source primitives.

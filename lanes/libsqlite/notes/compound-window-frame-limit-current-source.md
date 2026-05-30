@@ -11,7 +11,7 @@ Behavior covered:
 - Compound tail `ORDER BY frame_weight DESC, id ASC LIMIT 5 OFFSET 1` is applied
   after both windowed arms are combined.
 - Current-source/next-source comparison records changed limited rows, frame
-  metadata, limit boundary rows, and replan reasons when new WordPress option
+  metadata, limit boundary rows, and replan reasons when new Application option
   rows move across the LIMIT boundary.
 
 Verification:
@@ -28,11 +28,11 @@ Focused PASS-line delta: `+51`, moving lane-local `phpPass` from `54864` to
 PHP current-source composition over already mapped compound SELECT, window
 frame, and LIMIT inventory.
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-compound-window-frame-limit-current-source.php --self-test
-# wordpress-compound-window-frame-limit-current-source self-test passed
+php lanes/libsqlite/examples/application-compound-window-frame-limit-current-source.php --self-test
+# application-compound-window-frame-limit-current-source self-test passed
 ```
 
 Non-overlap: this does not repeat accepted compound recursive affinity/window

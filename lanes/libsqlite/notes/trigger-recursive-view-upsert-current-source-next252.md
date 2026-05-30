@@ -10,7 +10,7 @@ where-token matches, every current predicate decision receipt is acknowledged,
 no unexpected receipt appears, and optional `require true` admission accepts the
 decision set.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next252.php`
+Application path: `application-trigger-recursive-view-upsert-current-source-next252.php`
 models a copied `wp_options` recursive import view where current rows evaluate
 their `DO UPDATE ... WHERE` decisions before plugin migration rows from the
 next view source are published.
@@ -21,12 +21,12 @@ Verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next252.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next252.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next252.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next252.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Test.php`
   - `1 test files, 77 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next252.php`
-  - `wordpress-trigger-recursive-view-upsert-current-source-next252 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next252.php`
+  - `application-trigger-recursive-view-upsert-current-source-next252 self-test passed`
 
 Expected dashboard movement: `phpPass +77` from focused lane-local PASS lines.
 Mapped upstream coverage remains unchanged; this is current-source PHP behavior

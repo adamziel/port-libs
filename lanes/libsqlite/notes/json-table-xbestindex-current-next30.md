@@ -5,7 +5,7 @@
 - Added `SQLiteJsonTablePlan::xBestIndexPlan()` for bounded SQLite virtual-table planner metadata.
 - The plan records original constraint indexes, hidden `json`/`root` argv placement, visible pushdown vs residual classification, `idxNum`/`idxStr`, rowid/id `ORDER BY` consumption, estimates, and current/next constraint pairs.
 - Added focused PHP coverage in `SQLiteJsonTableConstraintXBestIndexCurrentNext30Test.php`: 63 PASS lines / 63 assertions / 0 failures.
-- Added WordPress smoke `wordpress-json-table-xbestindex-current-next.php` for copied `wp_options` JSON diagnostics without `ext/sqlite`.
+- Added Application smoke `application-json-table-xbestindex-current-next.php` for copied `wp_options` JSON diagnostics without `ext/sqlite`.
 
 ## Focused Evidence
 
@@ -17,9 +17,9 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-json-table-xbestindex-current-next.php
+$ php lanes/libsqlite/examples/application-json-table-xbestindex-current-next.php
 {
-    "scenario": "wordpress-json-table-xbestindex-current-next",
+    "scenario": "application-json-table-xbestindex-current-next",
     "idxNum": 15,
     "idxStr": "hidden:json:=|hidden:root:=|visible:type:=|visible:atom:BETWEEN|hidden:limit:=",
     "orderByConsumed": true,

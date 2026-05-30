@@ -12,9 +12,9 @@ Behavior:
 - carries freeblock commit visibility through reusable payload pages;
 - keeps vacuum-fenced tail pages 109 and 110 out of the next apply cursor.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next243.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next243.php`
 - Scenario: copied `wp_options` transient cleanup deletes an overflow-backed
   row, then admits current-source apply rows only after pointer-map pages are
   visible and reusable freeblock pages are committed.
@@ -23,7 +23,7 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext243Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext243Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next243.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next243.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext243Test.php`
   - `1 test files, 1672 assertions, 0 failures`
   - 142 PASS lines

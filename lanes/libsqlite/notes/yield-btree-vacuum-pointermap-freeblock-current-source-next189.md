@@ -9,10 +9,10 @@ Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, a resumable curren
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext189Test.php`: `1 test files, 594 assertions, 0 failures` with 94 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next189.php`: self-test passed.
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next189.php`: self-test passed.
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext189Test.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next189.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next189.php`: no syntax errors.
 - `git diff --check -- lanes/libsqlite`: passed.
 
 ## Non-Overlap

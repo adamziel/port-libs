@@ -6,7 +6,7 @@ Implementation:
 
 - `SQLiteSchemaDdlReparsePlan::triggerReparseMetadata()` now propagates generated-column dependencies from a view used by a trigger body, even when the trigger SQL does not name those generated columns directly.
 - The propagation is intentionally limited to generated columns. Generated-index references remain direct trigger/indexed-by evidence, preserving accepted next135 behavior.
-- Added WordPress-oriented coverage for copied `wp_options` audit triggers that read generated-column compatibility views during import schema setup.
+- Added Application-oriented coverage for copied `wp_options` audit triggers that read generated-column compatibility views during import schema setup.
 
 Focused verification:
 
@@ -22,11 +22,11 @@ Focused test run: 4 selected test files (root lock skipped)
 4 test files, 213 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-schema-generated-trigger-reparse-current-source-next141.php --self-test
-wordpress-schema-generated-trigger-reparse-current-source-next141 self-test passed
+$ php lanes/libsqlite/examples/application-schema-generated-trigger-reparse-current-source-next141.php --self-test
+application-schema-generated-trigger-reparse-current-source-next141 self-test passed
 ```
 
 Dashboard delta:

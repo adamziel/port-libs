@@ -5,7 +5,7 @@
 - Added `SQLiteJsonTablePlan::currentSourceConstraintOrderByCost()` for current-source to next-source JSON table planner handoff.
 - The new profile records partial ORDER BY prefix coverage when visible constraints make leading ORDER terms constant, then charges only the suffix block-sort width instead of the full ORDER term width.
 - Added focused PHP coverage in `SQLiteJsonTableConstraintOrderByCostTest.php`: 61 PASS lines / 61 assertions / 0 failures.
-- Added WordPress smoke `wordpress-json-table-constraint-orderby-cost.php` for copied `wp_options` plugin-rule priority JSON diagnostics without `ext/sqlite`.
+- Added Application smoke `application-json-table-constraint-orderby-cost.php` for copied `wp_options` plugin-rule priority JSON diagnostics without `ext/sqlite`.
 
 ## Focused Evidence
 
@@ -17,8 +17,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-json-table-constraint-orderby-cost.php --self-test
-wordpress-json-table-constraint-orderby-cost self-test passed
+$ php lanes/libsqlite/examples/application-json-table-constraint-orderby-cost.php --self-test
+application-json-table-constraint-orderby-cost self-test passed
 ```
 
 ## Non-Overlap

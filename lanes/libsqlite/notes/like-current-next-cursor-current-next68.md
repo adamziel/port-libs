@@ -11,10 +11,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 56 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-like-current-next-cursor-current-next68.php
+php lanes/libsqlite/examples/application-like-current-next-cursor-current-next68.php
 ```
 
 Non-overlap: this avoids accepted Unicode GLOB ranges, LIKE collation prefix-range planning current-next65, malformed UTF-16 guards, SELECT SQL text/subquery/group/order clusters, JSON table source/cursor/constraint clusters, WAL/VFS rollback/savepoint/checkpoint/write/lock/sync clusters, B-tree page move/root-collapse/overflow/freelist clusters, and expression-index collation cursor current-next56. The new behavior is the current/next row boundary and residual LIKE filtering for a range cursor.

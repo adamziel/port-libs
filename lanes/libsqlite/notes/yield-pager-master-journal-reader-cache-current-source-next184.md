@@ -16,7 +16,7 @@ unchanged.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext184Test.php`
   - `1 test files, 98 assertions, 0 failures`
   - 98 PASS lines
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next184.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next184.php`
   - self-test passed
 
 Expected dashboard movement: `phpPass +98`, from `86745` to `86843`.

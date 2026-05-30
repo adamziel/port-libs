@@ -2,10 +2,10 @@
 
 ## Scope
 
-- Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan` for a composite WordPress `wp_options` cursor fence:
+- Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan` for a composite Application `wp_options` cursor fence:
   UTF-16-bound `option_name LIKE ... ESCAPE ...` plus `option_value LIKE ...` after SQLite text-affinity coercion.
 - The behavior decodes the bound UTF-16 pattern before LIKE tokenization, preserves escaped `_` as a literal prefix byte, applies ASCII-only NOCASE LIKE matching, treats BLOB/NULL values as unknown for LIKE, and records current-source invalidation when the next source changes the composite rowset or value-affinity residual truth.
-- Adds `wordpress-encoding-affinity-like-current-source-next261.php` as the WordPress smoke.
+- Adds `application-encoding-affinity-like-current-source-next261.php` as the Application smoke.
 
 ## Verification
 

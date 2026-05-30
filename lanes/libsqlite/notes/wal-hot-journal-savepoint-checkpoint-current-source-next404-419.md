@@ -10,6 +10,6 @@ Focused coverage:
 
 - `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext404419Test.php` chains next404 through next419 from next403.
 - The same test blocks database-digest mismatch, unsynced database header, checkpoint-frame mismatch, missing next410 base for the next411 seal, unreleased reader marks, commit-generation mismatch, and duplicate final seal receipts.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next419.php` provides a WordPress-shaped example for the final seal.
+- `application-wal-hot-journal-savepoint-checkpoint-current-source-next419.php` provides a Application-shaped example for the final seal.
 
 Non-overlap: this stays inside the WAL checkpoint/hot-journal current-source receipt chain and does not repeat next388-403, suite/status/dashboard artifacts, SQL, JSON, B-tree, VFS writer application, planner, or unrelated pager surfaces.

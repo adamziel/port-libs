@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined next326-333 current-source follow-on seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next326-333.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-current-source-next326-333.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next326-333', $result['status']);
         $t->same([

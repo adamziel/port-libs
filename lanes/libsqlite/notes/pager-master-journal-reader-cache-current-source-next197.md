@@ -9,7 +9,7 @@ stale images for the same source are refreshed, while dirty, pinned-stale,
 member-digest-stale, nonce-stale, source-stale, and epoch-stale cache entries
 force the next reader to reopen.
 
-The WordPress smoke models copied `wp_options` pages while a master journal
+The Application smoke models copied `wp_options` pages while a master journal
 references both the main database journal and an attached users database
 journal. It retains a schema page, refreshes the `wp_options` root page, and
 invalidates an `active_plugins` reader whose cache was built against a
@@ -42,7 +42,7 @@ admission fence for reader-cache reuse.
 
 No new support component is needed. The slice reuses lane-local pager byte
 images and digest planning only; activation gate is the focused PHP test plus
-the WordPress smoke.
+the Application smoke.
 
 ## Next
 

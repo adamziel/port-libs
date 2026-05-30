@@ -1,8 +1,8 @@
-# yield-sqlite-wordpress-json-schema-wal-current-next43
+# yield-sqlite-application-json-schema-wal-current-next43
 
 ## Slice
 
-Adds `SQLiteWordPressJsonSchemaWalPlan`, a bounded WordPress import planner that:
+Adds `SQLiteJsonSchemaWalPlan`, a bounded Application import planner that:
 
 - plans copied `wp_options` schema DDL with schema/data cookie movement;
 - validates configured JSON option rows before WAL append;
@@ -15,7 +15,7 @@ Adds `SQLiteWordPressJsonSchemaWalPlan`, a bounded WordPress import planner that
 Command:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressJsonSchemaWalCurrentNext43Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonSchemaWalCurrentNext43Test.php
 ```
 
 Output:
@@ -29,7 +29,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-json-schema-wal-current-next43.php --self-test
+php lanes/libsqlite/examples/application-json-schema-wal-current-next43.php --self-test
 ```
 
 Output:
@@ -58,12 +58,12 @@ Output:
 This does not repeat accepted JSON table cursor/source/hidden/visible constraint
 work, WAL savepoint byte truncation, WAL checkpoint transaction planning, VFS
 file writer/sync/lock application, rollback-journal commit/apply, or B-tree
-page-move/freelist clusters. The new behavior is the WordPress import admission
+page-move/freelist clusters. The new behavior is the Application import admission
 boundary that combines schema metadata, JSON option validation, and WAL
 current/next visibility in one bounded planner.
 
 ## Dependency closure
 
 No new support component is needed. The slice reuses existing
-`SQLiteWordPressSchemaBulkImportPlan`, `SQLiteWordPressOptionsWalImportPlan`,
+`SQLiteSchemaBulkImportPlan`, `SQLiteOptionRowsWalImportPlan`,
 and WAL parsing/append primitives.

@@ -165,7 +165,7 @@ $cases191 = [
     'dependency includes fingerprint implementation' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next191', $released191()['dependencies_next191'], true), true],
     'dependency includes fingerprint implementation' => [static fn (): mixed => in_array('sqlite-returning-current-source-row-fingerprint-fence', $released191()['dependencies_next191'], true), true],
     'dependency includes payload order' => [static fn (): mixed => in_array('sqlite-returning-current-source-payload-order', $released191()['dependencies_next191'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next191', $released191()['dependencies_next191'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next191', $released191()['dependencies_next191'], true), true],
     'non overlap names ordinal fencing' => [static fn (): mixed => str_contains($released191()['non_overlap_next191'], 'next188 ordinal fencing'), true],
     'non recursive current count' => [static fn (): mixed => $nonRecursive191()['current_fingerprint_row_count_next191'], 2],
     'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive191()['visible_returning_payloads_next191'], 'option_name'), ['plugin_seed', 'siteurl', 'rewrite_rules', 'home']],

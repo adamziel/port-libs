@@ -11,7 +11,7 @@ The behavior is the current-source reader boundary around `ROLLBACK TO` in WAL m
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointReaderSavepointCurrentSourceNext149Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-wal-checkpoint-reader-savepoint-current-source-next149.php`
+- Application smoke: `php lanes/libsqlite/examples/application-wal-checkpoint-reader-savepoint-current-source-next149.php`
 
 Non-overlap:
 

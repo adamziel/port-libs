@@ -10,10 +10,10 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowRootRedistributeCurrentNext38Test.php`
 - Result: `1 test files, 367 assertions, 0 failures` with 52 PASS cases
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-root-redistribute-current-next38.php`
+- `php lanes/libsqlite/examples/application-btree-overflow-root-redistribute-current-next38.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeOverflowRootRedistributePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowRootRedistributeCurrentNext38Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-overflow-root-redistribute-current-next38.php`
+- `php -l lanes/libsqlite/examples/application-btree-overflow-root-redistribute-current-next38.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this avoids accepted root-collapse, page relocation, index-interior

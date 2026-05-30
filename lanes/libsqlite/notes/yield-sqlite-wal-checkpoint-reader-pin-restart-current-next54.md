@@ -4,7 +4,7 @@
 
 - Added `SQLiteWal::checkpointReaderPinRestartRetryCurrentNext()` for the WAL restart/truncate retry edge where a current SHM read-mark pins an older reader snapshot.
 - The first checkpoint attempt preserves the WAL while the read lock pins an old frame; the released-reader retry checkpoints committed frames and either restarts the WAL header or truncates the WAL for the next reader.
-- The focused WordPress smoke uses copied `wp_options` page images for `siteurl`, autoload index, and plugin option pages.
+- The focused Application smoke uses copied `wp_options` page images for `siteurl`, autoload index, and plugin option pages.
 
 ## Focused Evidence
 

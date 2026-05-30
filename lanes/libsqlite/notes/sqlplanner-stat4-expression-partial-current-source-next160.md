@@ -12,7 +12,7 @@ The slice records:
   signature, and row signature changes;
 - OR-rowid-union admission from `SQLiteSelectExpressionIndexPlan`;
 - current-source row materialization, rowid dedupe, payload preservation, and
-  current/next row pairs for WordPress-style `wp_options` plugin options;
+  current/next row pairs for Application-style `wp_options` plugin options;
 - cursor-tape evidence for ephemeral rowid union, per-arm STAT4 seeks, covering
   payload reads, and final result rows.
 
@@ -20,12 +20,12 @@ The slice records:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext160Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next160.php`
+- `php -l lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-next160.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext160Test.php`
   - `1 test files, 63 assertions, 0 failures`
   - 63 PASS lines
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next160.php --self-test`
-  - `wordpress-planner-stat4-expression-partial-current-source-next160 self-test passed`
+- `php lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-next160.php --self-test`
+  - `application-planner-stat4-expression-partial-current-source-next160 self-test passed`
 
 ## Non-Overlap
 

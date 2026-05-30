@@ -36,10 +36,10 @@ Expected status movement:
 - `phpPass`: `26631 -> 26645` (`+14` verified PASS lines).
 - `benchmarkDenominator.mapped`: unchanged; this is focused PHP behavior coverage, not a new upstream inventory unit.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-vfs-lock-byte-range-current-next72.php`
-- Demonstrates copied WordPress database reader/writer byte-range current/next lock transitions before native VFS application without requiring `ext/sqlite`.
+- `php lanes/libsqlite/examples/application-vfs-lock-byte-range-current-next72.php`
+- Demonstrates copied Application database reader/writer byte-range current/next lock transitions before native VFS application without requiring `ext/sqlite`.
 
 Dependency closure:
 

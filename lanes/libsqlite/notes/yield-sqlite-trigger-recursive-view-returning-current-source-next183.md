@@ -12,7 +12,7 @@ Behavior covered:
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext183Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next183.php`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next183.php`
 
 Dependency closure: no new support component needed; this reuses recursive view-trigger RETURNING source snapshots and adds lane-local reset-barrier visibility modeling.
 

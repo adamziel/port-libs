@@ -11,15 +11,15 @@ entry point for a bounded current-source SELECT executor edge:
 - Window function arms before compound reduction (`lag()` and `lead()`).
 - Mixed `UNION ALL` followed by `UNION` distinct compound selection.
 - Final compound `ORDER BY ... LIMIT ... OFFSET` that changes which recursive
-  rows survive when the next WordPress option source adds rows.
+  rows survive when the next Application option source adds rows.
 
 The new plan records recursive limit pressure, skipped anchor rows, admitted
 recursive labels, recursive rows dropped by the final compound limit, and the
 current/next source boundary shift in the compound yield tape.
 
-## WordPress Scenario
+## Application Scenario
 
-`examples/wordpress-compound-select-window-recursive-limit-exhausted-yield-boundary.php`
+`examples/application-compound-select-window-recursive-limit-exhausted-yield-boundary.php`
 models a `wp_options` migration/import query that ranks current recursive seed
 rows beside autoloaded option rows. Adding plugin/theme option rows changes the
 final LIMIT boundary, so the native SELECT executor must keep recursive CTE

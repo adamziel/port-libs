@@ -12,7 +12,7 @@ Focused coverage:
   from next703-718 with new method wrappers only.
 - each case asserts current rows remain clean while next-source rows report the
   expected `*_mismatch_child_lookup_index` status.
-- the WordPress example self-test verifies all `page719()` through `page734()`
+- the Application example self-test verifies all `page719()` through `page734()`
   wrappers exist and produce `0 -> 1` diagnostic rows.
 
 Validation:
@@ -20,9 +20,9 @@ Validation:
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext719734Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next719-734.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next719-734.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext703718Test.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext719734Test.php
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next719-734.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next719-734.php --self-test
 git diff --check
 ```
 

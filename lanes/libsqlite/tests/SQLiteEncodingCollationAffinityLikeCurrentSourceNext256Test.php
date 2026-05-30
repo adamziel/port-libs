@@ -45,7 +45,7 @@ $plan256 = static fn (
     string $nextSource = 'main.wp_options@256',
     int $currentCookie = 255,
     int $nextCookie = 256,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPatternAffinityPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationPatternAffinityPlan(
     $current ?? $current256,
     $next ?? $nextTwoFiveSix,
     $currentPattern,

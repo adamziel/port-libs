@@ -9,7 +9,7 @@
   PASS cases over NULL sort keys, NOCASE/RTRIM ordering, false/NULL FILTER
   rows that are still yielded as current rows, filtered aggregate contributors,
   EOF behavior, and invalid FILTER register values.
-- Added a WordPress smoke for copied `wp_options` window diagnostics where
+- Added a Application smoke for copied `wp_options` window diagnostics where
   inactive rows remain visible in the sorter cursor but are omitted from
   aggregate frame contribution.
 
@@ -17,13 +17,13 @@
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowFilterSorterNullCurrentNext38Test.php`
   -> `1 test files, 51 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-vdbe-window-filter-sorter-null-current-next38.php --self-test`
-  -> `wordpress-vdbe-window-filter-sorter-null-current-next38 self-test passed`.
+- `php lanes/libsqlite/examples/application-vdbe-window-filter-sorter-null-current-next38.php --self-test`
+  -> `application-vdbe-window-filter-sorter-null-current-next38 self-test passed`.
 - `php -l lanes/libsqlite/src/SQLiteVdbeWindowAggregateCursor.php`
   -> no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteVdbeWindowFilterSorterNullCurrentNext38Test.php`
   -> no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-vdbe-window-filter-sorter-null-current-next38.php`
+- `php -l lanes/libsqlite/examples/application-vdbe-window-filter-sorter-null-current-next38.php`
   -> no syntax errors.
 
 ## Non-Overlap

@@ -6,7 +6,7 @@ Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a focused escaped
 LIKE residual guard for UTF-16 `rtrim(option_name) COLLATE NOCASE` current-source
 peer replay.
 
-The slice covers copied WordPress `wp_options` names with literal `%` and `_`
+The slice covers copied Application `wp_options` names with literal `%` and `_`
 characters stored as UTF-16LE, UTF-16BE, and UTF-8 text. A yielded peer token is
 allowed to continue inside the duplicate RTRIM/NOCASE key group only when its
 decoded token bytes still match the escaped LIKE residual after SQLite-style
@@ -23,11 +23,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 70 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next184.php
-wordpress-utf16-nocase-like-rtrim-current-source-next184 self-test passed
+php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next184.php
+application-utf16-nocase-like-rtrim-current-source-next184 self-test passed
 ```
 
 ## Non-overlap

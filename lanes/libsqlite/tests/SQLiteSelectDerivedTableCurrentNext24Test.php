@@ -52,7 +52,7 @@ return [
         $t->same(29, $rows[0]['picked_bytes']);
     },
 
-    'joins derived tables back to copied wordpress rows' => static function (TestRunner $t) use ($tables): void {
+    'joins derived tables back to copied application rows' => static function (TestRunner $t) use ($tables): void {
         $rows = SQLiteSelectSql::execute(
             "SELECT o.option_name AS option_name, hot.rank AS rank_label FROM wp_options AS o JOIN (SELECT option_id AS option_id, 'rank-' || option_id AS rank FROM wp_options WHERE autoload = 'yes' AND bytes >= 16) AS hot ON hot.option_id = o.option_id ORDER BY hot.rank DESC",
             $tables,

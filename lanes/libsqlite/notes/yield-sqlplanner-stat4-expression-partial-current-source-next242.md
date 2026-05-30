@@ -13,12 +13,12 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext242Test.php`
 - Result: `1 test files, 72 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next242.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next242.php --self-test`
 - Result includes: `stat4-expression-partial-current-source-next242-ready`
 
-WordPress smoke:
+Application smoke:
 
-`wordpress-sqlplanner-stat4-expression-partial-current-source-next242.php`
+`application-sqlplanner-stat4-expression-partial-current-source-next242.php`
 models copied `wp_options` plugin rows with duplicate case-varied option names.
 The current source has the same partial row estimate as the prepared plan, but
 the new fence proves the STAT4 histogram counters are current before reusing

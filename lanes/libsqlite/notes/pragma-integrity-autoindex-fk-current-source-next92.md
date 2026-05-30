@@ -12,7 +12,7 @@ Behavior:
 - Blocking reasons are current-source specific:
   `autoindex_catalog_current_source` and
   `foreign_key_parent_autoindex_current_source`.
-- The WordPress smoke covers copied `wp_options` temp/main/archive schemas
+- The Application smoke covers copied `wp_options` temp/main/archive schemas
   where the same table names require per-schema autoindex/FK parent coverage.
 
 Focused evidence:
@@ -29,11 +29,11 @@ moves from 35916 to 35981. Mapped upstream coverage is unchanged because this
 is focused PHP current-source behavior coverage, not a new upstream inventory
 unit.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-integrity-autoindex-fk-current-source-next92.php --self-test
-wordpress-pragma-integrity-autoindex-fk-current-source-next92 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-integrity-autoindex-fk-current-source-next92.php --self-test
+application-pragma-integrity-autoindex-fk-current-source-next92 self-test passed
 ```
 
 Dependency closure: no new support component is needed. This reuses existing

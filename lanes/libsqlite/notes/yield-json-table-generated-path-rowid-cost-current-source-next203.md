@@ -18,11 +18,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidC
 1 test files, 58 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next203.php --self-test
-wordpress-json-table-generated-path-rowid-cost-current-source-next203 self-test passed
+php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next203.php --self-test
+application-json-table-generated-path-rowid-cost-current-source-next203 self-test passed
 ```
 
 Non-overlap:

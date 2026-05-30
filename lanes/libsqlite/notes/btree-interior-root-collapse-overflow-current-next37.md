@@ -10,8 +10,8 @@ Focused coverage:
 
 - `SQLiteBTreeRootCollapseOverflowCurrentNext37Test.php` adds 63 PASS cases for
   an index-interior child with a copied overflow-backed separator cell.
-- The WordPress smoke
-  `wordpress-btree-interior-root-collapse-overflow-current-next37.php` reports
+- The Application smoke
+  `application-btree-interior-root-collapse-overflow-current-next37.php` reports
   copied `wp_options` autoload-index root-collapse diagnostics, including child
   pointer reparenting, first-overflow owner rewrite, unchanged next-overflow
   links, freelist release of the obsolete child, and root payload round-trip.

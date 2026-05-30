@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for row-value UPDATE/DELETE RETURNING `OR FA
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext208Plan`. It models the upstream SQLite boundary where `UPDATE OR FAIL ... RETURNING` preserves rows changed before the first unique conflict, exposes the partial RETURNING stream to the current statement, lets follow-up UPDATE/DELETE RETURNING statements read that partial current source, and then `ROLLBACK TO` the still-active savepoint discards the partial FAIL and retry changes.
 
-WordPress smoke: `wordpress-rowvalue-fail-savepoint-current-source-next208.php` models a copied `wp_options` plugin import where a row-value multisite option rewrite hits a `(blog_id, option_name)` conflict after one row has already yielded RETURNING output.
+Application smoke: `application-rowvalue-fail-savepoint-current-source-next208.php` models a copied `wp_options` plugin import where a row-value multisite option rewrite hits a `(blog_id, option_name)` conflict after one row has already yielded RETURNING output.
 
 Verification:
 

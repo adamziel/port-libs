@@ -22,10 +22,10 @@ Status delta:
 - `phpPass`: `2311` -> `2368` (`+57`, exact verified PASS-line delta).
 - `benchmarkDenominator.mapped`: unchanged; no new upstream inventory unit is claimed.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-no-from-probe.php
+php lanes/libsqlite/examples/application-select-no-from-probe.php
 ```
 
 Dependency closure:

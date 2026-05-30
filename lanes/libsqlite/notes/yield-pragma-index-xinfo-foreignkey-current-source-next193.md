@@ -30,10 +30,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCu
 Result: `1 test files, 64 assertions, 0 failures`.
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next193.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next193.php --self-test
 ```
 
-Result: `wordpress-pragma-index-xinfo-foreignkey-current-source-next193 self-test passed`.
+Result: `application-pragma-index-xinfo-foreignkey-current-source-next193 self-test passed`.
 
 ## Non-Overlap
 

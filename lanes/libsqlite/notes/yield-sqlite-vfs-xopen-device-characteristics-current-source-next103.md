@@ -5,7 +5,7 @@ Slice: `vfs-xopen-device-characteristics-current-source-next103`
 ## Behavior
 
 - Adds `SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext103()` for xOpen-time device-characteristics snapshots on URI-normalized VFS handles.
-- Tracks `xOpen` flags, sector size, `xDeviceCharacteristics()` bitmasks, and decoded flag names for copied WordPress database opens.
+- Tracks `xOpen` flags, sector size, `xDeviceCharacteristics()` bitmasks, and decoded flag names for copied Application database opens.
 - Keeps device-characteristic reads non-mutating while allowing locked `powersafe_overwrite` file-control changes to update the handle bitmask and source generation.
 - Preserves current-source freshness: sibling handles opened after a device-policy change see the current source generation; older handles detect staleness through `data_version`.
 - Handles read-only/immutable, memory, and `nolock` opens without creating duplicate persistent state or invalid lock/device claims.
@@ -19,11 +19,11 @@ Focused test run: 1 selected test files (root lock skipped)
 58 PASS lines
 ```
 
-## WordPress Smoke
+## Application Smoke
 
 ```text
-php lanes/libsqlite/examples/wordpress-vfs-xopen-device-characteristics-current-source-next103.php --self-test
-wordpress-vfs-xopen-device-characteristics-current-source-next103 self-test passed
+php lanes/libsqlite/examples/application-vfs-xopen-device-characteristics-current-source-next103.php --self-test
+application-vfs-xopen-device-characteristics-current-source-next103 self-test passed
 ```
 
 The smoke models copied `wp_options` database handles opened through shared and private URI forms, then verifies the native VFS reports device-characteristic bits and current-source generation after powersafe-overwrite policy changes.

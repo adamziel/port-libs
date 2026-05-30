@@ -14,8 +14,8 @@ Verification:
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext192Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext192Test.php`
   - `1 test files, 76 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next192.php --self-test`
-  - `wordpress-trigger-recursive-view-returning-current-source-next192 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next192.php --self-test`
+  - `application-trigger-recursive-view-returning-current-source-next192 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - passed
 

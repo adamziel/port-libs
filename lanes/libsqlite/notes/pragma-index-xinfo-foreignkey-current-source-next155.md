@@ -15,7 +15,7 @@ The cursor hashes the schema catalog, row-source schemas, normalized
 table-valued PRAGMA mode flags. Paged resumes are rejected when those inputs or
 the expected offset drift.
 
-WordPress relevance: copied `wp_options` import/preflight code can page index
+Application relevance: copied `wp_options` import/preflight code can page index
 key/collation metadata together with FK declaration and violation rows before
 choosing whether a copied options table is safe to promote.
 
@@ -24,9 +24,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next155.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next155.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next155.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next155.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

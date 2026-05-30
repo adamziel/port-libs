@@ -1,7 +1,7 @@
 # pragma-integrity-fk-index-current-source-next99
 
 This slice adds resumable current-source cursors for the combined
-PRAGMA integrity/FK/index stream used by copied WordPress databases with
+PRAGMA integrity/FK/index stream used by copied Application databases with
 `main`, `temp`, and attached archive schemas.
 
 Behavior:
@@ -31,11 +31,11 @@ moves from 38278 to 38338. Mapped upstream coverage is unchanged because this
 adds current-source behavior coverage without claiming a new upstream inventory
 unit.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-integrity-fk-index-current-source-next99.php --self-test
-wordpress-pragma-integrity-fk-index-current-source-next99 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-integrity-fk-index-current-source-next99.php --self-test
+application-pragma-integrity-fk-index-current-source-next99 self-test passed
 ```
 
 Dependency closure: no new support component is needed. This reuses the

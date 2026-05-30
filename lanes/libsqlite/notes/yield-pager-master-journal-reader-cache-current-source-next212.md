@@ -4,15 +4,15 @@
 
 Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a current-source pager reader-cache fence for master-journal recovery. After the accepted membership, member-token/header, master file-token, and raw master-journal bytes fences admit a cached page, next212 also requires the recovered database file token to match before reusing the reader cache or read ticket.
 
-This prevents a WordPress import/copy reader from reusing `wp_options` page images when a master-journal recovery publishes a newer database file generation while the master journal metadata itself still looks current.
+This prevents a Application import/copy reader from reusing `wp_options` page images when a master-journal recovery publishes a newer database file generation while the master journal metadata itself still looks current.
 
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext212Test.php`
 - Result: `1 test files, 71 assertions, 0 failures`
 - PASS-line delta: `+71` focused libsqlite PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next212.php --self-test`
-- Result: `wordpress-pager-master-journal-reader-cache-current-source-next212 self-test passed`
+- Application smoke: `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next212.php --self-test`
+- Result: `application-pager-master-journal-reader-cache-current-source-next212 self-test passed`
 
 ## Non-Overlap
 

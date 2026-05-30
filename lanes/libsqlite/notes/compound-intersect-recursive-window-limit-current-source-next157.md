@@ -1,6 +1,6 @@
 # compound-intersect-recursive-window-limit-current-source-next157
 
-Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE queue `LIMIT` feeds a window-ranked `INTERSECT` arm, and the final compound `LIMIT/OFFSET` decides the current/next WordPress row boundary.
+Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE queue `LIMIT` feeds a window-ranked `INTERSECT` arm, and the final compound `LIMIT/OFFSET` decides the current/next Application row boundary.
 
 This slice adds `SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan`. It records:
 
@@ -15,12 +15,12 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-intersect-recursive-window-limit-current-source-next157.php
+php -l lanes/libsqlite/examples/application-compound-intersect-recursive-window-limit-current-source-next157.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Test.php
-php lanes/libsqlite/examples/wordpress-compound-intersect-recursive-window-limit-current-source-next157.php --self-test
+php lanes/libsqlite/examples/application-compound-intersect-recursive-window-limit-current-source-next157.php --self-test
 ```
 
-Focused result: `1 test files, 210 assertions, 0 failures`, with 64 PASS lines. The example printed `wordpress-compound-intersect-recursive-window-limit-current-source-next157 self-test passed`.
+Focused result: `1 test files, 210 assertions, 0 failures`, with 64 PASS lines. The example printed `application-compound-intersect-recursive-window-limit-current-source-next157 self-test passed`.
 
 Expected dashboard movement: `phpPass +64` from the new focused test file, from `69549` to `69613`. `benchmarkDenominator.mapped` remains `607 / 1589`; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory, not a newly hydrated upstream row.
 

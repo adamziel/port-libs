@@ -1,16 +1,16 @@
-# WordPress JSON Schema WAL Savepoint Current Next51
+# Application JSON Schema WAL Savepoint Current Next51
 
-This slice adds `SQLiteWordPressJsonSchemaWalSavepointPlan`, a bounded native PHP
-planner for WordPress JSON schema import DDL inside a WAL transaction savepoint.
+This slice adds `SQLiteJsonSchemaWalSavepointPlan`, a bounded native PHP
+planner for Application JSON schema import DDL inside a WAL transaction savepoint.
 It covers schema-cookie and data-version increments for applied schema edits,
 statement-journal rollback for a failed schema step, WAL frame discard planning,
 and page-image rollback metadata for the active savepoint.
 
 Focused evidence:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressJsonSchemaWalSavepointCurrentNext51Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonSchemaWalSavepointCurrentNext51Test.php`
 - Result: `1 test files, 51 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-schema-wal-savepoint-current-next51.php`
+- `php lanes/libsqlite/examples/application-json-schema-wal-savepoint-current-next51.php`
 - Result: JSON smoke reports `ready`, final schema cookie `9`, data version `5`,
   schema names `wp_options`, `wp_json_schema`, `wp_json_schema_validate`, and
   WAL rollback frames `[1,2]`.
@@ -18,7 +18,7 @@ Focused evidence:
 Dashboard delta:
 
 - `phpPass`: `18565 -> 18616` from the 51 newly passing focused assertions.
-- `benchmarkDenominator.mapped`: unchanged; this is native focused WordPress
+- `benchmarkDenominator.mapped`: unchanged; this is native focused Application
   schema/WAL savepoint coverage and does not claim a new upstream inventory unit.
 
 Non-overlap:

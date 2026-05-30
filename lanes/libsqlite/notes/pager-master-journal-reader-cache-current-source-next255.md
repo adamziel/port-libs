@@ -7,7 +7,7 @@ recovery only when its page-map digest was computed from the recovered current
 source; stale page-map metadata reopens the reader even when provenance,
 generation, and snapshot tokens still look current.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next255.php`
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next255.php`
 models a copied `wp_options` database where a schema page remains reusable, a
 stale options-root page-map digest reopens the options reader, and an
 `active_plugins` reader still inherits the older snapshot fence.
@@ -16,7 +16,7 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext255Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext255Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next255.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next255.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext255Test.php`
   - `1 test files, 62 assertions, 0 failures`
 

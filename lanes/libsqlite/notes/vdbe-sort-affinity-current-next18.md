@@ -15,15 +15,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVdbeSorterCursor.php
 php -l lanes/libsqlite/tests/SQLiteVdbeSortAffinityCurrentNext18Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteVdbeSortAffinityCurrentNext18Test.php
 
-php -l lanes/libsqlite/examples/wordpress-vdbe-sort-affinity-current-next.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-vdbe-sort-affinity-current-next.php
+php -l lanes/libsqlite/examples/application-vdbe-sort-affinity-current-next.php
+No syntax errors detected in lanes/libsqlite/examples/application-vdbe-sort-affinity-current-next.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeSortAffinityCurrentNext18Test.php
 Focused test run: 1 selected test files (root lock skipped)
 30 PASS lines
 1 test files, 45 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-vdbe-sort-affinity-current-next.php
+php lanes/libsqlite/examples/application-vdbe-sort-affinity-current-next.php
 sortedOptionIds: [104, 103, 102, 106, 101, 105]
 cursorPosition: 6
 eof: true

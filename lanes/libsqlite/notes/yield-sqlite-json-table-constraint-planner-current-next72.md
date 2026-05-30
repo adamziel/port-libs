@@ -23,9 +23,9 @@ Focused command:
 Expected focused delta: `1 test file / 72 assertions / 0 failures` when run
 from this lane worktree.
 
-WordPress smoke:
+Application smoke:
 
-`php lanes/libsqlite/examples/wordpress-json-table-constraint-planner-current-next72.php`
+`php lanes/libsqlite/examples/application-json-table-constraint-planner-current-next72.php`
 
 ## Dependency Closure
 

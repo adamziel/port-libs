@@ -12,9 +12,9 @@
 - `php -l lanes/libsqlite/src/SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/src/SQLiteVfsTempLockingFileControlCurrentSourcePlan.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsTempDirectorySidecarLockCurrentSourceNext107Test.php lanes/libsqlite/tests/SQLiteVfsTempLockingFileControlCurrentSourceNext83Test.php lanes/libsqlite/tests/SQLiteVfsTempLockFileControlCurrentSourceNext102Test.php`
-- `php lanes/libsqlite/examples/wordpress-vfs-temp-directory-sidecar-lock-current-source-next107.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-vfs-temp-locking-filecontrol-current-source-next83.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-vfs-temp-lock-filecontrol-current-source-next102.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-temp-directory-sidecar-lock-current-source-next107.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-temp-locking-filecontrol-current-source-next83.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-temp-lock-filecontrol-current-source-next102.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

@@ -2,16 +2,16 @@
 
 - Added `SQLiteVfsShmOpenFileControlCurrentSourcePlan::currentSourceNext91()` for WAL/SHM sidecar xOpen ordering where the current source can be `-shm` or `-wal` before the main database handle is opened.
 - The behavior canonicalizes `-wal`/`-shm` filenames back to the owning database for xFileControl persistence, rehydrates later main/WAL opens from the owner controls, keeps memory sources private, and prevents write controls on readonly owners while allowing readonly metadata such as `mmap_size`.
-- Added focused TestRunner coverage and the WordPress smoke `wordpress-vfs-shm-filecontrol-open-current-source-next91.php`.
+- Added focused TestRunner coverage and the Application smoke `application-vfs-shm-filecontrol-open-current-source-next91.php`.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsShmOpenFileControlCurrentSourcePlan.php
 php -l lanes/libsqlite/tests/SQLiteVfsShmFileControlOpenCurrentSourceNext91Test.php
-php -l lanes/libsqlite/examples/wordpress-vfs-shm-filecontrol-open-current-source-next91.php
+php -l lanes/libsqlite/examples/application-vfs-shm-filecontrol-open-current-source-next91.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmFileControlOpenCurrentSourceNext91Test.php
-php lanes/libsqlite/examples/wordpress-vfs-shm-filecontrol-open-current-source-next91.php --self-test
+php lanes/libsqlite/examples/application-vfs-shm-filecontrol-open-current-source-next91.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

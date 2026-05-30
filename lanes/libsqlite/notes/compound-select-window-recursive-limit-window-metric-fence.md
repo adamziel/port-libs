@@ -7,7 +7,7 @@ This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`,
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitWindowMetricFenceTest.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-window-metric-fence.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-window-metric-fence.php`
 
 Expected dashboard movement: `phpPass +71` from the new focused test file. `benchmarkDenominator.mapped` remains `640 / 1589`; this is current-source PHP behavior over already mapped compound SELECT, recursive CTE, window, and LIMIT inventory, not a newly hydrated upstream row.
 

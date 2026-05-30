@@ -10,8 +10,8 @@ Scope:
 Verification:
 - `php -l` passed for the changed compound source, three changed/affected tests, and two changed examples.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitSourceGenerationSealTest.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCompoundLimitResumeFenceTest.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Test.php` passed: `3 test files, 1529 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-source-generation-seal.php --self-test` passed.
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-compound-limit-resume-fence.php --self-test` passed.
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-source-generation-seal.php --self-test` passed.
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-compound-limit-resume-fence.php --self-test` passed.
 
 Dependency closure:
 - No new support component needed. This is a consolidation-only patch that reuses the existing SELECT SQL compound, recursive CTE trace, window-ranking, source-generation seal, and resume-fence helpers.

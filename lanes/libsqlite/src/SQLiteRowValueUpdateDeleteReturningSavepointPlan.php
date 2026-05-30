@@ -8585,7 +8585,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-rowvalue-savepoint-release-current-source-release_followup_read',
                 'sqlite-rowvalue-returning-release-feeds-next-statement-release_followup_read',
-                'wordpress-rowvalue-update-delete-returning-savepoint-release-release_followup_read',
+                'application-rowvalue-update-delete-returning-savepoint-release-release_followup_read',
             ],
             'non_overlap_release_followup_read' => 'adds RELEASE-to-parent current-source admission after row-value UPDATE/DELETE RETURNING; avoids ignore_replace_delete IGNORE/REPLACE-only savepoint flow, next178 OR ROLLBACK transaction rollback, next172 ROLLBACK TO yielded stream suppression, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -9153,7 +9153,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-rowvalue-update-or-fail-returning-prefix-or-fail-savepoint-retry',
                 'sqlite-rowvalue-savepoint-rollback-discards-or-fail-prefix-or-fail-savepoint-retry',
-                'wordpress-rowvalue-fail-retry-current-source-or-fail-savepoint-retry',
+                'application-rowvalue-fail-retry-current-source-or-fail-savepoint-retry',
             ],
             'non_overlap_or-fail-savepoint-retry' => 'adds OR FAIL prefix-preservation plus ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted OR ABORT abort-statement-savepoint, release release_followup_read, parenthesized next202, OR ROLLBACK next178, OR REPLACE/IGNORE conflict, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -11218,7 +11218,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-rowvalue-rollback-to-restores-savepoint-image-next218',
                 'sqlite-rowvalue-returning-suppressed-after-rollback-to-next218',
-                'wordpress-rowvalue-update-delete-returning-savepoint-rollback-next218',
+                'application-rowvalue-update-delete-returning-savepoint-rollback-next218',
             ],
             'non_overlap_next218' => 'models explicit ROLLBACK TO savepoint image restoration after successful row-value UPDATE/DELETE RETURNING attempts; avoids accepted abort-statement-savepoint preservation, release_followup_read RELEASE current-source admission, next211 OR IGNORE/savepoint behavior, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -11849,7 +11849,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-rowvalue-nested-release-rolled-back-by-outer-savepoint-next224',
                 'sqlite-rowvalue-returning-suppressed-after-outer-rollback-next224',
-                'wordpress-rowvalue-nested-savepoint-retry-current-source-next224',
+                'application-rowvalue-nested-savepoint-retry-current-source-next224',
             ],
             'non_overlap_next224' => 'adds nested savepoint RELEASE rows being discarded by a later outer ROLLBACK TO before retry; avoids accepted next218 explicit rollback image restoration, next217 OR ROLLBACK transaction abort, next211 OR IGNORE, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -12273,7 +12273,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-rowvalue-inner-savepoint-rollback-suppresses-returning',
                 'sqlite-rowvalue-update-or-fail-prior-rows-rolled-back-by-savepoint',
-                'wordpress-rowvalue-savepoint-retry-reads-outer-current-source',
+                'application-rowvalue-savepoint-retry-reads-outer-current-source',
             ],
             'non_overlap' => 'adds inner ROLLBACK TO after UPDATE OR FAIL so preserved FAIL rows and earlier inner RETURNING are suppressed while outer savepoint changes remain current; avoids accepted fail-statement-retry preserved FAIL retry source, released inner discarded by outer rollback, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -12591,7 +12591,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-rowvalue-in-select-update-delete-returning',
                 'sqlite-rowvalue-returning-rollback-to-release-retry',
-                'wordpress-rowvalue-select-savepoint-release-current-source',
+                'application-rowvalue-select-savepoint-release-current-source',
             ],
             'non_overlap' => 'adds row-value IN (SELECT ...) target selection through UPDATE/DELETE RETURNING across ROLLBACK TO and final RELEASE; avoids accepted yield-only rollback fencing, nested release discarded by outer rollback, rollback image restoration, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -12891,7 +12891,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-nested-savepoint-release-returning-discarded-by-outer-rollback',
                 'sqlite-rowvalue-update-delete-returning-retry-after-outer-rollback',
-                'wordpress-rowvalue-nested-release-outer-rollback-savepoint',
+                'application-rowvalue-nested-release-outer-rollback-savepoint',
             ],
             'non_overlap' => 'adds nested inner RELEASE plus outer ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted simple rollback, OR FAIL or-fail-savepoint-retry, OR ABORT abort-statement-savepoint, OR ROLLBACK/RELEASE variants, WAL/VFS, JSON table, planner, trigger, and B-tree clusters',
         ];
@@ -15212,7 +15212,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-rowvalue-distinct-subquery-tuples',
                 'sqlite-rowvalue-returning-rollback-retries-distinct-tuples',
-                'wordpress-rowvalue-distinct-optionmeta-savepoint',
+                'application-rowvalue-distinct-optionmeta-savepoint',
             ],
             'non_overlap' => 'adds SELECT DISTINCT tuple-source de-duplication inside row-value UPDATE/DELETE RETURNING savepoint rollback and retry; avoids accepted LIMIT -1 OFFSET tuple sources, nested savepoint release rollback, OR FAIL/ABORT/ROLLBACK conflict slices, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];

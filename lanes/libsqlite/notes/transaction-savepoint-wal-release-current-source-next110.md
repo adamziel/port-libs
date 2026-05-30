@@ -2,21 +2,21 @@
 
 Status: focused PHP behavior growth for `transaction-savepoint-wal-release-current-source-next110`.
 
-This slice adds `SQLiteSavepointStack::releaseCurrentWalSourceAndAppendNextFrame110()` for copied WordPress import transactions in WAL mode. It validates that the current WAL bytes match the parsed WAL source before trusting release state, releases a nested savepoint into the outer transaction, preserves the released WAL frame prefix, and appends the next transaction frame at the next WAL index without reopening the released savepoint.
+This slice adds `SQLiteSavepointStack::releaseCurrentWalSourceAndAppendNextFrame110()` for copied Application import transactions in WAL mode. It validates that the current WAL bytes match the parsed WAL source before trusting release state, releases a nested savepoint into the outer transaction, preserves the released WAL frame prefix, and appends the next transaction frame at the next WAL index without reopening the released savepoint.
 
 Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteSavepointStack.php`
 - `php -l lanes/libsqlite/tests/SQLiteTransactionSavepointWalReleaseCurrentSourceNext110Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-transaction-savepoint-wal-release-current-source-next110.php`
+- `php -l lanes/libsqlite/examples/application-transaction-savepoint-wal-release-current-source-next110.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTransactionSavepointWalReleaseCurrentSourceNext110Test.php`
-- `php lanes/libsqlite/examples/wordpress-transaction-savepoint-wal-release-current-source-next110.php --self-test`
+- `php lanes/libsqlite/examples/application-transaction-savepoint-wal-release-current-source-next110.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Focused result:
 
 - `1 test files, 45 assertions, 0 failures`
-- WordPress smoke: `wordpress transaction savepoint WAL release current-source next110 self-test passed`
+- Application smoke: `application transaction savepoint WAL release current-source next110 self-test passed`
 
 Expected dashboard movement: `phpPass` +45, from `42491` to `42536`. Mapped upstream coverage remains `604 / 1589`; this composes already mapped savepoint/WAL transaction primitives rather than claiming a new upstream inventory row.
 

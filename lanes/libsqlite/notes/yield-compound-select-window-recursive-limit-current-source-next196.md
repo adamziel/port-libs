@@ -12,10 +12,10 @@ The behavior prevents a stale current-source cursor from being reused after stag
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext196Test.php` -> `1 test files, 379 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next196.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next196.php`
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext196Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next196.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next196.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +68` from the new focused test file. `benchmarkDenominator.mapped` remains `618 / 1589`; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory.

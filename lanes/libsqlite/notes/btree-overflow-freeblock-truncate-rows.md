@@ -14,9 +14,9 @@ Verification:
   - `1 test files, 237 assertions, 0 failures`
   - 61 focused PASS lines
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-freeblock-truncate-rows.php`
+- `php lanes/libsqlite/examples/application-btree-overflow-freeblock-truncate-rows.php`
   - emits copied `wp_options` overflow/freeblock release and truncate
     row evidence without `ext/sqlite`.
 

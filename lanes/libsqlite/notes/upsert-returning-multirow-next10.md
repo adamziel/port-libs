@@ -24,7 +24,7 @@ Focused test run: 2 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-upsert-returning-multirow.php --self-test
+php lanes/libsqlite/examples/application-upsert-returning-multirow.php --self-test
 ```
 
 The example self-test exited successfully.

@@ -261,7 +261,7 @@ $tests['vdbe aggregate orderby preserves original rows separately from ordered r
     $t->same([1, 2, 3, 4], array_column($c->currentRows(), 'rowid'));
 };
 
-$tests['vdbe aggregate orderby supports wordpress autoload option summary'] = static function (TestRunner $t) use ($cursor): void {
+$tests['vdbe aggregate orderby supports application autoload option summary'] = static function (TestRunner $t) use ($cursor): void {
     $summary = $cursor()->drainSummaries('option_name')[2];
     $t->same('home|siteurl|Plugin_Cache|plugin_cache', $summary['concat']);
 };

@@ -9,7 +9,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext210Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next210.php`
+- Application smoke: `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next210.php`
 - Expected dashboard movement: +70 focused PASS lines from the new test file; mapped upstream coverage unchanged.
 
 ## Non-Overlap

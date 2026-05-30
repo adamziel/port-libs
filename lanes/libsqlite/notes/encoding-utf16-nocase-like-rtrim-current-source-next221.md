@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for UTF-16 RTRIM/NOCASE LIKE current-source
 scans when the decoded prepared SQL text is stable but the prepared pattern or
 ESCAPE byte signature changes across UTF-16LE/UTF-16BE bindings.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next221.php`
+Application path: `application-utf16-nocase-like-rtrim-current-source-next221.php`
 models copied `wp_options.option_name` prefix scans where `plugin!_cache%`
 decodes to the same LIKE pattern on both sides, yet the prepared statement
 metadata changes endian byte order. The row range and residual matches can stay
@@ -15,9 +15,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext221Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next221.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next221.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext221Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next221.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next221.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected focused movement: `+72` PASS lines / `86` assertions from the new

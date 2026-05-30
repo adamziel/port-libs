@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointReplayPlan::statementCurrentSourceNext91()` for the pager edge where a copied WordPress SQLite database has:
+Adds `SQLiteWalHotJournalSavepointReplayPlan::statementCurrentSourceNext91()` for the pager edge where a copied Application SQLite database has:
 
 - a hot rollback journal that must be restored first;
 - a current WAL image whose statement frames are still visible to the failed statement current source;
@@ -16,7 +16,7 @@ This intentionally does not duplicate the accepted savepoint WAL byte-truncation
 
 Result: `1 test files, 66 assertions, 0 failures` with 66 PASS lines.
 
-`php lanes/libsqlite/examples/wordpress-wal-hot-journal-statement-current-source-next91.php --self-test`
+`php lanes/libsqlite/examples/application-wal-hot-journal-statement-current-source-next91.php --self-test`
 
 Result: passed; the smoke reports hot-journal recovery, statement page restoration, next retry statement setup, and WAL prefix truncation for a copied `wp_options` import path.
 

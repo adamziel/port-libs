@@ -17,7 +17,7 @@ Focused verification:
 - Result: `1 test files, 52 assertions, 0 failures`, with 43 PASS lines.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateDistinctFilterOrderCurrentSourceNext94Test.php lanes/libsqlite/tests/SQLiteJsonAggregateDistinctCurrentNext76Test.php lanes/libsqlite/tests/SQLiteJsonAggregateOrderDistinctCurrentSourceNext86Test.php lanes/libsqlite/tests/SQLiteJsonAggregateExpressionOrderCurrentSourceNext99Test.php`
 - Result: `4 test files, 211 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-expression-order-current-source-next99.php`
+- `php lanes/libsqlite/examples/application-json-aggregate-expression-order-current-source-next99.php`
 - Result: copied `wp_options` grouped JSON summaries were emitted with
   expression-ranked aggregate order.
 

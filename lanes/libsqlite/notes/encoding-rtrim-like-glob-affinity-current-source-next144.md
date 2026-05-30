@@ -16,7 +16,7 @@ Behavior covered:
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNext144Test.php`
-- `php lanes/libsqlite/examples/wordpress-encoding-rtrim-like-glob-affinity-current-source-next144.php --self-test`
+- `php lanes/libsqlite/examples/application-encoding-rtrim-like-glob-affinity-current-source-next144.php --self-test`
 
 Dependency closure: no new support component needed; this reuses native text
 affinity, RTRIM collation, LIKE/GLOB residual matching, current-source

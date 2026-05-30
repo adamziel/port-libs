@@ -78,7 +78,7 @@ $cases = [
     'database write counter after first write' => [static fn (): mixed => $plan()['visibility'][2]['database_pages_written'], 1],
     'database write counter after third write' => [static fn (): mixed => $plan()['visibility'][4]['database_pages_written'], 3],
     'dependencies include current next boundary' => [static fn (): mixed => in_array('sqlite-rollback-journal-current-next-reader-boundary', $plan()['dependencies'], true), true],
-    'dependencies include wordpress import' => [static fn (): mixed => in_array('wordpress-import-rollback-journal-current-next', $plan()['dependencies'], true), true],
+    'dependencies include application import' => [static fn (): mixed => in_array('application-import-rollback-journal-current-next', $plan()['dependencies'], true), true],
     'dependencies include durable ordering' => [static fn (): mixed => in_array('durable-journal-before-database-write', $plan()['dependencies'], true), true],
     'truncate mode uses truncate operation' => [static fn (): mixed => $plan('normal', 'truncate')['visibility'][6]['reason'], 'truncate_rollback_journal_after_commit'],
     'truncate mode commit visible at truncate' => [static fn (): mixed => $plan('normal', 'truncate')['visibility'][6]['commit_visible'], true],

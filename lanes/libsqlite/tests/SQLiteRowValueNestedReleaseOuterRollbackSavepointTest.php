@@ -118,7 +118,7 @@ $cases230 = [
     'plan row counts' => [static fn (): mixed => $plan230()['row_counts'], ['wp_optionmeta' => 6, 'wp_options' => 11]],
     'plan changed tables only options' => [static fn (): mixed => $plan230()['changed_tables_after_retry'], ['wp_options']],
     'plan dependency nested release' => [static fn (): mixed => in_array('sqlite-nested-savepoint-release-returning-discarded-by-outer-rollback', $plan230()['dependencies'], true), true],
-    'plan dependency wordpress current source' => [static fn (): mixed => in_array('wordpress-rowvalue-nested-release-outer-rollback-savepoint', $plan230()['dependencies'], true), true],
+    'plan dependency application current source' => [static fn (): mixed => in_array('application-rowvalue-nested-release-outer-rollback-savepoint', $plan230()['dependencies'], true), true],
     'plan non overlap mentions simple rollback' => [static fn (): mixed => str_contains($plan230()['non_overlap'], 'simple rollback'), true],
     'plan dependency closure says no new support' => [static fn (): mixed => str_contains($plan230()['dependency_closure'], 'no new support component needed'), true],
     'custom savepoints' => [static fn (): mixed => [$customPlan230()['outer_savepoint'], $customPlan230()['inner_savepoint']], ['wp_outer_custom', 'wp_inner_custom']],

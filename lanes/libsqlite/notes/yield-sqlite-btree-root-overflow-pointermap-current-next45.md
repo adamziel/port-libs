@@ -12,13 +12,13 @@ the prior overflow page.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeRootOverflowPointerMapCurrentNext45Test.php`
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 58 assertions, 0 failures`
-- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-root-overflow-pointermap-current-next45.php`
+- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/application-root-overflow-pointermap-current-next45.php`
   - emits copied `wp_options` root-btree overflow allocation with allocated
     pages `[3,104,5,107,206,106,209]`, appended page `[209]`, pointer-map pages
     `[2,105,208]`, and first-overflow parent page `1`.
 - `php -l lanes/libsqlite/src/SQLiteDatabase.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeRootOverflowPointerMapCurrentNext45Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-root-overflow-pointermap-current-next45.php`
+- `php -l lanes/libsqlite/examples/application-root-overflow-pointermap-current-next45.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

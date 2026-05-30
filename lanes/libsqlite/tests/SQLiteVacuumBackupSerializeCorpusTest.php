@@ -28,7 +28,7 @@ $makePage = static function (int $pageSize = 512, int $pageCount = 3, int $freel
 $makeDatabaseBytes = static function (int $pageSize = 512, int $pageCount = 3, int $freelistCount = 0) use ($makePage): string {
     $pages = [$makePage($pageSize, $pageCount, $freelistCount)];
     for ($page = 2; $page <= $pageCount; $page++) {
-        $pages[] = str_pad("page:{$page};wordpress-options", $pageSize, chr(64 + $page));
+        $pages[] = str_pad("page:{$page};application-options", $pageSize, chr(64 + $page));
     }
 
     return implode('', $pages);
@@ -48,7 +48,7 @@ $serializeCases = [
     'temp schema name' => static fn () => SQLiteVacuumBackupSerializePlan::serialize($database, 'temp')['schema'],
     'attached schema name' => static fn () => SQLiteVacuumBackupSerializePlan::serialize($database, 'wp_copy')['schema'],
     'preserves first page magic' => static fn () => substr(SQLiteVacuumBackupSerializePlan::serialize($database)['bytes'], 0, 16),
-    'preserves later page bytes' => static fn () => substr(SQLiteVacuumBackupSerializePlan::serialize($database)['bytes'], 512, 24),
+    'preserves later page bytes' => static fn () => substr(SQLiteVacuumBackupSerializePlan::serialize($database)['bytes'], 512, strlen('page:2;application-options')),
     'large page byte length' => static fn () => strlen(SQLiteVacuumBackupSerializePlan::serialize($larger)['bytes']),
     'large page count' => static fn () => SQLiteVacuumBackupSerializePlan::serialize($larger)['page_count'],
     'dependencies include serialize' => static fn () => in_array('sqlite3-serialize', SQLiteVacuumBackupSerializePlan::serialize($database)['dependencies'], true),
@@ -64,7 +64,7 @@ $serializeExpected = [
     'temp',
     'wp_copy',
     "SQLite format 3\0",
-    'page:2;wordpress-options',
+    'page:2;application-options',
     5120,
     5,
     true,

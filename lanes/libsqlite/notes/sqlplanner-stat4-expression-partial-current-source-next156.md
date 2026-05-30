@@ -11,8 +11,8 @@ STAT4 sample signature changes. The selected index is intentionally
 non-covering: STAT4 drives the partial expression cursor, while projected
 `option_value` and `option_id` require a deferred table lookup.
 
-WordPress path:
-`wordpress-stat4-expression-partial-current-source-next156.php` models plugin
+Application path:
+`application-stat4-expression-partial-current-source-next156.php` models plugin
 option scans over `lower(option_name)` after a copied import refreshes STAT4
 samples and adds mixed-case plugin rows.
 
@@ -21,8 +21,8 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext156Test.php`
   - `1 test files, 74 assertions, 0 failures`
   - `67` PASS lines
-- `php lanes/libsqlite/examples/wordpress-stat4-expression-partial-current-source-next156.php --self-test`
-  - `wordpress-stat4-expression-partial-current-source-next156 self-test passed`
+- `php lanes/libsqlite/examples/application-stat4-expression-partial-current-source-next156.php --self-test`
+  - `application-stat4-expression-partial-current-source-next156 self-test passed`
 
 Expected dashboard movement: `phpPass` +67, from `69549` to `69616`; mapped
 coverage unchanged because this reuses existing expression-index, partial

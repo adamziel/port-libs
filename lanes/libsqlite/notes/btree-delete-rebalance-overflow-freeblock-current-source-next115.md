@@ -11,12 +11,12 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeDeleteRebalanceOverflowFreeblockCurrentSourceNext115Test.php`
   - `1 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-btree-delete-rebalance-overflow-freeblock-current-source-next115.php`
-  - `WordPress transient delete source hash: 68e108348c7b`
-  - `WordPress transient delete next hash: 71af2d5ab799`
-  - `WordPress transient delete freed overflow pages: 6,7,8`
-  - `WordPress transient delete write order: 3,6,7,8,2,1`
-  - `WordPress transient delete freeblock delta: -172`
+- `php lanes/libsqlite/examples/application-btree-delete-rebalance-overflow-freeblock-current-source-next115.php`
+  - `Application transient delete source hash: 68e108348c7b`
+  - `Application transient delete next hash: 71af2d5ab799`
+  - `Application transient delete freed overflow pages: 6,7,8`
+  - `Application transient delete write order: 3,6,7,8,2,1`
+  - `Application transient delete freeblock delta: -172`
 
 Non-overlap:
 

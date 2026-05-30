@@ -51,7 +51,7 @@ $plan183 = static fn (
     string $nextSource = 'main.wp_options@183',
     int $currentCookie = 182,
     int $nextCookie = 183,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
     $current ?? $current183,
     $next ?? $nextOneEightThree,
     $pattern,
@@ -168,7 +168,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightThree stable cursor r
         $row183(2, 'plugin_cache', 3),
         $row183(3, 'plugin_cache' . "\t", 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -192,7 +192,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightThree wildcard prefix
         $row183(2, 'plugin_caches', 2),
         $row183(3, 'plugin_cache_new', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightThree wildcard prefix
 
 $tests['utf16 nocase like rtrim current source nextOneEightThree no prefix rejects range'] = static function (TestRunner $t) use ($row183): void {
     $rows = [$row183(1, 'plugin_cache', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
         $rows,
         $rows,
         '%cache',
@@ -227,7 +227,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightThree no prefix rejec
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightThree rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],
     ));

@@ -1,6 +1,6 @@
 # compound-intersect-lag-lead-recursive-limit-current-source-next176
 
-Status: focused PHP behavior growth for parser-level compound `INTERSECT` where a recursive CTE queue uses `LIMIT/OFFSET`, per-arm `lag()` window values are evaluated before set intersection, and the final compound `ORDER BY ... LIMIT ... OFFSET` admits a next-source WordPress option row.
+Status: focused PHP behavior growth for parser-level compound `INTERSECT` where a recursive CTE queue uses `LIMIT/OFFSET`, per-arm `lag()` window values are evaluated before set intersection, and the final compound `ORDER BY ... LIMIT ... OFFSET` admits a next-source Application option row.
 
 Behavior covered:
 - `WITH RECURSIVE` queue `LIMIT 5 OFFSET 1` skips the anchor row before the recursive arm reaches the compound operator.
@@ -16,13 +16,13 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundIntersectLagLeadRecu
 
 Result: `1 test files, 255 assertions, 0 failures` with 65 PASS lines.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-compound-intersect-lag-lead-recursive-limit-current-source-next176.php
+php lanes/libsqlite/examples/application-compound-intersect-lag-lead-recursive-limit-current-source-next176.php
 ```
 
-Result: `wordpress-compound-intersect-lag-lead-recursive-limit-current-source-next176 self-test passed`.
+Result: `application-compound-intersect-lag-lead-recursive-limit-current-source-next176 self-test passed`.
 
 Expected dashboard movement: `phpPass +65` from the new focused test file. `benchmarkDenominator.mapped` remains `613 / 1589`; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory, not a newly hydrated upstream row.
 

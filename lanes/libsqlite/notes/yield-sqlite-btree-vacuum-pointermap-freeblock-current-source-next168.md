@@ -8,7 +8,7 @@
   deleted table leaf image must remain byte-stable after partial auto-vacuum
   truncates/reallocates overflow pages, and the leaf page must keep its
   auto-vacuum pointer-map root ownership.
-- WordPress smoke models copied `wp_options` cleanup where a transient row is
+- Application smoke models copied `wp_options` cleanup where a transient row is
   deleted while overflow pages are reused for replacement payload bytes.
 
 ## Evidence
@@ -27,7 +27,7 @@ The focused test produced 68 PASS lines.
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next168.php
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next168.php
 ```
 
 The smoke emitted `stableLeafPages: [3]`, `leafErrors: []`, released overflow

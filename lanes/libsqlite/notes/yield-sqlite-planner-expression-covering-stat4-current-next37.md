@@ -15,7 +15,7 @@ Focused behavior:
 - current/next sample pairs are emitted for planner evidence.
 - malformed STAT4 sample lists, rows, vectors, and count tokens are rejected.
 - copied `wp_options` smoke shows a skewed `lower(option_name)` covering index
-  winning for WordPress option-name lookups without `ext/sqlite`.
+  winning for Application option-name lookups without `ext/sqlite`.
 
 Verification:
 

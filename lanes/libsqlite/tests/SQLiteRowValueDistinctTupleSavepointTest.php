@@ -121,7 +121,7 @@ $casestuple = [
     'plan receipt suppressed ids' => [static fn (): mixed => $plantuple()['tuple_source_receipt']['suppressed_ids'], [8, 3, 10]],
     'plan receipt retry ids' => [static fn (): mixed => $plantuple()['tuple_source_receipt']['retry_ids'], [7, 8, 9]],
     'plan dependency distinct' => [static fn (): mixed => in_array('sqlite-rowvalue-distinct-subquery-tuples', $plantuple()['dependencies'], true), true],
-    'plan dependency wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-distinct-optionmeta-savepoint', $plantuple()['dependencies'], true), true],
+    'plan dependency application' => [static fn (): mixed => in_array('application-rowvalue-distinct-optionmeta-savepoint', $plantuple()['dependencies'], true), true],
     'plan dependency closure' => [static fn (): mixed => str_contains($plantuple()['dependency_closure'], 'no new support component'), true],
     'plan non overlap mentions limit offset' => [static fn (): mixed => str_contains($plantuple()['non_overlap'], 'LIMIT -1 OFFSET'), true],
     'custom savepoint' => [static fn (): mixed => $customPlantuple()['savepoint'], 'wp_custom_distinct_tuple_tuple'],

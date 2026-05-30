@@ -10,14 +10,14 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointReplayPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCurrentSourceNext87Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-current-source-next87.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-current-source-next87.php
 No syntax errors detected in changed PHP files.
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCurrentSourceNext87Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 68 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-current-source-next87.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-current-source-next87.php --self-test
 status: hot_journal_recovered_savepoint_wal_replayed
 retainedFrames: 2
 discardedFrames: 2

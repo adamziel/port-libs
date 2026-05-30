@@ -35,9 +35,9 @@ Expected dashboard movement: `phpPass` +59, from 56029 to 56088. Mapped
 coverage remains unchanged at 606 / 1589; this patch does not claim a new
 manifest row.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-rowvalue-is-savepoint-current-source-next133.php`
+`lanes/libsqlite/examples/application-rowvalue-is-savepoint-current-source-next133.php`
 models copied `wp_options` cleanup where nullable staged option metadata must
 distinguish `NULL IS NULL` from ordinary row-value comparison UNKNOWN inside a
 savepoint.

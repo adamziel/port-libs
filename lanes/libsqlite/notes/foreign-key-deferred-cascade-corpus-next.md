@@ -22,7 +22,7 @@ PASS foreign key deferred cascade rejects missing child column
 
 1 test files, 38 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-foreign-key-deferred-cascade.php
+php lanes/libsqlite/examples/application-foreign-key-deferred-cascade.php
 {
     "remaining_groups": [
         "manual"

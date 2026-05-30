@@ -6,15 +6,15 @@ Files:
 
 - `src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext239Test.php`
-- `examples/wordpress-compound-select-window-recursive-limit-current-source-next239.php`
+- `examples/application-compound-select-window-recursive-limit-current-source-next239.php`
 
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext239Test.php` - `1 test files, 440 assertions, 0 failures`, 71 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next239.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next239.php`
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext239Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next239.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next239.php`
 - `php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'`
 - `git diff --check -- lanes/libsqlite`
 

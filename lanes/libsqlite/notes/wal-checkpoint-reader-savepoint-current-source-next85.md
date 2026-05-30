@@ -27,10 +27,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 64 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-reader-savepoint-current-source-next85.php
+php lanes/libsqlite/examples/application-wal-checkpoint-reader-savepoint-current-source-next85.php
 ```
 
 Result: JSON scenario reports `status=busy`, `checkpointReason=reader_blocks_wal_reset`, retained frames `[1,2]`, discarded pages `[3,4,5]`, and source transitions `wal>wal>wal` for retained pages plus `wal>database>database` for rolled-back plugin-setting pages.

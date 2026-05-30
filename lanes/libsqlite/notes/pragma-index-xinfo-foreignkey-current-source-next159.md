@@ -10,7 +10,7 @@ Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a catalog-derived curr
 - Existing parent UNIQUE-index admission checks and `foreign_key_check` violation rows.
 - Stable current/next cursor validation through the accepted next156 cursor.
 
-The WordPress smoke models copied multisite `wp_options` data where the current parent index has a mismatched `BINARY` collation and missing parent rows, while the next source repairs the parent `NOCASE` UNIQUE index and missing parent rows.
+The Application smoke models copied multisite `wp_options` data where the current parent index has a mismatched `BINARY` collation and missing parent rows, while the next source repairs the parent `NOCASE` UNIQUE index and missing parent rows.
 
 ## Focused evidence
 
@@ -22,9 +22,9 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next159.php
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next159.php
 {
-    "scenario": "wordpress-pragma-index-xinfo-foreignkey-current-source-next159",
+    "scenario": "application-pragma-index-xinfo-foreignkey-current-source-next159",
     "status": "ok",
     "foreign_key_source": "pragma_foreign_key_list",
     "derived_foreign_keys": 2,

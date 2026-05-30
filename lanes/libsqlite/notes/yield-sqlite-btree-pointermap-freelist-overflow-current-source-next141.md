@@ -8,7 +8,7 @@ compares prepared-source overflow pages with the current database image, release
 only the current-source overflow chain into the freelist, and reallocates the
 replacement chain with fresh pointer-map ownership.
 
-The WordPress path models a stale prepared `wp_options` transient row whose old
+The Application path models a stale prepared `wp_options` transient row whose old
 overflow pages are no longer the current cell payload. The current autoload
 index overflow chain is freed and reused, while the stale prepared pages remain
 owned as ordinary b-tree pages and are not accidentally inserted into the
@@ -30,16 +30,16 @@ Focused test run: 1 selected test files (root lock skipped)
 PASS_LINES=77
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-pointermap-freelist-overflow-current-source-next141.php --self-test
+php lanes/libsqlite/examples/application-btree-pointermap-freelist-overflow-current-source-next141.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-btree-pointermap-freelist-overflow-current-source-next141 self-test passed
+application-btree-pointermap-freelist-overflow-current-source-next141 self-test passed
 ```
 
 ## Non-Overlap

@@ -6,7 +6,7 @@ SQLite text affinity for `LIKE`/`GLOB` converts real values to text before
 range and residual matching. The current UTF-16 LIKE/GLOB source cursor was
 trimming every trailing `0` from the formatted real string, so values such as
 `100.0`, `1000.0`, and `1200.0` became `1`, `1`, and `12`. That made copied
-WordPress numeric option values fall out of `LIKE '100%'` and `GLOB '100*'`
+Application numeric option values fall out of `LIKE '100%'` and `GLOB '100*'`
 current-source scans.
 
 This slice keeps integral real strings intact and only trims fractional zeros
@@ -16,7 +16,7 @@ when the formatted representation contains a decimal point.
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext252Test.php`
 - Result: `1 test files, 55 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-encoding-affinity-real-like-current-source-next252.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-encoding-affinity-real-like-current-source-next252.php --self-test`
 - Expected `phpPass` movement: `+55` focused PASS lines, `129612 -> 129667`
 - Mapped upstream coverage: unchanged, no new manifest row claimed
 

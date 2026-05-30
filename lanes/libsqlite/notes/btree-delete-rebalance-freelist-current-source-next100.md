@@ -13,10 +13,10 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeDeleteRebalanceFreelistCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeDeleteRebalanceFreelistCurrentSourceNext100Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-delete-rebalance-freelist-current-source-next100.php`
+- `php -l lanes/libsqlite/examples/application-btree-delete-rebalance-freelist-current-source-next100.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeDeleteRebalanceFreelistCurrentSourceNext100Test.php`
   - `1 test files, 53 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-btree-delete-rebalance-freelist-current-source-next100.php`
+- `php lanes/libsqlite/examples/application-btree-delete-rebalance-freelist-current-source-next100.php`
   - reports deleted transient rows, released overflow pages `[6, 7]`,
     final freelist count `122`, the new first trunk `7 -> 5`, and the
     allocation-order head.

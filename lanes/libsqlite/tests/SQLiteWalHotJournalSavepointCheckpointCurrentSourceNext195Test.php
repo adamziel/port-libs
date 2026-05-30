@@ -89,7 +89,7 @@ $cases = [
     'dependency previous' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next188', $ok()['dependencies'], true), true],
     'dependency next195' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next195', $ok()['dependencies'], true), true],
     'dependency reader retry' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-reader-retry-current-source', $ok()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-reader-reopen-after-hot-journal-checkpoint', $ok()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-reader-reopen-after-hot-journal-checkpoint', $ok()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($ok()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($ok()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'unpublished blocked' => [static fn (): mixed => $plan($unpublished)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next195'],

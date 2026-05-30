@@ -190,7 +190,7 @@ $cases206 = [
     'dependency includes next206' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next206', $released206()['dependencies_next206'], true), true],
     'dependency includes watermark' => [static fn (): mixed => in_array('sqlite-returning-current-source-yield-watermark', $released206()['dependencies_next206'], true), true],
     'dependency includes next203' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next203', $released206()['dependencies_next206'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next206', $released206()['dependencies_next206'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next206', $released206()['dependencies_next206'], true), true],
     'non overlap mentions next203' => [static fn (): mixed => str_contains($released206()['non_overlap_next206'], 'next203 generation handoff'), true],
     'explicit expected watermark accepted' => [static fn (): mixed => $plan206(['expected_yield_watermark_next206' => $watermark206()])['yield_watermark_matches_next206'], true],
     'explicit acknowledged watermark accepted' => [static fn (): mixed => $plan206(['acknowledged_yield_watermark_next206' => $watermark206()])['yield_watermark_matches_next206'], true],

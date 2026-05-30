@@ -9,8 +9,8 @@ but a later non-NULL element proves inequality. SQLite returns false for
 corresponding `<>`; the previous bounded UPDATE/DELETE RETURNING executor
 stopped at the first NULL and returned UNKNOWN.
 
-WordPress smoke:
-`wordpress-rowvalue-null-inequality-savepoint-current-source-next176.php`
+Application smoke:
+`application-rowvalue-null-inequality-savepoint-current-source-next176.php`
 models copied `wp_options` cleanup. It deletes rows that are deterministically
 not equal to a nullable active_plugins tuple, keeps the UNKNOWN tuple, rolls
 back a staged OR ROLLBACK conflict, and retries from the rollback source.
@@ -20,9 +20,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext176Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-null-inequality-savepoint-current-source-next176.php
+php -l lanes/libsqlite/examples/application-rowvalue-null-inequality-savepoint-current-source-next176.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext176Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-null-inequality-savepoint-current-source-next176.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-null-inequality-savepoint-current-source-next176.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

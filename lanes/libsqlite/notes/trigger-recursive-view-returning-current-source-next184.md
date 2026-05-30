@@ -11,8 +11,8 @@ the current generation, acknowledged with a handoff token, and only then may
 the already-admitted next-source `RETURNING` rows become visible. Missing,
 unexpected, or mismatched handoff acknowledgements keep the next source held.
 
-WordPress path:
-`wordpress-trigger-recursive-view-returning-current-source-next184.php` models a
+Application path:
+`application-trigger-recursive-view-returning-current-source-next184.php` models a
 copied `wp_options` import through a recursive view trigger. The current
 `RETURNING` cursor drains and checkpoints first; the next plugin/source rows
 are exposed only after the current checkpoint tokens are acknowledged.
@@ -21,11 +21,11 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext184Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext184Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next184.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next184.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext184Test.php`
   - `1 test files, 82 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next184.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next184 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next184.php`
+  - `application-trigger-recursive-view-returning-current-source-next184 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta: `phpPass +82`, from `86745` to `86827`. Mapped upstream

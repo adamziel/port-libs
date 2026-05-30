@@ -49,7 +49,7 @@ $plan182 = static fn (
     string $nextSource = 'stable',
     int $currentCookie = 182,
     int $nextCookie = 182,
-): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
+): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapeReplayPlan(
     $current ?? $current182,
     $next ?? $nextOneEightTwo,
     $enc182($currentPattern, $currentPatternEncoding),
@@ -124,7 +124,7 @@ $tests['utf16 nocase like rtrim escape current source nextOneEightTwo clean same
         'bytesHex' => bin2hex($enc182('plugin_%_cache', 2)),
         'encoding' => 'UTF-16LE',
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapeReplayPlan(
         $rows,
         $rows,
         $enc182('plugin!_!%!_cache%', 2),
@@ -175,7 +175,7 @@ $tests['utf16 nocase like rtrim escape current source nextOneEightTwo nul escape
 };
 
 $tests['utf16 nocase like rtrim escape current source nextOneEightTwo malformed escape bytes are isolated'] = static function (TestRunner $t) use ($current182, $nextOneEightTwo, $enc182, $token182): void {
-    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapeReplayPlan(
         $current182,
         $nextOneEightTwo,
         $enc182('plugin!_!%!_cache%', 2),
@@ -199,7 +199,7 @@ $tests['utf16 nocase like rtrim escape current source nextOneEightTwo malformed 
 };
 
 $tests['utf16 nocase like rtrim escape current source nextOneEightTwo rejects unsupported encoding'] = static function (TestRunner $t) use ($current182, $nextOneEightTwo, $enc182, $token182): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapeReplayPlan(
         $current182,
         $nextOneEightTwo,
         $enc182('plugin!_!%!_cache%', 2),

@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for SQLite temp-directory sidecar lock curre
 
 This slice adds `SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan::currentSourceNext107()`. It models current temp handles retaining their original temp-directory sidecar lock namespace after the temp directory changes, while next temp handles open in the new directory with a distinct sidecar lock key, file-control state, and lock state. It covers temp, main, and attached sources; delete-on-close cleanup; explicit handle targeting; and invalid directory/source/suffix guards.
 
-WordPress path: `wordpress-vfs-temp-directory-sidecar-lock-current-source-next107.php` previews copied `wp_options` import statement-journal handles when a temp directory handoff moves the next temp file into a new directory. Current handles keep the old sidecar lock namespace; next handles do not inherit stale locks or xFileControl state.
+Application path: `application-vfs-temp-directory-sidecar-lock-current-source-next107.php` previews copied `wp_options` import statement-journal handles when a temp directory handoff moves the next temp file into a new directory. Current handles keep the old sidecar lock namespace; next handles do not inherit stale locks or xFileControl state.
 
 Verification:
 

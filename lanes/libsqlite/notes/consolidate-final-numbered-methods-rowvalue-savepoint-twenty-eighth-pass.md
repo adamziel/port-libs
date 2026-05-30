@@ -13,9 +13,9 @@ Focused evidence:
 - `php -l lanes/libsqlite/tests/SQLiteRowValueIgnoreReplaceDeleteSavepointTest.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueReleaseFollowupReadSavepointTest.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueReleasedInnerRollbackRetrySavepointTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-ignore-replace-delete-savepoint.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-release-followup-read-savepoint.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-released-inner-rollback-retry-savepoint.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-ignore-replace-delete-savepoint.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-release-followup-read-savepoint.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-released-inner-rollback-retry-savepoint.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueIgnoreReplaceDeleteSavepointTest.php lanes/libsqlite/tests/SQLiteRowValueReleaseFollowupReadSavepointTest.php lanes/libsqlite/tests/SQLiteRowValueReleasedInnerRollbackRetrySavepointTest.php`
   -> `3 test files, 192 assertions, 0 failures`
 

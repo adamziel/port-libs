@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressBulkImportSavepointPlan;
+use PortLibs\LibSqlite\SQLiteBulkImportSavepointPlan;
 
 $currentRows = static fn (): array => [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
@@ -36,7 +36,7 @@ $batches = static fn (): array => [
     ],
 ];
 
-$plan = static fn (array $extraBatches = null, array $options = []): array => SQLiteWordPressBulkImportSavepointPlan::plan(
+$plan = static fn (array $extraBatches = null, array $options = []): array => SQLiteBulkImportSavepointPlan::plan(
     $currentRows(),
     $extraBatches ?? $batches(),
     $options + ['database_path' => '/tmp/wp-bulk-import.sqlite', 'page_size' => 1024]
@@ -80,8 +80,8 @@ $cases = [
     'released names mirror final names' => [static fn (): mixed => $plan()['released_option_names'], $plan()['final_option_names']],
     'dirty pages coalesce released batches' => [static fn (): mixed => $plan()['dirty_pages'], [2, 4]],
     'journal bytes count coalesced pages' => [static fn (): mixed => $plan()['journal_bytes'], 2092],
-    'dependency includes bulk import savepoint' => [static fn (): mixed => in_array('sqlite-wordpress-bulk-import-savepoint-current', $plan()['dependencies'], true), true],
-    'dependency includes current import transaction' => [static fn (): mixed => in_array('sqlite-wordpress-import-transaction-current', $plan()['dependencies'], true), true],
+    'dependency includes bulk import savepoint' => [static fn (): mixed => in_array('sqlite-application-bulk-import-savepoint-current', $plan()['dependencies'], true), true],
+    'dependency includes current import transaction' => [static fn (): mixed => in_array('sqlite-application-import-transaction-current', $plan()['dependencies'], true), true],
     'dependency includes savepoint rollback' => [static fn (): mixed => in_array('sqlite-savepoint-current-rollback', $plan()['dependencies'], true), true],
     'persist journal option is preserved' => [static fn (): mixed => $plan(null, ['journal_mode' => 'persist'])['journal_mode'], 'persist'],
     'normal sync option is preserved' => [static fn (): mixed => $plan(null, ['sync_mode' => 'normal'])['sync_mode'], 'normal'],
@@ -95,7 +95,7 @@ $cases = [
     'last duplicate staged row wins inside batch' => [static fn (): mixed => $plan([['name' => 'dups', 'rows' => [['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'first', 'autoload' => 'yes'], ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'last', 'autoload' => 'yes']]]])['final_rows'][0]['option_value'], 'last'],
     'batch name default is generated' => [static fn (): mixed => $plan([['rows' => [['option_name' => 'generated_name', 'option_value' => '1', 'autoload' => 'no']]]])['batches'][0]['name'], 'wp_bulk_1'],
     'abort conflict throws' => [static fn (): mixed => $plan([['name' => 'abort_batch', 'on_conflict' => 'abort', 'rows' => [['option_id' => 131, 'option_name' => 'home', 'option_value' => 'dup', 'autoload' => 'yes']]]]), LogicException::class],
-    'empty batch list rejected' => [static fn (): mixed => SQLiteWordPressBulkImportSavepointPlan::plan($currentRows(), []), InvalidArgumentException::class],
+    'empty batch list rejected' => [static fn (): mixed => SQLiteBulkImportSavepointPlan::plan($currentRows(), []), InvalidArgumentException::class],
     'bad conflict action rejected' => [static fn (): mixed => $plan([['name' => 'bad_action', 'on_conflict' => 'ignore', 'rows' => []]]), InvalidArgumentException::class],
     'bad savepoint name rejected' => [static fn (): mixed => $plan([['name' => 'bad-name', 'rows' => []]]), InvalidArgumentException::class],
     'empty savepoint name rejected' => [static fn (): mixed => $plan([['name' => '', 'rows' => []]]), InvalidArgumentException::class],
@@ -108,7 +108,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wordpress bulk import savepoint current next28 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application bulk import savepoint current next28 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

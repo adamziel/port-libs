@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a bounded WAL savepoint/checkpoint yield view for copied WordPress import
+Adds a bounded WAL savepoint/checkpoint yield view for copied Application import
 diagnostics. `SQLiteWalSavepointCheckpointPlan::yieldReaderSavepointCurrentNext()`
 returns three reader-visible stages:
 
@@ -30,8 +30,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-savepoint-yield.php --self-test
-wordpress-wal-checkpoint-savepoint-yield self-test passed
+php lanes/libsqlite/examples/application-wal-checkpoint-savepoint-yield.php --self-test
+application-wal-checkpoint-savepoint-yield self-test passed
 ```
 
 ## Status Delta

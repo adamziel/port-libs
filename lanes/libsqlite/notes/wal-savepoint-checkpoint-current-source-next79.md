@@ -13,9 +13,9 @@ Status: focused PHP behavior growth for WAL savepoint rollback/checkpoint curren
 ```bash
 php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalSavepointCheckpointCurrentSourceNext79Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-savepoint-checkpoint-current-source-next79.php
+php -l lanes/libsqlite/examples/application-wal-savepoint-checkpoint-current-source-next79.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointCheckpointCurrentSourceNext79Test.php
-php lanes/libsqlite/examples/wordpress-wal-savepoint-checkpoint-current-source-next79.php
+php lanes/libsqlite/examples/application-wal-savepoint-checkpoint-current-source-next79.php
 git diff --check -- lanes/libsqlite
 ```
 

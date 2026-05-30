@@ -8,7 +8,7 @@ Consolidated the compound recursive collation/limit SELECT diagnostic entrypoint
 
 - Renamed public `compareNext132()` to `compareRecursiveCollationLimit()`.
 - Renamed the associated private `*Next132()` helpers to descriptive unsuffixed helper names.
-- Updated the direct focused test and WordPress smoke to call the canonical entrypoint.
+- Updated the direct focused test and Application smoke to call the canonical entrypoint.
 
 The existing status string payloads remain unchanged because the direct tests assert those diagnostic values.
 
@@ -16,11 +16,11 @@ The existing status string payloads remain unchanged because the direct tests as
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundRecursiveCollationLimitCurrentSourceNext132Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-recursive-collation-limit-current-source-next132.php`
+- `php -l lanes/libsqlite/examples/application-compound-recursive-collation-limit-current-source-next132.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundRecursiveCollationLimitCurrentSourceNext132Test.php`
   - `1 test files, 159 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-compound-recursive-collation-limit-current-source-next132.php --self-test`
-  - `wordpress-compound-recursive-collation-limit-current-source-next132 self-test passed`
+- `php lanes/libsqlite/examples/application-compound-recursive-collation-limit-current-source-next132.php --self-test`
+  - `application-compound-recursive-collation-limit-current-source-next132 self-test passed`
 
 ## Dependency Closure
 

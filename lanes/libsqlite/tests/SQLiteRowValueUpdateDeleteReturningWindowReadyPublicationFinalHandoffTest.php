@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined final handoff current-source publication seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-ready-publication-final-handoff.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-ready-publication-final-handoff.php';
 
         $expectedStatuses = [];
         for ($next = 1150; $next <= 1165; $next++) {

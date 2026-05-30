@@ -167,7 +167,7 @@ $cases182 = [
     'dependency includes next182' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next182', $release182()['dependencies_next182'], true), true],
     'dependency includes view generation' => [static fn (): mixed => in_array('sqlite-returning-current-view-source-generation-fence', $release182()['dependencies_next182'], true), true],
     'dependency includes trigger generation' => [static fn (): mixed => in_array('sqlite-returning-current-trigger-source-generation-fence', $release182()['dependencies_next182'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next182', $release182()['dependencies_next182'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next182', $release182()['dependencies_next182'], true), true],
     'non overlap note names next178' => [static fn (): mixed => str_contains($release182()['non_overlap_next182'], 'next178 snapshot/schema-cookie'), true],
 
     'bad current generation throws' => [static fn (): mixed => $plan182(['current_source_generation' => 'bad generation']), InvalidArgumentException::class],

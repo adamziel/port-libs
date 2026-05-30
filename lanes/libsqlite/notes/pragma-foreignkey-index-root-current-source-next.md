@@ -10,9 +10,9 @@ Focused verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyIndexRootCurrentSourceNextTest.php`
 - Result: `1 test files, 77 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-pragma-foreignkey-index-root-current-source-next.php`
+- `php lanes/libsqlite/examples/application-pragma-foreignkey-index-root-current-source-next.php`
 - Result: JSON summary for copied `wp_options`, `wp_option_names`,
   `wp_terms`, and `wp_term_taxonomy` schema checks, including index metadata,
   root integrity, FK rootpage rows, and pointer-map blocking reasons.

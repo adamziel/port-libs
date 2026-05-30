@@ -13,11 +13,11 @@ Focused checks:
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext173176Test.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext177180Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next173-176.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next177-180.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next173-176.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next177-180.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext173176Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext177180Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next173-176.php --self-test
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next177-180.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next173-176.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next177-180.php --self-test
 git diff --check
 ```
 

@@ -1,11 +1,11 @@
-# WordPress Migration UPSERT JSON Current Next27
+# Application Migration UPSERT JSON Current Next27
 
 Status: focused PHP corpus growth for copied `wp_options` imports that use
 `INSERT ... ON CONFLICT(option_name) DO UPDATE` with JSON mutation expressions.
 
 Behavior:
 
-- Added `SQLiteWordPressJsonUpsertMigrationPlan`, a bounded row-array executor
+- Added `SQLiteJsonUpsertMigrationPlan`, a bounded row-array executor
   that composes existing UPSERT current-row conflict handling with existing
   `json_set()` / `json_extract()` semantics.
 - The plan applies JSON updates to incoming rows before insert and to current
@@ -18,14 +18,14 @@ Behavior:
 Verification:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressJsonUpsertMigrationCurrentNext27Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonUpsertMigrationCurrentNext27Test.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 64 assertions, 0 failures
 ```
 
 ```sh
-php lanes/libsqlite/examples/wordpress-json-upsert-migration-current-next27.php --self-test
+php lanes/libsqlite/examples/application-json-upsert-migration-current-next27.php --self-test
 ```
 
 PASS delta: +64 focused PHP PASS lines. `lane-status.json` `phpPass` moves
@@ -35,9 +35,9 @@ Non-overlap:
 
 This slice avoids accepted UPSERT trigger/FK yield behavior, UPSERT RETURNING
 multi-row projection-only behavior, JSON table cursor/source/constraint work,
-SELECT derived-table WordPress staging, WAL/VFS rollback/checkpoint work, and
+SELECT derived-table Application staging, WAL/VFS rollback/checkpoint work, and
 B-tree page/freeblock/freelist clusters. It is specifically current-row JSON
-mutation during WordPress option migration UPSERT.
+mutation during Application option migration UPSERT.
 
 Dependency closure:
 

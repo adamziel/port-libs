@@ -30,10 +30,10 @@ php -l lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php
 # No syntax errors detected in lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php
 php -l lanes/libsqlite/tests/SQLiteAttachSchemaShadowingCurrentNext16Test.php
 # No syntax errors detected in lanes/libsqlite/tests/SQLiteAttachSchemaShadowingCurrentNext16Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-schema-shadowing-current-next16.php
-# No syntax errors detected in lanes/libsqlite/examples/wordpress-attach-schema-shadowing-current-next16.php
+php -l lanes/libsqlite/examples/application-attach-schema-shadowing-current-next16.php
+# No syntax errors detected in lanes/libsqlite/examples/application-attach-schema-shadowing-current-next16.php
 
-php lanes/libsqlite/examples/wordpress-attach-schema-shadowing-current-next16.php
+php lanes/libsqlite/examples/application-attach-schema-shadowing-current-next16.php
 # unqualified_wp_options_schema=temp, unqualified_sqlite_schema_schema=main,
 # temp_catalog_alias_schema=temp, site_catalog_alias_schema=site,
 # site_catalog_alias_root=1

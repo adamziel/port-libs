@@ -16,11 +16,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 74 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-aggregate-filter-order-current-next.php --self-test
-PASS wordpress vdbe aggregate filter order current next
+php lanes/libsqlite/examples/application-vdbe-aggregate-filter-order-current-next.php --self-test
+PASS application vdbe aggregate filter order current next
 ```
 
 Status delta: `lane-status.json` `phpPass` moves from `10687` to `10739` for

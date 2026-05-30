@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds a focused current-source behavior slice for `CAST(option_value AS TEXT) COLLATE NOCASE NOT LIKE ? ESCAPE ?` over WordPress-style `wp_options` rows.
+Adds a focused current-source behavior slice for `CAST(option_value AS TEXT) COLLATE NOCASE NOT LIKE ? ESCAPE ?` over Application-style `wp_options` rows.
 
 This is intentionally the complement of the accepted positive malformed-byte LIKE next232 work. It covers NOT LIKE truth-complement behavior, NULL/BLOB unknown rows staying outside the complement, scalar text affinity for numeric/bool values, malformed UTF-8 byte tokenization, ASCII-only NOCASE folding, and current/next source invalidation when malformed bytes or predicate truth change.
 
@@ -10,7 +10,7 @@ This is intentionally the complement of the accepted positive malformed-byte LIK
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext235Test.php`
   - `1 test files, 80 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-encoding-collation-affinity-like-current-source-next235.php`
+- `php lanes/libsqlite/examples/application-encoding-collation-affinity-like-current-source-next235.php`
   - emits `encoding-collation-affinity-like-current-source-next235` with changed predicate truth on row `3`
 
 ## Non-Overlap

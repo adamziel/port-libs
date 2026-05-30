@@ -12,7 +12,7 @@ are routed to the correct journal family:
 - attached/main writes without WAL metadata remain explicit rollback-journal
   work instead of being silently counted as WAL writes.
 
-The WordPress smoke uses copied `wp_options`/`wp_option_audit` style triggers:
+The Application smoke uses copied `wp_options`/`wp_option_audit` style triggers:
 a TEMP trigger on `main.wp_options` writes one TEMP audit row and one qualified
 main audit row, proving the TEMP shadow route does not hide the main WAL append.
 

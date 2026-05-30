@@ -22,15 +22,15 @@ Lint:
 ```text
 php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalSavepointReaderCheckpointCurrentSourceNext94Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-savepoint-reader-checkpoint-current-source-next94.php
+php -l lanes/libsqlite/examples/application-wal-savepoint-reader-checkpoint-current-source-next94.php
 No syntax errors detected
 ```
 
 Smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-savepoint-reader-checkpoint-current-source-next94.php --self-test
-wordpress-wal-savepoint-reader-checkpoint-current-source-next94 self-test passed
+php lanes/libsqlite/examples/application-wal-savepoint-reader-checkpoint-current-source-next94.php --self-test
+application-wal-savepoint-reader-checkpoint-current-source-next94 self-test passed
 ```
 
 Whitespace:

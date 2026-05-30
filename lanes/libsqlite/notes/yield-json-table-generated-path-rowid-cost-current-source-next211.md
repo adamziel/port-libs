@@ -9,7 +9,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext211Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next211.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next211.php --self-test`
 - Dependency closure: no new support component needed; this reuses native JSON table generated-path rowid range/order profiles.
 
 ## Non-overlap

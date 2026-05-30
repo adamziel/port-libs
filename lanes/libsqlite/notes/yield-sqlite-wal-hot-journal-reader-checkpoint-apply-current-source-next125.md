@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteVfsFileWriter::applyWalCheckpointHotJournalReaderCurrentSourceNext125()` for the composed native VFS path where a copied WordPress SQLite database opens with:
+Adds `SQLiteVfsFileWriter::applyWalCheckpointHotJournalReaderCurrentSourceNext125()` for the composed native VFS path where a copied Application SQLite database opens with:
 
 - a hot rollback journal from an interrupted import,
 - a WAL with reader-pinned tail frames,
@@ -24,16 +24,16 @@ Result:
 1 test files, 59 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-reader-checkpoint-apply-current-source-next125.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-reader-checkpoint-apply-current-source-next125.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-wal-hot-journal-reader-checkpoint-apply-current-source-next125 self-test passed
+application-wal-hot-journal-reader-checkpoint-apply-current-source-next125 self-test passed
 ```
 
 ## Non-Overlap

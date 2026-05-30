@@ -123,7 +123,7 @@ $cases = [
     'pinned read mark cannot finish' => [static fn (): mixed => $releasePinned()['current_read_marks']['checkpoint_can_finish'], false],
     'pinned reusable slots include stale and unused slots' => [static fn (): mixed => $releasePinned()['current_read_marks']['reusable_slots'], [0, 1]],
     'pinned dependency names release boundary' => [static fn (): mixed => in_array('sqlite-wal-savepoint-release-reader-current-next', $releasePinned()['dependencies'], true), true],
-    'pinned dependency names wordpress import' => [static fn (): mixed => in_array('wordpress-import-release-reader-current-next', $releasePinned()['dependencies'], true), true],
+    'pinned dependency names application import' => [static fn (): mixed => in_array('application-import-release-reader-current-next', $releasePinned()['dependencies'], true), true],
 
     'latest status is ready' => [static fn (): mixed => $releaseLatest()['status'], 'ready'],
     'latest mode is truncate' => [static fn (): mixed => $releaseLatest()['mode'], 'truncate'],

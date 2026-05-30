@@ -16,8 +16,8 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheStatementVirtualBranchFenceTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheControlValueBranchFenceTest.php`
   - `2 test files, 43 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-statement-virtual-branch-fence.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-control-value-branch-fence.php --self-test`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-statement-virtual-branch-fence.php --self-test`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-control-value-branch-fence.php --self-test`
 
 Dependency closure: no new support component is needed; this reuses the existing
 pager master-journal reader-cache branch-fence implementation.

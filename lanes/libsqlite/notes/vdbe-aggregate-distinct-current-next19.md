@@ -9,7 +9,7 @@ Slice: `yield-sqlite-vdbe-aggregate-distinct-current-next19`
 - Applies aggregate `FILTER` before DISTINCT insertion, sorts/deduplicates with
   VDBE affinity/collation comparison, and exposes count/sum/total/avg and
   group-concat finalizers over the distinct cursor values.
-- The WordPress smoke previews copied `wp_options` autoloaded option rows where
+- The Application smoke previews copied `wp_options` autoloaded option rows where
   duplicate byte counts are collapsed before aggregate finalization.
 
 ## Verification
@@ -21,15 +21,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVdbeAggregateDistinctCurs
 php -l lanes/libsqlite/tests/SQLiteVdbeAggregateDistinctCurrentNext19Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteVdbeAggregateDistinctCurrentNext19Test.php
 
-php -l lanes/libsqlite/examples/wordpress-vdbe-aggregate-distinct-current-next.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-vdbe-aggregate-distinct-current-next.php
+php -l lanes/libsqlite/examples/application-vdbe-aggregate-distinct-current-next.php
+No syntax errors detected in lanes/libsqlite/examples/application-vdbe-aggregate-distinct-current-next.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeAggregateDistinctCurrentNext19Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 50 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-vdbe-aggregate-distinct-current-next.php --self-test
-wordpress-vdbe-aggregate-distinct-current-next self-test passed
+php lanes/libsqlite/examples/application-vdbe-aggregate-distinct-current-next.php --self-test
+application-vdbe-aggregate-distinct-current-next self-test passed
 ```
 
 `phpPass` delta: +50 focused PASS lines, from lane-local 6444 to 6494. Root

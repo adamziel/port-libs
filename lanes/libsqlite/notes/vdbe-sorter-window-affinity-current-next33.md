@@ -7,8 +7,8 @@
   current/next loop. Peer boundaries reuse the VDBE sorter comparator for
   order affinity, collation, descending flags, and NULL placement while still
   respecting partition affinity/collation.
-- WordPress smoke:
-  `examples/wordpress-vdbe-sorter-window-affinity-current-next33.php`
+- Application smoke:
+  `examples/application-vdbe-sorter-window-affinity-current-next33.php`
   previews copied `wp_options` rows where numeric affinity groups text,
   integer, and BLOB sort keys into CURRENT ROW peers while SQL filter
   truthiness controls aggregate inputs.

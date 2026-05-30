@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined next766-781 current-source follow-on seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next766-781.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-current-source-next766-781.php';
 
         $expectedStatuses = [];
         for ($next = 766; $next <= 781; $next++) {

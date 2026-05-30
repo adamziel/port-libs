@@ -33,10 +33,10 @@ savepoint-retained/discarded WAL frames, current/next reader source
 transitions, on-disk database/WAL bytes, reserved-lock skip behavior, missing
 savepoint rejection, read-only writer rejection, and checksum rejection.
 
-## WordPress Smoke
+## Application Smoke
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next160.php`
-models a WordPress import crash where `wp_options` has a hot journal and a
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next160.php`
+models a Application import crash where `wp_options` has a hot journal and a
 plugin-batch savepoint with WAL frames that must be discarded before truncate
 checkpoint publication.
 

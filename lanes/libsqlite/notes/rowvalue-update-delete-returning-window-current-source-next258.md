@@ -4,7 +4,7 @@ Implemented `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext258Plan`,
 
 The new behavior keeps current-source RETURNING window rows publishable while retry rows from the next source remain quarantined until the caller acknowledges a transition token derived from the current high-water ticket, first retry ticket, window ordinals, and window digest. A missing or unexpected transition token suppresses next-source retry publication without repeating the accepted next248 cursor barrier or next252 row-number fence.
 
-WordPress path: `wordpress-rowvalue-returning-window-current-source-next258.php` models copied `wp_options` cleanup/import rows where current-source returned rows must be checkpointed before retry rows from the next source are exposed.
+Application path: `application-rowvalue-returning-window-current-source-next258.php` models copied `wp_options` cleanup/import rows where current-source returned rows must be checkpointed before retry rows from the next source are exposed.
 
 Verification:
 
@@ -14,7 +14,7 @@ Verification:
   - Result: `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext258Test.php`
   - Result: `No syntax errors detected`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next258.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next258.php`
   - Result: `No syntax errors detected`
 
 Expected dashboard movement: `phpPass +57` from the new focused test file. `benchmarkDenominator.mapped` remains unchanged because this is current-source PHP behavior over already mapped row-value DML, RETURNING, savepoint retry, and window inventory.

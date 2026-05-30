@@ -3,13 +3,13 @@
 Behavior slice:
 - Adds parser-level `count(DISTINCT column)` aggregate arguments in `SQLiteSelectSql`.
 - Allows grouped `count(*)` execution without requiring a value column.
-- Covers grouped and implicit aggregate SELECT text through projection, HAVING, ORDER BY, LIMIT/OFFSET, CTE, compound-arm, and WordPress copied `wp_options` paths.
+- Covers grouped and implicit aggregate SELECT text through projection, HAVING, ORDER BY, LIMIT/OFFSET, CTE, compound-arm, and Application copied `wp_options` paths.
 
 Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectAggregateCurrentNext56Test.php`
 - Result: `1 test files, 43 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-select-aggregate-current-next56.php`
-- Result: `wordpress-select-aggregate-current-next56 self-test passed`.
+- `php lanes/libsqlite/examples/application-select-aggregate-current-next56.php`
+- Result: `application-select-aggregate-current-next56 self-test passed`.
 
 Dashboard delta:
 - `phpPass` increases by exactly `+43`, from `20008` to `20051`, based on the focused PASS lines above.

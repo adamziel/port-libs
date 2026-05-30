@@ -7,6 +7,6 @@ No new numbered source class, helper, or compatibility shim is introduced. The i
 Focused coverage:
 
 - `SQLiteWalHotJournalSavepointCheckpointAfterCurrentCheckpointTest.php` chains the 996-1011 receipt stages from the prior handoff and preserves the earlier receipt handoff.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-after-current.php --self-test` verifies the example receipt seal through the canonical entrypoint.
+- `application-wal-hot-journal-savepoint-checkpoint-after-current.php --self-test` verifies the example receipt seal through the canonical entrypoint.
 
 Recommended next slice: continue removing the remaining numbered WAL after-current checkpoint wrappers and migrate their direct tests/examples to `afterReadyCheckpointVerification()`.

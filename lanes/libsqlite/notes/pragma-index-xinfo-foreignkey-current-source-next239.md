@@ -5,13 +5,13 @@ This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, which repor
 foreign keys. SQLite exposes rowid-table auxiliary rowid entries and WITHOUT
 ROWID primary-key tail entries in `index_xinfo`, but those rows are storage
 payload rather than parent-key arity. The current-source page records them as
-ignored so copied WordPress schema import checks do not reject a valid parent key
+ignored so copied Application schema import checks do not reject a valid parent key
 as a wider UNIQUE index.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next239.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next239.php --self-test`
 - PHP lint for changed PHP files
 - `git diff --check -- lanes/libsqlite`
 

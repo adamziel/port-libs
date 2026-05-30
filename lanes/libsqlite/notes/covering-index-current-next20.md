@@ -30,7 +30,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-covering-index-current-next20.php
+php lanes/libsqlite/examples/application-covering-index-current-next20.php
 ```
 
 Dependency closure: no new support component is needed. The slice reuses the

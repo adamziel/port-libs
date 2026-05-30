@@ -13,10 +13,10 @@ Verification from this worktree:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityQuickCheckCorpusTest.php`: `1 test files, 34 assertions, 0 failures` with 34 PASS lines.
 - `php tools/run-tests.php lanes/libsqlite/tests`: `14 test files, 11204 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-quickcheck.php`: printed clean `quick_check` `ok` plus limited `integrity_check` invalid text encoding diagnostics.
+- `php lanes/libsqlite/examples/application-pragma-integrity-quickcheck.php`: printed clean `quick_check` `ok` plus limited `integrity_check` invalid text encoding diagnostics.
 - `php -l lanes/libsqlite/src/SQLitePragmaIntegrityCheck.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLitePragmaIntegrityQuickCheckCorpusTest.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-pragma-integrity-quickcheck.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/application-pragma-integrity-quickcheck.php`: no syntax errors.
 - `git diff --check -- lanes/libsqlite`: no whitespace errors.
 
 Non-overlap: this avoids accepted schema PRAGMA/DDL catalog rows, VFS writer/sync/rollback apply, B-tree page relocation/root collapse/overflow freelist release, JSON table cursor/source/constraint pushdown, Unicode GLOB, SELECT SQL subqueries/grouping/comma LIMIT, and WAL checkpoint/savepoint byte truncation clusters.

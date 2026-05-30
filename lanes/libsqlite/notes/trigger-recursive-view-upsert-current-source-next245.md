@@ -11,7 +11,7 @@ token, view cookie, trigger cookie, and per-current-row target receipts match.
 Missing, unexpected, or out-of-order receipts keep attempted next-source rows
 held while current rows remain visible.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next245.php`
+Application path: `application-trigger-recursive-view-upsert-current-source-next245.php`
 models a copied `wp_options` import view where recursive child UPSERT rows for
 `blogdescription_child` and `template_child` must publish only after the
 current `ON CONFLICT(option_name) DO UPDATE SET option_value=excluded...`
@@ -24,12 +24,12 @@ $ php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext24
 No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext245Plan.php
 $ php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext245Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext245Test.php
-$ php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next245.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next245.php
+$ php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next245.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next245.php
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext245Test.php
 1 test files, 90 assertions, 0 failures
-$ php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next245.php
-wordpress-trigger-recursive-view-upsert-current-source-next245 self-test passed
+$ php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next245.php
+application-trigger-recursive-view-upsert-current-source-next245 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +90` from the new focused test file.

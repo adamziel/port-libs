@@ -13,7 +13,7 @@ source quarantined behind the current source.
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext185Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next185.php`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next185.php`
 
 Expected dashboard movement: `phpPass +65` from the new focused test file.
 Mapped upstream coverage is unchanged; this is current-source PHP behavior over

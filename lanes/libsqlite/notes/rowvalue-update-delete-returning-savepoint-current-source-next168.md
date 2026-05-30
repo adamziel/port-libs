@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for nested row-value `UPDATE`/`DELETE`
 `RETURNING` savepoints.
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext168Plan`.
-It models a copied WordPress `wp_options` import batch with an outer savepoint,
+It models a copied Application `wp_options` import batch with an outer savepoint,
 an inner savepoint that attempts `UPDATE OR IGNORE`, `UPDATE OR REPLACE`, and
 `DELETE ... RETURNING`, then `ROLLBACK TO` the inner image before retrying. The
 outer row-value `UPDATE RETURNING` rows stay yielded and current, while the
@@ -23,8 +23,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-current-source-next168.php
-wordpress-rowvalue-nested-savepoint-current-source-next168 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-nested-savepoint-current-source-next168.php
+application-rowvalue-nested-savepoint-current-source-next168 self-test passed
 ```
 
 Syntax/diff evidence:
@@ -32,7 +32,7 @@ Syntax/diff evidence:
 ```text
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext168Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext168Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-current-source-next168.php
+php -l lanes/libsqlite/examples/application-rowvalue-nested-savepoint-current-source-next168.php
 git diff --check -- lanes/libsqlite
 ```
 
@@ -50,7 +50,7 @@ UPDATE/DELETE RETURNING side effects are discarded before retry.
 
 Dependency closure: no new support component is needed. The slice reuses the
 lane-local `SQLiteUpdateDeleteReturningSql` row-value DML executor and adds
-bounded nested savepoint orchestration for copied WordPress `wp_options`
+bounded nested savepoint orchestration for copied Application `wp_options`
 cleanup/import rows.
 
 Next task: continue with broader SQL executor/planner correctness or another

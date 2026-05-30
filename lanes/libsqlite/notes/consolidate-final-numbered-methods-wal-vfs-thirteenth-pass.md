@@ -13,7 +13,7 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext610625Test.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext626641Test.php`
   - `2 test files, 408 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-vfs-current-source-next610-625.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-vfs-current-source-next626-641.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-current-source-next610-625.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-current-source-next626-641.php --self-test`
 
 Dependency closure: no new support component is needed; this is a source consolidation over existing VFS current-source behavior.

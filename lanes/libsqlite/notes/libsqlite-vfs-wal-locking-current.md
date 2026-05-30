@@ -8,7 +8,7 @@ frames in the `-shm` wal-index image, while the matching read locks are VFS
 byte locks; copied SHM bytes alone can make abandoned reader marks look active.
 
 This slice keeps the existing parsed-fixture behavior intact and adds a
-current-lock path for WordPress copy/import flows that need to decide whether a
+current-lock path for Application copy/import flows that need to decide whether a
 WAL checkpoint reset can finish.
 
 ## Evidence

@@ -13,12 +13,12 @@ Focused verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext207Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext207Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next207.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next207.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next207.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next207.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext207Test.php`
   - `1 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next207.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next207 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next207.php --self-test`
+  - `application-json-table-generated-path-rowid-cost-current-source-next207 self-test passed`
 
 Expected dashboard movement: `phpPass +61` from the focused TestRunner PASS lines. No mapped upstream denominator change is claimed.
 

@@ -10,7 +10,7 @@ This slice prepares the independent current-source preflight continuation after 
 Validation targets:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next318-321.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next318-321.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext318321Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext318321Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next318-321.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next318-321.php --self-test`

@@ -7,7 +7,7 @@
   - earlier `RETURNING` streams are observable before `ROLLBACK TO` but are discarded by the rollback plan;
   - the failed statement sees the current attempted source after prior successful statements;
   - retry statements run from the savepoint image, not from the failed attempted source.
-- Adds a WordPress copied `wp_options` smoke for option rekeying and transient cleanup during a retryable import savepoint.
+- Adds a Application copied `wp_options` smoke for option rekeying and transient cleanup during a retryable import savepoint.
 
 ## Focused Evidence
 

@@ -28,11 +28,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 54 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-lateral-json-flatten-current-next37.php --self-test
-wordpress-select-lateral-json-flatten-current-next37 self-test passed
+php lanes/libsqlite/examples/application-select-lateral-json-flatten-current-next37.php --self-test
+application-select-lateral-json-flatten-current-next37 self-test passed
 ```
 
 Dependency closure: no new support component is needed. The slice reuses the

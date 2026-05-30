@@ -4,7 +4,7 @@ Slice: `yield-sqlite-wal-snapshot-savepoint-checkpoint-current-next55`
 
 Behavior covered:
 
-- Adds `SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentNext()` for the WAL savepoint path where a nested WordPress import savepoint is `RELEASE`d into its parent, then `ROLLBACK TO` the parent truncates the merged WAL frame set before checkpoint/restart/truncate visibility is evaluated.
+- Adds `SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentNext()` for the WAL savepoint path where a nested Application import savepoint is `RELEASE`d into its parent, then `ROLLBACK TO` the parent truncates the merged WAL frame set before checkpoint/restart/truncate visibility is evaluated.
 - Proves that frames from the released nested savepoint are still discarded by the parent rollback boundary, including committed nested WAL frames for copied `wp_options` plugin settings/autoload-index pages.
 - Covers restart, truncate, and busy-reader current/next visibility so current readers keep retained WAL snapshots while next readers see checkpointed database state or a preserved WAL when a reader blocks reset.
 
@@ -16,10 +16,10 @@ Focused test run: 1 selected test files (root lock skipped)
 65 PASS lines, 1 test files, 65 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-release-rollback-checkpoint-current-next.php
+php lanes/libsqlite/examples/application-wal-release-rollback-checkpoint-current-next.php
 ```
 
 Dashboard delta:

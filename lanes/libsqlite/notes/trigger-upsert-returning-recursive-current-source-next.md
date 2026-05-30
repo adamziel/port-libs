@@ -3,7 +3,7 @@
 Adds `SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan`, a focused
 current-source savepoint model for recursive trigger UPSERT `RETURNING`.
 
-The slice covers a WordPress `wp_options` import shape where a current source
+The slice covers a Application `wp_options` import shape where a current source
 UPSERT recursively creates child option rows and yields `RETURNING` rows, then a
 savepoint barrier rolls back those attempted current-source rows before the next
 source starts. The next source is proven to restart from the savepoint image and
@@ -15,9 +15,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextTest.php
-php -l lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-source-next.php
+php -l lanes/libsqlite/examples/application-trigger-upsert-returning-recursive-current-source-next.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextTest.php
-php lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-source-next.php --self-test
+php lanes/libsqlite/examples/application-trigger-upsert-returning-recursive-current-source-next.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

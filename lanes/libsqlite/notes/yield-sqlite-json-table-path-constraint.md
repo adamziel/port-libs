@@ -8,7 +8,7 @@ Focused behavior:
 - Covers `path =`, `path LIKE`, `path IN`, and `path BETWEEN` over copied `wp_options` JSON rule payloads.
 - Detects row-count and path-tape changes when the next source adds a new rule path.
 - Preserves SQL NULL/unrunnable handling and malformed root path rejection.
-- Adds WordPress smoke `wordpress-json-table-path-constraint.php`.
+- Adds Application smoke `application-json-table-path-constraint.php`.
 
 Verification:
 

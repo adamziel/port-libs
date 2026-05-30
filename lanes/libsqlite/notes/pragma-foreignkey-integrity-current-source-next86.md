@@ -15,7 +15,7 @@ Behavior:
 - `SQLitePragmaIntegrityCurrentNextYield` now pages table-valued FK PRAGMA
   rows together with integrity/quick-check rows via
   `pageForForeignKeyTableValuedPragma()`.
-- WordPress smoke coverage exercises copied `wp_options` preflight queries
+- Application smoke coverage exercises copied `wp_options` preflight queries
   where an unqualified table-valued PRAGMA resolves the temp/current schema
   while a quoted attached target resolves `archive.wp_options`.
 
@@ -23,8 +23,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyIntegrityCurrentSourceNext86Test.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-foreignkey-integrity-current-source-next86.php --self-test`
-  - `wordpress-pragma-foreignkey-integrity-current-source-next86 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-foreignkey-integrity-current-source-next86.php --self-test`
+  - `application-pragma-foreignkey-integrity-current-source-next86 self-test passed`
 
 Non-overlap:
 

@@ -12,9 +12,9 @@ Behavior:
 - Projects requested covering payload columns from the partial expression index
   without requiring a table b-tree lookup or temp sort.
 
-WordPress smoke:
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next182.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next182 self-test passed`
+Application smoke:
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next182.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-current-source-next182 self-test passed`
 
 Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext182Test.php`

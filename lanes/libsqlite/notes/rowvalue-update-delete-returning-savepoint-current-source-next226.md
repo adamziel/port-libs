@@ -11,8 +11,8 @@ UPDATE and DELETE RETURNING statements whose duplicate optionmeta tuple sources
 are rolled back to a savepoint image and retried from the restored current
 source.
 
-WordPress path:
-`wordpress-rowvalue-distinct-subquery-current-source-next226.php` models a
+Application path:
+`application-rowvalue-distinct-subquery-current-source-next226.php` models a
 copied `wp_options` import where duplicate `wp_optionmeta` migration rows must
 drive each UPDATE/DELETE RETURNING target only once.
 
@@ -22,9 +22,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext226Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext226Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-distinct-subquery-current-source-next226.php
+php -l lanes/libsqlite/examples/application-rowvalue-distinct-subquery-current-source-next226.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext226Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-distinct-subquery-current-source-next226.php
+php lanes/libsqlite/examples/application-rowvalue-distinct-subquery-current-source-next226.php
 ```
 
 Focused result: `1 test files, 62 assertions, 0 failures`.

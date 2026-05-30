@@ -18,5 +18,5 @@ Verification:
 
 - `php -l` on 27 changed PHP files passed with no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Test.php lanes/libsqlite/tests/SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Test.php lanes/libsqlite/tests/SQLiteWalHotJournalCheckpointReaderCurrentSourceNext135Test.php lanes/libsqlite/tests/SQLiteWalHotJournalReaderRestartCurrentSourceNext131Test.php lanes/libsqlite/tests/SQLiteWalHotJournalReaderRestartCurrentSourceNext143Test.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext724739Test.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext900915Test.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Test.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Test.php` passed with `9 test files, 623 assertions, 0 failures`.
-- Changed WordPress examples passed with `--self-test`.
+- Changed Application examples passed with `--self-test`.
 - `git diff --check -- lanes/libsqlite` passed.

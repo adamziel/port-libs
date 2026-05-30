@@ -8,9 +8,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext162Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next162.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next162.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext162Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next162.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next162.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The slice reuses native PHP rollback-journal parsing/recovery, WAL savepoint prefix truncation, durable checkpoint planning, and reader snapshot helpers.

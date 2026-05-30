@@ -1,6 +1,6 @@
 # VDBE Sorter DISTINCT Collation Current/Next 27
 
-This slice adds a focused current-source test cluster for `SQLiteVdbeAggregateDistinctCursor` over WordPress-style `wp_options` rows.
+This slice adds a focused current-source test cluster for `SQLiteVdbeAggregateDistinctCursor` over Application-style `wp_options` rows.
 
 Behavior covered:
 
@@ -9,7 +9,7 @@ Behavior covered:
 - Numeric, integer, text, and none-affinity key comparison when duplicate aggregate keys mix integers, reals, and numeric text.
 - Composite DISTINCT keys where site/bucket dimensions reset duplicate handling.
 - FILTER-style truthiness before DISTINCT selection.
-- WordPress smoke `wordpress-vdbe-sorter-distinct-collation.php` for option-name and byte-size aggregate distinct diagnostics without ext/sqlite.
+- Application smoke `application-vdbe-sorter-distinct-collation.php` for option-name and byte-size aggregate distinct diagnostics without ext/sqlite.
 
 Non-overlap:
 

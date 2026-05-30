@@ -6,7 +6,7 @@ Behavior:
 - Composes current and next nested JSON table roots from a base root column plus a nested path fragment.
 - Delegates the composed root into the accepted current-source partial ORDER BY cost planner.
 - Preserves constant visible constraint coverage, consumed ORDER BY prefixes, suffix block-sort costs, row order, and current/next replan reasons.
-- Adds a WordPress smoke for copied `wp_options` plugin settings where `json_tree()` scans nested rule arrays and orders priority leaves by `key, atom DESC`.
+- Adds a Application smoke for copied `wp_options` plugin settings where `json_tree()` scans nested rule arrays and orders priority leaves by `key, atom DESC`.
 
 Focused evidence:
 

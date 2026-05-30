@@ -2,6 +2,6 @@
 
 - Behavior: adds `SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNextPlan`, which validates the current overflow chain for a copied `wp_options` transient row, coalesces the leaf freeblock, releases obsolete overflow pages to the freelist, and allocates a replacement overflow chain while preserving current-source pointer-map rows and next allocation rows.
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNext142Test.php` -> `1 test files / 368 assertions / 0 failures` with 80 PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-overflow-pointermap-freeblock-current-source-next142.php --self-test`.
+- Application smoke: `php lanes/libsqlite/examples/application-btree-overflow-pointermap-freeblock-current-source-next142.php --self-test`.
 - Non-overlap: avoids accepted bulk overflow freeblocks, overflow freelist release, pointer-map overflow/freeblock next131/next138, overflow/freeblock vacuum next140, freelist-vacuum batch139 behavior, root collapse, page relocation, index-interior merge, and freelist trunk pointer-map reuse. This slice is specifically current-source overflow-chain row preservation across the freeblock coalesce -> overflow release -> replacement allocation path.
 - Dependency closure: no new support component is needed; this reuses existing native PHP page image, overflow-chain reader, leaf freeblock coalesce, freelist release/allocation, and auto-vacuum pointer-map primitives.

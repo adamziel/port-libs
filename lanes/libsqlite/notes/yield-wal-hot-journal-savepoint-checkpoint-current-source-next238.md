@@ -2,18 +2,18 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-publication writer-generation fence after accepted next235 durable publication. It admits the first next writer only when reopened readers observe the same database digest, schema cookie, WAL salt, zero-frame restarted WAL, absent hot journal, clean page cache, checkpoint-covered pages, and shared read locks.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next238.php` models a copied `wp_options` import admitting writer generation 239 only after reopened readers are pinned to the clean current source.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next238.php` models a copied `wp_options` import admitting writer generation 239 only after reopened readers are pinned to the clean current source.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next238.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next238.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next238.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next238.php
 git diff --check -- lanes/libsqlite
 ```
 

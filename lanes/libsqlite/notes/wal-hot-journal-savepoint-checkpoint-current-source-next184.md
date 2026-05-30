@@ -16,11 +16,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 55 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next184.php --self-test
-wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next184 self-test passed
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next184.php --self-test
+application-wal-hot-journal-savepoint-checkpoint-current-source-next184 self-test passed
 ```
 
 ## Dependency Closure

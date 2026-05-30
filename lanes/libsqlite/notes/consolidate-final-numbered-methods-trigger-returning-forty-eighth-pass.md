@@ -3,11 +3,11 @@
 Consolidated the recursive view-trigger `RETURNING` current-source
 receipt/resume wrapper into the canonical
 `SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceReceiptResumeFence()`
-entry point. The direct focused test and WordPress smoke were renamed to stable
+entry point. The direct focused test and Application smoke were renamed to stable
 descriptive filenames:
 
 - `SQLiteTriggerRecursiveViewReturningSourceResumeTest.php`
-- `wordpress-trigger-recursive-view-returning-source-resume.php`
+- `application-trigger-recursive-view-returning-source-resume.php`
 
 The production helper names, direct options, result keys, dependency tags, test
 labels, and smoke references for this touched receipt/resume surface now use
@@ -18,11 +18,11 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSourceResumeTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-source-resume.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-source-resume.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSourceResumeTest.php`
   -> `1 test files, 84 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-source-resume.php`
-  -> `wordpress-trigger-recursive-view-returning-current-source-source_resume self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-source-resume.php`
+  -> `application-trigger-recursive-view-returning-current-source-source_resume self-test passed`
 - `git diff --check -- lanes/libsqlite`
 - Exact user-named numeric suffix scan over `src`, `tests`, `examples`, and
   `notes`: no matches

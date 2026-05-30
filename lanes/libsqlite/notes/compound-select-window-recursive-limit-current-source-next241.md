@@ -11,8 +11,8 @@ resume-admission receipt over current final rows, next final rows, and the
 recursive/window/LIMIT boundary. A resume cursor must acknowledge all three
 tokens before it can reuse the next-source cursor.
 
-WordPress path:
-`wordpress-compound-select-window-recursive-limit-current-source-next241.php`
+Application path:
+`application-compound-select-window-recursive-limit-current-source-next241.php`
 models a copied `wp_options` import preview where a new autoloaded plugin row
 moves across a compound `UNION`/`EXCEPT` final `LIMIT/OFFSET` page while
 recursive dependency rows keep their window rank.
@@ -21,9 +21,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next241.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next241.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Test.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next241.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next241.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +77` from the new focused test file.

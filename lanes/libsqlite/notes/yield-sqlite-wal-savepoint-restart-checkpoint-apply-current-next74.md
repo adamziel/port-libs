@@ -4,7 +4,7 @@ Slice: `wal-savepoint-rollback-checkpoint-durability-current-next74`
 
 Behavior covered:
 
-- Adds `SQLiteVfsFileWriter::applySavepointRestartCheckpointAppend()` for the durable VFS path where a failed WordPress `wp_options` import rolls back to a savepoint, checkpoints the retained WAL prefix, then persists retry WAL frames.
+- Adds `SQLiteVfsFileWriter::applySavepointRestartCheckpointAppend()` for the durable VFS path where a failed Application `wp_options` import rolls back to a savepoint, checkpoints the retained WAL prefix, then persists retry WAL frames.
 - Applies the final database image plus final WAL sidecar atomically through native PHP file handles, including database write/truncate/sync, WAL write/truncate/sync, and sidecar directory persistence.
 - Covers restart and truncate checkpoint modes, optional WAL/directory sync suppression, busy-reader skip behavior, read-only guard behavior, and parsed WAL validity after retry-frame persistence.
 
@@ -16,10 +16,10 @@ Focused test run: 1 selected test files (root lock skipped)
 51 PASS lines, 1 test files, 51 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-savepoint-restart-checkpoint-apply-current-next74.php
+php lanes/libsqlite/examples/application-wal-savepoint-restart-checkpoint-apply-current-next74.php
 status=applied, appliedOperations=7, bytesWritten=2664, bytesTruncated=2664,
 durableSyncs=2, directorySyncs=1, retainedWalFrames=2, discardedWalFrames=2,
 checkpointWalAction=restart_wal, nextWalFrames=3, nextWalLastCommitFrame=2,

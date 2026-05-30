@@ -4,10 +4,10 @@ Session: `port-dev-sqlite-yield-consol-meth-attach-bf`
 Micro-slice: `consolidate-final-numbered-methods-attach-schema-fifty-third-pass`
 
 This slice removes one remaining numbered attach/temp WAL schema-cache test and
-WordPress smoke surface. They are migrated to stable descriptive names:
+Application smoke surface. They are migrated to stable descriptive names:
 
 - `SQLiteAttachTempWalSchemaCacheFinalPublicationWindowTest.php`
-- `wordpress-attach-temp-wal-schema-cache-final-publication-window.php`
+- `application-attach-temp-wal-schema-cache-final-publication-window.php`
 
 The behavior still exercises the canonical
 `SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan()` production

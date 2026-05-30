@@ -21,10 +21,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpdateDeleteReturningRowValu
 1 test files, 52 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-update-delete-returning-rowvalue-current-source-next125.php
+php lanes/libsqlite/examples/application-update-delete-returning-rowvalue-current-source-next125.php
 ```
 
 Non-overlap: this avoids accepted trigger/FK RETURNING savepoint work,

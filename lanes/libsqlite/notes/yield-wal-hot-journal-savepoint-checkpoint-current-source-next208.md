@@ -4,7 +4,7 @@
 
 - Added `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan` to map post-checkpoint reader-slot reuse from the accepted next206 current-source statement consumer fence.
 - Added focused coverage for retaining current reader slots and reopening stale slots when the consumer was quarantined, the reader epoch predates checkpoint publication, the slot frame exceeds the checkpoint frame, database/WAL/page digests are stale, a hot journal identity remains, a savepoint is still open, the shared-lock receipt is missing, or the cache is dirty.
-- Added a WordPress smoke for copied `wp_options` import retry readers that reuse only slots tied to current-source statement consumers.
+- Added a Application smoke for copied `wp_options` import retry readers that reuse only slots tied to current-source statement consumers.
 
 ## Evidence
 
@@ -15,7 +15,7 @@
   - no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext208Test.php`
   - no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next208.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next208.php`
   - no syntax errors.
 
 ## Non-Overlap

@@ -4,7 +4,7 @@ This slice adds a bounded native PHP yield surface for deep
 `PRAGMA integrity_check` pointer-map and freelist diagnostics. It filters the
 existing integrity checker down to pointer-map/freelist rows, annotates each row
 with the affected page and pointer-map page where available, and paginates the
-result with current/next48 metadata for copied WordPress SQLite repair UIs.
+result with current/next48 metadata for copied Application SQLite repair UIs.
 
 Focused verification:
 
@@ -20,10 +20,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 53 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-freelist-current-next48.php
+php lanes/libsqlite/examples/application-pragma-integrity-pointermap-freelist-current-next48.php
 ```
 
 The smoke reports a copied `wp_options` repair preflight with 57 pointer-map

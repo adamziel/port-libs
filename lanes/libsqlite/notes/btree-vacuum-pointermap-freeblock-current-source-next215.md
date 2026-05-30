@@ -10,12 +10,12 @@
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext215Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next215.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next215.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext215Test.php`
   - `1 test files, 991 assertions, 0 failures`
   - `141` PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next215.php`
-  - `wordpress-btree-vacuum-pointermap-freeblock-current-source-next215 self-test passed`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next215.php`
+  - `application-btree-vacuum-pointermap-freeblock-current-source-next215 self-test passed`
 
 ## Non-overlap
 

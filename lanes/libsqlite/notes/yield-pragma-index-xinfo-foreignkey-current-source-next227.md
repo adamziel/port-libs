@@ -5,9 +5,9 @@ Base accepted HEAD: b9fcee36c556626531170fcc810da81f50a4b54c
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a PRAGMA catalog evidence helper for child foreign-key indexes whose FK columns are present in a non-partial index only after non-leading key terms. SQLite FK enforcement needs an index where child columns are the leftmost prefix; suffix-only indexes can look useful in copied WordPress import schemas but still force scans.
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a PRAGMA catalog evidence helper for child foreign-key indexes whose FK columns are present in a non-partial index only after non-leading key terms. SQLite FK enforcement needs an index where child columns are the leftmost prefix; suffix-only indexes can look useful in copied Application import schemas but still force scans.
 
-The WordPress smoke models `wp_postmeta_import` indexes such as `(meta_value, post_id, meta_key)` and `(autoload, site_id)`, then a repaired next schema using `(post_id, meta_key, meta_value)` and `(site_id, autoload)`.
+The Application smoke models `wp_postmeta_import` indexes such as `(meta_value, post_id, meta_key)` and `(autoload, site_id)`, then a repaired next schema using `(post_id, meta_key, meta_value)` and `(site_id, autoload)`.
 
 ## Evidence
 

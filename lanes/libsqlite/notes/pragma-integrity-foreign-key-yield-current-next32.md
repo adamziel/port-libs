@@ -1,6 +1,6 @@
 # PRAGMA Integrity Foreign-Key Yield Current Next32
 
-This slice adds a bounded native PHP stream for WordPress import preflights
+This slice adds a bounded native PHP stream for Application import preflights
 that need both `PRAGMA integrity_check` diagnostics and
 `PRAGMA foreign_key_check` rows without materializing an unbounded result page
 in one UI step.
@@ -24,10 +24,10 @@ Focused commands from this isolated worktree:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityForeignKeyYieldCurrentNext32Test.php
-php lanes/libsqlite/examples/wordpress-pragma-integrity-foreign-key-yield-current-next32.php
+php lanes/libsqlite/examples/application-pragma-integrity-foreign-key-yield-current-next32.php
 php -l lanes/libsqlite/src/SQLitePragmaIntegrityForeignKeyYield.php
 php -l lanes/libsqlite/tests/SQLitePragmaIntegrityForeignKeyYieldCurrentNext32Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-integrity-foreign-key-yield-current-next32.php
+php -l lanes/libsqlite/examples/application-pragma-integrity-foreign-key-yield-current-next32.php
 git diff --check -- lanes/libsqlite
 ```
 

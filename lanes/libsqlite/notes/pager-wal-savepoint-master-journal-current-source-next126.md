@@ -2,9 +2,9 @@
 
 Status: focused PHP behavior growth for `pager-wal-savepoint-master-journal-current-source-next126`.
 
-This slice adds `SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan`. It models the pager edge where a copied WordPress database has stale cached master-journal membership, current VFS master-journal bytes name the database rollback journal, and WAL savepoint replay must reject the cached source before trusting hot-journal recovery, WAL prefix truncation, and the next checkpoint image.
+This slice adds `SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan`. It models the pager edge where a copied Application database has stale cached master-journal membership, current VFS master-journal bytes name the database rollback journal, and WAL savepoint replay must reject the cached source before trusting hot-journal recovery, WAL prefix truncation, and the next checkpoint image.
 
-WordPress smoke: `wordpress-pager-wal-savepoint-master-journal-current-source-next126.php` covers a copied `wp_options` plugin import where stale master-journal cache state is discarded and the current master source allows the retained WAL prefix to checkpoint clean `active_plugins` content while discarded plugin activation frames stay out of the current source.
+Application smoke: `application-pager-wal-savepoint-master-journal-current-source-next126.php` covers a copied `wp_options` plugin import where stale master-journal cache state is discarded and the current master source allows the retained WAL prefix to checkpoint clean `active_plugins` content while discarded plugin activation frames stay out of the current source.
 
 Verification:
 
@@ -12,8 +12,8 @@ Verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerWalSavepointMasterJournalCurrentSourceNext126Test.php
 php -l lanes/libsqlite/src/SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerWalSavepointMasterJournalCurrentSourceNext126Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-wal-savepoint-master-journal-current-source-next126.php
-php lanes/libsqlite/examples/wordpress-pager-wal-savepoint-master-journal-current-source-next126.php --self-test
+php -l lanes/libsqlite/examples/application-pager-wal-savepoint-master-journal-current-source-next126.php
+php lanes/libsqlite/examples/application-pager-wal-savepoint-master-journal-current-source-next126.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

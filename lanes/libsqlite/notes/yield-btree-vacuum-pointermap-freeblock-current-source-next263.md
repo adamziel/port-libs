@@ -9,10 +9,10 @@
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext263Test.php` -> `1 test files / 1556 assertions / 0 failures` with 148 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next263.php` -> `wordpress-btree-vacuum-pointermap-freeblock-current-source-next263 self-test passed`.
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next263.php` -> `application-btree-vacuum-pointermap-freeblock-current-source-next263 self-test passed`.
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext263Plan.php` -> no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext263Test.php` -> no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next263.php` -> no syntax errors.
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next263.php` -> no syntax errors.
 - `git diff --check -- lanes/libsqlite` -> clean.
 
 ## Dependency Closure

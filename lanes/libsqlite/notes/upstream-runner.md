@@ -161,9 +161,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-json-table.php
+php -l lanes/libsqlite/examples/application-select-sql-json-table.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-json-table.php
+php lanes/libsqlite/examples/application-select-sql-json-table.php
 git diff --check -- lanes/libsqlite
 ```
 
@@ -217,7 +217,7 @@ execution primitive; it does not claim SQL text parsing, VDBE bytecode, storage
 cursor planning, or a fresh upstream `testfixture` run.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
-increases by 1 with `focusedWordPressSelectQueryPlanScripts: 1`. No fresh
+increases by 1 with `focusedApplicationSelectQueryPlanScripts: 1`. No fresh
 upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
 started from this isolated worktree.
 
@@ -226,9 +226,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectQuery.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-query-plan-preview.php
+php -l lanes/libsqlite/examples/application-select-query-plan-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-query-plan-preview.php
+php lanes/libsqlite/examples/application-select-query-plan-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -252,7 +252,7 @@ classes. It can feed the accepted result helper for final `ORDER BY`, `LIMIT`,
 and `OFFSET`.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
-increases by 1 with `focusedWordPressSelectCompoundScripts: 1`. No fresh
+increases by 1 with `focusedApplicationSelectCompoundScripts: 1`. No fresh
 upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
 started from this isolated worktree.
 
@@ -261,9 +261,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectCompound.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-compound-select-preview.php
+php -l lanes/libsqlite/examples/application-options-compound-select-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-options-compound-select-preview.php
+php lanes/libsqlite/examples/application-options-compound-select-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -287,7 +287,7 @@ claim parser-level SELECT execution, joins, VDBE bytecode, or a fresh upstream
 `testfixture` run.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
-increases by 1 with `focusedWordPressSelectProjectionScalarScripts: 1`. No
+increases by 1 with `focusedApplicationSelectProjectionScalarScripts: 1`. No
 fresh upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run
 was started from this isolated worktree.
 
@@ -296,9 +296,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectProjection.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-projection-scalar-preview.php
+php -l lanes/libsqlite/examples/application-select-projection-scalar-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-projection-scalar-preview.php
+php lanes/libsqlite/examples/application-select-projection-scalar-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -329,9 +329,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectResult.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-order-limit.php
+php -l lanes/libsqlite/examples/application-options-order-limit.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-options-order-limit.php
+php lanes/libsqlite/examples/application-options-order-limit.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -363,9 +363,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWindowFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-window-option-rankings.php
+php -l lanes/libsqlite/examples/application-window-option-rankings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-window-option-rankings.php
+php lanes/libsqlite/examples/application-window-option-rankings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -381,7 +381,7 @@ dispatch.
 Date: 2026-05-26
 
 This isolated encoding/collation micro-slice fixes a bounded SQLite GLOB
-character-class edge used by copied WordPress option-name scans. SQLite treats a
+character-class edge used by copied Application option-name scans. SQLite treats a
 reversed bracket range such as `[z-a]` as matching the starting byte (`z`) while
 not treating the range hyphen or end byte as literals. The native GLOB matcher
 now mirrors that behavior for byte ranges while preserving existing literal
@@ -392,8 +392,8 @@ Focused mapping:
 - Upstream behavior: SQLite `GLOB` bracket class parsing for reversed byte
   ranges, literal `]`, and literal `-` cases from the pattern/collation family.
 - Native assertions added: 10 focused assertions in
-  `matches sqlite like and glob patterns for wordpress option names`.
-- WordPress smoke: `examples/wordpress-option-name-like-glob.php --self-test`
+  `matches sqlite like and glob patterns for application option names`.
+- Application smoke: `examples/application-option-name-like-glob.php --self-test`
   now reports `globReversedRangeOptions` for `plugin_[z-a]`, proving that
   copied `wp_options` scans include `plugin_z` and exclude `plugin_a` and
   `plugin_-`.
@@ -402,7 +402,7 @@ Verification run for this slice:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php lanes/libsqlite/examples/application-option-name-like-glob.php --self-test
 ```
 
 Dependency closure: no new support component is needed. This slice reuses the
@@ -503,7 +503,7 @@ Date: 2026-05-26
 This isolated SQL execution/planner micro-slice extends bounded UTC date/time
 modifier dispatch in `SQLiteCoreScalarFunction`. Native PHP now handles
 `start of month`, `start of year`, signed month/year modifiers, and `weekday N`
-forward scheduling for copied WordPress SQLite timestamp diagnostics. It keeps
+forward scheduling for copied Application SQLite timestamp diagnostics. It keeps
 the existing bounded scope: timezone/localtime, weekday names, and full SQLite
 calendar ambiguity policies remain future focused work.
 
@@ -516,9 +516,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php datetime '2026-05-26 16:12:34' 'start of month'
+php lanes/libsqlite/examples/application-core-scalar-option-default.php datetime '2026-05-26 16:12:34' 'start of month'
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -547,9 +547,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php datetime '2026-05-26 16:12:34' '+1 day' 'start of day'
+php lanes/libsqlite/examples/application-core-scalar-option-default.php datetime '2026-05-26 16:12:34' '+1 day' 'start of day'
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -670,9 +670,9 @@ Verification run 2026-05-26T14:54Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php iif 0 network 1 site fallback
+php lanes/libsqlite/examples/application-core-scalar-option-default.php iif 0 network 1 site fallback
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1418,7 +1418,7 @@ This isolated encoding/collation micro-slice adds bounded SQLite
 REGEXP-style matching for decoded `wp_options.option_name` text.
 `SQLiteDatabase::regexpMatches()` dispatches to a caller-supplied
 application callback, matching SQLite's operator shape where REGEXP semantics
-are application-defined. `wordpressOptionsByNameRegexp()` scans all decoded
+are application-defined. `optionRowsByNameRegexp()` scans all decoded
 option rows without the convenience 100-row limit unless an explicit limit is
 provided.
 
@@ -1434,15 +1434,15 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
+php -l lanes/libsqlite/examples/application-option-name-like-glob.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php lanes/libsqlite/examples/application-option-name-like-glob.php --self-test
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused lane tests passed with 1 file, 2496
-assertions, and 0 failures; the WordPress pattern smoke reported
+assertions, and 0 failures; the Application pattern smoke reported
 `regexpOptions` including the late rowid 105 transient fixture; manifest/status
 JSON validation passed; lane diff check passed.
 
@@ -1510,17 +1510,17 @@ Native PHP evidence:
 
 ```sh
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php -l lanes/libsqlite/examples/application-utf16-option-insert-plan.php
 php -l lanes/libsqlite/src/SQLiteRecord.php
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php lanes/libsqlite/examples/application-utf16-option-insert-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused lane tests passed with 1 file, 2477
-assertions, and 0 failures; the WordPress UTF-16 smoke reported
+assertions, and 0 failures; the Application UTF-16 smoke reported
 `embeddedNulTextRoundTrip=true`; manifest/status JSON validation passed; lane
 diff check passed.
 
@@ -1551,9 +1551,9 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRecord.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php -l lanes/libsqlite/examples/application-utf16-option-insert-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php lanes/libsqlite/examples/application-utf16-option-insert-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1624,15 +1624,15 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused lane tests passed with 1 file, 2450
-assertions, and 0 failures; the updated WordPress smoke emitted filtered object
+assertions, and 0 failures; the updated Application smoke emitted filtered object
 rule rows for strict JSON, JSON5, and JSONB inputs; manifest/status JSON
 validation passed; lane diff check passed.
 
@@ -1902,19 +1902,19 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
 php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php -l lanes/libsqlite/examples/application-json-aggregate-option-summary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php lanes/libsqlite/examples/application-json-aggregate-option-summary.php
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused lane tests passed with 1 selected file,
-2415 assertions, and 0 failures; the WordPress JSON aggregate smoke emitted
+2415 assertions, and 0 failures; the Application JSON aggregate smoke emitted
 autoload-filtered option arrays and object maps.
 
 Dependency closure: no new support component is needed. The slice reuses
 lane-local JSON aggregate dispatch, JSON subtype handling, JSONB encode/decode,
-and existing WordPress option aggregate smoke data; it counts no shared
+and existing Application option aggregate smoke data; it counts no shared
 support-library progress.
 
 ## Focused Native Mapping: LIKE/GLOB Late-Row Result Semantics
@@ -1922,9 +1922,9 @@ support-library progress.
 Date: 2026-05-26
 
 This isolated sql-exec/planner micro-slice fixes a bounded decoded-result
-edge. `SQLiteDatabase::wordpressOptionsByNameLike()` and
-`wordpressOptionsByNameGlob()` now scan `wp_options` table rows directly
-instead of routing through `wordpressOptions()`, whose default limit is 100
+edge. `SQLiteDatabase::optionRowsByNameLike()` and
+`optionRowsByNameGlob()` now scan `wp_options` table rows directly
+instead of routing through `optionRows()`, whose default limit is 100
 rows. Caller-supplied result limits are still honored, but pattern matches
 after the first 100 copied option rows are no longer silently hidden.
 
@@ -1943,18 +1943,18 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
-php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php -l lanes/libsqlite/examples/application-option-name-like-glob.php
+php lanes/libsqlite/examples/application-option-name-like-glob.php --self-test
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed; the WordPress LIKE/GLOB smoke reported the late
+Result: syntax checks passed; the Application LIKE/GLOB smoke reported the late
 `_transient_late` row at rowid 105; focused lane tests passed with 2387
 assertions and late-row LIKE/GLOB coverage.
 
 Dependency closure: no new support component is needed. The slice reuses the
-existing lane-local table traversal, decoded WordPress option rows, UTF-8
+existing lane-local table traversal, decoded Application option rows, UTF-8
 pattern splitting, and ASCII case folding; it counts no shared support-library
 progress.
 
@@ -1985,12 +1985,12 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRecord.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
-php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php -l lanes/libsqlite/examples/application-utf16-option-insert-plan.php
+php lanes/libsqlite/examples/application-utf16-option-insert-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-Result: syntax checks passed; the WordPress smoke reported
+Result: syntax checks passed; the Application smoke reported
 `malformedUtf16Rejected`; focused lane tests passed with malformed UTF-16
 record fields covered.
 
@@ -2027,18 +2027,18 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
-php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php -l lanes/libsqlite/examples/application-rollback-journal-option-diagnostics.php
+php lanes/libsqlite/examples/application-rollback-journal-option-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-Result: syntax checks passed; the WordPress smoke reported
+Result: syntax checks passed; the Application smoke reported
 `sectorPaddingBytes`; focused lane tests passed with rollback-journal sector
 padding and non-zero trailing-byte rejection covered.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local rollback journal header/page parser, checksum validator,
-rollback image overlay, and WordPress option decoding; it counts no shared
+rollback image overlay, and Application option decoding; it counts no shared
 support-library progress.
 
 ## Focused Native Mapping: Upstream Subset Matrix Planner
@@ -2114,18 +2114,18 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-Result: syntax checks passed; the WordPress smoke reported
+Result: syntax checks passed; the Application smoke reported
 `committedTransactions` and `uncommittedFrameCount`; focused lane tests passed
 with 1 file and 0 failures.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local WAL header/frame parser, checksum validator, page-image
-overlay, and WordPress option decoding; it counts no shared support-library
+overlay, and Application option decoding; it counts no shared support-library
 progress.
 
 ## Focused Native Mapping: `json_tree(X, root)` Selected-Root Rows
@@ -2158,12 +2158,12 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
-php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php -l lanes/libsqlite/examples/application-json-tree-option-settings.php
+php lanes/libsqlite/examples/application-json-tree-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-Result: syntax checks passed; the WordPress smoke reported
+Result: syntax checks passed; the Application smoke reported
 `selectedRootShape`; focused lane tests passed with 1 file, 2319 assertions,
 and 0 failures.
 
@@ -2205,12 +2205,12 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
 php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
-php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php -l lanes/libsqlite/examples/application-json-aggregate-option-summary.php
+php lanes/libsqlite/examples/application-json-aggregate-option-summary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-Result: syntax checks passed; the WordPress smoke reported
+Result: syntax checks passed; the Application smoke reported
 `nameOrderedOptionValueArrayFromSteps` and
 `nameOrderedOptionValueJsonbDecoded`; focused lane tests passed with 1 file,
 2260 assertions, and 0 failures.
@@ -2252,12 +2252,12 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
 php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
-php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php -l lanes/libsqlite/examples/application-json-aggregate-option-summary.php
+php lanes/libsqlite/examples/application-json-aggregate-option-summary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-Result: syntax checks passed; the WordPress smoke reported
+Result: syntax checks passed; the Application smoke reported
 `distinctOptionValueArray` and `distinctOptionValueJsonbDecoded`; focused lane
 tests passed with 1 file, 2248 assertions, and 0 failures.
 
@@ -2545,7 +2545,7 @@ Prior result: passed 2 selected Tcl scripts, 45,007 tests, and 0 errors in
 
 Native PHP evidence after rework is recorded in `lane-status.json`.
 The latest additive direct-dispatch and argument-vector boolean false scalar
-checks passed the WordPress smoke and focused `SQLiteHeaderTest.php` with 2053
+checks passed the Application smoke and focused `SQLiteHeaderTest.php` with 2053
 assertions and 0 failures in the clean integrator worktree.
 Priority-keeper refresh 2026-05-25T09:58Z adds the missing direct-dispatch
 `true` scalar assertion so the native evidence covers both boolean SQL scalar
@@ -2555,22 +2555,22 @@ Priority-finisher refresh 2026-05-25T10:13Z adds the missing whole-REAL
 `3.0` scalar coercion case through direct and argument-vector SQL dispatch so
 the rework preserves SQLite-style REAL text instead of PHP's collapsed float
 cast. Focused PHP verification passed with 1 selected file, 2056 assertions,
-and 0 failures; the WordPress smoke reported `scalar_whole_real_settings` as
+and 0 failures; the Application smoke reported `scalar_whole_real_settings` as
 JSON string `3.0`.
 Clean-integrator rebase 2026-05-25T10:17Z also retains the signed-integer and
 fractional-float scalar assertions from the priority-keeper handoff through
-both SQL-dispatch entry points, plus matching WordPress smoke values.
+both SQL-dispatch entry points, plus matching Application smoke values.
 Priority-finisher refresh 2026-05-25T10:28Z adds direct SQL-dispatch coverage
 for cast text BLOB and JSON subtype custom indentation, matching the already
-accepted argument-vector indentation behavior, and updates the WordPress smoke
+accepted argument-vector indentation behavior, and updates the Application smoke
 to report direct dispatch output alongside argument-vector output. Focused PHP
 verification passed with 1 selected file, 2058 assertions, and 0 failures.
 Priority-keeper refresh 2026-05-25T10:40Z adds boolean true and fractional
 REAL custom-indent coercion through both direct and argument-vector
-`json_pretty()` SQL dispatch, plus WordPress smoke rows for those option
+`json_pretty()` SQL dispatch, plus Application smoke rows for those option
 review cases. Focused verification is recorded in `lane-status.json`.
 Priority-keeper rework 2026-05-25T10:50Z adds the missing direct-dispatch
-boolean false custom-indent assertion and matching WordPress smoke row while
+boolean false custom-indent assertion and matching Application smoke row while
 preserving the accepted argument-vector false-indent case. Focused
 verification is recorded in `lane-status.json`.
 Priority-rework refill 2026-05-25T11:02Z rebases that same json_pretty
@@ -2629,13 +2629,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
-php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php -l lanes/libsqlite/examples/application-json-tree-option-settings.php
+php lanes/libsqlite/examples/application-json-tree-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported recursive
+Result: syntax checks passed, the Application example reported recursive
 root/plugin/rules rows for strict JSON, JSON5 text, JSONB blobs, and SQL NULL
 inputs, and focused PHP passed 1 selected test file, 2102 assertions, and 0
 failures. This worker did not start the root aggregate harness because root
@@ -2690,13 +2690,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCreateIndex.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-operator-parenthesized-rhs.php
-php lanes/libsqlite/examples/wordpress-json-operator-parenthesized-rhs.php
+php -l lanes/libsqlite/examples/application-json-operator-parenthesized-rhs.php
+php lanes/libsqlite/examples/application-json-operator-parenthesized-rhs.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported normalized paths
+Result: syntax checks passed, the Application example reported normalized paths
 `$.cache`, `$[1]`, `$."settings.v1"`, nested `$.cache`, and unsupported
 arithmetic expressions as `null`; focused PHP passed 1 selected test file, 1836
 assertions, and 0 failures; `git diff --check -- lanes/libsqlite` passed. This
@@ -2752,13 +2752,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCreateIndex.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-operator-minmax-rhs.php
-php lanes/libsqlite/examples/wordpress-json-operator-minmax-rhs.php
+php -l lanes/libsqlite/examples/application-json-operator-minmax-rhs.php
+php lanes/libsqlite/examples/application-json-operator-minmax-rhs.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported normalized paths
+Result: syntax checks passed, the Application example reported normalized paths
 `$.cache`, `$."plugin.enabled"`, and `$[1]`, plus unsupported mixed/single
 argument cases as `null`; focused PHP passed 1 selected test file, 1829
 assertions, and 0 failures; `git diff --check -- lanes/libsqlite` passed. This
@@ -2816,15 +2816,15 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonPretty.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
-php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+php -l lanes/libsqlite/examples/application-json-pretty-option-review.php
+php lanes/libsqlite/examples/application-json-pretty-option-review.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
 ```
 
 Result: focused PHP passed 1 selected test file, 1812 assertions, and 0
 failures. The test file now contains 223 focused libsqlite cases. The new
-WordPress example reports SQLite-style `json_pretty()` output for strict JSON
+Application example reports SQLite-style `json_pretty()` output for strict JSON
 text, JSON5 plugin settings, custom indentation, cast text BLOBs, JSONB
 option blobs, NULL option values, and malformed copied settings. This worker
 did not start the root aggregate harness because root verification was not
@@ -2881,15 +2881,15 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonCanonical.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
-php lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
+php -l lanes/libsqlite/examples/application-json-canonical-option-preflight.php
+php lanes/libsqlite/examples/application-json-canonical-option-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
 ```
 
 Result: focused PHP passed 1 selected test file, 1800 assertions, and 0
 failures. The test file now contains 222 focused libsqlite cases. The new
-WordPress example reports SQLite-style `json(X)` canonicalization for strict
+Application example reports SQLite-style `json(X)` canonicalization for strict
 JSON text, JSON5 plugin settings, cast text BLOBs, JSONB option blobs, NULL
 option values, and malformed copied settings. This worker did not start the
 root aggregate harness because root verification was not assigned to this
@@ -2941,15 +2941,15 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonConstructor.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php
-php lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php
+php -l lanes/libsqlite/examples/application-json-constructor-option-diagnostics.php
+php lanes/libsqlite/examples/application-json-constructor-option-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
 ```
 
 Result: focused PHP passed 1 selected test file, 1782 assertions, and 0
 failures. The test file now contains 221 focused libsqlite cases. The new
-WordPress example reports SQLite-style JSON constructor diagnostics for copied
+Application example reports SQLite-style JSON constructor diagnostics for copied
 plugin settings, JSON subtype payloads, JSONB migration queues, and raw BLOB
 rejection. This worker did not start the root aggregate harness because root
 verification was not assigned to this lane.
@@ -3003,15 +3003,15 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteJsonQuote.php
 php -l lanes/libsqlite/src/SQLiteCreateIndex.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php
-php lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php
+php -l lanes/libsqlite/examples/application-json-quote-option-preflight.php
+php lanes/libsqlite/examples/application-json-quote-option-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
 ```
 
 Result: focused PHP passed 1 selected test file, 1767 assertions, and 0
 failures. The test file now contains 218 focused libsqlite cases. The new
-WordPress example reports SQLite-style `json_quote()` rendering for SQL NULL,
+Application example reports SQLite-style `json_quote()` rendering for SQL NULL,
 integer, REAL, exponent REAL, copied text settings, control-character text,
 valid JSONB blobs, and raw BLOB rejection. This worker did not start the root
 aggregate harness because root verification was not assigned to this lane.
@@ -3068,15 +3068,15 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonInspection.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-inspection-preflight.php
-php lanes/libsqlite/examples/wordpress-json-inspection-preflight.php
+php -l lanes/libsqlite/examples/application-json-inspection-preflight.php
+php lanes/libsqlite/examples/application-json-inspection-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
 ```
 
 Result: focused PHP passed 1 selected test file, 1749 assertions, and 0
 failures. The test file now contains 217 focused libsqlite cases. The new
-WordPress example reports SQLite-style type and array-length inspection for
+Application example reports SQLite-style type and array-length inspection for
 strict JSON text, JSON5 plugin settings, cast text BLOBs, JSONB blobs, missing
 plugin paths, and SQL NULL option values. This worker did not start the root
 aggregate harness because root verification was not assigned to this lane.
@@ -3114,7 +3114,7 @@ Targeted upstream SQL smoke returned:
 
 The values cover JSON5 object/array trailing-comma acceptance, duplicate-comma
 object/array offsets, nested malformed JSON5 object position 9, a
-WordPress-shaped duplicate-comma settings offset 15, unsupported identifier
+Application-shaped duplicate-comma settings offset 15, unsupported identifier
 and trailing-content position 1, decimal leading-zero offset 7, JSON5 plus,
 leading-decimal, and trailing-decimal number acceptance, SQL NULL propagation,
 cast text BLOB fallback, valid JSONB, superficial-only corrupt JSONB byte
@@ -3137,15 +3137,15 @@ php -l lanes/libsqlite/src/SQLiteJson5Parser.php
 php -l lanes/libsqlite/src/SQLiteJsonB.php
 php -l lanes/libsqlite/src/SQLiteJsonErrorPosition.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
-php lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php -l lanes/libsqlite/examples/application-json-error-position-preflight.php
+php lanes/libsqlite/examples/application-json-error-position-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
 ```
 
 Result: focused PHP passed 1 selected test file, 1722 assertions, and 0
 failures. The test file now contains 216 focused libsqlite cases. The new
-WordPress example reports SQLite-style error positions for JSON5 plugin
+Application example reports SQLite-style error positions for JSON5 plugin
 settings text, duplicate-comma and nested malformed settings, leading-zero
 numbers, cast text BLOBs, valid JSONB option blobs, superficial-only corrupt
 JSONB blobs, and SQL NULL option values. This worker did not start the root
@@ -3201,15 +3201,15 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonValidity.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-validity-preflight.php
-php lanes/libsqlite/examples/wordpress-json-validity-preflight.php
+php -l lanes/libsqlite/examples/application-json-validity-preflight.php
+php lanes/libsqlite/examples/application-json-validity-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
 ```
 
 Result: focused PHP passed 1 selected test file, 1707 assertions, and 0
 failures. The test file now contains 215 focused libsqlite cases. The new
-WordPress example reports strict JSON text, JSON5 text, malformed text, cast
+Application example reports strict JSON text, JSON5 text, malformed text, cast
 text BLOB, valid JSONB, superficial-only JSONB, and SQL NULL option-value
 checks. This worker did not start the root aggregate harness because root
 verification was not assigned to this lane.
@@ -3268,15 +3268,15 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonB.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-jsonb-validity-preflight.php
-php lanes/libsqlite/examples/wordpress-jsonb-validity-preflight.php
+php -l lanes/libsqlite/examples/application-jsonb-validity-preflight.php
+php lanes/libsqlite/examples/application-jsonb-validity-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
 ```
 
 Result: focused PHP passed 1 selected test file, 1678 assertions, and 0
 failures. The test file now contains 214 focused libsqlite cases. The new
-WordPress example reports valid settings JSONB as superficial+strict, the
+Application example reports valid settings JSONB as superficial+strict, the
 large corrupt BLOB `8bff00000000000000` as superficial-only, cast text JSON
 as not JSONB for flag 4, and a bad scalar payload as invalid. This worker did
 not start the root aggregate harness because root verification was not
@@ -3326,14 +3326,14 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteJsonPath.php
 php -l lanes/libsqlite/src/SQLiteCreateIndex.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-path-validation-preflight.php
-php lanes/libsqlite/examples/wordpress-json-path-validation-preflight.php
+php -l lanes/libsqlite/examples/application-json-path-validation-preflight.php
+php lanes/libsqlite/examples/application-json-path-validation-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 Result: focused PHP passed 1 selected test file, 1665 assertions, and 0
 failures. The test file now contains 213 focused libsqlite cases. The new
-WordPress example reports `$.""` as valid, malformed `$.`, `$.plugin[#-]`,
+Application example reports `$.""` as valid, malformed `$.`, `$.plugin[#-]`,
 and `$.plugin[#9]` as invalid, resolves root page 3 for the valid empty-label
 index, skips malformed copied-schema index root pages, and returns
 `plugin_empty_label_settings` without requiring the SQLite extension. This
@@ -3384,14 +3384,14 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCreateIndex.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-operator-json-quote-rhs-forms.php
-php lanes/libsqlite/examples/wordpress-json-operator-json-quote-rhs-forms.php
+php -l lanes/libsqlite/examples/application-json-operator-json-quote-rhs-forms.php
+php lanes/libsqlite/examples/application-json-operator-json-quote-rhs-forms.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 Result: focused PHP passed 1 selected test file, 1636 assertions, and 0
 failures. The test file now contains 211 focused libsqlite cases. The new
-WordPress example reports normalized paths `$.null`, `$."123"`, and
+Application example reports normalized paths `$.null`, `$."123"`, and
 `$."1.25"`, uses root pages 3-5 for copied `wp_options` JSON operator
 expression indexes, returns the expected `plugin_json_quote_*` rows, and
 leaves direct quoted text, raw BLOB, and invalid-arity RHS operands
@@ -3507,7 +3507,7 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover exact byte encodings at the one-, two-, three-,
 four-, eight-, and nine-byte boundaries, PHP integer maximum round-trip
-behavior, and negative-value rejection for WordPress write/preflight helpers.
+behavior, and negative-value rejection for Application write/preflight helpers.
 
 ## Focused Native Mapping: Table Leaf Overflow
 
@@ -3524,13 +3524,13 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover local-payload length calculation, single-page
 overflow reads, multi-page chained overflow reads, and premature overflow-chain
-termination for WordPress-shaped `wp_options` rows.
+termination for Application-shaped `wp_options` rows.
 
 ## Focused Native Mapping: Rowid Range Table Traversal
 
 This slice maps bounded rowid table b-tree traversal used by SQLite rowid
 lookups and range scans. The native reader now exposes rowid lower/upper bounds
-for table roots, plus a WordPress-shaped `wp_options` helper that can read
+for table roots, plus a Application-shaped `wp_options` helper that can read
 option rows by `option_id` band without requiring a secondary index. Interior
 table-page child intervals are used to avoid unrelated branches before reading
 leaf cells.
@@ -3604,7 +3604,7 @@ Focused upstream fixture boundary:
 
 The native PHP tests cover column-level `option_name text UNIQUE`, table-level
 `UNIQUE("slug" COLLATE nocase)` parsing, bracket-quoted column names, ignored
-`UNIQUE` text inside `CHECK(...)`, and a WordPress-shaped
+`UNIQUE` text inside `CHECK(...)`, and a Application-shaped
 `sqlite_autoindex_wp_options_1` row whose `sql` is `NULL`. The lookup then uses
 the automatic index root page, decodes the index record's rowid tail, and reads
 the target `wp_options` row through the table b-tree. Full composite-key scans,
@@ -3642,7 +3642,7 @@ rowid-alias `INTEGER PRIMARY KEY` constraints, handles the SQLite
 `INTEGER PRIMARY KEY DESC` exception as an autoindexed primary key, suppresses
 `WITHOUT ROWID` table-primary-key autoindex slots, and preserves earlier
 `UNIQUE` autoindex ordinals before a later table-level primary key. A
-WordPress-shaped fixture verifies lookup through `sqlite_autoindex_wp_options_2`
+Application-shaped fixture verifies lookup through `sqlite_autoindex_wp_options_2`
 when `sqlite_autoindex_wp_options_1` belongs to an earlier `autoload UNIQUE`
 constraint and `PRIMARY KEY(option_name)` backs the option-name lookup.
 
@@ -3654,7 +3654,7 @@ unported.
 ## Focused Native Mapping: sqlite_sequence AUTOINCREMENT Metadata And Allocation
 
 This slice maps SQLite's internal `sqlite_sequence` table and the bounded
-AUTOINCREMENT allocation state needed by WordPress import/recovery tooling.
+AUTOINCREMENT allocation state needed by Application import/recovery tooling.
 SQLite creates `sqlite_sequence(name,seq)` for AUTOINCREMENT tables, keeps one
 row per table that has allocated a sequence value, and allows the table
 contents to be manually updated even though the system table itself cannot be
@@ -3683,19 +3683,19 @@ Focused upstream fixture boundary:
 The native PHP reader now resolves the `sqlite_sequence` table from
 `sqlite_schema`, decodes its rows through the existing table b-tree reader, and
 preserves mutable SQLite scalar `name`/`seq` values instead of forcing `seq` to
-an integer. WordPress-oriented recovery tools can inspect post/comment/user
+an integer. Application-oriented recovery tools can inspect post/comment/user
 sequence counters from a database image without invoking the SQLite extension.
 The new `SQLiteAutoincrementState` builds on those records plus the current
 table b-tree reader to pick the next generated rowid, create a missing
 sequence row in state, coerce invalid `seq` values the way SQLite's
-AUTOINCREMENT VM path does, and advance the counter for explicit WordPress
+AUTOINCREMENT VM path does, and advance the counter for explicit Application
 import IDs without lowering an existing sequence. Raw SQL execution, b-tree
 page writes, malformed schema recovery, attached/temp database sequence
 tables, journaling/WAL, and trigger/upsert statement orchestration remain
 outside this bounded slice.
 The native PHP tests now cover allocation from an existing `sqlite_sequence`
 row, missing sequence rows, invalid `seq` values, numeric text coercion, and
-explicit WordPress import IDs advancing the sequence before the next generated
+explicit Application import IDs advancing the sequence before the next generated
 ID is chosen.
 
 ## Focused Native Mapping: Automatic Index Collation And DESC Metadata
@@ -3732,7 +3732,7 @@ Focused upstream fixture boundary:
 The native PHP tests now cover parsing automatic-index first-column metadata
 from `CREATE TABLE` SQL, repeated column `COLLATE` declarations with last-token
 precedence, table-level `UNIQUE(... COLLATE RTRIM DESC)` metadata, and a
-WordPress-shaped `wp_options` recovery lookup through
+Application-shaped `wp_options` recovery lookup through
 `sqlite_autoindex_wp_options_1` where `UNIQUE(option_name COLLATE NOCASE DESC)`
 requires both case-insensitive comparison and descending b-tree search.
 Remaining automatic-index gaps include automatic composite-key range metadata
@@ -3810,7 +3810,7 @@ Focused upstream fixture boundary:
 The native PHP tests cover parsing `lower(option_name)` metadata with
 `COLLATE`, `DESC`, and safe `WHERE option_name IS NOT NULL` predicates;
 rejecting constant and unrelated expression indexes; preserving plain
-`option_name` lookup rejection for expression indexes; and WordPress-shaped
+`option_name` lookup rejection for expression indexes; and Application-shaped
 case-folded option recovery lookups through
 `CREATE INDEX ... ON wp_options(lower(option_name))`.
 
@@ -3841,7 +3841,7 @@ Focused upstream fixture boundary:
 - `test/collate1.test` and `test/collate2.test` verify application-defined
   collation callbacks such as numeric, HEX, and BACKWARDS ordering.
 
-The native PHP tests cover WordPress-shaped
+The native PHP tests cover Application-shaped
 `CREATE INDEX ... ON wp_options(lower(option_name) COLLATE WPSLUG)` fixture
 where a supplied comparator treats underscores and hyphens as the same slug
 separator. Point, `IN (...)`, and bounded range recovery paths all recheck the
@@ -3849,11 +3849,11 @@ recovered table row against the folded custom-collation key; IN-list recovery
 suppresses duplicate RHS-equivalent rows and ignores `NULL` RHS terms, while
 range recovery handles open/exclusive or inclusive upper bounds and inverted
 ranges under the supplied comparator. The ordinary
-`wordpressOptionByIndexedLowercaseName()` path still rejects the unsupported
+`optionRowByIndexedLowercaseName()` path still rejects the unsupported
 custom collation.
-`examples/wordpress-lowercase-custom-collation-option-lookup.php` maps the
+`examples/application-lowercase-custom-collation-option-lookup.php` maps the
 point recovery pattern for plugin/theme option names, and
-`examples/wordpress-lowercase-custom-collation-option-name-range.php` maps
+`examples/application-lowercase-custom-collation-option-name-range.php` maps
 custom-collation lower-expression range recovery on hosts without the PHP
 SQLite extension.
 
@@ -3888,7 +3888,7 @@ The native PHP tests now cover a case-folded transient-style
 `lower(option_name)` range scan, limit handling, rejection of ordinary
 `option_name` range lookup against expression-only indexes, and a bounded
 seek fixture where an out-of-range index branch is intentionally unreadable.
-`examples/wordpress-lowercase-option-name-range.php` maps case-folded transient
+`examples/application-lowercase-option-name-range.php` maps case-folded transient
 recovery on hosts without the PHP SQLite extension. Remaining expression-index
 work includes arbitrary expressions beyond `lower(column)`, expression
 prefixes after ordinary indexed columns, custom-collation IN-list/range
@@ -3923,7 +3923,7 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover parsing qualified/quoted `IS NOT NULL` partial
 predicates, keeping `indexRootPageForColumn()` unconstrained, exposing a
-point-lookup root-page helper, resolving a WordPress-shaped
+point-lookup root-page helper, resolving a Application-shaped
 `wp_options(option_name) WHERE option_name IS NOT NULL` index, and continuing
 to reject an unsupported `WHERE autoload='yes'` partial index for generic
 option-name point lookup.
@@ -3933,7 +3933,7 @@ option-name point lookup.
 SQLite's partial-index planner allows an index whose predicate is an OR
 expression when one query WHERE term implies one OR arm. The native PHP reader
 now maps that bounded rule for OR predicates made of simple equality terms,
-which is enough for WordPress recovery callers that know a concrete autoload
+which is enough for Application recovery callers that know a concrete autoload
 state and need to use a narrowed `wp_options(option_name)` index.
 
 Focused upstream runner:
@@ -3967,7 +3967,7 @@ outside this slice.
 SQLite uses a partial index with AND-connected WHERE terms only when all terms
 are implied by the query. The native PHP reader now maps that bounded rule for
 AND predicates composed of simple equality and `IS NOT NULL` terms, which
-covers narrowed WordPress recovery indexes such as
+covers narrowed Application recovery indexes such as
 `WHERE autoload='yes' AND option_name IS NOT NULL`.
 
 Focused upstream runner:
@@ -4002,7 +4002,7 @@ outside this slice.
 ## Focused Native Mapping: Duplicate First-Column Index Scans
 
 SQLite non-unique indexes allow multiple rows with the same first indexed key.
-This slice maps the bounded read-side behavior needed by WordPress recovery:
+This slice maps the bounded read-side behavior needed by Application recovery:
 scan an explicit first-column index for all records whose first key equals the
 requested value, decode the rowid stored as the last index-record field, and
 load the matching `wp_options` rows through the table b-tree. Composite index
@@ -4027,7 +4027,7 @@ Focused upstream fixture boundary:
 - `test/where.test` section `where-6.*` exercises equality constraints against
   indexed first columns and composite-index ordering boundaries.
 
-The native PHP tests now cover a WordPress-shaped
+The native PHP tests now cover a Application-shaped
 `CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)`
 scan that returns duplicate `autoload='yes'` options in index order, honors a
 result limit, returns an empty list for missing first-column values, and also
@@ -4040,7 +4040,7 @@ range column.
 ## Focused Native Mapping: Composite Index Prefix Constraints
 
 SQLite can use a multi-column index for equality constraints across consecutive
-leading columns. This slice maps a bounded read-side variant for WordPress
+leading columns. This slice maps a bounded read-side variant for Application
 recovery: parse explicit `CREATE INDEX` column lists, retain per-column
 collation metadata for leading columns, and resolve a
 `wp_options(autoload, option_name)` index when both prefix values are known.
@@ -4072,7 +4072,7 @@ The native PHP tests now cover parsing full explicit index column lists,
 rejecting expression-bearing composite lists for this slice, preserving
 second-column `COLLATE NOCASE` metadata, accepting an implied
 `WHERE autoload IS NOT NULL` partial predicate, and fetching one
-WordPress option through `wp_options(autoload, option_name)` without scanning
+Application option through `wp_options(autoload, option_name)` without scanning
 the whole `wp_options` table. Remaining index work includes b-tree seek bounds
 for broader composite prefixes, expression indexes beyond `lower(column)`, and
 custom collations.
@@ -4080,7 +4080,7 @@ custom collations.
 ## Focused Native Mapping: First-Column Range Constraints
 
 SQLite can use an index for bounded first-column range constraints such as
-`a>=100 AND a<300`. This slice maps a native read-side subset for WordPress:
+`a>=100 AND a<300`. This slice maps a native read-side subset for Application:
 given an explicit or safe `WHERE option_name IS NOT NULL` partial
 `wp_options(option_name)` index, scan decoded index records and return rows
 whose first key is greater than or equal to a lower bound and less than an upper
@@ -4105,7 +4105,7 @@ Focused upstream fixture boundary:
 - `test/index6.test` and `test/index7.test` verify that `a IS NOT NULL`
   partial indexes may be used when the query predicate implies non-nullness.
 
-The native PHP tests now cover a WordPress-shaped transient recovery range
+The native PHP tests now cover a Application-shaped transient recovery range
 ``option_name >= '_transient_' AND option_name < '_transient`'``, result limiting,
 empty ranges, rowid resolution back through the table b-tree, and safe use of a
 partial `WHERE option_name IS NOT NULL` index for non-null range bounds.
@@ -4117,7 +4117,7 @@ beyond `lower(column)`, and custom collations.
 
 SQLite range constraints can be lower-only, upper-only, or inclusive on either
 side. This slice keeps the native reader bounded to first-column index records
-but extends the WordPress-facing range helper to support nullable open bounds,
+but extends the Application-facing range helper to support nullable open bounds,
 inclusive upper bounds, and explicit range-root discovery when at least one
 bound is present. Bounded comparisons now skip `NULL` first-column index keys
 so `option_name < 'm'` behaves like SQL comparison semantics instead of
@@ -4185,7 +4185,7 @@ Focused upstream fixture boundary:
   partial WHERE term.
 
 The native PHP tests now cover parsing comparison and `BETWEEN` partial
-predicates, using a WordPress-shaped
+predicates, using a Application-shaped
 ``wp_options(option_name) WHERE option_name >= '_transient_' AND option_name < '_transient`'``
 partial index for transient point and range recovery, rejecting the same index
 for out-of-range option names, and using an inclusive `BETWEEN` partial index
@@ -4197,7 +4197,7 @@ and custom collations.
 
 SQLite can use a composite index when the left-most indexed column or columns
 are constrained by equality and the next indexed column has range bounds. This
-slice maps the read-side WordPress shapes
+slice maps the read-side Application shapes
 `wp_options(autoload, option_name)` and
 `wp_options(autoload, option_value, option_name)`: constrain the equality
 prefix first, then scan bounded `option_name` keys for transient-style recovery
@@ -4222,7 +4222,7 @@ Focused upstream fixture boundary:
 - `test/whereH.test` covers longer equality prefixes before a range term, such
   as `a=? AND b=? AND c>=?` against a three-column index.
 
-The native PHP tests now cover WordPress-shaped
+The native PHP tests now cover Application-shaped
 `wp_options(autoload, option_name)` and
 `wp_options(autoload, option_value, option_name)` indexes for non-autoloaded
 transient range recovery, range limits, inclusive and empty same-bound ranges,
@@ -4231,7 +4231,7 @@ safe rejection when no range bound is provided, and a partial
 second-column metadata. This run adds bounded composite b-tree traversal:
 subtrees whose separator-key intervals cannot contain the requested
 equality prefix plus `option_name` range are skipped before their pages are
-decoded. WordPress-shaped fixtures keep matching transient rows in one index
+decoded. Application-shaped fixtures keep matching transient rows in one index
 branch and make unrelated branches invalid, proving the native reader does not
 need healthy out-of-range index pages for constrained recovery even with two
 equality columns. Remaining work includes expression indexes beyond the named
@@ -4242,7 +4242,7 @@ planner shapes outside equality-prefix plus one range column.
 
 SQLite can use a partial index with an exact equality predicate when the query
 predicate implies the partial-index WHERE clause. This slice maps the bounded
-read-side form needed for WordPress recovery: parse simple partial-index
+read-side form needed for Application recovery: parse simple partial-index
 predicates such as `autoload='yes'`, require callers to supply the matching
 equality constraint, and then use the `wp_options(option_name)` partial index
 only for constrained autoloaded option lookups.
@@ -4301,16 +4301,16 @@ Focused upstream fixture boundary:
   and exact `IN (...)` predicates, including the upstream behavior where a
   partial `IN` predicate is only usable for an exact matching `IN` query shape.
 
-The native PHP tests now cover bulk WordPress option-name reads through an
+The native PHP tests now cover bulk Application option-name reads through an
 explicit `option_name` index, duplicate RHS suppression, `NULL` RHS
 non-matching semantics, safe use of `WHERE option_name IS NOT NULL` partial
 indexes, and exact-order `WHERE option_name IN ('siteurl','home')` partial
 indexes. IN-list scans now also derive conservative first-key intervals for
 index interior children, so out-of-range subtrees are skipped before their
-pages are parsed. The focused regression fixture uses a WordPress-shaped
+pages are parsed. The focused regression fixture uses a Application-shaped
 `wp_options(option_name)` lookup for `siteurl` while the unrelated left-hand
 index branch is intentionally invalid. The new
-`examples/wordpress-options-by-name-list.php` script maps bulk option
+`examples/application-options-by-name-list.php` script maps bulk option
 preload/recovery workflows on hosts without the PHP SQLite extension.
 Remaining work includes expression-index `IN` lookup families beyond
 `lower(column)`, custom collations, and broader composite `IN` constraints.
@@ -4319,7 +4319,7 @@ Remaining work includes expression-index `IN` lookup families beyond
 
 SQLite can use an expression index for an `IN (...)` predicate when the query
 expression matches the indexed expression. The native PHP reader now maps the
-WordPress-oriented `lower(option_name) IN (...)` slice: caller-supplied names
+Application-oriented `lower(option_name) IN (...)` slice: caller-supplied names
 are case-folded with SQLite-style ASCII lowercasing, duplicate RHS names do not
 duplicate result rows, `NULL` RHS terms do not match, and safe
 `WHERE option_name IS NOT NULL` partial expression indexes can be used.
@@ -4347,7 +4347,7 @@ IN-list reads for mixed-case `SiteURL`/`HOME` option names, duplicate RHS
 suppression, `NULL` RHS non-matching behavior, rejection as a plain
 `option_name` index, limit handling, invalid RHS types, and bounded lower-key
 seek pruning where an out-of-range index branch is intentionally unreadable.
-The new `examples/wordpress-lowercase-options-by-name-list.php` script maps
+The new `examples/application-lowercase-options-by-name-list.php` script maps
 case-folded bulk option preload/recovery workflows on hosts without the PHP
 SQLite extension.
 
@@ -4402,8 +4402,8 @@ suppression and `NULL` non-matching behavior, SQLite-style ASCII-only folding
 for a non-ASCII option name such as `café`, bounded uppercase range scans,
 out-of-range b-tree branch pruning for range reads, and rejection as a plain
 `option_name` index. The new
-`examples/wordpress-uppercase-options-by-name-list.php` and
-`examples/wordpress-uppercase-option-name-range.php` scripts map bulk and
+`examples/application-uppercase-options-by-name-list.php` and
+`examples/application-uppercase-option-name-range.php` scripts map bulk and
 range-based ASCII-folded option recovery on hosts without the PHP SQLite
 extension.
 
@@ -4437,7 +4437,7 @@ Focused upstream fixture boundary:
 - `test/where.test` covers equality and range constraints against indexed first
   columns and composite index boundaries.
 
-The native PHP test adds a WordPress-shaped `wp_options(option_name)` range
+The native PHP test adds a Application-shaped `wp_options(option_name)` range
 lookup where the requested lower bound is in the index root's right-hand
 subtree and the left-hand child page is intentionally invalid. The lookup now
 returns `siteurl` without reading that out-of-range branch. Remaining seek work
@@ -4451,7 +4451,7 @@ SQLite expression indexes can use deterministic scalar expressions such as
 parses first-term `substr()`/`substring()` expression-index metadata when the
 start and optional length are positive integer literals, preserves built-in
 collation and `DESC` metadata, and uses `substr(option_name,1,N)` expression
-indexes for WordPress option-name prefix scans. Partial expression indexes are
+indexes for Application option-name prefix scans. Partial expression indexes are
 accepted only for the safe `option_name IS NOT NULL` predicate family in this
 slice.
 
@@ -4476,9 +4476,9 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover parser rejection for variable `substr()` starts,
 expression metadata for qualified and quoted column names, and a
-WordPress-shaped `wp_options(substr(option_name,1,11) COLLATE NOCASE)` index
+Application-shaped `wp_options(substr(option_name,1,11) COLLATE NOCASE)` index
 that returns `_transient_` option buckets without using the SQLite extension.
-The `examples/wordpress-option-name-prefix.php` script maps transient/cache
+The `examples/application-option-name-prefix.php` script maps transient/cache
 bucket inspection on hosts where only a database image is available. Remaining
 expression-index work includes variable-start `substr(a,b,3)`, expression
 `IN` lookups beyond the literal-start prefix-list slice, `abs()`,
@@ -4513,12 +4513,12 @@ Focused upstream fixture boundary:
 - `test/where2.test` covers duplicate RHS `IN` values without duplicate output
   rows, which maps the native prefix-list scan behavior.
 
-The native PHP tests now cover a WordPress-shaped
+The native PHP tests now cover a Application-shaped
 `wp_options(substr(option_name,1,11) COLLATE NOCASE)` index that reads both
 `_transient_` and `_site_trans` buckets from one prefix list, ignores `NULL`
 RHS values, rejects mixed prefix lengths, and prunes an intentionally invalid
 out-of-range index branch. The new
-`examples/wordpress-option-name-prefix-list.php` script maps cache and
+`examples/application-option-name-prefix-list.php` script maps cache and
 site-transient recovery on hosts where the PHP SQLite extension is unavailable.
 
 ## Focused Native Mapping: Negative-Start Substr Expression Index Suffix Buckets
@@ -4549,11 +4549,11 @@ Focused upstream fixture boundary:
   `substr(a, 2) COLLATE NOCASE`.
 
 The native PHP tests now cover parsing `Substr(option_name,-9) COLLATE NOCASE
-DESC`, rejecting start `0`, using a WordPress-shaped
+DESC`, rejecting start `0`, using a Application-shaped
 `wp_options(substr(option_name,-9) COLLATE NOCASE DESC)` index to find
 `*_settings` options case-insensitively, limit handling, and continuing to
 reject expression indexes as ordinary column indexes. The new
-`examples/wordpress-option-name-suffix.php` script maps plugin/theme settings
+`examples/application-option-name-suffix.php` script maps plugin/theme settings
 bucket inspection when only a SQLite database image is available.
 
 ## Focused Native Mapping: Length Expression Index Buckets
@@ -4587,11 +4587,11 @@ Focused upstream fixture boundary:
 The native PHP tests now cover parsing `length(option_name)` metadata with
 qualified/quoted column names, `DESC`, and safe `WHERE option_name IS NOT NULL`
 predicates; rejecting constant and unrelated expression terms; and a
-WordPress-shaped exact-length option-name bucket lookup that returns options
+Application-shaped exact-length option-name bucket lookup that returns options
 such as `home`, `cron`, and UTF-8 text names using SQLite-style character
 length without scanning the whole table. The new
-`examples/wordpress-option-name-length.php` script maps recovery or audit tools
-that bucket suspicious, short, or policy-sensitive WordPress option names on
+`examples/application-option-name-length.php` script maps recovery or audit tools
+that bucket suspicious, short, or policy-sensitive Application option names on
 hosts where the PHP SQLite extension is unavailable.
 
 ## Focused Native Mapping: Length Expression Index IN Lists
@@ -4621,12 +4621,12 @@ Focused upstream fixture boundary:
 - `test/where2.test` covers indexed `IN (...)` lookup behavior, including
   duplicate RHS values not producing duplicate output rows.
 
-The native PHP tests now cover a WordPress-shaped
+The native PHP tests now cover a Application-shaped
 `wp_options(length(option_name) DESC)` index that reads multiple length buckets
 such as `4` and `10` in one pass, rejects non-integer and negative RHS values,
 ignores `NULL` RHS values, preserves UTF-8 character length behavior for
 stored option names, and skips an intentionally invalid out-of-range index
-branch. The new `examples/wordpress-option-name-length-list.php` script maps
+branch. The new `examples/application-option-name-length-list.php` script maps
 multi-bucket option-name audits on hosts where the PHP SQLite extension is
 unavailable.
 
@@ -4657,12 +4657,12 @@ Focused upstream fixture boundary:
 - `test/where.test` covers indexed lower/upper range constraints and inclusive
   bound behavior used by the native bounded expression-index range traversal.
 
-The native PHP tests now cover a WordPress-shaped
+The native PHP tests now cover a Application-shaped
 `wp_options(length(option_name) DESC)` index that reads medium-length option
 names such as `db_version` and `siteurl`, supports exact inclusive single
 length ranges, open bounds, limit handling, UTF-8 character length checks, and
 skips an intentionally invalid out-of-range index branch. The new
-`examples/wordpress-option-name-length-range.php` script maps option-name
+`examples/application-option-name-length-range.php` script maps option-name
 length audits on hosts where the PHP SQLite extension is unavailable.
 
 ## Focused Native Mapping: CAST AS INTEGER Expression Indexes
@@ -4712,7 +4712,7 @@ Focused upstream fixture boundary:
 The native PHP tests now cover parsing `CAST(option_value AS INTEGER)` with a
 qualified/quoted column, `DESC`, and a safe `WHERE option_value IS NOT NULL`
 predicate; rejecting `CAST(... AS TEXT)` and constant casts for this bounded
-slice; and a WordPress-shaped numeric option-value lookup that finds
+slice; and a Application-shaped numeric option-value lookup that finds
 `db_version`-style rows through SQLite's text-prefix integer cast semantics.
 The IN-list tests read multiple integer cast buckets in one index pass, ignore
 `NULL` RHS values, suppress duplicate RHS output, reject non-integer terms for
@@ -4721,11 +4721,11 @@ The range tests scan `CAST(option_value AS INTEGER)` keys through descending
 and ascending expression indexes, handle open and inclusive upper bounds, keep
 SQLite-style casts such as `123.9` and non-numeric text, reject unbounded range
 calls, and skip an intentionally invalid out-of-range index branch.
-The new `examples/wordpress-option-value-integer.php` and
-`examples/wordpress-option-value-integer-list.php` scripts map recovery or
+The new `examples/application-option-value-integer.php` and
+`examples/application-option-value-integer-list.php` scripts map recovery or
 audit tools that need one or more numeric option values without a full table
 scan or the PHP SQLite extension. The new
-`examples/wordpress-option-value-integer-range.php` script maps numeric option
+`examples/application-option-value-integer-range.php` script maps numeric option
 audits such as version/counter ranges through the same native index path.
 
 ## Focused Native Mapping: JSON Extract Expression Indexes
@@ -4786,7 +4786,7 @@ Focused upstream fixture boundary:
 The native PHP tests now cover parsing `json_extract(option_value,'$.enabled')`
 metadata with qualified/quoted column names, literal JSON paths, collation,
 `DESC`, and safe partial predicates; rejecting constant JSON arguments and
-multi-path calls for this bounded slice; and a WordPress-shaped plugin settings
+multi-path calls for this bounded slice; and a Application-shaped plugin settings
 lookup that reads boolean/number JSON scalar keys from
 `wp_options(option_value)` without scanning the full table. The IN-list tests
 read multiple JSON scalar buckets in one index pass, honor `COLLATE NOCASE`,
@@ -4796,9 +4796,9 @@ branch. The range tests read numeric JSON priority bands with open or inclusive
 upper bounds, suppress JSON null/missing expression keys for bounded
 comparisons, honor `COLLATE NOCASE` for text ranges, and skip an intentionally
 invalid out-of-range index branch. The new
-`examples/wordpress-json-option-value.php`,
-`examples/wordpress-json-option-value-list.php`, and
-`examples/wordpress-json-option-value-range.php` scripts map recovery or audit
+`examples/application-json-option-value.php`,
+`examples/application-json-option-value-list.php`, and
+`examples/application-json-option-value-range.php` scripts map recovery or audit
 tools that need one or more indexed plugin/theme JSON settings such as enabled
 flags, mode lists, or priority bands on hosts where the PHP SQLite extension is
 unavailable.
@@ -4835,11 +4835,11 @@ Focused upstream fixture boundary:
 The native PHP tests now cover parsing `json_extract(option_value,
 '$.rules[0].enabled')`, matching a quoted object-member request
 `$."rules"[0].enabled` to the same stored expression path, and resolving
-WordPress plugin settings where a first rule's `enabled` flag is stored inside
-a JSON array. A second WordPress-shaped fixture covers `option_value ->> '[0]'`
+Application plugin settings where a first rule's `enabled` flag is stored inside
+a JSON array. A second Application-shaped fixture covers `option_value ->> '[0]'`
 expression indexes for root-array settings such as plugin channel lists. The updated
-`examples/wordpress-json-option-arrow.php` accepts bracket and numeric array
-operands, and the new `examples/wordpress-json-array-option-value.php` script
+`examples/application-json-option-arrow.php` accepts bracket and numeric array
+operands, and the new `examples/application-json-array-option-value.php` script
 documents the array-path recovery flow directly.
 
 ## Focused Native Mapping: JSON Reverse Array Path Expression Indexes
@@ -4877,10 +4877,10 @@ Focused upstream fixture boundary:
   `option_value ->> -1` expression-index parser.
 
 The native PHP tests now cover reverse JSON path metadata parsing, leading-zero
-reverse path equivalence, malformed reverse path rejection, nested WordPress
+reverse path equivalence, malformed reverse path rejection, nested Application
 plugin rule lookups through `json_extract(option_value,'$.rules[#-1].enabled')`,
 and root-array channel recovery through `option_value ->> -1`. The new
-`examples/wordpress-json-last-array-option-value.php` script maps plugin/theme
+`examples/application-json-last-array-option-value.php` script maps plugin/theme
 settings that store the active channel, latest migration stage, or last rule in
 a JSON array and need indexed recovery without the PHP SQLite extension.
 
@@ -4918,10 +4918,10 @@ Focused upstream fixture boundary:
 The native PHP tests now cover parsing `option_value ->> 'enabled'` metadata
 with a qualified/quoted column, `COLLATE NOCASE`, `DESC`, and a safe partial
 predicate; dotted and numeric string RHS label normalization; path equivalence
-between `$.enabled` and `$."enabled"`; and a WordPress-shaped plugin settings
+between `$.enabled` and `$."enabled"`; and a Application-shaped plugin settings
 lookup that reads boolean JSON keys through an arrow-operator expression index
 without scanning `wp_options`. The
-`examples/wordpress-json-option-arrow.php` script maps plugin/theme settings
+`examples/application-json-option-arrow.php` script maps plugin/theme settings
 recovery where the available SQLite database uses `option_value ->> 'key'`
 instead of a `json_extract(...)` index.
 
@@ -4934,7 +4934,7 @@ text. Missing paths still compare as SQL `NULL`. The native PHP reader now
 parses first-term `column -> 'key'` expression indexes separately from `->>`,
 normalizes PostgreSQL-style string RHS labels such as `'2'` and
 `'plugin.enabled'` to quoted JSON path members, preserves collation, `DESC`,
-and safe partial-predicate metadata, and exposes a bounded WordPress
+and safe partial-predicate metadata, and exposes a bounded Application
 `wp_options` lookup for JSON fragments.
 
 Focused upstream runner:
@@ -4956,9 +4956,9 @@ Focused upstream fixture boundary:
 The native PHP tests cover parsing `option_value -> 'settings.v1'` as a JSON
 value-operator expression index rather than a normal column or `->>` text
 operator index; matching dotted and numeric string labels through quoted JSON
-path members; seeking a WordPress-shaped `wp_options` index by JSON object
+path members; seeking a Application-shaped `wp_options` index by JSON object
 fragment, JSON string, and JSON null; and keeping missing paths distinct from
-JSON null. The `examples/wordpress-json-option-fragment.php` script maps
+JSON null. The `examples/application-json-option-fragment.php` script maps
 plugin/theme settings recovery where the available SQLite database indexes a
 JSON fragment through `option_value -> 'key'`.
 
@@ -4987,8 +4987,8 @@ object fragments, JSON strings, JSON null, duplicate RHS suppression, and
 missing-path exclusion. They also cover JSON-text range scans over stored
 fragment keys, inclusive upper bounds, open lower bounds, reversed empty
 ranges, wrong-expression rejection, and invalid limit/bound handling. The
-`examples/wordpress-json-option-fragment-list.php` and
-`examples/wordpress-json-option-fragment-range.php` scripts map plugin/theme
+`examples/application-json-option-fragment-list.php` and
+`examples/application-json-option-fragment-range.php` scripts map plugin/theme
 settings recovery for multiple JSON fragment states or bounded JSON-text
 channel ranges.
 
@@ -4999,7 +4999,7 @@ This slice extends the bounded expression-index family to first-term
 SQLite's default space trimming or a literal character-set argument. The native
 reader preserves the function name, literal character set, collation, `DESC`,
 and safe `IS NOT NULL` partial predicate metadata, rejects these expressions as
-ordinary column indexes, and resolves a WordPress option row through an indexed
+ordinary column indexes, and resolves a Application option row through an indexed
 trimmed key plus rowid lookup.
 
 Focused upstream runner:
@@ -5023,10 +5023,10 @@ Focused upstream fixture boundary:
 The native PHP tests now cover parsing `trim(option_name,' _')`,
 `ltrim(option_name)`, and `rtrim(option_name,'-')` index metadata, rejecting
 constant/non-string trim arguments for this bounded slice, preserving safe
-partial predicates, and a WordPress-shaped `trim(option_name) COLLATE NOCASE`
+partial predicates, and a Application-shaped `trim(option_name) COLLATE NOCASE`
 lookup that finds a stored option named ` SiteURL  ` when the recovery caller
 asks for `siteurl`. The new
-`examples/wordpress-trimmed-option-name.php` script maps recovery of
+`examples/application-trimmed-option-name.php` script maps recovery of
 whitespace-damaged option names without requiring the PHP SQLite extension or a
 full table scan.
 
@@ -5060,14 +5060,14 @@ Focused upstream fixture boundary:
 - `test/json502.test` covers JSON5 nested objects with trailing commas,
   malformed object labels, escaped label names, and JSON path label escaping.
 
-The native PHP tests cover WordPress-shaped `wp_options` rows whose
+The native PHP tests cover Application-shaped `wp_options` rows whose
 `option_value` contains JSON5-style plugin settings with unquoted keys,
 single-quoted text, comments, and trailing commas, then read those rows through
 `json_extract(option_value,'$.enabled')` and
 `json_extract(option_value,'$.rules[#-1].enabled')` expression indexes. A
 separate malformed JSON5 fixture verifies that corrupt manually edited plugin
 settings are still rejected during indexed row verification. The new
-`examples/wordpress-json5-option-value.php` script documents the recovery path
+`examples/application-json5-option-value.php` script documents the recovery path
 for indexed JSON5-style plugin/theme settings on hosts without the SQLite
 extension.
 
@@ -5078,7 +5078,7 @@ and `NaN`. SQLite accepts those JSON5 inputs, returns SQL infinities from
 `->>`/`json_extract(...)`, returns JSON text fragments `9e999`, `-9e999`, or
 `null` from `->`, and emits JSONB float payloads with the same normalized
 `9e999`/`-9e999` text. The native reader now follows that behavior for
-WordPress `wp_options` expression-index verification and JSONB fixture
+Application `wp_options` expression-index verification and JSONB fixture
 generation instead of treating PHP non-finite floats as unencodable.
 
 Focused upstream runner:
@@ -5108,7 +5108,7 @@ NaN-as-null, upstream-compatible JSONB hex generation and round-trip decoding,
 `json_extract(option_value,'$.limit')` expression-index lookups using SQLite
 record float keys, and `option_value -> 'limit'` / `option_value -> 'missing'`
 fragment lookups using `9e999`, `-9e999`, and `null` index keys. The
-`examples/wordpress-jsonb-option-fixture.php` script now prints non-finite
+`examples/application-jsonb-option-fixture.php` script now prints non-finite
 JSON5 settings safely while generating JSONB option-value fixture bytes.
 
 ## Focused Native Mapping: Escaped JSON Path Labels
@@ -5139,11 +5139,11 @@ Focused upstream fixture boundary:
 The native PHP tests now cover parsing `json_extract(option_value,
 '$."a\x62c"')`, `json_extract(option_value,'$.A"Key')`,
 `option_value ->> 'a\x62c'`, and `option_value -> 'a\x62c'` expression-index
-metadata. A WordPress-shaped fixture reads plugin setting rows through
+metadata. A Application-shaped fixture reads plugin setting rows through
 expression indexes over keys named `abc`, `A"Key`, and `plugin\enabled`,
 including path equivalence between escaped quoted labels and bare embedded
 quote labels. The new
-`examples/wordpress-json-escaped-label-option-value.php` script documents this
+`examples/application-json-escaped-label-option-value.php` script documents this
 recovery path for plugin/theme settings whose JSON keys come from escaped or
 external identifiers.
 
@@ -5189,12 +5189,12 @@ minimal JSONB header/payload form for the focused object/array/scalar fixture.
 The native PHP tests decode the upstream JSONB fixture
 `x'cc0f1761cb0b133235332e350102001778'`, generate the upstream-probed minimal
 JSONB bytes `x'cc0e1761bb133235332e350102001778'` from a PHP value, reject a
-malformed JSONB blob, and read a WordPress-shaped `wp_options` row whose
+malformed JSONB blob, and read a Application-shaped `wp_options` row whose
 `option_value` is a native-generated JSONB BLOB through both
 `json_extract(option_value,'$.a[5]')` and `option_value -> '$.a'` expression
-indexes. The new `examples/wordpress-jsonb-option-fixture.php` script prepares
-WordPress-oriented JSONB option-value fixture bytes, while
-`examples/wordpress-jsonb-option-value.php` documents recovery for plugin
+indexes. The new `examples/application-jsonb-option-fixture.php` script prepares
+Application-oriented JSONB option-value fixture bytes, while
+`examples/application-jsonb-option-value.php` documents recovery for plugin
 settings stored by SQLite JSONB functions.
 
 ## Focused Native Mapping: JSONB Remove Paths
@@ -5228,7 +5228,7 @@ The native PHP tests now cover `SQLiteJsonB::remove()` for object members,
 nested object members, array indexes, reverse array indexes, missing path
 no-ops, `[#]` no-ops, root removal, multiple path argument order, large
 out-of-range indexes, and malformed path rejection. The new
-`examples/wordpress-jsonb-remove-option-field.php` script lets WordPress
+`examples/application-jsonb-remove-option-field.php` script lets Application
 recovery or fixture-generation tooling remove obsolete plugin setting paths
 from a JSON/JSON5/JSONB `wp_options.option_value` blob and print the resulting
 SQLite JSONB bytes without requiring the SQLite extension.
@@ -5269,8 +5269,8 @@ The native PHP tests now cover `SQLiteJsonB::insert()`, `set()`, and
 `replace()` for existing vs missing members, root-object substructure
 creation, array append substructure, `[#-0]` set appends, no-op replace
 creation, multiple argument order, string-vs-array value behavior, and a
-WordPress plugin settings preflight fixture. The new
-`examples/wordpress-jsonb-mutate-option-field.php` script lets WordPress
+Application plugin settings preflight fixture. The new
+`examples/application-jsonb-mutate-option-field.php` script lets Application
 recovery or fixture-generation tooling apply SQLite-style JSONB path edits to
 strict JSON, supported JSON5, or JSONB `wp_options.option_value` blobs without
 requiring the SQLite extension.
@@ -5315,9 +5315,9 @@ The native PHP tests now cover `SQLiteJsonB::arrayInsert()` for repeated
 prepend order, append indexes, reverse indexes, root no-op behavior, missing
 object/array substructures, non-array traversal no-ops, invalid and
 non-array-element paths, odd path/value argument rejection, JSONB hex
-roundtrip parity, and a WordPress option/meta migration preflight fixture.
-The new `examples/wordpress-jsonb-array-insert-option-field.php` script lets
-WordPress recovery or fixture-generation tooling insert migration queue
+roundtrip parity, and a Application option/meta migration preflight fixture.
+The new `examples/application-jsonb-array-insert-option-field.php` script lets
+Application recovery or fixture-generation tooling insert migration queue
 entries into JSON/JSON5/JSONB option or meta arrays without requiring the
 SQLite extension.
 
@@ -5347,7 +5347,7 @@ Focused upstream fixture boundary:
 - `test/jsonb01.test` keeps malformed JSONB rejection boundaries in scope.
 
 Additional focused upstream SQL probes confirmed `json_type()` returns `true`
-for a JSONB boolean path, `json_array_length()` returns `2` for a WordPress
+for a JSONB boolean path, `json_array_length()` returns `2` for a Application
 `optionMigrations` JSONB array, returns `0` for an existing text
 `legacyMode` target, and returns SQL `NULL` for a missing `postMetaQueue`.
 
@@ -5355,7 +5355,7 @@ The native PHP tests now cover `SQLiteJsonB::type()` and
 `SQLiteJsonB::arrayLength()` for root and path-based object, array, text,
 integer, real, true, false, and null targets; missing paths; invalid paths; and
 non-array targets. The new
-`examples/wordpress-jsonb-inspect-option-arrays.php` script lets WordPress
+`examples/application-jsonb-inspect-option-arrays.php` script lets Application
 import or migration preflight tooling check JSONB option/meta arrays before
 array insertion, append, or reorder steps without requiring the SQLite
 extension.
@@ -5394,9 +5394,9 @@ Focused upstream fixture boundary:
 The native PHP tests now cover `SQLiteJsonB::patch()` for the RFC object merge
 example, member deletion, target array to object conversion, empty object
 preservation in JSONB bytes, nested object stripping, whole-array replacement,
-whole-null/scalar replacement, and a WordPress plugin settings import preflight
-fixture. The new `examples/wordpress-jsonb-patch-option-field.php` script lets
-WordPress recovery or fixture-generation tooling apply SQLite-style merge
+whole-null/scalar replacement, and a Application plugin settings import preflight
+fixture. The new `examples/application-jsonb-patch-option-field.php` script lets
+Application recovery or fixture-generation tooling apply SQLite-style merge
 patches to strict JSON, supported JSON5, or JSONB `wp_options.option_value`
 blobs without requiring the SQLite extension.
 
@@ -5430,8 +5430,8 @@ Focused upstream fixture boundary:
 The native PHP tests now cover ordered freeblock-chain decoding, SQLite-style
 free-space byte accounting, non-ascending/overlapping freeblock rejection,
 reserved-byte usable-size boundaries, and corrupt free-space totals. The new
-`examples/wordpress-page-freeblocks.php` script reports page-local freeblock
-state for WordPress SQLite database images so recovery/import tooling can
+`examples/application-page-freeblocks.php` script reports page-local freeblock
+state for Application SQLite database images so recovery/import tooling can
 inspect deleted-space and malformed-page clues without loading SQLite.
 
 ## Focused Native Mapping: Custom Collation Option Index Lookups
@@ -5464,26 +5464,26 @@ Focused upstream fixture boundary:
 - `test/collate4.test` verifies that index usability depends on matching the
   comparison collation with the index collation.
 
-The native PHP tests now cover WordPress-shaped
+The native PHP tests now cover Application-shaped
 `wp_options(option_name COLLATE WPCASE)` and
 `wp_options(option_name COLLATE WPSLUG) WHERE option_name IS NOT NULL`
 indexes. The ordinary built-in lookup paths still throw for unsupported
-collations, while `wordpressOptionsByIndexedNameWithCollation()` accepts a PHP
+collations, while `optionRowsByIndexedNameWithCollation()` accepts a PHP
 case-folding comparator and returns all rows equal under that callback.
-`wordpressOptionsByIndexedNameRangeWithCollation()` now applies a supplied PHP
+`optionRowsByIndexedNameRangeWithCollation()` now applies a supplied PHP
 comparator to lower/upper option-name range bounds, handles open/exclusive or
 inclusive upper bounds, rejects inverted ranges, validates callback return
 types, and allows only the collation-safe `IS NOT NULL` partial-index form for
 custom-collation range scans. The
-`examples/wordpress-custom-collation-option-lookup.php` and
-`examples/wordpress-custom-collation-option-name-range.php` scripts map
+`examples/application-custom-collation-option-lookup.php` and
+`examples/application-custom-collation-option-name-range.php` scripts map
 custom-collation option recovery on hosts where the PHP SQLite extension is
 unavailable.
 
 ## Focused Native Mapping: Composite Custom-Collation Range Lookups
 
 SQLite also carries per-column collation metadata through multi-column
-indexes. This slice maps the WordPress-shaped read path
+indexes. This slice maps the Application-shaped read path
 `wp_options(autoload, option_name COLLATE X)`: callers constrain the built-in
 `autoload` prefix by equality, then supply the application collation callback
 for the bounded `option_name` range.
@@ -5506,15 +5506,15 @@ Focused upstream fixture boundary:
 - `test/collate1.test` and `test/collate2.test` provide the
   application-defined comparator boundary for named collation callbacks.
 
-The native PHP tests now cover a WordPress-shaped partial index
+The native PHP tests now cover a Application-shaped partial index
 `wp_options(autoload, option_name COLLATE WPSLUG) WHERE autoload='no' AND
 option_name IS NOT NULL`. The ordinary composite range path still rejects the
 unsupported collation, while
-`wordpressOptionsByIndexedNameRangeWithPrefixAndCollation()` accepts the
+`optionRowsByIndexedNameRangeWithPrefixAndCollation()` accepts the
 caller-provided comparator, enforces equality/`IS NOT NULL` partial predicate
 safety, handles inclusive/exclusive upper bounds and inverted ranges, and
 validates callback return types. The new
-`examples/wordpress-custom-collation-autoload-option-name-range.php` script
+`examples/application-custom-collation-autoload-option-name-range.php` script
 maps non-autoloaded transient/cache recovery when a site-specific option-name
 collation treats underscores, case, or plugin slug separators differently from
 SQLite's built-ins.
@@ -5553,11 +5553,11 @@ The native PHP test fixture now covers
 `wp_options(option_value COLLATE WPSLUG, option_name) WHERE option_value IS
 NOT NULL AND option_name IS NOT NULL`: ordinary composite scans reject the
 unsupported collation, while
-`wordpressOptionsByIndexedNameRangeWithPrefixCollations()` treats
+`optionRowsByIndexedNameRangeWithPrefixCollations()` treats
 `Plugin-Core` and `plugin_core` as the same equality prefix under the supplied
 callback, applies the `option_name` bounds, and skips an out-of-range index
 branch before page decoding. The example
-`examples/wordpress-custom-collation-prefix-option-name-range.php` maps this
+`examples/application-custom-collation-prefix-option-name-range.php` maps this
 to plugin/cache recovery where a site-specific grouping column uses slug-like
 custom comparison.
 
@@ -5598,11 +5598,11 @@ Focused upstream fixture boundary:
 The native PHP tests now cover record encoding across serial types 0, 1, 2, 3,
 4, 5, 6, 7, 8, 9, text, and BLOB, including a record header that grows to a
 two-byte size varint; table-leaf cell assembly with padding and overflow
-pointer validation; and an assembled two-page WordPress-shaped `wp_options`
+pointer validation; and an assembled two-page Application-shaped `wp_options`
 fixture that the existing native reader parses back without the PHP SQLite
 extension. The new example
-`examples/wordpress-table-leaf-page-assembly.php` exposes that fixture path for
-WordPress repair/preflight tooling.
+`examples/application-table-leaf-page-assembly.php` exposes that fixture path for
+Application repair/preflight tooling.
 
 ## Focused Native Mapping: Index Leaf Assembly
 
@@ -5637,11 +5637,11 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover index-cell encoding, overflow pointer
 validation, minimum-size padding, generated index-leaf page headers and cell
-pointers, and a WordPress-shaped three-page `wp_options` fixture where a
+pointers, and a Application-shaped three-page `wp_options` fixture where a
 generated `wp_options(option_name)` index page is parsed back and used for an
 indexed `siteurl` lookup without the PHP SQLite extension. The new
-`examples/wordpress-index-leaf-page-assembly.php` script exposes that index
-fixture path for WordPress repair/preflight tooling.
+`examples/application-index-leaf-page-assembly.php` script exposes that index
+fixture path for Application repair/preflight tooling.
 
 ## Focused Native Mapping: Index Interior Assembly
 
@@ -5675,13 +5675,13 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover generated index-interior headers, right-most
 child pointers, interior cell pointer arrays, left-child payload records, and a
-WordPress-shaped five-page `wp_options` fixture whose generated
+Application-shaped five-page `wp_options` fixture whose generated
 `wp_options(option_name)` root is an index-interior page. The native reader
 parses the generated root, walks left child, interior separator, and right
 child in index order, then resolves `siteurl` through the indexed rowid without
 the PHP SQLite extension. The new
-`examples/wordpress-index-interior-page-assembly.php` script exposes that
-multi-page index fixture path for WordPress repair/preflight tooling.
+`examples/application-index-interior-page-assembly.php` script exposes that
+multi-page index fixture path for Application repair/preflight tooling.
 
 ## Focused Native Mapping: Overflow Page Chain Assembly
 
@@ -5719,9 +5719,9 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover required overflow page counts, next-page
 pointer bytes, table-leaf overflow page assembly parsed back through
-`wordpressOptions()`, and index-leaf overflow page assembly parsed through
+`optionRows()`, and index-leaf overflow page assembly parsed through
 `indexCells()`. The new
-`examples/wordpress-overflow-page-assembly.php` script emits a WordPress-shaped
+`examples/application-overflow-page-assembly.php` script emits a Application-shaped
 `wp_options` row whose `option_value` spills to overflow pages, then reads it
 back without the PHP SQLite extension.
 
@@ -5759,10 +5759,10 @@ Focused upstream fixture boundary:
 
 The native PHP tests now cover non-contiguous overflow chains such as
 `5 -> 3 -> 7 -> 0`, duplicate/wrong page-number rejection, reserved-byte page
-tails, and a WordPress-shaped `wp_options` fixture with a 12-byte reserved
-tail per page that still parses back through `wordpressOptions()` without the
+tails, and a Application-shaped `wp_options` fixture with a 12-byte reserved
+tail per page that still parses back through `optionRows()` without the
 PHP SQLite extension. The new
-`examples/wordpress-overflow-page-freelist-reuse.php` script exposes that
+`examples/application-overflow-page-freelist-reuse.php` script exposes that
 fixture path for repair/preflight tooling. The follow-up freelist metadata
 slice now chooses reusable page numbers from an actual database image instead
 of requiring callers to supply them manually.
@@ -5808,11 +5808,11 @@ Focused upstream fixture boundary:
 The native PHP tests now cover header freelist fields, trunk next-page and
 leaf-count parsing, multi-trunk traversal, allocation-order planning,
 corrupt-count detection, duplicate page detection, oversized leaf-count
-rejection, and a WordPress-shaped repair preflight where a large
+rejection, and a Application-shaped repair preflight where a large
 `wp_options.option_value` chooses pages from the parsed freelist, writes a
 two-page overflow chain, updates remaining freelist metadata, and parses the
 option back through the native reader. The new
-`examples/wordpress-freelist-overflow-repair-plan.php` script exposes that
+`examples/application-freelist-overflow-repair-plan.php` script exposes that
 flow for recovery tooling without requiring the PHP SQLite extension.
 
 ## Focused Native Mapping: Freelist Allocation Mutation Planning
@@ -5853,10 +5853,10 @@ The native PHP tests now cover leaf-array mutation across repeated
 allocations, stale unused leaf-pointer bytes that remain outside the declared
 leaf count, empty-trunk allocation across a trunk chain, append-after-depletion
 page numbering, insufficient-freelist rejection when appending is disabled,
-and a WordPress-shaped `wp_options.option_value` repair plan that uses the
+and a Application-shaped `wp_options.option_value` repair plan that uses the
 allocation plan's returned header/trunk page images before parsing the updated
 database image back through the native reader. The existing
-`examples/wordpress-freelist-overflow-repair-plan.php` script now reports the
+`examples/application-freelist-overflow-repair-plan.php` script now reports the
 allocation plan and applies its page images directly.
 
 ## Focused Native Mapping: Freelist Free Mutation Planning
@@ -5898,7 +5898,7 @@ The native PHP tests now cover inserting a freed page into a non-full first
 trunk, creating a new trunk for an empty freelist, creating a new trunk when
 the first trunk is compatibility-full, updated header/trunk page images, and
 the resulting next allocation order. The new
-`examples/wordpress-free-obsolete-overflow-pages.php` script rewrites a large
+`examples/application-free-obsolete-overflow-pages.php` script rewrites a large
 `wp_options` row down to an inline value, returns the old overflow pages to
 the freelist plan, and parses the resulting option plus freelist metadata
 without requiring the PHP SQLite extension.
@@ -5907,7 +5907,7 @@ without requiring the PHP SQLite extension.
 
 This slice integrates the existing record, table-leaf cell, table-leaf page,
 overflow-chain, and freelist allocation primitives into
-`SQLiteDatabase::planWordPressOptionInsert()`. The helper is intentionally
+`SQLiteDatabase::planOptionRowInsert()`. The helper is intentionally
 bounded: it handles explicit positive rowids for index-free `wp_options`
 fixtures whose root is a single table leaf page, returns the complete set of
 first-page/table/overflow/freelist page images, keeps table leaf cells sorted
@@ -5942,14 +5942,14 @@ Focused upstream fixture boundary:
 The native PHP tests now cover an appended-overflow insert plan, a reusable
 freelist-overflow insert plan, page-image application followed by native
 `wp_options` reads, and rejection of duplicate/stale-index plans. The new
-`examples/wordpress-generated-option-insert-plan.php` script exposes the
-preflight flow for WordPress fixture generation or repair tooling without
+`examples/application-generated-option-insert-plan.php` script exposes the
+preflight flow for Application fixture generation or repair tooling without
 requiring the PHP SQLite extension.
 
 ## Focused Native Mapping: Bounded wp_options Replacement Page Images
 
-This slice adds `SQLiteDatabase::planWordPressOptionReplace()` for the bounded
-WordPress repair case where an index-free `wp_options` table root is a single
+This slice adds `SQLiteDatabase::planOptionRowReplace()` for the bounded
+Application repair case where an index-free `wp_options` table root is a single
 table leaf page. The helper rewrites one existing option row in place by
 `option_name`, preserves rowid order, rejects missing or duplicate option
 names, rejects indexed fixtures to avoid stale secondary indexes, rejects
@@ -5984,8 +5984,8 @@ with appended overflow pages, large-to-larger replacement where the new
 overflow chain is allocated before the obsolete chain is freed, page-image
 application followed by native option reads, and guardrails for missing,
 duplicate, indexed, and no-append replacement plans. The
-`examples/wordpress-replace-obsolete-overflow-option.php` and
-`examples/wordpress-replace-large-overflow-option.php` scripts show both
+`examples/application-replace-obsolete-overflow-option.php` and
+`examples/application-replace-large-overflow-option.php` scripts show both
 repair workflows end to end without requiring the PHP SQLite extension.
 
 ## Root Harness Coordination
@@ -6015,9 +6015,9 @@ Per lane instructions, no duplicate root harness was launched. The root result
 for this slice is pending supervisor/integrator acceptance of the active run.
 
 For the bounded wp_options insert page-image slice on 2026-05-23, the focused
-lane test, focused upstream runner, and WordPress example passed. The direct
+lane test, focused upstream runner, and Application example passed. The direct
 libsqlite harness reported 163 tests, 1068 assertions, and 0 failures. The
-WordPress generated-option insert example ran successfully and reported a
+Application generated-option insert example ran successfully and reported a
 two-page overflow insert plan. Root harness coordination is recorded in the
 lane status for this slice.
 
@@ -6033,7 +6033,7 @@ Result on 2026-05-23: 183 test files, 19126 assertions, 0 failures.
 
 After adding the final invalid-root guard for this slice, the focused lane
 test was re-run and passed with 163 tests, 1069 assertions, and 0 failures.
-The WordPress generated-option insert example was also re-run successfully.
+The Application generated-option insert example was also re-run successfully.
 The required post-change root preflight then found active root harness
 processes, so this worker did not start a duplicate:
 
@@ -6050,7 +6050,7 @@ The earlier 19126-assertion root pass predates the final guard, so the
 post-change root result is pending for the supervisor/integrator.
 
 For the freelist free mutation slice on 2026-05-23, the focused lane test,
-focused upstream runner, and WordPress example passed, but the root harness was
+focused upstream runner, and Application example passed, but the root harness was
 not started. The required preflight check returned an active root run:
 
 ```sh
@@ -6067,7 +6067,7 @@ For the bounded wp_options replacement page-image slice on 2026-05-23, the
 focused upstream runner passed `update.test`, `btree01.test`, and
 `pageropt.test` with 0 errors out of 491 tests. The direct libsqlite harness
 passed 165 tests with 1082 assertions and 0 failures, and
-`examples/wordpress-replace-obsolete-overflow-option.php` ran successfully.
+`examples/application-replace-obsolete-overflow-option.php` ran successfully.
 Before starting the root harness, the required preflight returned no active
 process:
 
@@ -6087,7 +6087,7 @@ For the large wp_options replacement overflow slice on 2026-05-23, the
 focused upstream runner re-ran `update.test`, `btree01.test`, and
 `pageropt.test` with 0 errors out of 491 tests. The direct libsqlite harness
 passed 167 tests with 1099 assertions and 0 failures, and
-`examples/wordpress-replace-large-overflow-option.php` ran successfully.
+`examples/application-replace-large-overflow-option.php` ran successfully.
 Before starting the root harness, the required preflight returned no active
 process:
 
@@ -6117,7 +6117,7 @@ This maps rowid table INSERT persistence, UPDATE row rewrite behavior, index
 b-tree payload ordering, and b-tree cell assembly boundaries used by the
 native bounded `wp_options` option-name index page-image planner. The direct
 libsqlite harness passed 169 tests with 1112 assertions and 0 failures, and
-`examples/wordpress-indexed-generated-option-insert-plan.php` ran
+`examples/application-indexed-generated-option-insert-plan.php` ran
 successfully, reporting updated table/index page images `[2,3]` and indexed
 records `home -> 2`, `siteurl -> 1`.
 
@@ -6167,7 +6167,7 @@ failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-table-root-split-option-replacement-plan.php`
+The new `examples/application-table-root-split-option-replacement-plan.php`
 script ran successfully, reporting updated page images `[1,2,3,4]`, a
 `table-interior` root at page 2, split leaf counts 1 and 2, and a rewritten
 `blogname` option with `autoload='no'`.
@@ -6219,10 +6219,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1304 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-table-leaf-split-option-replacement-plan.php
+php lanes/libsqlite/examples/application-table-leaf-split-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,5]`, database page count `5`, root
@@ -6252,7 +6252,7 @@ keeps the interior table root unchanged.
 
 The direct libsqlite harness passed 188 PHP tests with 1282 assertions and 0
 failures. The new
-`examples/wordpress-multipage-table-option-replacement-plan.php` script ran
+`examples/application-multipage-table-option-replacement-plan.php` script ran
 successfully, reporting updated page `[4]`, an unchanged `table-interior`
 root at page 2, and a rewritten `blogname` option with `autoload='no'`.
 
@@ -6276,12 +6276,12 @@ coverage, root-interior balancing after leaf splits, and b-tree cell/page
 assembly used by the native bounded `wp_options` parent-root split insert
 planner. The direct libsqlite harness passed 185 PHP tests with 1264
 assertions and 0 failures. The new
-`examples/wordpress-composite-index-parent-root-split-option-insert-plan.php`
+`examples/application-composite-index-parent-root-split-option-insert-plan.php`
 script ran successfully, reporting updated page images `[1,2,3,10,11,12,13]`,
 an `index-interior` root with 1 cell, two new index-interior pages with 3
 cells each, split composite leaves with 3 cells each, 19 index records, and an
 indexed lookup of the generated option through
-`wordpressOptionByIndexedAutoloadAndName('yes', $optionName)`.
+`optionRowByIndexedAutoloadAndName('yes', $optionName)`.
 
 Before starting the root harness, the required duplicate-run preflight returned
 no active exact `php tools/run-tests.php` process. This worker then ran
@@ -6319,7 +6319,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-index-parent-root-split-option-insert-plan.php` script ran
+`examples/application-index-parent-root-split-option-insert-plan.php` script ran
 successfully, reporting updated page images `[1,2,3,10,11,12,13]`, an
 `index-interior` root with 1 cell, two new index-interior pages with 3 cells
 each, split leaf counts 3 and 3, and indexed lookup of the generated option
@@ -6366,11 +6366,11 @@ SQL execution.
 
 The direct libsqlite harness passed 181 PHP tests with 1201 assertions and 0
 failures. The new
-`examples/wordpress-index-split-option-replacement-plan.php` script ran
+`examples/application-index-split-option-replacement-plan.php` script ran
 successfully, reporting updated page images `[1,2,3,4,5,6]`, an index-interior
 root with 2 cells, split destination leaf counts 3 and 3, the old source leaf
 reduced to 1 cell, and indexed lookup of the replaced option through
-`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+`optionRowByIndexedAutoloadAndName('no', $optionName)`.
 
 Before starting a root harness for this slice, the required preflight first
 saw this worker's transient focused lane command:
@@ -6390,7 +6390,7 @@ php tools/run-tests.php
 Result on 2026-05-23: 195 test files, 21326 assertions, 1 failure. The failure
 was outside libsqlite: `lanes/dolt/tests/DataConflictsResolverTest.php`
 requires missing
-`lanes/dolt/examples/wordpress-data-conflict-resolve-review.php`. The
+`lanes/dolt/examples/application-data-conflict-resolve-review.php`. The
 libsqlite focused harness remained green, so this is recorded as a repo
 integration blocker rather than a libsqlite implementation blocker.
 
@@ -6423,7 +6423,7 @@ failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-index-root-split-option-insert-plan.php` script
+The new `examples/application-index-root-split-option-insert-plan.php` script
 ran successfully, reporting updated page images `[1,2,3,4,5]`, an
 `index-interior` root with 1 divider cell, two new index leaves with 3 cells
 each, and indexed lookup of the generated option through the grown
@@ -6458,7 +6458,7 @@ This maps rowid INSERT persistence, index b-tree key ordering,
 `balance_quick()` b-tree split boundaries, and b-tree cell/page assembly used
 by the native bounded `wp_options(option_name)` same-depth leaf-split planner.
 The direct libsqlite harness passed 180 PHP tests with 1188 assertions and 0
-failures. The new `examples/wordpress-index-split-option-insert-plan.php`
+failures. The new `examples/application-index-split-option-insert-plan.php`
 script ran successfully, reporting updated page images `[1,2,3,5,6]`, an
 `index-interior` root with 2 divider cells, split leaf pages 5 and 6 with 3
 cells each, and indexed lookup of the generated option through the split
@@ -6503,10 +6503,10 @@ failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-utf16-option-insert-plan.php` script ran
+The new `examples/application-utf16-option-insert-plan.php` script ran
 successfully, reporting `textEncoding` 2, updated page image `[2]`, and a
 generated `blogdescription` option whose UTF-16LE page bytes decode back to
-the expected UTF-8 option value. This maps WordPress SQLite repair/preflight
+the expected UTF-8 option value. This maps Application SQLite repair/preflight
 for database images that are not UTF-8 encoded but still need bounded native
 page-image planning without the SQLite extension.
 
@@ -6550,7 +6550,7 @@ execution remain out of scope.
 
 The direct libsqlite harness passed 178 PHP tests with 1165 assertions and 0
 failures. The new
-`examples/wordpress-automatic-indexed-generated-option-insert-plan.php` script
+`examples/application-automatic-indexed-generated-option-insert-plan.php` script
 ran successfully, reporting updated table/autoindex page images `[2,3]`,
 automatic index records `home -> 2`, `siteurl -> 1`, and indexed lookup of the
 generated `home` row through the inferred `sqlite_autoindex_wp_options_1`.
@@ -6595,12 +6595,12 @@ journaling, WAL, and general SQL execution.
 
 The direct libsqlite harness passed 176 PHP tests with 1150 assertions and 0
 failures. The new
-`examples/wordpress-multipage-composite-indexed-option-replacement-plan.php`
+`examples/application-multipage-composite-indexed-option-replacement-plan.php`
 script ran successfully, reporting updated table/index leaf page images
 `[2,4,5]`, an `index-interior` root, composite records
 `[no, cron_lock, 1]`, `[no, siteurl, 3]`, `[yes, home, 2]`,
 `[yes, stylesheet, 4]`, and indexed lookup of `siteurl` through
-`wordpressOptionByIndexedAutoloadAndName('no', 'siteurl')`.
+`optionRowByIndexedAutoloadAndName('no', 'siteurl')`.
 
 For the bounded composite `autoload, option_name` replacement maintenance
 slice on 2026-05-23, the focused upstream runner passed `update.test`,
@@ -6618,10 +6618,10 @@ equality-prefix planner coverage, and b-tree cell assembly boundaries used by
 the native bounded `wp_options(autoload, option_name)` replacement planner
 when an `autoload` change moves the secondary-index entry. The direct
 libsqlite harness passed 173 PHP tests with 1138 assertions and 0 failures,
-and `examples/wordpress-composite-indexed-option-replacement-plan.php` ran
+and `examples/application-composite-indexed-option-replacement-plan.php` ran
 successfully, reporting updated table/index page images `[2,3]`, composite
 index records `[no, siteurl, 1]` and `[no, cron_lock, 2]`, and indexed lookup
-of `siteurl` through `wordpressOptionByIndexedAutoloadAndName('no',
+of `siteurl` through `optionRowByIndexedAutoloadAndName('no',
 'SITEURL')`.
 
 Before starting a root harness for this slice, the required preflight returned
@@ -6655,11 +6655,11 @@ partial-index boundaries, equality-prefix planner coverage, UPDATE row rewrite
 behavior, and b-tree cell assembly boundaries used by the native bounded
 `wp_options(autoload, option_name)` insert page-image planner. The direct
 libsqlite harness passed 172 PHP tests with 1131 assertions and 0 failures,
-and `examples/wordpress-composite-indexed-generated-option-insert-plan.php`
+and `examples/application-composite-indexed-generated-option-insert-plan.php`
 ran successfully, reporting updated table/index page images `[2,3]`,
 composite index records `[no, cron_lock, 2]`, `[yes, siteurl, 1]`,
 `[yes, home, 3]`, and indexed lookup of `home` through
-`wordpressOptionByIndexedAutoloadAndName('yes', 'HOME')`.
+`optionRowByIndexedAutoloadAndName('yes', 'HOME')`.
 
 Before starting a root harness for this slice, the required preflight first
 found a short-lived active aggregate run:
@@ -6681,7 +6681,7 @@ php tools/run-tests.php
 Result on 2026-05-23: 186 test files, 20114 assertions, 2 failures. The
 captured visible failure was unrelated to this lane, in
 `lanes/difftastic/tests/TokenDifferTest.php` for
-`wordpress command env display options wrap tabbed block metadata`. The full
+`application command env display options wrap tabbed block metadata`. The full
 root run output exceeded the tool capture before the second failure context,
 so the aggregate result is recorded as a repo integration blocker rather than
 a libsqlite implementation blocker.
@@ -6701,7 +6701,7 @@ This maps SQLite partial-index usability boundaries from `index7.test`, rowid
 table INSERT persistence, UPDATE row rewrite behavior, index b-tree payload
 ordering, and b-tree cell assembly boundaries. The direct libsqlite harness
 passed 171 tests with 1124 assertions and 0 failures, and
-`examples/wordpress-partial-indexed-generated-option-insert-plan.php` ran
+`examples/application-partial-indexed-generated-option-insert-plan.php` ran
 successfully, reporting updated table/index page images `[2,3]` and partial
 index records `home -> 2`, `siteurl -> 1`.
 
@@ -6749,12 +6749,12 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-composite-index-parent-root-split-option-replacement-plan.php`
+`examples/application-composite-index-parent-root-split-option-replacement-plan.php`
 script ran successfully, reporting updated page images
 `[1,2,3,4,10,11,12,13]`, a grown `index-interior` root with one divider, two
 new interior pages with three cells each, split destination composite leaves,
 and the rewritten option reachable through
-`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+`optionRowByIndexedAutoloadAndName('no', $optionName)`.
 
 ## Focused Native Mapping: Non-Root Table Parent Replacement Split
 
@@ -6781,7 +6781,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-nonroot-table-split-option-replacement-plan.php` script
+`examples/application-nonroot-table-split-option-replacement-plan.php` script
 ran successfully, reporting updated page images `[1,3,5,7]`, an unchanged
 table root page 2, lower parent separators `(4,2)` and `(5,3)`, new rightmost
 leaf page 7, and the rewritten `blogname` option with `autoload='no'`.
@@ -6812,7 +6812,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-table-parent-root-split-option-replacement-plan.php`
+`examples/application-table-parent-root-split-option-replacement-plan.php`
 script ran successfully, reporting updated page images `[1,2,36,37,38,39]`,
 a grown one-cell table-interior root, two new lower table-interior pages with
 16 and 17 cells, a split target leaf pair, and the rewritten `blogname`
@@ -6861,7 +6861,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-nonroot-table-parent-split-option-replacement-plan.php`
+`examples/application-nonroot-table-parent-split-option-replacement-plan.php`
 script ran successfully, reporting updated page images `[1,2,3,37,39,40]`, a
 two-cell table-interior root, two split non-root parent pages with 16 and 17
 cells, split target leaves, and the rewritten `blogname` option with
@@ -6898,11 +6898,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-nonroot-index-parent-split-option-insert-plan.php` script
+`examples/application-nonroot-index-parent-split-option-insert-plan.php` script
 ran successfully, reporting updated page images `[1,2,3,4,11,13,14]`, a
 two-cell index-interior root, split non-root parent pages with three cells
 each, split target leaves with three cells each, and the inserted option
-reachable through `wordpressOptionByIndexedAutoloadAndName('yes',
+reachable through `optionRowByIndexedAutoloadAndName('yes',
 $optionName)`.
 
 Before starting a root harness for this slice, the required duplicate-root
@@ -6936,7 +6936,7 @@ Result: 0 errors out of 761 tests in 00:00.
 This maps SQLite UPDATE row rewrite behavior, index b-tree key ordering,
 `balance_nonroot` sibling collapse, `balance_shallower` root-depth reduction,
 freePage2-style obsolete child page release, and b-tree page/cell assembly
-boundaries. The native PHP planner now handles the bounded WordPress case
+boundaries. The native PHP planner now handles the bounded Application case
 where an autoload rewrite moves an index entry from one root child leaf into
 its sibling, the source leaf becomes empty, the root can be rebuilt as an
 index leaf containing the remaining keys, and the obsolete child pages are
@@ -6952,11 +6952,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-index-root-collapse-option-replacement-plan.php` script
+`examples/application-index-root-collapse-option-replacement-plan.php` script
 ran successfully, reporting updated page images `[1,2,3,4]`, an index root
 rewritten from `index-interior` to `index-leaf`, obsolete child pages `[4,5]`
 on the freelist, and the rewritten `siteurl` option reachable through
-`wordpressOptionByIndexedAutoloadAndName('no', 'siteurl')`.
+`optionRowByIndexedAutoloadAndName('no', 'siteurl')`.
 
 ## Focused Native Mapping: Auto-Vacuum Pointer Maps
 
@@ -6987,8 +6987,8 @@ failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-pointer-map-diagnostics.php` script ran
-successfully. It reports an auto-vacuum WordPress-shaped database with page 2
+The new `examples/application-pointer-map-diagnostics.php` script ran
+successfully. It reports an auto-vacuum Application-shaped database with page 2
 as the pointer-map page, page 3 as the `wp_options` root, page 4 as a b-tree
 child, pages 5 and 6 as an overflow chain, page 7 as a free page, and the
 readable `siteurl` option. Pointer-map mutation during page moves, journaling,
@@ -7025,11 +7025,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-index-redistribute-option-replacement-plan.php` script ran
+`examples/application-index-redistribute-option-replacement-plan.php` script ran
 successfully, reporting updated page images `[2,3,4,5,6]`, a two-cell
 `index-interior` root, redistributed source/sibling leaves with three cells
 each, a destination leaf with four cells, and the rewritten option reachable
-through `wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+through `optionRowByIndexedAutoloadAndName('no', $optionName)`.
 
 ## Focused Native Mapping: Root-Parent Index Leaf Merge Replacement
 
@@ -7065,11 +7065,11 @@ failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-index-merge-option-replacement-plan.php` script
+The new `examples/application-index-merge-option-replacement-plan.php` script
 ran successfully, reporting updated page images `[1,2,3,4,5,6]`, a one-cell
 `index-interior` root, merged source/sibling index leaves with page 6 moved
 onto the freelist, and the rewritten option reachable through
-`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+`optionRowByIndexedAutoloadAndName('no', $optionName)`.
 
 ## Focused Native Mapping: Auto-Vacuum Pointer-Map Mutation Planning
 
@@ -7105,7 +7105,7 @@ failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-pointer-map-mutation-plan.php` script ran
+The new `examples/application-pointer-map-mutation-plan.php` script ran
 successfully, reporting updated page images `[1,2,6]`, page 6 as the new
 freelist trunk, the pointer-map entry for page 6 rewritten to `free-page`, and
 the existing `siteurl` row still readable through the native table reader.
@@ -7137,7 +7137,7 @@ the owning b-tree page as parent, continuation pages are stored as
 checks verify overflow-chain pointer-map consistency.
 
 The native PHP slice now threads those pointer-map page-image updates into
-`planWordPressOptionInsert()` when a large inserted option allocates overflow
+`planOptionRowInsert()` when a large inserted option allocates overflow
 pages in an auto-vacuum database.
 
 The direct libsqlite harness passed 203 PHP tests with 1519 assertions and 0
@@ -7148,7 +7148,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-autovacuum-overflow-option-insert-plan.php` script ran
+`examples/application-autovacuum-overflow-option-insert-plan.php` script ran
 successfully, reporting updated page images `[1,2,3,4,5,6]`, overflow pages
 `[4,5,6]`, pointer-map entries `first-overflow-page -> 3`, `overflow-page ->
 4`, and `overflow-page -> 5`, and a readable `theme_mods_twentyfive` option.
@@ -7178,7 +7178,7 @@ are stored as `PTRMAP_OVERFLOW2` with the previous overflow page as parent,
 and obsolete overflow pages are rewritten as `PTRMAP_FREEPAGE` when freed.
 
 The native PHP slice now threads those pointer-map page-image updates into
-`planWordPressOptionReplace()` for large replacement-created overflow chains.
+`planOptionRowReplace()` for large replacement-created overflow chains.
 The owner b-tree page is resolved from the planned table image before writing
 pointer-map entries so replacement cells below table splits/growth do not
 inherit a stale root-page owner.
@@ -7191,7 +7191,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-autovacuum-overflow-option-replacement-plan.php` script
+`examples/application-autovacuum-overflow-option-replacement-plan.php` script
 ran successfully, reporting obsolete overflow pages `[4,5]` as `free-page`
 entries, new overflow pages `[6,7,8,9]` with parent links `3,6,7,8`, and a
 readable rewritten `theme_mods_twentyfive` option.
@@ -7229,7 +7229,7 @@ php tools/run-tests.php lanes/libsqlite/tests
 ```
 
 The new
-`examples/wordpress-nonroot-index-merge-option-replacement-plan.php` script
+`examples/application-nonroot-index-merge-option-replacement-plan.php` script
 ran successfully, reporting updated page images `[1,2,4,5,8,9]`, lower parent
 page 4 with 3 cells and right-most pointer 8, obsolete leaf page 9 on the
 freelist, and a readable rewritten option through the composite index.
@@ -7270,7 +7270,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-autovacuum-table-root-split-option-replacement-plan.php`
+`examples/application-autovacuum-table-root-split-option-replacement-plan.php`
 script ran successfully, reporting updated page images `[1,2,3,4,5]`, a
 table-interior `wp_options` root at page 3, child leaf pages 4 and 5, and
 `btree-page` pointer-map entries for pages 4 and 5 pointing back to page 3.
@@ -7308,7 +7308,7 @@ failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-secure-delete-obsolete-overflow-pages.php` script
+The new `examples/application-secure-delete-obsolete-overflow-pages.php` script
 ran successfully, reporting updated page images `[1,2,3,4]`, obsolete
 overflow pages `[3,4]` on the freelist, zeroed obsolete overflow page `[4]`,
 and a readable rewritten `obsolete_large_cache` option.
@@ -7351,7 +7351,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-index-parent-collapse-option-replacement-plan.php` script
+`examples/application-index-parent-collapse-option-replacement-plan.php` script
 ran successfully, reporting updated page images `[1,2,3,5,6,7]`, a collapsed
 index root at page 3 with left children `[5,6,9]` and right-most pointer 10,
 merged leaf page 6 with 3 cells, obsolete pages `[7,4,8]` on the freelist,
@@ -7398,7 +7398,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-index-parent-merge-option-replacement-plan.php` script ran
+`examples/application-index-parent-merge-option-replacement-plan.php` script ran
 successfully, reporting updated page images `[1,2,3,4,5,6,7]`, an index root
 at page 3 with left child `[4]` and right-most pointer 11, merged lower parent
 page 4 with left children `[5,6,9]` and right-most pointer 10, obsolete pages
@@ -7437,7 +7437,7 @@ harness passed 226 PHP tests with 1850 assertions and 0 failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-json-extract-option-preflight.php` script ran
+The new `examples/application-json-extract-option-preflight.php` script ran
 successfully, reporting strict JSON, JSON5, JSONB, and SQL NULL
 `wp_options.option_value` inputs with SQLite-style extracted enabled flags,
 titles, last rule objects, and multi-path summary JSON.
@@ -7478,7 +7478,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-json-extract-subtype-option-diagnostics.php` script ran
+`examples/application-json-extract-subtype-option-diagnostics.php` script ran
 successfully, reporting copied strict JSON, JSON5, and JSONB
 `wp_options.option_value` inputs where extracted object/array and multi-path
 values are embedded into JSON constructor diagnostics without being
@@ -7522,7 +7522,7 @@ libsqlite harness passed 228 PHP tests with 1867 assertions and 0 failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-json-remove-option-preflight.php` script ran
+The new `examples/application-json-remove-option-preflight.php` script ran
 successfully, removing obsolete plugin settings from a local
 `wp_options.option_value` JSON fixture and printing canonical JSON text
 without requiring the SQLite extension.
@@ -7566,8 +7566,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
 The new
-`examples/wordpress-json-remove-sql-dispatch-preflight.php` script lets
-WordPress migration or repair tooling preflight copied `wp_options` JSON
+`examples/application-json-remove-sql-dispatch-preflight.php` script lets
+Application migration or repair tooling preflight copied `wp_options` JSON
 cleanup while preserving the SQLite result-type distinction between text JSON
 and JSONB blobs, without requiring the SQLite extension.
 
@@ -7609,8 +7609,8 @@ failures:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 ```
 
-The new `examples/wordpress-json-patch-sql-dispatch-preflight.php` script lets
-WordPress migration or repair tooling preflight copied `wp_options` JSON
+The new `examples/application-json-patch-sql-dispatch-preflight.php` script lets
+Application migration or repair tooling preflight copied `wp_options` JSON
 merge-patch updates while preserving the SQLite result-type distinction
 between text JSON and JSONB blobs, without requiring the SQLite extension.
 
@@ -7666,13 +7666,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
-php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php -l lanes/libsqlite/examples/application-json-aggregate-option-summary.php
+php lanes/libsqlite/examples/application-json-aggregate-option-summary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported JSON text
+Result: syntax checks passed, the Application example reported JSON text
 aggregate output plus decoded/hex JSONB aggregate output, focused PHP passed
 1 selected test file, 1904 assertions, and 0 failures, and
 `git diff --check -- lanes/libsqlite` passed. This worker did not start the
@@ -7715,13 +7715,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonMutation.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-jsonb-mutate-option-field.php
-php lanes/libsqlite/examples/wordpress-jsonb-mutate-option-field.php '{"plugin":{"enabled":false,"rules":["seo"]}}' json_set '$.plugin.enabled' true '$.plugin.settings' 'json:{"source":"native"}'
+php -l lanes/libsqlite/examples/application-jsonb-mutate-option-field.php
+php lanes/libsqlite/examples/application-jsonb-mutate-option-field.php '{"plugin":{"enabled":false,"rules":["seo"]}}' json_set '$.plugin.enabled' true '$.plugin.settings' 'json:{"source":"native"}'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported a SQLite text
+Result: syntax checks passed, the Application example reported a SQLite text
 JSON result for `json_set()` with decoded output, focused PHP passed 1
 selected test file, 1913 assertions, and 0 failures, and
 `git diff --check -- lanes/libsqlite` passed. This worker did not start the
@@ -7763,13 +7763,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonExtract.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-extract-subtype-option-diagnostics.php
-php lanes/libsqlite/examples/wordpress-json-extract-subtype-option-diagnostics.php
+php -l lanes/libsqlite/examples/application-json-extract-subtype-option-diagnostics.php
+php lanes/libsqlite/examples/application-json-extract-subtype-option-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported constructor
+Result: syntax checks passed, the Application example reported constructor
 diagnostics for `json_extract()` JSON subtype arguments and `jsonb_extract()`
 JSONB blob arguments, focused PHP passed 1 selected test file, 2000
 assertions, and 0 failures, and `git diff --check -- lanes/libsqlite` passed.
@@ -7812,13 +7812,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonQuote.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php
-php lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php
+php -l lanes/libsqlite/examples/application-json-quote-option-preflight.php
+php lanes/libsqlite/examples/application-json-quote-option-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported SQL-dispatch
+Result: syntax checks passed, the Application example reported SQL-dispatch
 `json_quote()` fields for SQL NULL, numeric values, copied text,
 control-character text, JSONB blobs, and raw BLOB rejection, focused PHP
 passed 1 selected test file, 1978 assertions, and 0 failures, and
@@ -7868,14 +7868,14 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonCanonical.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
-php lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
+php -l lanes/libsqlite/examples/application-json-canonical-option-preflight.php
+php lanes/libsqlite/examples/application-json-canonical-option-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
 Result: latest focused verification is recorded in `lane-status.json`. The
-WordPress example now reports uppercase argument-vector `JSON()` text output
+Application example now reports uppercase argument-vector `JSON()` text output
 plus decoded `JSONB()` output for strict JSON, JSON5, cast text BLOB, JSONB,
 and SQL NULL inputs. This worker did not start the root aggregate harness
 because root verification was not assigned.
@@ -7915,13 +7915,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonErrorPosition.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
-php lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php -l lanes/libsqlite/examples/application-json-error-position-preflight.php
+php lanes/libsqlite/examples/application-json-error-position-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported matching direct
+Result: syntax checks passed, the Application example reported matching direct
 and SQL-dispatch `json_error_position()` offsets for JSON5 text, malformed
 copied text, cast-text BLOB, JSONB, superficial-only JSONB, and SQL NULL
 inputs, focused PHP passed 1 selected test file, 1952 assertions, and
@@ -7965,13 +7965,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonInspection.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-inspection-preflight.php
-php lanes/libsqlite/examples/wordpress-json-inspection-preflight.php
+php -l lanes/libsqlite/examples/application-json-inspection-preflight.php
+php lanes/libsqlite/examples/application-json-inspection-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported SQL-dispatch
+Result: syntax checks passed, the Application example reported SQL-dispatch
 `json_type()` and `json_array_length()` fields for strict JSON, JSON5,
 cast-text BLOB, JSONB, and SQL NULL inputs, focused PHP passed 1 selected
 test file, 1936 assertions, and 0 failures, and
@@ -8013,13 +8013,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonValidity.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-validity-preflight.php
-php lanes/libsqlite/examples/wordpress-json-validity-preflight.php
+php -l lanes/libsqlite/examples/application-json-validity-preflight.php
+php lanes/libsqlite/examples/application-json-validity-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported SQL-dispatch
+Result: syntax checks passed, the Application example reported SQL-dispatch
 `json_valid()` fields for strict JSON, JSON5, cast-text BLOB, JSONB,
 SQL NULL inputs and NULL `FLAGS` rejection, focused PHP passed 1 selected test
 file, 1946 assertions, and 0 failures, and
@@ -8063,8 +8063,8 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonValidity.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-validity-preflight.php
-php lanes/libsqlite/examples/wordpress-json-validity-preflight.php
+php -l lanes/libsqlite/examples/application-json-validity-preflight.php
+php lanes/libsqlite/examples/application-json-validity-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
@@ -8110,13 +8110,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonArrayInsert.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php
-php lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php '{"queue":["scan","rewrite"]}' json_array_insert '$.queue[1]' 'json:{"task":"cache"}'
+php -l lanes/libsqlite/examples/application-jsonb-array-insert-option-field.php
+php lanes/libsqlite/examples/application-jsonb-array-insert-option-field.php '{"queue":["scan","rewrite"]}' json_array_insert '$.queue[1]' 'json:{"task":"cache"}'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported a SQLite text
+Result: syntax checks passed, the Application example reported a SQLite text
 JSON result for `json_array_insert()` with decoded output, focused PHP passed
 1 selected test file, 1923 assertions, and 0 failures, and
 `git diff --check -- lanes/libsqlite` passed. This worker did not start the
@@ -8183,13 +8183,13 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteJsonEach.php
 php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
-php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php -l lanes/libsqlite/examples/application-json-tree-option-settings.php
+php lanes/libsqlite/examples/application-json-tree-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported recursive root/plugin/rules rows with hidden `json`/`root` summaries, focused PHP passed 1 selected test file, 2116 assertions, and 0 failures, and final diff/json checks are recorded in `lane-status.json`. This worker did not start the root aggregate harness because root verification was not assigned.
+Result: syntax checks passed, the Application example reported recursive root/plugin/rules rows with hidden `json`/`root` summaries, focused PHP passed 1 selected test file, 2116 assertions, and 0 failures, and final diff/json checks are recorded in `lane-status.json`. This worker did not start the root aggregate harness because root verification was not assigned.
 
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and SQL value typing support; it counts no shared support-library progress.
 
@@ -8214,8 +8214,8 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonEach.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
@@ -8247,13 +8247,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonConstructor.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php
-php lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php
+php -l lanes/libsqlite/examples/application-json-constructor-option-diagnostics.php
+php lanes/libsqlite/examples/application-json-constructor-option-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress constructor smoke reported
+Result: syntax checks passed, the Application constructor smoke reported
 uppercase argument-vector dispatch for JSON and JSONB constructors, focused PHP
 passed 1 selected test file, 2178 assertions, and 0 failures. Root aggregate
 harness was not assigned for this isolated micro-slice.
@@ -8293,8 +8293,8 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonErrorPosition.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
-php lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php -l lanes/libsqlite/examples/application-json-error-position-preflight.php
+php lanes/libsqlite/examples/application-json-error-position-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
@@ -8339,15 +8339,15 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteJsonEach.php
 php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
-php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
-php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-tree-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-tree-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, both WordPress examples reported uppercase
+Result: syntax checks passed, both Application examples reported uppercase
 argument-vector dispatch for root/plugin/rules rows, focused PHP passed 1
 selected test file, 2134 assertions, and 0 failures, and final diff/json
 checks are recorded in `lane-status.json`. This worker did not start the root
@@ -8362,7 +8362,7 @@ support-library progress.
 
 Date: 2026-05-25
 
-This isolated rework makes the accepted `json_each()` and `json_tree()` table-valued SQL function-name dispatch explicitly case-insensitive via `strcasecmp()`. It preserves invalid-function rejection and the accepted hidden `json`/`root` virtual-table columns while adding mixed-case native assertions for both helpers and an uppercase `JSON_TREE` WordPress smoke path.
+This isolated rework makes the accepted `json_each()` and `json_tree()` table-valued SQL function-name dispatch explicitly case-insensitive via `strcasecmp()`. It preserves invalid-function rejection and the accepted hidden `json`/`root` virtual-table columns while adding mixed-case native assertions for both helpers and an uppercase `JSON_TREE` Application smoke path.
 
 Focused upstream runner:
 
@@ -8380,8 +8380,8 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteJsonEach.php
 php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
-php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php -l lanes/libsqlite/examples/application-json-tree-option-settings.php
+php lanes/libsqlite/examples/application-json-tree-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
@@ -8415,8 +8415,8 @@ php -l lanes/libsqlite/src/SQLiteWalHeader.php
 php -l lanes/libsqlite/src/SQLiteWalFrame.php
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
@@ -8426,7 +8426,7 @@ aggregate harness was not assigned for this isolated micro-slice.
 
 Dependency closure: no new support component is needed. The slice reuses
 lane-local binary parsing, table/page assembly, `SQLiteDatabase` traversal, and
-WordPress option decoding; it counts no shared support-library progress.
+Application option decoding; it counts no shared support-library progress.
 
 ## Focused Native Mapping: LIKE and GLOB Option-Name Matching
 
@@ -8453,13 +8453,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
-php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php -l lanes/libsqlite/examples/application-option-name-like-glob.php
+php lanes/libsqlite/examples/application-option-name-like-glob.php --self-test
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks and the WordPress LIKE/GLOB smoke passed. The focused
+Result: syntax checks and the Application LIKE/GLOB smoke passed. The focused
 test file reaches the new LIKE/GLOB assertions successfully; later root
 acceptance restored the WAL classes that were missing in that isolated worktree.
 Root aggregate harness was not assigned for this isolated micro-slice.
@@ -8484,15 +8484,15 @@ Focused local verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php -l lanes/libsqlite/examples/application-json-tree-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php lanes/libsqlite/examples/application-json-tree-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, flags: JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, flags: JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed, focused PHP passed 1 selected file with 2391
-assertions and 0 failures, the WordPress smoke reported quoted-root rows for
+assertions and 0 failures, the Application smoke reported quoted-root rows for
 JSONB option settings, JSON metadata validation passed, and final diff check is
 recorded in `lane-status.json`. Root aggregate harness was not assigned for
 this isolated micro-slice.
@@ -8502,7 +8502,7 @@ JSON path decoding, JSON5 quoted-label decoding, JSONB decode, and existing
 `json_tree()` row assembly.
 
 Dependency closure: no new support component is needed. The slice reuses
-lane-local UTF-8 text splitting, ASCII case folding, decoded WordPress options,
+lane-local UTF-8 text splitting, ASCII case folding, decoded Application options,
 and table traversal; it counts no shared support-library progress.
 
 ## Focused Native Mapping: WAL Header and Frame Checksums
@@ -8531,8 +8531,8 @@ Native PHP evidence:
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/src/SQLiteWalHeader.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
@@ -8543,7 +8543,7 @@ micro-slice.
 
 Dependency closure: no new support component is needed. The slice reuses
 lane-local binary parsing, WAL frame assembly/inspection, table/page assembly,
-`SQLiteDatabase` traversal, and WordPress option decoding; it counts no shared
+`SQLiteDatabase` traversal, and Application option decoding; it counts no shared
 support-library progress.
 
 ## Focused Native Mapping: WAL Checkpoint Database Image Overlay
@@ -8571,8 +8571,8 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
@@ -8582,7 +8582,7 @@ failures after the bounded stale merge onto the accepted WAL checksum slice.
 
 Dependency closure: no new support component is needed. The slice reuses
 lane-local WAL header/frame parsing, SQLite header parsing, page-image
-assembly, `SQLiteDatabase` traversal, and WordPress option decoding; it counts
+assembly, `SQLiteDatabase` traversal, and Application option decoding; it counts
 no shared support-library progress.
 
 ## Focused Native Mapping: Rollback Journal Header and Page Records
@@ -8616,13 +8616,13 @@ php -l lanes/libsqlite/src/SQLiteRollbackJournalHeader.php
 php -l lanes/libsqlite/src/SQLiteRollbackJournalPage.php
 php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
-php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php -l lanes/libsqlite/examples/application-rollback-journal-option-diagnostics.php
+php lanes/libsqlite/examples/application-rollback-journal-option-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed; the WordPress rollback-journal smoke reported a
+Result: syntax checks passed; the Application rollback-journal smoke reported a
 checksums-validated journal, recovered the clean `siteurl` option from the
 journal page image, and produced a 1024-byte rolled-back database preview;
 focused lane tests passed with 1 selected file, 2340 assertions, and 0
@@ -8630,7 +8630,7 @@ failures.
 
 Dependency closure: no new support component is needed. The slice reuses
 lane-local binary parsing, page-image assembly, `SQLiteDatabase` traversal,
-and WordPress option decoding; it counts no shared support-library progress.
+and Application option decoding; it counts no shared support-library progress.
 
 ## Focused Native Mapping: Savepoint State Diagnostics
 
@@ -8658,13 +8658,13 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
-php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -l lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
+php lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed; the WordPress savepoint smoke reported nested
+Result: syntax checks passed; the Application savepoint smoke reported nested
 `wp_options` import frames before rollback, preserved the named savepoint after
 `ROLLBACK TO`, merged surviving page writes on `RELEASE`, and kept the outer
 transaction active with pending pages `[1, 2, 6]`; focused lane tests passed
@@ -8682,7 +8682,7 @@ This isolated dependency-closure micro-slice aligns bounded `sqlite_schema`
 `CREATE TABLE` parsing with SQLite dump/schema SQL that contains line and block
 comments. `SQLiteCreateTable` now ignores `-- ...` and `/* ... */` comments
 outside quoted strings, identifiers, and bracket-quoted names before inferring
-automatic `UNIQUE`/`PRIMARY KEY` index metadata. That keeps copied WordPress
+automatic `UNIQUE`/`PRIMARY KEY` index metadata. That keeps copied Application
 schema rows from treating comment text such as `UNIQUE`, `PRIMARY KEY`, or
 `WITHOUT ROWID` as live schema tokens.
 
@@ -8700,14 +8700,14 @@ Native PHP evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCreateTable.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-commented-schema-autoindex.php
-php lanes/libsqlite/examples/wordpress-commented-schema-autoindex.php
+php -l lanes/libsqlite/examples/application-commented-schema-autoindex.php
+php lanes/libsqlite/examples/application-commented-schema-autoindex.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
 Result: focused lane tests passed with 1 selected file, 2418 assertions, and 0
-failures. The WordPress smoke reports automatic index metadata for commented
+failures. The Application smoke reports automatic index metadata for commented
 `wp_options` schema SQL without requiring the SQLite extension.
 
 Dependency closure: no new support component is needed. The slice reuses the
@@ -8724,9 +8724,9 @@ Verification run 2026-05-26T03:33Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -8745,7 +8745,7 @@ reports that pointer repair explicitly as
 `index-interior-rightmost-pointer-update`.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped
-count increases by 1 with `focusedWordPressInteriorRightmostPointerRebalanceScripts: 1`.
+count increases by 1 with `focusedApplicationInteriorRightmostPointerRebalanceScripts: 1`.
 This reuses accepted upstream delete/rebalance evidence over `update.test`,
 `index.test`, `btree01.test`, `delete2.test`, `delete3.test`, and
 `delete4.test`; this isolated worktree did not contain the hydrated upstream
@@ -8756,16 +8756,16 @@ Verification run 2026-05-26T03:38Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -l lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
 B-tree page headers, index replacement planning, page image overlays, freelist
-mutation, and WordPress fixtures without shelling out or activating shared
+mutation, and Application fixtures without shelling out or activating shared
 support-library work.
 
 ## Focused Native Mapping: Interior Left-Child Pointer Rebalance Diagnostics
@@ -8777,7 +8777,7 @@ insert/removal actions now include `before_left_children` and
 audited together with the accepted right-most pointer update.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped
-count increases by 1 with `focusedWordPressInteriorLeftChildPointerRebalanceScripts: 1`.
+count increases by 1 with `focusedApplicationInteriorLeftChildPointerRebalanceScripts: 1`.
 This reuses accepted upstream delete/rebalance evidence over `update.test`,
 `index.test`, `btree01.test`, `delete2.test`, `delete3.test`, and
 `delete4.test`; this isolated worktree did not contain the hydrated upstream
@@ -8788,16 +8788,16 @@ Verification run 2026-05-26T04:04Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -l lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
 B-tree page headers, index cell parsing, replacement planning, page image
-overlays, freelist mutation, and WordPress fixtures without shelling out or
+overlays, freelist mutation, and Application fixtures without shelling out or
 activating shared support-library work.
 
 ## Focused Native Mapping: Partial IN-List Subset Planner Implication
@@ -8821,7 +8821,7 @@ Verification run 2026-05-26T04:15Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteIndexPredicate.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-by-name-list.php
+php -l lanes/libsqlite/examples/application-options-by-name-list.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
@@ -8853,9 +8853,9 @@ Verification run 2026-05-26T04:41Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -8874,7 +8874,7 @@ page-local freeblock chain, coalesces adjacent freeblocks, and can clear the
 released payload bytes for secure-delete diagnostics.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
-increases by 1 with `focusedWordPressIndexLeafDeleteFreeblockScripts: 1`. This
+increases by 1 with `focusedApplicationIndexLeafDeleteFreeblockScripts: 1`. This
 reuses accepted static B-tree/delete evidence over `delete*.test`,
 `btree01.test`, `index.test`, and corrupt freeblock coverage; this isolated
 worktree did not contain the hydrated upstream cache, so no fresh upstream
@@ -8885,16 +8885,16 @@ Verification run 2026-05-26T05:08Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php -l lanes/libsqlite/examples/application-delete-option-index-leaf-freeblock.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php lanes/libsqlite/examples/application-delete-option-index-leaf-freeblock.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
 index cell parsing, record decoding, B-tree page headers, freeblock parsing,
-and WordPress fixture helpers without activating shared support-library work.
+and Application fixture helpers without activating shared support-library work.
 
 ## Focused Native Mapping: JSON Table Residual IN Lists
 
@@ -8918,9 +8918,9 @@ Verification run 2026-05-26T05:30Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -8950,9 +8950,9 @@ Verification run 2026-05-26T05:42Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -l lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -8970,7 +8970,7 @@ coalesces adjacent freeblocks, and can clear the released payload bytes for
 secure-delete diagnostics.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
-increases by 1 with `focusedWordPressTableLeafDeleteFreeblockScripts: 1`. This
+increases by 1 with `focusedApplicationTableLeafDeleteFreeblockScripts: 1`. This
 reuses accepted static B-tree/delete evidence over `delete*.test`,
 `btree01.test`, pager freeblock behavior, and corrupt freeblock coverage; this
 isolated worktree did not contain the hydrated upstream cache, so no fresh
@@ -8981,15 +8981,15 @@ Verification run 2026-05-26T05:55Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php -l lanes/libsqlite/examples/application-delete-option-table-leaf-freeblock.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php lanes/libsqlite/examples/application-delete-option-table-leaf-freeblock.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
-table leaf cell parsing, B-tree page headers, freeblock parsing, and WordPress
+table leaf cell parsing, B-tree page headers, freeblock parsing, and Application
 fixture helpers without activating shared support-library work.
 
 ## Focused Native Mapping: `json_group_array(DISTINCT X ORDER BY Y)`
@@ -9014,9 +9014,9 @@ Verification run 2026-05-26T06:12Z:
 php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
 php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php -l lanes/libsqlite/examples/application-json-aggregate-option-summary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php lanes/libsqlite/examples/application-json-aggregate-option-summary.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9045,16 +9045,16 @@ Verification run 2026-05-26T06:22Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
 WAL header/frame parsing, committed-frame tracking, SQLite header page-size
-parsing, and WordPress page fixtures without activating shared support-library
+parsing, and Application page fixtures without activating shared support-library
 work.
 
 ## Focused Native Mapping: `ORDER BY ... LIMIT/OFFSET` Result Rows
@@ -9067,8 +9067,8 @@ NULL sort keys compare before non-NULL values in ascending order, and rowid is
 used as a stable tie-breaker for deterministic local result plans.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
-increases by 1 with `focusedWordPressOptionOrderLimitScripts: 1`. This reuses
-accepted decoded table-scan and WordPress fixture evidence; this isolated
+increases by 1 with `focusedOptionRowOrderLimitScripts: 1`. This reuses
+accepted decoded table-scan and Application fixture evidence; this isolated
 worktree did not contain the hydrated upstream cache, so no fresh upstream
 `testfixture`, `make test`, or `mptest` run was started.
 
@@ -9077,21 +9077,21 @@ Verification run 2026-05-26T06:35Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-order-limit.php
+php -l lanes/libsqlite/examples/application-options-order-limit.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-options-order-limit.php
+php lanes/libsqlite/examples/application-options-order-limit.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
-table traversal, record decoding, WordPress option mapping, and PHP scalar
+table traversal, record decoding, Application option mapping, and PHP scalar
 comparison helpers without activating shared support-library work.
 
 ## Focused Native Mapping: RTRIM Collation Option-Name Lookup
 
 This isolated encoding/collation micro-slice makes SQLite's built-in `RTRIM`
-collation boundary explicit for WordPress option recovery. `SQLiteDatabase`
+collation boundary explicit for Application option recovery. `SQLiteDatabase`
 now routes the `RTRIM` text comparison through a named helper and focused
 coverage proves that an automatic `UNIQUE(option_name COLLATE RTRIM)` index can
 recover a stored `option_name` with trailing U+0020 spaces from an unpadded
@@ -9100,7 +9100,7 @@ where the lower and upper keys compare equal after SQLite RTRIM collation
 normalization.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
-increases by 1 with `focusedWordPressRtrimCollationScripts: 1`. This reuses
+increases by 1 with `focusedApplicationRtrimCollationScripts: 1`. This reuses
 accepted static encoding/collation evidence over SQLite `collate*.test` and
 `index*.test`; this isolated worktree did not contain the hydrated upstream
 cache, so no fresh upstream `testfixture`, `make test`, or `mptest` run was
@@ -9111,16 +9111,16 @@ Verification run 2026-05-26T06:48Z:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-rtrim-collation-option-lookup.php
+php -l lanes/libsqlite/examples/application-rtrim-collation-option-lookup.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-rtrim-collation-option-lookup.php --self-test cache_token --inclusive
+php lanes/libsqlite/examples/application-rtrim-collation-option-lookup.php --self-test cache_token --inclusive
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
 automatic index metadata parsing, SQLite scalar comparison, record decoding,
-and WordPress option traversal without activating shared support-library work.
+and Application option traversal without activating shared support-library work.
 
 ## Focused Native Mapping: Bulk B-tree Leaf Deletes
 
@@ -9134,7 +9134,7 @@ freeblock header.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped
 count is preserved at the current accepted 312 while adding
-`focusedWordPressBulkLeafDeleteFreeblockScripts: 1`. This reuses accepted
+`focusedApplicationBulkLeafDeleteFreeblockScripts: 1`. This reuses accepted
 static B-tree delete/rebalance evidence over `delete.test`, `delete2.test`,
 `delete3.test`, `delete4.test`, and `btree01.test`; this isolated worktree did
 not contain the hydrated upstream cache, so no fresh upstream `testfixture`,
@@ -9146,16 +9146,16 @@ Verification run 2026-05-26T07:17Z:
 php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
 php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php -l lanes/libsqlite/examples/application-delete-option-table-leaf-freeblock.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php lanes/libsqlite/examples/application-delete-option-table-leaf-freeblock.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
 B-tree page headers, table/index leaf cell parsing, record decoding, freeblock
-accounting, and WordPress fixture helpers without activating shared
+accounting, and Application fixture helpers without activating shared
 support-library work.
 
 ## Focused Native Mapping: Rollback Journal Recovery Plan
@@ -9167,7 +9167,7 @@ pages beyond the original database size, and truncate the rolled-back image to
 the original page count.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
-additional WordPress rollback recovery diagnostic script while preserving the
+additional Application rollback recovery diagnostic script while preserving the
 current accepted static SQLite upstream denominator. This reuses accepted
 rollback/pager evidence over SQLite pager and journal tests; this isolated
 worktree did not contain the hydrated upstream cache, so no fresh upstream
@@ -9178,16 +9178,16 @@ Verification run 2026-05-26T07:26Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php -l lanes/libsqlite/examples/application-rollback-journal-option-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php lanes/libsqlite/examples/application-rollback-journal-option-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
 rollback journal parsing, checksum validation, SQLite page headers, and
-WordPress fixture helpers without activating shared support-library work.
+Application fixture helpers without activating shared support-library work.
 
 ## Focused Native Mapping: Full-Suite Command Manifest
 
@@ -9232,14 +9232,14 @@ Verification run 2026-05-26T07:42Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
-Dependency closure: no new support component is needed. This reuses lane-local WAL parsing, checksum validation, checkpoint overlay, SQLite header parsing, and WordPress fixture helpers without activating shared support-library work.
+Dependency closure: no new support component is needed. This reuses lane-local WAL parsing, checksum validation, checkpoint overlay, SQLite header parsing, and Application fixture helpers without activating shared support-library work.
 
 ## Focused Native Mapping: Core Scalar Native UTF-8 Text Units
 
@@ -9260,9 +9260,9 @@ Verification run 2026-05-26T13:10Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php --self-test
+php lanes/libsqlite/examples/application-core-scalar-option-default.php --self-test
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9291,9 +9291,9 @@ Verification run 2026-05-26T08:05Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php --self-test
+php lanes/libsqlite/examples/application-core-scalar-option-default.php --self-test
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9306,7 +9306,7 @@ support-library work.
 ## Focused Native Mapping: Core Scalar Substring Dispatch
 
 This isolated SQL execution/planner micro-slice closes a bounded scalar
-function gap needed by expression dispatch and WordPress option repair previews.
+function gap needed by expression dispatch and Application option repair previews.
 Native PHP core scalar dispatch now supports `substr()` and `substring()` with
 SQLite-style SQL NULL propagation, 1-based starts, the special start-zero
 length rule, negative starts, negative lengths, UTF-8 text slicing when the
@@ -9323,9 +9323,9 @@ Verification run 2026-05-26T09:25Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php substr _plugin_cache 2 6
+php lanes/libsqlite/examples/application-core-scalar-option-default.php substr _plugin_cache 2 6
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9354,10 +9354,10 @@ Verification run 2026-05-26T13:02Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php sign -3
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php zeroblob 4
+php lanes/libsqlite/examples/application-core-scalar-option-default.php sign -3
+php lanes/libsqlite/examples/application-core-scalar-option-default.php zeroblob 4
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9388,10 +9388,10 @@ Verification run 2026-05-26T11:38Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php hex wp_options
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php unhex 77705f6f7074696f6e73
+php lanes/libsqlite/examples/application-core-scalar-option-default.php hex wp_options
+php lanes/libsqlite/examples/application-core-scalar-option-default.php unhex 77705f6f7074696f6e73
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9420,16 +9420,16 @@ Verification run 2026-05-26T10:18Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses
 lane-local JSON table planning, JSON row production, scalar residual ordering,
-and WordPress fixture diagnostics without activating shared SQL expression
+and Application fixture diagnostics without activating shared SQL expression
 support.
 
 ## Focused Native Mapping: Bulk Secondary-Index Leaf Deletes
@@ -9444,7 +9444,7 @@ before the freeblock headers are written.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
 additional lane-local focused evidence row,
-`focusedWordPressBulkIndexLeafDeleteFreeblockScripts: 1`. This reuses accepted
+`focusedApplicationBulkIndexLeafDeleteFreeblockScripts: 1`. This reuses accepted
 static B-tree delete/rebalance evidence over `delete.test`, `delete2.test`,
 `delete3.test`, `delete4.test`, `btree01.test`, and `index.test`; this
 isolated worktree did not contain the hydrated upstream cache, so no fresh
@@ -9454,16 +9454,16 @@ Verification run 2026-05-26T10:09Z in the isolated worker:
 
 ```sh
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php -l lanes/libsqlite/examples/application-delete-option-index-leaf-freeblock.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php lanes/libsqlite/examples/application-delete-option-index-leaf-freeblock.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
 B-tree page headers, index leaf cell parsing, record decoding, freeblock
-parsing/mutation, secure-delete clearing, and WordPress fixture helpers without
+parsing/mutation, secure-delete clearing, and Application fixture helpers without
 activating shared support-library work.
 
 ## Focused Native Mapping: WAL Checkpoint Mode Plan
@@ -9486,15 +9486,15 @@ Verification run 2026-05-26T09:47Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
-WAL parsing, checkpoint/reset planning, SQLite header parsing, and WordPress
+WAL parsing, checkpoint/reset planning, SQLite header parsing, and Application
 fixture helpers without activating shared pager, WAL-index, lock-manager, or
 filesystem durability support.
 
@@ -9518,15 +9518,15 @@ Verification run 2026-05-26T08:22Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
-WAL parsing, checkpoint planning, SQLite header parsing, and WordPress fixture
+WAL parsing, checkpoint planning, SQLite header parsing, and Application fixture
 helpers without activating shared support-library work.
 
 ## Focused Native Mapping: Savepoint Rollback/Release Plans
@@ -9548,15 +9548,15 @@ Verification run 2026-05-26T09:05Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -l lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local
-savepoint state tracking and WordPress fixture diagnostics without activating
+savepoint state tracking and Application fixture diagnostics without activating
 shared transaction, pager, or filesystem durability support.
 
 ## Focused Native Mapping: Core Trim/Replace/Instr Scalar Functions
@@ -9580,10 +9580,10 @@ Verification run 2026-05-26T09:29Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php replace plugin-cache - _
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php instr plugin_cache cache
+php lanes/libsqlite/examples/application-core-scalar-option-default.php replace plugin-cache - _
+php lanes/libsqlite/examples/application-core-scalar-option-default.php instr plugin_cache cache
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9612,10 +9612,10 @@ Verification run 2026-05-26T13:13Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php concat plugin - cache null :v 2
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php concat_ws / plugin null cache v2
+php lanes/libsqlite/examples/application-core-scalar-option-default.php concat plugin - cache null :v 2
+php lanes/libsqlite/examples/application-core-scalar-option-default.php concat_ws / plugin null cache v2
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9644,16 +9644,16 @@ Verification run 2026-05-26T13:20Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreePageHeader.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-page-freeblocks.php
+php -l lanes/libsqlite/examples/application-page-freeblocks.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-page-freeblocks.php /tmp/libsqlite-freeblock-integrity.sqlite 2
+php lanes/libsqlite/examples/application-page-freeblocks.php /tmp/libsqlite-freeblock-integrity.sqlite 2
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses
 lane-local B-tree page header parsing, freeblock chain validation, and
-WordPress page diagnostics without activating shared storage support work.
+Application page diagnostics without activating shared storage support work.
 
 ## Focused Native Mapping: JSON Table Residual NOT LIKE/NOT GLOB
 
@@ -9675,9 +9675,9 @@ Verification run 2026-05-26T13:27Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9689,7 +9689,7 @@ LIKE/GLOB scalar matching without activating shared support-library work.
 ## Focused Native Mapping: Core printf()/format() Scalar Dispatch
 
 This isolated SQL execution/planner scalar micro-slice adds bounded native
-`printf()`/`format()` dispatch to `SQLiteCoreScalarFunction` for WordPress
+`printf()`/`format()` dispatch to `SQLiteCoreScalarFunction` for Application
 option diagnostics and future expression planning. It covers SQL NULL format
 propagation, `printf`/`format` aliasing, `%s`, `%z`, `%d`, `%i`, `%u`, `%x`,
 `%X`, `%o`, `%f`/`%g`-family numeric formatting through PHP's formatter,
@@ -9707,9 +9707,9 @@ Verification run 2026-05-26T13:48Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php format 'option=%Q autoload=%s rowid=%04d' plugin_cache yes 7
+php lanes/libsqlite/examples/application-core-scalar-option-default.php format 'option=%Q autoload=%s rowid=%04d' plugin_cache yes 7
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9738,15 +9738,15 @@ Verification run 2026-05-26T14:02Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -l lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses
-lane-local savepoint state tracking and existing WordPress recovery diagnostics
+lane-local savepoint state tracking and existing Application recovery diagnostics
 without activating shared storage support work.
 
 ## Focused Native Mapping: Savepoint ROLLBACK TO Apply and COMMIT Plans
@@ -9770,15 +9770,15 @@ Verification run 2026-05-26T17:34Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -l lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses
-lane-local savepoint state tracking and existing WordPress recovery diagnostics
+lane-local savepoint state tracking and existing Application recovery diagnostics
 without activating shared storage support work.
 
 ## Upstream Runner Evidence: Foreground Release Snapshot Gate
@@ -9834,9 +9834,9 @@ Verification run 2026-05-26T14:32Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php randomblob 12
+php lanes/libsqlite/examples/application-core-scalar-option-default.php randomblob 12
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9867,16 +9867,16 @@ Verification run 2026-05-26T14:39Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses
 lane-local JSON table planning, JSON path/JSONB decoding, `SQLiteDatabase`
-REGEXP callback validation, and the existing WordPress JSON option smoke
+REGEXP callback validation, and the existing Application JSON option smoke
 without activating shared support-library work.
 
 ## Focused Native Mapping: JSON Table Numeric Equality Residual Predicates
@@ -9901,9 +9901,9 @@ Verification run 2026-05-26T15:24Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9932,9 +9932,9 @@ Verification run 2026-05-26T15:50Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9964,9 +9964,9 @@ Verification run 2026-05-26T16:12Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -9978,7 +9978,7 @@ NULL comparison semantics without activating shared support-library work.
 ## Focused Native Mapping: Core timediff() Scalar Dispatch
 
 This isolated SQL execution/planner scalar micro-slice adds bounded native
-`timediff(A,B)` dispatch to `SQLiteCoreScalarFunction` for copied WordPress
+`timediff(A,B)` dispatch to `SQLiteCoreScalarFunction` for copied Application
 `wp_options` timestamp diagnostics and future expression planning. Native PHP
 now returns SQLite-style signed `+YYYY-MM-DD HH:MM:SS.SSS` interval strings,
 propagates SQL NULL when either argument is NULL, and validates the two-argument
@@ -9994,9 +9994,9 @@ Verification run 2026-05-26T16:34Z in the isolated worker:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php timediff '2026-05-27 18:42:34' '2026-05-26 16:12:34'
+php lanes/libsqlite/examples/application-core-scalar-option-default.php timediff '2026-05-27 18:42:34' '2026-05-26 16:12:34'
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -10008,7 +10008,7 @@ support-library work.
 ## Focused Native Mapping: Text Aggregate group_concat/string_agg Helpers
 
 This isolated SQL execution/planner aggregate micro-slice adds bounded native
-`group_concat()`/`string_agg()` helper behavior for copied WordPress
+`group_concat()`/`string_agg()` helper behavior for copied Application
 `wp_options` summary diagnostics. Native PHP now covers NULL row skipping,
 NULL separator propagation, scalar and BLOB text coercion, DISTINCT
 de-duplication, ORDER BY scheduling, combined DISTINCT ORDER BY rows,
@@ -10026,9 +10026,9 @@ Verification run 2026-05-26T16:38Z in the isolated worker:
 php -l lanes/libsqlite/src/SQLiteTextAggregate.php
 php -l lanes/libsqlite/src/SQLiteTextAggregateState.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-group-concat-option-summary.php
+php -l lanes/libsqlite/examples/application-group-concat-option-summary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-group-concat-option-summary.php
+php lanes/libsqlite/examples/application-group-concat-option-summary.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -10040,7 +10040,7 @@ scheduling patterns without activating shared support-library work.
 ## Focused Native Mapping: Core Math Scalar Dispatch
 
 This isolated SQL execution/planner scalar micro-slice adds bounded native
-math dispatch to `SQLiteCoreScalarFunction` for copied WordPress `wp_options`
+math dispatch to `SQLiteCoreScalarFunction` for copied Application `wp_options`
 diagnostics and future expression planning. Native PHP now covers
 `ceil()`/`ceiling()`, `floor()`, `trunc()`, `sqrt()`, `pow()`/`power()`,
 `mod()`, `ln()`, `log()`, `log10()`, `log2()`, `exp()`, `pi()`, `acos()`,
@@ -10059,9 +10059,9 @@ Verification run 2026-05-26T17:08Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php sqrt 16
+php lanes/libsqlite/examples/application-core-scalar-option-default.php sqrt 16
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -10090,9 +10090,9 @@ Verification run 2026-05-26T17:41Z in the isolated worker:
 php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
 php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php -l lanes/libsqlite/examples/application-delete-overflow-option-release-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php lanes/libsqlite/examples/application-delete-overflow-option-release-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -10177,12 +10177,12 @@ lane-local countability and explicit exclusion gates only.
 
 This isolated encoding/collation micro-slice did not start an upstream
 testfixture because the worktree has no hydrated upstream checkout. It adds a
-bounded native planner helper for copied WordPress `wp_options` scans:
+bounded native planner helper for copied Application `wp_options` scans:
 `GLOB` patterns with a leading literal prefix now derive a binary
 `option_name` index range, then apply the accepted SQLite `GLOB` matcher as a
 residual predicate.
 
-Focused upstream denominator impact: one lane-local focused WordPress
+Focused upstream denominator impact: one lane-local focused Application
 GLOB-prefix range script is mapped in `UPSTREAM_TEST_MANIFEST.json`; no fresh
 upstream runner evidence is claimed.
 
@@ -10191,16 +10191,16 @@ Verification run 2026-05-26T18:37Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
+php -l lanes/libsqlite/examples/application-option-name-like-glob.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php lanes/libsqlite/examples/application-option-name-like-glob.php --self-test
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3124 assertions, and 0 failures, adding 13 focused assertions
-for indexed GLOB-prefix range planning. The WordPress pattern smoke passed,
+for indexed GLOB-prefix range planning. The Application pattern smoke passed,
 manifest/status JSON decoded successfully, and lane diff check passed. The
 root harness was not run because this was an isolated micro-slice.
 
@@ -10245,7 +10245,7 @@ lane-local admission ledger records and supplied active-runner snapshots only.
 
 This isolated dependency-suite micro-slice did not start an upstream
 testfixture because the worktree has no hydrated upstream checkout. It adds a
-bounded native connection-state helper for copied WordPress write paths:
+bounded native connection-state helper for copied Application write paths:
 `last_insert_rowid()`, `changes()`, and `total_changes()` now have lane-local
 counter diagnostics that can be attached to insert/update/delete and savepoint
 rollback previews without requiring ext-sqlite.
@@ -10259,16 +10259,16 @@ Verification run 2026-05-26T19:14Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteConnectionCounters.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php
+php -l lanes/libsqlite/examples/application-connection-counter-option-insert.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php
+php lanes/libsqlite/examples/application-connection-counter-option-insert.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3187 assertions, and 0 failures, adding 29 focused assertions
-for connection-counter behavior. The WordPress connection-counter smoke passed,
+for connection-counter behavior. The Application connection-counter smoke passed,
 manifest/status JSON decoded successfully, and lane diff check passed. The root
 harness was not run because this was an isolated micro-slice.
 
@@ -10360,7 +10360,7 @@ active-runner gates only.
 This bounded dependency-suite micro-slice does not start a duplicate broad
 SQLite `testfixture`, `release`, `all`, `make test`, or `mptest` run. It adds
 `SQLiteFileUri::parse()` for lane-local SQLite `file:` URI filename preflight
-before copied WordPress database repair/import/read-only inspection code opens
+before copied Application database repair/import/read-only inspection code opens
 files.
 
 Focused upstream denominator impact: one additional focused file/open evidence
@@ -10372,16 +10372,16 @@ Verification run 2026-05-26T19:53Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteFileUri.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-file-uri-open-preflight.php
+php -l lanes/libsqlite/examples/application-file-uri-open-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-file-uri-open-preflight.php
+php lanes/libsqlite/examples/application-file-uri-open-preflight.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3278 assertions, and 0 failures, adding 27 focused assertions.
-The WordPress file URI smoke passed, manifest/status JSON decoded successfully,
+The Application file URI smoke passed, manifest/status JSON decoded successfully,
 and lane diff check passed. The root harness was not run because this was an
 isolated micro-slice.
 
@@ -10434,16 +10434,16 @@ Verification run 2026-05-26T20:20Z in the isolated worker:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3363 assertions, and 0 failures, adding 49 focused assertions
-over the pre-slice 3314 focused assertion count. The WordPress JSON table
+over the pre-slice 3314 focused assertion count. The Application JSON table
 smoke passed. The root harness was not run because this was an isolated
 micro-slice.
 
@@ -10470,9 +10470,9 @@ Verification run for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectResult.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-subquery-preview.php
+php -l lanes/libsqlite/examples/application-options-subquery-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-options-subquery-preview.php
+php lanes/libsqlite/examples/application-options-subquery-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -10498,13 +10498,13 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectResult.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-join-preview.php
+php -l lanes/libsqlite/examples/application-options-join-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-options-join-preview.php
+php lanes/libsqlite/examples/application-options-join-preview.php
 ```
 
 Result: focused PHP passed 1 selected test file, 3835 assertions, and 0
-failures. The WordPress join preview smoke passed and reports copied
+failures. The Application join preview smoke passed and reports copied
 wp_options rows joined to option metadata without requiring ext/sqlite.
 
 Dependency closure: no new support component is needed. This slice reuses
@@ -10528,12 +10528,12 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteFileHeaderLoader.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-file-header-loader-preflight.php
+php -l lanes/libsqlite/examples/application-file-header-loader-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["loads bounded sqlite file headers after open admission"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-file-header-loader-preflight.php
+php lanes/libsqlite/examples/application-file-header-loader-preflight.php
 ```
 
-Result: focused PHP passed with 60 assertions and 0 failures. The WordPress
+Result: focused PHP passed with 60 assertions and 0 failures. The Application
 smoke reports a copied database header read of 100 bytes, page-size and
 declared-page checks, read-only immutable VFS admission, and dependency tags
 without requiring ext/sqlite.
@@ -10560,13 +10560,13 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLitePageCache.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-page-cache-preflight.php
+php -l lanes/libsqlite/examples/application-page-cache-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["loads sqlite pages through a bounded page cache after open admission"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-page-cache-preflight.php
+php lanes/libsqlite/examples/application-page-cache-preflight.php
 ```
 
 Result: focused selected PHP passed with 48 assertions and 0 failures. The
-WordPress page-cache smoke passed and reports copied `wp_options` database
+Application page-cache smoke passed and reports copied `wp_options` database
 pages loaded by page number without requiring ext/sqlite.
 
 Dependency closure: no new support component is needed. This is lane-local
@@ -10588,13 +10588,13 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 ```
 
 Result: focused PHP passed 1 selected test file, 3721 assertions, and 0
-failures. The WordPress smoke passed and includes validated planner diagnostics
+failures. The Application smoke passed and includes validated planner diagnostics
 for malformed JSONB payloads.
 ## Focused Native Mapping: SELECT CASE Projection Expressions
 
@@ -10609,7 +10609,7 @@ falling back to ELSE or NULL.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
 moves from 394 to 395 by adding
-`focusedWordPressSelectCaseProjectionScripts=1`. No fresh upstream
+`focusedApplicationSelectCaseProjectionScripts=1`. No fresh upstream
 `testfixture`, `make test`, `mptest`, `all`, or `release` run was launched
 from this isolated worktree.
 
@@ -10618,13 +10618,13 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectProjection.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-case-preview.php
+php -l lanes/libsqlite/examples/application-select-case-preview.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["projects select result rows through case expressions"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-select-case-preview.php
+php lanes/libsqlite/examples/application-select-case-preview.php
 ```
 
 Result: focused selected PHP passed with 40 assertions and 0 failures. The
-WordPress CASE projection smoke passed and reports copied `wp_options` rows
+Application CASE projection smoke passed and reports copied `wp_options` rows
 bucketed through CASE expressions without requiring ext/sqlite.
 
 Dependency closure: no new support component is needed. This is lane-local
@@ -10645,7 +10645,7 @@ range predicates, while preserving residual predicate checks and safe
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
 moves from 400 to 401 by adding
-`focusedWordPressSelectExpressionIndexPlanScripts=1`. No fresh upstream
+`focusedApplicationSelectExpressionIndexPlanScripts=1`. No fresh upstream
 `testfixture`, `make test`, `mptest`, `all`, or `release` run was launched
 from this isolated worktree.
 
@@ -10654,14 +10654,14 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-expression-index-plan.php
+php -l lanes/libsqlite/examples/application-select-expression-index-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-expression-index-plan.php
+php lanes/libsqlite/examples/application-select-expression-index-plan.php
 ```
 
 Result: focused PHP passed 1 selected test file, 4242 assertions, and 0
 failures, up from the accepted lane-status baseline of 4201 assertions. The
-WordPress expression-index smoke passed and reports copied `wp_options`
+Application expression-index smoke passed and reports copied `wp_options`
 expression-index dispatch without requiring ext/sqlite.
 
 Dependency closure: no new support component is needed. This is lane-local
@@ -10676,11 +10676,11 @@ This isolated dependency/open micro-slice maps one additional focused behavior
 row for bounded SQLite lock admission. The new `SQLiteLockCoordinator` models
 shared, reserved, pending, and exclusive lock compatibility, composes blocked
 lock attempts with the existing busy-handler planner, and combines lock
-planning with file URI/open admission for copied WordPress database preflights.
+planning with file URI/open admission for copied Application database preflights.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
 moves from 402 to 403 by adding
-`focusedWordPressLockCoordinationScripts=1`. No fresh upstream `testfixture`,
+`focusedApplicationLockCoordinationScripts=1`. No fresh upstream `testfixture`,
 `make test`, `mptest`, `all`, or `release` run was launched from this isolated
 worktree.
 
@@ -10689,13 +10689,13 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteLockCoordinator.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php -l lanes/libsqlite/examples/application-lock-coordination-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["coordinates sqlite file locks for open admission without a vfs dependency"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php lanes/libsqlite/examples/application-lock-coordination-preflight.php
 ```
 
 Result: focused selected PHP passed with 53 assertions and 0 failures. The
-WordPress lock-coordination smoke passed and reports copied database open
+Application lock-coordination smoke passed and reports copied database open
 diagnostics without requiring ext/sqlite.
 
 Dependency closure: no new support component is needed for this bounded slice.
@@ -10711,7 +10711,7 @@ This isolated dependency/open micro-slice maps one additional focused behavior
 row for bounded SQLite VFS file-control and device-capability planning. The new
 `SQLiteVfsCapabilityPlan` helper reports sector-size, device-characteristic,
 powersafe-overwrite, persist-WAL, chunk-size, mmap-size, and sync-policy
-decisions over accepted file URI/open admission results for copied WordPress
+decisions over accepted file URI/open admission results for copied Application
 database preflights.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
@@ -10725,14 +10725,14 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsCapabilityPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-capability-preflight.php
+php -l lanes/libsqlite/examples/application-vfs-capability-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-capability-preflight.php
+php lanes/libsqlite/examples/application-vfs-capability-preflight.php
 ```
 
 Result: focused PHP passed 1 selected test file, 5073 assertions, and 0
 failures, up from the accepted lane-status baseline of 5010 assertions. The
-WordPress VFS capability smoke passed and reports copied database preflight
+Application VFS capability smoke passed and reports copied database preflight
 diagnostics without requiring ext/sqlite.
 
 Dependency closure: no new support component is needed for this bounded slice.
@@ -10748,7 +10748,7 @@ This isolated dependency/open micro-slice maps one additional focused VFS
 locking behavior row. The new `SQLiteLockByteRangePlan` helper records
 SQLite's pending byte, reserved byte, shared lock range, per-reader shared
 slot, exclusive shared-range coverage, `nolock` suppression, and composition
-with accepted open-admission dependencies for copied WordPress database paths.
+with accepted open-admission dependencies for copied Application database paths.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
 moves from 419 to 420 by adding `focusedVfsLockByteRangePlan=1`. No fresh
@@ -10760,13 +10760,13 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteLockByteRangePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php -l lanes/libsqlite/examples/application-lock-coordination-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["plans sqlite vfs lock byte ranges for open handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php lanes/libsqlite/examples/application-lock-coordination-preflight.php
 ```
 
 Result: selected focused PHP passed with 67 assertions and 0 failures. The
-WordPress lock coordination smoke passed and reports copied database lock-byte
+Application lock coordination smoke passed and reports copied database lock-byte
 diagnostics without requiring ext/sqlite.
 
 Dependency closure: no new shared support component is needed for this bounded
@@ -10784,7 +10784,7 @@ behavior row for bounded WAL checkpoint persistence. The new
 `SQLiteWalFileWritePlan` helper composes accepted durable checkpoint database
 and WAL bytes into ordered VFS-style database writes, database sync, WAL
 preserve/restart/truncate operations, WAL sync, directory sync, and writable
-handle guards for copied WordPress database paths.
+handle guards for copied Application database paths.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
 moves from 411 to 412 by adding `focusedWalFileWritePlanScripts=1`. No fresh
@@ -10796,13 +10796,13 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalFileWritePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["plans sqlite wal durable checkpoint vfs file writes"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 ```
 
 Result: selected focused PHP passed with 68 assertions and 0 failures. The
-WordPress WAL smoke passed and reports copied database checkpoint file-write
+Application WAL smoke passed and reports copied database checkpoint file-write
 diagnostics without requiring ext/sqlite.
 
 Dependency closure: no new shared support component is needed for this bounded
@@ -10844,7 +10844,7 @@ VFS, Tcl, or SQLite support component.
 Date: 2026-05-27
 
 This isolated encoding/collation micro-slice maps one additional focused
-behavior row for SQLite LIKE planner semantics over copied WordPress option
+behavior row for SQLite LIKE planner semantics over copied Application option
 names. `SQLiteDatabase::likePatternPlan()` now reports escaped literal prefix
 text, wildcard presence, UTF-8 character length, ASCII-only prefix status,
 binary index bounds, and NOCASE index bounds. The existing NOCASE indexed LIKE
@@ -10861,20 +10861,20 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
+php -l lanes/libsqlite/examples/application-option-name-like-glob.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php lanes/libsqlite/examples/application-option-name-like-glob.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 
 Result: focused `SQLiteHeaderTest.php` passed with 8477 assertions and 0
-failures. The WordPress LIKE/GLOB smoke passed and reports binary/NOCASE LIKE
+failures. The Application LIKE/GLOB smoke passed and reports binary/NOCASE LIKE
 plans, escaped wildcard literals, and ASCII-only non-ASCII matching for copied
 `wp_options` rows.
 
 Dependency closure: no new shared support component is needed. This reuses
 lane-local UTF-8 text splitting, ASCII NOCASE folding, LIKE/GLOB matchers, and
-copied WordPress option fixtures.
+copied Application option fixtures.
 
 ## Focused Native Mapping: PRAGMA locking_mode Current State
 
@@ -10898,20 +10898,20 @@ Focused verification:
 php -l lanes/libsqlite/src/SQLitePragmaLockingMode.php
 php -l lanes/libsqlite/src/SQLitePragmaSnapshot.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-pragma-preflight.php
+php -l lanes/libsqlite/examples/application-pragma-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-pragma-preflight.php /tmp/libsqlite-lockmode-smoke.sqlite
+php lanes/libsqlite/examples/application-pragma-preflight.php /tmp/libsqlite-lockmode-smoke.sqlite
 git diff --check -- lanes/libsqlite
 ```
 
 Result: focused `SQLiteHeaderTest.php` passed with 9570 assertions and 0
 failures, up from the prior lane-status focused count of 9516 assertions
-(`+54`). The WordPress pragma smoke passed against a generated SQLite header
+(`+54`). The Application pragma smoke passed against a generated SQLite header
 fixture and reports current locking mode transitions without requiring
 ext/sqlite.
 
 Dependency closure: no new shared support component is needed. This slice
-reuses lane-local pragma/header state and pure PHP WordPress copy preflight
+reuses lane-local pragma/header state and pure PHP Application copy preflight
 fixtures. Non-overlap: it avoids accepted VFS byte-range, process lock,
 lock-state, locked-writer, pager checkpoint, rollback, WAL, B-tree, JSON, and
 SELECT clusters by covering only `PRAGMA locking_mode` current connection
@@ -10932,8 +10932,8 @@ computes virtual/stored generated columns after defaulted base columns.
 Focused evidence:
 `php tools/run-tests.php lanes/libsqlite/tests/SQLiteInsertDefaultValuesGeneratedDefaultTest.php`
 reported `1 test files, 51 assertions, 0 failures` and 41 PASS lines. The
-WordPress smoke
-`php lanes/libsqlite/examples/wordpress-insert-default-values-generated-default.php --self-test`
+Application smoke
+`php lanes/libsqlite/examples/application-insert-default-values-generated-default.php --self-test`
 passed and reports a copied `wp_options`-style default row without requiring
 `ext/sqlite`.
 
@@ -10954,7 +10954,7 @@ This isolated planner micro-slice adds a bounded native PHP corpus for SQLite
 `ANALYZE` / `sqlite_stat1` planner behavior. It parses `sqlite_stat1` row-count
 and per-prefix average cardinality values, ranks equality/`IN`/range constraints
 across single-column and composite indexes, preserves deterministic fallback
-table scans, and guards malformed stat rows. The focused WordPress smoke uses
+table scans, and guards malformed stat rows. The focused Application smoke uses
 copied `wp_options`, `wp_postmeta`, and `wp_posts` style stats to preview index
 selection before row decoding without `ext/sqlite`.
 
@@ -10988,11 +10988,11 @@ Focused verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonScalarInputMutationNext13Test.php
-php lanes/libsqlite/examples/wordpress-json-scalar-input-mutation-next13.php
+php lanes/libsqlite/examples/application-json-scalar-input-mutation-next13.php
 ```
 
 Result: the focused test file reported `1 test files, 54 assertions, 0
-failures` with 54 PASS lines. The WordPress smoke reports copied numeric
+failures` with 54 PASS lines. The Application smoke reports copied numeric
 `wp_options.option_value` rows promoted by `json_patch()`, root-replaced by
 `json_set()`, left unchanged by nested set/remove paths, removed to SQL NULL at
 `$`, and returned as JSONB blobs for `jsonb_patch()` without requiring
@@ -11005,7 +11005,7 @@ upstream inventory unit.
 
 Dependency closure: no new support component is needed. This reuses the
 lane-local JSON5 parser, JSONB codec, canonical JSON encoder, JSON path
-mutation/removal helpers, and copied WordPress option smoke fixtures.
+mutation/removal helpers, and copied Application option smoke fixtures.
 
 Non-overlap: this avoids accepted JSON table cursor/source/hidden/visible
 constraint work, JSON host joins, malformed JSONB planner diagnostics,
@@ -11105,8 +11105,8 @@ Additional verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next250.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next250.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next250.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next250.php
 git diff --check -- lanes/libsqlite
 ```
 

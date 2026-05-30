@@ -19,11 +19,11 @@ This slice does not repeat accepted JSON visible constraints, JSON hidden constr
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext235Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next235.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next235.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext235Test.php`
   - `1 test files, 63 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next235.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next235 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next235.php --self-test`
+  - `application-json-table-generated-path-rowid-cost-current-source-next235 self-test passed`
 
 ## Dependency Closure
 

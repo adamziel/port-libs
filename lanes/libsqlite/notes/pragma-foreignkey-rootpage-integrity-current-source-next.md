@@ -1,6 +1,6 @@
 # pragma-foreignkey-rootpage-integrity-current-source-next
 
-This slice adds a combined current/next PRAGMA preflight for copied WordPress
+This slice adds a combined current/next PRAGMA preflight for copied Application
 SQLite images that need both sqlite_schema rootpage integrity blockers and
 `foreign_key_check` rows annotated with child/parent rootpage and pointer-map
 state.
@@ -10,9 +10,9 @@ state.
   collector under one current/next source hash.
 - The cursor rejects stale current/next database bytes, schema rows, catalog
   rootpages, FK SQL, integrity SQL, and mismatched offsets.
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-pragma-foreignkey-rootpage-integrity-current-source-next.php --self-test`
-  reports `wordpress-pragma-foreignkey-rootpage-integrity-current-source-next self-test passed`.
+- Application smoke:
+  `php lanes/libsqlite/examples/application-pragma-foreignkey-rootpage-integrity-current-source-next.php --self-test`
+  reports `application-pragma-foreignkey-rootpage-integrity-current-source-next self-test passed`.
 
 Focused verification:
 

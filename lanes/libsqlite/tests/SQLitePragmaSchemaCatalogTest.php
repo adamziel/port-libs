@@ -28,7 +28,7 @@ $makeCatalog = static fn (): SQLitePragmaSchemaCatalog => new SQLitePragmaSchema
 ]);
 
 $tests = [
-    'executes schema PRAGMA table and index catalog rows for wordpress metadata' => static function (TestRunner $t): void {
+    'executes schema PRAGMA table and index catalog rows for application metadata' => static function (TestRunner $t): void {
         $catalog = new SQLitePragmaSchemaCatalog([
             new SQLiteSchemaRecord(
                 'table',

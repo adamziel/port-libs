@@ -15,7 +15,7 @@ records retained source byte/encoding/collation-key changes.
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteNocaseRtrimLikeCurrentSourceNext134Test.php`
 - Result: `1 test files, 80 assertions, 0 failures`
 - New TestRunner PASS lines: `64`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-nocase-rtrim-like-current-source-next134.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-nocase-rtrim-like-current-source-next134.php --self-test`
 
 ## Non-Overlap
 

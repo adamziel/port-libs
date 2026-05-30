@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined current-source continuation seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-source-continuation-seal.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-source-continuation-seal.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-continuation', $result['status']);
         $t->same(['rowvalue-update-delete-returning-window-current-source-continuation'], $result['candidateStatuses']);

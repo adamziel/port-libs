@@ -2,7 +2,7 @@
 
 - Behavior: parser-level `SQLiteSelectSql` expressions now dispatch JSON scalar functions already implemented in native PHP (`json`, `jsonb`, JSON constructors, `json_quote`, `json_valid`, `json_pretty`, patch/mutation/remove helpers) and base `json_each()` / `json_tree()` sources can evaluate scalar-function arguments without a host table row.
 - Focused test delta: `+32` TestRunner PASS cases in `SQLiteJsonScalarTableFunctionEdgeNext12Test.php`; `lane-status.json` `phpPass` moves `3796 -> 3828`.
-- WordPress smoke: `wordpress-json-scalar-table-function-edge.php --self-test` covers copied `wp_options` JSON5 option values canonicalized and mutated before `json_each()` expansion.
+- Application smoke: `application-json-scalar-table-function-edge.php --self-test` covers copied `wp_options` JSON5 option values canonicalized and mutated before `json_each()` expansion.
 - Non-overlap: avoids accepted JSON table cursor/source/hidden/visible constraint pushdown, host joins, JSON aggregate/window, JSON scalar regression helper-only coverage, SELECT expression ORDER BY, SELECT subqueries, VFS/WAL/B-tree accepted clusters, Unicode GLOB, and rollback/sync writer work. This slice wires existing scalar JSON behavior through parser-level SELECT expression execution and scalar table-function source arguments.
 - Dependency closure: no new support component needed; the slice reuses existing native PHP JSON scalar, JSONB, SELECT expression, and JSON table planner/cursor components.
 
@@ -48,8 +48,8 @@ PASS json scalar table expression rejects non-jsonb blob quote
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-scalar-table-function-edge.php --self-test
-wordpress-json-scalar-table-function-edge self-test passed
+php lanes/libsqlite/examples/application-json-scalar-table-function-edge.php --self-test
+application-json-scalar-table-function-edge self-test passed
 ```
 
 ```text
@@ -62,8 +62,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteJsonScalarTableFunctionEdgeNext12Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonScalarTableFunctionEdgeNext12Test.php
 
-php -l lanes/libsqlite/examples/wordpress-json-scalar-table-function-edge.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-json-scalar-table-function-edge.php
+php -l lanes/libsqlite/examples/application-json-scalar-table-function-edge.php
+No syntax errors detected in lanes/libsqlite/examples/application-json-scalar-table-function-edge.php
 
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'
 lane-status json ok

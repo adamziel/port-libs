@@ -13,7 +13,7 @@ The slice covers:
 - `OR IGNORE` restores the conflicting row and lets the later selected peer
   run normally;
 - composite unique keys such as `(blog_id, option_name)` drive conflict
-  detection, matching WordPress multisite option imports.
+  detection, matching Application multisite option imports.
 
 Focused command:
 
@@ -21,10 +21,10 @@ Focused command:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Test.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-update-returning-conflict-current-source-next137.php
+php lanes/libsqlite/examples/application-rowvalue-update-returning-conflict-current-source-next137.php
 ```
 
 Expected dashboard movement: update `phpPass` by the focused PASS-line delta

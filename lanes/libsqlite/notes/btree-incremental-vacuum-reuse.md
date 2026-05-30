@@ -20,11 +20,11 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeIncrementalVacuumReuseTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-incremental-vacuum-reuse.php`
+- `php -l lanes/libsqlite/examples/application-btree-incremental-vacuum-reuse.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeIncrementalVacuumReuseTest.php`
   - `1 test files, 265 assertions, 0 failures`
   - 55 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-incremental-vacuum-reuse.php`
+- `php lanes/libsqlite/examples/application-btree-incremental-vacuum-reuse.php`
   - emits JSON with `allocatedPages` `[307, 306]` and
     `vacuumTruncatedPages` `[308, 309, 310]`
 - `git diff --check -- lanes/libsqlite`

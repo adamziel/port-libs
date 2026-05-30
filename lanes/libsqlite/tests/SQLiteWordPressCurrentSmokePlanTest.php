@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressCurrentSmokePlan;
+use PortLibs\LibSqlite\SQLiteCurrentSmokePlan;
 
 $currentRows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
@@ -11,8 +11,8 @@ $currentRows = [
 ];
 
 return [
-    'wordpress current smoke commits staged option updates and inserts' => static function (TestRunner $t) use ($currentRows): void {
-        $smoke = SQLiteWordPressCurrentSmokePlan::optionImport($currentRows, [
+    'application current smoke commits staged option updates and inserts' => static function (TestRunner $t) use ($currentRows): void {
+        $smoke = SQLiteCurrentSmokePlan::optionImport($currentRows, [
             ['option_name' => 'siteurl', 'option_value' => 'https://current.example', 'autoload' => 'yes'],
             ['option_name' => 'blog_public', 'option_value' => '1', 'autoload' => 'yes'],
             ['option_id' => 9, 'option_name' => 'finished_upgrades', 'option_value' => '[]', 'autoload' => 'no'],
@@ -33,10 +33,10 @@ return [
         $t->same('no', $smoke['autoload_by_name']['finished_upgrades']);
         $t->same([2], $smoke['dirty_pages']);
         $t->same(false, $smoke['rollback']['transaction_rolled_back']);
-        $t->same(true, in_array('sqlite-wordpress-current-smoke-option-import', $smoke['dependencies'], true));
+        $t->same(true, in_array('sqlite-application-current-smoke-option-import', $smoke['dependencies'], true));
     },
-    'wordpress current smoke can keep valid rows while yielding wp error shape' => static function (TestRunner $t) use ($currentRows): void {
-        $smoke = SQLiteWordPressCurrentSmokePlan::optionImport($currentRows, [
+    'application current smoke can keep valid rows while yielding wp error shape' => static function (TestRunner $t) use ($currentRows): void {
+        $smoke = SQLiteCurrentSmokePlan::optionImport($currentRows, [
             ['option_name' => 'template', 'option_value' => 'twentytwentyfive', 'autoload' => 'yes'],
             ['option_name' => 'home', 'option_value' => 'https://duplicate.example', 'autoload' => 'yes', 'option_id' => 8],
             ['option_name' => 'stylesheet', 'option_value' => 'twentytwentyfive', 'autoload' => 'yes'],
@@ -52,8 +52,8 @@ return [
         $t->same(true, $smoke['rollback']['statement_rollback_only']);
         $t->same(false, $smoke['rollback']['transaction_rolled_back']);
     },
-    'wordpress current smoke rolls back all applied rows on fail-on-error' => static function (TestRunner $t) use ($currentRows): void {
-        $smoke = SQLiteWordPressCurrentSmokePlan::optionImport($currentRows, [
+    'application current smoke rolls back all applied rows on fail-on-error' => static function (TestRunner $t) use ($currentRows): void {
+        $smoke = SQLiteCurrentSmokePlan::optionImport($currentRows, [
             ['option_name' => 'template', 'option_value' => 'twentytwentyfive', 'autoload' => 'yes'],
             ['option_name' => '', 'option_value' => 'bad', 'autoload' => 'yes'],
             ['option_name' => 'stylesheet', 'option_value' => 'twentytwentyfive', 'autoload' => 'yes'],

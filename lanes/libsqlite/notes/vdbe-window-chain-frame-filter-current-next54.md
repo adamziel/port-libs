@@ -25,11 +25,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 50 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-window-chain-frame-filter-current-next54.php --self-test
-wordpress-vdbe-window-chain-frame-filter-current-next54 self-test passed
+php lanes/libsqlite/examples/application-vdbe-window-chain-frame-filter-current-next54.php --self-test
+application-vdbe-window-chain-frame-filter-current-next54 self-test passed
 ```
 
 Non-overlap: this does not repeat accepted parser-level SELECT SQL window text,

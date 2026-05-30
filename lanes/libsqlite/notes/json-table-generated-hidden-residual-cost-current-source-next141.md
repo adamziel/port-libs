@@ -11,11 +11,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 48 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-generated-hidden-residual-cost-current-source-next141.php --self-test
-wordpress-json-table-generated-hidden-residual-cost-current-source-next141 self-test passed
+php lanes/libsqlite/examples/application-json-table-generated-hidden-residual-cost-current-source-next141.php --self-test
+application-json-table-generated-hidden-residual-cost-current-source-next141 self-test passed
 ```
 
 Non-overlap: this builds on accepted generated hidden cost behavior (`next136`) but does not repeat generated hidden filtering, JSON table hidden/visible constraint extraction, path generated ordering (`next137`), JSON table cursor/source wiring, or host/dynamic joins. The new behavior is specifically residual costing and value-tape tracking for unusable generated hidden predicates.

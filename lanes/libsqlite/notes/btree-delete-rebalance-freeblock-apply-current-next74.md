@@ -10,13 +10,13 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeDeleteRebalanceFreeblockApplyCurrentNext74Test.php`
   - `1 test files, 63 assertions, 0 failures`
-- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-btree-delete-rebalance-freeblock-apply-current-next74.php`
+- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/application-btree-delete-rebalance-freeblock-apply-current-next74.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeDeleteRebalanceFreeblockApplyPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeDeleteRebalanceFreeblockApplyCurrentNext74Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-delete-rebalance-freeblock-apply-current-next74.php`
+- `php -l lanes/libsqlite/examples/application-btree-delete-rebalance-freeblock-apply-current-next74.php`
 - `git diff --check -- lanes/libsqlite`
 
-WordPress smoke:
+Application smoke:
 
 The copied `wp_options` transient delete smoke reports the deleted option
 rowid, defragmented leaf freeblock byte transition, freed obsolete overflow

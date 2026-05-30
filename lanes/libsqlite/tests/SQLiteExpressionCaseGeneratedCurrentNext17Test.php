@@ -19,7 +19,7 @@ $valueAt = static function (array $value, string $path): mixed {
     return $value;
 };
 
-$wordpressCaseGenerated = <<<'SQL'
+$applicationCaseGenerated = <<<'SQL'
 CREATE TABLE wp_options(
     option_id INTEGER PRIMARY KEY,
     option_name TEXT NOT NULL,
@@ -111,30 +111,30 @@ CREATE TABLE wp_options(
 SQL;
 
 foreach ([
-    'wordpress table name' => [$wordpressCaseGenerated, 'table', 'wp_options'],
-    'wordpress status ok' => [$wordpressCaseGenerated, 'status', 'ok'],
-    'wordpress column count' => [$wordpressCaseGenerated, 'columns.count', 8],
-    'wordpress first generated name' => [$wordpressCaseGenerated, 'columns.4.name', 'option_name_lower'],
-    'wordpress first generated storage' => [$wordpressCaseGenerated, 'columns.4.storage', 'VIRTUAL'],
-    'wordpress first generated dependency' => [$wordpressCaseGenerated, 'columns.4.dependencies.0', 'option_name'],
-    'simple case generated name' => [$wordpressCaseGenerated, 'columns.5.name', 'autoload_rank'],
-    'simple case generated storage' => [$wordpressCaseGenerated, 'columns.5.storage', 'STORED'],
-    'simple case depends on base autoload once' => [$wordpressCaseGenerated, 'columns.5.dependencies.0', 'autoload'],
-    'simple case dependency count skips literals' => [$wordpressCaseGenerated, 'columns.5.dependencies.count', 1],
-    'searched case generated name' => [$wordpressCaseGenerated, 'columns.6.name', 'option_kind'],
-    'searched case depends on generated lower' => [$wordpressCaseGenerated, 'columns.6.dependencies.0', 'option_name_lower'],
-    'searched case dependency count skips like literals' => [$wordpressCaseGenerated, 'columns.6.dependencies.count', 1],
-    'nested case generated name' => [$wordpressCaseGenerated, 'columns.7.name', 'option_route'],
-    'nested case dependency first generated' => [$wordpressCaseGenerated, 'columns.7.dependencies.0', 'option_kind'],
-    'nested case dependency second generated' => [$wordpressCaseGenerated, 'columns.7.dependencies.1', 'option_name_lower'],
-    'nested case dependency third generated' => [$wordpressCaseGenerated, 'columns.7.dependencies.2', 'autoload_rank'],
-    'nested case dependency count' => [$wordpressCaseGenerated, 'columns.7.dependencies.count', 3],
-    'wordpress evaluation first lower' => [$wordpressCaseGenerated, 'order.0', 'option_name_lower'],
-    'wordpress evaluation second rank' => [$wordpressCaseGenerated, 'order.1', 'autoload_rank'],
-    'wordpress evaluation third kind' => [$wordpressCaseGenerated, 'order.2', 'option_kind'],
-    'wordpress evaluation fourth route' => [$wordpressCaseGenerated, 'order.3', 'option_route'],
-    'wordpress cycle empty' => [$wordpressCaseGenerated, 'cycle.count', 0],
-    'wordpress message null' => [$wordpressCaseGenerated, 'message', null],
+    'application table name' => [$applicationCaseGenerated, 'table', 'wp_options'],
+    'application status ok' => [$applicationCaseGenerated, 'status', 'ok'],
+    'application column count' => [$applicationCaseGenerated, 'columns.count', 8],
+    'application first generated name' => [$applicationCaseGenerated, 'columns.4.name', 'option_name_lower'],
+    'application first generated storage' => [$applicationCaseGenerated, 'columns.4.storage', 'VIRTUAL'],
+    'application first generated dependency' => [$applicationCaseGenerated, 'columns.4.dependencies.0', 'option_name'],
+    'simple case generated name' => [$applicationCaseGenerated, 'columns.5.name', 'autoload_rank'],
+    'simple case generated storage' => [$applicationCaseGenerated, 'columns.5.storage', 'STORED'],
+    'simple case depends on base autoload once' => [$applicationCaseGenerated, 'columns.5.dependencies.0', 'autoload'],
+    'simple case dependency count skips literals' => [$applicationCaseGenerated, 'columns.5.dependencies.count', 1],
+    'searched case generated name' => [$applicationCaseGenerated, 'columns.6.name', 'option_kind'],
+    'searched case depends on generated lower' => [$applicationCaseGenerated, 'columns.6.dependencies.0', 'option_name_lower'],
+    'searched case dependency count skips like literals' => [$applicationCaseGenerated, 'columns.6.dependencies.count', 1],
+    'nested case generated name' => [$applicationCaseGenerated, 'columns.7.name', 'option_route'],
+    'nested case dependency first generated' => [$applicationCaseGenerated, 'columns.7.dependencies.0', 'option_kind'],
+    'nested case dependency second generated' => [$applicationCaseGenerated, 'columns.7.dependencies.1', 'option_name_lower'],
+    'nested case dependency third generated' => [$applicationCaseGenerated, 'columns.7.dependencies.2', 'autoload_rank'],
+    'nested case dependency count' => [$applicationCaseGenerated, 'columns.7.dependencies.count', 3],
+    'application evaluation first lower' => [$applicationCaseGenerated, 'order.0', 'option_name_lower'],
+    'application evaluation second rank' => [$applicationCaseGenerated, 'order.1', 'autoload_rank'],
+    'application evaluation third kind' => [$applicationCaseGenerated, 'order.2', 'option_kind'],
+    'application evaluation fourth route' => [$applicationCaseGenerated, 'order.3', 'option_route'],
+    'application cycle empty' => [$applicationCaseGenerated, 'cycle.count', 0],
+    'application message null' => [$applicationCaseGenerated, 'message', null],
     'quoted table name preserved' => [$quotedCaseGenerated, 'table', 'wp option meta'],
     'quoted status ok' => [$quotedCaseGenerated, 'status', 'ok'],
     'quoted column named keyword case' => [$quotedCaseGenerated, 'columns.1.name', 'case'],
@@ -170,8 +170,8 @@ foreach ([
 }
 
 foreach ([
-    'wordpress generated case unique route autoindex' => [
-        $wordpressCaseGenerated,
+    'application generated case unique route autoindex' => [
+        $applicationCaseGenerated,
         [['option_route']],
     ],
     'quoted generated case unique route autoindex' => [

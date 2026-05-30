@@ -59,7 +59,7 @@ $plan = static fn (
     int $nextSchemaCookie = 22,
     int $currentCollationVersion = 3,
     int $nextCollationVersion = 4,
-): array => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::wordpressOptionNameIndexPlan(
+): array => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::optionRowNameIndexPlan(
     $currentRows,
     $nextRows,
     $pattern,
@@ -167,21 +167,21 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['encoding collation index like glob current source next89 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::wordpressOptionNameIndexPlan($currentRows, $nextRows, 'plugin%', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::optionRowNameIndexPlan($currentRows, $nextRows, 'plugin%', 'REGEXP'));
 };
 
 $tests['encoding collation index like glob current source next89 rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::wordpressOptionNameIndexPlan($currentRows, $nextRows, 'plugin_*', 'GLOB', 'BINARY', '\\'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::optionRowNameIndexPlan($currentRows, $nextRows, 'plugin_*', 'GLOB', 'BINARY', '\\'));
 };
 
 $tests['encoding collation index like glob current source next89 rejects malformed next bytes'] = static function (TestRunner $t) use ($currentRows): void {
     $nextRows = [['option_id' => 1, 'option_name_bytes' => "plugin_\xc3", 'text_encoding' => 1]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::wordpressOptionNameIndexPlan($currentRows, $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::optionRowNameIndexPlan($currentRows, $nextRows, 'plugin%'));
 };
 
 $tests['encoding collation index like glob current source next89 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
     $currentRows = [['option_name_bytes' => 'plugin', 'text_encoding' => 1]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::wordpressOptionNameIndexPlan($currentRows, $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::optionRowNameIndexPlan($currentRows, $nextRows, 'plugin%'));
 };
 
 return $tests;

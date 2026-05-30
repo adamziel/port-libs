@@ -6,14 +6,14 @@ Behavior:
 
 - `SQLiteSelectPredicate` now formats REAL operands with SQLite-style text affinity before `LIKE`/`GLOB`: integer-valued reals keep a `.0` suffix and exponent notation uses lowercase `e` with two-digit exponent widths.
 - This fixes copied `wp_options` SELECT previews where REAL option values such as `1.0`, `0.000001`, and `1.0e20` must match SQLite text forms `1.0`, `1.0e-06`, and `1.0e+20`, not PHP's compact `1`, `1.0E-6`, or `1.0E+20` forms.
-- Added WordPress smoke coverage for numeric option diagnostics that query REAL `option_value` data with `LIKE` and `GLOB` without ext/sqlite.
+- Added Application smoke coverage for numeric option diagnostics that query REAL `option_value` data with `LIKE` and `GLOB` without ext/sqlite.
 
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectPredicateRealAffinityLikeGlobCurrentSourceNext120Test.php`
 - Result: `1 test files, 50 assertions, 0 failures` with 50 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-select-real-affinity-like-glob-current-source-next120.php --self-test`
-- Result: `wordpress-select-real-affinity-like-glob-current-source-next120 self-test passed`
+- `php lanes/libsqlite/examples/application-select-real-affinity-like-glob-current-source-next120.php --self-test`
+- Result: `application-select-real-affinity-like-glob-current-source-next120 self-test passed`
 
 Non-overlap:
 

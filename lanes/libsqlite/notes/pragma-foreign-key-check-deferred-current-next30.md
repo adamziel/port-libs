@@ -24,8 +24,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 52 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pragma-foreign-key-check-deferred-current-next30.php --self-test
-wordpress-pragma-foreign-key-check-deferred-current-next30 self-test passed
+php lanes/libsqlite/examples/application-pragma-foreign-key-check-deferred-current-next30.php --self-test
+application-pragma-foreign-key-check-deferred-current-next30 self-test passed
 ```
 
 Dashboard delta: `phpPass` increases by the verified `+52` focused PASS lines,

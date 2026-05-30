@@ -10,10 +10,10 @@ append boundary, database/WAL/consumer digests still match, no hot-journal
 identity remains, the savepoint scope is closed, and the exclusive lock receipt
 is present.
 
-## WordPress Smoke
+## Application Smoke
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next210.php`
-models a copied WordPress `wp_options` import after hot-journal recovery and
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next210.php`
+models a copied Application `wp_options` import after hot-journal recovery and
 checkpoint publication. It admits the current autoload update frame batch and
 blocks a stale plugin writer before any new WAL append.
 
@@ -24,7 +24,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckp
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 80 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next210.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next210.php
 status: wal-hot-journal-savepoint-checkpoint-current-source-next210
 acceptedAppendBatches: autoload-frame-batch
 blockedAppendBatches: stale-plugin-frame-batch

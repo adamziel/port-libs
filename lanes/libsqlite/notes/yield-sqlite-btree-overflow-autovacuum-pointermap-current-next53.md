@@ -4,7 +4,7 @@
 
 - Added `SQLiteBTreeOverflowAutoVacuumPointerMapPlan` for a bounded B-tree overflow allocation path that consumes pages from the current freelist trunk and its next trunk, materializes the overflow chain, and applies auto-vacuum pointer-map ownership across both pointer-map pages.
 - Added focused PHP coverage in `SQLiteBTreeOverflowAutoVacuumPointerMapCurrentNext53Test.php`: 53 PASS cases / 506 assertions / 0 failures.
-- Added WordPress smoke `wordpress-overflow-autovacuum-pointermap-current-next53.php` for copied `wp_options` overflow payload allocation without ext/sqlite.
+- Added Application smoke `application-overflow-autovacuum-pointermap-current-next53.php` for copied `wp_options` overflow payload allocation without ext/sqlite.
 
 ## Verification
 

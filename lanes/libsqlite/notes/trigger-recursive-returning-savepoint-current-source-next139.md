@@ -7,7 +7,7 @@ statement source before a `ROLLBACK TO` savepoint restores the prior image.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-trigger-recursive-returning-savepoint-current-source-next139.php`
+- Application smoke: `php lanes/libsqlite/examples/application-trigger-recursive-returning-savepoint-current-source-next139.php`
 
 Non-overlap:
 

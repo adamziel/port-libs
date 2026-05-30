@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
-use PortLibs\LibSqlite\SQLiteWordPressJsonImportSavepointPlan;
+use PortLibs\LibSqlite\SQLiteJsonImportSavepointPlan;
 
 $currentRows = static fn (): array => [
     [
@@ -80,7 +80,7 @@ $mutations = static fn (): array => [
     ],
 ];
 
-$plan = static fn (array $options = [], ?array $rows = null, ?array $steps = null): array => SQLiteWordPressJsonImportSavepointPlan::plan(
+$plan = static fn (array $options = [], ?array $rows = null, ?array $steps = null): array => SQLiteJsonImportSavepointPlan::plan(
     $rows ?? $currentRows(),
     $steps ?? $mutations(),
     array_replace(['page_size' => 512, 'transaction' => 'network_json_import', 'savepoint' => 'current_next39'], $options)
@@ -141,8 +141,8 @@ $cases = [
     'commit plan commits applied pages only' => static fn (): mixed => $plan()['commit']['committed_page_numbers'],
     'final rows retain duplicate option names across blogs' => static fn (): mixed => array_column($plan()['final_rows'], 'option_name'),
     'final rows retain blog ids' => static fn (): mixed => array_column($plan()['final_rows'], 'blog_id'),
-    'multisite dependency is advertised' => static fn (): mixed => in_array('sqlite-wordpress-multisite-json-import-current', $plan()['dependencies'], true),
-    'single site dependency is not advertised for multisite rows' => static fn (): mixed => in_array('sqlite-wordpress-json-import-savepoint-current', $plan()['dependencies'], true),
+    'multisite dependency is advertised' => static fn (): mixed => in_array('sqlite-application-multisite-json-import-current', $plan()['dependencies'], true),
+    'single site dependency is not advertised for multisite rows' => static fn (): mixed => in_array('sqlite-application-json-import-savepoint-current', $plan()['dependencies'], true),
     'database bytes changed after applied multisite statements' => static fn (): mixed => $plan()['database_changed'],
     'all valid multisite mutations are ready' => static fn (): mixed => $plan([], $currentRows(), array_slice($mutations(), 0, 3))['status'],
     'missing blog id rolls back multisite mutation' => static fn (): mixed => $plan([], $currentRows(), [['option_name' => 'plugin_settings', 'path' => '$.enabled', 'value' => true]])['status'],
@@ -225,7 +225,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress multisite json import current next39 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application multisite json import current next39 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

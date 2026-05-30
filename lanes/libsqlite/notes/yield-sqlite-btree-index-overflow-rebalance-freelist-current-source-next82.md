@@ -23,12 +23,12 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The focused run emits 61 PASS lines for the new current-source B-tree behavior.
 
-## WordPress Smoke
+## Application Smoke
 
 Command:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-index-overflow-rebalance-freelist-next82.php
+php lanes/libsqlite/examples/application-index-overflow-rebalance-freelist-next82.php
 ```
 
 The smoke builds a copied `wp_options`-style option-name index where deleting an overflow-backed transient index key rebalances the index leaf and releases obsolete overflow pages into the freelist.

@@ -10,7 +10,7 @@ Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current-source wrapp
 - reports timing-aware blockers as `immediate_foreign_key_check` and `deferred_foreign_key_check`;
 - keeps accepted cursor/source validation, table-valued `pragma_index_xinfo`, parent-index admission, and action/deferrability extraction.
 
-The WordPress smoke models a copied multisite `wp_options` import where one missing `wp_sites` parent is initially deferred, while option-name and group parents are immediate blockers. The repaired next source clears both immediate statement blockers and commit-time deferred blockers.
+The Application smoke models a copied multisite `wp_options` import where one missing `wp_sites` parent is initially deferred, while option-name and group parents are immediate blockers. The repaired next source clears both immediate statement blockers and commit-time deferred blockers.
 
 ## Focused evidence
 
@@ -22,8 +22,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next170.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-current-source-next170 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next170.php --self-test
+application-pragma-index-xinfo-foreignkey-current-source-next170 self-test passed
 ```
 
 ## Dashboard expectation

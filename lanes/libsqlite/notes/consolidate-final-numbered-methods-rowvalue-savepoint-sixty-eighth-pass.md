@@ -8,17 +8,17 @@ worker-numbered diagnostics.
   and non-overlap text.
 - Renamed the direct focused test to
   `SQLiteRowValueInnerFailRollbackSavepointTest.php`.
-- Renamed the WordPress smoke to
-  `wordpress-rowvalue-inner-fail-rollback-savepoint.php`.
+- Renamed the Application smoke to
+  `application-rowvalue-inner-fail-rollback-savepoint.php`.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueInnerFailRollbackSavepointTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-inner-fail-rollback-savepoint.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-inner-fail-rollback-savepoint.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueInnerFailRollbackSavepointTest.php`
   - `1 test files, 89 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-inner-fail-rollback-savepoint.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-inner-fail-rollback-savepoint.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this cleanup reuses the

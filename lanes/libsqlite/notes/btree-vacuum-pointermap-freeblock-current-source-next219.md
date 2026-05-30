@@ -10,9 +10,9 @@ Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, a post-write curre
 - excludes fenced vacuum tail pages 109 and 110;
 - carries leaf freeblock and overflow payload readback metadata.
 
-## WordPress Smoke
+## Application Smoke
 
-`examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next219.php` models a copied `wp_options` database after deleting an overflow-backed transient and vacuuming tail pages, then emits only the safe current-source pointer-map/freeblock readback rows.
+`examples/application-btree-vacuum-pointermap-freeblock-current-source-next219.php` models a copied `wp_options` database after deleting an overflow-backed transient and vacuuming tail pages, then emits only the safe current-source pointer-map/freeblock readback rows.
 
 ## Verification
 

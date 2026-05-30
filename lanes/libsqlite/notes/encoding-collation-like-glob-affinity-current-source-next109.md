@@ -7,8 +7,8 @@ Behavior:
 - SELECT predicate `RTRIM` collation now trims only trailing ASCII space, preserving tabs/newlines as distinct text bytes.
 - Parser-level `SQLiteSelectSql` inherits the behavior for copied `wp_options` previews.
 
-WordPress smoke:
-- `lanes/libsqlite/examples/wordpress-select-like-glob-affinity-current-source-next109.php --self-test`
+Application smoke:
+- `lanes/libsqlite/examples/application-select-like-glob-affinity-current-source-next109.php --self-test`
 
 Non-overlap:
 - Avoids accepted Unicode GLOB range handling, UTF-16 malformed record guards, UTF-16/RTRIM current-source cursor handoffs, LIKE/GLOB range cursor wrappers, JSON table source/cursor/constraint clusters, VFS/WAL/B-tree application clusters, and SELECT SQL subquery/group/order clusters.
@@ -22,12 +22,12 @@ Verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteSelectPredicate.php`
 - `php -l lanes/libsqlite/tests/SQLiteSelectPredicateLikeGlobAffinityCurrentSourceNext109Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteSelectPredicateLikeGlobAffinityCurrentSourceNext109Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-select-like-glob-affinity-current-source-next109.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-select-like-glob-affinity-current-source-next109.php`
+- `php -l lanes/libsqlite/examples/application-select-like-glob-affinity-current-source-next109.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-select-like-glob-affinity-current-source-next109.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectPredicateLikeGlobAffinityCurrentSourceNext109Test.php`
   - `1 test files, 53 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-select-like-glob-affinity-current-source-next109.php --self-test`
-  - `wordpress-select-like-glob-affinity-current-source-next109 self-test passed`
+- `php lanes/libsqlite/examples/application-select-like-glob-affinity-current-source-next109.php --self-test`
+  - `application-select-like-glob-affinity-current-source-next109 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - passed with no output
 - SQLite oracle spot-check:

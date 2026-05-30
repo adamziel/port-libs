@@ -10,7 +10,7 @@ This slice adds a bounded upstream-style trigger and foreign-key interaction exe
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerForeignKeyInteractionCorpusTest.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-fk-interaction.php`
+- `php lanes/libsqlite/examples/application-trigger-fk-interaction.php`
 
 Dependency closure: no new support component is needed. This reuses the lane's existing bounded row-array executor pattern and does not require `ext/sqlite`, hydrated upstream caches, or live services.
 

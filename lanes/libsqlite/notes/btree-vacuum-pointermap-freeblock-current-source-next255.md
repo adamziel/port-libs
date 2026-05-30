@@ -2,16 +2,16 @@
 
 - Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext255Plan`.
 - Focused behavior: publishes the current-source next-page cursor after next251 admission, preserving pointer-map visibility before payload/freeblock publication, carrying duplicate pointer-map generation rows, and keeping truncated tail pages fenced.
-- WordPress smoke: `examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next255.php` models copied `wp_options` transient deletion where overflow pages cannot become reusable current-source pages until pointer-map/freeblock publication is complete.
+- Application smoke: `examples/application-btree-vacuum-pointermap-freeblock-current-source-next255.php` models copied `wp_options` transient deletion where overflow pages cannot become reusable current-source pages until pointer-map/freeblock publication is complete.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext255Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext255Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next255.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next255.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext255Test.php`
 - Result: `1 test files, 1330 assertions, 0 failures` with 130 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next255.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next255.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

@@ -10,7 +10,7 @@ remain held until the assignment token matches, every current assignment
 receipt is acknowledged, no unexpected receipt appears, and the required order
 is preserved unless unordered admission is explicitly requested.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next249.php`
+Application path: `application-trigger-recursive-view-upsert-current-source-next249.php`
 models copied `wp_options` imports through a recursive view trigger. Current
 `siteurl`/plugin rows recursively yield option updates, seal their assignment
 receipts, and only then expose plugin migration rows from the next view source.
@@ -21,12 +21,12 @@ Verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next249.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next249.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next249.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next249.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Test.php`
   - `1 test files, 79 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next249.php`
-  - `wordpress-trigger-recursive-view-upsert-current-source-next249 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next249.php`
+  - `application-trigger-recursive-view-upsert-current-source-next249 self-test passed`
 
 Expected dashboard movement: `phpPass +79` from the new focused test file.
 Mapped upstream coverage remains `657 / 1589`; this is current-source PHP

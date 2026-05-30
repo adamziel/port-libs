@@ -8,8 +8,8 @@ rechecks the current range fence, rejects rowids admitted only by the stale
 prepared range, keeps current matched rowids in covering-index order, and
 records a VDBE-style cursor tape with no deferred table lookup.
 
-WordPress path:
-`wordpress-stat4-expression-covering-range-current-source.php` models a
+Application path:
+`application-stat4-expression-covering-range-current-source.php` models a
 copied `wp_options` plugin-option scan where a current source narrows the
 prepared plugin option-name range and must avoid returning a stale
 `plugin_alpha` row while still reading payload columns from the covering index.
@@ -18,8 +18,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceTest.php`
   - `1 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-stat4-expression-covering-range-current-source.php --self-test`
-  - `wordpress-stat4-expression-covering-range-current-source self-test passed`
+- `php lanes/libsqlite/examples/application-stat4-expression-covering-range-current-source.php --self-test`
+  - `application-stat4-expression-covering-range-current-source self-test passed`
 
 Dashboard delta:
 

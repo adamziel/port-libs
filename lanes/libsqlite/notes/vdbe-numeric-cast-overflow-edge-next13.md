@@ -12,7 +12,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeNumericCastOverflowCorpusTest.php`
   - `1 test files, 32 assertions, 0 failures`
   - `25` PASS lines, counted as `phpPass +25`.
-- `php lanes/libsqlite/examples/wordpress-select-sql-cast-overflow.php --self-test`
+- `php lanes/libsqlite/examples/application-select-sql-cast-overflow.php --self-test`
   - passed.
 - `php -l` passed for changed PHP files.
 - `git diff --check -- lanes/libsqlite` passed.

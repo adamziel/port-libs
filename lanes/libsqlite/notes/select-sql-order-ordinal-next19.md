@@ -14,10 +14,10 @@ does not expand wildcard result positions until projection time.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectSqlOrdinalOrderNext19Test.php`
 - Result: `1 test files, 43 assertions, 0 failures`
 - New focused PASS-line delta: `+43`
-- `php lanes/libsqlite/examples/wordpress-select-sql-order-ordinal.php`
+- `php lanes/libsqlite/examples/application-select-sql-order-ordinal.php`
 - `php -l lanes/libsqlite/src/SQLiteSelectSql.php`
 - `php -l lanes/libsqlite/tests/SQLiteSelectSqlOrdinalOrderNext19Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-select-sql-order-ordinal.php`
+- `php -l lanes/libsqlite/examples/application-select-sql-order-ordinal.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

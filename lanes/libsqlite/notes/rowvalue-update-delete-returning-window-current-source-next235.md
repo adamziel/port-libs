@@ -8,7 +8,7 @@ This slice adds `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext235Pl
 It reuses the native row-value UPDATE/DELETE RETURNING executor and annotates
 discarded attempt rows plus yielded retry rows with deterministic window
 metadata: stream, phase, action partition, statement ordinal, row number, and
-partition row number. The WordPress path models copied `wp_options` migration
+partition row number. The Application path models copied `wp_options` migration
 rows where attempted `RETURNING` rows are visible only before `ROLLBACK TO`,
 then retry UPDATE/DELETE RETURNING rows become the committed current source.
 
@@ -16,8 +16,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext235Test.php`
   - `1 test files, 71 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next235.php --self-test`
-  - `wordpress-rowvalue-returning-window-current-source-next235 self-test passed`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next235.php --self-test`
+  - `application-rowvalue-returning-window-current-source-next235 self-test passed`
 
 Expected dashboard movement: `phpPass +71`, from `116027` to `116098`.
 `benchmarkDenominator.mapped` remains `638 / 1589`; this is current-source PHP

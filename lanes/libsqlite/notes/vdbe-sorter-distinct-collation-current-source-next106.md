@@ -17,8 +17,8 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeSorterDistinctCollationCurrentSourceNext106Test.php`
   - `1 test files, 66 assertions, 0 failures`
   - 66 focused PASS lines.
-- `php lanes/libsqlite/examples/wordpress-vdbe-sorter-distinct-collation-current-source-next106.php --self-test`
-  - `wordpress-vdbe-sorter-distinct-collation-current-source-next106 self-test passed`
+- `php lanes/libsqlite/examples/application-vdbe-sorter-distinct-collation-current-source-next106.php --self-test`
+  - `application-vdbe-sorter-distinct-collation-current-source-next106 self-test passed`
 
 ## Status Delta
 

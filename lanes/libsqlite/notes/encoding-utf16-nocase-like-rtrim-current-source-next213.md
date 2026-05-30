@@ -12,7 +12,7 @@ decoded prefix/token stream changes.
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext213Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next213.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next213.php --self-test`
 - Syntax checks: `php -l` on the new source, test, and example files
 - Whitespace check: `git diff --check -- lanes/libsqlite`
 

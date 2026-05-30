@@ -8,16 +8,16 @@ Focused lane verification for the WAL pager checkpoint atomic apply slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
-php -l lanes/libsqlite/examples/wordpress-pager-checkpoint-atomic-apply.php
+php -l lanes/libsqlite/examples/application-pager-checkpoint-atomic-apply.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite pager checkpoint transactions atomically through vfs handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-pager-checkpoint-atomic-apply.php
+php lanes/libsqlite/examples/application-pager-checkpoint-atomic-apply.php
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` WAL
 pager checkpoint atomic apply test passed with 63 assertions and 0 failures.
 The full focused `SQLiteHeaderTest.php` passed at 1 test file, 8467 assertions,
-0 failures in this isolated worktree. The WordPress smoke reports copied
+0 failures in this isolated worktree. The Application smoke reports copied
 `wp_options` WAL checkpoint transactions applied through bounded native PHP
 file handles after shared/reserved/pending/exclusive lock escalation, database
 page materialization, WAL truncate/reset persistence, durable sync diagnostics,
@@ -44,9 +44,9 @@ Focused lane verification for the hot rollback-journal recovery slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php -l lanes/libsqlite/examples/application-rollback-journal-option-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php lanes/libsqlite/examples/application-rollback-journal-option-diagnostics.php
 ```
 
 Result: focused `SQLiteHeaderTest.php` moved from the current lane-status
@@ -60,7 +60,7 @@ journals stay non-hot, and successful recovery reports
 
 Root harness status: not run - isolated micro-slice. Dependency closure: no
 new support component is needed; the work reuses lane-local rollback-journal
-header/page parsing, checksum validation, recovery plans, and WordPress
+header/page parsing, checksum validation, recovery plans, and Application
 rollback diagnostics.
 
 ## Isolated SQL SELECT Projection Scalar Slice
@@ -73,16 +73,16 @@ scalar-expression slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectProjection.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-projection-scalar-preview.php
+php -l lanes/libsqlite/examples/application-select-projection-scalar-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-projection-scalar-preview.php
+php lanes/libsqlite/examples/application-select-projection-scalar-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: focused test count moved from the current accepted 3787-assertion
 baseline recorded in lane status to 3828 assertions, +41, with 0 failures.
-Root harness status: not run - isolated micro-slice. The WordPress SELECT
+Root harness status: not run - isolated micro-slice. The Application SELECT
 projection smoke reports copied `wp_options` rows projected through scalar
 expression columns before ORDER BY result semantics.
 
@@ -99,14 +99,14 @@ Focused lane verification for the WAL-index read-mark slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 ```
 
 Result: focused test count moved from the current accepted 3688-assertion
 baseline recorded in lane status to 3754 assertions, +66, with 0 failures. Root
-harness status: not run - isolated micro-slice. The WordPress WAL smoke now
+harness status: not run - isolated micro-slice. The Application WAL smoke now
 reports WAL-index read-mark slots for copied `wp_options` diagnostics,
 including database-only readers, stale snapshots that pin checkpoint
 completion, latest-commit readers, invalid marks beyond mxFrame, reusable slot
@@ -114,7 +114,7 @@ selection, and the recommended reader frame.
 
 Dependency closure: no new support component is needed. This slice reuses the
 lane-local WAL header/frame parser, reader snapshot diagnostics, checkpoint
-planning helpers, and WordPress fixture smoke without activating a shared
+planning helpers, and Application fixture smoke without activating a shared
 WAL-index, lock-manager, VFS, or process-locking dependency.
 
 ## Isolated WAL Checkpoint Result Slice
@@ -126,15 +126,15 @@ Focused lane verification for the WAL checkpoint-result slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: focused test count moved from 3491 to 3540 assertions, +49. Root
-harness status: not run - isolated micro-slice. The WordPress smoke reported
+harness status: not run - isolated micro-slice. The Application smoke reported
 reader-limited PASSIVE/FULL checkpoint dry-run images preserving base option
 pages, committed RESTART/TRUNCATE dry-run images containing WAL option writes,
 and preserve/restart/truncate WAL actions.
@@ -153,9 +153,9 @@ semantics slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectResult.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-order-limit.php
+php -l lanes/libsqlite/examples/application-options-order-limit.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-options-order-limit.php
+php lanes/libsqlite/examples/application-options-order-limit.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -176,22 +176,22 @@ slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteFreelistAllocationPlan.php
 php -l lanes/libsqlite/src/SQLiteDatabase.php
-php -l lanes/libsqlite/examples/wordpress-autovacuum-btree-page-reuse-plan.php
+php -l lanes/libsqlite/examples/application-autovacuum-btree-page-reuse-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-autovacuum-btree-page-reuse-plan.php
+php lanes/libsqlite/examples/application-autovacuum-btree-page-reuse-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: focused test count moved from 3301 to 3327 assertions, +26. Root
-harness status: not run - isolated micro-slice. The WordPress smoke reported
+harness status: not run - isolated micro-slice. The Application smoke reported
 reusable freelist pages `[6,7]` reallocated as B-tree child pages, the first
 freelist trunk left at page 5 with one free page, and auto-vacuum pointer-map
 entries rewritten from `free-page` to `btree-page` with parent page 3.
 
 Dependency closure: no new support component is needed. The implementation
 reuses lane-local freelist allocation, pointer-map update, B-tree page, and
-WordPress option traversal helpers.
+Application option traversal helpers.
 
 ## Isolated SQL Window Function Slice
 
@@ -203,9 +203,9 @@ function slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWindowFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-window-option-rankings.php
+php -l lanes/libsqlite/examples/application-window-option-rankings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-window-option-rankings.php
+php lanes/libsqlite/examples/application-window-option-rankings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -226,14 +226,14 @@ Focused lane verification for the JSON table rowid alias slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused test run reported 1 selected file, 3112
-assertions, and 0 failures. The WordPress smoke reported four input variants
+assertions, and 0 failures. The Application smoke reported four input variants
 plus rowid-alias filtered and ordered JSON table rows. The no-argument root
 harness was not run because this worker was assigned only isolated micro-slice
 verification.
@@ -248,14 +248,14 @@ freePage2 slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteFreelistFreePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-free-pages-full-freelist-trunk.php
+php -l lanes/libsqlite/examples/application-free-pages-full-freelist-trunk.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-free-pages-full-freelist-trunk.php
+php lanes/libsqlite/examples/application-free-pages-full-freelist-trunk.php
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused test run reported 1 selected file, 3046
-assertions, and 0 failures. The WordPress smoke reported a new freelist trunk
+assertions, and 0 failures. The Application smoke reported a new freelist trunk
 at the first freed obsolete page, secure-delete-cleared leaf pages, preserved
 old-trunk linkage, and next allocation order through the new trunk.
 
@@ -317,10 +317,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1282 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-multipage-table-option-replacement-plan.php
+php lanes/libsqlite/examples/application-multipage-table-option-replacement-plan.php
 ```
 
 It reported updated page `[4]`, an unchanged `table-interior` root at page 2,
@@ -350,10 +350,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1304 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-table-leaf-split-option-replacement-plan.php
+php lanes/libsqlite/examples/application-table-leaf-split-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,5]`, database page count `5`, root
@@ -385,10 +385,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1321 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-table-root-split-option-replacement-plan.php
+php lanes/libsqlite/examples/application-table-root-split-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,4]`, database page count `4`, a
@@ -422,10 +422,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1340 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-composite-index-parent-root-split-option-replacement-plan.php
+php lanes/libsqlite/examples/application-composite-index-parent-root-split-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,4,10,11,12,13]`, database page count
@@ -468,10 +468,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1357 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-nonroot-table-split-option-replacement-plan.php
+php lanes/libsqlite/examples/application-nonroot-table-split-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,3,5,7]`, database page count `7`, an
@@ -502,10 +502,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1379 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-table-parent-root-split-option-replacement-plan.php
+php lanes/libsqlite/examples/application-table-parent-root-split-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,36,37,38,39]`, database page count `39`,
@@ -538,10 +538,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1401 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-nonroot-table-parent-split-option-replacement-plan.php
+php lanes/libsqlite/examples/application-nonroot-table-parent-split-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,37,39,40]`, database page count `40`,
@@ -572,10 +572,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1421 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-nonroot-index-parent-split-option-insert-plan.php
+php lanes/libsqlite/examples/application-nonroot-index-parent-split-option-insert-plan.php
 ```
 
 It reported updated page images `[1,2,3,4,11,13,14]`, database page count
@@ -606,10 +606,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1433 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-index-root-collapse-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-root-collapse-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,4]`, an `index-leaf` root at page 3,
@@ -639,10 +639,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1456 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pointer-map-diagnostics.php
+php lanes/libsqlite/examples/application-pointer-map-diagnostics.php
 ```
 
 It reported auto-vacuum and incremental-vacuum header state, page 2 as the
@@ -675,16 +675,16 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1470 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-index-redistribute-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-redistribute-option-replacement-plan.php
 ```
 
 It reported updated page images `[2,3,4,5,6]`, a two-cell `index-interior`
 root, redistributed source/sibling index leaves with three cells each, a
 destination leaf with four cells, and a rewritten long cached option reachable
-through `wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+through `optionRowByIndexedAutoloadAndName('no', $optionName)`.
 
 The required duplicate-root preflight was run before any aggregate harness:
 
@@ -720,16 +720,16 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1487 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-index-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-merge-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,4,5,6]`, a one-cell
 `index-interior` root at page 3, merged index leaf pages 4 and 5, page 6 as
 the first freelist trunk, and the rewritten option reachable through
-`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+`optionRowByIndexedAutoloadAndName('no', $optionName)`.
 
 The required duplicate-root preflight was run before the aggregate harness:
 
@@ -756,10 +756,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1508 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pointer-map-mutation-plan.php
+php lanes/libsqlite/examples/application-pointer-map-mutation-plan.php
 ```
 
 It reported updated page images `[1,2,6]`, page 6 as the new freelist trunk,
@@ -810,10 +810,10 @@ php tools/run-tests.php lanes/libsqlite/tests
 
 Result: 1 test file, 1555 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-nonroot-index-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-nonroot-index-merge-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,4,5,8,9]`, lower index parent page 4
@@ -856,10 +856,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1519 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-autovacuum-overflow-option-insert-plan.php
+php lanes/libsqlite/examples/application-autovacuum-overflow-option-insert-plan.php
 ```
 
 It reported updated page images `[1,2,3,4,5,6]`, overflow pages `[4,5,6]`,
@@ -902,10 +902,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1539 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-autovacuum-overflow-option-replacement-plan.php
+php lanes/libsqlite/examples/application-autovacuum-overflow-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,4,6,7,8,9]`, obsolete overflow pages
@@ -951,10 +951,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1564 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-autovacuum-table-root-split-option-replacement-plan.php
+php lanes/libsqlite/examples/application-autovacuum-table-root-split-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,4,5]`, a table-interior `wp_options`
@@ -998,10 +998,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1578 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-secure-delete-obsolete-overflow-pages.php
+php lanes/libsqlite/examples/application-secure-delete-obsolete-overflow-pages.php
 ```
 
 It reported updated page images `[1,2,3,4]`, obsolete overflow pages `[3,4]`
@@ -1043,10 +1043,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1596 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-index-parent-collapse-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-parent-collapse-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,5,6,7]`, a collapsed `index-interior`
@@ -1088,10 +1088,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 
 Result: 1 test file, 1617 assertions, 0 failures.
 
-The WordPress example also ran successfully:
+The Application example also ran successfully:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 ```
 
 It reported updated page images `[1,2,3,4,5,6,7]`, an `index-interior` root
@@ -1103,16 +1103,16 @@ Focused lane verification for the B-tree rebalance diagnostic refill passed:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
-php -l lanes/libsqlite/src/SQLiteWordPressOptionReplacementPlan.php
-php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -l lanes/libsqlite/src/SQLiteOptionRowReplacementPlan.php
+php -l lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed; the
-WordPress smoke reported `btreeRebalanceActions` for root divider removal,
+Application smoke reported `btreeRebalanceActions` for root divider removal,
 interior-parent growth, leaf entry merges, and freed pages `[7,8]`; manifest
 and lane-status JSON decoded successfully; `git diff --check` passed. The root
 harness was not run because this was an isolated micro-slice.
@@ -1149,15 +1149,15 @@ diagnostic slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -l lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed; the
-WordPress smoke reported an `index-interior-rightmost-pointer-update` from 7
+Application smoke reported an `index-interior-rightmost-pointer-update` from 7
 to 10 on the surviving interior parent during a multi-child composite-index
 merge, alongside root divider removal, parent divider insertion, leaf merges,
 and freed pages `[7,8]`; manifest/status JSON decoded successfully; lane diff
@@ -1171,9 +1171,9 @@ Focused lane verification for the WAL checkpoint reader reset blocker slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
@@ -1183,7 +1183,7 @@ selected file, 2869 assertions, and 0 failures. The native behavior now keeps
 WAL checkpoint page-copy progress separate from reset/truncate eligibility:
 `checkpointModePlan()` reports `reader_blocks_wal_reset` with `busy: true` and
 `can_reset`/`can_truncate: false` for RESTART/TRUNCATE while a reader snapshot
-is still open at the last committed frame. The WordPress WAL smoke reports the
+is still open at the last committed frame. The Application WAL smoke reports the
 same reader-present restart/truncate diagnostics. Manifest/status JSON decoded
 successfully; lane diff check passed. The root harness was not run because this
 was an isolated micro-slice.
@@ -1195,16 +1195,16 @@ Focused lane verification for the JSON table visible/projected output slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/application-json-each-option-settings.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/application-json-each-option-settings.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3363 assertions, and 0 failures, adding 49 focused assertions
-over the pre-slice 3314 focused assertion count. The WordPress JSON table
+over the pre-slice 3314 focused assertion count. The Application JSON table
 smoke reports `SELECT *`-style visible columns separately from explicit hidden
 `json`/`root` and `rowid` alias projection for copied `wp_options` JSON
 expansion. The root harness was not run because this was an isolated
@@ -1215,7 +1215,7 @@ lane-local JSON table row generation and residual filtering.
 
 Dependency closure: no new support component is needed. This reuses the
 lane-local WAL header/frame parser, checkpoint planner, reader snapshot
-diagnostics, and WordPress WAL smoke path without activating shared support
+diagnostics, and Application WAL smoke path without activating shared support
 library work.
 
 ## B-tree Secure-delete Freeblock Payload Report Slice
@@ -1226,13 +1226,13 @@ diagnostic slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreePageHeader.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-page-freeblocks.php
+php -l lanes/libsqlite/examples/application-page-freeblocks.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-page-freeblocks.php /tmp/libsqlite-secure-delete-freeblock.sqlite 2
+php lanes/libsqlite/examples/application-page-freeblocks.php /tmp/libsqlite-secure-delete-freeblock.sqlite 2
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
-selected file, 2866 assertions, and 0 failures. The WordPress page-freeblock
+selected file, 2866 assertions, and 0 failures. The Application page-freeblock
 smoke reported `freeblockSecureDelete.status: ok`, one table-leaf freeblock at
 offset 431, a 40-byte zeroed freeblock payload, and preserved defragmentation
 free-space accounting after deleting a transient option row with secure-delete
@@ -1241,7 +1241,7 @@ micro-slice.
 
 Dependency closure: no new support component is needed. This reuses the
 lane-local B-tree page header parser, table leaf deletion/freeblock chain
-helpers, and existing WordPress page-freeblock smoke path.
+helpers, and existing Application page-freeblock smoke path.
 
 ## Interior Left-Child Pointer Rebalance Diagnostic Slice
 
@@ -1251,15 +1251,15 @@ diagnostic slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -l lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed; the
-WordPress smoke reported interior divider actions with `before_left_children`
+Application smoke reported interior divider actions with `before_left_children`
 and `after_left_children` on the root and surviving lower parent during the
 multi-child composite-index parent merge, alongside the accepted right-most
 pointer update and freed pages `[7,8]`; manifest/status JSON decoded
@@ -1273,15 +1273,15 @@ Focused lane verification for the partial IN-list planner subset slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteIndexPredicate.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-by-name-list.php
+php -l lanes/libsqlite/examples/application-options-by-name-list.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-options-by-name-list.php /tmp/libsqlite-options-*.sqlite home,siteurl
+php lanes/libsqlite/examples/application-options-by-name-list.php /tmp/libsqlite-options-*.sqlite home,siteurl
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
-selected file, 2459 assertions, and 0 failures. The WordPress smoke was run
+selected file, 2459 assertions, and 0 failures. The Application smoke was run
 against a temporary native fixture and reported
 `wpOptionsOptionNameInListIndexRootPage: 3` for `home,siteurl`; manifest/status
 JSON decoded successfully; lane diff check passed. The root harness was not
@@ -1295,15 +1295,15 @@ diagnostic slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -l lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php lanes/libsqlite/examples/application-index-parent-merge-option-replacement-plan.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
-selected file, 2477 assertions, and 0 failures. The WordPress smoke reported
+selected file, 2477 assertions, and 0 failures. The Application smoke reported
 `before_free_space_bytes`, `after_free_space_bytes`, and
 `delta_free_space_bytes` on rebalance cell-delta actions plus
 `before_free_space_bytes` for freed pages during the composite-index parent
@@ -1319,15 +1319,15 @@ passed:
 php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
 php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php -l lanes/libsqlite/examples/application-delete-option-table-leaf-freeblock.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php lanes/libsqlite/examples/application-delete-option-table-leaf-freeblock.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
-selected file, 2589 assertions, and 0 failures. The WordPress smoke reported
+selected file, 2589 assertions, and 0 failures. The Application smoke reported
 bulk deletion of transient rowids `[2,3]`, remaining rowids `[1,4]`, one
 coalesced reusable freeblock, and zeroed secure-delete payload bytes.
 Manifest/status JSON decoded successfully; lane diff check passed. The root
@@ -1340,15 +1340,15 @@ passed:
 
 ```sh
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php -l lanes/libsqlite/examples/application-delete-option-index-leaf-freeblock.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php lanes/libsqlite/examples/application-delete-option-index-leaf-freeblock.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
-selected file, 2723 assertions, and 0 failures. The WordPress smoke reported
+selected file, 2723 assertions, and 0 failures. The Application smoke reported
 bulk deletion of transient option_name index records, remaining records
 `siteurl` and `home`, one coalesced reusable freeblock for adjacent deleted
 cells, and zeroed secure-delete payload bytes. Focused tests also cover
@@ -1364,15 +1364,15 @@ passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreePageHeader.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-page-freeblocks.php
+php -l lanes/libsqlite/examples/application-page-freeblocks.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-page-freeblocks.php /tmp/libsqlite-freeblock-integrity.sqlite 2
+php lanes/libsqlite/examples/application-page-freeblocks.php /tmp/libsqlite-freeblock-integrity.sqlite 2
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
-selected file, 2787 assertions, and 0 failures. The WordPress page-freeblock
+selected file, 2787 assertions, and 0 failures. The Application page-freeblock
 smoke reported `freeblockIntegrity.status: ok`, one reusable freeblock, and a
 defragmentation preview that clears the freeblock head while preserving
 free-space accounting. Manifest/status JSON decoded successfully; lane diff
@@ -1388,15 +1388,15 @@ passed:
 php -l lanes/libsqlite/src/SQLiteTextAggregate.php
 php -l lanes/libsqlite/src/SQLiteTextAggregateState.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-group-concat-option-summary.php
+php -l lanes/libsqlite/examples/application-group-concat-option-summary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-group-concat-option-summary.php
+php lanes/libsqlite/examples/application-group-concat-option-summary.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
-selected file, 2931 assertions, and 0 failures. The WordPress smoke reported
+selected file, 2931 assertions, and 0 failures. The Application smoke reported
 group_concat option-name summaries with DISTINCT, ORDER BY, FILTER-style
 autoload selection, NULL skipping, and rolling windows. Manifest/status JSON
 decoded successfully; lane diff check passed. The root harness was not run
@@ -1411,16 +1411,16 @@ passed:
 php -l lanes/libsqlite/src/SQLiteNumericAggregate.php
 php -l lanes/libsqlite/src/SQLiteNumericAggregateState.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-numeric-aggregate-option-summary.php
+php -l lanes/libsqlite/examples/application-numeric-aggregate-option-summary.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-numeric-aggregate-option-summary.php
+php lanes/libsqlite/examples/application-numeric-aggregate-option-summary.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 2974 assertions, and 0 failures, adding 43 focused assertions
-over the prior accepted text-aggregate slice. The WordPress smoke reported
+over the prior accepted text-aggregate slice. The Application smoke reported
 copied `wp_options` value-size summaries with count(*), count(X),
 count(DISTINCT X), sum, total, avg, min, max, FILTER-style autoload selection,
 NULL skipping, and rolling totals. Manifest/status JSON decoded successfully;
@@ -1435,10 +1435,10 @@ slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
-php -l lanes/libsqlite/examples/wordpress-sqlite-capability-preflight.php
+php -l lanes/libsqlite/examples/application-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/application-sqlite-capability-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-sqlite-capability-preflight.php
+php lanes/libsqlite/examples/application-sqlite-capability-preflight.php
 php -r "json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
 git diff --check -- lanes/libsqlite
 ```
@@ -1447,7 +1447,7 @@ Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3026 assertions, and 0 failures, adding 19 focused assertions
 for `sqlite_version()`,
 `sqlite_source_id()`, `sqlite_compileoption_get()`, and
-`sqlite_compileoption_used()`. The WordPress smoke reported SQLite version,
+`sqlite_compileoption_used()`. The Application smoke reported SQLite version,
 source-id, compile-option preview, and capability gates for FTS, RTree, math,
 JSON omission, threadsafe, and default page-size metadata. Status JSON decoded
 successfully; lane diff check passed. The root harness was not run because this
@@ -1462,16 +1462,16 @@ slice passed:
 php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
 php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php -l lanes/libsqlite/examples/application-delete-overflow-option-release-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php lanes/libsqlite/examples/application-delete-overflow-option-release-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3061 assertions, and 0 failures, adding 20 focused assertions.
-The WordPress smoke reported obsolete table/index overflow page chains plus
+The Application smoke reported obsolete table/index overflow page chains plus
 coalesced secure-delete freeblocks for deleting a large transient option and
 its option_name index entry. Manifest/status JSON decoded successfully; lane
 diff check passed. The root harness was not run because this was an isolated
@@ -1485,16 +1485,16 @@ passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -l lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php lanes/libsqlite/examples/application-savepoint-option-import-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3097 assertions, and 0 failures, adding 17 focused assertions.
-The WordPress savepoint smoke now reports full transaction rollback page
+The Application savepoint smoke now reports full transaction rollback page
 numbers, frame names, released savepoint count, and inactive transaction state
 after rollback. Manifest/status JSON decoded successfully; lane diff check
 passed. The root harness was not run because this was an isolated micro-slice.
@@ -1506,16 +1506,16 @@ Focused lane verification for the dependency-suite PRAGMA metadata slice:
 php -l lanes/libsqlite/src/SQLiteHeader.php
 php -l lanes/libsqlite/src/SQLitePragmaSnapshot.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-pragma-preflight.php
+php -l lanes/libsqlite/examples/application-pragma-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-pragma-preflight.php /tmp/libsqlite-pragma-preflight.sqlite
+php lanes/libsqlite/examples/application-pragma-preflight.php /tmp/libsqlite-pragma-preflight.sqlite
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3227 assertions, and 0 failures, adding 21 focused assertions
-for header-backed PRAGMA metadata snapshots. The WordPress smoke reports
+for header-backed PRAGMA metadata snapshots. The Application smoke reports
 page_size, page_count, freelist_count, encoding, journal_mode, auto_vacuum,
 application_id, user_version, schema_version, and data_version for copied
 database compatibility checks. The root harness was not run because this was an
@@ -1532,16 +1532,16 @@ release slice passed:
 ```sh
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php -l lanes/libsqlite/examples/application-delete-overflow-option-release-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php lanes/libsqlite/examples/application-delete-overflow-option-release-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3228 assertions, and 0 failures, adding 22 focused assertions
-over the prior accepted B-tree overflow release count of 3206. The WordPress
+over the prior accepted B-tree overflow release count of 3206. The Application
 smoke reports obsolete table/index overflow chains by walking actual next-page
 pointers before deletion release planning. Manifest/status JSON decoded
 successfully; lane diff check passed. The root harness was not run because this
@@ -1554,16 +1554,16 @@ Focused lane verification for the dependency-suite busy-handler slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBusyHandler.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-busy-open-preflight.php
+php -l lanes/libsqlite/examples/application-busy-open-preflight.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-busy-open-preflight.php
+php lanes/libsqlite/examples/application-busy-open-preflight.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3420 assertions, and 0 failures, adding 57 focused assertions
-over the prior accepted focused count of 3363. The WordPress smoke reported a
+over the prior accepted focused count of 3363. The Application smoke reported a
 copied database URI, busy-timeout retry sleeps, busy-timeout status, and
 callback-cancelled checkpoint status. Manifest/status JSON decoded
 successfully; lane diff check passed. The root harness was not run because this
@@ -1581,15 +1581,15 @@ Focused lane verification for the dependency-suite open-admission slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteOpenPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-open-plan-preflight.php
+php -l lanes/libsqlite/examples/application-open-plan-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["plans sqlite file open admission without ext sqlite dependency"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-open-plan-preflight.php
+php lanes/libsqlite/examples/application-open-plan-preflight.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` selected test
-passed with 50 assertions and 0 failures. The WordPress smoke reported copied
+passed with 50 assertions and 0 failures. The Application smoke reported copied
 database open admission for shared-cache rw opens blocked by a busy lock,
 immutable read-only VFS opens, and rwc create admission. Manifest/status JSON
 decoded successfully; lane diff check passed. The root harness was not run
@@ -1607,15 +1607,15 @@ Focused lane verification for the dependency-suite file-header loader slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteFileHeaderLoader.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-file-header-loader-preflight.php
+php -l lanes/libsqlite/examples/application-file-header-loader-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["loads bounded sqlite file headers after open admission"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-file-header-loader-preflight.php
+php lanes/libsqlite/examples/application-file-header-loader-preflight.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` selected test
-passed with 60 assertions and 0 failures. The WordPress smoke reported a copied
+passed with 60 assertions and 0 failures. The Application smoke reported a copied
 database header read of 100 bytes, page size 512, declared database size 2
 pages, complete first/declared-page checks, immutable read-only VFS admission,
 and dependency tags without requiring ext/sqlite. Manifest/status JSON decoded
@@ -1634,15 +1634,15 @@ Focused lane verification for the dependency-suite page-cache slice:
 ```sh
 php -l lanes/libsqlite/src/SQLitePageCache.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-page-cache-preflight.php
+php -l lanes/libsqlite/examples/application-page-cache-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["loads sqlite pages through a bounded page cache after open admission"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-page-cache-preflight.php
+php lanes/libsqlite/examples/application-page-cache-preflight.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` selected test
-passed with 48 assertions and 0 failures. The WordPress smoke reported copied
+passed with 48 assertions and 0 failures. The Application smoke reported copied
 `wp_options` root/index page previews loaded through a bounded page-size-aligned
 cache, declared page-count completeness, immutable read-only VFS propagation,
 cache count diagnostics, and dependency tags without requiring ext/sqlite.
@@ -1663,16 +1663,16 @@ slice:
 php -l lanes/libsqlite/src/SQLiteDatabase.php
 php -l lanes/libsqlite/src/SQLiteFreelistTruncatePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-incremental-vacuum-tail-truncation.php
+php -l lanes/libsqlite/examples/application-incremental-vacuum-tail-truncation.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-incremental-vacuum-tail-truncation.php
+php lanes/libsqlite/examples/application-incremental-vacuum-tail-truncation.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 3514 assertions, and 0 failures, adding 25 focused assertions
-over the pre-slice 3489 focused assertion count. The WordPress smoke reported
+over the pre-slice 3489 focused assertion count. The Application smoke reported
 contiguous free tail pages `[10,9,8]` truncated to page count 7, first freelist
 trunk rewritten from page 8 to page 5, freelist count reduced to 2, and lower
 reusable page 4 preserved for future allocation. Manifest/status JSON decoded
@@ -1692,9 +1692,9 @@ slice:
 php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
 php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php -l lanes/libsqlite/examples/application-delete-option-table-leaf-freeblock.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php lanes/libsqlite/examples/application-delete-option-table-leaf-freeblock.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1703,7 +1703,7 @@ Result: the isolated worker focused run passed at 3579 assertions. Replayed on
 current accepted source `d8d76c9764c6d9119a7515be3d48ed045c945a3f`, focused
 `SQLiteHeaderTest.php` passed with 1 selected file, 3603 assertions, and 0
 failures, adding 39 focused assertions over the prior accepted focused count of
-3564 for this file. The WordPress smoke now reports bulk transient deletion
+3564 for this file. The Application smoke now reports bulk transient deletion
 followed by reusing the coalesced table-leaf freeblock for a refreshed
 transient row. Manifest/status JSON decoded successfully; lane diff check
 passed. The root harness was not run by the isolated worker because this was a
@@ -1711,7 +1711,7 @@ micro-slice; clean integration reruns the serialized root harness.
 
 Dependency closure: no new shared support component is needed; this reuses
 lane-local B-tree headers, table/index leaf cell encoders, record encoding,
-freeblock chain parsing, and WordPress freeblock diagnostics.
+freeblock chain parsing, and Application freeblock diagnostics.
 ## SQL SELECT CASE Projection Slice
 
 Focused lane verification for the SQL execution/planner SELECT CASE projection
@@ -1720,15 +1720,15 @@ slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectProjection.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-case-preview.php
+php -l lanes/libsqlite/examples/application-select-case-preview.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["projects select result rows through case expressions"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-select-case-preview.php
+php lanes/libsqlite/examples/application-select-case-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php`
-CASE test passed with 40 assertions and 0 failures. The WordPress smoke
+CASE test passed with 40 assertions and 0 failures. The Application smoke
 reported copied `wp_options` rows projected through simple and searched CASE
 expressions before final result ordering. Manifest/status JSON decoded
 successfully; lane diff check passed. The root harness was not run because this
@@ -1745,15 +1745,15 @@ Focused lane verification for the dependency/open lock-coordination slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteLockCoordinator.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php -l lanes/libsqlite/examples/application-lock-coordination-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["coordinates sqlite file locks for open admission without a vfs dependency"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php lanes/libsqlite/examples/application-lock-coordination-preflight.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php`
-lock-coordination test passed with 53 assertions and 0 failures. The WordPress
+lock-coordination test passed with 53 assertions and 0 failures. The Application
 smoke reported copied database read/write open plans through shared, reserved,
 pending, and exclusive lock states, including busy-handler waits and exclusive
 readiness after reader drain. Manifest/status JSON decoded successfully; lane
@@ -1773,16 +1773,16 @@ slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeLeafRedistributionPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-index-redistribute-delete-rebalance.php
+php -l lanes/libsqlite/examples/application-index-redistribute-delete-rebalance.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-index-redistribute-delete-rebalance.php
+php lanes/libsqlite/examples/application-index-redistribute-delete-rebalance.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
 selected file, 4909 assertions, and 0 failures on current accepted
-`c5a54adc`. The WordPress smoke reported a
+`c5a54adc`. The Application smoke reported a
 copied `wp_options` autoload-index delete/rebalance preview that redistributes
 cells from a fuller right sibling into an underfilled left sibling, updates the
 parent divider record, preserves both sibling pages, and makes no freelist
@@ -1791,7 +1791,7 @@ root harness was not run because this was an isolated micro-slice.
 
 Dependency closure: no new shared support component is needed. This reuses the
 lane-local B-tree page header parser, table/index leaf page assemblers, table
-and index cell encoders, record encoding, and existing WordPress B-tree
+and index cell encoders, record encoding, and existing Application B-tree
 diagnostic smoke pattern.
 
 ## WAL Durable Checkpoint Sidecar Write Slice
@@ -1801,16 +1801,16 @@ Focused lane verification for the WAL durable checkpoint sidecar write slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["materializes sqlite wal durable checkpoint sidecar writes"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` WAL
 durable checkpoint write test passed with 58 assertions and 0 failures. The
-WordPress WAL smoke reported copied `wp_options` checkpoint output with
+Application WAL smoke reported copied `wp_options` checkpoint output with
 preserved WAL bytes, restarted WAL headers with regenerated checksums, and
 truncated sidecar bytes for complete TRUNCATE checkpoints. Manifest/status JSON
 decoded successfully; lane diff check passed. The root harness was not run
@@ -1818,7 +1818,7 @@ because this was an isolated micro-slice.
 
 Dependency closure: no new support component is needed. This reuses the
 lane-local WAL parser, checkpoint mode result planner, checksum implementation,
-and copied WordPress WAL diagnostic smoke; a future VFS/file writer can consume
+and copied Application WAL diagnostic smoke; a future VFS/file writer can consume
 the returned database and WAL sidecar bytes.
 
 ## WAL Checkpoint VFS File-Write Coordination Slice
@@ -1828,16 +1828,16 @@ Focused lane verification for the WAL checkpoint file-write coordination slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalFileWritePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["plans sqlite wal durable checkpoint vfs file writes"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` WAL
 file-write coordination test passed with 68 assertions and 0 failures. The
-WordPress WAL smoke reported copied `wp_options` checkpoint output with ordered
+Application WAL smoke reported copied `wp_options` checkpoint output with ordered
 database writes, database sync, WAL preserve/restart/truncate operations, WAL
 sync, and directory sync. Manifest/status JSON decoded successfully; lane diff
 check passed. The root harness was not run because this was an isolated
@@ -1845,7 +1845,7 @@ micro-slice.
 
 Dependency closure: no new shared support component is needed for this bounded
 slice. It reuses lane-local WAL parsing, checkpoint mode results, durable
-sidecar byte materialization, and copied WordPress WAL diagnostics; a future
+sidecar byte materialization, and copied Application WAL diagnostics; a future
 native VFS writer can consume the operation list to execute file writes.
 
 ## Dependency/Open Hot Rollback-Journal VFS Apply Slice
@@ -1855,16 +1855,16 @@ apply slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
-php -l lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php
+php -l lanes/libsqlite/examples/application-vfs-rollback-journal-apply.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs hot rollback journal recovery to local handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php
+php lanes/libsqlite/examples/application-vfs-rollback-journal-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` VFS
 rollback-journal apply test passed with 65 assertions and 0 failures. The
-WordPress smoke reported copied `wp_options` hot rollback-journal recovery
+Application smoke reported copied `wp_options` hot rollback-journal recovery
 applied through native file handles with 1024 recovered database bytes, one
 journal sidecar deletion, one durable database sync, one directory sync, clean
 option page restoration, and dirty page removal. Manifest/status JSON decoded
@@ -1883,15 +1883,15 @@ Focused lane verification for the dependency/open locked VFS writer slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsLockedFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-locked-writer-apply.php
+php -l lanes/libsqlite/examples/application-vfs-locked-writer-apply.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs writes only under exclusive process locks"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-vfs-locked-writer-apply.php
+php lanes/libsqlite/examples/application-vfs-locked-writer-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` VFS
-locked-writer test passed with 57 assertions and 0 failures. The WordPress
+locked-writer test passed with 57 assertions and 0 failures. The Application
 smoke reported copied `wp_options` writes blocked while a shared reader held
 the database, then applied after exclusive lock acquisition with file write,
 truncate, durable sync, directory sync, and lock release diagnostics.
@@ -1908,16 +1908,16 @@ Focused lane verification for the WAL savepoint VFS rollback apply slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-savepoint-rollback-apply.php
+php -l lanes/libsqlite/examples/application-vfs-savepoint-rollback-apply.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs savepoint rollback images and wal truncation to local handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-vfs-savepoint-rollback-apply.php
+php lanes/libsqlite/examples/application-vfs-savepoint-rollback-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` VFS
 savepoint rollback apply test passed with 71 assertions and 0 failures. The
-WordPress smoke reported copied `wp_options` failed plugin-setting imports
+Application smoke reported copied `wp_options` failed plugin-setting imports
 applied through native file handles with restored savepoint page images,
 discarded WAL frame truncation, database/WAL durable syncs, and directory
 sync diagnostics. The root harness was not run because this was an isolated
@@ -1936,10 +1936,10 @@ slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileHandle.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-file-handle-primitive.php
+php -l lanes/libsqlite/examples/application-vfs-file-handle-primitive.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs file handle primitives for pager reads and writes"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
 TMPDIR=$PWD/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-file-handle-primitive.php
+php lanes/libsqlite/examples/application-vfs-file-handle-primitive.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1947,7 +1947,7 @@ git diff --check -- lanes/libsqlite
 Result: syntax checks passed; the selected focused
 `SQLiteHeaderTest.php` VFS file-handle primitive test passed with 80 assertions
 and 0 failures. The full focused libsqlite test file passed with
-`1 test files, 8274 assertions, 0 failures`. The WordPress smoke reported
+`1 test files, 8274 assertions, 0 failures`. The Application smoke reported
 copied `wp_options` database page reads and WAL sidecar writes through bounded
 native PHP xRead/xWrite/xTruncate/xFileSize-style primitives, including
 short-read zero-fill diagnostics and read-only write blocking.
@@ -1965,15 +1965,15 @@ slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteOverflowFreelistReleasePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-overflow-freelist-release.php
+php -l lanes/libsqlite/examples/application-overflow-freelist-release.php
 TMPDIR=$PWD/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-TMPDIR=$PWD/.tmp-root php lanes/libsqlite/examples/wordpress-overflow-freelist-release.php
+TMPDIR=$PWD/.tmp-root php lanes/libsqlite/examples/application-overflow-freelist-release.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with
-7276 assertions and 0 failures. The WordPress smoke reported copied
+7276 assertions and 0 failures. The Application smoke reported copied
 `wp_options` table and option_name index overflow chains released into freelist
 pages `[7, 8, 21, 22]`, pointer-map entries rewritten to `free-page`, and next
 freelist allocation order `[8, 22, 21, 7]`. Root verification is required by
@@ -1986,16 +1986,16 @@ Focused lane verification for the B-tree empty-leaf freelist release slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeEmptyLeafFreePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-btree-empty-leaf-free.php
+php -l lanes/libsqlite/examples/application-btree-empty-leaf-free.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-btree-empty-leaf-free.php
+php lanes/libsqlite/examples/application-btree-empty-leaf-free.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with
 7881 assertions and 0 failures, adding 50 focused assertions over the accepted
-7831-assertion B-tree root-collapse baseline. The WordPress smoke reported a
+7831-assertion B-tree root-collapse baseline. The Application smoke reported a
 copied `wp_options` transient delete where the final non-root leaf cell is
 removed, the empty leaf and obsolete overflow pages are released into the
 freelist, released leaf pages are secure-deleted, and auto-vacuum pointer-map
@@ -2016,16 +2016,16 @@ Focused lane verification for the B-tree empty-leaf batch free slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeEmptyLeafBatchFreePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-btree-empty-leaf-batch-free.php
+php -l lanes/libsqlite/examples/application-btree-empty-leaf-batch-free.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-btree-empty-leaf-batch-free.php
+php lanes/libsqlite/examples/application-btree-empty-leaf-batch-free.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with
 8136 assertions and 0 failures, adding 60 focused assertions over the
-8076-assertion lane-status baseline. The WordPress smoke reported copied
+8076-assertion lane-status baseline. The Application smoke reported copied
 `wp_options` transient cleanup where the final table leaf and option_name index
 leaf are released together with obsolete overflow pages into one freelist
 operation, secure-delete clears released leaf/overflow pages, and auto-vacuum
@@ -2046,16 +2046,16 @@ Focused lane verification for the dependency/open VFS file-control state slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileControlState.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-file-control-state.php
+php -l lanes/libsqlite/examples/application-vfs-file-control-state.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs file-control state for open handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-file-control-state.php
+php lanes/libsqlite/examples/application-vfs-file-control-state.php
 ```
 
 Result: syntax checks passed; the selected VFS file-control state test passed
 with 68 assertions and 0 failures; full focused `SQLiteHeaderTest.php` passed
 with 8472 assertions and 0 failures, adding 68 focused assertions over the
-8404-assertion pre-slice worktree count. The WordPress smoke reported copied
+8404-assertion pre-slice worktree count. The Application smoke reported copied
 `wp_options` import file-control state applying persist-WAL, chunk-size,
 mmap-size, name-hint, and size-hint controls while immutable archive mmap
 requests are ignored with `mmap_requires_lockable_mutable_file`.
@@ -2073,15 +2073,15 @@ Focused lane verification for the WAL corrupt-checksum recovery-boundary slice:
 ```bash
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -l lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["finds sqlite wal checksum recovery boundary before corrupt tail frames","bounds sqlite wal recovery at header salt and truncated frame corruption"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/application-wal-option-frame-diagnostics.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane json ok\n";'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` WAL
-checks passed with 61 assertions and 0 failures; the WordPress WAL diagnostic
+checks passed with 61 assertions and 0 failures; the Application WAL diagnostic
 smoke emitted `corruptWalRecoveryBoundary.status = recovered_prefix`,
 `reason = frame_checksum_mismatch`, and `containsCorruptDraftSiteUrl = false`.
 Root harness status: not run - isolated micro-slice.
@@ -2094,7 +2094,7 @@ can trust a valid committed WAL prefix and ignore the corrupt tail.
 
 Dependency closure: no new shared support component is needed; the slice reuses
 lane-local WAL header/frame parsing, checksum validation, checkpoint image
-materialization, and copied WordPress WAL diagnostics.
+materialization, and copied Application WAL diagnostics.
 
 ## VFS Open File-Control Apply Slice
 
@@ -2104,10 +2104,10 @@ application slice:
 ```bash
 php -l lanes/libsqlite/src/SQLiteVfsOpenFileControl.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-open-file-control-apply.php
+php -l lanes/libsqlite/examples/application-vfs-open-file-control-apply.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs open file-control size hints to file handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-open-file-control-apply.php
+php lanes/libsqlite/examples/application-vfs-open-file-control-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane json ok\n";'
 git diff --check -- lanes/libsqlite
 ```
@@ -2116,7 +2116,7 @@ Result: syntax checks passed; the selected VFS open file-control application
 test passed with 73 assertions and 0 failures. Full focused
 `SQLiteHeaderTest.php` passed with 8934 assertions and 0 failures in the
 worker handoff, adding 73 focused assertions over the 8861-assertion
-pre-slice worktree count. The WordPress smoke reported copied `wp_options`
+pre-slice worktree count. The Application smoke reported copied `wp_options`
 database handles applying SQLite xFileControl size hints through native PHP
 file handles, including chunk-size rounded preallocation plus persist-WAL,
 mmap-size, and name-hint state without requiring ext/sqlite.
@@ -2136,16 +2136,16 @@ Focused lane verification for the update-from conflict-current slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateFromSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-update-from-conflict-current.php
+php -l lanes/libsqlite/examples/application-update-from-conflict-current.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-update-from-conflict-current.php
+php lanes/libsqlite/examples/application-update-from-conflict-current.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane json ok\n";'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; full focused `SQLiteHeaderTest.php` passed with
 9701 assertions and 0 failures, adding 41 focused assertions over the
-9660-assertion base run. The WordPress smoke reported copied `wp_options`
+9660-assertion base run. The Application smoke reported copied `wp_options`
 staging rows using SQLite current UPDATE FROM duplicate-source last-match
 behavior and `UPDATE OR REPLACE` current UNIQUE `option_name` conflict deletion
 without requiring ext/sqlite. Supervisor integration also verified those core
@@ -2159,7 +2159,7 @@ storage VFS/B-tree/WAL clusters. It adds parser-level UPDATE FROM row-array
 execution and current conflict behavior for copied staging rows.
 
 Dependency closure: no new shared support component is needed; the slice reuses
-lane-local SELECT SQL execution and copied WordPress option fixtures.
+lane-local SELECT SQL execution and copied Application option fixtures.
 
 ## Temp-store Sorter B-tree Slice
 
@@ -2167,14 +2167,14 @@ Focused lane verification for the temp-store sorter B-tree slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteTempStoreSorterBTreePlan.php
-php -l lanes/libsqlite/examples/wordpress-temp-store-sorter-btree.php
+php -l lanes/libsqlite/examples/application-temp-store-sorter-btree.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-temp-store-sorter-btree.php
+php lanes/libsqlite/examples/application-temp-store-sorter-btree.php
 git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks passed; full focused `SQLiteHeaderTest.php` passed with
-8971 assertions and 0 failures in the worker handoff. The WordPress smoke
+8971 assertions and 0 failures in the worker handoff. The Application smoke
 reported copied `wp_options` rows sorted through a bounded SQLite temp-store
 spill plan with NOCASE option-name keys, DESC autoload tie-breaks, stable
 input-sequence tie-breaking, memory-threshold admission, and generated

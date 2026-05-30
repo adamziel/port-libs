@@ -20,8 +20,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-compound-recursive-limit-current-source-next117.php --self-test
-wordpress-compound-recursive-limit-current-source-next117 self-test passed
+$ php lanes/libsqlite/examples/application-compound-recursive-limit-current-source-next117.php --self-test
+application-compound-recursive-limit-current-source-next117 self-test passed
 ```
 
 ## Non-Overlap
@@ -30,7 +30,7 @@ This avoids the accepted batch109-113 compound SELECT expression ORDER/LIMIT
 cluster. That work covered exact-expression ORDER BY and final LIMIT behavior;
 this slice covers the distinct SQLite rule that compound arms match by ordinal
 and preserve the left-most output names, including recursive CTE queue
-LIMIT/OFFSET rows compounded with current WordPress source rows.
+LIMIT/OFFSET rows compounded with current Application source rows.
 
 ## Dependency Closure
 

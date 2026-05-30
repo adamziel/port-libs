@@ -104,7 +104,7 @@ $cases = [
     'dependency next183' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next183', $plan()['dependencies'], true), true],
     'dependency next184' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next184', $plan()['dependencies'], true), true],
     'dependency next187' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next187', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-wal-import-retry-reader-token-fence', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-wal-import-retry-reader-token-fence', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat atomic file-map apply'), true],
     'post token blocks status' => [static fn (): mixed => $plan(null, null, $withPostToken)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next187'],

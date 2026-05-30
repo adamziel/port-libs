@@ -8,7 +8,7 @@ its cached page digest, checkpoint frame, cache generation, schema cookie, WAL s
 hot-journal generation, or savepoint generation no longer matches the published
 checkpoint source.
 
-WordPress path: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next205.php`
+Application path: `application-wal-hot-journal-savepoint-checkpoint-current-source-next205.php`
 models copied `wp_options` import readers after hot rollback-journal recovery.
 Current schema/options readers are reused, while a stale option-page cache and a
 stale-token autoload-index reader reopen before plugin import retry code reuses
@@ -19,9 +19,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next205.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next205.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next205.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next205.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

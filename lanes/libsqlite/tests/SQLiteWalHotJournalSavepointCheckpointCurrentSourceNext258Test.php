@@ -109,7 +109,7 @@ $cases = [
     'operation admit' => [static fn (): mixed => in_array('admit_post_restart_writer_current_source_next258', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next255', $plan()['dependencies'], true), true],
     'dependency next258' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next258', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-wal-post-restart-writer-admission', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-wal-post-restart-writer-admission', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next255 reader reopen admission'), true],
     'first row accepted' => [static fn (): mixed => $plan()['writer_rows'][0]['accepted'], true],

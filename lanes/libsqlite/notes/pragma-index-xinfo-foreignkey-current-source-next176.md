@@ -23,16 +23,16 @@ Focused evidence:
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next176.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next176.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next176.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next176.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 75 assertions, 0 failures`
   - `67` PASS lines
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next176.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next176 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next176.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next176 self-test passed`
 
 Non-overlap:
 

@@ -29,10 +29,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 75 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-attach-temp-main-wal-collation-cache-current-next55.php
+php lanes/libsqlite/examples/application-attach-temp-main-wal-collation-cache-current-next55.php
 ```
 
 Expected output includes `changed_schemas: ["main"]`,

@@ -12,9 +12,9 @@ Validation:
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCachePlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheRolloutWindowTest.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheReviewWindowTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-review-window.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-review-window.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheRolloutWindowTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheReviewWindowTest.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-review-window.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-review-window.php --self-test
 git diff --check
 ```
 

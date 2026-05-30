@@ -19,9 +19,9 @@ The focused assertions exercise parameters in projection expressions, predicates
 
 - `php -l lanes/libsqlite/src/SQLiteSelectSql.php`
 - `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-select-sql-bind-parameters.php`
+- `php -l lanes/libsqlite/examples/application-select-sql-bind-parameters.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
-- `php lanes/libsqlite/examples/wordpress-select-sql-bind-parameters.php`
+- `php lanes/libsqlite/examples/application-select-sql-bind-parameters.php`
 - `git diff --check -- lanes/libsqlite`
 
 Focused `SQLiteHeaderTest.php` moved from the current lane-status baseline of 9476 assertions to 9516 assertions.
@@ -32,4 +32,4 @@ This does not repeat accepted SELECT SQL text dispatch, JOIN text, subqueries, G
 
 ## Dependency Closure
 
-No new support component is needed. The binder reuses existing lane-local SQL literal parsing, `SQLiteBlobValue`, SELECT expression evaluation, JSON table execution, and WordPress copied-row fixtures.
+No new support component is needed. The binder reuses existing lane-local SQL literal parsing, `SQLiteBlobValue`, SELECT expression evaluation, JSON table execution, and Application copied-row fixtures.

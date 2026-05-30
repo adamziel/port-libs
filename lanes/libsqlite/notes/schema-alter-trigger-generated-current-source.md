@@ -10,7 +10,7 @@ Maintains `SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan`, a focused cu
 - prepared statement invalidation from stale schema cookies;
 - optional table rename after the generated-column add.
 
-WordPress smoke: `examples/wordpress-schema-alter-trigger-generated-current-source.php` covers a copied `wp_options` migration adding `option_value_len` and reparsing a trigger that references `new.option_value_len`.
+Application smoke: `examples/application-schema-alter-trigger-generated-current-source.php` covers a copied `wp_options` migration adding `option_value_len` and reparsing a trigger that references `new.option_value_len`.
 
 ## Verification
 
@@ -33,8 +33,8 @@ Additional checks:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteSchemaAlterTriggerGeneratedCurrentSourceTest.php
-php -l lanes/libsqlite/examples/wordpress-schema-alter-trigger-generated-current-source.php
-php lanes/libsqlite/examples/wordpress-schema-alter-trigger-generated-current-source.php --self-test
+php -l lanes/libsqlite/examples/application-schema-alter-trigger-generated-current-source.php
+php lanes/libsqlite/examples/application-schema-alter-trigger-generated-current-source.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

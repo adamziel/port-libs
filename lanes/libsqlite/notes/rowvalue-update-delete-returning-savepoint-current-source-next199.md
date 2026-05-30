@@ -26,11 +26,11 @@ Focused test run: 2 selected test files (root lock skipped)
 2 test files, 121 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-rowvalue-order-expression-savepoint-current-source-next199.php --self-test
-wordpress-rowvalue-order-expression-savepoint-current-source-next199 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-order-expression-savepoint-current-source-next199.php --self-test
+application-rowvalue-order-expression-savepoint-current-source-next199 self-test passed
 ```
 
 Non-overlap: avoids accepted and queued rowvalue194 parenthesized predicates,

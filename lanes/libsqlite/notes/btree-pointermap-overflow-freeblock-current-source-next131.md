@@ -13,10 +13,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePointerMapOverflowFreeb
 
 Result: `1 test files, 368 assertions, 0 failures` with `80` PASS lines.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-pointermap-overflow-freeblock-current-source-next131.php
+php lanes/libsqlite/examples/application-btree-pointermap-overflow-freeblock-current-source-next131.php
 ```
 
 Result: copied `wp_options`-style transient replacement reports freeblock

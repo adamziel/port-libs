@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for UTF-16 NOCASE/RTRIM LIKE scans whose pattern has no fixed prefix.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next203.php` models copied `wp_options.option_name` scans such as `rtrim(option_name) COLLATE NOCASE LIKE '%cache'`. Because the LIKE prefix is empty, the source transition cannot reuse a prefix range cursor; it must decode all valid UTF-8/UTF-16 rows, isolate malformed rows, apply RTRIM before the residual LIKE check, and invalidate when the matched full-scan rowset changes.
+Application path: `application-utf16-nocase-like-rtrim-current-source-next203.php` models copied `wp_options.option_name` scans such as `rtrim(option_name) COLLATE NOCASE LIKE '%cache'`. Because the LIKE prefix is empty, the source transition cannot reuse a prefix range cursor; it must decode all valid UTF-8/UTF-16 rows, isolate malformed rows, apply RTRIM before the residual LIKE check, and invalidate when the matched full-scan rowset changes.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next203.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next203.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next203.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next203.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +73`, from `97068` to `97141`. Mapped upstream coverage is unchanged at `619 / 1589`; this reuses existing encoding/collation/LIKE inventory rather than adding a fresh upstream manifest row.

@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `btree-vacuum-pointermap-freeblock-curre
 
 This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext234Plan`. It composes the accepted next231 handoff rows and adds the current-source freeblock cursor admission boundary: pointer-map handoff pages must be visible before the table leaf freeblock source cursor opens, the leaf freeblock receipt must be carried into that cursor, overflow payload pages depend on that cursor, and vacuum-truncated tail pages remain fenced out of reuse.
 
-WordPress smoke: `wordpress-btree-vacuum-pointermap-freeblock-current-source-next234.php` models copied `wp_options` transient cleanup where an overflow-backed transient delete leaves a reusable leaf freeblock, but the next writer must not reuse overflow payload source pages until pointer-map rows and the freeblock cursor are current-source visible.
+Application smoke: `application-btree-vacuum-pointermap-freeblock-current-source-next234.php` models copied `wp_options` transient cleanup where an overflow-backed transient delete leaves a reusable leaf freeblock, but the next writer must not reuse overflow payload source pages until pointer-map rows and the freeblock cursor are current-source visible.
 
 Focused verification:
 
@@ -15,10 +15,10 @@ Focused verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext234Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext234Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext234Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next234.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next234.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next234.php`
-  - `wordpress-btree-vacuum-pointermap-freeblock-current-source-next234 self-test passed`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next234.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next234.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next234.php`
+  - `application-btree-vacuum-pointermap-freeblock-current-source-next234 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - passed with no output.
 

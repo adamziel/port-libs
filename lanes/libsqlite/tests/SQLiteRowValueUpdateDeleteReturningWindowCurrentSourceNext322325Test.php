@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined next322-325 current-source preflight seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next322-325.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-current-source-next322-325.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next322-325', $result['status']);
         $t->same([

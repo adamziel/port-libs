@@ -28,7 +28,7 @@ PHP lint:
 ```text
 php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext220Test.php
-php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next220.php
+php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next220.php
 ```
 
 ## Non-Overlap

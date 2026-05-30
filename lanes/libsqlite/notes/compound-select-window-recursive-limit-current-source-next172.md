@@ -1,6 +1,6 @@
 # compound-select-window-recursive-limit-current-source-next172
 
-Status: focused PHP behavior growth for parser-level compound SELECT execution where a recursive CTE queue LIMIT is exhausted before per-arm `lead()` / `cume_dist()` window evaluation, then DISTINCT `UNION` and final `LIMIT/OFFSET` decide the copied WordPress current/next boundary.
+Status: focused PHP behavior growth for parser-level compound SELECT execution where a recursive CTE queue LIMIT is exhausted before per-arm `lead()` / `cume_dist()` window evaluation, then DISTINCT `UNION` and final `LIMIT/OFFSET` decide the copied Application current/next boundary.
 
 Behavior covered:
 - `WITH RECURSIVE` queue LIMIT exhausts before rows enter the compound arm.
@@ -16,13 +16,13 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiv
 
 Result: `1 test files / 256 assertions / 0 failures / 65 PASS lines`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next172.php --self-test
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next172.php --self-test
 ```
 
-Result: `wordpress-compound-select-window-recursive-limit-current-source-next172 self-test passed`.
+Result: `application-compound-select-window-recursive-limit-current-source-next172 self-test passed`.
 
 Expected dashboard movement: `phpPass +65` from the new focused test file. `benchmarkDenominator.mapped` remains unchanged; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory, not a newly hydrated upstream row.
 

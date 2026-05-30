@@ -72,7 +72,7 @@ $tests['vdbe aggregate filter still validates kept order column'] = static funct
     ));
 };
 
-$tests['vdbe aggregate filter current next walks ordered WordPress option rows'] = static function (TestRunner $t) use ($rows): void {
+$tests['vdbe aggregate filter current next walks ordered Application option rows'] = static function (TestRunner $t) use ($rows): void {
     $cursor = new SQLiteVdbeAggregateOrderCursor($rows, 'name', ['priority', 'name'], 'enabled', ['NUMERIC', 'TEXT'], ['BINARY', 'BINARY'], [true, false], ['LAST', null]);
 
     $t->same('active_plugins', $cursor->currentValue());

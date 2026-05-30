@@ -8,7 +8,7 @@ Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded curre
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext233Test.php`
 - Result: `1 test files, 69 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next233.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next233.php`
 - Result: self-test exits `0` with `stat4-expression-partial-current-source-next233-ready`
 
 ## Dependency Closure

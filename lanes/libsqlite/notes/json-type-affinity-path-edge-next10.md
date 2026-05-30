@@ -2,7 +2,7 @@
 
 - Behavior: parser-level `json_type()`, `json_array_length()`, `json_extract()`, and `jsonb_extract()` now apply SQLite-style text affinity to JSON path operands in SELECT expressions. BLOB paths such as `CAST('$.plugin.priority' AS BLOB)` resolve normally, scalar non-path operands are converted before malformed-path validation, and SQL NULL path operands return NULL.
 - Focused test delta: `+25` TestRunner PASS cases in `SQLiteJsonTypeAffinityPathEdgeTest.php`; focused output reported `1 test files, 26 assertions, 0 failures`.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-type-affinity-path-edge.php` reports copied `wp_options` diagnostics where JSON path values are stored with BLOB affinity and used by parser-level `json_type()` / `json_extract()` without requiring `ext/sqlite`.
+- Application smoke: `php lanes/libsqlite/examples/application-json-type-affinity-path-edge.php` reports copied `wp_options` diagnostics where JSON path values are stored with BLOB affinity and used by parser-level `json_type()` / `json_extract()` without requiring `ext/sqlite`.
 - Non-overlap: avoids accepted JSON table cursor/source/hidden/visible constraint clusters, accepted JSON host joins, accepted JSON negative-path execution, accepted SQL expression ORDER BY, accepted Unicode GLOB, accepted VFS/WAL/B-tree storage clusters, and the batch6/7 JSON aggregate window coverage.
 - Dependency closure: no new support component is needed; this reuses existing `SQLiteSelectExpression`, JSON inspection/extract helpers, and bounded SELECT SQL row-array execution.
 
@@ -15,8 +15,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteSelectExpression.php
 php -l lanes/libsqlite/tests/SQLiteJsonTypeAffinityPathEdgeTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonTypeAffinityPathEdgeTest.php
 
-php -l lanes/libsqlite/examples/wordpress-json-type-affinity-path-edge.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-json-type-affinity-path-edge.php
+php -l lanes/libsqlite/examples/application-json-type-affinity-path-edge.php
+No syntax errors detected in lanes/libsqlite/examples/application-json-type-affinity-path-edge.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTypeAffinityPathEdgeTest.php
 Focused test run: 1 selected test files (root lock skipped)
@@ -48,7 +48,7 @@ PASS rejects array-valued path operands without scalar affinity
 
 1 test files, 26 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-json-type-affinity-path-edge.php
+php lanes/libsqlite/examples/application-json-type-affinity-path-edge.php
 passed; emitted copied wp_options BLOB-path diagnostics for plugin_seo and plugin_forms.
 
 git diff --check -- lanes/libsqlite

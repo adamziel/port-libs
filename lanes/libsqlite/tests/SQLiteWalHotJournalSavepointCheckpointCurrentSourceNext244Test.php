@@ -152,7 +152,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('seal_durable_current_source_next244', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next240', $plan()['dependencies'], true), true],
     'dependency next244' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next244', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-savepoint-checkpoint-durable-seal', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-savepoint-checkpoint-durable-seal', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next240 commit baseline admission'), true],
     'durable source mismatch blocked' => [static fn (): mixed => $blockedDurable(['source_token' => 'stale-source'])['blocked_reasons'], ['source_token_mismatch']],

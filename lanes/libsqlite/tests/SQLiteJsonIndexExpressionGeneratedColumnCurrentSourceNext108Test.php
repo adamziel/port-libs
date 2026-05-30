@@ -236,7 +236,7 @@ $tests['json index expression generated column current source next108 rejects ma
     $t->throws(InvalidArgumentException::class, static fn () => $planFor([], null, [['name' => 'idx_bad', 'sql' => "CREATE INDEX idx_bad ON wp_options(json_extract(option_value, '$.plugin['))"]]));
 };
 
-$tests['json index expression generated column current source next108 wordpress payload image updated'] = static function (TestRunner $t) use ($planFor): void {
+$tests['json index expression generated column current source next108 application payload image updated'] = static function (TestRunner $t) use ($planFor): void {
     $plan = $planFor([['rowid' => 1, 'mutations' => [['function' => 'json_set', 'path' => '$.plugin.slug', 'value' => 'alpha-pro']]]]);
     $t->same('alpha-pro', json_decode((string) $plan['after'][0]['option_value'], true, 512, JSON_THROW_ON_ERROR)['plugin']['slug']);
     $t->same('plugin_alpha', $plan['after'][0]['option_name']);

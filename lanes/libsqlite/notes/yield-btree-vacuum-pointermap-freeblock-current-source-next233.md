@@ -14,9 +14,9 @@ validates that:
 - truncated tail pages 109/110 stay fenced from the checkpoint stream;
 - checkpoint tokens chain monotonically across the source window.
 
-## WordPress Smoke
+## Application Smoke
 
-- `examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next233.php`
+- `examples/application-btree-vacuum-pointermap-freeblock-current-source-next233.php`
 - Scenario: copied `wp_options` transient cleanup deletes an overflow-backed
   option, vacuums tail pages, then admits resumable current-source checkpoints
   only after pointer-map/freeblock receipts are visible.

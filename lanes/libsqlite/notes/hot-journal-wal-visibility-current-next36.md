@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented `SQLitePagerHotJournalWalRecoveryPlan::currentNextVisibility()` for copied WordPress database images that have both a hot rollback journal and a WAL sidecar. The planner compares the current dirty reader snapshot with the next recovered reader snapshot after hot-journal page restoration, committed WAL prefix checkpointing, and uncommitted WAL tail discard.
+Implemented `SQLitePagerHotJournalWalRecoveryPlan::currentNextVisibility()` for copied Application database images that have both a hot rollback journal and a WAL sidecar. The planner compares the current dirty reader snapshot with the next recovered reader snapshot after hot-journal page restoration, committed WAL prefix checkpointing, and uncommitted WAL tail discard.
 
 ## Focused Evidence
 
@@ -15,10 +15,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The new focused test covers hot-journal recovery, reserved-lock and super-journal skip gates, uncommitted and corrupt WAL tail visibility, missing page diagnostics after the commit page count, and current/next source and frame-index summaries.
 
-## WordPress Smoke
+## Application Smoke
 
 ```text
-php lanes/libsqlite/examples/wordpress-hot-journal-wal-current-next.php
+php lanes/libsqlite/examples/application-hot-journal-wal-current-next.php
 ```
 
 The example reports copied `wp_options` reader-visible pages before and after recovery without requiring `ext/sqlite`.

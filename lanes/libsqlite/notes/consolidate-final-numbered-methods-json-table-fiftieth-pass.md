@@ -10,7 +10,7 @@ production entry methods into stable descriptive names on
 - `currentSourceRowidHiddenGenerated()`.
 - `currentSourceGeneratedPathRowidCost()`.
 
-The direct JSON-table tests and WordPress examples were renamed to unsuffixed
+The direct JSON-table tests and Application examples were renamed to unsuffixed
 files and updated to assert descriptive replan-reason keys and dependency
 markers. Later generated-path rowid cost tests that depend on this base
 dependency marker were also migrated to the stable dependency name. Private
@@ -26,23 +26,23 @@ Verification:
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedRowidOrderTest.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableRowidHiddenGeneratedTest.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-rowid-hidden-generated.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost.php`
+- `php -l lanes/libsqlite/examples/application-json-table-rowid-hidden-generated.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext158Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext160Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidSeekCostCurrentSourceNext159Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-hidden-residual-cost.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-hidden-path.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-rowid-order.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-hidden-residual-cost.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-hidden-path.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-rowid-order.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedHiddenResidualCostTest.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedHiddenPathTest.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedRowidOrderTest.php lanes/libsqlite/tests/SQLiteJsonTableRowidHiddenGeneratedTest.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostTest.php`
   - `5 test files, 285 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext158Test.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext160Test.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidSeekCostCurrentSourceNext159Test.php`
   - `3 test files, 175 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-json-table-rowid-hidden-generated.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-hidden-residual-cost.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-hidden-path.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-rowid-order.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-rowid-hidden-generated.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-hidden-residual-cost.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-hidden-path.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-rowid-order.php --self-test`
 - Exact removed JSON-table method/dependency scan across `src`, `tests`, and
   `examples`: no matches.
 - Exact protected numbered-suffix scan across `src`, `tests`, and `examples`: no

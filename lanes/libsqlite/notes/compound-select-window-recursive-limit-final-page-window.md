@@ -7,8 +7,8 @@ Adds a current-source compound SELECT slice for a multi-anchor recursive CTE whe
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitFinalPageWindowLimitTest.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-final-page-window.php`
-- PHP lint: `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitFinalPageWindowLimitTest.php`, and `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-final-page-window.php`
+- Application smoke: `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-final-page-window.php`
+- PHP lint: `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitFinalPageWindowLimitTest.php`, and `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-final-page-window.php`
 
 ## Non-Overlap
 

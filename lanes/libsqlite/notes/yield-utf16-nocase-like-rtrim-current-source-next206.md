@@ -4,12 +4,12 @@ This slice adds focused coverage for prepared UTF-16 `LIKE` RHS patterns that
 carry a byte-order mark. The new plan strips a leading UTF BOM before deriving
 the `NOCASE` prefix range for `rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE
 ?`, then records how a stale cursor using the raw BOM-prefixed pattern would
-miss WordPress option rows.
+miss Application option rows.
 
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext206Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next206.php`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next206.php`
 - PHP lint on the changed PHP files
 - `git diff --check -- lanes/libsqlite`
 

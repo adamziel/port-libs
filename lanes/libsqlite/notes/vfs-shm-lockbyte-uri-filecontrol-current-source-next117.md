@@ -15,7 +15,7 @@ Behavior covered:
   refresh an older stale SHM handle.
 - Preserves existing write gating through reserved/pending/exclusive database
   byte locks and readonly/nolock handling.
-- Covers `file://localhost` URI owner canonicalization for WordPress copied
+- Covers `file://localhost` URI owner canonicalization for Application copied
   database sidecars.
 
 Focused verification:

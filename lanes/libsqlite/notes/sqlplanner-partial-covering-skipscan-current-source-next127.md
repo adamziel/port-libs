@@ -5,7 +5,7 @@
 Added `SQLiteSkipScanStat4PartialOrderPlan::partialCoveringSkipScanCurrentSourceNext127()`.
 It replans stale prepared partial covering skip-scan statements against the
 current source while reducing `ORDER BY` expressions through deterministic
-equality predicates. For the WordPress `wp_options` shape, `WHERE kind =
+equality predicates. For the Application `wp_options` shape, `WHERE kind =
 'plugin' ORDER BY kind, option_name` now prunes the constant `kind` term and
 keeps the covering skip-scan over `option_name`; uncovered expressions such as
 `lower(option_name)` force a deferred table lookup unless the expression is
@@ -15,7 +15,7 @@ present in the covering index image.
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerPartialCoveringSkipScanCurrentSourceNext127Test.php`
   passed with `1 test files, 57 assertions, 0 failures` and 57 PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-planner-partial-covering-skipscan-current-source-next127.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-planner-partial-covering-skipscan-current-source-next127.php --self-test`
   passed.
 - Syntax check and `git diff --check -- lanes/libsqlite` were run for this lane patch.
 

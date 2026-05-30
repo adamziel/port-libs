@@ -64,7 +64,7 @@ $plan = static fn (
     bool $caseSensitiveLike = true,
     string $currentSource = 'main.wp_options@120',
     string $nextSource = 'main.wp_options@121',
-): array => SQLiteUtf16RtrimLikeCurrentSourceNextPlan::wordpressOptionNamePlan(
+): array => SQLiteUtf16RtrimLikeCurrentSourceNextPlan::optionRowNamePlan(
     $currentRows,
     $nextRows,
     $pattern,
@@ -145,7 +145,7 @@ foreach ($cases as $name => [$pattern, $escape, $caseSensitiveLike, $path, $expe
 
 $tests['utf16 rtrim like current source nextOneTwoOne stable unchanged still records full scan rejection only'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache ', 'UTF-16LE'), $row(2, 'theme_cache', 'UTF-16BE')];
-    $plan = SQLiteUtf16RtrimLikeCurrentSourceNextPlan::wordpressOptionNamePlan($rows, $rows, 'plugin_cache%', null, true, 'stable', 'stable');
+    $plan = SQLiteUtf16RtrimLikeCurrentSourceNextPlan::optionRowNamePlan($rows, $rows, 'plugin_cache%', null, true, 'stable', 'stable');
     $t->same(['full-scan-rtrim-like'], $plan['invalidationReasons']);
     $t->same([1], $plan['currentRowids']);
     $t->same([1], $plan['nextRowids']);
@@ -156,15 +156,15 @@ $tests['utf16 rtrim like current source nextOneTwoOne rejects invalid escape len
 };
 
 $tests['utf16 rtrim like current source nextOneTwoOne rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeCurrentSourceNextPlan::wordpressOptionNamePlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeCurrentSourceNextPlan::optionRowNamePlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p%'));
 };
 
 $tests['utf16 rtrim like current source nextOneTwoOne rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p%'));
 };
 
 $tests['utf16 rtrim like current source nextOneTwoOne rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p%'));
 };
 
 return $tests;

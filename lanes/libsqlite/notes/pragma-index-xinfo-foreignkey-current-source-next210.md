@@ -3,7 +3,7 @@
 This slice adds current/next PRAGMA evidence for foreign keys that use
 `ON UPDATE SET DEFAULT` or `ON DELETE SET DEFAULT`. SQLite exposes the action
 through `PRAGMA foreign_key_list`; the child columns also need concrete
-defaults from `PRAGMA table_info` before a copied WordPress schema repair can
+defaults from `PRAGMA table_info` before a copied Application schema repair can
 safely rely on SET DEFAULT behavior.
 
 Focused behavior:
@@ -19,10 +19,10 @@ Focused behavior:
 Verification evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next210.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next210.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next210.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next210.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

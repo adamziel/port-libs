@@ -16,9 +16,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNext111Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-returning-deferred-fk-current-source-next111.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-returning-deferred-fk-current-source-next111.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNext111Test.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-returning-deferred-fk-current-source-next111.php
+php lanes/libsqlite/examples/application-trigger-recursive-returning-deferred-fk-current-source-next111.php
 git diff --check -- lanes/libsqlite
 ```
 

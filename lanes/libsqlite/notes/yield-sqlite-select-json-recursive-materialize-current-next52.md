@@ -17,8 +17,8 @@ PASS_LINES=71
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-json-recursive-materialize-current-next52.php --self-test
-wordpress-select-json-recursive-materialize-current-next52 self-test passed
+php lanes/libsqlite/examples/application-select-json-recursive-materialize-current-next52.php --self-test
+application-select-json-recursive-materialize-current-next52 self-test passed
 ```
 
 ## Dashboard Delta

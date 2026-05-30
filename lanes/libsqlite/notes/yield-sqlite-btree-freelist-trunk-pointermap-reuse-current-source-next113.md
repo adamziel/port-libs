@@ -21,11 +21,11 @@ are consumed:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-freelist-trunk-pointermap-reuse-current-source-next113.php`
+- `php -l lanes/libsqlite/examples/application-btree-freelist-trunk-pointermap-reuse-current-source-next113.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Test.php`
   - `1 test files, 375 assertions, 0 failures`
   - 75 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-freelist-trunk-pointermap-reuse-current-source-next113.php`
+- `php lanes/libsqlite/examples/application-btree-freelist-trunk-pointermap-reuse-current-source-next113.php`
   - emits JSON with allocated pages `[5,4]`, next freelist head `106`, and
     trunk pointer-map reuse rows showing `free-page -> btree-page`.
 

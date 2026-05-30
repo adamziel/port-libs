@@ -6,7 +6,7 @@ Validation:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext959974Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next959-974.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next959-974.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext943958Test.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext959974Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next959-974.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next959-974.php`
 - `git diff --check`

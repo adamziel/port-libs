@@ -23,11 +23,11 @@ Focused test run: 2 selected test files (root lock skipped)
 New focused PASS-line delta: `+50` from
 `SQLiteVdbeWindowRangePeerCurrentNext34Test.php`.
 
-## WordPress Smoke
+## Application Smoke
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-window-range-peer-current-next34.php --self-test
-wordpress VDBE window RANGE peer current/following smoke passed
+php lanes/libsqlite/examples/application-vdbe-window-range-peer-current-next34.php --self-test
+application VDBE window RANGE peer current/following smoke passed
 ```
 
 The smoke models copied `wp_options` rows scored by peer buckets, showing

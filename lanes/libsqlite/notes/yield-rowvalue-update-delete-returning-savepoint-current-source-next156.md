@@ -20,7 +20,7 @@ accepted FAIL/ROLLBACK/DISTINCT row-value savepoint clusters:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext156Test.php`
 - Result: `1 test files, 74 assertions, 0 failures`
 - New focused PASS-line delta: `+74`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-rowvalue-yield-returning-savepoint-current-source-next156.php`
+- Application smoke: `php lanes/libsqlite/examples/application-rowvalue-yield-returning-savepoint-current-source-next156.php`
 
 ## Non-Overlap
 

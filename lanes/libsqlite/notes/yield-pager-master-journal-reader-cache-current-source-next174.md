@@ -11,10 +11,10 @@ Behavior added:
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext174Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next174.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next174.php`
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext174Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext174Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next174.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next174.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

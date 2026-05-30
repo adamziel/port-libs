@@ -14,7 +14,7 @@ behavior into the stable `executeCurrentSourceContinuationSeal()` entry point.
 Validation targets:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-source-continuation-seal.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-source-continuation-seal.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowSourceContinuationSealTest.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowSourceContinuationSealTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-source-continuation-seal.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-source-continuation-seal.php --self-test`

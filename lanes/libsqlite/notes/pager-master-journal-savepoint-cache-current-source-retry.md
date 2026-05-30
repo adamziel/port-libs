@@ -12,17 +12,17 @@ bytes, the retry statement captures its own before-images from the restored
 current source, and optional RELEASE merges the retry page set without reviving
 stale crashed cache entries.
 
-WordPress smoke: `wordpress-pager-master-journal-savepoint-cache-current-source-retry.php` models a copied `wp_options` import where the current master journal refreshes a clean stale options page, invalidates a dirty plugin-cache page, rolls back the failed savepoint write, and retries option/transient writes against recovered current-source bytes.
+Application smoke: `application-pager-master-journal-savepoint-cache-current-source-retry.php` models a copied `wp_options` import where the current master journal refreshes a clean stale options page, invalidates a dirty plugin-cache page, rolls back the failed savepoint write, and retries option/transient writes against recovered current-source bytes.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalSavepointCacheCurrentSourceRetryTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-savepoint-cache-current-source-retry.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-savepoint-cache-current-source-retry.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalSavepointCacheCurrentSourceRetryTest.php`
   - `1 test files, 72 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-savepoint-cache-current-source-retry.php`
-  - `wordpress-pager-master-journal-savepoint-cache-current-source-retry self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-savepoint-cache-current-source-retry.php`
+  - `application-pager-master-journal-savepoint-cache-current-source-retry self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard delta: none. This is consolidation-only cleanup of numbered

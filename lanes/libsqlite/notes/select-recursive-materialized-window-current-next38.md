@@ -5,12 +5,12 @@ Status delta: added bounded frame-aware `first_value()`, `last_value()`, and
 focused coverage exercises `WITH RECURSIVE ... AS MATERIALIZED` import-window
 rows with `ROWS`, `RANGE`, and `GROUPS` frames that start at `CURRENT ROW` and
 look at following rows, matching the SQLite oracle shape for current/next
-WordPress import previews.
+Application import previews.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-recursive-materialized-window-current-next38.php --self-test
+php lanes/libsqlite/examples/application-select-recursive-materialized-window-current-next38.php --self-test
 ```
 
 Focused test evidence:

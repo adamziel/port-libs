@@ -9,7 +9,7 @@ and STAT4 fences, then admits the current index only when one current partial
 OR arm is implied by the query and every selected row satisfies at least one
 OR arm.
 
-The WordPress smoke models a copied `wp_options` expression index on
+The Application smoke models a copied `wp_options` expression index on
 `lower(option_name)` with a partial predicate like:
 
 `autoload = 'yes' AND option_name IS NOT NULL AND (blog_id = 1 OR autoload = 'critical')`
@@ -23,10 +23,10 @@ portion of the current partial predicate.
 Focused commands run in this worktree:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext206Test.php`
-- `php lanes/libsqlite/examples/wordpress-stat4-expression-partial-or-current-source-next206.php`
+- `php lanes/libsqlite/examples/application-stat4-expression-partial-or-current-source-next206.php`
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext206Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-stat4-expression-partial-or-current-source-next206.php`
+- `php -l lanes/libsqlite/examples/application-stat4-expression-partial-or-current-source-next206.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

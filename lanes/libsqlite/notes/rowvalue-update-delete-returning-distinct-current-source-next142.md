@@ -26,16 +26,16 @@ Result:
 53 PASS lines
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-distinct-returning-current-source-next142.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-distinct-returning-current-source-next142.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-rowvalue-distinct-returning-current-source-next142 self-test passed
+application-rowvalue-distinct-returning-current-source-next142 self-test passed
 ```
 
 Dashboard delta: update `phpPass` by the verified focused PASS-line delta
@@ -52,4 +52,4 @@ UPDATE/DELETE RETURNING executor.
 
 Dependency closure: no new support component is needed. The slice reuses the
 lane-local UPDATE/DELETE RETURNING executor, row-value parser, projection
-callbacks, and WordPress row-array smoke path.
+callbacks, and Application row-array smoke path.

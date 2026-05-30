@@ -10,7 +10,7 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteFreelistPointerMapTruncateCurrentNext50Test.php`
   - `1 test files, 50 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-freelist-pointermap-truncate-current-next50.php`
+- `php lanes/libsqlite/examples/application-freelist-pointermap-truncate-current-next50.php`
   - reports copied `wp_options` transient cleanup truncating tail pages
     `[12, 11, 10, 9]`, preserving freelist trunk page `5`, and keeping page
     `8` as the next live B-tree pointer-map boundary.

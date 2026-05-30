@@ -14,7 +14,7 @@
 This slice avoids accepted next155 through next398 veryquick shard evidence,
 exact-shard next148, runner106/jsonvt104 rebase work, accepted batch109-113
 behavior surfaces, and live B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/
-VDBE work. It is suite-only and does not add a WordPress example.
+VDBE work. It is suite-only and does not add a Application example.
 
 ## Evidence
 

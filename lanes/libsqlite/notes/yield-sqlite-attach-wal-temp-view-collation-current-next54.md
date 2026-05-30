@@ -5,8 +5,8 @@ Status: focused PHP behavior growth for ATTACHed WAL schema-cookie changes inval
 Implementation:
 
 - Added `SQLiteAttachWalTempViewCollationPlan`, a bounded native PHP planner that composes existing WAL schema-cookie current/next decisions with existing temp/view trigger collation resolution.
-- It reports trigger schema dependencies, changed dependency schemas, expired versus stable prepared trigger plans, target/select/body collation summaries, WAL schema-cookie sources, database-list order, and WordPress-relevant reprepare trigger names.
-- Added `wordpress-attach-wal-temp-view-collation-current-next54.php` as a copied `wp_options` smoke showing main and attached WAL schema-cookie changes expiring prepared view-trigger collation plans while a TEMP-only trigger remains stable.
+- It reports trigger schema dependencies, changed dependency schemas, expired versus stable prepared trigger plans, target/select/body collation summaries, WAL schema-cookie sources, database-list order, and Application-relevant reprepare trigger names.
+- Added `application-attach-wal-temp-view-collation-current-next54.php` as a copied `wp_options` smoke showing main and attached WAL schema-cookie changes expiring prepared view-trigger collation plans while a TEMP-only trigger remains stable.
 
 Focused verification:
 
@@ -22,10 +22,10 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteAttachWalTempViewCollatio
 php -l lanes/libsqlite/tests/SQLiteAttachWalTempViewCollationCurrentNext54Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteAttachWalTempViewCollationCurrentNext54Test.php
 
-php -l lanes/libsqlite/examples/wordpress-attach-wal-temp-view-collation-current-next54.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-attach-wal-temp-view-collation-current-next54.php
+php -l lanes/libsqlite/examples/application-attach-wal-temp-view-collation-current-next54.php
+No syntax errors detected in lanes/libsqlite/examples/application-attach-wal-temp-view-collation-current-next54.php
 
-php lanes/libsqlite/examples/wordpress-attach-wal-temp-view-collation-current-next54.php
+php lanes/libsqlite/examples/application-attach-wal-temp-view-collation-current-next54.php
 operation: attach-wal-temp-view-collation-current-next
 changed_schemas: main, site
 reprepare_triggers: main.main_autoloaded_insert, site.site_autoloaded_insert

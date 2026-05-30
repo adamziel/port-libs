@@ -14,9 +14,9 @@ Focused verification:
   - 50 PASS lines
 - `php -l lanes/libsqlite/src/SQLiteBTreeOverflowCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeAutovacuumPointermapOverflowCurrentSourceNext83Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-overflow-current-source-next83.php`
-- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-btree-overflow-current-source-next83.php`
-  - Emits copied WordPress option overflow-chain evidence where current and
+- `php -l lanes/libsqlite/examples/application-btree-overflow-current-source-next83.php`
+- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/application-btree-overflow-current-source-next83.php`
+  - Emits copied Application option overflow-chain evidence where current and
     next source payload hashes differ while the current pointer-map ownership
     still points at the opened B-tree page.
 

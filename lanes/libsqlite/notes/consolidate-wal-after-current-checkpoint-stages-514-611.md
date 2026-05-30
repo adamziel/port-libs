@@ -14,4 +14,4 @@ Focused evidence to run:
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages500515Test.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages516531Test.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages532547Test.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages548563Test.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages564579Test.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages580595Test.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages596611Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext*Test.php`
-- self-test the updated WordPress examples for stages 515, 531, 547, 563, 579, 595, and 611.
+- self-test the updated Application examples for stages 515, 531, 547, 563, 579, 595, and 611.

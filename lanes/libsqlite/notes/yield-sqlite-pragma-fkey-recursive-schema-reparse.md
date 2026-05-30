@@ -11,8 +11,8 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyRecursiveSchemaReparseTest.php`
   - `1 test files, 64 assertions, 0 failures`
   - `41` PASS lines.
-- `php lanes/libsqlite/examples/wordpress-pragma-fkey-recursive-schema-reparse.php --self-test`
-  - `wordpress-pragma-fkey-recursive-schema-reparse self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-fkey-recursive-schema-reparse.php --self-test`
+  - `application-pragma-fkey-recursive-schema-reparse self-test passed`
 
 ## Non-Overlap
 

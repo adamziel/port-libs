@@ -22,10 +22,10 @@ Status delta:
 - `benchmarkDenominator.mapped`: unchanged; this is upstream-style PHP corpus
   coverage, not a newly mapped upstream inventory unit.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-subquery-join-corpus.php
+php lanes/libsqlite/examples/application-select-subquery-join-corpus.php
 ```
 
 The smoke reports copied `wp_options` rows joined to site visibility rows and

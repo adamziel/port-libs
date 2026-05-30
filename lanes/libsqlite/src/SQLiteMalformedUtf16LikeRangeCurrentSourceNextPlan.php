@@ -32,7 +32,7 @@ final class SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan
      *   dependencies:list<string>
      * }
      */
-    public static function wordpressOptionNameLikeRange(
+    public static function optionRowNameLikeRange(
         array $currentRows,
         array $nextRows,
         string $pattern,

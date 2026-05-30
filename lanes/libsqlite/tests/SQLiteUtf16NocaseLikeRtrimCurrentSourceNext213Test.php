@@ -54,7 +54,7 @@ $plan213 = static fn (
     int|string $currentPatternEncoding = 'UTF-16LE',
     int|string $nextPatternEncoding = 'UTF-16BE',
     int|string $escapeEncoding = 'UTF-16LE',
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSelfEscapedEscapePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSelfEscapedEscapePlan(
     $current ?? $currentRows213,
     $next ?? $nextRows213,
     $enc213($currentPattern ?? $currentPattern213, $currentPatternEncoding),
@@ -176,7 +176,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneThree ascii prefix self
         $row213(3, 'plugin!cache', 'UTF-8'),
         $row213(4, 'plugin_cache', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSelfEscapedEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSelfEscapedEscapePlan(
         $rows,
         $rows,
         $enc213('plugin!!!_%', 'UTF-16LE'),
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneThree escaped escape li
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneThree rejects malformed escape bytes'] = static function (TestRunner $t) use ($currentRows213, $nextRows213, $enc213, $currentPattern213, $nextPattern213): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSelfEscapedEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSelfEscapedEscapePlan(
         $currentRows213,
         $nextRows213,
         $enc213($currentPattern213, 'UTF-16LE'),
@@ -228,7 +228,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneThree rejects malformed
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneThree rejects two character escape'] = static function (TestRunner $t) use ($currentRows213, $nextRows213, $enc213, $currentPattern213, $nextPattern213): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSelfEscapedEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSelfEscapedEscapePlan(
         $currentRows213,
         $nextRows213,
         $enc213($currentPattern213, 'UTF-16LE'),

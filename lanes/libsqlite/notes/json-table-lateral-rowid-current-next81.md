@@ -13,9 +13,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableLateralRowidCurrentNext81Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-lateral-rowid-current-next81.php`
+- `php -l lanes/libsqlite/examples/application-json-table-lateral-rowid-current-next81.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableLateralRowidCurrentNext81Test.php`
-- `php lanes/libsqlite/examples/wordpress-json-table-lateral-rowid-current-next81.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-lateral-rowid-current-next81.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this avoids accepted JSON table cursor behavior, parser-level JSON
@@ -23,7 +23,7 @@ table SELECT/FROM source wiring, hidden and visible constraint pushdown, nested
 LEFT JOIN rowid alias regressions, batch75 lateral constraint planner reprepare,
 JSON aggregate/window behavior, JSONB CHECK admission, VFS/WAL/B-tree/SQL
 executor clusters, and Unicode GLOB behavior. The new surface is the lateral
-current/next rowid alias tape over copied WordPress option rows.
+current/next rowid alias tape over copied Application option rows.
 
 Dependency closure: no new support component is needed; this reuses existing
 native PHP JSON table, JSONB, and path helpers.

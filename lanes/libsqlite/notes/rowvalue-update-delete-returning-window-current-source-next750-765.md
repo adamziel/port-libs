@@ -8,16 +8,16 @@ next750-753, next754-757, next758-761, and next762-765.
 Focused coverage:
 
 - Canonical source: `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- Example: `wordpress-rowvalue-returning-window-current-source-next750-765.php`
+- Example: `application-rowvalue-returning-window-current-source-next750-765.php`
 - Test: `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext750765Test.php`
 
 Validation:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next750-765.php
+php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next750-765.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext750765Test.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext750765Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next750-765.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next750-765.php --self-test
 git diff --check
 ```

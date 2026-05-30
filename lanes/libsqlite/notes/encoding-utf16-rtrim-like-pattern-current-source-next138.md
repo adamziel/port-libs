@@ -1,7 +1,7 @@
 # encoding-utf16-rtrim-like-pattern-current-source-next138
 
 Status: focused PHP behavior growth for UTF-16 encoded LIKE patterns and
-ESCAPE bytes on copied WordPress `wp_options.option_name` scans using an RTRIM
+ESCAPE bytes on copied Application `wp_options.option_name` scans using an RTRIM
 collation.
 
 Behavior:
@@ -20,10 +20,10 @@ Evidence:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16RtrimLikePatternCurrentSourceNext138Test.php
-php lanes/libsqlite/examples/wordpress-utf16-rtrim-like-pattern-current-source-next138.php --self-test
+php lanes/libsqlite/examples/application-utf16-rtrim-like-pattern-current-source-next138.php --self-test
 php -l lanes/libsqlite/src/SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteUtf16RtrimLikePatternCurrentSourceNext138Test.php
-php -l lanes/libsqlite/examples/wordpress-utf16-rtrim-like-pattern-current-source-next138.php
+php -l lanes/libsqlite/examples/application-utf16-rtrim-like-pattern-current-source-next138.php
 git diff --check -- lanes/libsqlite
 ```
 

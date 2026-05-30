@@ -23,7 +23,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityBtreeOrderCur
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityDeepCurrentNext19Test.php lanes/libsqlite/tests/SQLitePragmaIntegrityBtreeOrderCurrentNext68Test.php
 # 2 test files, 87 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pragma-integrity-btree-order-current-next68.php
+php lanes/libsqlite/examples/application-pragma-integrity-btree-order-current-next68.php
 # reports copied wp_options rowid and option_name index key-order integrity errors
 ```
 

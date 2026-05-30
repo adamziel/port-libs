@@ -21,7 +21,7 @@ Focused test run: 2 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-window-groups-exclude-filter-current-next37.php
+php lanes/libsqlite/examples/application-vdbe-window-groups-exclude-filter-current-next37.php
 Emits copied wp_options window diagnostics for:
 sum(bytes) FILTER (WHERE include) OVER (ORDER BY bytes, option_name GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING EXCLUDE CURRENT ROW)
 ```

@@ -10,7 +10,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext210Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-rowvalue-ignore-rollback-current-source-next210.php`
+- Application smoke: `php lanes/libsqlite/examples/application-rowvalue-ignore-rollback-current-source-next210.php`
 
 ## Non-overlap
 

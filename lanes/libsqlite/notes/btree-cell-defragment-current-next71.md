@@ -12,8 +12,8 @@ Verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeCellDefragmentCurrentNext71Test.php
 # 1 test files, 62 assertions, 0 failures
 
-php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-btree-cell-defragment-current-next71.php --self-test
-# wordpress-btree-cell-defragment-current-next71 self-test passed
+php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/application-btree-cell-defragment-current-next71.php --self-test
+# application-btree-cell-defragment-current-next71 self-test passed
 ```
 
 Non-overlap: this avoids accepted page relocation, root collapse, index-interior merge, overflow freelist release/reuse, bulk overflow freeblocks, pointer-map vacuum, freeblock current/next coalesce diagnostics, and mutation-delete fragment absorption. The new surface is the explicit cell-content defragment materialization step for existing table/index leaf pages after current/next free-space fragmentation.

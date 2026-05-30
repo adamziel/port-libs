@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for recursive INSTEAD OF view UPSERT current
 
 This slice adds `SQLiteTriggerRecursiveViewUpsertCurrentSourceNext234Plan`. It builds on the accepted next231 recursive view RETURNING cursor-close handoff and adds a later current-source guard: next-source RETURNING rows remain held until every current-source UPSERT conflict-key decision has a matching receipt for the current view and trigger source.
 
-WordPress smoke: `wordpress-trigger-recursive-view-upsert-current-source-next234.php` covers a copied `wp_options` recursive import view where current-source recursive UPSERT rows publish first, and staged `home` / `next_plugin` rows become visible only after the current conflict-key receipts are acknowledged.
+Application smoke: `application-trigger-recursive-view-upsert-current-source-next234.php` covers a copied `wp_options` recursive import view where current-source recursive UPSERT rows publish first, and staged `home` / `next_plugin` rows become visible only after the current conflict-key receipts are acknowledged.
 
 Verification:
 

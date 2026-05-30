@@ -9,7 +9,7 @@ Adds bounded planner support for SQLite OR-clause optimization:
 - range and `BETWEEN` OR arms remain residual-checked after index lookup;
 - every OR arm must be independently indexable, matching SQLite's fallback rule for unindexed OR terms.
 
-WordPress relevance: copied `wp_options` reads often combine autoload scans and transient/name lookups, for example `autoload = 'yes' OR option_name >= '_transient_'`, and named option probes such as `option_name = 'siteurl' OR option_name = 'home'`.
+Application relevance: copied `wp_options` reads often combine autoload scans and transient/name lookups, for example `autoload = 'yes' OR option_name >= '_transient_'`, and named option probes such as `option_name = 'siteurl' OR option_name = 'home'`.
 
 ## Verification
 
@@ -22,10 +22,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 54 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-or-optimization-current-next29.php
+php lanes/libsqlite/examples/application-select-or-optimization-current-next29.php
 ```
 
 ## Non-Overlap

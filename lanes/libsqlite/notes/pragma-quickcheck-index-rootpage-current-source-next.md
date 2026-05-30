@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds a bounded current-source helper for copied WordPress `wp_options`
+Adds a bounded current-source helper for copied Application `wp_options`
 expression-index repair preflights that page through `PRAGMA index_xinfo`
 metadata and sqlite_schema rootpage diagnostics under `PRAGMA quick_check`.
 
@@ -15,8 +15,8 @@ source cursor stable across paginated repair work.
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaQuickcheckIndexRootpageCurrentSourceNextTest.php`
 - Result: `1 test files, 67 assertions, 0 failures`, with 61 PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-pragma-quickcheck-index-rootpage-current-source-next.php --self-test`
-- Result: `wordpress-pragma-quickcheck-index-rootpage-current-source-next self-test passed`
+- Application smoke: `php lanes/libsqlite/examples/application-pragma-quickcheck-index-rootpage-current-source-next.php --self-test`
+- Result: `application-pragma-quickcheck-index-rootpage-current-source-next self-test passed`
 
 ## Non-overlap
 

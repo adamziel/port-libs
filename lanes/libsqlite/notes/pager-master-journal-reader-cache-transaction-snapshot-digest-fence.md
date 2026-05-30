@@ -11,7 +11,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheTransactionSnapshotDigestFenceTest.php`
   passed: `1 test files, 57 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-transaction-snapshot-digest-fence.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-transaction-snapshot-digest-fence.php`
   passed.
 - PHP lint passed for the new source, test, and example files.
 - `git diff --check -- lanes/libsqlite` passed.

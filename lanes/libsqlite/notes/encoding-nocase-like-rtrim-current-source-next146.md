@@ -1,7 +1,7 @@
 # Encoding NOCASE LIKE RTRIM current-source next146
 
 This slice adds `SQLiteNocaseLikeRtrimCurrentSourceNextPlan`, a focused
-current/next cursor plan for WordPress option-name predicates shaped like:
+current/next cursor plan for Application option-name predicates shaped like:
 
 ```sql
 rtrim(option_name) COLLATE NOCASE LIKE 'plugin\_%' ESCAPE '\'
@@ -25,10 +25,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 87 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-nocase-like-rtrim-current-source-next146.php
+php lanes/libsqlite/examples/application-nocase-like-rtrim-current-source-next146.php
 ```
 
 Dependency closure: no new support component is needed. The slice reuses the

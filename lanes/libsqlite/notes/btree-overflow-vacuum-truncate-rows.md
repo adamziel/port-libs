@@ -17,7 +17,7 @@ overflow next pointer, and no materialized next image.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumTruncateRowsTest.php`
   - `1 test files, 221 assertions, 0 failures`
   - `67` PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-vacuum-truncate-rows.php`
+- `php lanes/libsqlite/examples/application-btree-overflow-vacuum-truncate-rows.php`
   - Reports copied `wp_options` overflow vacuum truncating pages
     `416, 415, 414, 413, 412`, including pointer-map page `414`.
 

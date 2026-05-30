@@ -8,7 +8,7 @@ Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next658-673.php`
+- `php -l lanes/libsqlite/examples/application-vfs-current-source-next658-673.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-vfs-current-source-next658-673.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-current-source-next658-673.php --self-test`
 - `git diff --check`

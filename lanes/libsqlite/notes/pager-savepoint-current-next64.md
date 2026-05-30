@@ -5,9 +5,9 @@ Status: focused PHP behavior growth for `ROLLBACK TO` keeping the named savepoin
 ## Behavior
 
 - Added `SQLiteSavepointStack::rollbackToCurrentAndRecordNextWalFrame64()`.
-- Covers nested WordPress-style import savepoints where discarded WAL frames from the target and child savepoints are removed, the target savepoint remains open/current, and a retry write records the next WAL frame at `rollback_to_frame + 1`.
+- Covers nested Application-style import savepoints where discarded WAL frames from the target and child savepoints are removed, the target savepoint remains open/current, and a retry write records the next WAL frame at `rollback_to_frame + 1`.
 - Preserves retained outer transaction WAL/page state, rejects invalid pages/missing savepoints, supports case-insensitive savepoint lookup, and exposes dependency tags for pager current/next handling.
-- Added `wordpress-pager-savepoint-current-next64.php` as a copied `wp_options` plugin-settings import smoke.
+- Added `application-pager-savepoint-current-next64.php` as a copied `wp_options` plugin-settings import smoke.
 
 ## Focused evidence
 

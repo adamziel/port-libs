@@ -10,8 +10,8 @@ coverage runs the form through DELETE RETURNING, UPDATE RETURNING, RETURNING
 expressions, and an OR ROLLBACK savepoint retry that restores the transaction
 image before executing the retry statements from the current source.
 
-WordPress smoke:
-`wordpress-rowvalue-values-savepoint-current-source-next184.php` models copied
+Application smoke:
+`application-rowvalue-values-savepoint-current-source-next184.php` models copied
 `wp_options` cleanup where transient option keys are selected with row-value
 `IN (VALUES ...)`, a savepoint conflict discards attempted RETURNING rows, and
 retry UPDATE/DELETE statements read from the restored source.
@@ -21,9 +21,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext184Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-values-savepoint-current-source-next184.php
+php -l lanes/libsqlite/examples/application-rowvalue-values-savepoint-current-source-next184.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext184Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-values-savepoint-current-source-next184.php
+php lanes/libsqlite/examples/application-rowvalue-values-savepoint-current-source-next184.php
 git diff --check -- lanes/libsqlite
 ```
 

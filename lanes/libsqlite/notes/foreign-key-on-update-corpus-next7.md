@@ -33,9 +33,9 @@ Dashboard delta:
 - `benchmarkDenominator.mapped`: unchanged; this is focused PHP corpus growth,
   not a newly mapped upstream inventory unit.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-foreign-key-on-update.php`
+- `php lanes/libsqlite/examples/application-foreign-key-on-update.php`
   reports copied option-group key renumbering cascading into related option
   rows without requiring ext/sqlite.
 

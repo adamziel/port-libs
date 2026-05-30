@@ -11,7 +11,7 @@ into stable descriptive entrypoints:
 - `finalSchemaCachePublishWindow()`
 - `finalSchemaCacheAttachWindow()`
 
-Direct tests and WordPress examples were renamed to stable descriptive filenames
+Direct tests and Application examples were renamed to stable descriptive filenames
 and migrated to the unsuffixed entrypoints. Behavior, dependency evidence, and
 assertion coverage are preserved; only the generated public method/file surface
 was removed for this final attach/schema family slice.

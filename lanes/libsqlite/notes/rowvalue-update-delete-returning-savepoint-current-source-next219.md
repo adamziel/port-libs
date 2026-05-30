@@ -11,8 +11,8 @@ UPDATE and DELETE RETURNING statements whose row-value subquery source is
 rolled back to a savepoint image and then retried from the restored current
 source.
 
-WordPress path:
-`wordpress-rowvalue-negative-limit-offset-current-source-next219.php` models a
+Application path:
+`application-rowvalue-negative-limit-offset-current-source-next219.php` models a
 copied `wp_options` import where `wp_optionmeta` priority rows drive
 row-value UPDATE/DELETE RETURNING batches with `LIMIT -1 OFFSET`.
 
@@ -22,9 +22,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext219Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext219Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-negative-limit-offset-current-source-next219.php
+php -l lanes/libsqlite/examples/application-rowvalue-negative-limit-offset-current-source-next219.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext219Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-negative-limit-offset-current-source-next219.php
+php lanes/libsqlite/examples/application-rowvalue-negative-limit-offset-current-source-next219.php
 ```
 
 Focused result: `1 test files, 64 assertions, 0 failures`.

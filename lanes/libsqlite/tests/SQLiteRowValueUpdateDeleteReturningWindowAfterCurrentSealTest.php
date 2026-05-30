@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined after-current seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-after-current-seal.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-after-current-seal.php';
 
         $t->same('rowvalue-update-delete-returning-window-after-current-seal', $result['status']);
         $t->same([

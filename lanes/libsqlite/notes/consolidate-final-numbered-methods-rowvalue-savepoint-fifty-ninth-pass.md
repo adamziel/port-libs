@@ -7,16 +7,16 @@ worker-numbered diagnostics.
   dependency, and non-overlap strings.
 - Renamed the direct focused test to
   `SQLiteRowValueNestedSavepointRollbackBatchTest.php`.
-- Renamed the WordPress smoke to
-  `wordpress-rowvalue-nested-savepoint-rollback-batch.php`.
+- Renamed the Application smoke to
+  `application-rowvalue-nested-savepoint-rollback-batch.php`.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueNestedSavepointRollbackBatchTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-rollback-batch.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-nested-savepoint-rollback-batch.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueNestedSavepointRollbackBatchTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-rollback-batch.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-nested-savepoint-rollback-batch.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this cleanup reuses the

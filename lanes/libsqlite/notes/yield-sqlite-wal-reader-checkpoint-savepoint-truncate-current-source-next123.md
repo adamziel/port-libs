@@ -28,9 +28,9 @@ Focused test run: 1 selected test files (root lock skipped)
 
 Expected dashboard movement: `phpPass +75` once accepted (`47656 -> 47731` from this worktree's current lane status).
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-savepoint-truncate-current-source-next123.php --self-test` covers copied `wp_options` import behavior where plugin savepoint rollback discards stale WAL frames and reader release allows truncate checkpoint to make next readers database-only.
+`lanes/libsqlite/examples/application-wal-reader-checkpoint-savepoint-truncate-current-source-next123.php --self-test` covers copied `wp_options` import behavior where plugin savepoint rollback discards stale WAL frames and reader release allows truncate checkpoint to make next readers database-only.
 
 ## Dependency Closure
 

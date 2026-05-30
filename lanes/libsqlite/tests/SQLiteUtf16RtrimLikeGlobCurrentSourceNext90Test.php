@@ -134,18 +134,18 @@ $tests['utf16 rtrim like glob current source nextNineZero matched rows keep auto
     $t->same('no', $rows[0]['payload']['autoload']);
 };
 
-$tests['utf16 rtrim like glob current source nextNineZero wordpress scan exact padded option returns only unpadded'] = static function (TestRunner $t) use ($rows): void {
-    $matched = SQLiteUtf16LikeGlobCurrentNextCursor::wordpressOptionNameScan($rows, 'plugin-cache', 'GLOB', 'UTF-16LE', 'RTRIM');
+$tests['utf16 rtrim like glob current source nextNineZero application scan exact padded option returns only unpadded'] = static function (TestRunner $t) use ($rows): void {
+    $matched = SQLiteUtf16LikeGlobCurrentNextCursor::optionRowNameScan($rows, 'plugin-cache', 'GLOB', 'UTF-16LE', 'RTRIM');
     $t->same([1], array_column($matched, 'rowid'));
 };
 
-$tests['utf16 rtrim like glob current source nextNineZero wordpress scan wildcard returns padded peers'] = static function (TestRunner $t) use ($rows): void {
-    $matched = SQLiteUtf16LikeGlobCurrentNextCursor::wordpressOptionNameScan($rows, 'plugin-cache*', 'GLOB', 'UTF-16LE', 'RTRIM');
+$tests['utf16 rtrim like glob current source nextNineZero application scan wildcard returns padded peers'] = static function (TestRunner $t) use ($rows): void {
+    $matched = SQLiteUtf16LikeGlobCurrentNextCursor::optionRowNameScan($rows, 'plugin-cache*', 'GLOB', 'UTF-16LE', 'RTRIM');
     $t->same([1, 2, 3, 4, 5, 7, 8, 6], array_column($matched, 'rowid'));
 };
 
-$tests['utf16 rtrim like glob current source nextNineZero wordpress scan rejects missing utf16 bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobCurrentNextCursor::wordpressOptionNameScan([['option_id' => 1, 'option_name' => 'plugin-cache']], 'plugin-cache*', 'GLOB', 'UTF-16LE', 'RTRIM'));
+$tests['utf16 rtrim like glob current source nextNineZero application scan rejects missing utf16 bytes'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobCurrentNextCursor::optionRowNameScan([['option_id' => 1, 'option_name' => 'plugin-cache']], 'plugin-cache*', 'GLOB', 'UTF-16LE', 'RTRIM'));
 };
 
 $tests['utf16 rtrim like glob current source nextNineZero rejects odd utf16 bytes'] = static function (TestRunner $t): void {

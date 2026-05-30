@@ -11,8 +11,8 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerCacheSpillMasterJournalCurrentSourceNextTest.php`
 - Result: `1 test files, 92 assertions, 0 failures` with 92 PASS lines.
 
-WordPress smoke:
-- `php lanes/libsqlite/examples/wordpress-pager-cache-spill-master-journal-current-source-next.php`
+Application smoke:
+- `php lanes/libsqlite/examples/application-pager-cache-spill-master-journal-current-source-next.php`
 - Proves a copied `wp_options` import spills only pages whose before-images match the current master-journal source while stale and pinned cache pages defer.
 
 Dependency closure:

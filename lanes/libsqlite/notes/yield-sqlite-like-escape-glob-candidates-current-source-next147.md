@@ -11,10 +11,10 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteLikeEscapeGlobCandidateCurrentSourceNext147Test.php`
 - Result: `1 test files, 56 assertions, 0 failures`.
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-like-escape-glob-candidates-current-source-next147.php --self-test`
-- Result: `wordpress-like-escape-glob-candidates-current-source-next147 self-test passed`.
+- `php lanes/libsqlite/examples/application-like-escape-glob-candidates-current-source-next147.php --self-test`
+- Result: `application-like-escape-glob-candidates-current-source-next147 self-test passed`.
 
 ## Non-Overlap
 

@@ -30,16 +30,16 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteWindowFunction.php
 php -l lanes/libsqlite/tests/SQLiteWindowRangeGroupsExcludeNext10Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteWindowRangeGroupsExcludeNext10Test.php
 
-php -l lanes/libsqlite/examples/wordpress-window-range-groups-exclude.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-window-range-groups-exclude.php
+php -l lanes/libsqlite/examples/application-window-range-groups-exclude.php
+No syntax errors detected in lanes/libsqlite/examples/application-window-range-groups-exclude.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowRangeGroupsExcludeNext10Test.php
 Focused test run: 1 selected test files (root lock skipped)
 58 PASS lines
 1 test files, 58 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-window-range-groups-exclude.php --self-test
-wordpress window RANGE/GROUPS EXCLUDE smoke passed
+php lanes/libsqlite/examples/application-window-range-groups-exclude.php --self-test
+application window RANGE/GROUPS EXCLUDE smoke passed
 ```
 
 ## Status Delta

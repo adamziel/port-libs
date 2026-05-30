@@ -28,10 +28,10 @@ Expected focused result after implementation:
 1 test files, 89 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-inner-fail-rollback-savepoint.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-inner-fail-rollback-savepoint.php --self-test
 ```
 
 ## Non-Overlap

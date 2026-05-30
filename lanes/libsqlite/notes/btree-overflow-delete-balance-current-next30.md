@@ -12,11 +12,11 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteBTreeTableLeafBalanceApplyPlan.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeTableDeleteRebalancePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowDeleteBalanceCurrentNext30Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-overflow-delete-balance-current-next30.php`
+- `php -l lanes/libsqlite/examples/application-btree-overflow-delete-balance-current-next30.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowDeleteBalanceCurrentNext30Test.php`
   - `1 test files, 253 assertions, 0 failures`
   - 50 PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-delete-balance-current-next30.php`
+- `php lanes/libsqlite/examples/application-btree-overflow-delete-balance-current-next30.php`
   - emitted copied `wp_options` transient cleanup diagnostics with
     `table-delete-rebalance-apply`, moved current/next rowids, rewritten parent
     divider, and `requires_ext_sqlite: false`.

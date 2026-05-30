@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWordPressMultisiteSavepointWalPlan;
+use PortLibs\LibSqlite\SQLiteMultisiteSavepointWalPlan;
 
 $tests = [];
 
@@ -84,7 +84,7 @@ $siteThreeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (): array => SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([
+$plan = static fn (): array => SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([
     $makeSite(1, 'main', [
         [1, 0, 'main-network-schema-commit'],
         [2, 3, 'main-options-before-plugin'],
@@ -118,8 +118,8 @@ $cases = [
     'stable site count records untouched savepoint' => static fn (): mixed => $plan()['stable_site_count'],
     'total restored pages spans affected blogs' => static fn (): mixed => $plan()['total_restored_pages'],
     'total discarded wal frames spans affected blogs' => static fn (): mixed => $plan()['total_discarded_wal_frames'],
-    'dependencies include multisite marker' => static fn (): mixed => in_array('sqlite-wordpress-multisite-savepoint-wal-current-next', $plan()['dependencies'], true),
-    'dependencies include site marker' => static fn (): mixed => in_array('sqlite-wordpress-multisite-site-savepoint-wal', $plan()['dependencies'], true),
+    'dependencies include multisite marker' => static fn (): mixed => in_array('sqlite-application-multisite-savepoint-wal-current-next', $plan()['dependencies'], true),
+    'dependencies include site marker' => static fn (): mixed => in_array('sqlite-application-multisite-site-savepoint-wal', $plan()['dependencies'], true),
     'dependencies include savepoint recovery marker' => static fn (): mixed => in_array('sqlite-wal-savepoint-recovery-current-next', $plan()['dependencies'], true),
     'current reader matrix keys preserve blog ids' => static fn (): mixed => array_keys($plan()['current_reader_matrix']),
     'next reader matrix keys preserve blog ids' => static fn (): mixed => array_keys($plan()['next_reader_matrix']),
@@ -165,7 +165,7 @@ $cases = [
     'next matrix site two sources' => static fn (): mixed => $plan()['next_reader_matrix'][2],
     'empty site list is rejected' => static function () use ($pageSize): mixed {
         try {
-            SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([], $pageSize);
+            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -173,7 +173,7 @@ $cases = [
     },
     'zero page size is rejected' => static function () use ($makeSite, $siteThreeStack): mixed {
         try {
-            SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([$makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1])], 0);
+            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1])], 0);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -183,7 +183,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         unset($site['blog_id']);
         try {
-            SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -193,7 +193,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         $site['database_path'] = '';
         try {
-            SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -203,7 +203,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         $site['database_bytes'] .= 'x';
         try {
-            SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -212,7 +212,7 @@ $cases = [
     'empty page list is rejected' => static function () use ($makeSite, $siteThreeStack, $pageSize): mixed {
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, []);
         try {
-            SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -222,7 +222,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         $site['savepoint'] = 'missing';
         try {
-            SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -232,7 +232,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         $site['wal_bytes'] = substr($site['wal_bytes'], 0, -1) . 'x';
         try {
-            SQLiteWordPressMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -303,7 +303,7 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['wordpress multisite savepoint wal current next46 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['application multisite savepoint wal current next46 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

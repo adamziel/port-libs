@@ -15,9 +15,9 @@ when STAT4 samples outside the range have churned.
   - `1 test files, 65 assertions, 0 failures`
   - `65` PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-stat4-expression-partial-current-source-next226.php`
+- `php lanes/libsqlite/examples/application-stat4-expression-partial-current-source-next226.php`
   - emits `status: stat4-expression-partial-current-source-next226-ready`
   - proves plugin-option range scans keep the current partial expression index
     while unrelated `theme_mods_*` / earlier plugin STAT4 samples churn outside

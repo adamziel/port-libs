@@ -4,7 +4,7 @@
 
 - Added `SQLiteAttachedSchemaCatalog` for bounded SQLite `main` / `temp` / attached schema catalog behavior.
 - Covered TEMP object shadowing, explicit schema qualification, attach-order unqualified lookup, `DETACH` resequencing, `PRAGMA database_list`-style rows, and per-schema `SQLitePragmaSchemaCatalog` wrapping.
-- Added a WordPress smoke showing copied `wp_options` temp shadowing with explicit `main.wp_options` and attached site metadata resolution.
+- Added a Application smoke showing copied `wp_options` temp shadowing with explicit `main.wp_options` and attached site metadata resolution.
 
 ## Evidence
 
@@ -42,7 +42,7 @@ PASS attach temp schema corpus missing schema records raises
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-attach-temp-schema-corpus.php
+$ php lanes/libsqlite/examples/application-attach-temp-schema-corpus.php
 {
     "default_wp_options_schema": "temp",
     "default_wp_options_root": 4,

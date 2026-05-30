@@ -9,6 +9,6 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialFinalPreparedHandoffTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-final-prepared-handoff.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-final-prepared-handoff.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialFinalPreparedHandoffTest.php` => `1 test files, 39 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-final-prepared-handoff.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-final-prepared-handoff.php --self-test`

@@ -11,7 +11,7 @@ prepared view/trigger/RETURNING signature, so stale resumed cursors, mismatched
 next-source resume rows, or changed current-source signatures keep attempted
 next-source rows quarantined after the drain ticket itself has passed.
 
-WordPress path: copied `wp_options` imports through a recursive view trigger can
+Application path: copied `wp_options` imports through a recursive view trigger can
 drain current-source `RETURNING` rows, then prove the next source resumes from
 the exact current cursor boundary before plugin migration rows become visible.
 
@@ -24,15 +24,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewRetur
 $ php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext190Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext190Test.php
 
-$ php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next190.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next190.php
+$ php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next190.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next190.php
 
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext190Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 77 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next190.php
-wordpress-trigger-recursive-view-returning-current-source-next190 self-test passed
+$ php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next190.php
+application-trigger-recursive-view-returning-current-source-next190 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +77` from the new focused test file

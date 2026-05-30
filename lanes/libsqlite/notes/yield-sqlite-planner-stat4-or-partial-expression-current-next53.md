@@ -25,9 +25,9 @@ Focused test run: 3 selected test files (root lock skipped)
 3 test files, 261 assertions, 0 failures
 ```
 
-## WordPress Smoke
+## Application Smoke
 
-`examples/wordpress-stat4-or-partial-expression-current-next53.php` exercises a
+`examples/application-stat4-or-partial-expression-current-next53.php` exercises a
 copied `wp_options` plugin-option OR predicate over a partial
 `lower(option_name)` expression index. The expected smoke output reports the
 IN-style rewrite, deduped plugin values, STAT4 usage, and a 12-row estimate for

@@ -101,7 +101,7 @@ $cases = [
     'fence operation present' => [static fn (): mixed => in_array('fence_stale_hot_journal_header_after_savepoint_checkpoint_next225', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next219', $plan()['dependencies'], true), true],
     'dependency next225' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next225', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-checkpoint-header-receipts', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-checkpoint-header-receipts', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next219 savepoint-scope finalization'), true],
     'blocked status' => [static fn (): mixed => $blocked()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next225'],

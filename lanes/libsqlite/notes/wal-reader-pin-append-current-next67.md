@@ -6,7 +6,7 @@ Status: focused PHP behavior growth for WAL reader read-mark handoff while a wri
 
 - Adds `SQLiteWalAppendPlan::readerPinAppendCurrentNext()` to compose existing WAL append/checksum planning with WAL-index read-mark current/next state.
 - Covers a current reader pinned to an older frame, assignment of the next reader to the appended committed frame, checkpoint reset blocking while the old pin remains, release-readmark planning, uncommitted WAL tails, full read-mark tables with no free next-reader slot, and invalid input guards.
-- Adds `wordpress-wal-reader-pin-append-current-next67.php` for copied `wp_options` import behavior where a current reader keeps an older `siteurl` snapshot while the next reader sees an appended import transaction.
+- Adds `application-wal-reader-pin-append-current-next67.php` for copied `wp_options` import behavior where a current reader keeps an older `siteurl` snapshot while the next reader sees an appended import transaction.
 
 ## Verification
 
@@ -18,9 +18,9 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-wal-reader-pin-append-current-next67.php --self-test
+$ php lanes/libsqlite/examples/application-wal-reader-pin-append-current-next67.php --self-test
 {
-    "scenario": "wordpress-wal-reader-pin-append-current-next67",
+    "scenario": "application-wal-reader-pin-append-current-next67",
     "status": "current-reader-pinned-next-reader-advanced",
     "current_reader_frame": 2,
     "next_reader_frame": 5,

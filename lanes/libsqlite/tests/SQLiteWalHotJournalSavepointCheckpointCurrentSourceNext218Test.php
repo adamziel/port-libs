@@ -219,7 +219,7 @@ $cases = [
     'dependency next212 inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next212', $restart()['dependencies'], true), true],
     'dependency next218' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next218', $restart()['dependencies'], true), true],
     'dependency restart truncate' => [static fn (): mixed => in_array('sqlite-wal-restart-truncate-after-hot-journal-savepoint-fence', $restart()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-checkpoint-reset-waits-for-current-source-reopen', $restart()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-checkpoint-reset-waits-for-current-source-reopen', $restart()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($restart()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($restart()['non_overlap'], 'does not repeat next212 reader-pin progress'), true],
     'truncate mode' => [static fn (): mixed => $truncate()['mode'], 'truncate'],

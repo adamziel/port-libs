@@ -106,7 +106,7 @@ $cases251 = [
     'digest mismatch retry count zero' => [static fn (): mixed => $plan251(null, null, 'wp-current-source-251', 'wp-next-source-251', $currentDigest251(), 'bad-next')['source_handoff_barrier_next251']['retry_visible_count'], 0],
     'digest mismatch state held' => [static fn (): mixed => $plan251(null, null, 'wp-current-source-251', 'wp-next-source-251', $currentDigest251(), 'bad-next')['source_handoff_state_next251'], 'current-source-or-digest-fence-holds-next-source-next251'],
     'dependencies include handoff' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-window-source-handoff-next251', $plan251()['dependencies_next251'], true), true],
-    'dependencies include wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-current-next-source-handoff-next251', $plan251()['dependencies_next251'], true), true],
+    'dependencies include application' => [static fn (): mixed => in_array('application-rowvalue-returning-window-current-next-source-handoff-next251', $plan251()['dependencies_next251'], true), true],
     'dependency closure no new support' => [static fn (): mixed => str_contains($plan251()['dependency_closure_next251'], 'no new support component needed'), true],
     'non overlap mentions next248' => [static fn (): mixed => str_contains($plan251()['non_overlap_next251'], 'next248'), true],
     'non overlap mentions next245' => [static fn (): mixed => str_contains($plan251()['non_overlap_next251'], 'next245'), true],

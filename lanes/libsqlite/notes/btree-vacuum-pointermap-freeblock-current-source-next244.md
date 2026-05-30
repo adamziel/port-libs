@@ -2,7 +2,7 @@
 
 Slice: `btree-vacuum-pointermap-freeblock-current-source-next244`.
 
-Implemented `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext244Plan`, an additive publish-order validator over the accepted current-source freelist cursor. The behavior models the point where a copied `wp_options` delete makes the current-source freelist cursor visible to a following WordPress option rewrite:
+Implemented `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext244Plan`, an additive publish-order validator over the accepted current-source freelist cursor. The behavior models the point where a copied `wp_options` delete makes the current-source freelist cursor visible to a following Application option rewrite:
 
 - pointer-map pages are published as fences before payload pages are reusable;
 - duplicate pointer-map page replays keep their generation count;
@@ -13,9 +13,9 @@ Focused verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext244Plan.php
-php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next244.php
+php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next244.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext244Test.php
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next244.php
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next244.php
 git diff --check -- lanes/libsqlite
 ```
 

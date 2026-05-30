@@ -25,9 +25,9 @@ Result:
 
 PASS-line delta: `+76` focused PASS lines.
 
-WordPress smoke:
+Application smoke:
 
-`php lanes/libsqlite/examples/wordpress-pager-savepoint-hot-journal-current-source-next88.php`
+`php lanes/libsqlite/examples/application-pager-savepoint-hot-journal-current-source-next88.php`
 
 The smoke reports copied `wp_options` pages where a hot rollback journal
 restores clean root/transient pages before the current savepoint captures

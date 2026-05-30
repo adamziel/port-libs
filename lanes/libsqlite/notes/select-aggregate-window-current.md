@@ -15,9 +15,9 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectAggregateWindowCurrentTest.php`
   - `1 test files, 31 assertions, 0 failures`
 
-## WordPress Smoke
+## Application Smoke
 
-- `lanes/libsqlite/examples/wordpress-select-aggregate-window-current.php`
+- `lanes/libsqlite/examples/application-select-aggregate-window-current.php`
   covers copied `wp_options` diagnostics for cumulative aggregate windows and
   enabled-row `total()` summaries without requiring `ext/sqlite`.
 

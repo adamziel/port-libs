@@ -10,17 +10,17 @@ map to `index_xinfo` rows with `key=1`, records rowid-primary-key mappings, and
 counts auxiliary index columns that SQLite reports with `key=0` but that must
 not satisfy the FK parent key.
 
-WordPress use: copied `wp_options` imports can resume FK repair only after a
+Application use: copied `wp_options` imports can resume FK repair only after a
 missing parent unique key is repaired, while avoiding false positives from
 covering/auxiliary index columns.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next178.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next178.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next178.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next178.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this reuses the

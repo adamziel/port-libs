@@ -6,7 +6,7 @@
 
 - Added focused schema parser coverage for generated columns declared with both shorthand `AS (...)` and verbose `GENERATED ALWAYS AS (...)`.
 - Covered generated-column expressions and CHECK constraints containing `UNIQUE`, `CHECK`, and `PRIMARY KEY` text so autoindex discovery only counts real declared UNIQUE constraints.
-- Added a WordPress-shaped schema smoke for `wp_options` generated metadata inspection without `ext/sqlite`.
+- Added a Application-shaped schema smoke for `wp_options` generated metadata inspection without `ext/sqlite`.
 
 ## Verification
 
@@ -20,9 +20,9 @@
   - `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLiteGeneratedColumnCheckConstraintCorpusTest.php`
   - `No syntax errors detected`
-- `php -l lanes/libsqlite/examples/wordpress-generated-column-check-schema.php`
+- `php -l lanes/libsqlite/examples/application-generated-column-check-schema.php`
   - `No syntax errors detected`
-- `php lanes/libsqlite/examples/wordpress-generated-column-check-schema.php`
+- `php lanes/libsqlite/examples/application-generated-column-check-schema.php`
   - Reported visible `table_info` columns, `table_xinfo` hidden codes `[0,0,0,0,2,3]`, and `sqlite_autoindex` columns `["option_name"]`.
 - `git diff --check -- lanes/libsqlite`
   - Passed with no output.

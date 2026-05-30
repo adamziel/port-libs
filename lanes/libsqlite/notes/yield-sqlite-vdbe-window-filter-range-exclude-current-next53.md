@@ -11,16 +11,16 @@
   EXCLUDE CURRENT ROW` over duplicate peer groups, numeric following
   boundaries, partition breaks, SQL truthiness filters, NULL payloads, and
   EXCLUDE NO OTHERS/GROUP/TIES comparisons.
-- Adds a copied WordPress `wp_options` smoke for autoloaded option previews
+- Adds a copied Application `wp_options` smoke for autoloaded option previews
   where the current row is excluded before FILTER-gated aggregate stepping.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteVdbeWindowAggregateCursor.php`
 - `php -l lanes/libsqlite/tests/SQLiteVdbeWindowFilterRangeExcludeCurrentNext53Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-vdbe-window-filter-range-exclude-current-next53.php`
+- `php -l lanes/libsqlite/examples/application-vdbe-window-filter-range-exclude-current-next53.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowFilterRangeExcludeCurrentNext53Test.php`
-- `php lanes/libsqlite/examples/wordpress-vdbe-window-filter-range-exclude-current-next53.php --self-test`
+- `php lanes/libsqlite/examples/application-vdbe-window-filter-range-exclude-current-next53.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

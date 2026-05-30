@@ -17,10 +17,10 @@ Focused verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext261Test.php
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next261.php
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next261.php
 php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext261Plan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext261Test.php
-php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next261.php
+php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next261.php
 git diff --check -- lanes/libsqlite
 ```
 

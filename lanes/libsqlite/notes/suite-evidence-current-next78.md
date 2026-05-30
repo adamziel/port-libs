@@ -41,7 +41,7 @@ is accepted after current-next77.
 This does not duplicate current-next75 release/all countability, current-next77
 suite evidence, accepted veryquick denominator evidence, or dashboard/status
 publication. It is a suite evidence validator only and adds no SQL, JSON, WAL,
-pager, VFS, B-tree, planner, trigger, or WordPress behavior helper.
+pager, VFS, B-tree, planner, trigger, or Application behavior helper.
 
 ## Dependency Closure
 

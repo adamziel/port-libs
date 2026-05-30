@@ -17,7 +17,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonBooleanOperatorsCurrentN
 # 52 PASS lines
 # 1 test files, 52 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-json-boolean-operators.php
+php lanes/libsqlite/examples/application-json-boolean-operators.php
 # enabledOptions: ["plugin_cache_settings"]
 # needsReviewOptions: ["plugin_forms_settings","plugin_empty_settings"]
 # priorityOptions: ["plugin_cache_settings"]
@@ -26,7 +26,7 @@ php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/src/SQLiteSelectPredicate.php
 php -l lanes/libsqlite/src/SQLiteSelectExpression.php
 php -l lanes/libsqlite/tests/SQLiteJsonBooleanOperatorsCurrentNext24Test.php
-php -l lanes/libsqlite/examples/wordpress-json-boolean-operators.php
+php -l lanes/libsqlite/examples/application-json-boolean-operators.php
 # No syntax errors detected in changed PHP files
 
 git diff --check -- lanes/libsqlite

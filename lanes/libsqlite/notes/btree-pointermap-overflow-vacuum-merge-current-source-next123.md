@@ -19,7 +19,7 @@ auto-vacuum page count.
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNext123Test.php`
 - Result: `1 test files, 151 assertions, 0 failures`
 - PASS-line movement: `+63` focused PASS lines
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-pointermap-overflow-vacuum-merge-current-source-next123.php`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-pointermap-overflow-vacuum-merge-current-source-next123.php`
 
 ## Non-Overlap
 

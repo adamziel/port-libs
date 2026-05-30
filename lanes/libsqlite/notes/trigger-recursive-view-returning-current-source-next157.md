@@ -2,16 +2,16 @@
 
 Adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Plan`, a bounded current-source behavior slice for recursive view row materialization feeding an `INSTEAD OF` trigger with `RETURNING`.
 
-The slice models copied WordPress `wp_options` rows where a recursive view expands option-parent chains, an `INSTEAD OF` trigger writes audit option rows, and `RETURNING` rows from the current view source must be drained before a next schema/view source is admitted. The next source is still planned and exposed as attempted-only evidence until `admit_next_source` is set.
+The slice models copied Application `wp_options` rows where a recursive view expands option-parent chains, an `INSTEAD OF` trigger writes audit option rows, and `RETURNING` rows from the current view source must be drained before a next schema/view source is admitted. The next source is still planned and exposed as attempted-only evidence until `admit_next_source` is set.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Plan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next157.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next157.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Test.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next157.php --self-test
+php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next157.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -11,7 +11,7 @@ final class SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameValuePlan(
+    public static function optionRowNameValuePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -24,7 +24,7 @@ final class SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan
         int $currentCollationVersion = 14,
         int $nextCollationVersion = 15,
     ): array {
-        $plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan(
+        $plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::optionRowNameValuePlan(
             $currentRows,
             $nextRows,
             $pattern,

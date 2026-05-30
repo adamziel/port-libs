@@ -9,8 +9,8 @@ Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a current-so
 Passed in this lane:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Test.php` - `1 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next202.php` - self-test passed and emitted `wal-hot-journal-savepoint-checkpoint-current-source-next202`
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php && php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Test.php && php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next202.php` - no syntax errors
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next202.php` - self-test passed and emitted `wal-hot-journal-savepoint-checkpoint-current-source-next202`
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php && php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Test.php && php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next202.php` - no syntax errors
 - `php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'` - `lane-status json ok`
 - `git diff --check -- lanes/libsqlite` - clean
 

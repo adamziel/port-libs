@@ -4,12 +4,12 @@
 
 Adds the reopened-reader next-source ticket fence after the accepted next227 publish receipt shape. The plan admits next230 readers only when every ticket matches the published source token, next-source epoch, checkpoint frame, checkpoint cookie, schema cookie, scope name, page digests, and hidden hot-journal/WAL-tail state. Duplicate reader tickets and stale ticket metadata hold the reopened current source.
 
-The WordPress example models wp_options and autoload readers consuming checkpointed savepoint scopes only after hot-journal visibility and WAL tail visibility have both been fenced.
+The Application example models wp_options and autoload readers consuming checkpointed savepoint scopes only after hot-journal visibility and WAL tail visibility have both been fenced.
 
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next230.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next230.php --self-test`
 
 ## Non-Overlap
 

@@ -10,7 +10,7 @@ current table rows before sqlite_schema SQL is rewritten. The reparse result
 advances the schema cookie once, refreshes `PRAGMA table_xinfo` samples, and
 invalidates prepared statements compiled against the previous schema cookie.
 
-WordPress path: `wordpress-schema-alter-generated-check-reparse-current-source-next126.php`
+Application path: `application-schema-alter-generated-check-reparse-current-source-next126.php`
 models a copied `wp_options` import where plugin code adds a virtual lower-case
 option-name column with CHECK validation. The smoke proves current rows are
 validated, the generated column appears in `table_xinfo`, and only stale
@@ -25,8 +25,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteSchemaDdlReparsePlan.php
 php -l lanes/libsqlite/tests/SQLiteSchemaAlterGeneratedCheckReparseCurrentSourceNext126Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteSchemaAlterGeneratedCheckReparseCurrentSourceNext126Test.php
 
-php -l lanes/libsqlite/examples/wordpress-schema-alter-generated-check-reparse-current-source-next126.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-schema-alter-generated-check-reparse-current-source-next126.php
+php -l lanes/libsqlite/examples/application-schema-alter-generated-check-reparse-current-source-next126.php
+No syntax errors detected in lanes/libsqlite/examples/application-schema-alter-generated-check-reparse-current-source-next126.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaAlterGeneratedCheckReparseCurrentSourceNext126Test.php
 1 test files, 51 assertions, 0 failures

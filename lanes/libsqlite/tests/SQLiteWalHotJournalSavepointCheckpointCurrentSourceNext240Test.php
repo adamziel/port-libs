@@ -120,7 +120,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('admit_autocheckpoint_baseline_next240', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next236', $plan()['dependencies'], true), true],
     'dependency next240' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next240', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-next-writer-autocheckpoint-after-hot-journal', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-next-writer-autocheckpoint-after-hot-journal', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat checkpoint publication'), true],
     'stale token blocked' => [static fn (): mixed => $blockedReceipt(['source_token' => 'old-source'])['blocked_receipt_reasons'], ['receipt_source_token_mismatch']],

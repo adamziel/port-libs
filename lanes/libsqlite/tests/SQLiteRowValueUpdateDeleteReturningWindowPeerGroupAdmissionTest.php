@@ -100,7 +100,7 @@ $cases262 = [
     'boundary missing frame reason' => [static fn (): mixed => in_array('frame-boundary-not-ready-next262', array_merge(...array_column($plan262(null, ['status'], $firstBoundary262())['peer_blocked_rows_next262'], 'peer_blocked_reasons_next262')), true), true],
     'boundary missing keeps crossing tokens required' => [static fn (): mixed => count($plan262(null, ['status'], $firstBoundary262())['required_peer_tokens_next262']), 1],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-window-peer-groups-next262', $plan262()['dependencies_next262'], true), true],
-    'wordpress marker' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-peer-groups-next262', $plan262()['dependencies_next262'], true), true],
+    'application marker' => [static fn (): mixed => in_array('application-rowvalue-returning-window-peer-groups-next262', $plan262()['dependencies_next262'], true), true],
     'dependency closure no support' => [static fn (): mixed => str_contains($plan262()['dependency_closure_next262'], 'no new support component needed'), true],
     'non overlap mentions next260' => [static fn (): mixed => str_contains($plan262()['non_overlap_next262'], 'next260'), true],
     'non overlap mentions next256' => [static fn (): mixed => str_contains($plan262()['non_overlap_next262'], 'next256'), true],

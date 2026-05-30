@@ -14,11 +14,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 67 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-planner-expression-partial-skipscan-current-source-next141.php --self-test
-wordpress-planner-expression-partial-skipscan-current-source-next141 self-test passed
+php lanes/libsqlite/examples/application-planner-expression-partial-skipscan-current-source-next141.php --self-test
+application-planner-expression-partial-skipscan-current-source-next141 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +67 from the 67 independent PASS lines

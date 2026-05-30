@@ -106,7 +106,7 @@ foreach ($databaseCases as $name => [$value, $pattern, $expected]) {
     };
 }
 
-$tests['glob malformed utf current next74 matched rows preserve wordpress payload'] = static function (TestRunner $t) use ($cursor): void {
+$tests['glob malformed utf current next74 matched rows preserve application payload'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor("plugin_\xc3*", 'BINARY')->matchedRows();
     $t->same('yes', $rows[0]['payload']['autoload']);
     $t->same("plugin_\xc3", $rows[0]['payload']['option_name']);

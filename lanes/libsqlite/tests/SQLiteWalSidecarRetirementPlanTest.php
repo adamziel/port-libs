@@ -111,7 +111,7 @@ $cases = [
     'operation shm reset' => [static fn (): mixed => in_array('verify_shm_read_mark_reset_receipt_next221', $plan()['operation_names'], true), true],
     'dependency next217 carried' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next217', $plan()['dependencies'], true), true],
     'dependency next221' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next221', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-sidecar-retirement', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-sidecar-retirement', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next217'), true],
     'missing shm status' => [static fn (): mixed => $plan(null, $missingShm)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next221'],

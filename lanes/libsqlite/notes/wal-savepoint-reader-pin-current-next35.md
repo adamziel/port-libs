@@ -7,7 +7,7 @@ Status: focused PHP behavior growth for WAL savepoint rollback when an existing 
 - Added `SQLiteWalSavepointCheckpointPlan::readerPinCurrentNextAfterRollbackTo()`.
 - The planner composes existing savepoint WAL byte truncation, checkpoint mode planning, durable checkpoint results, WAL reader snapshots, and read-mark planning.
 - It reports the current pinned reader view from the original WAL, then reports the next reader view from the post-rollback checkpoint result, including read-mark/reset state and dependency tags.
-- Added `wordpress-wal-savepoint-reader-pin-current-next35.php` for copied `wp_options` import diagnostics.
+- Added `application-wal-savepoint-reader-pin-current-next35.php` for copied `wp_options` import diagnostics.
 
 ## Focused Verification
 

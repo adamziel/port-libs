@@ -7,9 +7,9 @@ hidden rowid cost, and partial ORDER BY profiles, then records the combined
 path/order prefix, remaining sort suffix, ordered rowid tape, effective cost,
 and replan reasons when the next JSON source changes output order.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-json-table-hidden-path-orderby.php`
+- `lanes/libsqlite/examples/application-json-table-hidden-path-orderby.php`
   models copied `wp_options` plugin settings where an import adds a rule under
   the same `$.rules` root. The plan keeps hidden `path`/`rowid` constraints but
   detects that `ORDER BY path, atom DESC` requires a new ordered rowid tape.
@@ -18,9 +18,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableHiddenPathOrderByTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-hidden-path-orderby.php`
+- `php -l lanes/libsqlite/examples/application-json-table-hidden-path-orderby.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenPathOrderByTest.php`
-- `php lanes/libsqlite/examples/wordpress-json-table-hidden-path-orderby.php`
+- `php lanes/libsqlite/examples/application-json-table-hidden-path-orderby.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

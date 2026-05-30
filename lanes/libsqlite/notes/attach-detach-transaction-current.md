@@ -19,7 +19,7 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachTransactionCurrentTest.php`
   passed: `1 test files, 60 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-attach-detach-transaction-current.php --self-test`
+- `php lanes/libsqlite/examples/application-attach-detach-transaction-current.php --self-test`
   passed.
 - `php -l` passed for changed PHP files.
 - `git diff --check -- lanes/libsqlite` passed.

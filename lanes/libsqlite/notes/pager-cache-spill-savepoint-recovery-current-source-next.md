@@ -7,6 +7,6 @@ The behavior is intentionally narrower than the accepted master-journal cache-sp
 Verification target:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerCacheSpillSavepointRecoveryCurrentSourceNext120Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-cache-spill-savepoint-recovery-current-source-next120.php`
+- `php lanes/libsqlite/examples/application-pager-cache-spill-savepoint-recovery-current-source-next120.php`
 
 Dependency closure: no new support component is needed. The slice reuses `SQLiteSavepointStack` page-image rollback and `SQLitePagerDirtyPageCacheSpillPlan`.

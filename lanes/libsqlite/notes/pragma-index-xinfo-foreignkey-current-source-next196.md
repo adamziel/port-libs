@@ -1,7 +1,7 @@
 # PRAGMA index_xinfo + foreign_key current-source next196
 
 This slice adds a bounded current-vs-next PRAGMA metadata paginator for copied
-WordPress taxonomy schema reparses. It pages `PRAGMA index_xinfo` rows together
+Application taxonomy schema reparses. It pages `PRAGMA index_xinfo` rows together
 with `PRAGMA foreign_key_list` rows from the same current and next catalog
 snapshots, preserving expression-index terms, auxiliary rowid terms,
 composite foreign-key rows, source hashes, and resume cursor validation.
@@ -12,10 +12,10 @@ Focused verification:
 - Result: `1 test files, 75 assertions, 0 failures`
 - PASS-line delta: `+62`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next196.php --self-test`
-- Result: `wordpress-pragma-index-xinfo-foreignkey-current-source-next196 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next196.php --self-test`
+- Result: `application-pragma-index-xinfo-foreignkey-current-source-next196 self-test passed`
 
 Non-overlap:
 

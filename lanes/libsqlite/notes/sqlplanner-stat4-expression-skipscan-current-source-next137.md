@@ -11,8 +11,8 @@ skip-scan planner and records the missing stale-source behavior:
 - the cursor tape records the `ReprepareIfStale`, `SeekScan`, range recheck,
   covering-column read, and next/prev opcodes.
 
-WordPress path:
-`php lanes/libsqlite/examples/wordpress-planner-stat4-expression-skipscan-current-source-next137.php`
+Application path:
+`php lanes/libsqlite/examples/application-planner-stat4-expression-skipscan-current-source-next137.php`
 models copied `wp_options` plugin rows where a refreshed STAT4 source admits a
 new `PLUGIN_SECURITY` option through `lower(option_name)` skip-scan.
 
@@ -21,9 +21,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionSkipScanCurrentSourceNext137Test.php
-php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-skipscan-current-source-next137.php
+php -l lanes/libsqlite/examples/application-planner-stat4-expression-skipscan-current-source-next137.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionSkipScanCurrentSourceNext137Test.php
-php lanes/libsqlite/examples/wordpress-planner-stat4-expression-skipscan-current-source-next137.php
+php lanes/libsqlite/examples/application-planner-stat4-expression-skipscan-current-source-next137.php
 git diff --check -- lanes/libsqlite
 ```
 

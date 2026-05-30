@@ -4,18 +4,18 @@
 
 - Adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext180Plan` for nested savepoint current-source behavior where `UPDATE OR IGNORE` with row-value assignment selects a conflicting row, restores that row from the statement image, and yields no `RETURNING` row for the ignored mutation.
 - The same inner savepoint then yields a normal row-value `UPDATE ... RETURNING`, performs speculative `DELETE` / `UPDATE OR REPLACE` work, rolls back to the inner image, and retries from the preserved current source before release.
-- WordPress smoke: `lanes/libsqlite/examples/wordpress-rowvalue-ignore-savepoint-current-source-next180.php` models a copied `wp_options` import where an ignored duplicate `(blog_id, option_name)` update should not appear in `RETURNING`, while later transient cleanup rows are discarded by inner `ROLLBACK TO` and retried.
+- Application smoke: `lanes/libsqlite/examples/application-rowvalue-ignore-savepoint-current-source-next180.php` models a copied `wp_options` import where an ignored duplicate `(blog_id, option_name)` update should not appear in `RETURNING`, while later transient cleanup rows are discarded by inner `ROLLBACK TO` and retried.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext180Test.php`
   - `1 test files, 75 assertions, 0 failures`
   - 75 focused PASS lines.
-- `php lanes/libsqlite/examples/wordpress-rowvalue-ignore-savepoint-current-source-next180.php --self-test`
-  - `wordpress-rowvalue-ignore-savepoint-current-source-next180 self-test passed`
+- `php lanes/libsqlite/examples/application-rowvalue-ignore-savepoint-current-source-next180.php --self-test`
+  - `application-rowvalue-ignore-savepoint-current-source-next180 self-test passed`
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext180Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext180Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-ignore-savepoint-current-source-next180.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-ignore-savepoint-current-source-next180.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

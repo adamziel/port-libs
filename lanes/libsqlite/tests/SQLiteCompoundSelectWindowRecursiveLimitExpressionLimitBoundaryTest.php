@@ -154,7 +154,7 @@ $tests['compound select window recursive limit expression-limit-boundary replan 
     $t->true(in_array('recursive-limit-expression-current-source-expression-limit-boundary', $reasons, true));
     $t->true(in_array('compound-tail-limit-expression-current-source-expression-limit-boundary', $reasons, true));
     $t->true(in_array('window-values-before-compound-limit-expression-expression-limit-boundary', $reasons, true));
-    $t->true(in_array('wordpress-option-source-boundary-shifts-expression-limit-expression-limit-boundary', $reasons, true));
+    $t->true(in_array('application-option-source-boundary-shifts-expression-limit-expression-limit-boundary', $reasons, true));
 };
 
 $tests['compound select window recursive limit expression-limit-boundary rejects literal recursive limit'] = static function (TestRunner $t) use ($currentTables): void {

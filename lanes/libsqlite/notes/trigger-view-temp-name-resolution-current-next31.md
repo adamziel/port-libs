@@ -28,11 +28,11 @@ Focused test run: 2 selected test files (root lock skipped)
 2 test files, 111 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-view-temp-name-resolution-current-next31.php --self-test
-wordpress-trigger-view-temp-name-resolution-current-next31 self-test passed
+php lanes/libsqlite/examples/application-trigger-view-temp-name-resolution-current-next31.php --self-test
+application-trigger-view-temp-name-resolution-current-next31 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +55, from 10687 to 10742, with no mapped

@@ -2,18 +2,18 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which admits a retry/next WAL current source only after an already reopened next249 checkpoint source has matching next-generation receipts. The plan requires advancing source token/generation metadata, next database and WAL digests, dirty-page materialization, commit-frame sync, retry-reader acknowledgements, hot-journal fencing, savepoint release, unique receipt names, and safe handoff ordering.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next253.php` models a copied `wp_options` import retry after hot-journal savepoint checkpoint recovery. Retry readers are admitted only when database pages, WAL frames, hot-journal fencing, and savepoint release all match the advancing source token.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next253.php` models a copied `wp_options` import retry after hot-journal savepoint checkpoint recovery. Retry readers are admitted only when database pages, WAL frames, hot-journal fencing, and savepoint release all match the advancing source token.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next253.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next253.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next253.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next253.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

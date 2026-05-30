@@ -3,7 +3,7 @@
 This slice adds current-source PRAGMA diagnostics for explicit foreign keys
 that reference SQLite pseudo-rowid names (`rowid`, `_rowid_`, or `oid`) as
 parent columns. SQLite requires a parent key to be a named column, so copied
-WordPress schemas that use `REFERENCES parent(rowid)` need a blocker distinct
+Application schemas that use `REFERENCES parent(rowid)` need a blocker distinct
 from accepted rowid-alias coverage.
 
 Behavior:
@@ -15,15 +15,15 @@ Behavior:
 - Distinguishes invalid pseudo-rowid parent keys from declared columns named
   `rowid`, `_rowid_`, or `oid`.
 - Includes rows in source hashing, pagination, counts, deltas, stale-cursor
-  validation, and a copied WordPress postmeta-import smoke.
+  validation, and a copied Application postmeta-import smoke.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next230.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next230.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next230.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next230.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: avoids accepted rowid-alias parent-key coverage, implicit parent

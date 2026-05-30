@@ -4,8 +4,8 @@ Adds `SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan`, a bounded
 current/next schema source comparison for triggers whose `NEW` / `OLD`
 references include generated columns after DDL reparse.
 
-WordPress path:
-`wordpress-schema-generated-trigger-reparse-current-source.php` models a
+Application path:
+`application-schema-generated-trigger-reparse-current-source.php` models a
 copied `wp_options` audit trigger prepared before migration DDL adds generated
 columns (`option_value_len`, `option_bucket`) that the trigger body references.
 The plan reports the schema-cookie change, generated-column additions/removals,
@@ -21,8 +21,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-schema-generated-trigger-reparse-current-source.php --self-test
-wordpress-schema-generated-trigger-reparse-current-source self-test passed
+php lanes/libsqlite/examples/application-schema-generated-trigger-reparse-current-source.php --self-test
+application-schema-generated-trigger-reparse-current-source self-test passed
 ```
 
 Non-overlap: avoids accepted ATTACH/temp/WAL trigger view-cache and trigger

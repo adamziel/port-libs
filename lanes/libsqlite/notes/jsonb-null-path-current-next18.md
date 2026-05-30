@@ -12,7 +12,7 @@
 - Upstream mapping: no denominator movement. Local `sqlite3` oracle checks
   confirmed text JSON behavior for NULL mutation/remove paths; JSONB dispatch
   mirrors the same SQL path semantics in the native codec.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-jsonb-null-path-current-next18.php`
+- Application smoke: `php lanes/libsqlite/examples/application-jsonb-null-path-current-next18.php`
   reports copied `active_plugins` JSONB settings where optional NULL path
   filters are skipped during mutation and return SQL NULL for removal.
 - Non-overlap: avoids accepted JSON table SQL NULL path handling, JSON hidden

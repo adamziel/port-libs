@@ -10,13 +10,13 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenGeneratedCost
 
 Result: `1 test files, 63 assertions, 0 failures`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-json-table-hidden-generated-cost-current-source-next148.php --self-test
+php lanes/libsqlite/examples/application-json-table-hidden-generated-cost-current-source-next148.php --self-test
 ```
 
-Result: `wordpress-json-table-hidden-generated-cost-current-source-next148 self-test passed`.
+Result: `application-json-table-hidden-generated-cost-current-source-next148 self-test passed`.
 
 Non-overlap: avoids accepted JSON hidden/visible constraint extraction, JSON table SELECT source/cursor wiring, generated hidden rowid cost next142, hidden path generated current-source value filtering next143, generated hidden path current-source next144, and batch143 JSON table generated hidden path costing. This slice adds the distinct cost/argv/omit planner profile needed after those rows already exist.
 

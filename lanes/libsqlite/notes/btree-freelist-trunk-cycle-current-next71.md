@@ -13,12 +13,12 @@ Verification:
   - 52 PASS lines
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowAutoVacuumPointerMapCurrentNext53Test.php lanes/libsqlite/tests/SQLiteBTreeFreelistTrunkCycleCurrentNext71Test.php`
   - `2 test files, 757 assertions, 0 failures`
-- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-freelist-trunk-cycle-current-next71.php`
+- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/application-freelist-trunk-cycle-current-next71.php`
   - reports `valid: false`, `cycleAtPage: 106`, `cyclePath: [106, 110, 106]`, and `SQLite freelist loops at page 106`
 - `php -l lanes/libsqlite/src/SQLiteFreelistTraversalPlan.php`
 - `php -l lanes/libsqlite/src/SQLiteDatabase.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeFreelistTrunkCycleCurrentNext71Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-freelist-trunk-cycle-current-next71.php`
+- `php -l lanes/libsqlite/examples/application-freelist-trunk-cycle-current-next71.php`
   - all changed PHP files report no syntax errors
 - `git diff --check -- lanes/libsqlite`
   - passed with no output

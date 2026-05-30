@@ -5,7 +5,7 @@ Slice: parser-level prepared SQL text extraction for ATTACH temp/main WAL schema
 Implementation:
 - Extended `SQLiteAttachTempMainWalSchemaCachePlan` with `currentNextSql()`, a bounded SQL-text wrapper that extracts table references from SELECT/FROM/JOIN, INSERT INTO, UPDATE, and DELETE FROM statements, resolves them through existing temp/main/attached schema-cache current/next behavior, and reports per-statement reprepare decisions.
 - Added `SQLiteAttachTempWalSchemaCacheSqlCurrentNext53Test.php` with 62 focused PASS cases covering temp shadowing, qualified main/archive WAL schema-cookie invalidation, committed page-1 WAL frame cookies, uncommitted/non-page-1 WAL frames, quoted identifiers, DELETE subqueries, attached schemas, missing schemas/tables, and invalid SQL/schema inputs.
-- Added `wordpress-attach-temp-wal-schema-cache-current-next53.php` smoke for copied WordPress `wp_options` import previews where temp staging shadows main while qualified main/archive statements reprepare after WAL schema-cookie changes.
+- Added `application-attach-temp-wal-schema-cache-current-next53.php` smoke for copied Application `wp_options` import previews where temp staging shadows main while qualified main/archive statements reprepare after WAL schema-cookie changes.
 
 Verification:
 

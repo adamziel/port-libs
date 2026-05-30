@@ -6,7 +6,7 @@ Slice: `btree-vacuum-pointermap-freeblock-current-source-next153`
 
 Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, a current-source B-tree plan that composes leaf freeblock repair, obsolete table/index overflow release, freelist allocation, and auto-vacuum pointer-map rewrites into one materialized transition table.
 
-The slice covers the WordPress copy-path where large `wp_options` table values and secondary-index entries are deleted, their overflow pages are freed, and a replacement overflow chain reuses the released pages with fresh pointer-map parents and next-page links.
+The slice covers the Application copy-path where large `wp_options` table values and secondary-index entries are deleted, their overflow pages are freed, and a replacement overflow chain reuses the released pages with fresh pointer-map parents and next-page links.
 
 ## Evidence
 
@@ -19,11 +19,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 314 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next153.php --self-test
-wordpress-btree-vacuum-pointermap-freeblock-current-source-next153 self-test passed
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next153.php --self-test
+application-btree-vacuum-pointermap-freeblock-current-source-next153 self-test passed
 ```
 
 Additional required checks:
@@ -31,7 +31,7 @@ Additional required checks:
 ```text
 php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext153Test.php
-php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next153.php
+php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next153.php
 ```
 
 ## Non-Overlap

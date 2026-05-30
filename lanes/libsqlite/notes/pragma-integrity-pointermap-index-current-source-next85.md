@@ -13,9 +13,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIntegrityPointerMapIndexCurrentSourceYield.php
 php -l lanes/libsqlite/tests/SQLitePragmaIntegrityPointerMapIndexCurrentSourceNext85Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-index-current-source-next85.php
+php -l lanes/libsqlite/examples/application-pragma-integrity-pointermap-index-current-source-next85.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityPointerMapIndexCurrentSourceNext85Test.php
-php lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-index-current-source-next85.php
+php lanes/libsqlite/examples/application-pragma-integrity-pointermap-index-current-source-next85.php
 git diff --check -- lanes/libsqlite
 ```
 
@@ -27,7 +27,7 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 71 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 The smoke reports copied `wp_options` index repair preflight rows with the
 accepted base source, next-source label, nine pointer-map diagnostics, and five

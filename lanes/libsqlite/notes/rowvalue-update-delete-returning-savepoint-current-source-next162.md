@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for row-value `UPDATE OR FAIL ... RETURNING`
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Plan`. It models the upstream SQLite boundary where `OR FAIL` preserves prior row changes from the same statement until the caller rolls back, while `ROLLBACK TO savepoint` restores the savepoint image and discards any already-yielded RETURNING rows from the failed statement.
 
-WordPress smoke: `wordpress-rowvalue-update-delete-returning-savepoint-current-source-next162.php` covers a copied `wp_options` import cleanup where the first row-value update is visible in the failed statement's current source, the second row collides with that partial row, and rollback restores the original options before transient cleanup can run.
+Application smoke: `application-rowvalue-update-delete-returning-savepoint-current-source-next162.php` covers a copied `wp_options` import cleanup where the first row-value update is visible in the failed statement's current source, the second row collides with that partial row, and rollback restores the original options before transient cleanup can run.
 
 Verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next162.php
+php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next162.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next162.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next162.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

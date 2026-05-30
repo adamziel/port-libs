@@ -11,7 +11,7 @@ Focused verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpsertDoUpdateWhereCorpusTest.php`
   - `1 test files, 64 assertions, 0 failures`
   - 64 PASS lines
-- `php lanes/libsqlite/examples/wordpress-upsert-do-update-where.php`
+- `php lanes/libsqlite/examples/application-upsert-do-update-where.php`
 
 Status delta:
 

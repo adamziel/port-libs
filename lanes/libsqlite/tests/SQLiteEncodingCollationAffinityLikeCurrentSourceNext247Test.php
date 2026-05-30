@@ -50,7 +50,7 @@ $plan247 = static fn (
     string $nextSource = 'main.wp_options@247',
     int $currentCookie = 246,
     int $nextCookie = 247,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUnicodeNoCaseLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan(
     $current ?? $current247,
     $next ?? $nextTwoFourSeven,
     $pattern,
@@ -221,23 +221,23 @@ $tests['encoding collation affinity like current source nextTwoFourSeven blob an
 };
 
 $tests['encoding collation affinity like current source nextTwoFourSeven rejects malformed utf8 string'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name' => "plugin_caf\xc3"]], $nextTwoFourSeven, 'plugin!_café%', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name' => "plugin_caf\xc3"]], $nextTwoFourSeven, 'plugin!_café%', '!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourSeven rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUnicodeNoCaseLikePlan([['option_id' => 1]], $nextTwoFourSeven, 'plugin_café%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['option_id' => 1]], $nextTwoFourSeven, 'plugin_café%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourSeven rejects array option name'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourSeven, 'plugin_café%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourSeven, 'plugin_café%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourSeven rejects invalid byte encoding'] = static function (TestRunner $t) use ($nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], $nextTwoFourSeven, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], $nextTwoFourSeven, 'plugin%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourSeven rejects unsupported collation'] = static function (TestRunner $t) use ($current247, $nextTwoFourSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUnicodeNoCaseLikePlan($current247, $nextTwoFourSeven, 'plugin%', null, 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUnicodeNoCaseLikePlan($current247, $nextTwoFourSeven, 'plugin%', null, 'UNICODE'));
 };
 
 return $tests;

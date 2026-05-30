@@ -12,11 +12,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 70 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-hot-journal-reader-current-source-next122.php --self-test
-wordpress-wal-checkpoint-hot-journal-reader-current-source-next122 self-test passed
+php lanes/libsqlite/examples/application-wal-checkpoint-hot-journal-reader-current-source-next122.php --self-test
+application-wal-checkpoint-hot-journal-reader-current-source-next122 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +70, from 47656 to 47726, from the 70 independent PASS lines in `SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Test.php`. Mapped upstream coverage remains `604 / 1589`; this is focused PHP behavior coverage over existing WAL/pager inventory rather than a newly mapped upstream manifest row.

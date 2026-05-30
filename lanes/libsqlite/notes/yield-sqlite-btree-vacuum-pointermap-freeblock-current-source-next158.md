@@ -14,8 +14,8 @@ tail pages remain unavailable for allocation.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext158Test.php`
   - `1 test files, 205 assertions, 0 failures`
   - `61` focused PASS lines
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next158.php --self-test`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next158.php --self-test`
 
 ## Non-Overlap
 

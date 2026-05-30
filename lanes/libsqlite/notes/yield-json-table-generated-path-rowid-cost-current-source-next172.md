@@ -15,10 +15,10 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext172Test.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next172.php --self-test
+php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next172.php --self-test
 ```
 
 Non-overlap: this does not repeat accepted next166 generated-path rowid yield admission, next165 rowid seek costing, next163 xBestIndex admission, visible/hidden JSON constraints, JSON table SELECT source/cursor wiring, host joins, or JSON generated ordering. The new behavior is specifically current-source fence-token/reset accounting for generated-path rowid yield reuse across current/next source changes.

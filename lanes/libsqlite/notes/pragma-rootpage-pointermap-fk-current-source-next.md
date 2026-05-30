@@ -5,7 +5,7 @@ current-source PRAGMA helper that annotates `foreign_key_check` violations with
 the child and parent table rootpages plus their auto-vacuum pointer-map state.
 
 The new behavior is narrower than accepted rootpage analysis and FK pagination:
-it joins the two surfaces for FK blockers so a copied WordPress database can
+it joins the two surfaces for FK blockers so a copied Application database can
 tell whether a missing parent row is the only blocker or whether the child or
 parent table rootpage also has a pointer-map/rootpage integrity problem.
 
@@ -15,7 +15,7 @@ Verification:
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 68 assertions, 0 failures`
   - `57` PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-rootpage-pointermap-fk-current-source-next.php`
+- `php lanes/libsqlite/examples/application-pragma-rootpage-pointermap-fk-current-source-next.php`
   - printed blocked copied `wp_options` / `wp_terms` FK diagnostics with one
     rootpage pointer-map conflict.
 

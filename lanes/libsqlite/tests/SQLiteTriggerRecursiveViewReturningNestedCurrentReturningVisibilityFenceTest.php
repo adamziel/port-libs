@@ -155,7 +155,7 @@ $cases185 = [
     'dependency includes next185' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next185', $drained185()['dependencies_next185'], true), true],
     'dependency includes depth fence' => [static fn (): mixed => in_array('sqlite-returning-nested-recursive-depth-drain-fence', $drained185()['dependencies_next185'], true), true],
     'dependency includes epoch fence' => [static fn (): mixed => in_array('sqlite-returning-nested-recursive-epoch-fence', $drained185()['dependencies_next185'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next185', $drained185()['dependencies_next185'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next185', $drained185()['dependencies_next185'], true), true],
     'non overlap names next182' => [static fn (): mixed => str_contains($drained185()['non_overlap_next185'], 'next182 generation'), true],
 
     'bad nested epoch throws' => [static fn (): mixed => $plan185(['nested_epoch' => 'bad epoch']), InvalidArgumentException::class],

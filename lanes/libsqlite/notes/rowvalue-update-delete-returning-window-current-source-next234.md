@@ -15,11 +15,11 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext234Test.php`
 - Result: `1 test files, 73 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next234.php --self-test`
-- Result: `wordpress-rowvalue-returning-window-current-source-next234 self-test passed`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next234.php --self-test`
+- Result: `application-rowvalue-returning-window-current-source-next234 self-test passed`
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext234Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext234Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next234.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next234.php`
 - Result: all three reported no syntax errors.
 
 Expected dashboard movement: `phpPass +73` from the new focused test file.

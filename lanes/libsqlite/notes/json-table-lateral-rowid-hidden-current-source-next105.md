@@ -10,7 +10,7 @@ reordering as a rowid tape mutation.
 
 Behavior covered:
 
-- keyed current/next host matching by WordPress option id;
+- keyed current/next host matching by Application option id;
 - hidden rowid alias provenance normalized to JSON table `id`;
 - per-host current and next rowid summaries;
 - row-level rowid/fullkey/payload transitions;
@@ -28,15 +28,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableLateralRowidHiddenCurrentSourceNext105Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonTableLateralRowidHiddenCurrentSourceNext105Test.php
 
-php -l lanes/libsqlite/examples/wordpress-json-table-lateral-rowid-hidden-current-source-next105.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-json-table-lateral-rowid-hidden-current-source-next105.php
+php -l lanes/libsqlite/examples/application-json-table-lateral-rowid-hidden-current-source-next105.php
+No syntax errors detected in lanes/libsqlite/examples/application-json-table-lateral-rowid-hidden-current-source-next105.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableLateralRowidHiddenCurrentSourceNext105Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 65 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-json-table-lateral-rowid-hidden-current-source-next105.php --self-test
-wordpress-json-table-lateral-rowid-hidden-current-source-next105 self-test passed
+php lanes/libsqlite/examples/application-json-table-lateral-rowid-hidden-current-source-next105.php --self-test
+application-json-table-lateral-rowid-hidden-current-source-next105 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `40110` to `40175` for the 65 verified

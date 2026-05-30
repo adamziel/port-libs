@@ -64,7 +64,7 @@ $plan191 = static fn (
     string $nextSource = 'main.wp_options@191',
     int $currentCookie = 190,
     int $nextCookie = 191,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternRebindPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternRebindPlan(
     $current ?? $currentRows191,
     $next ?? $nextRows191,
     $currentPatternBytes ?? $currentPatternBytes191,
@@ -182,7 +182,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineOne byte order only pa
         $row191(2, 'plugin_cache  ', 'UTF-16BE'),
         $row191(3, 'plugin_cache_new', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternRebindPlan(
         $rows,
         $rows,
         $enc191('plugin!_cache%', 'UTF-16LE'),
@@ -222,7 +222,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineOne stable byte-identi
     ];
     $pattern = $enc191('plugin!_cache%', 'UTF-16LE');
     $escape = $enc191('!', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternRebindPlan(
         $rows,
         $rows,
         $pattern,
@@ -245,7 +245,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineOne stable byte-identi
 };
 
 $tests['utf16 nocase like rtrim current source nextOneNineOne malformed prepared pattern is rejected'] = static function (TestRunner $t) use ($currentRows191, $nextRows191, $nextPatternBytes191, $currentEscapeBytes191, $nextEscapeBytes191): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternRebindPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternRebindPlan(
         $currentRows191,
         $nextRows191,
         "\x00\xd8",
@@ -260,7 +260,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineOne malformed prepared
 };
 
 $tests['utf16 nocase like rtrim current source nextOneNineOne malformed prepared escape is rejected'] = static function (TestRunner $t) use ($currentRows191, $nextRows191, $currentPatternBytes191, $nextPatternBytes191, $nextEscapeBytes191): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternRebindPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternRebindPlan(
         $currentRows191,
         $nextRows191,
         $currentPatternBytes191,

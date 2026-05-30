@@ -100,7 +100,7 @@ $cases = [
     'publish operation present' => [static fn (): mixed => in_array('publish_checkpoint_next_source_after_savepoint_finalization_next219', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next211', $plan()['dependencies'], true), true],
     'dependency next219' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next219', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-savepoint-finalization', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-savepoint-finalization', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next211 reader acknowledgements'), true],
     'blocked status' => [static fn (): mixed => $blocked()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next219'],

@@ -45,7 +45,7 @@ $nextTwoOneZero = [
     $bad210(11, "\x00\xd8", 2),
 ];
 
-$plan210 = static fn (?array $current = null, ?array $next = null, string $pattern = "plugin\0cache%"): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
+$plan210 = static fn (?array $current = null, ?array $next = null, string $pattern = "plugin\0cache%"): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulPlan(
     $current ?? $current210,
     $next ?? $nextTwoOneZero,
     $pattern,
@@ -163,7 +163,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneZero stable embedded nu
         $row210(2, "plugin\0cache_more", 'UTF-16BE'),
         $row210(3, "plugin\0other", 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulPlan(
         $rows,
         $rows,
         "plugin\0cache%",
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneZero stable embedded nu
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneZero rejects pattern without nul'] = static function (TestRunner $t) use ($current210, $nextTwoOneZero): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulPlan(
         $current210,
         $nextTwoOneZero,
         'plugin%',
@@ -191,7 +191,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneZero rejects pattern wi
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneZero rejects invalid row shape'] = static function (TestRunner $t) use ($row210): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulPlan(
         [['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]],
         [$row210(1, "plugin\0cache", 'UTF-8')],
     ));

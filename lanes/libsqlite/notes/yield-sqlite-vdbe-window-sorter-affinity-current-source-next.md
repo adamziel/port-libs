@@ -11,10 +11,10 @@ aggregate values before the sorter advances.
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowSorterAffinityCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-vdbe-window-sorter-affinity-current-source-next.php`
+- `php lanes/libsqlite/examples/application-vdbe-window-sorter-affinity-current-source-next.php`
 - `php -l lanes/libsqlite/src/SQLiteVdbeWindowSorterAffinityCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteVdbeWindowSorterAffinityCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-vdbe-window-sorter-affinity-current-source-next.php`
+- `php -l lanes/libsqlite/examples/application-vdbe-window-sorter-affinity-current-source-next.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap

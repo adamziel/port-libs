@@ -7,7 +7,7 @@ Adds a bounded current-source STAT4 fence for partial expression indexes that ca
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext237Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next237.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next237.php --self-test`
 - PHP lint: changed PHP files only
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 

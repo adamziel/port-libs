@@ -8,7 +8,7 @@
 - The slice preserves SQLite's ASCII-only `NOCASE` behavior and SQLite
   `RTRIM` behavior that trims only ASCII space, not tabs, newlines, NBSP, or
   non-ASCII case pairs.
-- Added a WordPress `wp_options` smoke where `Plugin_Cache` rows keep the same
+- Added a Application `wp_options` smoke where `Plugin_Cache` rows keep the same
   logical match set while switching between UTF-16LE, UTF-16BE, and padded
   byte representations.
 
@@ -21,9 +21,9 @@
 - Regression focus:
   `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16RtrimNocaseCurrentSourceNext132Test.php lanes/libsqlite/tests/SQLiteUtf16RtrimNocaseCurrentSourceNext103Test.php`
   - `2 test files, 126 assertions, 0 failures`
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-utf16-rtrim-nocase-current-source-next132.php --self-test`
-  - `wordpress-utf16-rtrim-nocase-current-source-next132 self-test passed`
+- Application smoke:
+  `php lanes/libsqlite/examples/application-utf16-rtrim-nocase-current-source-next132.php --self-test`
+  - `application-utf16-rtrim-nocase-current-source-next132 self-test passed`
 
 ## Non-Overlap
 

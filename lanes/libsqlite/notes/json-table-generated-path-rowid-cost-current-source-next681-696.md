@@ -7,7 +7,7 @@ Validation:
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext665680Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext681696Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next681-696.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next681-696.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext665680Test.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext681696Test.php`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next681-696.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next681-696.php --self-test`
 - `git diff --check`

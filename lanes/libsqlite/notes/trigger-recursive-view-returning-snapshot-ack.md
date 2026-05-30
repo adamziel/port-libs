@@ -11,7 +11,7 @@ descriptive private helpers for snapshot acknowledgements, row tagging,
 blocked reasons, status, and token validation. Payload keys remain stable for
 the accepted behavior assertions.
 
-WordPress path: `wordpress-trigger-recursive-view-returning-snapshot-ack.php`
+Application path: `application-trigger-recursive-view-returning-snapshot-ack.php`
 models a copied `wp_options` recursive import view where plugin DDL changes the
 next view/trigger source while current `RETURNING` rows are still visible.
 
@@ -20,8 +20,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSnapshotAcknowledgementTest.php`
 - Result: `1 test files, 95 assertions, 0 failures`
 - PASS-line delta: `+95`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-snapshot-ack.php`
-- Result: `wordpress-trigger-recursive-view-returning-snapshot-ack self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-snapshot-ack.php`
+- Result: `application-trigger-recursive-view-returning-snapshot-ack self-test passed`
 
 Dashboard delta: no `phpPass` or mapped-coverage counter change; this is a
 production-method consolidation pass over already accepted behavior.

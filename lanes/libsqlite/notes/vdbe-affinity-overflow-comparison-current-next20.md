@@ -17,11 +17,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 55 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-affinity-overflow-comparison.php --self-test
-OK wordpress vdbe affinity overflow comparison smoke
+php lanes/libsqlite/examples/application-vdbe-affinity-overflow-comparison.php --self-test
+OK application vdbe affinity overflow comparison smoke
 ```
 
 Status delta:

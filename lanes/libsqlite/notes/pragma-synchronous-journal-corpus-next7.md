@@ -15,9 +15,9 @@ Verification from this worktree:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaJournalState.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLitePragmaSynchronousJournalCorpusTest.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-pragma-synchronous-journal.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/application-pragma-synchronous-journal.php`: no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaSynchronousJournalCorpusTest.php`: `1 test files, 54 assertions, 0 failures` with 54 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-pragma-synchronous-journal.php`: printed WAL main journal mode, NORMAL synchronous, temp journal-mode fallback to DELETE, and pragma-state dependency tags.
+- `php lanes/libsqlite/examples/application-pragma-synchronous-journal.php`: printed WAL main journal mode, NORMAL synchronous, temp journal-mode fallback to DELETE, and pragma-state dependency tags.
 - `git diff --check -- lanes/libsqlite`: no whitespace errors.
 
 Dashboard delta:

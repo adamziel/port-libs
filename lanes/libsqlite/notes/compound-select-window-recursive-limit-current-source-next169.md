@@ -1,6 +1,6 @@
 # compound-select-window-recursive-limit-current-source-next169
 
-Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE queue uses `ORDER BY` with comma-form `LIMIT offset,count`, each compound arm evaluates `ntile()` before row combination, and the final compound `LIMIT/OFFSET` moves the WordPress current/next boundary.
+Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE queue uses `ORDER BY` with comma-form `LIMIT offset,count`, each compound arm evaluates `ntile()` before row combination, and the final compound `LIMIT/OFFSET` moves the Application current/next boundary.
 
 Behavior covered:
 
@@ -14,9 +14,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext169Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next169.php
+php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next169.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext169Test.php
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next169.php --self-test
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next169.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

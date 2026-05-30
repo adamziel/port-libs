@@ -15,8 +15,8 @@ and focused coverage for copied `wp_options` repair rows:
 - retry UPDATE/DELETE RETURNING statements open a new savepoint and read from
   the restored transaction image.
 
-WordPress smoke:
-`lanes/libsqlite/examples/wordpress-rowvalue-rollback-savepoint-current-source-next217.php`
+Application smoke:
+`lanes/libsqlite/examples/application-rowvalue-rollback-savepoint-current-source-next217.php`
 models copied `wp_options` import recovery where a row-value unique conflict
 aborts the transaction, then a retry updates option rows and deletes transient
 rows from the restored current source.

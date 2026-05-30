@@ -2,15 +2,15 @@
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a current-source fence for prepared-statement schema-root tickets after master-journal recovery.
 
-The new behavior keeps reader-cache rows only when the accepted next236 schema-reparse fence has already admitted the cache row and the cache/read statement schema-root token matches the current recovered source. Stale statement tickets reopen before WordPress resumes copied `wp_options` or `active_plugins` reads after a master-journal rollback.
+The new behavior keeps reader-cache rows only when the accepted next236 schema-reparse fence has already admitted the cache row and the cache/read statement schema-root token matches the current recovered source. Stale statement tickets reopen before Application resumes copied `wp_options` or `active_plugins` reads after a master-journal rollback.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext240Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next240.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next240.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext240Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next240.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next240.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +67`, from `119121` to `119188`, from the focused PASS lines in `SQLitePagerMasterJournalReaderCacheCurrentSourceNext240Test.php`. Mapped upstream coverage remains `642 / 1589`; this is focused pager/master-journal current-source behavior over existing pager inventory rather than a new manifest-backed upstream row.

@@ -4,8 +4,8 @@
 
 - Added `SQLiteAttachWalTempViewCachePlan::viewDependencyCachePlan()` for prepared view-cache invalidation across temp, main, and attached schemas.
 - Covers the SQLite edge where a prepared view row stays stable while the table(s) referenced by the view SQL move to a new rootpage or schema winner after current/next schema-record updates.
-- Tracks WAL page-one schema-cookie sources separately from dependency reprepare decisions so WordPress import diagnostics can explain why a prepared view is stale without duplicating WAL writer/checkpoint behavior.
-- Added `wordpress-attach-temp-main-wal-view-cache-current-next78.php` for copied `wp_options` temp/main/site view diagnostics.
+- Tracks WAL page-one schema-cookie sources separately from dependency reprepare decisions so Application import diagnostics can explain why a prepared view is stale without duplicating WAL writer/checkpoint behavior.
+- Added `application-attach-temp-main-wal-view-cache-current-next78.php` for copied `wp_options` temp/main/site view diagnostics.
 
 ## Focused Evidence
 
@@ -26,7 +26,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-attach-temp-main-wal-view-cache-current-next78.php
+php lanes/libsqlite/examples/application-attach-temp-main-wal-view-cache-current-next78.php
 ```
 
 Result summary:

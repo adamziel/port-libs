@@ -15,7 +15,7 @@ STAT4 generation changes still require reprepare.
   - `1 test files, 51 assertions, 0 failures`
   - `51` PASS lines
 
-## WordPress Relevance
+## Application Relevance
 
 The example models copied `wp_options` plugin-option imports where unrelated
 network/lazy/site rows can be appended after planning without invalidating a

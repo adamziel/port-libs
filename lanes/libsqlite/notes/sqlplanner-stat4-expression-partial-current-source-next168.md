@@ -13,7 +13,7 @@ Behavior covered:
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext168Test.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next168.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next168.php`
 
 Dependency closure: no new support component is needed; the slice reuses existing native PHP planner, expression normalization, partial-index proof, and STAT4 diagnostic structures.
 

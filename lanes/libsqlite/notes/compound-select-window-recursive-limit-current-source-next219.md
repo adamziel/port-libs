@@ -1,6 +1,6 @@
 # compound-select-window-recursive-limit-current-source-next219
 
-Status: focused PHP behavior growth for parser-level compound SELECT output where recursive CTE queue `LIMIT/OFFSET` feeds `percent_rank()` and `cume_dist()` window arms before an `EXCEPT` membership fence and final compound `LIMIT/OFFSET` decide the current/next WordPress row boundary.
+Status: focused PHP behavior growth for parser-level compound SELECT output where recursive CTE queue `LIMIT/OFFSET` feeds `percent_rank()` and `cume_dist()` window arms before an `EXCEPT` membership fence and final compound `LIMIT/OFFSET` decide the current/next Application row boundary.
 
 Behavior covered:
 - `WITH RECURSIVE` queue `ORDER BY ... LIMIT ... OFFSET` is traced before compound arm output.
@@ -15,10 +15,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiv
 1 test files, 357 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next219.php
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next219.php
 ```
 
 Expected dashboard movement: `phpPass +65` from the new focused PASS lines. `benchmarkDenominator.mapped` remains `624 / 1589`; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory, not a newly hydrated upstream row.

@@ -17,7 +17,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeInteriorRedistributePoi
 Result: `1 test files, 62 assertions, 0 failures`.
 
 ```bash
-php lanes/libsqlite/examples/wordpress-btree-interior-redistribute-pointermap-current-next32.php
+php lanes/libsqlite/examples/application-btree-interior-redistribute-pointermap-current-next32.php
 ```
 
 Result: exits 0 and reports copied `wp_options` option-name index interior

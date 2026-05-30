@@ -56,7 +56,7 @@ $plan = static fn (
     ?array $next = null,
     string $currentSource = 'main.wp_options@131',
     string $nextSource = 'main.wp_options@132',
-): array => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::wordpressOptionNameCurrentNext(
+): array => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::optionRowNameCurrentNext(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $probe,
@@ -173,7 +173,7 @@ $tests['utf16 rtrim nocase current source nextOneThreeTwo unchanged retained sou
 };
 
 $tests['utf16 rtrim nocase current source nextOneThreeTwo rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::wordpressOptionNameCurrentNext([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_cache'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::optionRowNameCurrentNext([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_cache'));
 };
 
 return $tests;

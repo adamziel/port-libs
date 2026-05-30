@@ -101,7 +101,7 @@ $selectCases = [
         'SELECT option_name, json_valid(option_value, flag_value) AS ok FROM wp_options WHERE option_id = 9',
         [['option_name' => 'plugin_superficial', 'ok' => 1]],
     ],
-    'filters copied wordpress rows using coerced flags' => [
+    'filters copied application rows using coerced flags' => [
         'SELECT option_name FROM wp_options WHERE json_valid(option_value, flag_value) = 1 ORDER BY option_id',
         [['option_name' => 'plugin_text'], ['option_name' => 'plugin_json5'], ['option_name' => 'plugin_jsonb'], ['option_name' => 'plugin_subtype'], ['option_name' => 'plugin_integer'], ['option_name' => 'plugin_real'], ['option_name' => 'plugin_false'], ['option_name' => 'plugin_superficial']],
     ],

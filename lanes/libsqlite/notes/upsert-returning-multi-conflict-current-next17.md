@@ -9,7 +9,7 @@ Behavior added:
 - Supports `DO UPDATE`, `DO NOTHING`, and a catch-all conflict arm.
 - Keeps `RETURNING` rows limited to inserts and updates; skipped `DO NOTHING` and false-`WHERE` rows are omitted.
 - Checks secondary/current UNIQUE conflicts after updates and before inserts, while preserving SQLite NULL non-conflicts.
-- Tracks matched arm targets/actions for WordPress import diagnostics.
+- Tracks matched arm targets/actions for Application import diagnostics.
 
 Focused verification:
 
@@ -24,7 +24,7 @@ Focused test run: 3 selected test files (root lock skipped)
 147 PASS lines
 3 test files, 147 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-upsert-returning-multi-conflict-current.php --self-test
+php lanes/libsqlite/examples/application-upsert-returning-multi-conflict-current.php --self-test
 exit 0
 ```
 

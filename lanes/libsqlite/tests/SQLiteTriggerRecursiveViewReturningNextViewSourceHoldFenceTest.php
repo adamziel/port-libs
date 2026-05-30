@@ -115,7 +115,7 @@ $cases174 = [
     'logical keys tail' => [static fn (): mixed => array_column(array_slice($conflict174()['watermark_steps'], 4), 'logical_key'), ['theme_child', 'plugin_child', 'network_root', 'network_child']],
     'dependency marker next174' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next174', $conflict174()['dependencies'], true), true],
     'dependency marker duplicate watermark' => [static fn (): mixed => in_array('sqlite-returning-current-source-duplicate-key-watermark', $conflict174()['dependencies'], true), true],
-    'dependency marker wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next174', $conflict174()['dependencies'], true), true],
+    'dependency marker application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next174', $conflict174()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => $conflict174()['dependency_closure'], 'no new support component needed; reuses native recursive view RETURNING current-source cursor and reprepare barriers'],
     'non overlap note' => [static fn (): mixed => str_contains($conflict174()['non_overlap'], 'does not repeat savepoint rollback'), true],
     'missing separator rejected' => [static fn (): mixed => $run174(['conflict_key_separator' => '|']), InvalidArgumentException::class],

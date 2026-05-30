@@ -108,7 +108,7 @@ $cases = [
     'operation admit' => [static fn (): mixed => in_array('admit_or_reopen_current_source_handles_next202', $ok()['operation_names'], true), true],
     'receipt digest length' => [static fn (): mixed => strlen($ok()['receipt_digest']), 64],
     'dependency next202' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next202', $ok()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-savepoint-checkpoint-handle-reopen', $ok()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-savepoint-checkpoint-handle-reopen', $ok()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($ok()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($ok()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'bad status blocked' => [static fn (): mixed => $plan($badStatus)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next202'],

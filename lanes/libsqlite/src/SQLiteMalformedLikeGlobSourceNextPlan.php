@@ -39,7 +39,7 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
      *   dependencies:list<string>
      * }
      */
-    public static function wordpressOptionNameCurrentNext(
+    public static function optionRowNameCurrentNext(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -180,7 +180,7 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
         sort($malformedCandidateRowids);
 
         return [
-            'matched' => SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan(
+            'matched' => SQLiteEncodingCollationSourceCursor::optionRowNameScan(
                 $validRows,
                 $pattern,
                 $operator,

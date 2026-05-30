@@ -196,7 +196,7 @@ $cases203 = [
     'dependency includes next203' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next203', $released203()['dependencies_next203'], true), true],
     'dependency includes handoff' => [static fn (): mixed => in_array('sqlite-returning-current-source-generation-handoff', $released203()['dependencies_next203'], true), true],
     'dependency includes following child drain' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-following-child-drain', $released203()['dependencies_next203'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next203', $released203()['dependencies_next203'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next203', $released203()['dependencies_next203'], true), true],
     'non overlap mentions following child drain' => [static fn (): mixed => str_contains($released203()['non_overlap_next203'], 'following child drain'), true],
     'bad generation rejected' => [static fn (): mixed => $plan203(['current_generation_next203' => 'bad generation']), InvalidArgumentException::class],
     'bad expected generation rejected' => [static fn (): mixed => $plan203(['expected_current_generation_next203' => 'bad generation']), InvalidArgumentException::class],

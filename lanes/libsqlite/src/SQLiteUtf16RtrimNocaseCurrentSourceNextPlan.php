@@ -11,7 +11,7 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameCurrentNext(
+    public static function optionRowNameCurrentNext(
         array $currentRows,
         array $nextRows,
         string $probe,

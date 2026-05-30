@@ -15,9 +15,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerSavepointReturningRecursiveCurrentSourceNext122Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-savepoint-returning-recursive-current-source-next122.php
+php -l lanes/libsqlite/examples/application-trigger-savepoint-returning-recursive-current-source-next122.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerSavepointReturningRecursiveCurrentSourceNext122Test.php
-php lanes/libsqlite/examples/wordpress-trigger-savepoint-returning-recursive-current-source-next122.php --self-test
+php lanes/libsqlite/examples/application-trigger-savepoint-returning-recursive-current-source-next122.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

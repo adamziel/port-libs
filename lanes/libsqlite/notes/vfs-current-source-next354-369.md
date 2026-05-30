@@ -5,8 +5,8 @@
 - Tests:
   - `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
   - `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
-  - `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next354-369.php`
+  - `php -l lanes/libsqlite/examples/application-vfs-current-source-next354-369.php`
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
-  - `php lanes/libsqlite/examples/wordpress-vfs-current-source-next354-369.php --self-test`
+  - `php lanes/libsqlite/examples/application-vfs-current-source-next354-369.php --self-test`
 
 This slice is intentionally VFS current-source only. It is the direct follow-on to next338-353 and records the next354-369 receipt chain without modifying prior VFS slices or unrelated pager, WAL, B-tree, JSON, planner, PRAGMA, trigger, or row-value surfaces.

@@ -17,10 +17,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreeblockFragmentCurren
 
 Result: `1 test files, 48 assertions, 0 failures`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-page-freeblocks.php /tmp/libsqlite-current-next18-fragment.sqlite 2
+php lanes/libsqlite/examples/application-page-freeblocks.php /tmp/libsqlite-current-next18-fragment.sqlite 2
 ```
 
 Result: the smoke reported `freeblockCurrentNextFragments.status: ok`,
@@ -35,5 +35,5 @@ freeblock chain parsing for valid fragmented gaps between current and next
 freeblocks.
 
 Dependency closure: no new support component is needed. The patch reuses
-lane-local B-tree page header parsing and the existing WordPress page-freeblock
+lane-local B-tree page header parsing and the existing Application page-freeblock
 diagnostic smoke.

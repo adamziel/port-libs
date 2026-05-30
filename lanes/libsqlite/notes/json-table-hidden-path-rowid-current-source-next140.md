@@ -8,10 +8,10 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenPathRowidCurrentSourceNext140Test.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-hidden-path-rowid-current-source-next140.php --self-test
+php lanes/libsqlite/examples/application-json-table-hidden-path-rowid-current-source-next140.php --self-test
 ```
 
 Dependency closure: no new support component is needed; this reuses the native JSON table planner, JSONB decoding, hidden path constraints, and rowid alias normalization.

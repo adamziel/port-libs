@@ -13,11 +13,11 @@ Behavior slice: `json-table-generated-path-rowid-cost-current-source-next183`
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext183Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next183.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next183.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext183Test.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next183.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next183 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next183.php --self-test`
+  - `application-json-table-generated-path-rowid-cost-current-source-next183 self-test passed`
 
 ## Non-overlap
 

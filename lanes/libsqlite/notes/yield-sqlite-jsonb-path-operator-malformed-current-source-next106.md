@@ -23,7 +23,7 @@ malformed operator branch.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonbPathOperatorMalformedCurrentSourceNext106Test.php`
   - `1 test files, 76 assertions, 0 failures`
   - `62` PASS lines
-- `php lanes/libsqlite/examples/wordpress-jsonb-path-operator-malformed-current-source-next106.php`
+- `php lanes/libsqlite/examples/application-jsonb-path-operator-malformed-current-source-next106.php`
   - valid JSON output; reports current/next signatures, malformed rowids,
     missing-path rowids, reprepare reason, and statement abort state.
 

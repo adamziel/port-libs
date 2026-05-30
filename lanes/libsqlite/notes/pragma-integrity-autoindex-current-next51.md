@@ -4,15 +4,15 @@ Adds a bounded current/next collector for `PRAGMA integrity_check` autoindex
 schema diagnostics. The helper compares declared table UNIQUE/generated UNIQUE
 constraints with `sqlite_autoindex_*` schema rows, checks root pages, annotates
 auto-vacuum pointer-map pages, and paginates repair-preflight rows for copied
-WordPress `wp_options` databases.
+Application `wp_options` databases.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityAutoindexCurrentNext51Test.php`
 - `php -l lanes/libsqlite/src/SQLitePragmaIntegrityAutoindexYield.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIntegrityAutoindexCurrentNext51Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-integrity-autoindex-current-next51.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-autoindex-current-next51.php`
+- `php -l lanes/libsqlite/examples/application-pragma-integrity-autoindex-current-next51.php`
+- `php lanes/libsqlite/examples/application-pragma-integrity-autoindex-current-next51.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this avoids accepted batch48 pointer-map/freelist integrity

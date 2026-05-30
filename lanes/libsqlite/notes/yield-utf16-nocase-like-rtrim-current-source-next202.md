@@ -31,8 +31,8 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Test.php
-php -l lanes/libsqlite/examples/wordpress-utf16-source-pattern-like-current-source-next202.php
+php -l lanes/libsqlite/examples/application-utf16-source-pattern-like-current-source-next202.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Test.php
-php lanes/libsqlite/examples/wordpress-utf16-source-pattern-like-current-source-next202.php
+php lanes/libsqlite/examples/application-utf16-source-pattern-like-current-source-next202.php
 git diff --check -- lanes/libsqlite
 ```

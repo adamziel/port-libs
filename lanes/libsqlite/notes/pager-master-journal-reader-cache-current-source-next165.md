@@ -10,8 +10,8 @@ source id, epoch, master-journal digest, change counter, schema cookie, and
 end-frame all match the recovered current source. Stale tickets reopen against
 current source pages even when their cached image bytes still match.
 
-WordPress smoke:
-`wordpress-pager-master-journal-reader-cache-current-source-next165.php` models
+Application smoke:
+`application-pager-master-journal-reader-cache-current-source-next165.php` models
 a copied `wp_options` recovery where page-1 is retained, while `active_plugins`
 and autoload index reader-cache entries with stale header tickets reopen from
 the recovered current source.
@@ -20,11 +20,11 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext165Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext165Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next165.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next165.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext165Test.php`
   - `1 test files, 91 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next165.php`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next165 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next165.php`
+  - `application-pager-master-journal-reader-cache-current-source-next165 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass` +91, from `74089` to `74180`, from the

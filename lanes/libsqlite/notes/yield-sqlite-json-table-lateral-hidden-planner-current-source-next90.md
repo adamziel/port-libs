@@ -12,9 +12,9 @@ The planner composes accepted next88 single-source hidden planner evidence acros
 - Result: `1 test files, 60 assertions, 0 failures`
 - PASS lines: 60
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-json-table-lateral-hidden-planner-current-source-next90.php`
+- `php lanes/libsqlite/examples/application-json-table-lateral-hidden-planner-current-source-next90.php`
 - The smoke uses copied `wp_options` plugin settings rows and reports current/next lateral JSON rule scans, row-count growth, LEFT JOIN null-extension removal, added host rows, and dependency markers without requiring `ext/sqlite`.
 
 ## Non-Overlap

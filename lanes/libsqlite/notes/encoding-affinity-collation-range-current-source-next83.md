@@ -6,16 +6,16 @@ SQLite affinity and BINARY/NOCASE/RTRIM collation rules.
 
 The slice covers mixed numeric text/integer/real storage, NULL exclusion from
 range predicates, BLOB ordering outside text ranges, NOCASE peer grouping,
-RTRIM space-only boundary behavior, and WordPress `wp_options` option-name /
+RTRIM space-only boundary behavior, and Application `wp_options` option-name /
 option-value range scans without `ext/sqlite`.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteAffinityRangeCurrentSourceCursor.php`
 - `php -l lanes/libsqlite/tests/SQLiteAffinityCollationRangeCurrentSourceNext83Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-affinity-collation-range-current-source-next83.php`
+- `php -l lanes/libsqlite/examples/application-affinity-collation-range-current-source-next83.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAffinityCollationRangeCurrentSourceNext83Test.php`
-- `php lanes/libsqlite/examples/wordpress-affinity-collation-range-current-source-next83.php --self-test`
+- `php lanes/libsqlite/examples/application-affinity-collation-range-current-source-next83.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. This reuses native

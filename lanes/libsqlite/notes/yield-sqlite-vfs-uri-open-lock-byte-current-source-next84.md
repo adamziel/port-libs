@@ -8,8 +8,8 @@
 - The slice preserves URI input/path metadata, shared/private cache and VFS
   dependencies, immutable read-only opens, `nolock=1` lock suppression, busy
   open blockers, and SQLite lock-byte constants per current source.
-- WordPress smoke:
-  `lanes/libsqlite/examples/wordpress-vfs-uri-open-lock-byte-current-source-next84.php`
+- Application smoke:
+  `lanes/libsqlite/examples/application-vfs-uri-open-lock-byte-current-source-next84.php`
   shows copied `wp-content/database` main/archive URI opens with independent
   lock-byte holder state.
 
@@ -34,8 +34,8 @@ Syntax/example checks:
 ```bash
 php -l lanes/libsqlite/src/SQLiteVfsUriOpenLockByteCurrentSourceNext.php
 php -l lanes/libsqlite/tests/SQLiteVfsUriOpenLockByteCurrentSourceNextTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-uri-open-lock-byte-current-source-next84.php
-php lanes/libsqlite/examples/wordpress-vfs-uri-open-lock-byte-current-source-next84.php
+php -l lanes/libsqlite/examples/application-vfs-uri-open-lock-byte-current-source-next84.php
+php lanes/libsqlite/examples/application-vfs-uri-open-lock-byte-current-source-next84.php
 ```
 
 ## Non-Overlap

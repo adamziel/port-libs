@@ -116,7 +116,7 @@ $tests['compound select window recursive limit next186 replan reasons'] = static
     $t->true(in_array('compound-tail-comma-limit-current-source-next186', $reasons, true));
     $t->true(in_array('window-rank-dense-rank-before-distinct-union-next186', $reasons, true));
     $t->true(in_array('recursive-offset-source-boundary-next186', $reasons, true));
-    $t->true(in_array('wordpress-autoload-option-rank-replans-limit-window-next186', $reasons, true));
+    $t->true(in_array('application-autoload-option-rank-replans-limit-window-next186', $reasons, true));
 };
 
 $tests['compound select window recursive limit next186 rejects offset limit syntax'] = static function (TestRunner $t) use ($currentTables186): void {

@@ -7,10 +7,10 @@ Dashboard delta: `phpPass` moves from `12903` to `12971` from 68 verified PASS l
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachMainTempCollationShadowCurrentNext37Test.php`
-- `php lanes/libsqlite/examples/wordpress-attach-main-temp-collation-shadow-current-next37.php --self-test`
+- `php lanes/libsqlite/examples/application-attach-main-temp-collation-shadow-current-next37.php --self-test`
 - `php -l lanes/libsqlite/src/SQLiteAttachMainTempCollationShadowPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteAttachMainTempCollationShadowCurrentNext37Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-attach-main-temp-collation-shadow-current-next37.php`
+- `php -l lanes/libsqlite/examples/application-attach-main-temp-collation-shadow-current-next37.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: avoids accepted ATTACH temp/VFS open planning, temp view/trigger resolution, temp collation view resolution, PRAGMA metadata, JSON table, VFS writer/lock/sync, WAL, B-tree, SELECT SQL, and Unicode GLOB clusters. This slice is only the main/temp/attached collation-shadow current-source decision.

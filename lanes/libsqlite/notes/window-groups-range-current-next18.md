@@ -30,10 +30,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowPeerRangeCurrentNext16
 3 test files, 161 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-window-groups-range-current-next.php
+php lanes/libsqlite/examples/application-window-groups-range-current-next.php
 passed and emitted copied wp_options GROUPS/RANGE current-to-following window summaries
 ```
 

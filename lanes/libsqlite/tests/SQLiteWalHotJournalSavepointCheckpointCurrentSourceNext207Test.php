@@ -266,7 +266,7 @@ $cases = [
     'cursor digest length' => [static fn (): mixed => strlen($plan()['cursor_digest']), 64],
     'dependency next207' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next207', $plan()['dependencies'], true), true],
     'dependency cursor fence' => [static fn (): mixed => in_array('sqlite-wal-write-cursor-generation-fence', $plan()['dependencies'], true), true],
-    'dependency wordpress reprepare' => [static fn (): mixed => in_array('wordpress-import-write-cursor-reprepare', $plan()['dependencies'], true), true],
+    'dependency application reprepare' => [static fn (): mixed => in_array('application-import-write-cursor-reprepare', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'blocked status' => [static fn (): mixed => $blocked()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next207'],

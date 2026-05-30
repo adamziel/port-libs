@@ -13,14 +13,14 @@ Focused verification:
 - `php -l lanes/libsqlite/src/SQLiteSelectExpression.php`
 - `php -l lanes/libsqlite/src/SQLiteSelectProjection.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundCollationSetOperatorTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-select-compound-collate-set.php`
+- `php -l lanes/libsqlite/examples/application-select-compound-collate-set.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundCollationSetOperatorTest.php`
   - `1 test files, 27 assertions, 0 failures`
   - 26 new TestRunner PASS cases
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundCollationSetOperatorTest.php lanes/libsqlite/tests/SQLiteOrderByCollateNullsCorpusTest.php`
   - `2 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-select-compound-collate-set.php --self-test`
-  - `wordpress-select-compound-collate-set self-test passed`
+- `php lanes/libsqlite/examples/application-select-compound-collate-set.php --self-test`
+  - `application-select-compound-collate-set self-test passed`
 
 Dashboard delta:
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
 $run105 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::planUriFileControls($ops, $options + [
-    'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix&psow=1&wordpress_role=import&busy_timeout=2500',
+    'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix&psow=1&application_role=import&busy_timeout=2500',
     'device_flags' => ['powersafe_overwrite', 'safe_append'],
     'sector_size' => 4096,
 ]);
@@ -14,15 +14,15 @@ $source = static function () use ($run105): array {
     static $result = null;
     if ($result === null) {
         $result = $run105([
-            'open(file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix&psow=1&wordpress_role=import&busy_timeout=2500&tag=alpha&tag=beta)',
-            'file_control(uri_parameter, wordpress_role)',
+            'open(file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix&psow=1&application_role=import&busy_timeout=2500&tag=alpha&tag=beta)',
+            'file_control(uri_parameter, application_role)',
             'file_control(uri_int, busy_timeout)',
             'file_control(uri_boolean, psow)',
             'lock(reserved)',
             'file_control(persist_wal, 1)',
             ['op' => 'filecontrol', 'handle' => 'db-1', 'control' => 'uri_parameter', 'value' => 'tag'],
-            ['op' => 'open', 'filename' => 'file://localhost/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=private&vfs=unix-dotfile&psow=0&wordpress_role=repair&busy_timeout=100&tag=gamma'],
-            ['op' => 'filecontrol', 'handle' => 'db-2', 'control' => 'uri_parameter', 'value' => 'wordpress_role'],
+            ['op' => 'open', 'filename' => 'file://localhost/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=private&vfs=unix-dotfile&psow=0&application_role=repair&busy_timeout=100&tag=gamma'],
+            ['op' => 'filecontrol', 'handle' => 'db-2', 'control' => 'uri_parameter', 'value' => 'application_role'],
             ['op' => 'filecontrol', 'handle' => 'db-2', 'control' => 'uri_int', 'value' => 'busy_timeout'],
             ['op' => 'filecontrol', 'handle' => 'db-2', 'control' => 'uri_boolean', 'value' => 'psow'],
             ['op' => 'filecontrol', 'handle' => 'db-2', 'control' => 'data_version'],
@@ -37,8 +37,8 @@ $source = static function () use ($run105): array {
 };
 
 $readonly = static fn (): array => $run105([
-    ['op' => 'open', 'filename' => 'file:/srv/www/wp-content/database/archive.sqlite?mode=ro&immutable=1&cache=private&wordpress_role=archive&busy_timeout=0'],
-    'file_control(uri_parameter, wordpress_role)',
+    ['op' => 'open', 'filename' => 'file:/srv/www/wp-content/database/archive.sqlite?mode=ro&immutable=1&cache=private&application_role=archive&busy_timeout=0'],
+    'file_control(uri_parameter, application_role)',
     'file_control(uri_int, busy_timeout)',
     'file_control(uri_boolean, immutable)',
     'lock(reserved)',
@@ -46,13 +46,13 @@ $readonly = static fn (): array => $run105([
 
 $plain = static fn (): array => $run105([
     ['op' => 'open', 'filename' => '/srv/www/wp-content/database/plain.sqlite'],
-    'file_control(uri_parameter, wordpress_role)',
+    'file_control(uri_parameter, application_role)',
     'file_control(uri_boolean, psow)',
 ]);
 
 $memory = static fn (): array => $run105([
-    ['op' => 'open', 'filename' => 'file::memory:?cache=shared&mode=memory&wordpress_role=scratch&busy_timeout=5'],
-    'file_control(uri_parameter, wordpress_role)',
+    ['op' => 'open', 'filename' => 'file::memory:?cache=shared&mode=memory&application_role=scratch&busy_timeout=5'],
+    'file_control(uri_parameter, application_role)',
     'file_control(uri_int, busy_timeout)',
     'file_control(uri_boolean, psow)',
 ]);
@@ -77,7 +77,7 @@ return [
     'vfs open lock filecontrol uri current source next105 first xopen sharedcache' => static fn (TestRunner $t) => $t->same(true, in_array('sharedcache', $source()['events'][0]['xopen_flags'], true)),
     'vfs open lock filecontrol uri current source next105 uri text value' => static fn (TestRunner $t) => $t->same('import', $source()['events'][1]['value']),
     'vfs open lock filecontrol uri current source next105 uri text values' => static fn (TestRunner $t) => $t->same(['import'], $source()['events'][1]['values']),
-    'vfs open lock filecontrol uri current source next105 uri text parameter' => static fn (TestRunner $t) => $t->same('wordpress_role', $source()['events'][1]['parameter']),
+    'vfs open lock filecontrol uri current source next105 uri text parameter' => static fn (TestRunner $t) => $t->same('application_role', $source()['events'][1]['parameter']),
     'vfs open lock filecontrol uri current source next105 uri text no generation bump' => static fn (TestRunner $t) => $t->same(1, $source()['events'][1]['source_generation']),
     'vfs open lock filecontrol uri current source next105 uri int value' => static fn (TestRunner $t) => $t->same(2500, $source()['events'][2]['value']),
     'vfs open lock filecontrol uri current source next105 uri int raw values' => static fn (TestRunner $t) => $t->same(['2500'], $source()['events'][2]['values']),

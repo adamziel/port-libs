@@ -13,10 +13,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 53 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-hot-journal-master-super-current-next73.php --self-test
+php lanes/libsqlite/examples/application-pager-hot-journal-master-super-current-next73.php --self-test
 {
     "status": "super_journal_hot_recovery_current_next",
     "recoveredDatabases": 2,

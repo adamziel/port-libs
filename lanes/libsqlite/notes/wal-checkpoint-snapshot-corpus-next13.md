@@ -3,7 +3,7 @@
 Status: focused PHP corpus growth for WAL reader/writer checkpoint snapshot behavior.
 
 - Added `SQLiteWalReaderWriterCheckpointSnapshotCorpusTest.php` with 53 independent PASS cases covering reader snapshot frame boundaries, checkpoint reader visibility, read-mark pinning, uncommitted WAL tail preservation, and corrupt WAL tail recovery through checkpointable committed prefixes.
-- Added `wordpress-wal-checkpoint-snapshot-corpus.php` to smoke copied `wp_options` WAL snapshot inspection while a reader pins an older frame, with checkpoint visibility and corrupt-tail recovery evidence.
+- Added `application-wal-checkpoint-snapshot-corpus.php` to smoke copied `wp_options` WAL snapshot inspection while a reader pins an older frame, with checkpoint visibility and corrupt-tail recovery evidence.
 - `phpPass` increases by the verified PASS-line delta: `3796 -> 3849`.
 - `benchmarkDenominator.mapped` is unchanged; this is lane-scoped PHP corpus growth over existing mapped WAL/pager behavior, not a newly mapped upstream inventory unit.
 
@@ -11,8 +11,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderWriterCheckpointSnapshotCorpusTest.php` -> `1 test files, 53 assertions, 0 failures`.
 - `php -l lanes/libsqlite/tests/SQLiteWalReaderWriterCheckpointSnapshotCorpusTest.php` -> no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-snapshot-corpus.php` -> no syntax errors.
-- `php lanes/libsqlite/examples/wordpress-wal-checkpoint-snapshot-corpus.php` -> printed pinned-reader page 2 source `wal`, PASSIVE checkpoint `stable: true`, WAL preservation with uncommitted tail, read-mark pinned frame `2`, and corrupt-tail recovery `recovered_prefix`.
+- `php -l lanes/libsqlite/examples/application-wal-checkpoint-snapshot-corpus.php` -> no syntax errors.
+- `php lanes/libsqlite/examples/application-wal-checkpoint-snapshot-corpus.php` -> printed pinned-reader page 2 source `wal`, PASSIVE checkpoint `stable: true`, WAL preservation with uncommitted tail, read-mark pinned frame `2`, and corrupt-tail recovery `recovered_prefix`.
 - `git diff --check -- lanes/libsqlite` -> passed.
 
 Non-overlap:

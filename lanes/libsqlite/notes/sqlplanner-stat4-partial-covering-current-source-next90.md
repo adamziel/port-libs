@@ -10,9 +10,9 @@ and STAT4 current/next range evidence.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialCoveringCurrentSourceNext90Test.php`
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-partial-covering-current-source-next90.php --self-test`
+- `php lanes/libsqlite/examples/application-planner-stat4-partial-covering-current-source-next90.php --self-test`
 
-WordPress relevance: copied multisite `wp_options` plugin scans can reuse a
+Application relevance: copied multisite `wp_options` plugin scans can reuse a
 partial covering `(blog_id, option_name, autoload, option_value)` index only
 when the prepared statement has current STAT4 distribution and projection
 metadata. The smoke reports reprepare decisions and current STAT4 boundaries

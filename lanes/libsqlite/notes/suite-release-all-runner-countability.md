@@ -41,7 +41,7 @@ This does not duplicate accepted current-next72 release-runner admission,
 current-next70 release shard countability, suite-denominator freshness,
 accepted-head suite provenance, or any batch70/71 behavior clusters. It is a
 suite/countability gate only and adds no SQL, JSON, WAL, pager, VFS, B-tree, or
-WordPress behavior helper.
+Application behavior helper.
 
 ## Dependency Closure
 

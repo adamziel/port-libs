@@ -58,7 +58,7 @@ $makeWalBytes = static function (array $frames, int $salt2 = 117) use ($pageSize
 
 $makeStack = static function () use ($statementBefore): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wordpress-import-next117');
+    $stack->beginTransaction('application-import-next117');
     $stack->recordWalFrameWrite(1, 1);
     $stack->recordWalFrameWrite(2, 2, true);
     $stack->savepoint('plugin-batch-next117');

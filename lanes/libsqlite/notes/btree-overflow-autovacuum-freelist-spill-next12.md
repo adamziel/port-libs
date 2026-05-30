@@ -14,9 +14,9 @@ rewritten to `FREE_PAGE`.
 Verification recorded for handoff:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowAutovacuumFreelistSpillCorpusTest.php`
-- `php lanes/libsqlite/examples/wordpress-overflow-autovacuum-freelist-spill.php`
+- `php lanes/libsqlite/examples/application-overflow-autovacuum-freelist-spill.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowAutovacuumFreelistSpillCorpusTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-overflow-autovacuum-freelist-spill.php`
+- `php -l lanes/libsqlite/examples/application-overflow-autovacuum-freelist-spill.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is required. This reuses the

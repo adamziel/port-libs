@@ -1,7 +1,7 @@
 # sqlplanner-range-order-stat4-cursor-tape
 
 Implements a bounded STAT4 range ORDER BY current-source cursor tape for copied
-WordPress `wp_options` option-name scans.
+Application `wp_options` option-name scans.
 
 Behavior covered:
 

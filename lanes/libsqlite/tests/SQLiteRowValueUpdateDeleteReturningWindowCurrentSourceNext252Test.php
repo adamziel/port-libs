@@ -100,7 +100,7 @@ $cases252 = [
     'unexpected blocked reason' => [static fn (): mixed => $plan252($unexpectedAck252())['publication_window_fence_next252']['blocked_reasons'], ['unexpected-current-source-yield-ticket-next248']],
     'dependencies include fence' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-current-source-window-fence-next252', $plan252()['dependencies_next252'], true), true],
     'dependencies include next source ordinal' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-next-source-row-number-after-current-next252', $plan252()['dependencies_next252'], true), true],
-    'dependencies include wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-current-source-next252', $plan252()['dependencies_next252'], true), true],
+    'dependencies include application' => [static fn (): mixed => in_array('application-rowvalue-returning-window-current-source-next252', $plan252()['dependencies_next252'], true), true],
     'dependency closure no new support' => [static fn (): mixed => str_contains($plan252()['dependency_closure_next252'], 'no new support component needed'), true],
     'non overlap mentions next248' => [static fn (): mixed => str_contains($plan252()['non_overlap_next252'], 'next248'), true],
     'non overlap mentions next245' => [static fn (): mixed => str_contains($plan252()['non_overlap_next252'], 'next245'), true],

@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `btree-vacuum-pointermap-freeblock-curre
 
 This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext205Plan`, a next-writer freeblock handoff layer after the accepted next203 current-source cursor admission. It proves that pointer-map dependency pages are handed off before reusable leaf freeblock and overflow payload pages, that the leaf freeblock receipt survives from the secure-delete current source, and that fenced tail pages remain blocked from the next writer.
 
-WordPress smoke: `wordpress-btree-vacuum-pointermap-freeblock-current-source-next205.php` models deleting an overflow-backed copied `wp_options` transient before writing a replacement cache value. The handoff exposes pointer-map pages `2`/`105`, reusable leaf page `3`, and overflow payload pages `106`/`107`/`108`, while pages `109`/`110` stay fenced.
+Application smoke: `application-btree-vacuum-pointermap-freeblock-current-source-next205.php` models deleting an overflow-backed copied `wp_options` transient before writing a replacement cache value. The handoff exposes pointer-map pages `2`/`105`, reusable leaf page `3`, and overflow payload pages `106`/`107`/`108`, while pages `109`/`110` stay fenced.
 
 Verification:
 
@@ -13,9 +13,9 @@ Verification:
   - `115` PASS lines.
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext205Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext205Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next205.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next205.php`
-  - `wordpress-btree-vacuum-pointermap-freeblock-current-source-next205 self-test passed`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next205.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next205.php`
+  - `application-btree-vacuum-pointermap-freeblock-current-source-next205 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +115` from `98594` to `98709` in this isolated lane status. Mapped upstream coverage remains unchanged at `620 / 1589`; this is current-source B-tree handoff behavior over already mapped vacuum/pointer-map/freeblock inventory rather than a fresh upstream manifest row.

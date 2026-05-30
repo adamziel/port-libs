@@ -12,10 +12,10 @@ The behavior prevents a stale current-source cursor from being reused after stag
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext192Test.php` -> `1 test files, 417 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next192.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next192.php`
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext192Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next192.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next192.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: avoids accepted next189 row_number/dense_rank token fence, next188 endpoint windows, next186 rank/dense_rank comma LIMIT behavior, JSON table, VFS/WAL, B-tree, trigger, PRAGMA, and encoding clusters.

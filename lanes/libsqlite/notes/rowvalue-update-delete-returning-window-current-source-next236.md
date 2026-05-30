@@ -4,7 +4,7 @@
 
 - Adds `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext236Plan` for row-value `UPDATE`/`DELETE ... RETURNING` batches that rollback a yielded stream, retry from the savepoint image, and compute current-row window-frame receipts over each returned row.
 - The slice records current-row values, one-row frame counts, running bytes, following bytes, lag/lead neighbors, and frame tokens for yielded, suppressed, and retried RETURNING streams.
-- WordPress path: copied `wp_options` import/migration batches can summarize retry progress after rollback/release without requiring ext/sqlite.
+- Application path: copied `wp_options` import/migration batches can summarize retry progress after rollback/release without requiring ext/sqlite.
 
 ## Non-Overlap
 
@@ -23,7 +23,7 @@
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext236Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext236Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext236Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next236.php`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next236.php`
   - exited `0`
 - `git diff --check -- lanes/libsqlite`
   - exited `0`

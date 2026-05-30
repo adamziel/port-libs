@@ -8,7 +8,7 @@ the current-source/next-source boundary. It covers prepared statements that
 finish on the current source while ATTACH, temp schema DDL, WAL page-1 schema
 cookies, and shared-cache entries move underneath the connection.
 
-The WordPress path is a copied multisite import that keeps prepared statements
+The Application path is a copied multisite import that keeps prepared statements
 for `main`, attached `site`, temp staging tables, and a newly attached blog
 database. Stale shared-cache entries for `main`, `site`, and `blog103` are
 classified for reload before next-source reprepare; temp schema changes remain
@@ -20,8 +20,8 @@ reset; writes block before retry.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempSchemaCacheReprepareCurrentSourceNext103Test.php`
   - `1 test files, 74 assertions, 0 failures`
   - 70 focused PASS lines.
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-attach-temp-schema-cache-reprepare-current-source-next103.php | php -r 'json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'`
+- Application smoke:
+  `php lanes/libsqlite/examples/application-attach-temp-schema-cache-reprepare-current-source-next103.php | php -r 'json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'`
   - `json ok`
 
 ## Non-Overlap

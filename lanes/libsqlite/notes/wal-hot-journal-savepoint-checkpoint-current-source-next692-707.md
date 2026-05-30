@@ -6,16 +6,16 @@ Files:
 
 - `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php` adds next692-next707 methods on the existing consolidated after-current checkpoint receipt helper.
 - `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext692707Test.php` chains next692 through next707 directly from next691.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next707.php` provides a WordPress-shaped final-seal example with a self-test.
+- `application-wal-hot-journal-savepoint-checkpoint-current-source-next707.php` provides a Application-shaped final-seal example with a self-test.
 
 Validation:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext692707Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next707.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next707.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext692707Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next707.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next707.php --self-test
 git diff --check
 ```
 

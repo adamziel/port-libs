@@ -5,17 +5,17 @@ Behavior: extends `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` wit
 Files:
 - `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `SQLitePlannerStat4ExpressionPartialCurrentSourceNext814829Test.php`
-- `wordpress-sqlplanner-stat4-expression-partial-current-source-next814-829.php`
+- `application-sqlplanner-stat4-expression-partial-current-source-next814-829.php`
 
 Validation:
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext798813Test.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext814829Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next798-813.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next814-829.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next798-813.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next814-829.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext798813Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext814829Test.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next798-813.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next814-829.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next798-813.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next814-829.php --self-test`
 - `git diff --check`
 
 Next slice: continue with planner830-845 from the next814-829 handoff fence.

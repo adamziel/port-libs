@@ -7,7 +7,7 @@ Status: focused PHP corpus growth for current-savepoint rollback after trigger s
 - Added `SQLiteSavepointTriggerRollbackPlan`, a bounded native PHP executor for copied row-array INSERT work inside a named savepoint.
 - Covers an AFTER INSERT trigger that requests rollback of the current savepoint, restoring the savepoint row snapshot while keeping the outer transaction and savepoint active.
 - Reports restored page numbers, rollback-to WAL frame, discarded WAL frames, cleared changes/inserted diagnostics, and dependency tags for savepoint-current rollback plus trigger rollback behavior.
-- Added `wordpress-savepoint-trigger-rollback-current-next20.php` as a copied `wp_options` plugin-import smoke.
+- Added `application-savepoint-trigger-rollback-current-next20.php` as a copied `wp_options` plugin-import smoke.
 
 ## Verification
 

@@ -1,13 +1,13 @@
 # UTF-16 NOCASE LIKE RTRIM canonical plan
 
-This slice adds the stable `wordpressOptionNameUtf16NocaseRtrimPlan()` entry
+This slice adds the stable `optionRowNameUtf16NocaseRtrimPlan()` entry
 point on the existing canonical `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`.
 It preserves the accepted numbered observable metadata while giving new callers
 a non-numbered production method.
 
 The focused test covers:
 
-- canonical method parity with the existing `wordpressOptionNameNoCasePlan()`
+- canonical method parity with the existing `optionRowNameNoCasePlan()`
 - SQLite `RTRIM` space-only candidate behavior with untrimmed residual `LIKE`
 - ASCII-only `NOCASE` behavior for UTF-16LE/UTF-16BE option names
 - malformed UTF-16 source-row rejection evidence

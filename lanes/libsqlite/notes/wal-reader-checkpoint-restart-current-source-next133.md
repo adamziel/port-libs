@@ -12,11 +12,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 76 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-restart-current-source-next133.php --self-test
-wordpress-wal-reader-checkpoint-restart-current-source-next133 self-test passed
+php lanes/libsqlite/examples/application-wal-reader-checkpoint-restart-current-source-next133.php --self-test
+application-wal-reader-checkpoint-restart-current-source-next133 self-test passed
 ```
 
 Additional verification:
@@ -24,7 +24,7 @@ Additional verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointRestartCurrentSourceNext133Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-restart-current-source-next133.php
+php -l lanes/libsqlite/examples/application-wal-reader-checkpoint-restart-current-source-next133.php
 git diff --check -- lanes/libsqlite
 ```
 

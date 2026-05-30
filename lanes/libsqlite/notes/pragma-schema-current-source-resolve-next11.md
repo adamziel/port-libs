@@ -6,7 +6,7 @@ This slice adds bounded native PHP behavior for schema PRAGMAs executed from an 
 - Unqualified `PRAGMA index_info` and `index_xinfo` resolve the current source index across the same schema order.
 - Explicit schema-qualified PRAGMAs remain pinned to the requested schema.
 - Missing unqualified targets keep SQLite-style empty rowsets from the main catalog, while missing explicit schemas still raise.
-- The WordPress smoke demonstrates copied `wp_options` temp-table shadowing plus attached `wp_sitemeta` index introspection without `ext/sqlite`.
+- The Application smoke demonstrates copied `wp_options` temp-table shadowing plus attached `wp_sitemeta` index introspection without `ext/sqlite`.
 
 Focused verification on this worktree:
 

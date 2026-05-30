@@ -54,7 +54,7 @@ $plan = static fn (
     bool $caseSensitiveLike = false,
     string $currentSource = 'main.wp_options',
     string $nextSource = 'main.wp_options',
-): array => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
+): array => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
     $currentRows,
     $nextRows,
     $pattern,
@@ -138,23 +138,23 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['utf16 like glob affinity current source nextNineTwo rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'x', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($currentRows, $nextRows, 'x', 'REGEXP'));
 };
 
 $tests['utf16 like glob affinity current source nextNineTwo rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'x*', 'GLOB', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($currentRows, $nextRows, 'x*', 'GLOB', '!'));
 };
 
 $tests['utf16 like glob affinity current source nextNineTwo rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_value' => 'autoload:yes']], $nextRows, 'autoload:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan([['option_value' => 'autoload:yes']], $nextRows, 'autoload:%'));
 };
 
 $tests['utf16 like glob affinity current source nextNineTwo rejects missing value'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => 1]], $nextRows, 'autoload:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1]], $nextRows, 'autoload:%'));
 };
 
 $tests['utf16 like glob affinity current source nextNineTwo rejects nonscalar value'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => 1, 'option_value' => ['autoload']]], $nextRows, 'autoload:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1, 'option_value' => ['autoload']]], $nextRows, 'autoload:%'));
 };
 
 return $tests;

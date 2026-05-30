@@ -6,6 +6,6 @@ Focused coverage:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext494Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next479-494.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next479-494.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext494Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next479-494.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next479-494.php`

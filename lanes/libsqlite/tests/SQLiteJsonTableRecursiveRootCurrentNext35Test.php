@@ -254,13 +254,13 @@ $tests['json table recursive root current next35 selected root fullkey remains s
     $t->same('$.plugins[0].rules[0]', $cursor->currentRows()[0]['fullkey']);
 };
 
-$tests['json table recursive root current next35 wordpress rule next roots'] = static function (TestRunner $t) use ($settings): void {
+$tests['json table recursive root current next35 application rule next roots'] = static function (TestRunner $t) use ($settings): void {
     $cursor = SQLiteJsonTableRecursiveRootCursor::tree($settings, '$.plugins[0].rules');
     $cursor->next();
     $t->same(['$.plugins[0].rules[0].next', '$.plugins[0].rules[0].next[0].next', '$.plugins[0].rules[1].next'], $cursor->enqueueChildRootsByKey('next'));
 };
 
-$tests['json table recursive root current next35 wordpress next rule atom'] = static function (TestRunner $t) use ($settings): void {
+$tests['json table recursive root current next35 application next rule atom'] = static function (TestRunner $t) use ($settings): void {
     $cursor = SQLiteJsonTableRecursiveRootCursor::tree($settings, '$.plugins[0].rules');
     $cursor->next();
     $cursor->enqueueChildRootsByKey('next');
@@ -268,7 +268,7 @@ $tests['json table recursive root current next35 wordpress next rule atom'] = st
     $t->same(['mobile'], array_values(array_filter(array_column($cursor->currentAtomRows(), 'atom'), 'is_string')));
 };
 
-$tests['json table recursive root current next35 wordpress second next root is empty'] = static function (TestRunner $t) use ($settings): void {
+$tests['json table recursive root current next35 application second next root is empty'] = static function (TestRunner $t) use ($settings): void {
     $cursor = SQLiteJsonTableRecursiveRootCursor::tree($settings, '$.plugins[0].rules');
     $cursor->next();
     $cursor->enqueueChildRootsByKey('next');

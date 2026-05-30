@@ -2,6 +2,6 @@
 
 - Behavior: adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext159Plan`, a current-source follow-up for deleting an overflow-backed copied `wp_options` transient, partially vacuuming the tail, then allocating a multi-page replacement overflow chain from the surviving released freelist leaf and trunk pages.
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext159Test.php` -> `1 test files / 389 assertions / 0 failures` with 65 PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next159.php --self-test` -> self-test passed.
+- Application smoke: `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next159.php --self-test` -> self-test passed.
 - Non-overlap: avoids accepted batch149/next156 single-page post-vacuum overflow reuse, next148/next135/next144 vacuum boundary summaries, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, index-interior merge, and freelist trunk pointer-map reuse. The new surface is the multi-page replacement chain ordering after partial vacuum, where allocation consumes the surviving freelist leaf before the trunk and rewrites final overflow next-pointers and pointer-map parents (`107 -> 106`).
 - Dependency closure: no new support component is needed; this composes existing native PHP SQLite page-image, freeblock, freelist allocation, overflow chain encoding, incremental vacuum, and auto-vacuum pointer-map primitives.

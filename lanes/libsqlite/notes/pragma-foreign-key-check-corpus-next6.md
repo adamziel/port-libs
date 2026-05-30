@@ -20,7 +20,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 55 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pragma-foreign-key-check.php
+php lanes/libsqlite/examples/application-pragma-foreign-key-check.php
 {
     "pragma": "foreign_key_check",
     "violations": 2,
@@ -62,7 +62,7 @@ violation:
 - composite foreign keys mixing numeric affinity and text collation.
 - NULL child-key short-circuiting before affinity conversion.
 - malformed affinity/collation guards.
-- WordPress copied `wp_options` expected/shadow option-name smoke coverage
+- Application copied `wp_options` expected/shadow option-name smoke coverage
   where `NOCASE` accepts `SITEURL -> siteurl` while reporting a missing plugin
   option reference.
 

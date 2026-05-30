@@ -7,16 +7,16 @@ Behavior:
 - Added `SQLiteSchemaPragmaDdlCurrent`, an unsuffixed coordinator that applies bounded `sqlite_schema` DDL through `SQLiteSchemaDdlReparsePlan` and updates `SQLitePragmaSchemaDataVersion`.
 - Local DDL advances `PRAGMA schema_version` and the file change counter by the number of changed schema operations while preserving same-connection `PRAGMA data_version`, matching SQLite's connection-local data-version behavior.
 - The result reports before/after PRAGMA rows, header state, invalidated prepared statements, refreshed `table_xinfo` / `index_list` samples, and dependency evidence.
-- Added a WordPress smoke for copied `wp_options` schema migration reprepare after table rename plus partial-index creation.
+- Added a Application smoke for copied `wp_options` schema migration reprepare after table rename plus partial-index creation.
 
 Verification:
 
 ```
 php -l lanes/libsqlite/src/SQLiteSchemaPragmaDdlCurrent.php
 php -l lanes/libsqlite/tests/SQLiteSchemaPragmaDdlCurrentTest.php
-php -l lanes/libsqlite/examples/wordpress-schema-pragma-ddl-current.php
+php -l lanes/libsqlite/examples/application-schema-pragma-ddl-current.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaPragmaDdlCurrentTest.php
-php lanes/libsqlite/examples/wordpress-schema-pragma-ddl-current.php --self-test
+php lanes/libsqlite/examples/application-schema-pragma-ddl-current.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

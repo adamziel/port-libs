@@ -189,7 +189,7 @@ $cases = [
     'publication digest length' => [static fn (): mixed => strlen($truncate()['publication_digest']), 64],
     'dependency next224' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next224', $truncate()['dependencies'], true), true],
     'dependency sidecar receipts' => [static fn (): mixed => in_array('sqlite-wal-reset-publication-sidecar-receipts', $truncate()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-checkpoint-reset-reader-reopen-publication', $truncate()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-checkpoint-reset-reader-reopen-publication', $truncate()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($truncate()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($truncate()['non_overlap'], 'does not repeat next218 writer fences'), true],
     'restart mode' => [static fn (): mixed => $restart()['mode'], 'restart'],

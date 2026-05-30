@@ -34,8 +34,8 @@ Focused test run: 2 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-vfs-open-lock-filecontrol-uri-current-source-next109.php --self-test
-wordpress-vfs-open-lock-filecontrol-uri-current-source-next109 self-test passed
+$ php lanes/libsqlite/examples/application-vfs-open-lock-filecontrol-uri-current-source-next109.php --self-test
+application-vfs-open-lock-filecontrol-uri-current-source-next109 self-test passed
 ```
 
 ## Non-Overlap

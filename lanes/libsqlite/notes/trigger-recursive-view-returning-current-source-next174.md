@@ -11,8 +11,8 @@ current recursive view cursor, they stay held behind the current-source
 watermark even after a matching reprepare token admits non-conflicting staged
 rows.
 
-WordPress smoke:
-`wordpress-trigger-recursive-view-returning-current-source-next174.php` models a
+Application smoke:
+`application-trigger-recursive-view-returning-current-source-next174.php` models a
 copied `wp_options` import through a recursive view trigger where reparsed
 next-source rows would yield duplicate `option_name` values. The current-source
 `RETURNING` rows remain immutable while non-conflicting staged network rows can
@@ -24,17 +24,17 @@ Focused evidence:
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext174Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext174Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext174Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next174.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next174.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next174.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next174.php`
 - Red-first focused run before expectation cleanup:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext174Test.php`
   - `1 test files, 54 assertions, 2 failures`
 - Final focused run:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext174Test.php`
   - `1 test files, 55 assertions, 0 failures`
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next174.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next174 self-test passed`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next174.php`
+  - `application-trigger-recursive-view-returning-current-source-next174 self-test passed`
 
 Expected dashboard movement: `+55` focused PHP PASS lines for the new
 lane-scoped test file. No mapped upstream denominator change is claimed.

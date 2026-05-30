@@ -11,10 +11,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 42 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-correlated-subquery-flattening-current-next30.php
+php lanes/libsqlite/examples/application-select-correlated-subquery-flattening-current-next30.php
 [
     {
         "option_name": "siteurl"

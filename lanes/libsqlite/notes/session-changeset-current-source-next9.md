@@ -4,17 +4,17 @@
 
 - Added `SQLiteSessionChangeset` for bounded SQLite session-style changesets.
 - Covers table headers, primary-key flags, insert/delete/update records, undefined-vs-NULL encoding, scalar/blob decoding, row-array apply, and conflict classification.
-- WordPress smoke uses copied `wp_options` rows to diff, encode/decode, and apply an update/delete/insert changeset without ext/sqlite.
+- Application smoke uses copied `wp_options` rows to diff, encode/decode, and apply an update/delete/insert changeset without ext/sqlite.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteSessionChangeset.php`
 - `php -l lanes/libsqlite/tests/SQLiteSessionChangesetTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-session-changeset-apply.php`
+- `php -l lanes/libsqlite/examples/application-session-changeset-apply.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSessionChangesetTest.php`
   - `1 test files, 40 assertions, 0 failures`
   - `40` PASS lines
-- `php lanes/libsqlite/examples/wordpress-session-changeset-apply.php`
+- `php lanes/libsqlite/examples/application-session-changeset-apply.php`
   - `applied: 3`
   - `conflicts: 0`
   - `option_names: ["siteurl", "plugin_enabled"]`

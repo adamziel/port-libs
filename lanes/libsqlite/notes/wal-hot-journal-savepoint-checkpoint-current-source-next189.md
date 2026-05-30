@@ -13,10 +13,10 @@ Blocked cases name stale next186 source tokens, missing/unreadable retained WAL
 payloads, reader end frames that run beyond the retained commit frame, and
 missing checkpoint database fallback pages.
 
-## WordPress smoke
+## Application smoke
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next189.php`
-models a copied WordPress plugin import after hot-journal/checkpoint recovery.
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next189.php`
+models a copied Application plugin import after hot-journal/checkpoint recovery.
 The reader keeps schema/options pages from retained WAL frames and reads
 `active_plugins` from the checkpoint database because the savepoint draft frame
 is not part of the committed retained snapshot.
@@ -26,11 +26,11 @@ is not part of the committed retained snapshot.
 ```text
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next189.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next189.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Test.php
 
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next189.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next189.php
 
 git diff --check -- lanes/libsqlite
 ```

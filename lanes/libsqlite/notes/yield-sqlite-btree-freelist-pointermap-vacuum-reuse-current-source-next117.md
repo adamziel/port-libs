@@ -20,11 +20,11 @@ different auto-vacuum pointer-map pages.
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-reuse-current-source-next117.php`
+- `php -l lanes/libsqlite/examples/application-btree-pointermap-vacuum-reuse-current-source-next117.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Test.php`
   - `1 test files, 259 assertions, 0 failures`
   - 67 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-reuse-current-source-next117.php`
+- `php lanes/libsqlite/examples/application-btree-pointermap-vacuum-reuse-current-source-next117.php`
   - emits JSON with allocated pages `[204,307,306,203]`, truncated pages
     `[308,309,310]`, and pointer-map page rewrites for pages `105` and `208`.
 

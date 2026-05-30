@@ -15,12 +15,12 @@ Behavior slice: `json-table-generated-path-rowid-cost-current-source-next195`
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext195Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext195Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-anchor-next195.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-anchor-next195.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-anchor-next195.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-json-table-generated-path-rowid-anchor-next195.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext195Test.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-anchor-next195.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-anchor-next195 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-anchor-next195.php --self-test`
+  - `application-json-table-generated-path-rowid-anchor-next195 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - no output
 

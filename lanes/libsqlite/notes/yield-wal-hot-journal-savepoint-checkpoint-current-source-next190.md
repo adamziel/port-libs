@@ -14,9 +14,9 @@ file map still has:
 - no remaining hot rollback journal,
 - directory-sync evidence when required.
 
-## WordPress path
+## Application path
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next190.php`
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next190.php`
 models a copied `wp_options` database retry checkpoint after a hot-journal
 recovery/savepoint cycle. The smoke emits the publication token, commit-frame
 count, no-hot-journal state, and dependency-closure note.

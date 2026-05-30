@@ -4,15 +4,15 @@ Status: production suffix cleanup for `pager-master-journal-reader-cache-current
 
 This slice renames the numbered production reader-cache entry to `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderFence()` and migrates the direct test/example filenames and call sites. The behavior still models the pager read-side edge where a connection has cached reader pages and cached master-journal membership, but must re-read the current master-journal bytes before serving the next reader after recovery. Reader cache entries are retained only when master-journal membership, source id, epoch, and page digest match the current recovered source. Dirty, pinned stale-member, stale-token, stale-epoch, absent, and same-token image-mismatched reader pages are invalidated and the next read falls back to the current recovered page image.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-reader-fence.php` covers a copied `wp_options` reader that keeps the schema page cache but rejects stale `active_plugins` and dirty plugin settings cache before serving current master-journal recovered pages.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-reader-fence.php` covers a copied `wp_options` reader that keeps the schema page cache but rejects stale `active_plugins` and dirty plugin settings cache before serving current master-journal recovered pages.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceReaderFenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-reader-fence.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-reader-fence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceReaderFenceTest.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-reader-fence.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-reader-fence.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta: no `phpPass` or mapped-coverage movement; this is consolidation-only. The old dependency marker is preserved alongside the descriptive marker so dependent tests that assert the accepted metadata remain valid.

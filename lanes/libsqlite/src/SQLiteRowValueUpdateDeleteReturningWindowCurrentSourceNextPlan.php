@@ -65,7 +65,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next232' => [
                 'sqlite-rowvalue-update-returning-window-current-source-next232',
                 'sqlite-delete-returning-window-current-source-next232',
-                'wordpress-rowvalue-window-savepoint-current-source-next232',
+                'application-rowvalue-window-savepoint-current-source-next232',
             ],
             'non_overlap_next232' => 'adds window-style row numbering over row-value UPDATE/DELETE RETURNING retry rows after rollback/release; avoids accepted next229 subquery retry image coverage, next226 DISTINCT subquery coverage, next205 release-current-source coverage, window row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ]);
@@ -197,7 +197,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-rowvalue-update-delete-returning-window-next233',
                 'sqlite-returning-window-rollback-to-release-current-source-next233',
-                'wordpress-rowvalue-returning-window-current-source-next233',
+                'application-rowvalue-returning-window-current-source-next233',
             ],
             'non_overlap_next233' => 'adds window row_number/dense_rank/count/sum metadata over row-value UPDATE/DELETE RETURNING streams across yielded, rolled-back, and retried current-source phases; avoids accepted next176 nullable row-value comparison, next229 row-value IN SELECT savepoint release, trigger RETURNING, compound SELECT window, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -1016,7 +1016,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next236' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-row-next236',
                 'sqlite-returning-current-row-frame-after-rollback-release-next236',
-                'wordpress-rowvalue-returning-current-row-window-next236',
+                'application-rowvalue-returning-current-row-window-next236',
             ],
             'non_overlap_next236' => 'adds current-row window-frame receipts, lag/lead neighbors, and running/following byte frames over row-value UPDATE/DELETE RETURNING streams after rollback/release; avoids next232 simple retry row numbering, accepted next233 row_number/dense_rank/count/sum windows, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ]);
@@ -1177,7 +1177,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-rowvalue-returning-window-exclude-current-next237',
                 'sqlite-rowvalue-delete-returning-window-peer-frame-next237',
-                'wordpress-rowvalue-returning-window-current-source-next237',
+                'application-rowvalue-returning-window-current-source-next237',
             ],
             'dependency_closure_next237' => 'no new support component needed; next237 reuses native row-value UPDATE/DELETE RETURNING execution, savepoint row images, and bounded RETURNING window receipt materialization.',
             'non_overlap_next237' => 'adds EXCLUDE CURRENT ROW style peer-frame receipts over retry-yielded row-value UPDATE/DELETE RETURNING rows after rollback; avoids accepted next233/next234 basic RETURNING window partitioning, next226 DISTINCT subqueries, next224 nested savepoint rollback, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, PRAGMA, and encoding clusters.',
@@ -1815,7 +1815,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next239' => [
                 'sqlite-rowvalue-returning-statement-window-next239',
                 'sqlite-returning-window-exclude-current-after-rollback-next239',
-                'wordpress-rowvalue-returning-release-window-seal-next239',
+                'application-rowvalue-returning-release-window-seal-next239',
             ],
             'non_overlap_next239' => 'adds statement-partitioned retry RETURNING windows, ntile/percent-rank/cume-dist receipts, and EXCLUDE CURRENT ROW neighbor frames after rollback/release; avoids accepted next233 row_number/dense_rank/count/sum windows, next236 current-row frames, row-value UPSERT, trigger RETURNING, JSON table, planner, WAL/VFS, B-tree, PRAGMA, and encoding clusters.',
         ]);
@@ -2110,7 +2110,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'sqlite-rowvalue-returning-window-peer-groups-next240',
                 'sqlite-rowvalue-returning-window-exclude-current-row-next240',
                 'sqlite-rowvalue-returning-window-exclude-ties-next240',
-                'wordpress-rowvalue-returning-window-current-source-next240',
+                'application-rowvalue-returning-window-current-source-next240',
             ],
             'non_overlap_next240' => 'adds peer-group GROUPS-style window receipts, EXCLUDE CURRENT ROW, EXCLUDE TIES, percent_rank, cume_dist, and ntile metadata over row-value UPDATE/DELETE RETURNING streams after rollback/release; avoids accepted next236 current-row frames, next235 stream row numbers, next233 aggregate window receipts, row-value savepoint retry variants, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, PRAGMA, and encoding clusters',
         ]);
@@ -2284,7 +2284,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['dependencies'] = [
             'sqlite-rowvalue-returning-window-current-row-frame-next241',
             'sqlite-rowvalue-update-delete-returning-current-source-fence-next241',
-            'wordpress-rowvalue-returning-window-current-source-next241',
+            'application-rowvalue-returning-window-current-source-next241',
         ];
         $plan['dependency_closure_next241'] = 'no new support component needed; next241 reuses native row-value UPDATE/DELETE RETURNING execution, savepoint rollback, next235 window rows, and next238 current/next pair classification.';
         $plan['non_overlap_next241'] = 'adds CURRENT ROW frame isolation over next238 current/next source pairs; avoids accepted next237 EXCLUDE CURRENT ROW retry windows, next238 pair classification, next235 window materialization, row-value savepoint conflict variants, trigger RETURNING, WAL/VFS, JSON table, B-tree, PRAGMA, planner, and encoding clusters.';
@@ -2476,7 +2476,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next242' => [
                 'sqlite-returning-window-lag-lead-current-source-next242',
                 'sqlite-returning-window-groups-frame-current-source-next242',
-                'wordpress-rowvalue-update-delete-returning-release-fence-next242',
+                'application-rowvalue-update-delete-returning-release-fence-next242',
             ],
             'dependency_closure_next242' => 'no new support component needed; next242 reuses the row-value UPDATE/DELETE RETURNING executor, savepoint current-source image, and next239 statement-partition window rows.',
             'non_overlap_next242' => 'adds lag/lead, ROWS/GROUPS frame receipts, and current-source release seals over row-value UPDATE/DELETE RETURNING retry windows; avoids accepted next238 pair classification, next239 ntile/percent/cume partition windows, trigger RETURNING, WAL/VFS, JSON, B-tree, PRAGMA, and encoding clusters.',
@@ -2755,7 +2755,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next243' => [
                 'sqlite-rowvalue-returning-window-tuple-frame-next243',
                 'sqlite-rowvalue-update-delete-returning-current-source-release-next243',
-                'wordpress-rowvalue-returning-window-current-source-next243',
+                'application-rowvalue-returning-window-current-source-next243',
             ],
             'non_overlap_next243' => 'adds row-value tuple frame and peer-group receipts over retry RETURNING windows after current-source rollback/release; avoids accepted next239 statement partitions, next238 source fences, next236 current-row frames, next219 LIMIT -1 OFFSET tuple sources, row-value UPSERT, trigger RETURNING, JSON table, planner, WAL/VFS, B-tree, PRAGMA, and encoding clusters.',
         ]);
@@ -2960,7 +2960,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['dependencies'] = [
             'sqlite-rowvalue-returning-window-transition-chain-next244',
             'sqlite-rowvalue-returning-lag-lead-current-source-next244',
-            'wordpress-rowvalue-returning-window-current-source-next244',
+            'application-rowvalue-returning-window-current-source-next244',
         ];
         $plan['dependency_closure_next244'] = 'no new support component needed; next244 reuses native row-value UPDATE/DELETE RETURNING execution, savepoint rollback, next238 pair classification, and next241 CURRENT ROW frame isolation.';
         $plan['non_overlap_next244'] = 'adds lag/lead transition-chain windows across isolated current/next row-value RETURNING pairs; avoids next238 pair classification, next239 statement partitions, next240 peer exclusions, next241 CURRENT ROW frames, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, B-tree, PRAGMA, planner, encoding, and suite-evidence clusters.';
@@ -3215,7 +3215,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next245' => [
                 'sqlite-rowvalue-returning-window-yield-current-source-next245',
                 'sqlite-returning-current-source-ticket-gate-next245',
-                'wordpress-rowvalue-returning-window-yield-gate-next245',
+                'application-rowvalue-returning-window-yield-gate-next245',
             ],
             'non_overlap_next245' => 'adds yield-ticket admission that exposes retried next-source rows only after all current-source row-value RETURNING window rows are acknowledged; avoids accepted next236 current-row frame receipts, next242 row-value/window behavior, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, and upstream-runner surfaces',
         ]);
@@ -3377,7 +3377,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next246' => [
                 'sqlite-returning-window-filter-release-current-source-next246',
                 'sqlite-rowvalue-update-delete-returning-retry-filter-next246',
-                'wordpress-rowvalue-returning-filtered-window-next246',
+                'application-rowvalue-returning-filtered-window-next246',
             ],
             'dependency_closure_next246' => 'no new support component needed; next246 reuses row-value UPDATE/DELETE RETURNING execution, next242 released current-source windows, and bounded PHP window FILTER receipt calculation.',
             'non_overlap_next246' => 'adds FILTER-style retry/yield/suppressed release receipts over row-value UPDATE/DELETE RETURNING windows; avoids accepted next242 lag/lead and ROWS/GROUPS frames, next239 ntile/percent/cume windows, trigger RETURNING, WAL/VFS, JSON table, B-tree, PRAGMA, planner range-cost, and encoding clusters.',
@@ -3694,7 +3694,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['dependencies'] = [
             'sqlite-rowvalue-returning-window-exclude-group-next247',
             'sqlite-rowvalue-returning-transition-peer-groups-next247',
-            'wordpress-rowvalue-returning-window-current-source-next247',
+            'application-rowvalue-returning-window-current-source-next247',
         ];
         $plan['dependency_closure_next247'] = 'no new support component needed; next247 reuses native row-value UPDATE/DELETE RETURNING execution, savepoint rollback, next241 current-row frames, and next244 transition chains.';
         $plan['non_overlap_next247'] = 'adds GROUPS EXCLUDE GROUP accounting over next244 transition-chain partitions; avoids next244 lag/lead edges, next243 tuple frames, next241 CURRENT ROW frames, next240 peer exclusions, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, B-tree, PRAGMA, planner, encoding, and suite-evidence clusters.';
@@ -3955,7 +3955,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next248' => [
                 'sqlite-rowvalue-update-delete-returning-window-publication-current-source-next248',
                 'sqlite-returning-current-source-publication-cursor-next248',
-                'wordpress-rowvalue-returning-window-resume-barrier-next248',
+                'application-rowvalue-returning-window-resume-barrier-next248',
             ],
             'non_overlap_next248' => 'adds resumable publication sequencing after next245 yield-ticket admission; avoids accepted next245 ticket gate, next244 transition windows, next241 current-row frames, next236 receipts, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -4188,7 +4188,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next249' => [
                 'sqlite-rowvalue-returning-window-chunked-yield-next249',
                 'sqlite-returning-current-source-resume-token-next249',
-                'wordpress-rowvalue-returning-window-resume-next249',
+                'application-rowvalue-returning-window-resume-next249',
             ],
             'non_overlap_next249' => 'adds chunked resume-token admission for yielded row-value UPDATE/DELETE RETURNING window rows before retry windows are exposed; avoids accepted next245 yield-ticket gate, next236 current-row frame receipts, next242 row-value/window behavior, UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, and upstream-runner surfaces',
         ]);
@@ -4367,7 +4367,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['dependencies'] = [
             'sqlite-rowvalue-returning-window-exclude-ties-next250',
             'sqlite-rowvalue-returning-current-row-preserved-next250',
-            'wordpress-rowvalue-returning-window-current-source-next250',
+            'application-rowvalue-returning-window-current-source-next250',
         ];
         $plan['dependency_closure_next250'] = 'no new support component needed; next250 reuses native row-value UPDATE/DELETE RETURNING execution, savepoint rollback, next244 transition chains, and next247 peer-group partitions.';
         $plan['non_overlap_next250'] = 'adds GROUPS EXCLUDE TIES accounting where the current RETURNING row remains visible and same-class peers are removed; avoids next247 EXCLUDE GROUP, next244 lag/lead transition chains, next243 tuple frames, next241 CURRENT ROW frames, row-value savepoint retry variants, trigger RETURNING, WAL/VFS, JSON table, B-tree, PRAGMA, planner, encoding, and suite-evidence clusters.';
@@ -4644,11 +4644,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'source_handoff_state_next251' => $sourceReady
                 ? 'current-source-drained-next-source-digest-ready-next251'
                 : 'current-source-or-digest-fence-holds-next-source-next251',
-            'dependency_closure_next251' => 'no new support component needed; next251 reuses row-value UPDATE/DELETE RETURNING window publication sequencing and adds a source epoch/digest handoff fence for copied WordPress option imports',
+            'dependency_closure_next251' => 'no new support component needed; next251 reuses row-value UPDATE/DELETE RETURNING window publication sequencing and adds a source epoch/digest handoff fence for copied Application option imports',
             'dependencies_next251' => [
                 'sqlite-rowvalue-update-delete-returning-window-source-handoff-next251',
                 'sqlite-returning-current-source-digest-fence-next251',
-                'wordpress-rowvalue-returning-window-current-next-source-handoff-next251',
+                'application-rowvalue-returning-window-current-next-source-handoff-next251',
             ],
             'non_overlap_next251' => 'adds source epoch/digest handoff fencing after accepted next248 resumable publication; avoids next248 cursor sequencing, next245 yield gates, next244 transition windows, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -4810,7 +4810,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next252' => [
                 'sqlite-rowvalue-returning-current-source-window-fence-next252',
                 'sqlite-rowvalue-returning-next-source-row-number-after-current-next252',
-                'wordpress-rowvalue-returning-window-current-source-next252',
+                'application-rowvalue-returning-window-current-source-next252',
             ],
             'non_overlap_next252' => 'adds row-number/high-water window fences over next248 publication cursors so next-source retry rows cannot appear before all current-source row-value RETURNING rows; avoids accepted next248 cursor barrier, next245 ticket gate, next244 transition windows, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -5014,7 +5014,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next253' => [
                 'sqlite-rowvalue-returning-window-current-source-chunk-gate-next253',
                 'sqlite-returning-next-source-held-for-window-chunk-receipts-next253',
-                'wordpress-rowvalue-returning-window-current-source-next253',
+                'application-rowvalue-returning-window-current-source-next253',
             ],
             'non_overlap_next253' => 'adds chunk-token current-source admission above accepted next249 chunk construction and next245 raw yield-ticket admission; avoids next248 publication cursor, next236 current-row frame receipts, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -5216,11 +5216,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'admission_state_next254' => $blocked === []
                 ? 'current-source-next254-window-receipts-admitted'
                 : 'current-source-next254-window-receipts-held',
-            'dependency_closure_next254' => 'no new support component needed; next254 reuses row-value UPDATE/DELETE RETURNING window publication, source epoch/digest handoff rows, and adds per-row window receipt admission for copied WordPress option imports',
+            'dependency_closure_next254' => 'no new support component needed; next254 reuses row-value UPDATE/DELETE RETURNING window publication, source epoch/digest handoff rows, and adds per-row window receipt admission for copied Application option imports',
             'dependencies_next254' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-next254',
                 'sqlite-returning-window-row-receipt-admission-next254',
-                'wordpress-rowvalue-returning-window-current-source-next254',
+                'application-rowvalue-returning-window-current-source-next254',
             ],
             'non_overlap_next254' => 'adds row-level window receipt admission after accepted next251 source epoch/digest handoff; avoids next251 digest fencing, next248 publication cursors, next245 yield tickets, savepoint-only row-value RETURNING, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -5533,7 +5533,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next255' => [
                 'sqlite-rowvalue-returning-window-next-row-admission-next255',
                 'sqlite-rowvalue-returning-current-source-handoff-next251',
-                'wordpress-rowvalue-returning-window-next-row-current-source-next255',
+                'application-rowvalue-returning-window-next-row-current-source-next255',
             ],
             'non_overlap_next255' => 'adds next-row admission receipts after accepted next251 source epoch/digest handoff; avoids next250 EXCLUDE TIES, next248 resumable publication, next245 yield gates, next232-next247 window frame variants, row-value savepoint retry variants, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -5826,7 +5826,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-rowvalue-returning-window-retry-commit-watermark',
                 'sqlite-returning-next-source-durable-after-current-window',
-                'wordpress-rowvalue-returning-window-retry-commit-watermark',
+                'application-rowvalue-returning-window-retry-commit-watermark',
             ],
             'non_overlap' => 'adds a retry commit-token durability watermark above accepted next253 chunk-token admission; avoids next253 cursor construction, next249 chunking, next248 publication cursor, next245 yield-ticket gate, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -5999,7 +5999,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next257' => [
                 'sqlite-rowvalue-delete-returning-current-source-tombstone-gate-next257',
                 'sqlite-returning-delete-tombstones-before-next-source-retry-next257',
-                'wordpress-rowvalue-returning-window-delete-retry-publication',
+                'application-rowvalue-returning-window-delete-retry-publication',
             ],
             'non_overlap_next257' => 'adds DELETE RETURNING tombstone ordering over accepted next253 chunk-token admission; avoids next253 chunk construction, next252/next251 source fences, next248 publication cursor, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -6240,7 +6240,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next258' => [
                 'sqlite-rowvalue-returning-current-source-transition-token-next258',
                 'sqlite-rowvalue-returning-next-source-admission-after-window-high-water-next258',
-                'wordpress-rowvalue-returning-window-transition-current-source-next258',
+                'application-rowvalue-returning-window-transition-current-source-next258',
             ],
             'non_overlap_next258' => 'adds a transition-token acknowledgement after the accepted next252 row-number/high-water fence so next-source retry rows remain quarantined until the current high-water and first retry window boundary is acknowledged; avoids accepted next252 row-number fences, next248 publication cursor barriers, next245 yield tickets, row-value UPSERT, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -6465,11 +6465,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'all_current_frames_acknowledged' => self::allCurrentFramesAcknowledgedForCurrentRowAdmission($rows),
                 'all_next_frames_acknowledged' => self::allNextFramesAcknowledgedForCurrentRowAdmission($rows),
             ],
-            'dependency_closure_next259' => 'no new support component needed; next259 reuses native row-value UPDATE/DELETE RETURNING rows, next251 source handoff, and next255 next-row admission while adding CURRENT ROW frame-close gating for copied WordPress option imports',
+            'dependency_closure_next259' => 'no new support component needed; next259 reuses native row-value UPDATE/DELETE RETURNING rows, next251 source handoff, and next255 next-row admission while adding CURRENT ROW frame-close gating for copied Application option imports',
             'dependencies_next259' => [
                 'sqlite-rowvalue-returning-window-current-row-frame-next259',
                 'sqlite-rowvalue-returning-window-next-row-admission-next255',
-                'wordpress-rowvalue-returning-current-row-frame-next259',
+                'application-rowvalue-returning-current-row-frame-next259',
             ],
             'non_overlap_next259' => 'adds CURRENT ROW frame-close admission after accepted next255 next-row receipts; avoids next255 next-row admission, next254 receipt validation, next251 source digest handoff, next248 publication cursor sequencing, row-value savepoint variants, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -6778,7 +6778,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next260' => [
                 'sqlite-rowvalue-returning-window-boundary-current-source-next260',
                 'sqlite-rowvalue-returning-window-next-row-admission-next255',
-                'wordpress-rowvalue-returning-window-boundary-current-source-next260',
+                'application-rowvalue-returning-window-boundary-current-source-next260',
             ],
             'non_overlap_next260' => 'adds frame-source boundary admission for RETURNING window rows whose preceding/current/following frame crosses from current-source rows into retry-source rows; avoids next255 next-row acknowledgement alone, next254 row receipts, next251 epoch/digest fencing, next248 publication cursors, next245 yield gates, row-value savepoint-only variants, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -7094,11 +7094,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'source_window_state_next261' => $segmentsReady
                 ? 'current-source-window-watermarks-admit-next-source-next261'
                 : 'current-source-window-watermarks-hold-next-source-next261',
-            'dependency_closure_next261' => 'no new support component needed; next261 reuses row-value UPDATE/DELETE RETURNING window row receipts and adds current/next source window segment watermarks for copied WordPress option imports',
+            'dependency_closure_next261' => 'no new support component needed; next261 reuses row-value UPDATE/DELETE RETURNING window row receipts and adds current/next source window segment watermarks for copied Application option imports',
             'dependencies_next261' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-next261',
                 'sqlite-returning-window-segment-watermark-next261',
-                'wordpress-rowvalue-returning-window-source-watermark-next261',
+                'application-rowvalue-returning-window-source-watermark-next261',
             ],
             'non_overlap_next261' => 'adds source-window segment watermarks after accepted next254 row-level receipt admission; avoids next254 row receipt matching, next251 digest fencing, next248 publication cursors, next245 yield gates, savepoint-only row-value RETURNING, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -7371,7 +7371,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next262' => [
                 'sqlite-rowvalue-returning-window-peer-groups-next262',
                 'sqlite-rowvalue-returning-peer-source-boundary-next262',
-                'wordpress-rowvalue-returning-window-peer-groups-next262',
+                'application-rowvalue-returning-window-peer-groups-next262',
             ],
             'non_overlap_next262' => 'adds GROUPS/RANGE peer-group admission for RETURNING rows whose peer value spans current-source and retry-source rows; avoids next260 adjacent frame-boundary receipts, next259 CURRENT ROW frame close, retry-commit-watermark commit watermarks, next256 publication handoff surfaces, next255 next-row admission, row-value savepoint-only variants, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
@@ -7610,7 +7610,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next263' => [
                 'sqlite-rowvalue-returning-peer-checkpoint-next263',
                 'sqlite-rowvalue-returning-window-peer-groups-next262',
-                'wordpress-rowvalue-returning-peer-checkpoint-next263',
+                'application-rowvalue-returning-peer-checkpoint-next263',
             ],
             'non_overlap_next263' => 'adds restart checkpoints over admitted peer groups after next262; avoids broad suite evidence, next262 peer admission, next260 boundary receipts, savepoint-only row-value RETURNING, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -7683,7 +7683,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next264' => [
                 'sqlite-rowvalue-returning-final-receipts-next264',
                 'sqlite-rowvalue-returning-peer-checkpoint-next263',
-                'wordpress-rowvalue-returning-final-receipts-next264',
+                'application-rowvalue-returning-final-receipts-next264',
             ],
             'non_overlap_next264' => 'adds final receipt completeness over next263 checkpoints; avoids broad suite evidence, next263 checkpoint creation, next262 peer admission, next260 boundary receipts, savepoint-only row-value RETURNING, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -7732,7 +7732,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next265' => [
                 'sqlite-rowvalue-returning-current-source-ledger-next265',
                 'sqlite-rowvalue-returning-final-receipts-next264',
-                'wordpress-rowvalue-returning-current-source-ledger-next265',
+                'application-rowvalue-returning-current-source-ledger-next265',
             ],
             'non_overlap_next265' => 'adds a ledger over final row-value UPDATE/DELETE RETURNING receipts; avoids next264 receipt completeness, next263 checkpoints, next262 peer admission, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -7776,7 +7776,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next266' => [
                 'sqlite-rowvalue-returning-current-source-watermark-next266',
                 'sqlite-rowvalue-returning-current-source-ledger-next265',
-                'wordpress-rowvalue-returning-current-source-watermark-next266',
+                'application-rowvalue-returning-current-source-watermark-next266',
             ],
             'non_overlap_next266' => 'adds a source-epoch audit watermark over the next265 ledger; avoids next265 ledger materialization, next264 receipt completeness, broad suite evidence, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -7830,7 +7830,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next267' => [
                 'sqlite-rowvalue-returning-current-source-handoff-batches-next267',
                 'sqlite-rowvalue-returning-current-source-watermark-next266',
-                'wordpress-rowvalue-returning-current-source-handoff-batches-next267',
+                'application-rowvalue-returning-current-source-handoff-batches-next267',
             ],
             'non_overlap_next267' => 'adds deterministic handoff batches over the audited receipt ledger; avoids next266 watermark creation, next265 ledger rows, next264 final receipts, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -7874,7 +7874,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next268' => [
                 'sqlite-rowvalue-returning-current-source-manifest-next268',
                 'sqlite-rowvalue-returning-current-source-handoff-batches-next267',
-                'wordpress-rowvalue-returning-current-source-manifest-next268',
+                'application-rowvalue-returning-current-source-manifest-next268',
             ],
             'non_overlap_next268' => 'adds a final manifest over next267 handoff batches; avoids next267 batch partitioning, next266 watermark creation, next265 ledger materialization, next264 final receipt completeness, broad suite evidence, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -7913,7 +7913,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next269' => [
                 'sqlite-rowvalue-returning-current-source-closure-next269',
                 'sqlite-rowvalue-returning-current-source-manifest-next268',
-                'wordpress-rowvalue-returning-current-source-closure-next269',
+                'application-rowvalue-returning-current-source-closure-next269',
             ],
             'non_overlap_next269' => 'adds a closure receipt over the next268 manifest; avoids changing row-value comparison, window frame, planner, WAL/VFS, JSON table, B-tree, encoding, and PRAGMA behavior',
         ]);
@@ -7954,7 +7954,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next270' => [
                 'sqlite-rowvalue-delete-returning-current-source-guard-next270',
                 'sqlite-rowvalue-returning-current-source-closure-next269',
-                'wordpress-rowvalue-delete-returning-current-source-guard-next270',
+                'application-rowvalue-delete-returning-current-source-guard-next270',
             ],
             'non_overlap_next270' => 'adds a DELETE RETURNING guard over sealed ledger receipts; avoids next269 closure generation, DML execution semantics, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -7997,7 +7997,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next271' => [
                 'sqlite-rowvalue-update-returning-current-source-fence-next271',
                 'sqlite-rowvalue-delete-returning-current-source-guard-next270',
-                'wordpress-rowvalue-update-returning-current-source-fence-next271',
+                'application-rowvalue-update-returning-current-source-fence-next271',
             ],
             'non_overlap_next271' => 'adds an UPDATE RETURNING fence over sealed current-source ledger rows; avoids next270 guard creation, row comparison semantics, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -8038,7 +8038,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next272' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-summary-next272',
                 'sqlite-rowvalue-update-returning-current-source-fence-next271',
-                'wordpress-rowvalue-update-delete-returning-after-current-summary-next272',
+                'application-rowvalue-update-delete-returning-after-current-summary-next272',
             ],
             'non_overlap_next272' => 'adds a final after-current summary over next269-271 receipts; avoids broad suite evidence, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and earlier row-value savepoint surfaces',
         ]);
@@ -8077,7 +8077,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next273' => [
                 'sqlite-rowvalue-update-delete-returning-current-source-admission-next273',
                 'sqlite-rowvalue-update-delete-returning-after-current-summary-next272',
-                'wordpress-rowvalue-update-delete-returning-current-source-admission-next273',
+                'application-rowvalue-update-delete-returning-current-source-admission-next273',
             ],
             'non_overlap_next273' => 'adds an admission receipt over next272 after-current readiness; avoids changing DML execution, row comparison, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -8125,7 +8125,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next274' => [
                 'sqlite-rowvalue-update-delete-returning-balance-next274',
                 'sqlite-rowvalue-update-delete-returning-current-source-admission-next273',
-                'wordpress-rowvalue-update-delete-returning-balance-next274',
+                'application-rowvalue-update-delete-returning-balance-next274',
             ],
             'non_overlap_next274' => 'adds UPDATE/DELETE RETURNING balance metadata over existing ledger rows; avoids next273 admission receipt generation and all DML, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA behavior',
         ]);
@@ -8165,7 +8165,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next275' => [
                 'sqlite-rowvalue-update-delete-returning-next-source-package-next275',
                 'sqlite-rowvalue-update-delete-returning-balance-next274',
-                'wordpress-rowvalue-update-delete-returning-next-source-package-next275',
+                'application-rowvalue-update-delete-returning-next-source-package-next275',
             ],
             'non_overlap_next275' => 'adds next-source package metadata after admitted current-source balance; avoids DML execution, receipt ledger construction, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -8208,7 +8208,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next276' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-handoff-next276',
                 'sqlite-rowvalue-update-delete-returning-next-source-package-next275',
-                'wordpress-rowvalue-update-delete-returning-after-current-handoff-next276',
+                'application-rowvalue-update-delete-returning-after-current-handoff-next276',
             ],
             'non_overlap_next276' => 'adds the final after-current handoff receipt over next273-275 metadata; avoids broad suite evidence, DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and prior row-value current-source slices',
         ]);
@@ -8248,7 +8248,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next277' => [
                 'sqlite-rowvalue-update-delete-returning-current-source-attestation-next277',
                 'sqlite-rowvalue-update-delete-returning-after-current-handoff-next276',
-                'wordpress-rowvalue-update-delete-returning-current-source-attestation-next277',
+                'application-rowvalue-update-delete-returning-current-source-attestation-next277',
             ],
             'non_overlap_next277' => 'adds an attestation receipt over the next276 handoff and current-source row counts; avoids DML execution, row comparison semantics, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -8290,7 +8290,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next278' => [
                 'sqlite-rowvalue-update-delete-returning-manifest-next278',
                 'sqlite-rowvalue-update-delete-returning-current-source-attestation-next277',
-                'wordpress-rowvalue-update-delete-returning-manifest-next278',
+                'application-rowvalue-update-delete-returning-manifest-next278',
             ],
             'non_overlap_next278' => 'adds manifest metadata over existing change counts and changed table names; avoids rebuilding ledgers, DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA behavior',
         ]);
@@ -8330,7 +8330,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next279' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-bridge-next279',
                 'sqlite-rowvalue-update-delete-returning-manifest-next278',
-                'wordpress-rowvalue-update-delete-returning-after-current-bridge-next279',
+                'application-rowvalue-update-delete-returning-after-current-bridge-next279',
             ],
             'non_overlap_next279' => 'adds bridge metadata between manifest and package receipts; avoids DML execution, row comparison, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and trigger surfaces',
         ]);
@@ -8373,7 +8373,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next280' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-seal-next280',
                 'sqlite-rowvalue-update-delete-returning-after-current-bridge-next279',
-                'wordpress-rowvalue-update-delete-returning-after-current-seal-next280',
+                'application-rowvalue-update-delete-returning-after-current-seal-next280',
             ],
             'non_overlap_next280' => 'adds the final next277-280 seal over attestation, manifest, and bridge receipts; avoids broad suite evidence, DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and previous current-source slices',
         ]);
@@ -8413,7 +8413,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next281' => [
                 'sqlite-rowvalue-update-delete-returning-current-source-receipt-next281',
                 'sqlite-rowvalue-update-delete-returning-after-current-seal-next280',
-                'wordpress-rowvalue-update-delete-returning-current-source-receipt-next281',
+                'application-rowvalue-update-delete-returning-current-source-receipt-next281',
             ],
             'non_overlap_next281' => 'adds a current-source receipt over the next280 seal and row counts; avoids DML execution, row comparison semantics, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and trigger surfaces',
         ]);
@@ -8455,7 +8455,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next282' => [
                 'sqlite-rowvalue-update-delete-returning-window-ledger-next282',
                 'sqlite-rowvalue-update-delete-returning-current-source-receipt-next281',
-                'wordpress-rowvalue-update-delete-returning-window-ledger-next282',
+                'application-rowvalue-update-delete-returning-window-ledger-next282',
             ],
             'non_overlap_next282' => 'adds ledger metadata over existing RETURNING stream counts and changed tables; avoids rebuilding DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and previous current-source slices',
         ]);
@@ -8495,7 +8495,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next283' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-window-next283',
                 'sqlite-rowvalue-update-delete-returning-window-ledger-next282',
-                'wordpress-rowvalue-update-delete-returning-after-current-window-next283',
+                'application-rowvalue-update-delete-returning-after-current-window-next283',
             ],
             'non_overlap_next283' => 'adds after-current retry-window metadata over the existing window rows; avoids DML execution, row comparison, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and trigger surfaces',
         ]);
@@ -8538,7 +8538,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next284' => [
                 'sqlite-rowvalue-update-delete-returning-current-source-next284',
                 'sqlite-rowvalue-update-delete-returning-after-current-window-next283',
-                'wordpress-rowvalue-update-delete-returning-current-source-next284',
+                'application-rowvalue-update-delete-returning-current-source-next284',
             ],
             'non_overlap_next284' => 'adds the final next281-284 current-source seal over receipt, ledger, and retry-window metadata; avoids broad suite evidence, DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and prior row-value slices',
         ]);
@@ -8578,7 +8578,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next285' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-receipt-next285',
                 'sqlite-rowvalue-update-delete-returning-current-source-next284',
-                'wordpress-rowvalue-update-delete-returning-after-current-receipt-next285',
+                'application-rowvalue-update-delete-returning-after-current-receipt-next285',
             ],
             'non_overlap_next285' => 'adds an after-current receipt over the next284 seal and existing counts; avoids DML execution, row comparison, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, trigger, and broad suite surfaces',
         ]);
@@ -8620,7 +8620,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next286' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-ledger-next286',
                 'sqlite-rowvalue-update-delete-returning-after-current-receipt-next285',
-                'wordpress-rowvalue-update-delete-returning-after-current-ledger-next286',
+                'application-rowvalue-update-delete-returning-after-current-ledger-next286',
             ],
             'non_overlap_next286' => 'adds ledger metadata over existing current-source counts; avoids changing row-value DML, savepoint rollback, window ranking, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
         ]);
@@ -8661,7 +8661,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next287' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-window-next287',
                 'sqlite-rowvalue-update-delete-returning-after-current-ledger-next286',
-                'wordpress-rowvalue-update-delete-returning-after-current-window-next287',
+                'application-rowvalue-update-delete-returning-after-current-window-next287',
             ],
             'non_overlap_next287' => 'adds after-current window coverage metadata over existing retry windows; avoids DML execution, row comparison, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, trigger, and prior current-source slices',
         ]);
@@ -8704,7 +8704,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next288' => [
                 'sqlite-rowvalue-update-delete-returning-after-current-next288',
                 'sqlite-rowvalue-update-delete-returning-after-current-window-next287',
-                'wordpress-rowvalue-update-delete-returning-after-current-next288',
+                'application-rowvalue-update-delete-returning-after-current-next288',
             ],
             'non_overlap_next288' => 'adds the final next285-288 after-current seal over existing receipt, ledger, and window metadata; avoids broad suite evidence, DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, trigger, and earlier row-value slices',
         ]);
@@ -8745,7 +8745,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next294' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-next294',
                 'sqlite-rowvalue-update-delete-returning-after-current-next288',
-                'wordpress-rowvalue-update-delete-returning-window-current-source-next294',
+                'application-rowvalue-update-delete-returning-window-current-source-next294',
             ],
             'non_overlap_next294' => 'adds handoff metadata over the existing next288 after-current seal; avoids changing DML execution, row-value comparisons, window ranking, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and suite-runner surfaces',
         ]);
@@ -8786,7 +8786,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next295' => [
                 'sqlite-rowvalue-update-delete-returning-window-audit-next295',
                 'sqlite-rowvalue-update-delete-returning-window-current-source-next294',
-                'wordpress-rowvalue-update-delete-returning-window-audit-next295',
+                'application-rowvalue-update-delete-returning-window-audit-next295',
             ],
             'non_overlap_next295' => 'adds retry-window audit metadata over existing RETURNING windows; avoids mutating row-value DML, savepoint behavior, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and prior after-current seals',
         ]);
@@ -8827,7 +8827,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next296' => [
                 'sqlite-rowvalue-update-delete-returning-source-audit-next296',
                 'sqlite-rowvalue-update-delete-returning-window-audit-next295',
-                'wordpress-rowvalue-update-delete-returning-source-audit-next296',
+                'application-rowvalue-update-delete-returning-source-audit-next296',
             ],
             'non_overlap_next296' => 'adds source-image audit metadata over existing released retry state; avoids DML execution changes, row-value predicate changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and broad suite evidence',
         ]);
@@ -8870,7 +8870,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next297' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-next297',
                 'sqlite-rowvalue-update-delete-returning-source-audit-next296',
-                'wordpress-rowvalue-update-delete-returning-window-current-source-next297',
+                'application-rowvalue-update-delete-returning-window-current-source-next297',
             ],
             'non_overlap_next297' => 'adds the final next294-297 integration seal over existing current-source metadata; avoids broad suite evidence, DML execution changes, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, trigger, and unrelated row-value slices',
         ]);
@@ -8913,7 +8913,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next302' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-continuation',
                 'sqlite-rowvalue-update-delete-returning-window-current-source-final',
-                'wordpress-rowvalue-update-delete-returning-window-current-source-continuation',
+                'application-rowvalue-update-delete-returning-window-current-source-continuation',
             ],
             'non_overlap_next302' => 'adds continuation metadata over the sealed current-source image; avoids row-value DML execution, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and unrelated after-ready artifacts',
         ]);
@@ -8936,7 +8936,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next303' => [
                 'sqlite-rowvalue-update-delete-returning-window-throughput-audit',
                 'sqlite-rowvalue-update-delete-returning-window-current-source-continuation',
-                'wordpress-rowvalue-update-delete-returning-window-throughput-audit',
+                'application-rowvalue-update-delete-returning-window-throughput-audit',
             ],
             'non_overlap_next303' => 'adds throughput audit metadata only; avoids modifying row-value UPDATE/DELETE RETURNING execution, window row construction, WAL/VFS, JSON table, planner, B-tree, PRAGMA, and trigger surfaces',
         ]);
@@ -8957,7 +8957,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next304' => [
                 'sqlite-rowvalue-update-delete-returning-window-isolation',
                 'sqlite-rowvalue-update-delete-returning-window-throughput-audit',
-                'wordpress-rowvalue-update-delete-returning-window-isolation',
+                'application-rowvalue-update-delete-returning-window-isolation',
             ],
             'non_overlap_next304' => 'adds isolation receipts for the current-source continuation; avoids coordination files, suite status files, unrelated private state, DML execution, WAL/VFS, JSON table, planner, B-tree, PRAGMA, and triggers',
         ]);
@@ -8982,7 +8982,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next305' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-seal',
                 'sqlite-rowvalue-update-delete-returning-window-isolation',
-                'wordpress-rowvalue-update-delete-returning-window-current-source-seal',
+                'application-rowvalue-update-delete-returning-window-current-source-seal',
             ],
             'non_overlap_next305' => 'adds the final isolated seal; avoids coordination files, broad suite evidence, row-value DML execution changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and unrelated row-value slices',
         ]);
@@ -9524,7 +9524,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'dependencies_next' . $next => [
                     'sqlite-rowvalue-update-delete-returning-window-current-source-next' . $next,
                     'sqlite-rowvalue-update-delete-returning-window-current-source-next' . ($next - 1),
-                    'wordpress-rowvalue-update-delete-returning-window-current-source-next' . $next,
+                    'application-rowvalue-update-delete-returning-window-current-source-next' . $next,
                 ],
                 'non_overlap_next' . $next => "adds handoff metadata over the {$previousRangeDescription} seal; avoids row-value DML execution changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, coordination files, and unrelated private state",
             ]), $next, $blockStart);
@@ -9552,7 +9552,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'dependencies_next' . $next => [
                     'sqlite-rowvalue-update-delete-returning-window-source-audit-next' . $next,
                     'sqlite-rowvalue-update-delete-returning-window-current-source-next' . $blockStart,
-                    'wordpress-rowvalue-update-delete-returning-window-source-audit-next' . $next,
+                    'application-rowvalue-update-delete-returning-window-source-audit-next' . $next,
                 ],
                 'non_overlap_next' . $next => 'adds source-audit metadata for existing phase windows; avoids row-value parser/executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, lane-status files, and supervisor state',
             ]), $next, $blockStart);
@@ -9585,7 +9585,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'dependencies_next' . $next => [
                     'sqlite-rowvalue-update-delete-returning-window-preflight-next' . $next,
                     'sqlite-rowvalue-update-delete-returning-window-source-audit-next' . ($blockStart + 1),
-                    'wordpress-rowvalue-update-delete-returning-window-preflight-next' . $next,
+                    'application-rowvalue-update-delete-returning-window-preflight-next' . $next,
                 ],
                 'non_overlap_next' . $next => 'adds focused throughput counters only; avoids DML execution, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and coordination surfaces',
             ]), $next, $blockStart);
@@ -9615,7 +9615,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'dependencies_next' . $next => [
                 'sqlite-rowvalue-update-delete-returning-window-current-source-next' . $next,
                 'sqlite-rowvalue-update-delete-returning-window-preflight-next' . ($blockStart + 2),
-                'wordpress-rowvalue-update-delete-returning-window-current-source-next' . $next,
+                'application-rowvalue-update-delete-returning-window-current-source-next' . $next,
             ],
             'non_overlap_next' . $next => "adds the final {$finalNonOverlapRange} inspectable seal; avoids coordination files, broad suite evidence, executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and unrelated private state",
         ]), $next, $blockStart);
@@ -10349,7 +10349,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'non_overlap' => 'prepares only post-ready receipts for row-value UPDATE/DELETE RETURNING window current-source candidates; avoids suite, JSON table, WAL/VFS, planner, PRAGMA, ATTACH, B-tree, and unrelated window slices',
             'dependencies' => [
                 'sqlite-rowvalue-update-delete-returning-window-ready-publication-metadata',
-                'wordpress-rowvalue-returning-window-ready-publication-metadata',
+                'application-rowvalue-returning-window-ready-publication-metadata',
             ],
         ];
     }

@@ -15,9 +15,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next217.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next217.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next217.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next217.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected focused movement: `+82` PASS lines in the new focused test file.

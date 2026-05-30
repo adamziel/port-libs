@@ -9,7 +9,7 @@ ticket tied to the current view source and trigger source before attempted
 next-source `RETURNING` rows become visible. Current rows remain visible while
 next rows are held for missing, unexpected, reversed, or stale source tickets.
 
-WordPress path: `wordpress-trigger-recursive-view-returning-current-source-next222.php`
+Application path: `application-trigger-recursive-view-returning-current-source-next222.php`
 models a copied `wp_options` import view whose recursive trigger yields current
 `RETURNING` rows before plugin DDL changes the next view/trigger source.
 
@@ -17,8 +17,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext222Test.php`
 - Result: `1 test files, 86 assertions, 0 failures` with 86 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next222.php`
-- Result: `wordpress-trigger-recursive-view-returning-current-source-next222 self-test passed`.
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next222.php`
+- Result: `application-trigger-recursive-view-returning-current-source-next222 self-test passed`.
 
 Dashboard delta: update `phpPass` by the focused PASS-line delta verified for
 this test file (`+86`, from `107451` to `107537`). `benchmarkDenominator.mapped`
@@ -27,7 +27,7 @@ mapped trigger/view/RETURNING inventory, not a newly hydrated upstream row.
 
 Dependency closure: no new support component is needed. The slice reuses
 lane-local recursive view trigger, RETURNING, current-source drain/yield/epoch,
-and WordPress row-array primitives.
+and Application row-array primitives.
 
 Non-overlap: avoids accepted trigger recursive view RETURNING next157-next218
 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK

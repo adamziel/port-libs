@@ -9,7 +9,7 @@ Blocked receipts preserve the previous current-source epoch when a hot journal r
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next223.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next223.php --self-test`
 
 ## Non-Overlap
 

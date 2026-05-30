@@ -150,7 +150,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceCursor
      * @param list<array<string,mixed>> $rows
      * @return list<array{rowid:int,text:string,originalStorage:string,bytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int}>
      */
-    public static function wordpressOptionValueScan(
+    public static function optionRowValueScan(
         array $rows,
         string $column,
         string $pattern,
@@ -163,7 +163,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceCursor
         $entries = [];
         foreach ($rows as $index => $row) {
             if (!array_key_exists($column, $row)) {
-                throw new \InvalidArgumentException("SQLite UTF-16 WordPress option scan row is missing {$column}");
+                throw new \InvalidArgumentException("SQLite UTF-16 Application option scan row is missing {$column}");
             }
             $entries[] = [
                 'key' => $row[$column],

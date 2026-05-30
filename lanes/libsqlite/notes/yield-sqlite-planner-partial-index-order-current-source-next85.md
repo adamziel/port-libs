@@ -13,8 +13,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerPartialIndexOrderCurr
 Focused test run: 1 selected test files (root lock skipped)
 63 PASS lines / 63 assertions / 0 failures
 
-php lanes/libsqlite/examples/wordpress-planner-partial-index-order-current-source-next85.php --self-test
-wordpress-planner-partial-index-order-current-source-next85 self-test passed
+php lanes/libsqlite/examples/application-planner-partial-index-order-current-source-next85.php --self-test
+application-planner-partial-index-order-current-source-next85 self-test passed
 ```
 
 Dashboard-visible focused PASS delta: `+63` PHP PASS lines, from `32160` to

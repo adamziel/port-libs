@@ -2,16 +2,16 @@
 
 - Added `SQLiteSavepointStack::rollbackStatementCurrentSourceAndBeginNext86()` for statement-journal rollback inside an active savepoint after verifying the copied database image still matches the current dirty source pages.
 - The helper rejects stale, missing, unaligned, or malformed current-source pages before restoring statement preimages and opening the retry statement journal at the retained WAL prefix.
-- Added a WordPress smoke for failed `wp_options` transient insert retry behavior without ext/sqlite.
+- Added a Application smoke for failed `wp_options` transient insert retry behavior without ext/sqlite.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointCurrentSourceNext86Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-statement-journal-savepoint-current-source-next86.php
+php -l lanes/libsqlite/examples/application-pager-statement-journal-savepoint-current-source-next86.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointCurrentSourceNext86Test.php
-php lanes/libsqlite/examples/wordpress-pager-statement-journal-savepoint-current-source-next86.php
+php lanes/libsqlite/examples/application-pager-statement-journal-savepoint-current-source-next86.php
 git diff --check -- lanes/libsqlite
 ```
 

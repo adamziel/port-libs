@@ -8,11 +8,11 @@ an additive duplicate peer-count fence for partial expression-index STAT4
 plans. After accepted next245 proves sample rowid anchors against the current
 source, next249 also verifies each STAT4 sample's leading `neq` duplicate count
 against the current partial rowset for the expression key plus blog id. This
-catches stale duplicate histograms for WordPress option-name peers even when the
+catches stale duplicate histograms for Application option-name peers even when the
 sample rowids still exist and anchor correctly.
 
-WordPress path:
-`wordpress-sqlplanner-stat4-expression-partial-current-source-next249.php`
+Application path:
+`application-sqlplanner-stat4-expression-partial-current-source-next249.php`
 models copied `wp_options` plugin rows where `lower(option_name)` has three
 case-variant `plugin_forms` peers under a partial expression index. Reusing a
 prepared plan with stale peer counts would mis-cost the partial scan; the new
@@ -22,9 +22,9 @@ reuse.
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next249.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next249.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext249Test.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next249.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next249.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 PASS delta: `+67` focused PASS lines from the new next249 test file.

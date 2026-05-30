@@ -46,7 +46,7 @@ $staleWal = SQLiteWal::parse($staleSaltBytes, null, true);
 
 $makeStack = static function (): SQLiteSavepointStack {
     $savepoints = new SQLiteSavepointStack();
-    $savepoints->beginTransaction('wordpress-import-next82');
+    $savepoints->beginTransaction('application-import-next82');
     $savepoints->recordWalFrameWrite(1, 1, false);
     $savepoints->recordWalFrameWrite(2, 2, true);
     $savepoints->savepoint('plugin-settings');

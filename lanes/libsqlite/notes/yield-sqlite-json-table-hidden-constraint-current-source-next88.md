@@ -12,9 +12,9 @@ The next88 planner preserves the accepted next86 current-source behavior, then r
 - Result: `1 test files, 50 assertions, 0 failures`
 - PASS lines: 50
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-json-table-hidden-constraint-current-source-next88.php`
+- `php lanes/libsqlite/examples/application-json-table-hidden-constraint-current-source-next88.php`
 - The smoke uses copied `wp_options` plugin rule JSON and shows duplicate hidden root constraints preserved as residual planner evidence while the active cursor remains pinned to the current option row and the next source row grows.
 
 ## Non-Overlap

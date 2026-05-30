@@ -43,7 +43,7 @@ $plan258 = static fn (
     string $nextSource = 'main.wp_options@258',
     int $currentCookie = 257,
     int $nextCookie = 258,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan(
     $current ?? $current258,
     $next ?? $nextTwoFiveEight,
     $pattern,
@@ -170,7 +170,7 @@ $tests['encoding collation affinity like current source nextTwoFiveEight numeric
         ['option_id' => 2, 'option_name' => true],
         ['option_id' => 3, 'option_name' => false],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan($rows, $rows, '1%', null, false, true, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan($rows, $rows, '1%', null, false, true, 'same', 'same', 1, 1);
     $t->same([2, 1], $plan['currentMatchedRowids']);
     $t->same([2, 1], $plan['nextMatchedRowids']);
     $t->same('integer', $plan['currentStorageClasses'][1]);
@@ -178,15 +178,15 @@ $tests['encoding collation affinity like current source nextTwoFiveEight numeric
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveEight rejects invalid escape length'] = static function (TestRunner $t) use ($current258, $nextTwoFiveEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan($current258, $nextTwoFiveEight, 'PLUGIN!!_%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan($current258, $nextTwoFiveEight, 'PLUGIN!!_%', '!!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveEight rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFiveEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan([['option_id' => 1]], $nextTwoFiveEight));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan([['option_id' => 1]], $nextTwoFiveEight));
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveEight rejects array option name'] = static function (TestRunner $t) use ($nextTwoFiveEight): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan([['option_id' => 1, 'option_name' => ['PLUGIN']]], $nextTwoFiveEight));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationCaseSensitiveLikeTransitionPlan([['option_id' => 1, 'option_name' => ['PLUGIN']]], $nextTwoFiveEight));
 };
 
 return $tests;

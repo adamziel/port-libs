@@ -31,10 +31,10 @@ Focused test run: 2 selected test files (root lock skipped)
 2 test files, 110 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-current-next65.php
+php lanes/libsqlite/examples/application-btree-pointermap-vacuum-current-next65.php
 ```
 
 Non-overlap: this does not repeat accepted table/index page relocation,

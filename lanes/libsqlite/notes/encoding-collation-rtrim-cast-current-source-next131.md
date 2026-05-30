@@ -10,8 +10,8 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCastRtrimLikeCurrentSourceNext131Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-cast-rtrim-like-current-source-next131.php --self-test`
-- Lint: `php -l lanes/libsqlite/src/SQLiteCastRtrimLikeCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteCastRtrimLikeCurrentSourceNext131Test.php`, `php -l lanes/libsqlite/examples/wordpress-cast-rtrim-like-current-source-next131.php`
+- Application smoke: `php lanes/libsqlite/examples/application-cast-rtrim-like-current-source-next131.php --self-test`
+- Lint: `php -l lanes/libsqlite/src/SQLiteCastRtrimLikeCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteCastRtrimLikeCurrentSourceNext131Test.php`, `php -l lanes/libsqlite/examples/application-cast-rtrim-like-current-source-next131.php`
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

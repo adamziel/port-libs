@@ -5,7 +5,7 @@ Consolidated the VFS current-source extended published-reuse snapshot fence away
 Direct coverage was migrated from the numbered test/example filenames to stable descriptive names:
 
 - `SQLiteVfsExtendedPublishedReuseSnapshotFenceTest.php`
-- `wordpress-vfs-extended-published-reuse-snapshot-fence.php`
+- `application-vfs-extended-published-reuse-snapshot-fence.php`
 
 The numbered `shared-cache-next...` and `reader-ready-next...` strings remain as modeled WAL/VFS handoff tokens inside fixture data. They are not production helper, method, class, or file names.
 
@@ -13,9 +13,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteVfsExtendedPublishedReuseSnapshotFenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-vfs-extended-published-reuse-snapshot-fence.php`
+- `php -l lanes/libsqlite/examples/application-vfs-extended-published-reuse-snapshot-fence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsExtendedPublishedReuseSnapshotFenceTest.php`
-- `php lanes/libsqlite/examples/wordpress-vfs-extended-published-reuse-snapshot-fence.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-extended-published-reuse-snapshot-fence.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this is a production-name consolidation over the existing VFS current-source helper.

@@ -8,7 +8,7 @@ Status: focused PHP behavior growth for WAL checkpoint reader savepoint recovery
 - Models a reader-pinned WAL checkpoint after `ROLLBACK TO` trims a savepoint prefix, then crash recovery from the retained WAL source.
 - Verifies that recovery replays only the retained savepoint prefix and never replays discarded savepoint frames.
 - Rejects stale current WAL bytes and stale persisted WAL sidecar bytes that do not match the retained prefix.
-- Covers restart, sidecar-written restart, truncate, retained-reader, and copied WordPress `wp_options` import recovery paths.
+- Covers restart, sidecar-written restart, truncate, retained-reader, and copied Application `wp_options` import recovery paths.
 
 ## Verification
 
@@ -21,9 +21,9 @@ Focused test run: 1 selected test files (root lock skipped)
 
 Focused test delta: +69 PASS lines.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-wal-checkpoint-reader-savepoint-recovery-current-source-next118.php --self-test` verifies copied `wp_options` WAL recovery after a plugin settings savepoint rollback and reader-pinned checkpoint crash.
+`lanes/libsqlite/examples/application-wal-checkpoint-reader-savepoint-recovery-current-source-next118.php --self-test` verifies copied `wp_options` WAL recovery after a plugin settings savepoint rollback and reader-pinned checkpoint crash.
 
 ## Non-Overlap
 

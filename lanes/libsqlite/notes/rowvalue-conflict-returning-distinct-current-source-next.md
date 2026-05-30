@@ -18,8 +18,8 @@ current-source sequence where:
 - A later `UPDATE OR ABORT` conflict stops the batch and preserves the completed
   current-source prefix rather than applying the failed statement image.
 
-WordPress smoke:
-`lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next.php`
+Application smoke:
+`lanes/libsqlite/examples/application-rowvalue-conflict-returning-distinct-current-source-next.php`
 models copied `wp_options` drift repair for import cleanup and option-key
 deduplication.
 
@@ -32,14 +32,14 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueConflictReturning
 php -l lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNextTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNextTest.php
 
-php -l lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next.php
+php -l lanes/libsqlite/examples/application-rowvalue-conflict-returning-distinct-current-source-next.php
+No syntax errors detected in lanes/libsqlite/examples/application-rowvalue-conflict-returning-distinct-current-source-next.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 68 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next.php
+php lanes/libsqlite/examples/application-rowvalue-conflict-returning-distinct-current-source-next.php
 "status": "stopped-after-conflict"
 "returningCount": 4
 "ignoredCount": 1

@@ -21,7 +21,7 @@ Status delta: `lane-status.json` `phpPass` moves from `8166` to `8212` for the
 46 newly verified focused PASS cases. No mapped upstream denominator movement
 is claimed.
 
-WordPress smoke: `examples/wordpress-vdbe-aggregate-orderby-current-next24.php`
+Application smoke: `examples/application-vdbe-aggregate-orderby-current-next24.php`
 prints copied `wp_options` autoload groups with priority-ordered option names
 and rowid summary output without requiring `ext/sqlite`.
 

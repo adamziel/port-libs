@@ -18,8 +18,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-returning-foreignkey-savepoint-current-next54.php --self-test
-wordpress-trigger-returning-foreignkey-savepoint-current-next54 self-test passed
+php lanes/libsqlite/examples/application-trigger-returning-foreignkey-savepoint-current-next54.php --self-test
+application-trigger-returning-foreignkey-savepoint-current-next54 self-test passed
 ```
 
 PASS delta: +63 focused PASS lines. `lane-status.json` `phpPass` moves from

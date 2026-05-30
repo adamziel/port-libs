@@ -4,7 +4,7 @@
 
 Adds bounded trigger-body yield planning for TEMP, main, and attached view triggers. `SQLiteAttachTempViewTriggerYieldPlan` expands supported trigger body statements into schema-qualified `INSERT`, `UPDATE`, `DELETE`, and `SELECT` operations while binding `new.*` and `old.*` values from supplied rows.
 
-This is intentionally narrower than executing the SQL engine. It covers the current closure gap after name resolution: once a TEMP/main/attached view trigger resolves, the port can now preview which schema receives each yielded write and which OLD/NEW values flow into copied WordPress import operations.
+This is intentionally narrower than executing the SQL engine. It covers the current closure gap after name resolution: once a TEMP/main/attached view trigger resolves, the port can now preview which schema receives each yielded write and which OLD/NEW values flow into copied Application import operations.
 
 ## Evidence
 

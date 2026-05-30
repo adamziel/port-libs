@@ -10,12 +10,12 @@ This intentionally avoids the accepted next122 hot-journal reader checkpoint sur
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointSavepointHotJournalCurrentSourceNext126Test.php`
 - Result: `1 test files, 76 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-wal-checkpoint-savepoint-hot-journal-current-source-next126.php`
+- Application smoke: `php lanes/libsqlite/examples/application-wal-checkpoint-savepoint-hot-journal-current-source-next126.php`
 - Smoke result: status `wal-checkpoint-savepoint-hot-journal-current-source-next126`, retained WAL frame count `2`, discarded frame count `2`, pinned checkpoint preserves WAL, released checkpoint restarts WAL.
 
 ## Dependency Closure
 
-No new support component is needed. The slice reuses the existing native PHP rollback-journal parser/recovery, `SQLiteSavepointStack` WAL prefix truncation, `SQLiteWal` snapshot/checkpoint primitives, and bounded WordPress example harness.
+No new support component is needed. The slice reuses the existing native PHP rollback-journal parser/recovery, `SQLiteSavepointStack` WAL prefix truncation, `SQLiteWal` snapshot/checkpoint primitives, and bounded Application example harness.
 
 ## Next
 

@@ -13,11 +13,11 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextTest.php`
   - `51` PASS lines
   - `1 test files, 58 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-pattern-current-source-next.php --self-test`
-  - `wordpress-utf16-nocase-like-rtrim-pattern-current-source-next self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-pattern-current-source-next.php --self-test`
+  - `application-utf16-nocase-like-rtrim-pattern-current-source-next self-test passed`
 - `php -l lanes/libsqlite/src/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-pattern-current-source-next.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-pattern-current-source-next.php`
 
 Expected dashboard movement: `phpPass +51`, from `70891` to `70942`. Mapped upstream coverage remains `608 / 1589`; this reuses already mapped encoding/collation/LIKE current-source inventory rather than claiming a fresh upstream manifest row.
 

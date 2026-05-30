@@ -7,7 +7,7 @@ recursive queue uses `ORDER BY ... LIMIT ... OFFSET`, then feeds aggregate
 window output through `UNION ALL`, `EXCEPT`, `INTERSECT`, final `ORDER BY`, and
 final `LIMIT/OFFSET`.
 
-The WordPress path is copied `wp_options` preview SQL where staged next-source
+The Application path is copied `wp_options` preview SQL where staged next-source
 rows can change aggregate-window source tokens and truncation diagnostics even
 when the final `INTERSECT` page admits only recursive dependency rows.
 

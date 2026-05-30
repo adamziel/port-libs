@@ -6,14 +6,14 @@ Changed the direct compound window recursive affinity cursor family from the
 numbered production helper names `pageNext147`, `sliceNext147`,
 `signatureNext147`, and `validateCursorNext147` to stable descriptive
 cursor helper names on `SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan`.
-The direct focused test and WordPress smoke were renamed and updated to use the
+The direct focused test and Application smoke were renamed and updated to use the
 canonical helper.
 
 Evidence to run for handoff:
 
 - `php -l` on changed PHP files.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowRecursiveAffinityCurrentSourceCursorTest.php`.
-- `php lanes/libsqlite/examples/wordpress-compound-window-recursive-affinity-current-source-cursor.php --self-test`.
+- `php lanes/libsqlite/examples/application-compound-window-recursive-affinity-current-source-cursor.php --self-test`.
 - `git diff --check -- lanes/libsqlite`.
 
 Dependency closure: no new support component is needed; this pass only renames

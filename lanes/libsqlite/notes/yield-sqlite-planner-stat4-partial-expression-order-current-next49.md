@@ -15,8 +15,8 @@ Focused behavior:
   range, `BETWEEN`, and `IN` constraints on the expression key.
 - Tail order direction, skipped tail columns, mismatched expression functions,
   JSON path mismatches, and malformed ORDER BY terms are rejected.
-- WordPress smoke:
-  `examples/wordpress-planner-stat4-partial-expression-order-current-next49.php`
+- Application smoke:
+  `examples/application-planner-stat4-partial-expression-order-current-next49.php`
   previews copied `wp_options` plugin-option scans that avoid a separate sort.
 
 Verification:

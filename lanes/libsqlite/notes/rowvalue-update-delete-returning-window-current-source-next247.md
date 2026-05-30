@@ -9,9 +9,9 @@ on top of the accepted next244 transition-chain window layer. It computes
 receipts for retry-yielded, restart-only, and discarded current-source
 RETURNING rows after a savepoint rollback.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next247.php --self-test`
+- `lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next247.php --self-test`
   models copied `wp_options` retry updates and transient cleanup deletes
   selected by row-value subqueries.
 
@@ -20,15 +20,15 @@ Verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next247.php
+php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next247.php
 No syntax errors detected in all changed PHP files.
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 72 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next247.php --self-test
-wordpress-rowvalue-returning-window-current-source-next247 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next247.php --self-test
+application-rowvalue-returning-window-current-source-next247 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +72` from the new focused test file.

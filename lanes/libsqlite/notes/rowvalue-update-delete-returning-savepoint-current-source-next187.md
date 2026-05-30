@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for current-source row-value UPDATE/DELETE
 RETURNING savepoint retry after an `OR ABORT` uniqueness conflict.
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext187Plan`.
-It models a WordPress `wp_options` import cleanup where outer transaction work
+It models a Application `wp_options` import cleanup where outer transaction work
 has already updated/deleted rows, a savepoint batch deletes and updates rows
 with row-value `IN (VALUES ...)` predicates, and a later `UPDATE OR ABORT`
 hits the `(blog_id, option_name)` unique key. The abort rolls back only the
 savepoint batch, discards attempted savepoint RETURNING rows, preserves the
 outer current source, and retries UPDATE/DELETE from the savepoint image.
 
-WordPress smoke:
-`wordpress-rowvalue-abort-savepoint-current-source-next187.php` covers copied
+Application smoke:
+`application-rowvalue-abort-savepoint-current-source-next187.php` covers copied
 `wp_options` rewrite-rule and transient cleanup where the outer rewrite-rule
 change remains visible while the aborted savepoint transient/orphan work is
 retried.

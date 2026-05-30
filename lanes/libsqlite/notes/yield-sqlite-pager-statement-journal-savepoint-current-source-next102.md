@@ -4,9 +4,9 @@
 
 Adds `SQLitePagerStatementJournalSavepointCurrentSourceNextPlan` for the pager boundary where a failed statement journal is rolled back while an outer savepoint remains the current source. The plan verifies the current database page images, restores the failed statement's before-images, starts the next statement journal from the restored source, and optionally models `RELEASE` merging retry pages into the parent transaction.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-pager-statement-journal-savepoint-current-source-next102.php`
+- `lanes/libsqlite/examples/application-pager-statement-journal-savepoint-current-source-next102.php`
 - Covers a copied `wp_options` plugin import where a failed `active_plugins` statement is rolled back inside `plugin-batch-next102`, retried from restored page images, then released.
 
 ## Evidence

@@ -1,7 +1,7 @@
 # FTS5 schema import current next26
 
 Adds bounded native PHP planning for imported `CREATE VIRTUAL TABLE ... USING fts5(...)`
-statements used by WordPress schema copies. The slice parses FTS5 columns,
+statements used by Application schema copies. The slice parses FTS5 columns,
 `UNINDEXED` columns, `tokenize`, `prefix`, `content`, `content_rowid`,
 `detail`, and `columnsize` options, then reports shadow-table names and
 external-content rebuild admission.
@@ -12,10 +12,10 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteFts5SchemaImportCurrentNext26Test.php
 ```
 
-Expected WordPress smoke:
+Expected Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-fts5-schema-import-current-next26.php
+php lanes/libsqlite/examples/application-fts5-schema-import-current-next26.php
 ```
 
 Non-overlap: this is schema-import planning for FTS5 virtual-table DDL. It does

@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for row-value UPDATE/DELETE RETURNING
 current-source savepoint handling.
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext189Plan`
-and focused coverage for a WordPress-style copied `wp_options` cleanup where:
+and focused coverage for a Application-style copied `wp_options` cleanup where:
 
 - an outer row-value `NOT BETWEEN` UPDATE yields `RETURNING *` rows and remains
   the current source after an inner rollback;
@@ -14,8 +14,8 @@ and focused coverage for a WordPress-style copied `wp_options` cleanup where:
 - `ROLLBACK TO` suppresses the inner DELETE stream and retry statements read
   from the preserved post-outer current source.
 
-WordPress smoke:
-`wordpress-rowvalue-not-between-savepoint-current-source-next189.php` models a
+Application smoke:
+`application-rowvalue-not-between-savepoint-current-source-next189.php` models a
 copied options-table cleanup where outer multisite URL rows are staged,
 transient cleanup inside an inner savepoint is rolled back, and the retry
 keeps the staged outer rows while yielding only the retry stream.
@@ -25,9 +25,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext189Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext189Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-not-between-savepoint-current-source-next189.php
+php -l lanes/libsqlite/examples/application-rowvalue-not-between-savepoint-current-source-next189.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext189Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-not-between-savepoint-current-source-next189.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-not-between-savepoint-current-source-next189.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

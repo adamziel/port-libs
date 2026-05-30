@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext228Plan`. It extends the accepted next224 reader-lease current-source fence without repeating it: after master-journal cleanup, database file-token, member-journal, reader-lease, and recovered page-set checks pass, the plan also fences reader-cache reuse on the per-page current-source payload digest. A cache row with the same page number and source ticket now reopens when its payload digest predates the recovered master-journal source.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next228.php` models a copied `wp_options` recovery where schema and options-root reader-cache pages remain usable, while an `active_plugins` cache row with a stale page payload digest misses cache before plugin import resumes.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next228.php` models a copied `wp_options` recovery where schema and options-root reader-cache pages remain usable, while an `active_plugins` cache row with a stale page payload digest misses cache before plugin import resumes.
 
 Focused evidence:
 
@@ -12,12 +12,12 @@ Focused evidence:
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext228Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext228Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext228Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next228.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next228.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next228.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next228.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext228Test.php`
   - `1 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next228.php`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next228 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next228.php`
+  - `application-pager-master-journal-reader-cache-current-source-next228 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - no output
 

@@ -9,10 +9,10 @@ This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`,
 layered on accepted next250 next-page admission. The new receipt gate binds the
 accepted next-page token to `UNION ALL` / `INTERSECT` / `EXCEPT`, recursive
 emitted/skipped labels, current/next window page frames, and final
-`LIMIT 4 OFFSET 1` before a copied WordPress `wp_options` next source can
+`LIMIT 4 OFFSET 1` before a copied Application `wp_options` next source can
 publish rows across the current boundary.
 
-WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next254.php`
+Application path: `application-compound-select-window-recursive-limit-current-source-next254.php`
 models copied autoloaded `wp_options` rows where `plugin_prime` enters the next
 compound page. The current page remains held until the current rows,
 recursive queue, window metrics, and compound receipt all agree.
@@ -20,10 +20,10 @@ recursive queue, window metrics, and compound receipt all agree.
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Test.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next254.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next254.php --self-test`
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next254.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next254.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +88` from focused lane-local PASS lines.

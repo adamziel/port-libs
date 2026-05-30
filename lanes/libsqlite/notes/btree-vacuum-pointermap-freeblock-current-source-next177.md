@@ -11,7 +11,7 @@ fenced out of the downstream handoff.
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext177Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next177.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next177.php --self-test`
 - PHP lint: changed PHP files only.
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 

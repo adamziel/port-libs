@@ -13,10 +13,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 54 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-attach-temp-wal-view-trigger-route-current-next50.php
+$ php lanes/libsqlite/examples/application-attach-temp-wal-view-trigger-route-current-next50.php
 {
     "status": "planned",
     "operationRoutes": [

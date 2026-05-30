@@ -5,7 +5,7 @@ RETURNING and deferred foreign-key checks.
 
 This slice adds
 `SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan`. It models
-the SQLite ordering needed by copied WordPress imports:
+the SQLite ordering needed by copied Application imports:
 
 - the top-level parent UPDATE emits its RETURNING image before recursive
   AFTER UPDATE trigger work is drained;
@@ -17,8 +17,8 @@ the SQLite ordering needed by copied WordPress imports:
 - disabling recursive triggers preserves the top-level statement and suppresses
   queued recursive updates.
 
-WordPress path:
-`wordpress-trigger-deferred-fk-returning-recursive-current-source-next114.php`
+Application path:
+`application-trigger-deferred-fk-returning-recursive-current-source-next114.php`
 models copied `wp_posts` / `wp_postmeta` import rekeying. The smoke proves that
 RETURNING rows for the rekeyed parent are yielded before recursive trigger
 drain, while deferred audit rows are checked at commit.
@@ -28,16 +28,16 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-deferred-fk-returning-recursive-current-source-next114.php
+php -l lanes/libsqlite/examples/application-trigger-deferred-fk-returning-recursive-current-source-next114.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Test.php
-php lanes/libsqlite/examples/wordpress-trigger-deferred-fk-returning-recursive-current-source-next114.php --self-test
+php lanes/libsqlite/examples/application-trigger-deferred-fk-returning-recursive-current-source-next114.php --self-test
 ```
 
 Focused result:
 
 ```text
 1 test files, 62 assertions, 0 failures
-wordpress-trigger-deferred-fk-returning-recursive-current-source-next114 self-test passed
+application-trigger-deferred-fk-returning-recursive-current-source-next114 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from 43574 to 43636 in this worktree (+62

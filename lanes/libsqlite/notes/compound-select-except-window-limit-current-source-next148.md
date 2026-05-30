@@ -9,7 +9,7 @@ This deliberately avoids the accepted single-`EXCEPT` next141 limit slice, the n
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectExceptWindowLimitCurrentSourceNext148Test.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-compound-select-except-window-limit-current-source-next148.php`
+- Example smoke: `php lanes/libsqlite/examples/application-compound-select-except-window-limit-current-source-next148.php`
 - PHP lint: changed PHP files only
 - Diff check: `git diff --check -- lanes/libsqlite`
 

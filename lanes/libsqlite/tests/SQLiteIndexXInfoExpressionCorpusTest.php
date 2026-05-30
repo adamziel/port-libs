@@ -37,7 +37,7 @@ $makeCatalog = static fn (): SQLitePragmaSchemaCatalog => new SQLitePragmaSchema
 ]);
 
 $tests = [
-    'index xinfo executes expression pragma for wordpress expression index' => static function (TestRunner $t) use ($makeCatalog): void {
+    'index xinfo executes expression pragma for application expression index' => static function (TestRunner $t) use ($makeCatalog): void {
         $result = $makeCatalog()->execute('PRAGMA index_xinfo(wp_options_name_expr)');
 
         $t->same('ok', $result['status']);

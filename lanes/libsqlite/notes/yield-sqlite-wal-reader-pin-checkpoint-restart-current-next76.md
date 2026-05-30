@@ -3,8 +3,8 @@
 ## Behavior
 
 - Added `SQLiteWal::checkpointReaderPinRestartCurrentNext()` for the WAL RESTART/TRUNCATE edge where an old reader pins checkpoint completion, a newer reader attaches at the current WAL end, and releasing only the old reader still blocks WAL reset.
-- The helper reports current, next, and final reader page visibility so WordPress import diagnostics can distinguish the old snapshot from the newer WAL reader and the final checkpointed database image after all readers drain.
-- The focused WordPress smoke uses copied `wp_options` page images for site URL, autoload index, plugin settings, and transient pages.
+- The helper reports current, next, and final reader page visibility so Application import diagnostics can distinguish the old snapshot from the newer WAL reader and the final checkpointed database image after all readers drain.
+- The focused Application smoke uses copied `wp_options` page images for site URL, autoload index, plugin settings, and transient pages.
 
 ## Focused Evidence
 

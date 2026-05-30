@@ -7,7 +7,7 @@ the materialized index image to rows that satisfy that predicate, and then runs
 the existing skip-scan current/next loops over the remaining leading-column
 prefixes.
 
-The WordPress path is copied `wp_options` planning for an index shaped like:
+The Application path is copied `wp_options` planning for an index shaped like:
 
 ```sql
 CREATE INDEX idx_wp_options_autoload_plugin_name
@@ -27,8 +27,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerSkipScanPartialCurren
 Focused test run: 1 selected test files (root lock skipped)
 54 PASS lines / 54 assertions / 0 failures
 
-php lanes/libsqlite/examples/wordpress-planner-skipscan-partial-current-next28.php --self-test
-wordpress-planner-skipscan-partial-current-next28 self-test passed
+php lanes/libsqlite/examples/application-planner-skipscan-partial-current-next28.php --self-test
+application-planner-skipscan-partial-current-next28 self-test passed
 ```
 
 Dependency closure: no new support component is needed. This reuses the

@@ -9,10 +9,10 @@ prepared payload rows that were deleted before the cursor tape is consumed.
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialExpressionCurrentSourceNext133Test.php`
-- `php lanes/libsqlite/examples/wordpress-stat4-partial-expression-current-source-next133.php --self-test`
+- `php lanes/libsqlite/examples/application-stat4-partial-expression-current-source-next133.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialExpressionCurrentSourceNext133Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-stat4-partial-expression-current-source-next133.php`
+- `php -l lanes/libsqlite/examples/application-stat4-partial-expression-current-source-next133.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement after integration is +59 focused libsqlite PASS

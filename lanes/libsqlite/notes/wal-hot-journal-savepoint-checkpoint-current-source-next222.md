@@ -6,7 +6,7 @@ Focused verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext222Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next222.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next222.php --self-test
 ```
 
 Non-overlap: next222 does not repeat next221 sidecar deletion, WAL restart, SHM readmark reset, reader admission, or checkpoint planning.

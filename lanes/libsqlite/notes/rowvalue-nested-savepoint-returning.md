@@ -10,8 +10,8 @@ outer savepoint, but a later `ROLLBACK TO` the outer savepoint discards both the
 released inner row stream and an outer DELETE stream. Retry statements then read
 from the restored outer savepoint image/current source.
 
-WordPress smoke:
-`wordpress-rowvalue-nested-savepoint-returning.php`
+Application smoke:
+`application-rowvalue-nested-savepoint-returning.php`
 models a copied `wp_options` plugin import with an inner plugin cleanup batch,
 outer failure recovery, and retry cleanup from the restored current source.
 
@@ -20,9 +20,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueNestedSavepointReturningPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueNestedSavepointReturningTest.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-returning.php
+php -l lanes/libsqlite/examples/application-rowvalue-nested-savepoint-returning.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueNestedSavepointReturningTest.php
-php lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-returning.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-nested-savepoint-returning.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

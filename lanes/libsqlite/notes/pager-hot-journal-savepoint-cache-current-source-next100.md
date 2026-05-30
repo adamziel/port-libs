@@ -17,14 +17,14 @@ Verification:
 ```bash
 php -l lanes/libsqlite/src/SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Test.php
-php -l lanes/libsqlite/examples/wordpress-hot-journal-savepoint-cache-current-source-next100.php
+php -l lanes/libsqlite/examples/application-hot-journal-savepoint-cache-current-source-next100.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Test.php
-php lanes/libsqlite/examples/wordpress-hot-journal-savepoint-cache-current-source-next100.php --self-test
+php lanes/libsqlite/examples/application-hot-journal-savepoint-cache-current-source-next100.php --self-test
 ```
 
 Focused result: `1 test files, 70 assertions, 0 failures`, with 70 PASS lines.
 
-WordPress smoke: `wordpress-hot-journal-savepoint-cache-current-source-next100 self-test passed`.
+Application smoke: `application-hot-journal-savepoint-cache-current-source-next100 self-test passed`.
 
 Dashboard delta: `phpPass` moves from `38278` to `38348`. Mapped upstream coverage remains `568 / 1589`; this is fresh focused PHP behavior over already mapped pager hot-journal/savepoint cache primitives rather than a new upstream inventory unit.
 

@@ -11,9 +11,9 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-deferral-current-source-next173.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-deferral-current-source-next173.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-deferral-current-source-next173.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-deferral-current-source-next173.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is required. The slice reuses

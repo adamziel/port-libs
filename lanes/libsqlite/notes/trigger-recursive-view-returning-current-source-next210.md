@@ -10,8 +10,8 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext210Test.php`
 - Result: `1 test files, 96 assertions, 0 failures` with 96 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next210.php`
-- Result: `wordpress-trigger-recursive-view-returning-current-source-next210 self-test passed`.
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next210.php`
+- Result: `application-trigger-recursive-view-returning-current-source-next210 self-test passed`.
 
 Dependency closure: no new support component needed; this reuses native PHP
 recursive view RETURNING current-source drain state and adds a bounded ordered

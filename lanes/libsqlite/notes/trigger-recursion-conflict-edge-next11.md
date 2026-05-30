@@ -14,7 +14,7 @@ Focused verification:
 - Delta recorded in `lane-status.json`: `phpPass` +24, from 3796 to 3820.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteDmlTriggerRecursionCorpusTest.php`
   reported `1 test files, 77 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-dml-trigger-recursion-corpus.php`
+- `php lanes/libsqlite/examples/application-dml-trigger-recursion-corpus.php`
   passed and reports copied `wp_options` recursive trigger rows plus outer
   statement conflict precedence.
 
@@ -24,5 +24,5 @@ precedence. It also avoids accepted INSERT/UPDATE conflict-current SQL text
 execution by staying inside recursive trigger row production.
 
 Dependency closure: no new support component is needed. The slice reuses the
-lane-local recursive trigger row-array executor and pure PHP WordPress option
+lane-local recursive trigger row-array executor and pure PHP Application option
 smoke fixture.

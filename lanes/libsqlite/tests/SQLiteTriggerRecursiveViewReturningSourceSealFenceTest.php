@@ -177,7 +177,7 @@ $cases211 = [
     'dependency includes next211' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next211', $released211()['dependencies_next211'], true), true],
     'dependency includes seal' => [static fn (): mixed => in_array('sqlite-returning-current-source-seal', $released211()['dependencies_next211'], true), true],
     'dependency includes next209' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next209', $released211()['dependencies_next211'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next211', $released211()['dependencies_next211'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next211', $released211()['dependencies_next211'], true), true],
     'non overlap mentions next209' => [static fn (): mixed => str_contains($released211()['non_overlap_next211'], 'next209 drain-watermark'), true],
     'bad expected seal rejected' => [static fn (): mixed => $plan211(['expected_current_source_seal_next211' => 'bad']), InvalidArgumentException::class],
     'bad expected count rejected' => [static fn (): mixed => $plan211(['expected_current_source_row_count_next211' => -1]), InvalidArgumentException::class],

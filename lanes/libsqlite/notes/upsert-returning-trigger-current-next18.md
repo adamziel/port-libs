@@ -22,12 +22,12 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpsertReturningTriggerCurren
 # Focused test run: 3 selected test files (root lock skipped)
 # 3 test files, 209 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-upsert-returning-trigger-current.php --self-test
+php lanes/libsqlite/examples/application-upsert-returning-trigger-current.php --self-test
 # returningNames: ["siteurl","new_plugin"], returningTouched: ["statement","statement"], changes: 2
 
 php -l lanes/libsqlite/src/SQLiteUpsertReturningTriggerPlan.php
 php -l lanes/libsqlite/tests/SQLiteUpsertReturningTriggerCurrentNext18Test.php
-php -l lanes/libsqlite/examples/wordpress-upsert-returning-trigger-current.php
+php -l lanes/libsqlite/examples/application-upsert-returning-trigger-current.php
 # No syntax errors detected in all changed PHP files
 
 git diff --check -- lanes/libsqlite

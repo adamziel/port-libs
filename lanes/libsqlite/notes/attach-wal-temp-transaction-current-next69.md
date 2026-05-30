@@ -21,7 +21,7 @@ Result:
 
 `1 test files, 70 assertions, 0 failures`
 
-`php lanes/libsqlite/examples/wordpress-attach-wal-temp-transaction-current-next69.php`
+`php lanes/libsqlite/examples/application-attach-wal-temp-transaction-current-next69.php`
 
 Result:
 

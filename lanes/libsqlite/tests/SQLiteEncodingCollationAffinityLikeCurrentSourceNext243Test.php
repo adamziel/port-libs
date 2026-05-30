@@ -49,7 +49,7 @@ $plan243 = static fn (
     string $nextSource = 'main.wp_options@243',
     int $currentCookie = 242,
     int $nextCookie = 243,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan(
     $current ?? $current243,
     $next ?? $nextTwoFourThree,
     $pattern,
@@ -166,7 +166,7 @@ $tests['encoding collation affinity like current source nextTwoFourThree trailin
         ['option_id' => 1, 'option_value' => 'cache_hit'],
         ['option_id' => 2, 'option_value' => 'cache_hit   '],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan($rows, $rows, 'cache_hit', null, 'RTRIM', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($rows, $rows, 'cache_hit', null, 'RTRIM', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentMatchedRowids']);
     $t->same([1, 2], $plan['currentRtrimPrefixCandidateRowids']);
 };
@@ -176,7 +176,7 @@ $tests['encoding collation affinity like current source nextTwoFourThree tab is 
         ['option_id' => 1, 'option_value' => 'cache_hit '],
         ['option_id' => 2, 'option_value' => "cache_hit\t"],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan($rows, $rows, 'cache_hit', null, 'RTRIM', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($rows, $rows, 'cache_hit', null, 'RTRIM', false, 'same', 'same', 1, 1);
     $t->same([1, 2], $plan['currentRtrimPrefixCandidateRowids']);
     $t->same([], $plan['currentMatchedRowids']);
 };
@@ -187,7 +187,7 @@ $tests['encoding collation affinity like current source nextTwoFourThree numeric
         ['option_id' => 2, 'option_value' => 404.0],
         ['option_id' => 3, 'option_value' => false],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan($rows, $rows, '404%', null, 'NOCASE', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($rows, $rows, '404%', null, 'NOCASE', false, 'same', 'same', 1, 1);
     $t->same([1, 2], $plan['currentMatchedRowids']);
 };
 
@@ -197,21 +197,21 @@ $tests['encoding collation affinity like current source nextTwoFourThree blob an
         ['option_id' => 2, 'option_value' => null],
         ['option_id' => 3, 'option_value' => 'cache_hit'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan($rows, $rows, 'cache_%', null, 'RTRIM', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($rows, $rows, 'cache_%', null, 'RTRIM', false, 'same', 'same', 1, 1);
     $t->same([3], $plan['currentMatchedRowids']);
     $t->same([1, 2], $plan['currentUnknownRowids']);
 };
 
 $tests['encoding collation affinity like current source nextTwoFourThree rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFourThree): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan([['option_id' => 1]], $nextTwoFourThree));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan([['option_id' => 1]], $nextTwoFourThree));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourThree rejects array option value'] = static function (TestRunner $t) use ($nextTwoFourThree): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan([['option_id' => 1, 'option_value' => ['cache']]], $nextTwoFourThree));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan([['option_id' => 1, 'option_value' => ['cache']]], $nextTwoFourThree));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourThree rejects unsupported collation'] = static function (TestRunner $t) use ($current243, $nextTwoFourThree): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan($current243, $nextTwoFourThree, 'cache_%', null, 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationRtrimLikeResidualPlan($current243, $nextTwoFourThree, 'cache_%', null, 'UNICODE'));
 };
 
 return $tests;

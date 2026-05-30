@@ -15,8 +15,8 @@ reopen before the next current-source read.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext207Test.php`
   - `1 test files, 55 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next207.php --self-test`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next207 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next207.php --self-test`
+  - `application-pager-master-journal-reader-cache-current-source-next207 self-test passed`
 - PHP lint for changed PHP files.
   - `No syntax errors detected` for the new plan, test, and example.
 - `git diff --check -- lanes/libsqlite`

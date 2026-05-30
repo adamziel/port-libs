@@ -9,17 +9,17 @@ The range keeps the four-step cadence: handoff, source audit, throughput
 preflight counters, and final ready seals for next478-481, next482-485,
 next486-489, and next490-493.
 
-WordPress smoke: `wordpress-rowvalue-returning-window-current-source-next478-493.php`
+Application smoke: `application-rowvalue-returning-window-current-source-next478-493.php`
 uses copied `wp_options` fixture rows with row-value UPDATE and DELETE RETURNING
 streams to verify every candidate status plus the ready seals after next477.
 
 Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next478-493.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next478-493.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext478493Test.php`
 - `php tools/run-tests.php SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext478493Test`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next478-493.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next478-493.php --self-test`
 - `git diff --check`
 
 Non-overlap: this only adds next478-493 wrappers, focused example/test coverage,

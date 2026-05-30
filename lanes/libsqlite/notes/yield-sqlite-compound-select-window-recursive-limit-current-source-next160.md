@@ -4,7 +4,7 @@
 
 - Adds a lane-local current-source slice for recursive CTE queue `LIMIT offset,count` syntax inside a compound SELECT.
 - The focused SQL composes recursive queue offset/count admission, per-arm window `row_number()` evaluation, `UNION ALL`, final compound `ORDER BY`, and final `LIMIT/OFFSET`.
-- The WordPress smoke models copied `wp_options` import previews where recursive staging rows and autoloaded option rows are ranked before a bounded import preview.
+- The Application smoke models copied `wp_options` import previews where recursive staging rows and autoloaded option rows are ranked before a bounded import preview.
 
 ## Non-Overlap
 
@@ -21,7 +21,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext160Test.php`
   - `1 test files, 215 assertions, 0 failures`
   - `69` PASS lines
-- `php lanes/libsqlite/examples/wordpress-compound-recursive-comma-limit-window-next160.php`
+- `php lanes/libsqlite/examples/application-compound-recursive-comma-limit-window-next160.php`
   - passed and emitted `compound-select-window-recursive-limit-current-source-next160-ready`
 
 ## Expected Dashboard Delta

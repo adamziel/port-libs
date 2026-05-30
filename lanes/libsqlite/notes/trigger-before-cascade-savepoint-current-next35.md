@@ -15,7 +15,7 @@ Files:
 
 - `src/SQLiteTriggerBeforeCascadeSavepointPlan.php`
 - `tests/SQLiteTriggerBeforeCascadeSavepointCurrentNext35Test.php`
-- `examples/wordpress-trigger-before-cascade-savepoint-current-next35.php`
+- `examples/application-trigger-before-cascade-savepoint-current-next35.php`
 
 Focused verification:
 
@@ -25,8 +25,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 61 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-trigger-before-cascade-savepoint-current-next35.php --self-test
-wordpress-trigger-before-cascade-savepoint-current-next35 self-test passed
+$ php lanes/libsqlite/examples/application-trigger-before-cascade-savepoint-current-next35.php --self-test
+application-trigger-before-cascade-savepoint-current-next35 self-test passed
 
 $ php -l lanes/libsqlite/src/SQLiteTriggerBeforeCascadeSavepointPlan.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerBeforeCascadeSavepointPlan.php
@@ -34,8 +34,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerBeforeCascadeSavep
 $ php -l lanes/libsqlite/tests/SQLiteTriggerBeforeCascadeSavepointCurrentNext35Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerBeforeCascadeSavepointCurrentNext35Test.php
 
-$ php -l lanes/libsqlite/examples/wordpress-trigger-before-cascade-savepoint-current-next35.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-before-cascade-savepoint-current-next35.php
+$ php -l lanes/libsqlite/examples/application-trigger-before-cascade-savepoint-current-next35.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-before-cascade-savepoint-current-next35.php
 ```
 
 Status delta:

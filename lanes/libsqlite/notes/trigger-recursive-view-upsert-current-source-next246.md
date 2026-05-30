@@ -11,8 +11,8 @@ The new layer derives deterministic receipts from each current recursive view UP
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext246Test.php`
   - `1 test files, 81 assertions, 0 failures`
   - 81 PASS lines
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next246.php`
-  - `wordpress-trigger-recursive-view-upsert-current-source-next246 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next246.php`
+  - `application-trigger-recursive-view-upsert-current-source-next246 self-test passed`
 
 ## Non-Overlap
 

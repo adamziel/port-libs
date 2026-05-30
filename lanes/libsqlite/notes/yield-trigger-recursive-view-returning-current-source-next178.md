@@ -12,10 +12,10 @@ The plan flattens paged RETURNING rows into statement order, tags every row with
   - `1 test files, 72 assertions, 0 failures`
   - 72 PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next178.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next178 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next178.php`
+  - `application-trigger-recursive-view-returning-current-source-next178 self-test passed`
 
 ## Non-Overlap
 

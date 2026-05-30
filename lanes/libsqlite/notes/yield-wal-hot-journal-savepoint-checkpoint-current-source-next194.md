@@ -14,9 +14,9 @@ publication guard and admits reopened reader tickets only when they:
 - carry directory-sync and checkpoint-lock receipts,
 - close the savepoint and retain no hot-journal digest.
 
-## WordPress path
+## Application path
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next194.php`
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next194.php`
 models copied `wp_options` readers being exposed after retry checkpoint
 publication. The smoke emits the reader-exposure status, ticket count, sealed
 epoch, reader sources, seal digest, and dependency-closure note.
@@ -34,7 +34,7 @@ Verified focused delta: 65 PASS lines in a lane-scoped test file.
 Example smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next194.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next194.php
 ```
 
 ## Non-overlap

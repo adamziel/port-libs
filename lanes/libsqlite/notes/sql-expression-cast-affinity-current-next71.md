@@ -13,13 +13,13 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteSqlExpressionCastAffinityCur
 # Focused test run: 1 selected test files (root lock skipped)
 # 1 test files, 60 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-select-cast-affinity-current-next71.php
-# scenario: wordpress-select-cast-affinity-current-next71
+php lanes/libsqlite/examples/application-select-cast-affinity-current-next71.php
+# scenario: application-select-cast-affinity-current-next71
 
 php -l lanes/libsqlite/src/SQLiteSelectExpression.php
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteSqlExpressionCastAffinityCurrentNext71Test.php
-php -l lanes/libsqlite/examples/wordpress-select-cast-affinity-current-next71.php
+php -l lanes/libsqlite/examples/application-select-cast-affinity-current-next71.php
 # No syntax errors detected in changed PHP files.
 
 git diff --check -- lanes/libsqlite

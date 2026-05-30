@@ -124,7 +124,7 @@ $tests['pragma runtime module collation current next24 cursor walks function row
 
 $tests['pragma runtime module collation current next24 custom constructor preserves explicit order'] = static function (TestRunner $t): void {
     $catalog = new SQLitePragmaRuntimeCatalog(
-        ['wordpress', 'NOCASE', 'wordpress'],
+        ['application', 'NOCASE', 'application'],
         ['wp_settings', 'json_tree', 'wp_settings'],
         [
             ['name' => 'wp_json', 'builtin' => 0, 'type' => 's', 'enc' => 'utf8', 'narg' => 1, 'flags' => 7],
@@ -132,7 +132,7 @@ $tests['pragma runtime module collation current next24 custom constructor preser
         ],
     );
 
-    $t->same(['wordpress', 'NOCASE'], array_column($catalog->execute('PRAGMA collation_list')['rows'], 'name'));
+    $t->same(['application', 'NOCASE'], array_column($catalog->execute('PRAGMA collation_list')['rows'], 'name'));
     $t->same(['wp_settings', 'json_tree'], array_column($catalog->execute('PRAGMA module_list')['rows'], 'name'));
     $t->same(1, count($catalog->execute('PRAGMA function_list')['rows']));
     $t->same(9, $catalog->execute('PRAGMA function_list')['rows'][0]['flags']);

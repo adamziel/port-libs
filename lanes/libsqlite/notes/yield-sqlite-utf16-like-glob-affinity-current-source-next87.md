@@ -15,9 +15,9 @@ LIKE/GLOB residual matching over a UTF-16 current source.
 - Result: `1 test files, 66 assertions, 0 failures`
 - PASS-line delta: `+66`
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-utf16-like-glob-affinity-current-source-next87.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-like-glob-affinity-current-source-next87.php --self-test`
 - Covers copied `wp_options` values where numeric settings match `LIKE '1%'`,
   Unicode plugin payloads match GLOB ranges after UTF-16BE encoding, and emoji
   option payloads expose UTF-16LE surrogate bytes.

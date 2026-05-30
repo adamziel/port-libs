@@ -19,7 +19,7 @@ It covers:
   `foreign_key_check` violations, pagination, stale cursor rejection, and
   table-valued `pragma_index_xinfo(...)` dispatch.
 
-The WordPress smoke models copied multisite `wp_options` imports where action
+The Application smoke models copied multisite `wp_options` imports where action
 semantics affect whether a resumable diagnostic is still describing the same
 current catalog image.
 
@@ -33,8 +33,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next166.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-current-source-next166 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next166.php --self-test
+application-pragma-index-xinfo-foreignkey-current-source-next166 self-test passed
 ```
 
 ## Non-overlap

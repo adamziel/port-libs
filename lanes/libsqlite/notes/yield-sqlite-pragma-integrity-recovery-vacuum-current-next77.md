@@ -9,10 +9,10 @@ foreign-key, and inferred message classifications without duplicating earlier
 PRAGMA integrity pagination, pointer-map/freelist diagnostics, or foreign-key
 index integrity slices.
 
-## WordPress path
+## Application path
 
-`examples/wordpress-pragma-integrity-recovery-vacuum-current-next77.php`
-models a WordPress SQLite import/repair pass where integrity findings block
+`examples/application-pragma-integrity-recovery-vacuum-current-next77.php`
+models a Application SQLite import/repair pass where integrity findings block
 incremental vacuum until freelist, pointer-map, and btree recovery actions are
 completed.
 
@@ -28,14 +28,14 @@ Expected focused result after this slice:
 
 Example smoke:
 
-`php lanes/libsqlite/examples/wordpress-pragma-integrity-recovery-vacuum-current-next77.php`
+`php lanes/libsqlite/examples/application-pragma-integrity-recovery-vacuum-current-next77.php`
 
 ## Dependency Closure
 
 No new support component is needed. The slice reuses existing
 `SQLitePragmaIntegrityCurrentNextYield`, `SQLitePragmaIntegrityCheck`, and
 `SQLiteDatabase` pointer-map metadata when a real database image is available,
-while accepting already-collected integrity rows for runner and WordPress repair
+while accepting already-collected integrity rows for runner and Application repair
 preflight paths.
 
 ## Non-Overlap

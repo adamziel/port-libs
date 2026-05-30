@@ -19,7 +19,7 @@ pagination, and records the new row summaries in current/next source hashes.
 ## Focused Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext255258Test.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next255-258.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next255-258.php --self-test`
 
 ## Non-Overlap
 

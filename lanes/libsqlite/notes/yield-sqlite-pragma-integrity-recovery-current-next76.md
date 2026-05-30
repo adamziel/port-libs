@@ -19,9 +19,9 @@ Final local verification commands:
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIntegrityRecoveryCurrentNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePragmaIntegrityRecoveryCurrentNext76Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-integrity-recovery-current-next76.php
+php -l lanes/libsqlite/examples/application-pragma-integrity-recovery-current-next76.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityRecoveryCurrentNext76Test.php
-php lanes/libsqlite/examples/wordpress-pragma-integrity-recovery-current-next76.php
+php lanes/libsqlite/examples/application-pragma-integrity-recovery-current-next76.php
 git diff --check -- lanes/libsqlite
 ```
 

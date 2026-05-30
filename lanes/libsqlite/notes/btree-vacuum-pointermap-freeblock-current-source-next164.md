@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext164Plan`, a focused follow-up for partial auto-vacuum after deleting a WordPress-sized overflow payload and then allocating a replacement overflow chain.
+- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext164Plan`, a focused follow-up for partial auto-vacuum after deleting a Application-sized overflow payload and then allocating a replacement overflow chain.
 - The plan validates final overflow next-pointer continuity across a reused surviving page plus appended pages that had just been truncated by vacuum.
 - It records source, post-vacuum, and final next pointers, final pointer-map type/parent, materialization status, and page hashes for each released overflow page.
 
@@ -16,7 +16,7 @@
 
 - Focused command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext164Test.php`
 - Result: `1 test files, 276 assertions, 0 failures` with 60 PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next164.php`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next164.php`
 
 ## Dependency Closure
 

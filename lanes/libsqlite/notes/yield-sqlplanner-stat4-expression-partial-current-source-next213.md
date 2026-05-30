@@ -12,8 +12,8 @@ The slice composes the accepted next212 grouped-LIKE partial-arm proof and then 
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 66 assertions, 0 failures`
   - 66 focused PASS lines.
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next213.php`
-  - WordPress smoke validates copied `wp_options` plugin-option planning with a NOCASE `LIKE` partial arm.
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next213.php`
+  - Application smoke validates copied `wp_options` plugin-option planning with a NOCASE `LIKE` partial arm.
 
 ## Non-Overlap
 

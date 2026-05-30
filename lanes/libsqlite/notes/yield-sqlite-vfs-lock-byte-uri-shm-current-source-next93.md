@@ -7,7 +7,7 @@ matching WAL `-shm` sidecar lock source.
 
 Focused behavior:
 
-- Percent-decoded `file:` URI spellings for the same WordPress database reuse
+- Percent-decoded `file:` URI spellings for the same Application database reuse
   one current-source entry, while the `-shm` sidecar key remains derived from
   the decoded database filename.
 - Main database lock-byte transitions and SHM read/write/checkpoint locks are
@@ -16,7 +16,7 @@ Focused behavior:
 - `mode=ro`, `immutable=1`, `nolock=1`, and `mode=memory` URI inputs produce
   bounded SQLite-style blockers for writer byte locks, SHM exclusive locks, or
   private in-memory lock state.
-- The WordPress smoke covers a copied `wp-content/database/wp copy.sqlite`
+- The Application smoke covers a copied `wp-content/database/wp copy.sqlite`
   import where a reader holds shared byte and SHM locks until an importer
   reaches exclusive and checkpoint ownership after release.
 
@@ -24,11 +24,11 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteVfsLockByteUriShmCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-vfs-lock-byte-uri-shm-current-source-next93.php`
+- `php -l lanes/libsqlite/examples/application-vfs-lock-byte-uri-shm-current-source-next93.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNextTest.php`
   - `1 test files, 64 assertions, 0 failures`
   - `64` PASS lines
-- `php lanes/libsqlite/examples/wordpress-vfs-lock-byte-uri-shm-current-source-next93.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-lock-byte-uri-shm-current-source-next93.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

@@ -1,6 +1,6 @@
 # PRAGMA foreign_key_check + Root Integrity Current Source Next117
 
-This slice adds a source-stable current/next yield for WordPress-style repair
+This slice adds a source-stable current/next yield for Application-style repair
 preflights that need `PRAGMA foreign_key_check(table)` rows and sqlite_schema
 rootpage blockers in one pass.
 
@@ -11,8 +11,8 @@ rootpage blockers in one pass.
   database/schema/catalog changes.
 - The rows preserve duplicate rootpage, pointer-map rootpage, freelist,
   largest-root mismatch, beyond-image, and foreign-key mismatch messages.
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-pragma-fk-root-integrity-current-source-next117.php`
+- Application smoke:
+  `php lanes/libsqlite/examples/application-pragma-fk-root-integrity-current-source-next117.php`
   reports 3 root blockers and 1 stale `wp_options` FK blocker.
 
 Verification:
@@ -23,7 +23,7 @@ Focused test run: 1 selected test files (root lock skipped)
 70 PASS lines
 1 test files, 112 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pragma-fk-root-integrity-current-source-next117.php
+php lanes/libsqlite/examples/application-pragma-fk-root-integrity-current-source-next117.php
 status ok, total 4, integrity_root 3, foreign_key 1
 ```
 

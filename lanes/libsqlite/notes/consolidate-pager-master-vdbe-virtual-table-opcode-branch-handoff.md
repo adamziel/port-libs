@@ -8,8 +8,8 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeVirtualTableOpcodeBranchHandoffTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-virtual-table-opcode-branch-handoff.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-virtual-table-opcode-branch-handoff.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeVirtualTableOpcodeBranchHandoffTest.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-virtual-table-opcode-branch-handoff.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-virtual-table-opcode-branch-handoff.php`
 
 Dependency closure: no new support component is needed; this is production helper consolidation only.

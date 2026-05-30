@@ -3,7 +3,7 @@
 Timestamp: 2026-05-28T11:40:49Z
 
 This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a bounded
-current-source/next-source cursor resume plan for WordPress `wp_options`
+current-source/next-source cursor resume plan for Application `wp_options`
 `option_name` scans using:
 
 - UTF-16LE/UTF-16BE prepared LIKE pattern and ESCAPE byte normalization.
@@ -21,8 +21,8 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 80 assertions, 0 failures
 ```
 
-The focused run emits 59 PASS lines. The WordPress smoke is
-`lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next165.php`
+The focused run emits 59 PASS lines. The Application smoke is
+`lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next165.php`
 and covers copied `wp_options` resume behavior after yielding
 `plugin_cache_alpha`.
 

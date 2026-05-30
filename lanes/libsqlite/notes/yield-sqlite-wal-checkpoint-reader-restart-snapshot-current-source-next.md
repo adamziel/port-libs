@@ -12,7 +12,7 @@ reader snapshot, savepoint restart, or checkpoint transaction slices:
 - appends a next writer transaction to the restarted generation;
 - compares current, pinned, released-database, and next-reader sources.
 
-WordPress path: copied `.ht.sqlite` / `wp_options` import readers can continue
+Application path: copied `.ht.sqlite` / `wp_options` import readers can continue
 reading an old `active_plugins` snapshot while a later writer appends
 `active_plugins` and transient rows to the restarted WAL generation after the
 reader releases.

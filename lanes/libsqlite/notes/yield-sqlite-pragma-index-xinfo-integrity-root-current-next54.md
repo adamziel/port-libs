@@ -4,7 +4,7 @@ Slice: `yield-sqlite-pragma-index-xinfo-integrity-root-current-next54`.
 
 This patch adds a bounded native PHP yield surface that combines resolved
 `PRAGMA index_xinfo` rows with root-page integrity diagnostics. It is intended
-for copied WordPress database import diagnostics where the caller needs to page
+for copied Application database import diagnostics where the caller needs to page
 through index metadata first, then continue into current `integrity_check` or
 `quick_check` root-page errors without losing current/next cursor state.
 
@@ -31,10 +31,10 @@ Focused test run: 1 selected test files (root lock skipped)
 The focused run produced 55 PASS lines. `lane-status.json` `phpPass` increases
 from 19277 to 19332 by that verified PASS-line delta.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-integrity-root-current-next54.php
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-integrity-root-current-next54.php
 {
     "scenario": "copied wp_options PRAGMA index_xinfo plus integrity root current/next pagination",
     ...

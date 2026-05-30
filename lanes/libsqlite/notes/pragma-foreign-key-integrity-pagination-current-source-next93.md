@@ -20,10 +20,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyIntegrityPag
 
 Result: `1 test files, 59 assertions, 0 failures` with 59 PASS lines.
 
-## WordPress Smoke
+## Application Smoke
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pragma-foreign-key-integrity-pagination-current-source-next93.php
+php lanes/libsqlite/examples/application-pragma-foreign-key-integrity-pagination-current-source-next93.php
 ```
 
 The smoke reports copied `wp_options` FK integrity pages resolving the current

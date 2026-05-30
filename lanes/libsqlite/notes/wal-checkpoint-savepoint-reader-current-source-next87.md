@@ -14,9 +14,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalCheckpointSavepointReaderCurrentSourceNext87Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-savepoint-reader-current-source-next87.php`
+- `php -l lanes/libsqlite/examples/application-wal-checkpoint-savepoint-reader-current-source-next87.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointSavepointReaderCurrentSourceNext87Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-checkpoint-savepoint-reader-current-source-next87.php --self-test`
+- `php lanes/libsqlite/examples/application-wal-checkpoint-savepoint-reader-current-source-next87.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this avoids accepted WAL byte truncation, VFS savepoint rollback

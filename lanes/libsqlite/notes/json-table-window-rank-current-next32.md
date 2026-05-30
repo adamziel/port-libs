@@ -3,7 +3,7 @@
 2026-05-27 isolated slice `yield-sqlite-json-table-window-rank-current-next32`.
 
 - Behavior: adds `SQLiteJsonTablePlan::rankedCurrentNextRows()` as a bounded current/next cursor over already window-ranked `json_each()` / `json_tree()` rows. It preserves current row payloads, next row payloads within the same partition, current/next rank values, peer flags, partition-boundary EOF, and stable row indexes.
-- WordPress smoke: `examples/wordpress-json-table-window-rank-current-next32.php --self-test` verifies copied plugin settings expanded through `json_tree()` and traversed as ranked current/next priority rows with peer ties.
+- Application smoke: `examples/application-json-table-window-rank-current-next32.php --self-test` verifies copied plugin settings expanded through `json_tree()` and traversed as ranked current/next priority rows with peer ties.
 - Focused test delta: `SQLiteJsonTableWindowRankCurrentNext32Test.php` adds 54 focused PASS assertions.
 - Non-overlap: avoids accepted JSON table window ranking math, JSON table cursor/source/hidden/visible constraints, JSON host joins, indexed derived current/next lookup, grouped JSON rows, SELECT SQL text/JOIN/GROUP BY/subquery/ORDER BY clusters, and accepted WAL/VFS/B-tree/encoding clusters. This slice is only the current/next traversal layer over ranked JSON table rows.
 - Dependency closure: no new support component is needed; the patch reuses existing lane-local JSON table row generation, residual filtering, ordering, and window ranking helpers.
@@ -18,6 +18,6 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-window-rank-current-next32.php --self-test
-wordpress-json-table-window-rank-current-next32 self-test passed
+php lanes/libsqlite/examples/application-json-table-window-rank-current-next32.php --self-test
+application-json-table-window-rank-current-next32 self-test passed
 ```

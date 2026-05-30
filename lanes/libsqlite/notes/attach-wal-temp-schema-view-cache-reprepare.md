@@ -16,7 +16,7 @@ schemas and active-reader state:
 - committed page-one WAL schema cookies are tracked, while uncommitted or
   non-page-one frames do not advance schema cookies.
 
-WordPress relevance: copied `wp_options` import flows often use temp staging
+Application relevance: copied `wp_options` import flows often use temp staging
 views while main and attached site databases remain open in WAL mode. The
 example shows active temp view readers finishing their current source, a stale
 site view requiring reprepare on next step, and a qualified main view remaining
@@ -27,9 +27,9 @@ Verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteAttachWalTempViewCachePlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachWalTempSchemaViewCacheReprepareTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-wal-temp-schema-view-cache-reprepare.php
+php -l lanes/libsqlite/examples/application-attach-wal-temp-schema-view-cache-reprepare.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachWalTempSchemaViewCacheReprepareTest.php
-php lanes/libsqlite/examples/wordpress-attach-wal-temp-schema-view-cache-reprepare.php --self-test
+php lanes/libsqlite/examples/application-attach-wal-temp-schema-view-cache-reprepare.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

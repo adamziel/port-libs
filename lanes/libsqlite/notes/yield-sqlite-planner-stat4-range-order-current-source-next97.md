@@ -21,16 +21,16 @@ PASS ... 54 focused planner STAT4 range ORDER current-source cases
 1 test files, 54 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-planner-stat4-range-order-current-source-next97.php --self-test
+php lanes/libsqlite/examples/application-planner-stat4-range-order-current-source-next97.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-planner-stat4-range-order-current-source-next97 self-test passed
+application-planner-stat4-range-order-current-source-next97 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` increases by the verified focused

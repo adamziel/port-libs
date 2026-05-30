@@ -6,15 +6,15 @@ Adds a bounded current-source planner for `IN (SELECT ...)` subquery result
 sets proving partial expression indexes. The planner materializes a supplied
 single-column subquery rowset, removes duplicate non-NULL values, blocks partial
 index use when SQL NULL appears, reparses stale prepared/current index sources,
-and emits a covering index cursor tape for WordPress `wp_options` plugin-name
+and emits a covering index cursor tape for Application `wp_options` plugin-name
 imports.
 
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerSubqueryPartialIndexCurrentSourceNext106Test.php`
   - `1 test files, 64 assertions, 0 failures`
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-planner-subquery-partial-index-current-source-next106.php --self-test`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-planner-subquery-partial-index-current-source-next106.php --self-test`
 
 ## Non-Overlap
 

@@ -13,10 +13,10 @@ NULL, and BLOB values.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectValuesSourceTest.php`
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `PASS executes sqlite values source rows in select sql from clauses`
-  - `PASS joins sqlite values source rows with copied wordpress option rows`
+  - `PASS joins sqlite values source rows with copied application option rows`
   - `PASS handles sqlite values source expressions blobs nulls and malformed aliases`
   - `1 test files, 60 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-select-sql-values-source.php`
+- `php lanes/libsqlite/examples/application-select-sql-values-source.php`
   - matched copied `wp_options` rows: `siteurl`, `home`
 
 ## Status Delta

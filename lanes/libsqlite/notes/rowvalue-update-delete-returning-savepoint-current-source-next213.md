@@ -7,11 +7,11 @@ This slice extends `SQLiteUpdateDeleteReturningSql` so row-value `IN (SELECT
 ... FROM ... WHERE ... ORDER BY ... LIMIT ...)` tuple sources are evaluated
 from the provided current table arrays before UPDATE/DELETE RETURNING chooses
 rows. `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext213Plan`
-then models a failed WordPress option batch that rolls back to the savepoint
+then models a failed Application option batch that rolls back to the savepoint
 image and retries against a different ordered/limited tuple source.
 
-WordPress smoke:
-`wordpress-rowvalue-order-limit-savepoint-current-source-next213.php` covers a
+Application smoke:
+`application-rowvalue-order-limit-savepoint-current-source-next213.php` covers a
 copied `wp_options` migration where `wp_optionmeta.priority` chooses only the
 highest-priority attempted option tuples, then after rollback chooses the
 lowest-priority retry tuples before deleting the network row.
@@ -22,9 +22,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext213Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext213Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-order-limit-savepoint-current-source-next213.php
+php -l lanes/libsqlite/examples/application-rowvalue-order-limit-savepoint-current-source-next213.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext213Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-order-limit-savepoint-current-source-next213.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-order-limit-savepoint-current-source-next213.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

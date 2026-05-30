@@ -4,7 +4,7 @@
 
 - Adds `SQLiteJsonbGeneratedCascadePlan` for generated parent keys derived from JSONB values with `jsonb_extract()`.
 - Covers `ON UPDATE CASCADE`, `ON DELETE CASCADE`, `ON DELETE SET NULL`, `ON DELETE SET DEFAULT`, no-action violation reporting, text-JSON source promotion back to JSONB, malformed path/identifier guards, and missing-column validation.
-- Adds a WordPress multisite import smoke where copied `wp_options` JSONB site identifiers drive generated parent keys and `wp_optionmeta`-style rows cascade after site-key rewrites/deletes.
+- Adds a Application multisite import smoke where copied `wp_options` JSONB site identifiers drive generated parent keys and `wp_optionmeta`-style rows cascade after site-key rewrites/deletes.
 
 ## Focused Evidence
 
@@ -16,7 +16,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-jsonb-table-generated-cascade-current-next53.php
+$ php lanes/libsqlite/examples/application-jsonb-table-generated-cascade-current-next53.php
 {
     "changes": 5,
     "after_parent_keys": [

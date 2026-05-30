@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for `json-table-generated-path-rowid-cost-cu
 
 This slice adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext205()`. It composes the accepted generated-path rowid alias projection layer with rowid-alias `ORDER BY` consumption so a pinned current-source `json_tree()` cursor can satisfy `ORDER BY rowid`, `_rowid_`, `oid`, or `id` from the xColumn cache without a temp sorter. If the next source changes, the alias cache is unpinned, or the order term cannot be consumed, the plan records a sorter/reprepare boundary and preserves the upstream replan reasons.
 
-WordPress smoke: `wordpress-json-table-generated-path-rowid-cost-current-source-next205.php` covers copied `wp_options` plugin-rule JSON diagnostics that project `rowid`, `_rowid_`, and `oid` while ordering by `_rowid_ DESC`.
+Application smoke: `application-json-table-generated-path-rowid-cost-current-source-next205.php` covers copied `wp_options` plugin-rule JSON diagnostics that project `rowid`, `_rowid_`, and `oid` while ordering by `_rowid_ DESC`.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext205Test.php
-php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next205.php
+php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next205.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext205Test.php
-php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next205.php --self-test
+php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next205.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

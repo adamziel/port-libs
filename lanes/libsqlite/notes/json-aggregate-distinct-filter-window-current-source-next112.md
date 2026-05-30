@@ -17,7 +17,7 @@ Focused verification:
 
 Example smoke:
 
-- `php lanes/libsqlite/examples/wordpress-json-object-distinct-filter-window-current-source-next112.php`
+- `php lanes/libsqlite/examples/application-json-object-distinct-filter-window-current-source-next112.php`
 - Result: JSON summary printed after self-checking text JSON and JSONB frames.
 
 Non-overlap: avoids accepted JSON array DISTINCT/ORDER/window and JSONB

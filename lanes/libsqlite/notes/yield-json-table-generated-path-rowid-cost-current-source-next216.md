@@ -6,9 +6,9 @@
 - Extends the existing generated-path rowid range/XCurrent chain with a current-source `xNext` profile.
 - Models whether a pinned `json_tree` rowid range can advance to the next rowid, reaches EOF for a point range, or must reprepare/reseek when the next source or rowid range is stale.
 
-## WordPress Smoke
+## Application Smoke
 
-- Added `examples/wordpress-json-table-generated-path-rowid-cost-current-source-next216.php`.
+- Added `examples/application-json-table-generated-path-rowid-cost-current-source-next216.php`.
 - Scenario: copied `wp_options` JSON rule previews can advance a generated-path rowid cursor through a pinned current-source range while changed next-source rows force reprepare instead of stale rowid reuse.
 
 ## Verification
@@ -17,8 +17,8 @@
   - `1 test files, 50 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext209Test.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext212Test.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext216Test.php`
   - `3 test files, 159 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next216.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next216 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next216.php --self-test`
+  - `application-json-table-generated-path-rowid-cost-current-source-next216 self-test passed`
 
 ## Dashboard Delta
 

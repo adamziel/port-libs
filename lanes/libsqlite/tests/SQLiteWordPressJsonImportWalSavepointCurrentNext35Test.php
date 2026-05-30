@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteWordPressJsonImportWalSavepointPlan;
+use PortLibs\LibSqlite\SQLiteJsonImportWalSavepointPlan;
 
 $currentRows = static fn (): array => [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -13,7 +13,7 @@ $currentRows = static fn (): array => [
     ['option_id' => 70, 'option_name' => 'theme_mods_old', 'option_value' => '{"color":"blue"}', 'autoload' => 'no'],
 ];
 
-$plan = static fn (array $imports, array $options = []) => SQLiteWordPressJsonImportWalSavepointPlan::plan(
+$plan = static fn (array $imports, array $options = []) => SQLiteJsonImportWalSavepointPlan::plan(
     $currentRows(),
     $imports,
     $options + ['database_path' => '/tmp/wp-json-import-current-next35.sqlite', 'page_size' => 1024],
@@ -83,7 +83,7 @@ $tests = [
         $blob = new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
             ['option_name' => 'jsonb_settings', 'option_value' => '{"mode":"fast"}', 'autoload' => 'no'],
         ]]));
-        $result = SQLiteWordPressJsonImportWalSavepointPlan::plan($currentRows(), [
+        $result = SQLiteJsonImportWalSavepointPlan::plan($currentRows(), [
             ['name' => 'jsonb_stage', 'json' => $blob, 'path' => '$.rows'],
         ], ['database_path' => '/tmp/wp-jsonb-import-current-next35.sqlite']);
 
@@ -93,7 +93,7 @@ $tests = [
     },
     'reports JSON subtype input rows through the same import planner' => static function (TestRunner $t) use ($currentRows): void {
         $subtype = new SQLiteJsonSubtypeValue('{"rows":[{"option_name":"subtype_settings","option_value":"{\"mode\":\"json\"}"}]}');
-        $result = SQLiteWordPressJsonImportWalSavepointPlan::plan($currentRows(), [
+        $result = SQLiteJsonImportWalSavepointPlan::plan($currentRows(), [
             ['name' => 'subtype_stage', 'json' => $subtype, 'path' => '$.rows'],
         ], ['database_path' => '/tmp/wp-subtype-import-current-next35.sqlite']);
 
@@ -144,7 +144,7 @@ foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5, 256 => 5, 25
     $tests["maps updated option {$optionId} to WAL page {$pageNumber}"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $optionId, $pageNumber): void {
         $rows = $currentRows();
         $rows[] = ['option_id' => $optionId, 'option_name' => 'generated_' . $optionId, 'option_value' => 'old', 'autoload' => 'no'];
-        $result = SQLiteWordPressJsonImportWalSavepointPlan::plan($rows, [
+        $result = SQLiteJsonImportWalSavepointPlan::plan($rows, [
             ['name' => 'page_' . $optionId, 'json' => $jsonRows([
                 ['option_id' => $optionId, 'option_name' => 'generated_' . $optionId, 'option_value' => 'new'],
             ]), 'path' => '$.rows'],
@@ -221,11 +221,11 @@ foreach ([
 }
 
 $tests['rejects empty import list'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressJsonImportWalSavepointPlan::plan($currentRows(), []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonImportWalSavepointPlan::plan($currentRows(), []));
 };
 
 $tests['rejects unsafe database paths'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressJsonImportWalSavepointPlan::plan($currentRows(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonImportWalSavepointPlan::plan($currentRows(), [
         ['json' => '{"rows":[]}'],
     ], ['database_path' => '../wp.sqlite']));
 };
@@ -243,19 +243,19 @@ $tests['rejects unsupported conflict action'] = static function (TestRunner $t) 
 };
 
 $tests['rejects unsupported journal modes'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressJsonImportWalSavepointPlan::plan($currentRows(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonImportWalSavepointPlan::plan($currentRows(), [
         ['json' => '{"rows":[]}'],
     ], ['database_path' => '/tmp/wp-json-import.sqlite', 'journal_mode' => 'memory']));
 };
 
 $tests['rejects unsupported sync modes'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressJsonImportWalSavepointPlan::plan($currentRows(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonImportWalSavepointPlan::plan($currentRows(), [
         ['json' => '{"rows":[]}'],
     ], ['database_path' => '/tmp/wp-json-import.sqlite', 'sync_mode' => 'extra']));
 };
 
 $tests['rejects invalid page sizes'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressJsonImportWalSavepointPlan::plan($currentRows(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonImportWalSavepointPlan::plan($currentRows(), [
         ['json' => '{"rows":[]}'],
     ], ['database_path' => '/tmp/wp-json-import.sqlite', 'page_size' => 1000]));
 };

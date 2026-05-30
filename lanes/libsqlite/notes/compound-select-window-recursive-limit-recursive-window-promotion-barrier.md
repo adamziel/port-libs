@@ -13,7 +13,7 @@ barrier made from:
   rows;
 - per-arm window-frame metadata token.
 
-WordPress path: `wordpress-compound-select-window-recursive-limit-recursive-window-promotion-barrier.php`
+Application path: `application-compound-select-window-recursive-limit-recursive-window-promotion-barrier.php`
 models copied `wp_options` preview rows where `plugin_prime` appears in the
 next source but must stay hidden until the current recursive/windowed page and
 its queue/window metadata are acknowledged.
@@ -23,9 +23,9 @@ Verification:
 ```bash
 php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitRecursiveWindowPromotionBarrierTest.php
-php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-recursive-window-promotion-barrier.php
+php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-recursive-window-promotion-barrier.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitRecursiveWindowPromotionBarrierTest.php
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-recursive-window-promotion-barrier.php
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-recursive-window-promotion-barrier.php
 ```
 
 Focused result: `1 test files, 468 assertions, 0 failures` with 74 PASS lines.

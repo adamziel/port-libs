@@ -15,14 +15,14 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-savepoint-truncate-current-source-next130.php
+php -l lanes/libsqlite/examples/application-wal-reader-checkpoint-savepoint-truncate-current-source-next130.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Test.php
-php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-savepoint-truncate-current-source-next130.php --self-test
+php lanes/libsqlite/examples/application-wal-reader-checkpoint-savepoint-truncate-current-source-next130.php --self-test
 ```
 
 Focused result: `1 test files, 63 assertions, 0 failures`.
 
-WordPress smoke: copied `wp_options` import pages keep the retained
+Application smoke: copied `wp_options` import pages keep the retained
 `siteurl` page visible to the current reader while the next reader opens after
 TRUNCATE with no WAL sidecar and reads all pages from the checkpointed database
 image.

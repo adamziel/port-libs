@@ -31,12 +31,12 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 64 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vfs-locking-uri-filecontrol-current-source-next135.php
+php lanes/libsqlite/examples/application-vfs-locking-uri-filecontrol-current-source-next135.php
 {
-    "scenario": "wordpress-vfs-locking-uri-filecontrol-current-source-next135",
+    "scenario": "application-vfs-locking-uri-filecontrol-current-source-next135",
     "status": "ok",
     "owner": "/srv/www/wp-content/database/wp fresh.sqlite",
     "staleShmWriteStatus": "blocked",

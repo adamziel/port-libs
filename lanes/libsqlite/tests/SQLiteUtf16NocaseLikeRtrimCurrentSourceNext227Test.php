@@ -54,7 +54,7 @@ $plan227 = static fn (
     string $nextSource = 'main.wp_options@227',
     int $currentCookie = 226,
     int $nextCookie = 227,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceBoundaryPlan(
     $current ?? $current227,
     $next ?? $nextTwoTwoSeven,
     $pattern,
@@ -163,7 +163,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSeven stable ascii spac
         $row227(1, 'plugin_cache', 'UTF-16LE'),
         $row227(2, 'PLUGIN_CACHE ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceBoundaryPlan(
         $rows,
         $rows,
         'plugin_cache',
@@ -184,7 +184,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSeven nbsp alone preven
         $row227(1, 'plugin_cache' . $nbsp227, 'UTF-16LE'),
         $row227(2, 'plugin_cache ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan($rows, $rows);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceBoundaryPlan($rows, $rows);
 
     $t->same([2], $result['currentMatchedRowids']);
     $t->same([1], $result['currentFalsePositiveRowids']);
@@ -193,7 +193,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSeven nbsp alone preven
 
 $tests['utf16 nocase like rtrim current source nextTwoTwoSeven rejects malformed row shape'] = static function (TestRunner $t) use ($enc227): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc227('plugin_cache', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceBoundaryPlan($rows, $rows));
 };
 
 return $tests;

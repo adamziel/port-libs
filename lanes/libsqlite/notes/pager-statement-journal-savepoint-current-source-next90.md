@@ -9,9 +9,9 @@ Verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointCurrentSourceNext90Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-statement-journal-savepoint-current-source-next90.php
+php -l lanes/libsqlite/examples/application-pager-statement-journal-savepoint-current-source-next90.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointCurrentSourceNext90Test.php
-php lanes/libsqlite/examples/wordpress-pager-statement-journal-savepoint-current-source-next90.php --self-test
+php lanes/libsqlite/examples/application-pager-statement-journal-savepoint-current-source-next90.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

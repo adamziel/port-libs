@@ -14,8 +14,8 @@ blocking when their real source or target schema cookie changes.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCookieCurrentSourceNext99Test.php`
   - `1 test files, 51 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cookie-current-source-next99.php --self-test`
-  - WordPress copied import smoke passed.
+- `php lanes/libsqlite/examples/application-attach-temp-wal-schema-cookie-current-source-next99.php --self-test`
+  - Application copied import smoke passed.
 
 ## Dashboard Delta
 

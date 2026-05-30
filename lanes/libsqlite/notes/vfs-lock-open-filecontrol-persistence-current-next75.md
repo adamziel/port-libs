@@ -8,9 +8,9 @@ Focused verification:
 - Result: `1 test files, 268 assertions, 0 failures`
 - PASS lines: 42
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-vfs-filecontrol-persistence-current-next75.php`
+- `php lanes/libsqlite/examples/application-vfs-filecontrol-persistence-current-next75.php`
 - Scenario: copied `wp_options` database persists `persist_wal`, `chunk_size`, `reserve_bytes`, and `mmap_size` across reopen, while per-connection `name_hint` and `lock_timeout` do not leak to the next handle.
 
 Non-overlap:

@@ -12,9 +12,9 @@ Focused evidence:
 - Result: `1 test files, 58 assertions, 0 failures`
 - PASS-line delta: `+58`
 
-WordPress smoke:
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next264.php --self-test`
-- Result: `wordpress-json-table-generated-path-rowid-cost-current-source-next264 self-test passed`
+Application smoke:
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next264.php --self-test`
+- Result: `application-json-table-generated-path-rowid-cost-current-source-next264 self-test passed`
 
 Non-overlap:
 - Avoids accepted parser-level JSON table SELECT source/cursor wiring, hidden constraints, visible constraints, host joins, LIMIT/OFFSET, window ranking, and malformed JSON planner clusters.

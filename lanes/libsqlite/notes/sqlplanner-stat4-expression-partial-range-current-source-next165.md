@@ -10,7 +10,7 @@ Behavior:
 - Adds a next165 wrapper that records range constraint operators, partial range
   predicate operators, dependency closure, and non-overlap metadata separately
   from accepted next154 equality/IN/BETWEEN coverage.
-- WordPress smoke models copied `wp_options` import diagnostics where
+- Application smoke models copied `wp_options` import diagnostics where
   `lower(option_name) >= 'plugin_cache'` and `updated_at` bounds prove a recent
   partial expression index after current-source STAT4 refresh.
 
@@ -18,8 +18,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext165Test.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-range-current-source-next165.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-range-current-source-next165 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-range-current-source-next165.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-range-current-source-next165 self-test passed`
 
 Dependency closure:
 

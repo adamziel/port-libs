@@ -5,17 +5,17 @@ Behavior: extends `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::mat
 Files:
 - `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `SQLitePlannerStat4ExpressionPartialPreparedHandoffContinuationWindowTest.php`
-- `wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-continuation-window.php`
+- `application-sqlplanner-stat4-expression-partial-prepared-handoff-continuation-window.php`
 
 Validation:
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffWindowTest.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffContinuationWindowTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-window.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-continuation-window.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-prepared-handoff-window.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-prepared-handoff-continuation-window.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffWindowTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffContinuationWindowTest.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-window.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-continuation-window.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-prepared-handoff-window.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-prepared-handoff-continuation-window.php --self-test`
 - `git diff --check`
 
 Next slice: continue with the prepared handoff resume-window from the prepared handoff continuation-window fence.

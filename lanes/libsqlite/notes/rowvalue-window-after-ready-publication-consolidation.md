@@ -15,7 +15,7 @@ Consolidated the row-value UPDATE/DELETE RETURNING window after-ready publicatio
   `executeFinalPublicationSourceAudit()`,
   `executeFinalPublicationPreflight()`, and
   `executeFinalPublicationSeal()`.
-- Migrated the direct WordPress smoke and direct focused test to descriptive filenames.
+- Migrated the direct Application smoke and direct focused test to descriptive filenames.
 - Updated the following continuation boundary to reference the descriptive after-ready publication handoff instead of the generated range label.
 
 ## Evidence

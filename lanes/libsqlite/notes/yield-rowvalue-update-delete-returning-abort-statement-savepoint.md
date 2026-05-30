@@ -28,16 +28,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 65 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-abort-statement-savepoint.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-abort-statement-savepoint.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-rowvalue-abort-statement-savepoint self-test passed
+application-rowvalue-abort-statement-savepoint self-test passed
 ```
 
 ## Dependency Closure

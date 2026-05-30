@@ -7,10 +7,10 @@ accepted rootpage and quickcheck cursors: this slice reports index column
 metadata drift (`index_xinfo_drift`) and remaining next-image FK violations
 without mixing in integrity/rootpage rows.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next153.php --self-test`
-- Result: `wordpress-pragma-index-xinfo-foreignkey-current-source-next153 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next153.php --self-test`
+- Result: `application-pragma-index-xinfo-foreignkey-current-source-next153 self-test passed`
 
 Focused test evidence:
 

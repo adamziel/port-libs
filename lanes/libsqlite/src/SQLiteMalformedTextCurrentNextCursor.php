@@ -169,12 +169,12 @@ final class SQLiteMalformedTextCurrentNextCursor
      * @param array<string,mixed> $filters
      * @return list<array{key:mixed,rowid:int,payload:array<string,mixed>}>
      */
-    public static function wordpressOptionNameRange(array $rows, mixed $lowerInclusive, mixed $upperExclusive, string $collation = 'BINARY', array $filters = []): array
+    public static function optionRowNameRange(array $rows, mixed $lowerInclusive, mixed $upperExclusive, string $collation = 'BINARY', array $filters = []): array
     {
         $entries = [];
         foreach ($rows as $index => $row) {
             if (!is_array($row) || !array_key_exists('option_name', $row)) {
-                throw new \InvalidArgumentException('WordPress option rows require option_name');
+                throw new \InvalidArgumentException('Application option rows require option_name');
             }
             foreach ($filters as $column => $expected) {
                 if (!array_key_exists($column, $row) || $row[$column] !== $expected) {

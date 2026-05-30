@@ -20,8 +20,8 @@ Status: focused PHP behavior growth for recursive `INSTEAD OF` view-trigger
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext209Test.php`
   - `1 test files, 85 assertions, 0 failures`
   - 85 PASS lines
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next209.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next209 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next209.php`
+  - `application-trigger-recursive-view-returning-current-source-next209 self-test passed`
 
 ## Non-Overlap
 

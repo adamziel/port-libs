@@ -13,9 +13,9 @@ Status: focused PHP behavior growth for WAL savepoint RELEASE checkpoint current
 ```bash
 php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalSavepointReleaseCheckpointCurrentSourceNext84Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-savepoint-release-checkpoint-current-source-next84.php
+php -l lanes/libsqlite/examples/application-wal-savepoint-release-checkpoint-current-source-next84.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointReleaseCheckpointCurrentSourceNext84Test.php
-php lanes/libsqlite/examples/wordpress-wal-savepoint-release-checkpoint-current-source-next84.php --self-test
+php lanes/libsqlite/examples/application-wal-savepoint-release-checkpoint-current-source-next84.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

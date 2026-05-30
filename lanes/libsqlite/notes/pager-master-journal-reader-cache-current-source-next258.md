@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext258Plan`. It layers on the accepted next254 master-journal recovery receipt fence and adds a pager spill-drain token. Reader-cache pages that otherwise pass recovery receipt, reader snapshot, and generation admission reopen when their cache row or next read ticket predates the current dirty-page spill drain after master-journal recovery.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next258.php --self-test` models copied `wp_options` recovery where the schema and `active_plugins` pages stay reusable, but a stale `wp_options` root page reopens because it was cached before the current pager spill drain completed.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next258.php --self-test` models copied `wp_options` recovery where the schema and `active_plugins` pages stay reusable, but a stale `wp_options` root page reopens because it was cached before the current pager spill drain completed.
 
 Focused evidence:
 
@@ -12,8 +12,8 @@ Focused evidence:
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext258Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext258Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext258Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next258.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next258.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next258.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next258.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext258Test.php`
   - `1 test files, 68 assertions, 0 failures`
   - 68 focused PASS lines

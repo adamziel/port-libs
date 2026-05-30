@@ -9,7 +9,7 @@ Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a bounded current/next
 - `PRAGMA foreign_key_check`-style violation rows from the existing FK checker.
 - Stable source hashes and cursor validation across records, FK definitions, table rows, SQL text, and table-valued PRAGMA mode.
 
-The WordPress smoke models a copied `wp_options` import where the current parent table has an index with the wrong UNIQUE/collation shape and an orphaned option row, while the next source repairs both the parent UNIQUE `NOCASE` index and missing option-name parent row.
+The Application smoke models a copied `wp_options` import where the current parent table has an index with the wrong UNIQUE/collation shape and an orphaned option row, while the next source repairs both the parent UNIQUE `NOCASE` index and missing option-name parent row.
 
 ## Focused evidence
 
@@ -21,9 +21,9 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next156.php
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next156.php
 {
-    "scenario": "wordpress-pragma-index-xinfo-foreignkey-current-source-next156",
+    "scenario": "application-pragma-index-xinfo-foreignkey-current-source-next156",
     "status": "ok",
     "current_index_blockers": 1,
     "current_foreign_key_violations": 1,

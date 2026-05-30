@@ -12,7 +12,7 @@ Status: focused current-source rework for parser-level grouped SELECT JSON aggre
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateGroupedCurrentNext82Test.php`
   - `1 test files, 40 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-grouped-current-next82.php`
+- `php lanes/libsqlite/examples/application-json-aggregate-grouped-current-next82.php`
   - prints copied `wp_options` grouped JSON aggregate HAVING/ORDER BY smoke JSON.
 
 ## Non-Overlap
@@ -21,4 +21,4 @@ This does not repeat accepted JSON aggregate DISTINCT projection coverage, JSON 
 
 ## Dependency Closure
 
-No new support component is needed. The slice reuses the existing native PHP SELECT SQL parser, grouped aggregate executor, JSON aggregate helpers, JSONB encoder/decoder, and WordPress smoke harness.
+No new support component is needed. The slice reuses the existing native PHP SELECT SQL parser, grouped aggregate executor, JSON aggregate helpers, JSONB encoder/decoder, and Application smoke harness.

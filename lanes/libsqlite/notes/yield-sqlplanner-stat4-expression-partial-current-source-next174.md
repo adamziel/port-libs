@@ -16,8 +16,8 @@ next174 slice.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext174Test.php`
   - `1 test files, 67 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next174.php --self-test`
-  - `wordpress-planner-stat4-expression-partial-current-source-next174 self-test passed`
+- `php lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-next174.php --self-test`
+  - `application-planner-stat4-expression-partial-current-source-next174 self-test passed`
 
 ## Non-Overlap
 

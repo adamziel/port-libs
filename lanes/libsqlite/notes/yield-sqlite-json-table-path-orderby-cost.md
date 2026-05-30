@@ -21,9 +21,9 @@ one source transition.
   - `1 test files, 56 assertions, 0 failures`
   - `56` PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-json-table-path-orderby-cost.php`
+- `php lanes/libsqlite/examples/application-json-table-path-orderby-cost.php`
   emits copied `wp_options` plugin-rule JSON path/order cost diagnostics,
   including the current/next ordered path tape, effective costs, reader policy,
   and replan reasons.

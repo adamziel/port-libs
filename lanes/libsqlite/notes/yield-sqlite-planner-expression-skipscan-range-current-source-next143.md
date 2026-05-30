@@ -10,10 +10,10 @@ plan rewrites the expression range terms to the current source, classifies
 range-admitted/rejected/stable rowids, records per-prefix loop deltas, and emits
 a cursor tape beginning with `ReprepareIfRangeFenceStale`.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-planner-expression-skipscan-range-current-source-next143.php --self-test`
-  - `wordpress-planner-expression-skipscan-range-current-source-next143 self-test passed`
+- `php lanes/libsqlite/examples/application-planner-expression-skipscan-range-current-source-next143.php --self-test`
+  - `application-planner-expression-skipscan-range-current-source-next143 self-test passed`
 
 Focused verification:
 

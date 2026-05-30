@@ -9,7 +9,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext163Test.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next163.php`
+- Example smoke: `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next163.php`
 - Syntax/diff checks: php-lint for changed PHP files and `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

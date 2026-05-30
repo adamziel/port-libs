@@ -24,15 +24,15 @@ PHP PASS cases over the already mapped window-function corpus surface.
 php -l lanes/libsqlite/tests/SQLiteWindowFrameBoundaryCorpusTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteWindowFrameBoundaryCorpusTest.php
 
-php -l lanes/libsqlite/examples/wordpress-window-frame-boundary-summary.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-window-frame-boundary-summary.php
+php -l lanes/libsqlite/examples/application-window-frame-boundary-summary.php
+No syntax errors detected in lanes/libsqlite/examples/application-window-frame-boundary-summary.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowFrameBoundaryCorpusTest.php
 Focused test run: 1 selected test files (root lock skipped)
 58 PASS lines
 1 test files, 58 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-window-frame-boundary-summary.php
+php lanes/libsqlite/examples/application-window-frame-boundary-summary.php
 passed and emitted copied wp_options window frame boundary JSON summary
 ```
 

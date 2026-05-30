@@ -22,10 +22,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 57 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-reader-truncate-current-source-next137.php
+php lanes/libsqlite/examples/application-wal-hot-journal-reader-truncate-current-source-next137.php
 ```
 
 ## Dependency Closure

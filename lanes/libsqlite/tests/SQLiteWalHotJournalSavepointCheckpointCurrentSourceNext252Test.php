@@ -104,7 +104,7 @@ $cases = [
     'operation advance' => [static fn (): mixed => in_array('advance_checkpoint_current_source_next252', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next248', $plan()['dependencies'], true), true],
     'dependency next252' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next252', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-current-source-after-wal-truncate', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-current-source-after-wal-truncate', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next248 release/truncate admission'), true],
     'first row accepted' => [static fn (): mixed => $plan()['seal_rows'][0]['accepted'], true],

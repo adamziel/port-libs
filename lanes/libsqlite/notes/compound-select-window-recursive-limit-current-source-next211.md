@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `compound-select-window-recursive-limit-
 
 This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, covering parser/executor current-source behavior for compound SELECT arms that include `sum(...) FILTER (...) OVER (...)` and `count(*) FILTER (...) OVER (...)`, a recursive CTE with `LIMIT/OFFSET`, `EXCEPT` removal of filtered-out rows, a `UNION` distinct tail, final `ORDER BY metric, id`, and tail `LIMIT/OFFSET`.
 
-WordPress smoke: `wordpress-compound-select-window-recursive-limit-current-source-next211.php` models a copied `wp_options` preview where newly imported plugin/theme rows affect the pre-limit filtered window stream while the final compound limit still admits the stable recursive rows.
+Application smoke: `application-compound-select-window-recursive-limit-current-source-next211.php` models a copied `wp_options` preview where newly imported plugin/theme rows affect the pre-limit filtered window stream while the final compound limit still admits the stable recursive rows.
 
 Focused evidence:
 

@@ -11,13 +11,13 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeDeleteOverflowMaterializationTest.php`
   - `1 test files, 78 assertions, 0 failures`
-- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-btree-delete-overflow.php`
+- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/application-btree-delete-overflow.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeDeleteOverflowPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeDeleteOverflowMaterializationTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-delete-overflow.php`
+- `php -l lanes/libsqlite/examples/application-btree-delete-overflow.php`
 - `git diff --check -- lanes/libsqlite`
 
-WordPress smoke:
+Application smoke:
 
 The copied `wp_options` transient cleanup smoke reports current and next
 deleted rowids, released overflow pages, freelist growth, materialized page

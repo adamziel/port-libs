@@ -10,7 +10,7 @@ cluster:
 
 The implementation keeps the existing schema PRAGMA parser/cursor path and adds
 no-target metadata rowsets with SQLite-shaped columns. It supports default
-built-in function/module/collation rows plus bounded custom rows for WordPress
+built-in function/module/collation rows plus bounded custom rows for Application
 diagnostics, including custom scalar/window functions, virtual-table modules,
 and site-specific collations.
 
@@ -37,10 +37,10 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php
 $ php -l lanes/libsqlite/tests/SQLitePragmaMetadataListCurrentNext23Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaMetadataListCurrentNext23Test.php
 
-$ php -l lanes/libsqlite/examples/wordpress-pragma-metadata-list-current-next23.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-metadata-list-current-next23.php
+$ php -l lanes/libsqlite/examples/application-pragma-metadata-list-current-next23.php
+No syntax errors detected in lanes/libsqlite/examples/application-pragma-metadata-list-current-next23.php
 
-$ php lanes/libsqlite/examples/wordpress-pragma-metadata-list-current-next23.php
+$ php lanes/libsqlite/examples/application-pragma-metadata-list-current-next23.php
 Printed copied wp_options metadata preflight JSON with function, module, and
 collation rows.
 

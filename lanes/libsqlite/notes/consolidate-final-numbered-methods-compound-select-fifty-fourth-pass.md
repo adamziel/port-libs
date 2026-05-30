@@ -11,7 +11,7 @@ SELECT results that read from a recursive CTE before applying the final compound
 This consolidation pass keeps the existing behavior but removes the remaining
 worker-numbered production method/helper names from
 `SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan`. The focused
-WordPress smoke models copied `wp_options` hierarchy rows where
+Application smoke models copied `wp_options` hierarchy rows where
 current and next source snapshots contain mixed numeric and text sort keys. The
 new `plugin_beta` branch changes the recursive queue boundary and final
 compound rowset without requiring ext/sqlite.
@@ -30,7 +30,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-compound-recursive-affinity-order.php
+php lanes/libsqlite/examples/application-compound-recursive-affinity-order.php
 ```
 
 PHP lint:
@@ -39,7 +39,7 @@ PHP lint:
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/src/SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectAffinityRecursiveOrderTest.php
-php -l lanes/libsqlite/examples/wordpress-compound-recursive-affinity-order.php
+php -l lanes/libsqlite/examples/application-compound-recursive-affinity-order.php
 ```
 
 Diff hygiene:
@@ -60,5 +60,5 @@ over current/next source snapshots.
 ## Dependency Closure
 
 No new support component is needed. The patch reuses the existing native PHP
-`SQLiteSelectSql`, recursive CTE trace, compound SELECT, and WordPress row-array
+`SQLiteSelectSql`, recursive CTE trace, compound SELECT, and Application row-array
 execution components.

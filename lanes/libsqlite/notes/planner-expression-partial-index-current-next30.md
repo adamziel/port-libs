@@ -15,11 +15,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 212 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-planner-expression-partial-index-current-next30.php --self-test
-wordpress-planner-expression-partial-index-current-next30 self-test passed
+php lanes/libsqlite/examples/application-planner-expression-partial-index-current-next30.php --self-test
+application-planner-expression-partial-index-current-next30 self-test passed
 ```
 
 Behavior covered:

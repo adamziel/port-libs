@@ -11,7 +11,7 @@ final class SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameIndexPlan(
+    public static function optionRowNameIndexPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -32,7 +32,7 @@ final class SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite encoding index current-source operator must be LIKE or GLOB');
         }
 
-        $currentMatches = SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan(
+        $currentMatches = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
             $currentRows,
             $pattern,
             $operator,
@@ -40,7 +40,7 @@ final class SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan
             $escape,
             $caseSensitiveLike,
         );
-        $nextMatches = SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan(
+        $nextMatches = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
             $nextRows,
             $pattern,
             $operator,

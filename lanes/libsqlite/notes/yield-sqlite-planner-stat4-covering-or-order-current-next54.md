@@ -13,9 +13,9 @@ STAT4-backed covering skip-scan and the arms can be merged in index order.
 - Rejects non-OR predicates, empty OR lists, scalar terms, non-covering arms,
   missing STAT4 arms, and non-skip-scan arms.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-planner-stat4-covering-or-order-current-next54.php`
+- `examples/application-planner-stat4-covering-or-order-current-next54.php`
   reports a copied `wp_options` OR lookup over plugin and transient option
   names using the `(autoload, blog_id, option_name, option_value)` covering
   index with STAT4 samples and merge-order evidence.
@@ -42,4 +42,4 @@ Dependency closure:
 
 No new support component is needed. The slice reuses lane-local CREATE INDEX
 parsing, multicolumn range/skip-scan planning, STAT4 sample costing, covering
-column checks, and WordPress-shaped smoke execution.
+column checks, and Application-shaped smoke execution.

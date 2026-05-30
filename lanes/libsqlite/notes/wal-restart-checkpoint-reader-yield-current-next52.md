@@ -2,16 +2,16 @@
 
 Status: focused PHP corpus growth for WAL restart checkpoint reader-yield current/next behavior.
 
-This slice adds `SQLiteWal::restartCheckpointReaderYieldCurrentNext()` for copied WordPress database imports. It models a RESTART/TRUNCATE checkpoint first blocked by a current SHM reader read mark, then recomputes the checkpoint after selected reader slots yield. The plan reports current-reader pinned visibility, yielded read-mark state, reset/truncate checkpoint output, and next-reader database/restarted-WAL visibility.
+This slice adds `SQLiteWal::restartCheckpointReaderYieldCurrentNext()` for copied Application database imports. It models a RESTART/TRUNCATE checkpoint first blocked by a current SHM reader read mark, then recomputes the checkpoint after selected reader slots yield. The plan reports current-reader pinned visibility, yielded read-mark state, reset/truncate checkpoint output, and next-reader database/restarted-WAL visibility.
 
 Verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteWalRestartCheckpointReaderYieldCurrentNext52Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-restart-checkpoint-reader-yield-current-next52.php
+php -l lanes/libsqlite/examples/application-wal-restart-checkpoint-reader-yield-current-next52.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalRestartCheckpointReaderYieldCurrentNext52Test.php
-php lanes/libsqlite/examples/wordpress-wal-restart-checkpoint-reader-yield-current-next52.php
+php lanes/libsqlite/examples/application-wal-restart-checkpoint-reader-yield-current-next52.php
 git diff --check -- lanes/libsqlite
 ```
 

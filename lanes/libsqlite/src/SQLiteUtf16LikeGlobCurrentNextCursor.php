@@ -175,7 +175,7 @@ final class SQLiteUtf16LikeGlobCurrentNextCursor
      * @param list<array<string,mixed>> $rows
      * @return list<array{rowid:int,keyText:string,keyBytesHex:string,payload:array<string,mixed>,position:int}>
      */
-    public static function wordpressOptionNameScan(
+    public static function optionRowNameScan(
         array $rows,
         string $pattern,
         string $operator = 'LIKE',
@@ -187,10 +187,10 @@ final class SQLiteUtf16LikeGlobCurrentNextCursor
         $entries = [];
         foreach ($rows as $row) {
             if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 WordPress option scan requires integer option_id');
+                throw new \InvalidArgumentException('SQLite UTF-16 Application option scan requires integer option_id');
             }
             if (!array_key_exists('option_name_utf16', $row) || !is_string($row['option_name_utf16'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 WordPress option scan requires option_name_utf16 bytes');
+                throw new \InvalidArgumentException('SQLite UTF-16 Application option scan requires option_name_utf16 bytes');
             }
             $entries[] = [
                 'keyBytes' => $row['option_name_utf16'],

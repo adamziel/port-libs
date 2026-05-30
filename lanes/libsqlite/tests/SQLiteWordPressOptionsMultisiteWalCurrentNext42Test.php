@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWordPressMultisiteOptionsWalPlan;
+use PortLibs\LibSqlite\SQLiteMultisiteOptionsWalPlan;
 
 $tests = [];
 
@@ -58,7 +58,7 @@ $importRows = static fn (): array => [
     ['scope' => 'blog', 'blog_id' => 3, 'option_name' => 'siteurl', 'option_value' => 'https://new.example/site-three', 'autoload' => 'yes'],
     ['scope' => 'network', 'option_name' => 'registration', 'option_value' => 'none', 'autoload' => 'no'],
 ];
-$plan = static fn (): array => SQLiteWordPressMultisiteOptionsWalPlan::currentNext(
+$plan = static fn (): array => SQLiteMultisiteOptionsWalPlan::currentNext(
     $baseWal(),
     $databaseBytes,
     $databasePath,
@@ -70,7 +70,7 @@ $nextWal = static fn (): SQLiteWal => SQLiteWal::parse($plan()['append']['wal_by
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'planned'],
-    'reason' => [static fn (): mixed => $plan()['reason'], 'wordpress_multisite_options_wal_commit_current_next_visibility'],
+    'reason' => [static fn (): mixed => $plan()['reason'], 'application_multisite_options_wal_commit_current_next_visibility'],
     'database path' => [static fn (): mixed => $plan()['database_path'], $databasePath],
     'wal path' => [static fn (): mixed => $plan()['wal_path'], $databasePath . '-wal'],
     'current row count' => [static fn (): mixed => count($plan()['current_rows']), 5],
@@ -125,7 +125,7 @@ $cases = [
     'blog two autoload index excludes rewrite' => [static fn (): mixed => !str_contains($plan()['next_reader'][8]['image'], 'rewrite_rules'), true],
     'blog three autoload index includes siteurl' => [static fn (): mixed => str_contains($plan()['next_reader'][9]['image'], '"siteurl"'), true],
     'network autoload index excludes registration' => [static fn (): mixed => !str_contains($plan()['next_reader'][10]['image'], 'registration'), true],
-    'dependency marker' => [static fn (): mixed => in_array('wordpress-multisite-options-wal-current-next42', $plan()['dependencies'], true), true],
+    'dependency marker' => [static fn (): mixed => in_array('application-multisite-options-wal-current-next42', $plan()['dependencies'], true), true],
     'dependency includes wal append' => [static fn (): mixed => in_array('sqlite-wal-append-transaction', $plan()['dependencies'], true), true],
     'next wal frame count' => [static fn (): mixed => $nextWal()->frameCount(), 13],
     'next wal uncommitted count' => [static fn (): mixed => $nextWal()->uncommittedFrameCount(), 0],
@@ -146,12 +146,12 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wordpress options multisite wal current next42 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application options multisite wal current next42 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
-$tests['wordpress options multisite wal current next42 applies append through vfs writer'] = static function (TestRunner $t) use ($baseWalBytes, $baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
+$tests['application options multisite wal current next42 applies append through vfs writer'] = static function (TestRunner $t) use ($baseWalBytes, $baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
     $root = sys_get_temp_dir() . '/port-libsqlite-wp-multisite-wal42-' . bin2hex(random_bytes(4));
     $localWal = $root . '/' . $databasePath . '-wal';
     $directory = dirname($localWal);
@@ -160,7 +160,7 @@ $tests['wordpress options multisite wal current next42 applies append through vf
     }
     file_put_contents($localWal, $baseWalBytes());
 
-    $plan = SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), range(2, 12));
+    $plan = SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), range(2, 12));
     $plannedWal = SQLiteWal::parse($plan['append']['wal_bytes'], null, true);
     $applied = (new SQLiteVfsFileWriter($root))->applyWalAppendTransactions($baseWal(), $databasePath, [[
         'pages' => array_combine(
@@ -179,15 +179,15 @@ $tests['wordpress options multisite wal current next42 applies append through vf
     $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 12, 13)['image'], 'wp_sitemeta_autoload'));
 };
 
-$tests['wordpress options multisite wal current next42 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'blog', 'blog_id' => 0, 'option_id' => 1, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'network', 'option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'user', 'option_name' => 'bad', 'option_value' => 'x']], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'blog', 'blog_id' => 2, 'option_name' => '', 'option_value' => 'x']], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
+$tests['application options multisite wal current next42 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'blog', 'blog_id' => 0, 'option_id' => 1, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'network', 'option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'user', 'option_name' => 'bad', 'option_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'blog', 'blog_id' => 2, 'option_name' => '', 'option_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
 };
 
 return $tests;

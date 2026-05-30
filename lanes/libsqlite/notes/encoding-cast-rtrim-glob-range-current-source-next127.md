@@ -14,8 +14,8 @@ Behavior:
   candidate rowset changes, matched rowset changes, and reusable stable
   cursor cases.
 
-WordPress smoke:
-- `php lanes/libsqlite/examples/wordpress-cast-rtrim-glob-range-current-source-next127.php --self-test`
+Application smoke:
+- `php lanes/libsqlite/examples/application-cast-rtrim-glob-range-current-source-next127.php --self-test`
 
 Focused verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCastRtrimGlobRangeCurrentSourceNext127Test.php`

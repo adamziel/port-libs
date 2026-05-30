@@ -17,13 +17,13 @@ Behavior covered:
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Test.php`
-- `php lanes/libsqlite/examples/wordpress-jsonb-generated-index-operator-current-source-next107.php`
+- `php lanes/libsqlite/examples/application-jsonb-generated-index-operator-current-source-next107.php`
 
 Non-overlap: this does not repeat accepted JSONB generated UPDATE/UPSERT/DELETE
 maintenance, JSON table cursor/source/constraint behavior, JSON aggregate
 window/DISTINCT handling, malformed JSONB path corpus, expression `ORDER BY`,
 or expression-index range-cost planning. The new surface is current/next index
-entry generation for JSON operator expression indexes over WordPress-style
+entry generation for JSON operator expression indexes over Application-style
 JSONB option rows.
 
 Dependency closure: no new support component is needed. The slice reuses the

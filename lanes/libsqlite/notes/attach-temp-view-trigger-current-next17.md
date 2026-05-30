@@ -13,7 +13,7 @@ tables/views.
   INSTEAD OF view-trigger column checks, pseudo-table references, body
   dependencies, unresolved column diagnostics, malformed triggers, and summary
   counts.
-- The WordPress smoke previews copied `wp_options` temp staging, main
+- The Application smoke previews copied `wp_options` temp staging, main
   `active_options`, and attached `site.active_options` triggers without
   requiring `ext/sqlite`.
 

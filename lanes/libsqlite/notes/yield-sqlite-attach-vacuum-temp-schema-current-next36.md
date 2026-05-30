@@ -17,10 +17,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 62 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-attach-vacuum-temp-schema-current-next36.php
+php lanes/libsqlite/examples/application-attach-vacuum-temp-schema-current-next36.php
 schema=site source=/srv/wp-content/cache/site.sqlite target=/tmp/site-vacuum.sqlite page_size=4096 temp_preserved=yes cache_invalidated=no ops=write,sync,sync_directory,vacuum_rewrite
 ```
 

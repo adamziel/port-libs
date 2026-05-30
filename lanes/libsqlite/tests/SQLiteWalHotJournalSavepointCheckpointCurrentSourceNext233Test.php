@@ -104,7 +104,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('admit_prepared_statement_current_source_next233', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next229', $plan()['dependencies'], true), true],
     'dependency added' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next233', $plan()['dependencies'], true), true],
-    'wordpress dependency added' => [static fn (): mixed => in_array('wordpress-import-checkpoint-statement-reuse-after-hot-journal', $plan()['dependencies'], true), true],
+    'application dependency added' => [static fn (): mixed => in_array('application-import-checkpoint-statement-reuse-after-hot-journal', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat checkpoint reset admission'), true],
     'unknown handle blocked' => [static fn (): mixed => $blockedStatement(['handle_name' => 'old-handle'])['blocked_statement_reasons'], ['statement_handle_not_admitted']],

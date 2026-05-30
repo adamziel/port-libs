@@ -3,7 +3,7 @@
 ## Status
 
 - Added `lanes/libsqlite/tests/SQLiteDateTimeTimediffCorpusTest.php` with 47 focused PASS cases for SQLite `timediff(A,B)` behavior.
-- Covered same-instant, positive/negative seconds, minute/hour/day/month/year boundaries, leap-day/month-end calendar spans, date-only midnight defaults, ISO `T` and `Z` inputs, fractional-second truncation in current output, Julian numeric values, NULL propagation, malformed argument guards, and WordPress cron/import interval summaries.
+- Covered same-instant, positive/negative seconds, minute/hour/day/month/year boundaries, leap-day/month-end calendar spans, date-only midnight defaults, ISO `T` and `Z` inputs, fractional-second truncation in current output, Julian numeric values, NULL propagation, malformed argument guards, and Application cron/import interval summaries.
 - Focused verification:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteDateTimeTimediffCorpusTest.php`
   - Result: `1 test files, 47 assertions, 0 failures`

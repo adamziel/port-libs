@@ -12,7 +12,7 @@ The slice covers:
 - Parent affinity/collation metadata carried into existing FK comparison.
 - Stable current/next cursor invalidation when parent PK DDL or table rows change.
 
-The WordPress smoke models copied multisite `wp_options` rows that reference `wp_blogs` and a WITHOUT ROWID option-scope table without naming parent columns explicitly.
+The Application smoke models copied multisite `wp_options` rows that reference `wp_blogs` and a WITHOUT ROWID option-scope table without naming parent columns explicitly.
 
 ## Focused evidence
 
@@ -24,15 +24,15 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next163.php
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next163.php
 {
-    "scenario": "wordpress-pragma-index-xinfo-foreignkey-current-source-next163",
+    "scenario": "application-pragma-index-xinfo-foreignkey-current-source-next163",
     "status": "ok",
     "implicit_parent_keys": 3,
     "current_foreign_key_violations": 2,
     "next_ready": true,
     "delta_total_blockers": -2,
-    "wordpressUse": "Copied multisite wp_options imports can resume only after PRAGMA index_xinfo and foreign_key_check agree that implicit REFERENCES parent primary-key columns resolve against the current catalog image."
+    "applicationUse": "Copied multisite wp_options imports can resume only after PRAGMA index_xinfo and foreign_key_check agree that implicit REFERENCES parent primary-key columns resolve against the current catalog image."
 }
 ```
 

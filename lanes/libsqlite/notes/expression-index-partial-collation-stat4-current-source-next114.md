@@ -10,9 +10,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-expression-index-partial-collation-stat4-current-source-next114.php`
+- `php -l lanes/libsqlite/examples/application-expression-index-partial-collation-stat4-current-source-next114.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Test.php`
-- `php lanes/libsqlite/examples/wordpress-expression-index-partial-collation-stat4-current-source-next114.php --self-test`
+- `php lanes/libsqlite/examples/application-expression-index-partial-collation-stat4-current-source-next114.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass` +65 focused PASS lines, mapped coverage

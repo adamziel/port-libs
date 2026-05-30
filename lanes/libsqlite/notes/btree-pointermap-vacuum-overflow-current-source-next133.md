@@ -1,7 +1,7 @@
 # B-tree Pointer-map Vacuum Overflow Current Source Next133
 
 This slice adds `SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan`.
-It covers the current-source boundary where a WordPress-sized option delete
+It covers the current-source boundary where a Application-sized option delete
 releases tail overflow pages, incremental vacuum truncates those overflow pages
 and the auto-vacuum pointer-map page between them, then the next overflow
 allocation appends pages across the same boundary and recreates the pointer-map
@@ -13,9 +13,9 @@ Focused verification:
 - Result: `1 test files, 269 assertions, 0 failures`
 - PASS-line delta: `+77`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-overflow-current-source-next133.php`
+- `php lanes/libsqlite/examples/application-btree-pointermap-vacuum-overflow-current-source-next133.php`
 - Reports released overflow pages `104,106`, vacuum-truncated pages
   `106,105,104`, recreated pointer-map page `105`, reallocated overflow pages
   `104,106`, and final page count `106`.

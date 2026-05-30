@@ -7,9 +7,9 @@
 - URI probes are read-only: they do not mutate persistent controls or data-version generation, but they report stale current-source state when another handle has changed generation.
 - Repeated URI parameters preserve all values and return the last value, matching SQLite URI helper behavior. Missing boolean/int probes use explicit defaults; malformed integer URI values return `0` under SQLite helper semantics.
 
-## WordPress relevance
+## Application relevance
 
-Copied WordPress SQLite import and repair flows can tag URI opens with per-handle role, busy/readmark, checkpoint, psow, or custom probe hints. The next128 planner keeps those hints scoped to the current main/WAL/SHM handle while preserving byte-lock ownership, SHM locks, and stale data-version detection without requiring `ext/sqlite`.
+Copied Application SQLite import and repair flows can tag URI opens with per-handle role, busy/readmark, checkpoint, psow, or custom probe hints. The next128 planner keeps those hints scoped to the current main/WAL/SHM handle while preserving byte-lock ownership, SHM locks, and stale data-version detection without requiring `ext/sqlite`.
 
 ## Verification
 

@@ -26,10 +26,10 @@ PASS-line delta: +61 (`phpPass` 3796 -> 3857).
 
 Additional verification:
 
-- `php lanes/libsqlite/examples/wordpress-affinity-comparison-storage-class.php --self-test` passed.
+- `php lanes/libsqlite/examples/application-affinity-comparison-storage-class.php --self-test` passed.
 - `php -l lanes/libsqlite/src/SQLiteAffinityComparison.php` passed.
 - `php -l lanes/libsqlite/tests/SQLiteAffinityComparisonStorageClassCorpusTest.php` passed.
-- `php -l lanes/libsqlite/examples/wordpress-affinity-comparison-storage-class.php` passed.
+- `php -l lanes/libsqlite/examples/application-affinity-comparison-storage-class.php` passed.
 - `git diff --check -- lanes/libsqlite` passed.
 
 ## Non-overlap

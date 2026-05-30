@@ -17,7 +17,7 @@ $needed146 = ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id']
 $order146 = [['function' => 'lower', 'column' => 'option_name', 'direction' => 'DESC'], ['column' => 'option_id', 'direction' => 'DESC']];
 
 $preparedSource146 = static fn (array $overrides = []): array => array_replace_recursive([
-    'name' => 'prepared-wordpress-expression-covering-range-next146',
+    'name' => 'prepared-application-expression-covering-range-next146',
     'schemaCookie' => 1460,
     'stat4Generation' => 70,
     'indexes' => [[
@@ -40,7 +40,7 @@ $preparedSource146 = static fn (array $overrides = []): array => array_replace_r
 
 $currentSource146 = static function (array $overrides = []) use ($preparedSource146): array {
     $source = $preparedSource146();
-    $source['name'] = 'current-wordpress-expression-covering-range-next146';
+    $source['name'] = 'current-application-expression-covering-range-next146';
     $source['schemaCookie'] = 1464;
     $source['stat4Generation'] = 76;
     $source['indexes'][0]['rootPage'] = 14644;
@@ -162,7 +162,7 @@ $tests = [
     'planner expression covering range current source next146 stale next not admitted' => static fn (TestRunner $t) => $t->same(false, $staleNext146()['nextSourceAdmitted']),
     'planner expression covering range current source next146 stale next no table elision after fence' => static fn (TestRunner $t) => $t->same(false, $staleNext146()['cursorTape']['tableLookupElidedAfterNextFence']),
     'planner expression covering range current source next146 stale next deferred seek' => static fn (TestRunner $t) => $t->same('DeferredSeek', $staleNext146()['cursorTape']['deferredSeekOpcode']),
-    'planner expression covering range current source next146 stale next name' => static fn (TestRunner $t) => $t->same('current-wordpress-expression-covering-range-next146', $staleNext146()['nextSource']['name']),
+    'planner expression covering range current source next146 stale next name' => static fn (TestRunner $t) => $t->same('current-application-expression-covering-range-next146', $staleNext146()['nextSource']['name']),
     'planner expression covering range current source next146 stale next cookie' => static fn (TestRunner $t) => $t->same(1465, $staleNext146()['nextSource']['schemaCookie']),
     'planner expression covering range current source next146 stale next stat4' => static fn (TestRunner $t) => $t->same(77, $staleNext146()['nextSource']['stat4Generation']),
     'planner expression covering range current source next146 stale next reasons' => static fn (TestRunner $t) => $t->same(['schema-cookie', 'stat4-generation', 'index-signature', 'row-stream'], $staleNext146()['nextSource']['replanReasons']),

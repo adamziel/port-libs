@@ -24,10 +24,10 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteJsonbCheckCurrentNextPlan
 $ php -l lanes/libsqlite/tests/SQLiteJsonbCheckCurrentNext64Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonbCheckCurrentNext64Test.php
 
-$ php -l lanes/libsqlite/examples/wordpress-jsonb-check-current-next64.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-jsonb-check-current-next64.php
+$ php -l lanes/libsqlite/examples/application-jsonb-check-current-next64.php
+No syntax errors detected in lanes/libsqlite/examples/application-jsonb-check-current-next64.php
 
-$ php lanes/libsqlite/examples/wordpress-jsonb-check-current-next64.php
+$ php lanes/libsqlite/examples/application-jsonb-check-current-next64.php
 printed changes=2, rejectedChanges=1, accepted rowids 201/203, rejected rowid 202, and the failed rank CHECK.
 
 $ git diff --check -- lanes/libsqlite

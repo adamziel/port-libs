@@ -18,8 +18,8 @@ copied `wp_options` repair rows:
 - retry UPDATE/DELETE RETURNING statements read from that preserved
   current-source image.
 
-WordPress smoke:
-`lanes/libsqlite/examples/wordpress-rowvalue-or-fail-savepoint-current-source-next209.php`
+Application smoke:
+`lanes/libsqlite/examples/application-rowvalue-or-fail-savepoint-current-source-next209.php`
 models copied `wp_options` repair and transient cleanup through the same
 current-source path.
 
@@ -35,15 +35,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueUpdateDeleteRetur
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext209Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext209Test.php
 
-php -l lanes/libsqlite/examples/wordpress-rowvalue-or-fail-savepoint-current-source-next209.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-or-fail-savepoint-current-source-next209.php
+php -l lanes/libsqlite/examples/application-rowvalue-or-fail-savepoint-current-source-next209.php
+No syntax errors detected in lanes/libsqlite/examples/application-rowvalue-or-fail-savepoint-current-source-next209.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext209Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 75 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-or-fail-savepoint-current-source-next209.php --self-test
-wordpress-rowvalue-or-fail-savepoint-current-source-next209 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-or-fail-savepoint-current-source-next209.php --self-test
+application-rowvalue-or-fail-savepoint-current-source-next209 self-test passed
 ```
 
 Focused test delta: +75 focused PHP PASS lines/assertions. Expected

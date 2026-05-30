@@ -12,12 +12,12 @@ Slice: `vfs-open-filecontrol-locking-sequence`
 
 - `php -l lanes/libsqlite/src/SQLiteVfsOpenFileControl.php`
 - `php -l lanes/libsqlite/tests/SQLiteVfsOpenFileControlLockingSequenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-vfs-open-filecontrol-locking-sequence.php`
+- `php -l lanes/libsqlite/examples/application-vfs-open-filecontrol-locking-sequence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsOpenFileControlLockingSequenceTest.php`
 
 Focused result: `1 test files, 55 assertions, 0 failures` with 55 PASS lines.
 
-- `php lanes/libsqlite/examples/wordpress-vfs-open-filecontrol-locking-sequence.php`
+- `php lanes/libsqlite/examples/application-vfs-open-filecontrol-locking-sequence.php`
 
 Smoke result: reports `status` `released`, `preallocatedBytes` `8192`, `exclusiveHeld` `exclusive`, `persistWal` `true`, and empty `holdersAfterRelease`.
 

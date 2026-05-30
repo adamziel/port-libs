@@ -4,8 +4,8 @@ Status: focused PHP behavior growth for UTF-16 decoded `option_value` values fee
 
 Behavior:
 - Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext253Plan`.
-- Models WordPress copied `wp_options` rows where `option_value COLLATE NOCASE LIKE 'yes%'` must decode UTF-8/UTF-16 text, apply TEXT affinity to integer/real values before LIKE cursor admission, keep BLOB values out of this text-affinity cursor, and invalidate current-source cursor reuse when source/schema, decoded text, storage class, encoding bytes, or residual LIKE rowsets change.
-- The WordPress smoke `wordpress-encoding-affinity-like-current-source-next253.php` exercises autoload/import option values moving from `YES-cache` to `no-cache` and from `no` to `YES-new` without requiring `ext-sqlite3`.
+- Models Application copied `wp_options` rows where `option_value COLLATE NOCASE LIKE 'yes%'` must decode UTF-8/UTF-16 text, apply TEXT affinity to integer/real values before LIKE cursor admission, keep BLOB values out of this text-affinity cursor, and invalidate current-source cursor reuse when source/schema, decoded text, storage class, encoding bytes, or residual LIKE rowsets change.
+- The Application smoke `application-encoding-affinity-like-current-source-next253.php` exercises autoload/import option values moving from `YES-cache` to `no-cache` and from `no` to `YES-new` without requiring `ext-sqlite3`.
 
 Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext253Test.php`

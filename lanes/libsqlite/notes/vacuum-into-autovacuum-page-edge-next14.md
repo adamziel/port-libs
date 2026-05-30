@@ -12,17 +12,17 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVacuumBackupSerializePlan.php
 php -l lanes/libsqlite/tests/SQLiteVacuumIntoAutoVacuumPageEdgeTest.php
-php -l lanes/libsqlite/examples/wordpress-vacuum-into-autovacuum-page-edge.php
+php -l lanes/libsqlite/examples/application-vacuum-into-autovacuum-page-edge.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVacuumIntoAutoVacuumPageEdgeTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVacuumBackupSerializeCorpusTest.php lanes/libsqlite/tests/SQLiteVacuumPageSizeAutoVacuumCorpusTest.php lanes/libsqlite/tests/SQLiteVacuumIntoAutoVacuumPageEdgeTest.php
-php lanes/libsqlite/examples/wordpress-vacuum-into-autovacuum-page-edge.php
+php lanes/libsqlite/examples/application-vacuum-into-autovacuum-page-edge.php
 ```
 
 Results:
 
 - New focused file: `1 test files, 53 assertions, 0 failures`.
 - Related focused VACUUM suite: `3 test files, 215 assertions, 0 failures`.
-- WordPress smoke reported incremental auto-vacuum with pointer-map pages
+- Application smoke reported incremental auto-vacuum with pointer-map pages
   `[2, 105]` and 103 pointer-map entry pages for the copied 512-byte database.
 
 Dashboard delta:

@@ -4,7 +4,7 @@ Status: focused behavior growth for `sqlplanner-stat4-expression-partial-current
 
 This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded planner materializer for partial `lower(option_name)` expression indexes whose current STAT4 source can satisfy a descending expression `ORDER BY` without a temporary sort. It fences prepared statements on schema cookie, STAT4 generation, source signature, order signature, and row stream signature so stale prepared row order cannot leak after `ANALYZE` or copied `wp_options` source refresh.
 
-WordPress path: copied `wp_options` plugin scans can use a current `lower(option_name) DESC` partial expression index for autoloaded plugin options after import/analyze churn, while rejecting rows outside the partial predicate and avoiding stale prepared ORDER BY output.
+Application path: copied `wp_options` plugin scans can use a current `lower(option_name) DESC` partial expression index for autoloaded plugin options after import/analyze churn, while rejecting rows outside the partial predicate and avoiding stale prepared ORDER BY output.
 
 Verification:
 
@@ -12,12 +12,12 @@ Verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext178Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext178Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next178.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next178.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next178.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next178.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext178Test.php`
   - `1 test files, 71 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next178.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next178 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next178.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-current-source-next178 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - no output
 

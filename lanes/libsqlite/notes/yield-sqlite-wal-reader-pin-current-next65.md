@@ -8,7 +8,7 @@ Behavior added:
 - The current reader keeps its old snapshot and page-count boundary; the next reader reuses an available read-mark slot and advances only to the last committed appended frame.
 - Uncommitted append tail frames remain hidden from the next reader, and pages beyond the next committed database size surface bounded reader errors.
 
-WordPress relevance:
+Application relevance:
 
 - The smoke covers a copied `wp_options` database path where an import updates `siteurl` and appends a plugin option page while an older reader still sees the previous committed snapshot.
 

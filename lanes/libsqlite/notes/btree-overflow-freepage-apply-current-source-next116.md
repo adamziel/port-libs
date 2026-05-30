@@ -20,10 +20,10 @@ Result:
 1 test files, 41 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-overflow-freepage-apply-current-source-next116.php
+php lanes/libsqlite/examples/application-btree-overflow-freepage-apply-current-source-next116.php
 ```
 
 The smoke reports copied `wp_options` transient cleanup diagnostics including

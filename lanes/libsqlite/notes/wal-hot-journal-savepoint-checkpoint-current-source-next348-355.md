@@ -10,4 +10,4 @@ Focused coverage:
 
 - `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext348355Test.php` chains next348 through next355 from next347.
 - The same test blocks a stale checkpoint frame, stale page-cache digest, visible hot journal, duplicate receipt names, and a missing next354 base for the next355 seal.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next355.php` provides a WordPress-shaped example for the final seal.
+- `application-wal-hot-journal-savepoint-checkpoint-current-source-next355.php` provides a Application-shaped example for the final seal.

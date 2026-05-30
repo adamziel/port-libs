@@ -21,11 +21,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 73 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-savepoint-wal-hot-journal-current-source-next148.php
-wordpress-pager-savepoint-wal-hot-journal-current-source-next148 self-test passed
+php lanes/libsqlite/examples/application-pager-savepoint-wal-hot-journal-current-source-next148.php
+application-pager-savepoint-wal-hot-journal-current-source-next148 self-test passed
 ```
 
 ## Dashboard Delta

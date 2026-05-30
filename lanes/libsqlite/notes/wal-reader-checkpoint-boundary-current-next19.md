@@ -8,15 +8,15 @@ Status: focused PHP behavior growth for WAL reader visibility across a savepoint
 - Current readers keep the retained WAL snapshot at the checkpoint boundary, while next readers after RESTART/TRUNCATE see the checkpointed database image/reset WAL state.
 - Busy restart checkpoints with a current reader preserve the retained WAL for next readers, matching the existing checkpoint busy/reset semantics.
 - Added `SQLiteWalReaderCheckpointBoundaryCurrentNext19Test.php` with 58 independent PASS cases.
-- Added `wordpress-wal-reader-checkpoint-boundary.php` to smoke a copied `wp_options` plugin-settings rollback followed by a truncate checkpoint boundary without `ext/sqlite`.
+- Added `application-wal-reader-checkpoint-boundary.php` to smoke a copied `wp_options` plugin-settings rollback followed by a truncate checkpoint boundary without `ext/sqlite`.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointBoundaryCurrentNext19Test.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-boundary.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/application-wal-reader-checkpoint-boundary.php`: no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointBoundaryCurrentNext19Test.php`: 1 test files, 58 assertions, 0 failures, 58 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-boundary.php --self-test`: passed; reported retained WAL sources for the current reader, checkpoint-database sources for the next reader, matching images, `truncate_wal`, and no rolled-back plugin frame visible.
+- `php lanes/libsqlite/examples/application-wal-reader-checkpoint-boundary.php --self-test`: passed; reported retained WAL sources for the current reader, checkpoint-database sources for the next reader, matching images, `truncate_wal`, and no rolled-back plugin frame visible.
 
 ## Status
 

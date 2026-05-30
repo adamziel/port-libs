@@ -8,7 +8,7 @@ reuses the accepted next243 sample-tape validation and adds a second check that
 current STAT4 `neq` duplicate cardinality matches the duplicate expression-key
 buckets yielded by the current source.
 
-WordPress relevance: copied `wp_options` plugin scans with duplicate
+Application relevance: copied `wp_options` plugin scans with duplicate
 `lower(option_name)` keys now reject stale duplicate cardinality before reusing a
 prepared partial expression-index plan.
 
@@ -16,11 +16,11 @@ prepared partial expression-index plan.
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext246Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next246.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next246.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext246Test.php`
   - `1 test files, 72 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next246.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next246 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next246.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-current-source-next246 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 ## Delta

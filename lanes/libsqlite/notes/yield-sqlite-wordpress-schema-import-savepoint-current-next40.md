@@ -1,8 +1,8 @@
-# yield-sqlite-wordpress-schema-import-savepoint-current-next40
+# yield-sqlite-application-schema-import-savepoint-current-next40
 
 ## Scope
 
-Adds `SQLiteWordPressSchemaImportSavepointPlan`, a lane-local planner for copied WordPress `sqlite_schema` import batches replayed under SQLite-style savepoints.
+Adds `SQLiteSchemaImportSavepointPlan`, a lane-local planner for copied Application `sqlite_schema` import batches replayed under SQLite-style savepoints.
 
 The slice is intentionally distinct from accepted schema bulk import, savepoint page-image rollback, WAL byte truncation, VFS savepoint rollback apply, rollback-journal commit, super-journal commit, and VFS sync/lock/file-writer clusters. It covers schema-cookie/rootpage state across current savepoint rollback, not pager byte application.
 
@@ -19,7 +19,7 @@ The slice is intentionally distinct from accepted schema bulk import, savepoint 
 Command:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressSchemaImportSavepointCurrentNext40Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaImportSavepointCurrentNext40Test.php
 ```
 
 Output:
@@ -33,10 +33,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 `phpPass` delta: `14649 -> 14709` (`+60` verified focused PASS lines).
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-schema-import-savepoint-current-next40.php --self-test` exercises copied `wp_options` plus plugin schema import batches, a duplicate plugin schema rollback, and open-vs-released savepoint visibility.
+`lanes/libsqlite/examples/application-schema-import-savepoint-current-next40.php --self-test` exercises copied `wp_options` plus plugin schema import batches, a duplicate plugin schema rollback, and open-vs-released savepoint visibility.
 
 ## Dependency Closure
 
-No new support component is needed. The slice reuses existing bounded native PHP pieces: `SQLiteWordPressSchemaBulkImportPlan` for schema statement parsing/rootpage assignment and `SQLiteSavepointStack` for current savepoint rollback state.
+No new support component is needed. The slice reuses existing bounded native PHP pieces: `SQLiteSchemaBulkImportPlan` for schema statement parsing/rootpage assignment and `SQLiteSavepointStack` for current savepoint rollback state.

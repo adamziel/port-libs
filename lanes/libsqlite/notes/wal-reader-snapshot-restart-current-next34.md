@@ -29,9 +29,9 @@ Result:
 
 PASS-line delta: `+42` focused `TestRunner` PASS cases.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-wal-reader-restart-current-next.php`
+`lanes/libsqlite/examples/application-wal-reader-restart-current-next.php`
 reports copied `wp_options`-style WAL frames where a theme/settings reader is
 pinned at frame 2 while the next reader advances to frame 4 after restart
 admission.

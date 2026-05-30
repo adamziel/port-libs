@@ -2,18 +2,18 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which verifies reopened file visibility after an admitted next246 durable handoff. The plan admits the current source only when reopened database/page-cache digests match, WAL commit frames are neither missing nor extra, all dirty pages reopen clean, the hot journal is gone, the WAL sidecar remains available for reader continuity, and every accepted reader reopens on the same source token, generation, and checkpoint frame.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next249.php` models a copied WordPress import reopening after a hot-journal savepoint checkpoint and confirming schema, `wp_options`, and autoload readers observe the same durable current source.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next249.php` models a copied Application import reopening after a hot-journal savepoint checkpoint and confirming schema, `wp_options`, and autoload readers observe the same durable current source.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext249Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next249.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next249.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext249Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next249.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next249.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

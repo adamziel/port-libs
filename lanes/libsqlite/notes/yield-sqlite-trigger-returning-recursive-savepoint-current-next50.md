@@ -9,8 +9,8 @@
   then projects RETURNING rows only for committed changed rows while preserving
   attempted-yield diagnostics for savepoint rollback, ignored conflicts, and
   replacement conflicts.
-- Added the WordPress smoke
-  `examples/wordpress-trigger-returning-recursive-savepoint-current-next50.php`
+- Added the Application smoke
+  `examples/application-trigger-returning-recursive-savepoint-current-next50.php`
   for copied `wp_options` import rows that recursively create plugin seed
   descendants under a savepoint without requiring ext/sqlite.
 

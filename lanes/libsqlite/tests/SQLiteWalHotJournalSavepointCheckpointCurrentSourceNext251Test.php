@@ -100,7 +100,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('admit_wal_sidecar_reset_next251', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next246', $plan()['dependencies'], true), true],
     'dependency next251' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next251', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-wal-reset', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-wal-reset', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat durable page writes'), true],
     'path mismatch blocked' => [static fn (): mixed => $blocked(2, ['path' => '/tmp/wrong-wal'])['blocked_reset_reasons'], ['wal_reset_path_mismatch', 'wal_reset_header_rewrite_missing', 'wal_reset_operation_order_unsafe']],

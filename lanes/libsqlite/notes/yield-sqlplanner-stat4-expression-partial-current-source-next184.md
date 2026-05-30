@@ -4,16 +4,16 @@
 
 Adds a focused current-source planner slice for STAT4 expression partial indexes whose partial predicate contains an `IN` list. SQLite may use a partial index with a predicate like `autoload IN ('yes','auto-on','eager')` when the query WHERE clause constrains `autoload='yes'`. The new helper proves that implication, adapts the accepted next178 STAT4 expression partial current-source fence, and inserts a cursor recheck for the matched `IN` value before producing covering rows.
 
-WordPress path: copied `wp_options` option-name range scans over `lower(option_name)` can keep using a partial expression index for autoloaded plugin options after schema/stat4 changes, while excluding `autoload='no'`, theme, and other-blog rows.
+Application path: copied `wp_options` option-name range scans over `lower(option_name)` can keep using a partial expression index for autoloaded plugin options after schema/stat4 changes, while excluding `autoload='no'`, theme, and other-blog rows.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext184Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next184.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next184.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext184Test.php`
   - `1 test files, 78 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next184.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next184.php`
   - status `stat4-expression-partial-current-source-next184-ready`
   - selected source `current`
   - matched rowids `[11,21,41,31]`

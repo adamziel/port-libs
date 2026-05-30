@@ -12,9 +12,9 @@ The planner pins the current source `json`/`root` values until cursor reset, pre
 - Result: `1 test files, 78 assertions, 0 failures`
 - PASS lines: 78
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-json-table-current-source-next86.php`
+- `php lanes/libsqlite/examples/application-json-table-current-source-next86.php`
 - The smoke uses copied `wp_options` plugin settings and shows an active `json_tree()` cursor pinned to the current `option_value` while preparing the next `option_value` plan.
 
 ## Non-Overlap

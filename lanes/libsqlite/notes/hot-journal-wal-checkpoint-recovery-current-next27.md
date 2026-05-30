@@ -7,7 +7,7 @@ Status: focused PHP behavior growth for pager startup recovery ordering when a d
 - Added `SQLitePagerHotJournalWalRecoveryPlan`, a bounded native PHP recovery planner that restores hot rollback-journal page images first, then runs WAL transaction recovery/checkpointing against the recovered database image.
 - Added `SQLiteVfsFileWriter::applyHotJournalWalRecovery()` to atomically apply the combined database, journal, WAL, and directory operations through existing VFS file-handle primitives.
 - Added `SQLiteHotJournalWalCheckpointRecoveryCurrentNext27Test.php` with 59 independent PASS cases.
-- Added `wordpress-hot-journal-wal-checkpoint-recovery.php` to smoke copied `wp_options` recovery without ext/sqlite.
+- Added `application-hot-journal-wal-checkpoint-recovery.php` to smoke copied `wp_options` recovery without ext/sqlite.
 
 ## Verification
 
@@ -23,13 +23,13 @@ php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteHotJournalWalCheckpointRecoveryCurrentNext27Test.php
 # No syntax errors detected in lanes/libsqlite/tests/SQLiteHotJournalWalCheckpointRecoveryCurrentNext27Test.php
 
-php -l lanes/libsqlite/examples/wordpress-hot-journal-wal-checkpoint-recovery.php
-# No syntax errors detected in lanes/libsqlite/examples/wordpress-hot-journal-wal-checkpoint-recovery.php
+php -l lanes/libsqlite/examples/application-hot-journal-wal-checkpoint-recovery.php
+# No syntax errors detected in lanes/libsqlite/examples/application-hot-journal-wal-checkpoint-recovery.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHotJournalWalCheckpointRecoveryCurrentNext27Test.php
 # 1 test files, 59 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-hot-journal-wal-checkpoint-recovery.php --self-test
+php lanes/libsqlite/examples/application-hot-journal-wal-checkpoint-recovery.php --self-test
 # status: applied; hotRecovered: true; committedFrameCount: 2; discardedValidTailFrames: 1; discardedCorruptTailFrames: 1; walBytes: 1104
 
 git diff --check -- lanes/libsqlite

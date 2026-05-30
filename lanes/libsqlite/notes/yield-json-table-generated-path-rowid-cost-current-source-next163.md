@@ -4,7 +4,7 @@ Behavior slice: now uses the consolidated `SQLiteJsonTablePlan::currentSourceGen
 
 This composes the accepted generated-path rowid source-cost layer (`next160`) into xBestIndex-style cursor metadata for current-source `json_tree()` / `json_each()` planning. The profile records `idxNum`, `idxStr`, normalized rowid alias spelling, omitted path/rowid constraints, argv binding columns, consumed path/rowid ordering, estimated rows/cost, cursor admission, covering status, fingerprint transitions, and next-source replan reasons.
 
-WordPress path: `examples/wordpress-json-table-generated-path-rowid-cost-current-source-next163.php --self-test` models copied `wp_options` plugin-rule JSON where a generated path plus `_rowid_` point constraint admits a pinned current cursor, while the shifted next source prepares a fresh cursor.
+Application path: `examples/application-json-table-generated-path-rowid-cost-current-source-next163.php --self-test` models copied `wp_options` plugin-rule JSON where a generated path plus `_rowid_` point constraint admits a pinned current cursor, while the shifted next source prepares a fresh cursor.
 
 Focused verification:
 

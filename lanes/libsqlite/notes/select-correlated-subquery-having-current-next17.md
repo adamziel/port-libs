@@ -12,7 +12,7 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectCorrelatedSubqueryHavingCurrentNext17Test.php`
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `35 PASS lines, 1 test files, 37 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-select-correlated-subquery-having-current.php`
+- `php lanes/libsqlite/examples/application-select-correlated-subquery-having-current.php`
 
 Status counters:
 

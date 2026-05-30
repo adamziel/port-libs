@@ -12,7 +12,7 @@ coverage includes default full-row RETURNING, `*`, `new.*`, `excluded.*`,
 `old.*` for updates, event/depth/source-trigger metadata, callables, and
 malformed projection guards.
 
-The WordPress smoke models a copied `wp_options` import where an update trigger
+The Application smoke models a copied `wp_options` import where an update trigger
 and insert trigger recursively UPSERT child option rows and reports the current
 RETURNING stream for statement and trigger rows without requiring `ext/sqlite`.
 
@@ -23,8 +23,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecurs
 Focused test run: 1 selected test files (root lock skipped)
 57 PASS lines, 1 test files, 57 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-next51.php --self-test
-wordpress-trigger-upsert-returning-recursive-current-next51 self-test passed
+php lanes/libsqlite/examples/application-trigger-upsert-returning-recursive-current-next51.php --self-test
+application-trigger-upsert-returning-recursive-current-next51 self-test passed
 
 php -l lanes/libsqlite/src/SQLiteRecursiveUpsertConflictYieldPlan.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteRecursiveUpsertConflictYieldPlan.php
@@ -32,8 +32,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteRecursiveUpsertConflictYi
 php -l lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecursiveCurrentNext51Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecursiveCurrentNext51Test.php
 
-php -l lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-next51.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-next51.php
+php -l lanes/libsqlite/examples/application-trigger-upsert-returning-recursive-current-next51.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-upsert-returning-recursive-current-next51.php
 
 git diff --check -- lanes/libsqlite
 clean
@@ -59,6 +59,6 @@ source-trigger/depth metadata.
 ## Dependency Closure
 
 No new support component is needed. The slice reuses the existing native
-row-array recursive UPSERT trigger executor and copied WordPress option
+row-array recursive UPSERT trigger executor and copied Application option
 fixtures; no shell-out, network, upstream binary, or `ext/sqlite` dependency is
 introduced.

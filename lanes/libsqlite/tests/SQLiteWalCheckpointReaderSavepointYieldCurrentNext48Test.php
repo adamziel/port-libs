@@ -125,7 +125,7 @@ $cases = [
     'truncate stage wal actions' => [static fn (): mixed => array_column($truncateYield()['stages'], 'wal_action'), [null, 'truncate_to_savepoint_prefix', 'preserve_wal']],
     'truncate stage page numbers' => [static fn (): mixed => $truncateYield()['stages'][2]['page_numbers'], [1, 2, 3, 4]],
     'truncate dependency yield marker' => [static fn (): mixed => in_array('sqlite-wal-savepoint-checkpoint-yield-current-next', $truncateYield()['dependencies'], true), true],
-    'truncate dependency wordpress marker' => [static fn (): mixed => in_array('wordpress-import-yield-savepoint-current-next', $truncateYield()['dependencies'], true), true],
+    'truncate dependency application marker' => [static fn (): mixed => in_array('application-import-yield-savepoint-current-next', $truncateYield()['dependencies'], true), true],
     'truncate dependency checkpoint marker' => [static fn (): mixed => in_array('sqlite-wal-checkpoint', $truncateYield()['dependencies'], true), true],
     'restart pinned status busy' => [static fn (): mixed => $restartPinned()['status'], 'busy'],
     'restart pinned reason' => [static fn (): mixed => $restartPinned()['checkpoint_reason'], 'reader_blocks_checkpoint_completion'],

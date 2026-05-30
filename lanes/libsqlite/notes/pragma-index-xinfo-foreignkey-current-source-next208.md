@@ -14,7 +14,7 @@ Behavior:
   list selected by SQLite.
 - Cursor source IDs include the implicit parent-key summary, rejecting stale
   pagination cursors when the parent primary key changes.
-- The WordPress smoke models copied multisite `wp_options` rows whose shorthand
+- The Application smoke models copied multisite `wp_options` rows whose shorthand
   FK references resolve to a renamed parent primary-key column between schema
   snapshots.
 
@@ -23,8 +23,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 65 assertions, 0 failures`
   - `56` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next208.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next208 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next208.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next208 self-test passed`
 
 Non-overlap:
 

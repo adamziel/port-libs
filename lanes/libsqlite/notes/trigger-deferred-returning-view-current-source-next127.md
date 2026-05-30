@@ -20,13 +20,13 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerDeferredReturningView
 
 Result: `1 test files, 62 assertions, 0 failures`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-trigger-deferred-returning-view-current-source-next127.php --self-test
+php lanes/libsqlite/examples/application-trigger-deferred-returning-view-current-source-next127.php --self-test
 ```
 
-Result: `wordpress-trigger-deferred-returning-view-current-source-next127 self-test passed`.
+Result: `application-trigger-deferred-returning-view-current-source-next127 self-test passed`.
 
 Non-overlap: avoids accepted next125 trigger deferred recursive RETURNING,
 accepted next123 view-trigger savepoint recursion, schema ALTER/view-trigger

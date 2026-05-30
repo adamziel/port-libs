@@ -11,7 +11,7 @@ Behavior covered:
   lineage before checkpoint current-source publication;
 - checkpoint and next-WAL source tokens are fenced after release validation;
 - retained and invalidated reader-cache pages are reported with write-barrier
-  order for WordPress import retries.
+  order for Application import retries.
 
 Focused evidence:
 
@@ -24,7 +24,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next166.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next166.php
 status: wal-hot-journal-savepoint-checkpoint-current-source-release-next166
 release_complete: true
 ```

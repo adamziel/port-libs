@@ -24,9 +24,9 @@ Focused test run: 1 selected test files (root lock skipped)
 
 `lane-status.json` `phpPass` is updated by the exact focused PASS-line delta verified in this worktree: `4362 -> 4417`.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-select-collation-predicate.php` reports copied `wp_options` lookups where:
+`lanes/libsqlite/examples/application-select-collation-predicate.php` reports copied `wp_options` lookups where:
 
 - `option_name COLLATE NOCASE = 'SITEURL'` matches both `siteurl` and `SiteURL`.
 - `option_name COLLATE RTRIM = 'home'` matches a trailing-space option name.

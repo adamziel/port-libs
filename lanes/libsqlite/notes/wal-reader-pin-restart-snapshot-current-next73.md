@@ -19,10 +19,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 52 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-reader-pin-restart-current-next73.php --self-test
+php lanes/libsqlite/examples/application-wal-reader-pin-restart-current-next73.php --self-test
 ```
 
 ## Dependency Closure

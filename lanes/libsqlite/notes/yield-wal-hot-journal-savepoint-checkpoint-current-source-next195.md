@@ -28,11 +28,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 57 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next195.php
-wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next195 self-test passed
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next195.php
+application-wal-hot-journal-savepoint-checkpoint-current-source-next195 self-test passed
 ```
 
 Syntax:
@@ -40,7 +40,7 @@ Syntax:
 ```text
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next195.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next195.php
 ```
 
 ## Dashboard Delta

@@ -6,9 +6,9 @@ Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext701716Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next701-716.php`
+- `php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next701-716.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext701716Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext685700Test.php`
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next701-716.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next685-700.php --self-test`
+- `php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next701-716.php --self-test`
+- `php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next685-700.php --self-test`
 - `git diff --check`

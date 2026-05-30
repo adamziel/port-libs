@@ -15,7 +15,7 @@ Behavior:
 - Keeps unrelated expression UNIQUE indexes visible without treating them as
   blockers, and ignores partial expression indexes.
 
-WordPress relevance:
+Application relevance:
 
 Copied taxonomy/import schemas may contain helper indexes such as
 `UNIQUE(site_id, lower(slug))`. SQLite must not admit that expression index as

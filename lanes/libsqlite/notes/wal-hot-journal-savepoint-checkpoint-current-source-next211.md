@@ -13,10 +13,10 @@ Blocked cases report missing reader acknowledgements, missing reopen fences,
 unexpected acknowledgements from stale readers, stale token/cookie/digest
 acks, orphan acknowledgement rows, and non-ready next205 reader plans.
 
-## WordPress Smoke
+## Application Smoke
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next211.php`
-models a copied WordPress plugin import that resumes after hot-journal recovery
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next211.php`
+models a copied Application plugin import that resumes after hot-journal recovery
 and checkpoint publication. Fresh `wp_options` readers can keep their cache,
 while an old plugin reader and dirty index reader are fenced for reopen before
 the next source epoch is published.
@@ -26,7 +26,7 @@ the next source epoch is published.
 ```text
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next211.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next211.php
 No syntax errors detected
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Test.php
@@ -34,7 +34,7 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 69 assertions, 0 failures
 69 PASS lines
 
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next211.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next211.php
 status: wal-hot-journal-savepoint-checkpoint-current-source-next211
 checkpointAdmitted: true
 admittedReaders: wp-schema-reader, wp-options-reader

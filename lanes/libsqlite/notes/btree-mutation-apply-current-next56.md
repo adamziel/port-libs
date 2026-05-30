@@ -11,9 +11,9 @@ This slice wires current/next fragment absorption into the table and index leaf 
 - New focused PASS lines: `40`
 - Expected lane-status movement: `phpPass` `20008 -> 20048`; mapped denominator unchanged at `462 / 1589`.
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-btree-mutation-current-next56.php`
+- `php lanes/libsqlite/examples/application-btree-mutation-current-next56.php`
 - Scenario: copied `wp_options` transient delete applies a table-leaf mutation, absorbs a two-byte current/next fragment into the coalesced freeblock, preserves freeblock integrity, and secure-deletes the merged payload bytes without `ext/sqlite`.
 
 ## Non-Overlap

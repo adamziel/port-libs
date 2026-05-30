@@ -10,17 +10,17 @@
   - `acknowledged_current_source_tickets`
   - `require_current_source_ticket_order`
 - Added stable reads for the base ticket handoff status/rows while preserving internal fallback to the already accepted ticket-handoff return shape.
-- Migrated the direct focused test and WordPress example off the direct ticket-number option names.
+- Migrated the direct focused test and Application example off the direct ticket-number option names.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceCloseTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-close.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-close.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceCloseTest.php`
   - `1 test files, 89 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-close.php --self-test`
-  - `wordpress-trigger-recursive-view-returning-current-source-source_close self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-close.php --self-test`
+  - `application-trigger-recursive-view-returning-current-source-source_close self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

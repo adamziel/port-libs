@@ -6,10 +6,10 @@ entry point remains descriptive:
 
 - `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackConflict()`
 
-The direct test and WordPress example now use stable descriptive filenames:
+The direct test and Application example now use stable descriptive filenames:
 
 - `SQLiteRowValueAbortStatementSavepointTest.php`
-- `wordpress-rowvalue-abort-statement-savepoint.php`
+- `application-rowvalue-abort-statement-savepoint.php`
 
 This is consolidation-only cleanup. It does not add behavior, change `phpPass`,
 or change mapped upstream coverage.
@@ -18,9 +18,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueAbortStatementSavepointTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-abort-statement-savepoint.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-abort-statement-savepoint.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueAbortStatementSavepointTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-abort-statement-savepoint.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-abort-statement-savepoint.php --self-test`
 
 Dependency closure: no new support component is needed; this cleanup reuses the
 existing native PHP row-value UPDATE/DELETE RETURNING executor and savepoint

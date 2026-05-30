@@ -17,11 +17,11 @@ The covered SQLite behavior is:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext157Test.php`
   - `1 test files, 75 assertions, 0 failures`
   - 75 focused `PASS` lines
-- `php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next157.php`
-  - `wordpress-rowvalue-update-delete-returning-savepoint-current-source-next157 self-test passed`
+- `php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next157.php`
+  - `application-rowvalue-update-delete-returning-savepoint-current-source-next157 self-test passed`
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext157Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext157Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next157.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next157.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

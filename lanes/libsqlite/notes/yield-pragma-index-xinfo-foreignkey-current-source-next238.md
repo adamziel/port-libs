@@ -10,17 +10,17 @@
   - missing non-partial parent UNIQUE indexes.
 - Keeps the slice disjoint from accepted parent collation, expression parent-key, partial-index, hidden constraint, child prefix, and missing-parent-table PRAGMA coverage.
 
-## WordPress smoke
+## Application smoke
 
-- `examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next238.php`
-- Scenario: copied WordPress import schemas can admit `UNIQUE(site_id DESC, slug DESC)` parent indexes exposed by `PRAGMA index_xinfo(desc=1)` before schema replay, avoiding a false FK repair blocker.
+- `examples/application-pragma-index-xinfo-foreignkey-current-source-next238.php`
+- Scenario: copied Application import schemas can admit `UNIQUE(site_id DESC, slug DESC)` parent indexes exposed by `PRAGMA index_xinfo(desc=1)` before schema replay, avoiding a false FK repair blocker.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 82 assertions, 0 failures`
   - `64` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next238.php`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next238.php`
   - self-test passes
 - `php -l` passed for the new source, test, and example files.
 - `git diff --check -- lanes/libsqlite` passed.

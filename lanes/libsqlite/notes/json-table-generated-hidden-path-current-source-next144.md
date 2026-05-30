@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `json-table-generated-hidden-path-curren
 
 This slice adds `SQLiteJsonTablePlan::currentSourceGeneratedHiddenPathNext144()`. It composes the accepted generated-hidden residual planner with a generated hidden path/source profile so a current `json_tree()` cursor stays pinned to the current generated path while the next source can reprepare for a different generated subtree, JSON source kind, rowset, residual value tape, and cost class.
 
-WordPress smoke: `wordpress-json-table-generated-hidden-path-current-source-next144.php` covers copied `wp_options` plugin settings where an `active_path` generated column moves diagnostics from the core rules subtree to the commerce rules subtree while usable generated predicates and residual slug checks stay explicit.
+Application smoke: `application-json-table-generated-hidden-path-current-source-next144.php` covers copied `wp_options` plugin settings where an `active_path` generated column moves diagnostics from the core rules subtree to the commerce rules subtree while usable generated predicates and residual slug checks stay explicit.
 
 Focused verification:
 

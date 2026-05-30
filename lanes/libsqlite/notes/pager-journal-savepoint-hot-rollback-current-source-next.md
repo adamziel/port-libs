@@ -14,17 +14,17 @@ Status: focused PHP behavior growth for pager rollback-journal hot recovery feed
 ```bash
 php -l lanes/libsqlite/src/SQLitePagerJournalSavepointHotRollbackCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerJournalSavepointHotRollbackCurrentSourceNext118Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-journal-savepoint-hot-rollback-current-source-next118.php
+php -l lanes/libsqlite/examples/application-pager-journal-savepoint-hot-rollback-current-source-next118.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerJournalSavepointHotRollbackCurrentSourceNext118Test.php
-php lanes/libsqlite/examples/wordpress-pager-journal-savepoint-hot-rollback-current-source-next118.php --self-test
+php lanes/libsqlite/examples/application-pager-journal-savepoint-hot-rollback-current-source-next118.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 
 Focused result: `1 test files, 68 assertions, 0 failures`.
 
-## WordPress Smoke
+## Application Smoke
 
-`wordpress-pager-journal-savepoint-hot-rollback-current-source-next118.php` models a copied `wp_options` database after a crashed plugin import. The smoke proves that the hot rollback journal restores the clean `active_plugins` page before a retry savepoint, and that rolling back the retry savepoint returns to that clean recovered page rather than the dirty crashed image or retry write.
+`application-pager-journal-savepoint-hot-rollback-current-source-next118.php` models a copied `wp_options` database after a crashed plugin import. The smoke proves that the hot rollback journal restores the clean `active_plugins` page before a retry savepoint, and that rolling back the retry savepoint returns to that clean recovered page rather than the dirty crashed image or retry write.
 
 ## Non-overlap
 

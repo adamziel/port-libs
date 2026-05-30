@@ -20,11 +20,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 56 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-attach-temp-trigger-fk-current-next21.php --self-test
-wordpress-attach-temp-trigger-fk-current-next21 self-test passed
+php lanes/libsqlite/examples/application-attach-temp-trigger-fk-current-next21.php --self-test
+application-attach-temp-trigger-fk-current-next21 self-test passed
 ```
 
 Syntax:
@@ -32,7 +32,7 @@ Syntax:
 ```text
 php -l lanes/libsqlite/src/SQLiteAttachTempViewTriggerResolution.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempTriggerForeignKeyCurrentNext21Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-trigger-fk-current-next21.php
+php -l lanes/libsqlite/examples/application-attach-temp-trigger-fk-current-next21.php
 ```
 
 ## Delta

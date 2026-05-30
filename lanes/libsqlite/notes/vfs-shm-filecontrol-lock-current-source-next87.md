@@ -2,16 +2,16 @@
 
 - Added `SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext87()` for bounded WAL-index sidecar behavior where `xFileControl` remains routed to the owning database file while `xShmLock` state is tracked on the `-shm` source.
 - Added focused `TestRunner` coverage for main/WAL/SHM current-source switching, database-control persistence, SHM read/write/checkpoint lock state, readonly and `nolock=1` blocking, busy upgrade handling, explicit current-source hydration, and malformed operation guards.
-- Added the WordPress smoke `wordpress-vfs-shm-filecontrol-lock-current-source-next87.php` for copied `wp_options` WAL-index imports that must not misroute mmap/chunk/persist-WAL controls to the SHM sidecar.
+- Added the Application smoke `application-vfs-shm-filecontrol-lock-current-source-next87.php` for copied `wp_options` WAL-index imports that must not misroute mmap/chunk/persist-WAL controls to the SHM sidecar.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsShmFileControlLockCurrentSourcePlan.php
 php -l lanes/libsqlite/tests/SQLiteVfsShmFileControlLockCurrentSourceNext87Test.php
-php -l lanes/libsqlite/examples/wordpress-vfs-shm-filecontrol-lock-current-source-next87.php
+php -l lanes/libsqlite/examples/application-vfs-shm-filecontrol-lock-current-source-next87.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmFileControlLockCurrentSourceNext87Test.php
-php lanes/libsqlite/examples/wordpress-vfs-shm-filecontrol-lock-current-source-next87.php --self-test
+php lanes/libsqlite/examples/application-vfs-shm-filecontrol-lock-current-source-next87.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

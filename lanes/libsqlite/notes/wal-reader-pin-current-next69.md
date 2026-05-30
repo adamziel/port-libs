@@ -9,10 +9,10 @@ Focused evidence:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalAppendPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderPinCurrentNext69Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-reader-pin-current-next69.php
+php -l lanes/libsqlite/examples/application-wal-reader-pin-current-next69.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderPinCurrentNext69Test.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderPinAppendCurrentNext67Test.php lanes/libsqlite/tests/SQLiteWalReaderPinAppendCurrentNext66Test.php
-php lanes/libsqlite/examples/wordpress-wal-reader-pin-current-next69.php --self-test
+php lanes/libsqlite/examples/application-wal-reader-pin-current-next69.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -15,11 +15,11 @@ Focused evidence:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachWalTempCurrentNext65Test.php lanes/libsqlite/tests/SQLiteAttachWalTempCurrentNext68Test.php
 # 2 test files, 159 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next65.php --self-test
-# wordpress-attach-wal-temp-current-next65 self-test passed
+php lanes/libsqlite/examples/application-attach-wal-temp-current-next65.php --self-test
+# application-attach-wal-temp-current-next65 self-test passed
 
-php lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next68.php --self-test
-# wordpress-attach-wal-temp-current-next68 self-test passed
+php lanes/libsqlite/examples/application-attach-wal-temp-current-next68.php --self-test
+# application-attach-wal-temp-current-next68 self-test passed
 ```
 
 Dependency closure: no new support component is needed; this reuses the existing

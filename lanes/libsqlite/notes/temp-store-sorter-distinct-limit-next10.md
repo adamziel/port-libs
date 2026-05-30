@@ -24,10 +24,10 @@ PASS rejects malformed sorter distinct limit yield requests
 1 test files, 41 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-temp-store-sorter-distinct-limit.php
+php lanes/libsqlite/examples/application-temp-store-sorter-distinct-limit.php
 ```
 
 Non-overlap: avoids accepted standalone SELECT SQL DISTINCT/ORDER/LIMIT,

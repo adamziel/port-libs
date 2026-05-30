@@ -11,7 +11,7 @@ The next source can then update a trigger-generated current row and recurse
 again, producing a second `RETURNING` stream without losing statement/trigger
 depth evidence.
 
-WordPress path: `wordpress-trigger-returning-recursive-upsert-current-source-next118.php`
+Application path: `application-trigger-returning-recursive-upsert-current-source-next118.php`
 models copied `wp_options` import batches where plugin triggers recursively
 upsert child option rows. The current batch returns `plugin_seed` and
 `fresh_plugin` recursive rows; the next batch sees those rows as its source,
@@ -25,8 +25,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 59 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-trigger-returning-recursive-upsert-current-source-next118.php --self-test
-wordpress-trigger-returning-recursive-upsert-current-source-next118 self-test passed
+$ php lanes/libsqlite/examples/application-trigger-returning-recursive-upsert-current-source-next118.php --self-test
+application-trigger-returning-recursive-upsert-current-source-next118 self-test passed
 ```
 
 Dashboard delta: update `phpPass` by the focused PASS-line delta verified for

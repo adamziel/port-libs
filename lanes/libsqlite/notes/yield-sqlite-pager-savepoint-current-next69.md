@@ -14,14 +14,14 @@ next page/WAL frame using the rollback prefix frame index.
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `68 PASS` lines
   - `1 test files, 68 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-savepoint-current-next69.php --self-test`
-  - `wordpress-pager-savepoint-current-next69 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-savepoint-current-next69.php --self-test`
+  - `application-pager-savepoint-current-next69 self-test passed`
 - `php -l lanes/libsqlite/src/SQLiteSavepointStack.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteSavepointStack.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerSavepointCurrentNext69Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePagerSavepointCurrentNext69Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-savepoint-current-next69.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-savepoint-current-next69.php`
+- `php -l lanes/libsqlite/examples/application-pager-savepoint-current-next69.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pager-savepoint-current-next69.php`
 - `git diff --check -- lanes/libsqlite`
   - clean
 
@@ -44,4 +44,4 @@ opened after `ROLLBACK TO current` preserves the current frame.
 
 No new support component is needed. The slice reuses the existing native
 `SQLiteSavepointStack` pager/savepoint state model and existing focused
-TestRunner/WordPress smoke infrastructure.
+TestRunner/Application smoke infrastructure.

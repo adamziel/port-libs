@@ -17,8 +17,8 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4SkipScanCoveringCurrentSourceNext120Test.php
 1 test files, 57 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-planner-stat4-skipscan-covering-current-source-next120.php --self-test
-wordpress-planner-stat4-skipscan-covering-current-source-next120 self-test passed
+php lanes/libsqlite/examples/application-planner-stat4-skipscan-covering-current-source-next120.php --self-test
+application-planner-stat4-skipscan-covering-current-source-next120 self-test passed
 ```
 
 Dependency closure: no new support component is needed. This composes existing

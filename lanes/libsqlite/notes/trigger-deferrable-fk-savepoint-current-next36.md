@@ -25,8 +25,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Example verification:
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-deferrable-fk-savepoint-current-next36.php --self-test
-wordpress-trigger-deferrable-fk-savepoint-current-next36 self-test passed
+php lanes/libsqlite/examples/application-trigger-deferrable-fk-savepoint-current-next36.php --self-test
+application-trigger-deferrable-fk-savepoint-current-next36 self-test passed
 ```
 
 Status delta:

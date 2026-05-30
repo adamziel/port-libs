@@ -3,7 +3,7 @@
 ## Behavior
 
 Adds `SQLiteUtf16RtrimLikeCurrentSourceNextPlan`, a current/next residual
-scan for copied WordPress `wp_options.option_name` rows when a `LIKE` predicate
+scan for copied Application `wp_options.option_name` rows when a `LIKE` predicate
 is associated with an `RTRIM` index collation. The existing source cursor keeps
 reporting that the `RTRIM` index range is not usable for `LIKE`; this slice
 adds the fallback behavior that decodes UTF-8/UTF-16LE/UTF-16BE record text,
@@ -18,10 +18,10 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16RtrimLikeCurrentSourceNext121Test.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-utf16-rtrim-like-current-source-next121.php --self-test
+php lanes/libsqlite/examples/application-utf16-rtrim-like-current-source-next121.php --self-test
 ```
 
 Additional required checks:
@@ -29,7 +29,7 @@ Additional required checks:
 ```text
 php -l lanes/libsqlite/src/SQLiteUtf16RtrimLikeCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteUtf16RtrimLikeCurrentSourceNext121Test.php
-php -l lanes/libsqlite/examples/wordpress-utf16-rtrim-like-current-source-next121.php
+php -l lanes/libsqlite/examples/application-utf16-rtrim-like-current-source-next121.php
 git diff --check -- lanes/libsqlite
 ```
 

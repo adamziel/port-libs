@@ -15,13 +15,13 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-index-current-next.php
+php lanes/libsqlite/examples/application-vdbe-index-current-next.php
 {
-    "scenario": "wordpress-vdbe-index-current-next",
+    "scenario": "application-vdbe-index-current-next",
     "autoloadRowids": [1, 2, 4, 10],
     "autoloadNames": ["Plugin_A", "plugin_a", "plugin_blob", "Plugin_Z"],
     "nextRowids": [8, 7],
-    "wordpressUse": "Preview copied wp_options option_name index scans through VDBE-like current-key reads and Next advancement, applying SQLite affinity/collation before yielding rowids without ext/sqlite."
+    "applicationUse": "Preview copied wp_options option_name index scans through VDBE-like current-key reads and Next advancement, applying SQLite affinity/collation before yielding rowids without ext/sqlite."
 }
 ```
 

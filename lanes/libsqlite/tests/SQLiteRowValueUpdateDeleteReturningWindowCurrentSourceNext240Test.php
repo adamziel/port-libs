@@ -105,7 +105,7 @@ $cases240 = [
     'dependency peer groups' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-window-peer-groups-next240', $plan240()['dependencies_next240'], true), true],
     'dependency exclude current' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-window-exclude-current-row-next240', $plan240()['dependencies_next240'], true), true],
     'dependency exclude ties' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-window-exclude-ties-next240', $plan240()['dependencies_next240'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-current-source-next240', $plan240()['dependencies_next240'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-rowvalue-returning-window-current-source-next240', $plan240()['dependencies_next240'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan240()['dependency_closure_next240'], 'no new support component needed'), true],
     'non overlap mentions next236' => [static fn (): mixed => str_contains($plan240()['non_overlap_next240'], 'next236'), true],
     'non overlap mentions trigger returning' => [static fn (): mixed => str_contains($plan240()['non_overlap_next240'], 'trigger RETURNING'), true],

@@ -27,10 +27,10 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-recursive-savepoint-current-next71.php
+php lanes/libsqlite/examples/application-trigger-recursive-savepoint-current-next71.php
 ```
 
-The smoke reports a copied WordPress option import where `plugin_seed` recurses
+The smoke reports a copied Application option import where `plugin_seed` recurses
 into a rollback conflict against `preflight_marker`; the retry statement starts
 from the restored savepoint and inserts only the `plugin_retry` recursive chain.
 

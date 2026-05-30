@@ -4,16 +4,16 @@ Status: focused regression repair for `vfs-shm-bad-source-regression-current-sou
 
 This slice adds `SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext138()` and tightens array-operation validation in the shared SHM/file-control planner. Unsupported array operations now throw the same `InvalidArgumentException` as unsupported string operations instead of falling through to an empty event list or partial current-source state. The regression test also covers bad `source` values for `open`, `source`, `close`, `filecontrol`/`xFileControl`, and `shmlock`/`xShmLock`, both at the first operation and after a valid main/SHM prefix.
 
-WordPress smoke: `wordpress-vfs-shm-bad-source-regression-current-source-next138.php` covers copied SQLite database import preflight rejecting a malformed SHM source before a bad WAL-index lock can be recorded.
+Application smoke: `application-vfs-shm-bad-source-regression-current-source-next138.php` covers copied SQLite database import preflight rejecting a malformed SHM source before a bad WAL-index lock can be recorded.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsShmFileControlLockCurrentSourcePlan.php
 php -l lanes/libsqlite/tests/SQLiteVfsShmBadSourceRegressionCurrentSourceNext138Test.php
-php -l lanes/libsqlite/examples/wordpress-vfs-shm-bad-source-regression-current-source-next138.php
+php -l lanes/libsqlite/examples/application-vfs-shm-bad-source-regression-current-source-next138.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmBadSourceRegressionCurrentSourceNext138Test.php lanes/libsqlite/tests/SQLiteVfsShmFileControlLockCurrentSourceNext87Test.php
-php lanes/libsqlite/examples/wordpress-vfs-shm-bad-source-regression-current-source-next138.php --self-test
+php lanes/libsqlite/examples/application-vfs-shm-bad-source-regression-current-source-next138.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

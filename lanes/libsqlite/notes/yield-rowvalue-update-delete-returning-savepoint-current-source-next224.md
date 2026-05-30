@@ -7,8 +7,8 @@ model. The inner savepoint is released into the outer savepoint, a later outer
 rollback discards both the released inner changes and the outer attempted
 changes, and retry statements read from the original outer savepoint image.
 
-WordPress path:
-`examples/wordpress-rowvalue-nested-savepoint-materialization.php`
+Application path:
+`examples/application-rowvalue-nested-savepoint-materialization.php`
 models a copied `wp_options` import that batches transient cleanup and option
 rewrites in an inner savepoint, then rolls back the outer import scope and
 retries without yielding stale inner `RETURNING` rows.
@@ -18,8 +18,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueNestedSavepointMaterializationTest.php`
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext224Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueNestedSavepointMaterializationTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-materialization.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-materialization.php --self-test`
+- `php -l lanes/libsqlite/examples/application-rowvalue-nested-savepoint-materialization.php`
+- `php lanes/libsqlite/examples/application-rowvalue-nested-savepoint-materialization.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta: update `phpPass` by the focused PASS-line delta from the new

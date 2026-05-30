@@ -10,13 +10,13 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteOverflowVacuumTruncatePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreePointerMapTruncateVacuumCurrentNext54Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-pointermap-truncate-vacuum-current-next54.php`
+- `php -l lanes/libsqlite/examples/application-btree-pointermap-truncate-vacuum-current-next54.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePointerMapTruncateVacuumCurrentNext54Test.php`
   - `1 test files, 65 assertions, 0 failures`
   - 59 focused `PASS` lines
-- `php lanes/libsqlite/examples/wordpress-btree-pointermap-truncate-vacuum-current-next54.php`
+- `php lanes/libsqlite/examples/application-btree-pointermap-truncate-vacuum-current-next54.php`
 
-WordPress smoke:
+Application smoke:
 
 The smoke reports a copied `wp_options` autoload/index overflow tail cleanup:
 current state keeps pages 306-310 on the freelist with pointer-map entries

@@ -14,12 +14,12 @@ Verification:
   - After implementation: `1 test files, 21 assertions, 0 failures`
 - Related FK family: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteForeignKeyDeferredCascadeCorpusTest.php lanes/libsqlite/tests/SQLiteForeignKeyOnUpdateCorpusTest.php lanes/libsqlite/tests/SQLitePragmaForeignKeyCheckCorpusTest.php lanes/libsqlite/tests/SQLitePragmaForeignKeysEnforcementCurrentTest.php`
   - Passed: `4 test files, 186 assertions, 0 failures`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-pragma-foreign-keys-enforcement-current.php --self-test`
-  - `wordpress-pragma-foreign-keys-enforcement-current self-test passed`
+- Example smoke: `php lanes/libsqlite/examples/application-pragma-foreign-keys-enforcement-current.php --self-test`
+  - `application-pragma-foreign-keys-enforcement-current self-test passed`
 - PHP lint:
   - `php -l lanes/libsqlite/src/SQLitePragmaForeignKeysEnforcement.php`
   - `php -l lanes/libsqlite/tests/SQLitePragmaForeignKeysEnforcementCurrentTest.php`
-  - `php -l lanes/libsqlite/examples/wordpress-pragma-foreign-keys-enforcement-current.php`
+  - `php -l lanes/libsqlite/examples/application-pragma-foreign-keys-enforcement-current.php`
 - Diff check: `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this does not change PRAGMA index_xinfo/foreign-key evidence,

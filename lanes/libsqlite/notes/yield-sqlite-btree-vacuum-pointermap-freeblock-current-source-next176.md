@@ -2,6 +2,6 @@
 
 - Behavior: adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext176Plan`, an additive current-source boundary over the accepted next173 transition rows. It classifies the downstream authoritative page source after a transient delete plus partial auto-vacuum rewrite: the table leaf must be read from the post-delete freeblock image, replacement overflow pages must be read from the rewritten current-source chain, and the truncated tail page must be rejected.
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext176Test.php` -> `1 test files / 418 assertions / 0 failures` with 82 PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next176.php --self-test` -> self-test passed.
+- Application smoke: `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next176.php --self-test` -> self-test passed.
 - Non-overlap: avoids accepted next173 transition auditing, next167 final leaf auditing, next166 write admission, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, freelist trunk pointer-map reuse, and current-source next171/next172/next173 accepted surfaces. This slice only adds the source-selection boundary for downstream reads.
 - Dependency closure: no new support component is needed; the slice reuses native b-tree leaf/freeblock parsing, overflow-chain materialization, incremental-vacuum truncation, and auto-vacuum pointer-map helpers.

@@ -7,16 +7,16 @@ Micro-slice: `consolidate-final-numbered-methods-trigger-returning-thirty-sevent
 
 - Renamed `SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext200()` to `executeCurrentHighwaterGate()`.
 - Renamed the direct private `*Next200` helper methods to stable current-highwater helper names.
-- Updated the direct focused test and WordPress smoke caller.
+- Updated the direct focused test and Application smoke caller.
 - Preserved accepted `*_next200` result keys, dependency markers, and status strings so scenario coverage remains unchanged while production method names no longer carry this worker-number suffix.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext200Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next200.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next200.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext200Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next200.php --self-test`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next200.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

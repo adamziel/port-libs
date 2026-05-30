@@ -144,24 +144,24 @@ $tests['utf16 like glob affinity current source nextEightSeven matched rows expo
     $t->same('70006c007500670069006e005f003dd800de5f0063006100630068006500', $rows[0]['bytesHex']);
 };
 
-$tests['utf16 like glob affinity current source nextEightSeven wordpress value scan matches numeric-looking autoload values'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven application value scan matches numeric-looking autoload values'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 101, 'option_name' => 'blog_public', 'option_value' => 1, 'autoload' => 'yes'],
         ['option_id' => 102, 'option_name' => 'rewrite_rules', 'option_value' => '10-rules', 'autoload' => 'yes'],
         ['option_id' => 103, 'option_name' => 'theme_mods', 'option_value' => 'plugin_éclair', 'autoload' => 'yes'],
         ['option_id' => 104, 'option_name' => 'binary_payload', 'option_value' => new SQLiteBlobValue('plugin_blob'), 'autoload' => 'no'],
     ];
-    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::wordpressOptionValueScan($rows, 'option_value', '1%', 'LIKE', 'BINARY', null, true, 'UTF-16LE');
+    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan($rows, 'option_value', '1%', 'LIKE', 'BINARY', null, true, 'UTF-16LE');
     $t->same([101, 102], array_column($matched, 'rowid'));
 };
 
-$tests['utf16 like glob affinity current source nextEightSeven wordpress value scan matches unicode glob values'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven application value scan matches unicode glob values'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 201, 'option_name' => 'theme_mods', 'option_value' => 'plugin_éclair'],
         ['option_id' => 202, 'option_name' => 'theme_mods_old', 'option_value' => 'plugin_alpha'],
         ['option_id' => 203, 'option_name' => 'theme_mods_emoji', 'option_value' => 'plugin_😀_cache'],
     ];
-    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::wordpressOptionValueScan($rows, 'option_value', 'plugin_[À-ÿ]*', 'GLOB', 'BINARY', null, false, 'UTF-16BE');
+    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan($rows, 'option_value', 'plugin_[À-ÿ]*', 'GLOB', 'BINARY', null, false, 'UTF-16BE');
     $t->same([201], array_column($matched, 'rowid'));
     $t->same('UTF-16BE', $matched[0]['textEncoding']);
 };
@@ -198,8 +198,8 @@ $tests['utf16 like glob affinity current source nextEightSeven rejects non array
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor([['key' => 'plugin', 'rowid' => 1, 'payload' => 'bad']], 'plugin%'));
 };
 
-$tests['utf16 like glob affinity current source nextEightSeven wordpress scan rejects missing column'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::wordpressOptionValueScan([['option_id' => 1, 'option_name' => 'siteurl']], 'option_value', 's%'));
+$tests['utf16 like glob affinity current source nextEightSeven application scan rejects missing column'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan([['option_id' => 1, 'option_name' => 'siteurl']], 'option_value', 's%'));
 };
 
 return $tests;

@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined final continuation seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-final-continuation-seal.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-final-continuation-seal.php';
 
         $t->same('rowvalue-update-delete-returning-window-final-continuation-seal', $result['status']);
         $t->same([

@@ -8,15 +8,15 @@ Behavior:
 - A current/next source can reuse the cursor when UTF-16LE and UTF-16BE pattern bytes decode to the same SQL pattern/escape text and rowsets are stable.
 - Source/schema, decoded pattern/escape text changes, rowset changes, RTRIM false positives, and malformed row text remain semantic invalidation reasons.
 
-WordPress path:
-- `wordpress-utf16-nocase-like-rtrim-current-source-next162.php` models copied `wp_options.option_name` scans where the prepared pattern is rebound in a different UTF-16 byte order during import/rebuild, while decoded LIKE semantics and matched rows remain stable.
+Application path:
+- `application-utf16-nocase-like-rtrim-current-source-next162.php` models copied `wp_options.option_name` scans where the prepared pattern is rebound in a different UTF-16 byte order during import/rebuild, while decoded LIKE semantics and matched rows remain stable.
 
 Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Test.php`
   - `1 test files, 78 assertions, 0 failures`
   - `58` PASS lines
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next162.php --self-test`
-  - `wordpress-utf16-nocase-like-rtrim-current-source-next162 self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next162.php --self-test`
+  - `application-utf16-nocase-like-rtrim-current-source-next162 self-test passed`
 - PHP lint and `git diff --check -- lanes/libsqlite` passed in this lane.
 
 Expected dashboard movement: `phpPass +58`, from `72664` to `72722`. Mapped upstream coverage remains `609 / 1589`; this reuses already mapped UTF-16, LIKE, RTRIM, NOCASE, and current-source inventory rather than claiming a fresh manifest row.

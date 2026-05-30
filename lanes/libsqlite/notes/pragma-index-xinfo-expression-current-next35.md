@@ -25,10 +25,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 69 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-expression-current-next35.php
+php lanes/libsqlite/examples/application-pragma-index-xinfo-expression-current-next35.php
 ```
 
 Dependency closure: no new support component is needed; this reuses

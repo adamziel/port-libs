@@ -16,11 +16,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateWindowFilterOrd
 
 php -l lanes/libsqlite/src/SQLiteSelectQuery.php
 php -l lanes/libsqlite/tests/SQLiteJsonAggregateWindowFilterOrderCurrentSourceNext104Test.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-window-filter-order-current-source-next104.php
+php -l lanes/libsqlite/examples/application-json-aggregate-window-filter-order-current-source-next104.php
 # No syntax errors detected
 
-php lanes/libsqlite/examples/wordpress-json-aggregate-window-filter-order-current-source-next104.php --self-test
-# wordpress-json-aggregate-window-filter-order-current-source-next104 self-test passed
+php lanes/libsqlite/examples/application-json-aggregate-window-filter-order-current-source-next104.php --self-test
+# application-json-aggregate-window-filter-order-current-source-next104 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +52, from `40110` to `40162`.
@@ -35,4 +35,4 @@ filtered JSON aggregate window frames when aggregate-local order is absent.
 
 Dependency closure: no new support component is needed. The patch reuses the
 existing parser-level `SQLiteSelectSql`, `SQLiteSelectQuery`, JSON aggregate,
-JSONB, and WordPress row-array test infrastructure.
+JSONB, and Application row-array test infrastructure.

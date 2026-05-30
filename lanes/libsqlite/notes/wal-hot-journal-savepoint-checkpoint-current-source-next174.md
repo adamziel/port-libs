@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for crash-resume file-state admission after 
 
 This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It builds on the existing next169 partial-publish resume plan and verifies the actual database, hot-journal, and WAL sidecar bytes before admitting hot-journal deletion, reader release, or WAL reset. Matching file bytes can be verified idempotently; missing or mismatched database/WAL/journal bytes produce a precise replay action.
 
-WordPress path: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next174.php` models a copied `wp_options` plugin import that crashes after current checkpoint payloads are durable but before the hot journal is deleted. The smoke proves the current database/WAL bytes are verified, the hot journal can be deleted, and reader release remains blocked until the journal is actually gone.
+Application path: `application-wal-hot-journal-savepoint-checkpoint-current-source-next174.php` models a copied `wp_options` plugin import that crashes after current checkpoint payloads are durable but before the hot journal is deleted. The smoke proves the current database/WAL bytes are verified, the hot journal can be deleted, and reader release remains blocked until the journal is actually gone.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next174.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next174.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next174.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next174.php`
 - `git diff --check -- lanes/libsqlite`
 
 Focused result: `1 test files, 59 assertions, 0 failures`.

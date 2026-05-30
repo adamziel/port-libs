@@ -10,10 +10,10 @@ previous overflow page.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePageMoveTableOverflowCurrentNext17Test.php`
-- `php lanes/libsqlite/examples/wordpress-autovacuum-table-overflow-page-move.php`
+- `php lanes/libsqlite/examples/application-autovacuum-table-overflow-page-move.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreePageMovePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreePageMoveTableOverflowCurrentNext17Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-autovacuum-table-overflow-page-move.php`
+- `php -l lanes/libsqlite/examples/application-autovacuum-table-overflow-page-move.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. This reuses the existing

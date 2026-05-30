@@ -11,7 +11,7 @@ final class SQLiteUtf16LikeEscapeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameLikeEscape(
+    public static function optionRowNameLikeEscape(
         array $currentRows,
         array $nextRows,
         string $pattern,

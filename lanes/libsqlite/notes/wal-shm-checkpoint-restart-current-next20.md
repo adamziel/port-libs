@@ -5,7 +5,7 @@ Status: focused PHP corpus growth for WAL restart checkpoint behavior with SHM r
 ## Delta
 
 - Added `SQLiteWalShmCheckpointRestartCorpusTest.php` with 40 independent PASS cases covering restart/truncate checkpoint decisions, current-reader reset blocking, durable restart WAL header regeneration, reader visibility across restart checkpoints, WAL read-mark planning, and SHM wal-index read-lock checkpoint state.
-- Added `wordpress-wal-shm-checkpoint-restart-current-next20.php` to smoke copied `wp_options` WAL restart checkpoint diagnostics using a pinned SHM reader and a later reader-drained restart.
+- Added `application-wal-shm-checkpoint-restart-current-next20.php` to smoke copied `wp_options` WAL restart checkpoint diagnostics using a pinned SHM reader and a later reader-drained restart.
 - `phpPass` increases by the verified focused PASS-line delta only. `benchmarkDenominator.mapped` is unchanged because this is lane-scoped focused PHP corpus growth, not a newly mapped upstream inventory unit.
 
 ## Non-Overlap
@@ -19,7 +19,7 @@ No new support component is needed. The corpus reuses existing lane-local `SQLit
 ## Verification
 
 - `php -l lanes/libsqlite/tests/SQLiteWalShmCheckpointRestartCorpusTest.php` -> no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-wal-shm-checkpoint-restart-current-next20.php` -> no syntax errors.
+- `php -l lanes/libsqlite/examples/application-wal-shm-checkpoint-restart-current-next20.php` -> no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalShmCheckpointRestartCorpusTest.php` -> 1 test file, 40 assertions, 0 failures, 40 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-wal-shm-checkpoint-restart-current-next20.php` -> printed pinned reader frame `2`, reader-blocked restart preserving WAL, reader-drained restart writing a 32-byte restarted WAL header with checkpoint sequence `8`, stable current-reader visibility, and SHM/WAL checkpoint dependencies.
+- `php lanes/libsqlite/examples/application-wal-shm-checkpoint-restart-current-next20.php` -> printed pinned reader frame `2`, reader-blocked restart preserving WAL, reader-drained restart writing a 32-byte restarted WAL header with checkpoint sequence `8`, stable current-reader visibility, and SHM/WAL checkpoint dependencies.
 - `git diff --check -- lanes/libsqlite` -> clean.

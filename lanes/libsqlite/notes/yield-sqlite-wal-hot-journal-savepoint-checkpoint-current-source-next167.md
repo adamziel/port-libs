@@ -22,13 +22,13 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 64 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next167.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next167.php
 ```
 
-Result: the copied WordPress plugin import scenario recovered hot-journal pages,
+Result: the copied Application plugin import scenario recovered hot-journal pages,
 rolled back failed savepoint pages, verified the current-source publication
 fingerprint, admitted only the matching current reader, and forced stale/next/dirty
 readers to reopen.

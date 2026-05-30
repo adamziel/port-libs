@@ -12,16 +12,16 @@ Behavior:
   SQLite does not allow partial indexes to satisfy FK parent keys;
 - records the partial index `WHERE` clause, shadowing by a full UNIQUE parent
   key in the next source, source hashes, pagination cursors, and repair deltas;
-- includes a WordPress smoke for copied `wp_options` slug registries where a
+- includes a Application smoke for copied `wp_options` slug registries where a
   partial active-slug UNIQUE index must not unblock import FK validation.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next187.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next187.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next187.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next187.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: avoids accepted FK row extraction, FK action/match/deferral/timing

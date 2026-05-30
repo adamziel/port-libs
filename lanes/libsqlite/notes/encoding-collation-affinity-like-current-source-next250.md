@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext250Plan` for WordPress
+Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext250Plan` for Application
 `wp_options.option_name COLLATE RTRIM LIKE ? ESCAPE ?` current-source scans.
 The new slice records the SQLite distinction between an RTRIM collation key and
 the LIKE residual operand: `plugin_cache  ` can be an RTRIM peer of
@@ -20,7 +20,7 @@ Focused commands run:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext250Test.php
-php lanes/libsqlite/examples/wordpress-rtrim-like-residual-current-source-next250.php --self-test
+php lanes/libsqlite/examples/application-rtrim-like-residual-current-source-next250.php --self-test
 ```
 
 Expected focused test growth: the new test file adds focused PASS lines for the
@@ -30,7 +30,7 @@ Observed output:
 
 - `1 test files, 94 assertions, 0 failures`
 - `84` focused PASS lines
-- `wordpress-rtrim-like-residual-current-source-next250 self-test passed`
+- `application-rtrim-like-residual-current-source-next250 self-test passed`
 
 ## Non-overlap
 

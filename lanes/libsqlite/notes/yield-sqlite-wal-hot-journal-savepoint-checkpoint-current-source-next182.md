@@ -12,7 +12,7 @@ Behavior added:
   root-page exposure still match the checkpoint current source. Statements
   touching hot-journal or savepoint-rollback root pages are forced to reprepare
   when the schema cookie advances.
-- Includes a WordPress smoke for copied plugin import / option reads.
+- Includes a Application smoke for copied plugin import / option reads.
 
 Non-overlap:
 
@@ -25,7 +25,7 @@ Non-overlap:
 Verification:
 
 - Focused test command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Test.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next182.php`
+- Example smoke: `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next182.php`
 - PHP lint: changed PHP files under this slice.
 - `git diff --check -- lanes/libsqlite`
 

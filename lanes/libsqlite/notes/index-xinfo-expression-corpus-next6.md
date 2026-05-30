@@ -3,7 +3,7 @@
 This isolated libsqlite slice adds bounded native PHP `PRAGMA index_xinfo`
 support to `SQLitePragmaSchemaCatalog`. It covers expression-index terms,
 ordinary indexed columns, collations, DESC flags, rowid auxiliary terms, and
-WITHOUT ROWID primary-key auxiliary terms for copied WordPress schema
+WITHOUT ROWID primary-key auxiliary terms for copied Application schema
 diagnostics. Expression terms report SQLite-style `cid = -2`, `name = null`,
 and `key = 1`; rowid/primary-key auxiliary columns report `key = 0`.
 
@@ -25,10 +25,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaSchemaCatalogTest.php 
 2 test files, 133 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-expression.php
+php lanes/libsqlite/examples/application-pragma-index-xinfo-expression.php
 ```
 
 The smoke prints copied `wp_options` expression-index `index_xinfo` rows with

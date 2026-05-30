@@ -3,7 +3,7 @@
 - Added `SQLiteVfsTempLockingFileControlCurrentSourcePlan::currentSourceNext102()` for temp statement-journal/current-source handles that track xFileControl write generations and `data_version` reads.
 - The new path requires a reserved/pending/exclusive temp lock before write-like controls (`chunk_size`, `size_hint`, `persist_wal`, `reserve_bytes`, and `powersafe_overwrite`) can mutate state.
 - Sibling temp handles opened on the same current source report stale `data_version` after another locked handle changes file-control state; close/reopen starts at the latest persisted generation.
-- DELETEONCLOSE and memory temp-store handles clear or avoid persistent control/generation state, matching SQLite temp-file lifecycle expectations for copied WordPress import statement journals.
+- DELETEONCLOSE and memory temp-store handles clear or avoid persistent control/generation state, matching SQLite temp-file lifecycle expectations for copied Application import statement journals.
 
 Focused verification:
 
@@ -14,8 +14,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVfsTempLockingFileControl
 php -l lanes/libsqlite/tests/SQLiteVfsTempLockFileControlCurrentSourceNext102Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteVfsTempLockFileControlCurrentSourceNext102Test.php
 
-php -l lanes/libsqlite/examples/wordpress-vfs-temp-lock-filecontrol-current-source-next102.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-vfs-temp-lock-filecontrol-current-source-next102.php
+php -l lanes/libsqlite/examples/application-vfs-temp-lock-filecontrol-current-source-next102.php
+No syntax errors detected in lanes/libsqlite/examples/application-vfs-temp-lock-filecontrol-current-source-next102.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsTempLockFileControlCurrentSourceNext102Test.php
 1 test files, 50 assertions, 0 failures
@@ -23,8 +23,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsTempLockFileControlCurren
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsTempLockingFileControlCurrentSourceNext83Test.php lanes/libsqlite/tests/SQLiteVfsTempLockFileControlCurrentSourceNext102Test.php
 2 test files, 113 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-vfs-temp-lock-filecontrol-current-source-next102.php --self-test
-wordpress-vfs-temp-lock-filecontrol-current-source-next102 self-test passed
+php lanes/libsqlite/examples/application-vfs-temp-lock-filecontrol-current-source-next102.php --self-test
+application-vfs-temp-lock-filecontrol-current-source-next102 self-test passed
 ```
 
 Non-overlap:

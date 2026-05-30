@@ -7,7 +7,7 @@ over `PRAGMA integrity_check` / `quick_check` rows. The helper preserves every
 integrity message, classifies the source (`header`, `freelist`, `schema_root`,
 `pointer_map`, `btree`, or `integrity`), annotates page and pointer-map page
 metadata when available, and appends `foreign_key_check` rows after the
-integrity stream for copied WordPress schema checks.
+integrity stream for copied Application schema checks.
 
 Focused verification:
 
@@ -24,10 +24,10 @@ PASS pragma integrity current next64 propagates pragma parser guard
 1 test files, 78 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-integrity-current-next64.php
+php lanes/libsqlite/examples/application-pragma-integrity-current-next64.php
 ```
 
 Dependency closure: no new support component is needed. This reuses the

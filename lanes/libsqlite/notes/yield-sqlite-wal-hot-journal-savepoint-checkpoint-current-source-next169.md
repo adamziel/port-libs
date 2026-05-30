@@ -15,8 +15,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckp
 # Focused test run: 1 selected test files (root lock skipped)
 # 1 test files, 67 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next169.php
-# wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next169 self-test passed
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next169.php
+# application-wal-hot-journal-savepoint-checkpoint-current-source-next169 self-test passed
 
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 # No syntax errors detected in lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
@@ -24,8 +24,8 @@ php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNe
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Test.php
 # No syntax errors detected in lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Test.php
 
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next169.php
-# No syntax errors detected in lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next169.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next169.php
+# No syntax errors detected in lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next169.php
 
 git diff --check -- lanes/libsqlite
 ```

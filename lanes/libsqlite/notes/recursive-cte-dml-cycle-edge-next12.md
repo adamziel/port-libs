@@ -52,10 +52,10 @@ PASS recursive CTE cycle edge rejects malformed cycle dml token
 1 test files, 28 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-recursive-cte-cycle-edge.php
+php lanes/libsqlite/examples/application-select-recursive-cte-cycle-edge.php
 ```
 
 The smoke traverses copied `wp_options` dependency edges with a cycle and

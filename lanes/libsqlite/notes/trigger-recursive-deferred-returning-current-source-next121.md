@@ -8,14 +8,14 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-deferred-returning-current-source-next121.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-deferred-returning-current-source-next121.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-deferred-returning-current-source-next121.php --self-test`
+- `php lanes/libsqlite/examples/application-trigger-recursive-deferred-returning-current-source-next121.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Focused TestRunner result: `1 test files, 55 assertions, 0 failures`.
 
-WordPress smoke: `wordpress-trigger-recursive-deferred-returning-current-source-next121 self-test passed`.
+Application smoke: `application-trigger-recursive-deferred-returning-current-source-next121 self-test passed`.
 
 Status delta: `lane-status.json` `phpPass` increases by the 55 verified focused assertions, from `46412` to `46467`. Mapped upstream coverage is unchanged because this is PHP behavior coverage over an already mapped trigger/FK/RETURNING family, not a newly hydrated Tcl inventory unit.
 

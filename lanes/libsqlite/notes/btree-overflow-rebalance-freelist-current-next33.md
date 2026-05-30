@@ -12,7 +12,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowRebalanceFreelistCurrentNext33Test.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-overflow-rebalance-freelist-current-next33.php`
+- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/application-overflow-rebalance-freelist-current-next33.php`
   - emits the copied `wp_options` overflow-chain allocation summary with
     current/next freelist trunk reuse and pointer-map parent chain evidence.
 

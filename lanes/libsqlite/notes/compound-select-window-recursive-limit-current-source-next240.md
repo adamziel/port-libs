@@ -16,9 +16,9 @@ Behavior added:
 - Cursor validation rejects stale spillover tokens, missing acknowledgements,
   and unexpected acknowledgement values.
 
-WordPress path:
+Application path:
 
-- `wordpress-compound-select-window-recursive-limit-current-source-next240.php`
+- `application-compound-select-window-recursive-limit-current-source-next240.php`
   models copied `wp_options` import previews where a next-source plugin option
   enters the final compound page while current-source recursive/window rows are
   skipped or truncated by the current page boundary.
@@ -28,8 +28,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext240Test.php`
 - Result: `1 test files, 416 assertions, 0 failures`
 - PASS-line delta: `+76`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next240.php --self-test`
-- Result: `wordpress-compound-select-window-recursive-limit-current-source-next240 self-test passed`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next240.php --self-test`
+- Result: `application-compound-select-window-recursive-limit-current-source-next240 self-test passed`
 
 Expected dashboard movement: `phpPass +76` from the new focused test file,
 `120636 -> 120712`. Mapped coverage remains `644 / 1589`; this is

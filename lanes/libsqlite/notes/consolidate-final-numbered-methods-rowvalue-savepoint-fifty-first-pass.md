@@ -8,18 +8,18 @@ variants onto the existing descriptive production entry points on
 - `executeNullInequalityRetrySavepointBatch()`
 - `executeValuesRetrySavepointBatch()`
 
-The three WordPress examples were renamed to stable unsuffixed filenames and
+The three Application examples were renamed to stable unsuffixed filenames and
 their public scenario/self-test labels no longer carry worker-number suffixes.
 No production compatibility shims were added.
 
 Verification:
 
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-fail-rollback-retry-savepoint.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-rollback-retry-savepoint.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-rollback-transaction-savepoint.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-fail-rollback-retry-savepoint.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-rollback-retry-savepoint.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-rollback-transaction-savepoint.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-fail-rollback-retry-savepoint.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-rollback-retry-savepoint.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-rollback-transaction-savepoint.php`
+- `php lanes/libsqlite/examples/application-rowvalue-fail-rollback-retry-savepoint.php`
+- `php lanes/libsqlite/examples/application-rowvalue-rollback-retry-savepoint.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-rollback-transaction-savepoint.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Test.php`
 - `git diff --check -- lanes/libsqlite`
 

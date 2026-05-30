@@ -163,7 +163,7 @@ $cases = [
     'admission digest length' => [static fn (): mixed => strlen($admitted()['admission_digest']), 64],
     'dependency next228' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next228', $admitted()['dependencies'], true), true],
     'dependency barriers' => [static fn (): mixed => in_array('sqlite-durable-checkpoint-source-barriers', $admitted()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-reopened-reader-durable-source', $admitted()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-reopened-reader-durable-source', $admitted()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($admitted()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($admitted()['non_overlap'], 'does not repeat next224 sidecar publication receipts'), true],
     'restart mode' => [static fn (): mixed => $restart()['mode'], 'restart'],

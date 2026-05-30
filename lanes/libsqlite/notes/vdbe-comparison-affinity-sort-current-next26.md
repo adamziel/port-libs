@@ -13,7 +13,7 @@ The implementation adds:
   storage-class, NULL placement, descending, result, and deciding-slot evidence.
 - `SQLiteVdbeSortCompare::sortedRowTrace()` for sorted row order plus stable
   sequence tie evidence used by current/next-style sorter scans.
-- A WordPress smoke for copied option rows sorted by autoload, numeric priority,
+- A Application smoke for copied option rows sorted by autoload, numeric priority,
   RTRIM option names, NULLS LAST, and stable sequence diagnostics.
 
 ## Verification
@@ -27,12 +27,12 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 61 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-vdbe-comparison-affinity-sort-current-next26.php
+$ php lanes/libsqlite/examples/application-vdbe-comparison-affinity-sort-current-next26.php
 {
-    "scenario": "wordpress-vdbe-comparison-affinity-sort-current-next26",
+    "scenario": "application-vdbe-comparison-affinity-sort-current-next26",
     "orderedOptionIds": [
         14,
         13,

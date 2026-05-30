@@ -47,7 +47,7 @@ $plan246 = static fn (
     string $nextSource = 'main.wp_options@246',
     int $currentCookie = 245,
     int $nextCookie = 246,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDynamicEscapeLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationDynamicEscapeLikePlan(
     $current ?? $current246,
     $next ?? $nextTwoFourSix,
     $pattern,

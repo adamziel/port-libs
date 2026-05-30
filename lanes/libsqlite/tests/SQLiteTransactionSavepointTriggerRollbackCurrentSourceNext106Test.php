@@ -135,7 +135,7 @@ $cases = [
     'update rollback updated suppressed' => [static fn (): mixed => $updateRollback()['updated'], []],
     'dependencies include trigger rollback marker' => [static fn (): mixed => in_array('sqlite-trigger-raise-rollback-current-source-next106', $deleteRollback()['dependencies'], true), true],
     'dependencies include savepoint marker' => [static fn (): mixed => in_array('sqlite-savepoint-transaction-current-source-rollback', $deleteRollback()['dependencies'], true), true],
-    'dependencies include wordpress marker' => [static fn (): mixed => in_array('sqlite-wordpress-trigger-rollback-import', $deleteRollback()['dependencies'], true), true],
+    'dependencies include application marker' => [static fn (): mixed => in_array('sqlite-application-trigger-rollback-import', $deleteRollback()['dependencies'], true), true],
 
     'bad savepoint throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows('bad-name', $rows, static fn (): bool => true), InvalidArgumentException::class],
     'bad raise action throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows('ok_name', $rows, static fn (): bool => true, [['timing' => 'before', 'event' => 'delete', 'action' => 'raise', 'raise' => 'abort']]), InvalidArgumentException::class],

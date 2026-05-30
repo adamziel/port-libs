@@ -13,9 +13,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerDeferredViewReturningCurrentSourceNext131Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-deferred-view-returning-current-source-next131.php`
+- `php -l lanes/libsqlite/examples/application-trigger-deferred-view-returning-current-source-next131.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerDeferredViewReturningCurrentSourceNext131Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-deferred-view-returning-current-source-next131.php --self-test`
+- `php lanes/libsqlite/examples/application-trigger-deferred-view-returning-current-source-next131.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: +67 focused PASS lines after integration, with

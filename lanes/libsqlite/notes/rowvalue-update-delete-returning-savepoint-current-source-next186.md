@@ -11,8 +11,8 @@ records an outer current-source update, an attempted inner stream that is
 rolled back, and retry UPDATE/DELETE RETURNING statements that reread the
 inner savepoint image.
 
-WordPress smoke:
-`wordpress-rowvalue-empty-in-savepoint-current-source-next186.php` models a
+Application smoke:
+`application-rowvalue-empty-in-savepoint-current-source-next186.php` models a
 copied `wp_options` cleanup/import retry where plugin-generated empty composite
 key batches must not delete rows for `IN ()`, but `NOT IN ()` retry cleanup
 still selects nullable option tuples after `ROLLBACK TO`.
@@ -23,9 +23,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext186Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-empty-in-savepoint-current-source-next186.php
+php -l lanes/libsqlite/examples/application-rowvalue-empty-in-savepoint-current-source-next186.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext186Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-empty-in-savepoint-current-source-next186.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-empty-in-savepoint-current-source-next186.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 
@@ -36,7 +36,7 @@ savepoint primitives, not a newly hydrated upstream Tcl inventory unit.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing native PHP row-array UPDATE/DELETE RETURNING executor, savepoint
-orchestration pattern, and WordPress smoke infrastructure.
+orchestration pattern, and Application smoke infrastructure.
 
 Non-overlap: avoids accepted next183 nested delete savepoint handling,
 next176 nullable row-value equality/inequality, next172/163 BETWEEN and

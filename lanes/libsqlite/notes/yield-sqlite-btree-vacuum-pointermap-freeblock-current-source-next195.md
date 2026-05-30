@@ -10,9 +10,9 @@ Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext195Plan`, a current-s
   - `1 test files, 950 assertions, 0 failures`
   - 100 PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next195.php`
+- `lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next195.php`
   demonstrates a copied `wp_options`-style leaf page where deleting an obsolete transient creates a secure-delete freeblock, replacement overflow pages are replayed from the current source after pointer-map replay, and truncated overflow tail pages remain omitted from the replay cursor.
 
 ## Non-Overlap

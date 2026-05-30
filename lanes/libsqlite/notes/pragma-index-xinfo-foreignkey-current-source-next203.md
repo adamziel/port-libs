@@ -15,7 +15,7 @@ Behavior:
 - Current/next source IDs include the parent-coverage summary, so pagination
   cursors are rejected when copied schema reparses add or remove usable parent
   UNIQUE coverage.
-- WordPress smoke coverage models a copied taxonomy metadata import whose
+- Application smoke coverage models a copied taxonomy metadata import whose
   current `wp_terms(slug)` UNIQUE key cannot cover `REFERENCES
   wp_terms(slug, locale)`, while the next schema repairs that FK parent key
   with `UNIQUE(slug, locale)`.
@@ -25,8 +25,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 65 assertions, 0 failures`
   - `58` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next203.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next203 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next203.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next203 self-test passed`
 
 Non-overlap:
 

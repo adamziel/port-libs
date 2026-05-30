@@ -6,7 +6,7 @@ This slice adds bounded native PHP execution for SQL-form attached schema lifecy
 - `DETACH [DATABASE] <schema>` removes attached schemas and resequences `PRAGMA database_list` rows.
 - The attach executor accepts bounded string-literal/path file expressions, quoted schema identifiers, and an optional file/schema record loader.
 - Current-source lookup and schema PRAGMAs update immediately after attach/detach, preserving `temp`, `main`, then attached search order.
-- The WordPress smoke demonstrates copied `wp_options` temp shadowing while a site metadata database is attached, introspected, detached, and removed from current-source PRAGMA lookup.
+- The Application smoke demonstrates copied `wp_options` temp shadowing while a site metadata database is attached, introspected, detached, and removed from current-source PRAGMA lookup.
 
 ## Focused Verification
 
@@ -100,8 +100,8 @@ $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentN
 Focused test run: 3 selected test files (root lock skipped)
 3 test files, 212 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-attach-detach-schema-current-next18.php
-WordPress smoke printed attached site/archive database-list and detach results without error.
+$ php lanes/libsqlite/examples/application-attach-detach-schema-current-next18.php
+Application smoke printed attached site/archive database-list and detach results without error.
 
 $ php -l lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php && php -l lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentNext18Test.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php

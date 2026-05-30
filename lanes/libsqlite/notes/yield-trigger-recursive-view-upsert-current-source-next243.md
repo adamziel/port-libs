@@ -4,17 +4,17 @@ Status: focused PHP behavior growth for recursive `INSTEAD OF` view UPSERT curre
 
 This slice adds `SQLiteTriggerRecursiveViewUpsertCurrentSourceNext243Plan`, layered after the accepted next240 current UPSERT receipt admission. It models the remaining current-source boundary where the current view and trigger source cookies must still match the prepared source before attempted next-source rows are published. If a plugin migration reparses the view or its trigger after the current UPSERT receipts but before next-source drain, the current rows remain visible and next rows are held with explicit stale-cookie reasons.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next243.php` models copied `wp_options` imports through an autoloaded-options view trigger. The smoke proves next import rows are published only when current UPSERT receipts and view/trigger source cookies all match.
+Application path: `application-trigger-recursive-view-upsert-current-source-next243.php` models copied `wp_options` imports through an autoloaded-options view trigger. The smoke proves next import rows are published only when current UPSERT receipts and view/trigger source cookies all match.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext243Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext243Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next243.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next243.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext243Test.php`
 - Result: `1 test files, 73 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next243.php --self-test`
-- Result: `wordpress-trigger-recursive-view-upsert-current-source-next243 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next243.php --self-test`
+- Result: `application-trigger-recursive-view-upsert-current-source-next243 self-test passed`
 
 Dashboard delta: `phpPass +73`, from `122940` to `123013`. `benchmarkDenominator.mapped` remains `647 / 1589`; this is additional current-source PHP behavior over already mapped trigger/view/UPSERT inventory.
 

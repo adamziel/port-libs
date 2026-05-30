@@ -11,9 +11,9 @@ expression keys are present in current `sqlite_stat4` samples, sample counters
 remain monotonic, and the sample row payload still evaluates to the expected
 expression key.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next203.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next203.php`
 - status `stat4-expression-partial-current-source-next203-ready`
 - matched rowids `[30, 50, 20, 21, 22]`
 - boundary keys `["plugin_seo", "plugin_forms"]`

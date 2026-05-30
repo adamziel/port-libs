@@ -4,12 +4,12 @@
 
 - Adds `SQLiteBTreeInteriorSplitCurrentNextPlan` for the upstream B-tree split path where a full table-interior current child is split into the current page plus a newly allocated next sibling.
 - The plan materializes current/next page images, inserts the divider key into the parent, preserves parent right-most/current-child shape, and rewrites auto-vacuum pointer-map ownership for the new sibling and moved child pages.
-- The WordPress smoke models a copied `wp_options` table-interior split during an insert/replacement path without requiring ext/sqlite.
+- The Application smoke models a copied `wp_options` table-interior split during an insert/replacement path without requiring ext/sqlite.
 
 ## Focused Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeInteriorSplitCurrentNext35Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-interior-split-current-next35.php`
+- `php lanes/libsqlite/examples/application-btree-interior-split-current-next35.php`
 
 ## Non-overlap
 

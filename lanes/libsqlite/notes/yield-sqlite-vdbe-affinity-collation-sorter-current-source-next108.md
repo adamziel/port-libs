@@ -9,7 +9,7 @@ explicit NULL-placement comparator, then reports ordered row ids, inserted and
 deleted ids, moved ids, stable-tie ids, per-row trace summaries, and support
 dependencies.
 
-The focused WordPress smoke models copied `wp_options` sort output where a
+The focused Application smoke models copied `wp_options` sort output where a
 changed option priority, an inserted plugin option, and a deleted cache option
 must invalidate/re-yield the sorter stream under NOCASE/RTRIM collations,
 numeric affinity, descending site-id tie-breaks, and NULLS LAST behavior.
@@ -20,7 +20,7 @@ numeric affinity, descending site-id tie-breaks, and NULLS LAST behavior.
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 61 assertions, 0 failures`
   - 61 focused PASS lines.
-- `php lanes/libsqlite/examples/wordpress-vdbe-affinity-collation-sorter-current-source-next108.php`
+- `php lanes/libsqlite/examples/application-vdbe-affinity-collation-sorter-current-source-next108.php`
   - emits valid JSON with current/next sorter order, inserted/deleted/moved ids,
     stable ties, changed flag, and dependency tags.
 

@@ -13,7 +13,7 @@ Cleanup performed:
   - `compareRecursiveAffinityWindow()`
   - `compareRecursiveUnionSourceBoundary()`
 - Replaced direct numbered private helpers in the consolidated production class with descriptive unsuffixed helpers.
-- Renamed the two direct focused tests and WordPress examples so this family no longer exposes the worker-number suffixes in production callers.
+- Renamed the two direct focused tests and Application examples so this family no longer exposes the worker-number suffixes in production callers.
 - Confirmed the explicitly banned user-named numbered suffix is absent from the touched production/test/example family.
 
 Verification:
@@ -21,9 +21,9 @@ Verification:
 - `php -l` passed for all changed PHP files.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundRecursiveAffinityWindowTest.php lanes/libsqlite/tests/SQLiteCompoundRecursiveUnionSourceBoundaryTest.php`
   - `2 test files, 391 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-compound-recursive-affinity-window.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-recursive-affinity-window.php --self-test`
   - passed
-- `php lanes/libsqlite/examples/wordpress-compound-recursive-union-source-boundary.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-recursive-union-source-boundary.php --self-test`
   - passed
 
 Dependency closure:

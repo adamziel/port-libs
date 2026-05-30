@@ -5,8 +5,8 @@
 ## Scope
 
 - Added `SQLiteGeneratedColumnDependencyPlan` to parse generated-column expressions from `CREATE TABLE` SQL, collect generated/base-column dependencies, topologically order acyclic generated columns, and report SQLite-shaped dependency loop diagnostics.
-- Covered direct self-reference, indirect generated-column cycles, quoted/bracketed identifiers, function-name disambiguation, stored/virtual storage tags, and an acyclic WordPress-shaped `wp_options` generated-column chain.
-- Added a WordPress smoke that preflights copied `wp_options` generated-column expressions before native import or repair without `ext/sqlite`.
+- Covered direct self-reference, indirect generated-column cycles, quoted/bracketed identifiers, function-name disambiguation, stored/virtual storage tags, and an acyclic Application-shaped `wp_options` generated-column chain.
+- Added a Application smoke that preflights copied `wp_options` generated-column expressions before native import or repair without `ext/sqlite`.
 
 ## Verification
 

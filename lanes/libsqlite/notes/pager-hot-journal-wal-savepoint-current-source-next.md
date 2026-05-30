@@ -12,11 +12,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 75 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-hot-journal-wal-savepoint-current-source-next124.php --self-test
-wordpress-pager-hot-journal-wal-savepoint-current-source-next124 self-test passed
+php lanes/libsqlite/examples/application-pager-hot-journal-wal-savepoint-current-source-next124.php --self-test
+application-pager-hot-journal-wal-savepoint-current-source-next124 self-test passed
 ```
 
 Dashboard delta: `phpPass` increases by the verified 75 focused PASS lines, from `49426` to `49501`. Mapped upstream coverage remains conservative at `606 / 1589`; this is behavior-backed focused PHP coverage over the existing pager/WAL savepoint inventory rather than a new manifest-denominator row.

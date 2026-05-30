@@ -22,16 +22,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 50 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-recursive-json-window-current-next50.php --self-test
+php lanes/libsqlite/examples/application-select-recursive-json-window-current-next50.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-select-recursive-json-window-current-next50 self-test passed
+application-select-recursive-json-window-current-next50 self-test passed
 ```
 
 ## Status Delta

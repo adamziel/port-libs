@@ -6,7 +6,7 @@ This batch adds bounded parser-level `FROM (SELECT ...) AS alias` and
 `WITH ... SELECT` derived-table source support to `SQLiteSelectSql`. Derived
 tables materialize through the existing SELECT executor, accept optional column
 alias lists, and participate in joins, GROUP BY/HAVING, CTE bodies, scalar
-subquery contexts, compound rows, ORDER BY, LIMIT/OFFSET, and WordPress import
+subquery contexts, compound rows, ORDER BY, LIMIT/OFFSET, and Application import
 staging summaries without ext/sqlite.
 
 ## Focused Evidence
@@ -15,10 +15,10 @@ staging summaries without ext/sqlite.
   passed `1 test files, 47 assertions, 0 failures`.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectSqlDerivedTableCurrentNext24Test.php`
   passed `1 test files, 60 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-select-sql-derived-table.php`
+- `php lanes/libsqlite/examples/application-select-sql-derived-table.php`
   reported the ordered derived option rows `home:29`, `siteurl:24`, and
   `theme_mods:16`.
-- `php lanes/libsqlite/examples/wordpress-select-sql-derived-import.php --self-test`
+- `php lanes/libsqlite/examples/application-select-sql-derived-import.php --self-test`
   reported copied `wp_options` import rows staged through derived tables,
   including update/insert distinction and UNION ALL ordering behavior.
 
@@ -33,7 +33,7 @@ upstream inventory units.
 
 This avoids accepted single-table SELECT SQL text, JSON table cursor/constraint
 behavior, rollback/VFS writer paths, B-tree page moves/root collapse, Unicode
-GLOB, and batch21 WordPress import transaction planning. The new behavior is
+GLOB, and batch21 Application import transaction planning. The new behavior is
 specifically parenthesized derived SELECT sources in `FROM` and joined source
 positions.
 

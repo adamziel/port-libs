@@ -2,7 +2,7 @@
 
 Prepares the attach/TEMP/WAL schema-cache handoff after next157-160:
 
-- next161 covers a TEMP schema write creating `wp_options`, so an unqualified WordPress options reader moves from `main` to TEMP on reprepare;
+- next161 covers a TEMP schema write creating `wp_options`, so an unqualified Application options reader moves from `main` to TEMP on reprepare;
 - next162 covers `DETACH` of an archive schema expiring a qualified archive terms reader;
 - next163 covers a committed WAL schema change that creates `main.wp_comments` and resolves a previously missing qualified reader;
 - next164 covers an active attached-schema `INDEXED BY` reader whose current snapshot can finish after the attached index is renamed.
@@ -13,11 +13,11 @@ Focused checks:
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext157160Test.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext161164Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next157-160.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next161-164.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next157-160.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next161-164.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext157160Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext161164Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next157-160.php --self-test
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next161-164.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next157-160.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next161-164.php --self-test
 git diff --check
 ```
 

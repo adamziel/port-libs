@@ -8,8 +8,8 @@ Behavior:
 - Treats UTF-16LE/UTF-16BE token byte-order changes as byte-only reprepare when the decoded token key and rowid are unchanged, so a copied `wp_options` scan can continue after the saved key instead of restarting the range.
 - Still forces range restart when token text/rowid changes, source/schema invalidation is semantic, a new row enters before the token, or malformed current/next text appears.
 
-WordPress smoke:
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-resume-token-current-source-next.php --self-test`
+Application smoke:
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-resume-token-current-source-next.php --self-test`
 
 Focused verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextTest.php`

@@ -8,7 +8,7 @@ Implemented:
 - Dependent view SQL is rewritten while preserving the view object's own `tbl_name`, string literals, comments, and unrelated schema rows.
 - Dependent trigger SQL rewrites the trigger target plus body table references, updates the trigger `tbl_name`, and preserves string literals.
 - The operation now reports `rewritten_records` and `dependent_reparse_count` for integration evidence.
-- Added a WordPress smoke for a copied `wp_options` rename that reparses an autoloaded-options view and insert trigger before invalidating prepared statements.
+- Added a Application smoke for a copied `wp_options` rename that reparses an autoloaded-options view and insert trigger before invalidating prepared statements.
 
 Focused verification:
 
@@ -22,8 +22,8 @@ $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaDdlReparseCurrentNex
 Focused test run: 3 selected test files (root lock skipped)
 3 test files, 247 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-schema-alter-reparse-view-trigger-current-source-next125.php --self-test
-wordpress-schema-alter-reparse-view-trigger-current-source-next125 self-test passed
+$ php lanes/libsqlite/examples/application-schema-alter-reparse-view-trigger-current-source-next125.php --self-test
+application-schema-alter-reparse-view-trigger-current-source-next125 self-test passed
 ```
 
 Dashboard delta:

@@ -1,6 +1,6 @@
 # WAL Recovery Checkpoint Savepoint Current Source Next100
 
-This slice adds a bounded planner for a WAL recovery edge used by WordPress import retries:
+This slice adds a bounded planner for a WAL recovery edge used by Application import retries:
 
 - recover the current WAL source to the last committed prefix when a valid uncommitted frame is followed by a corrupt tail frame;
 - run savepoint rollback against that recovered committed prefix, not the stale original WAL bytes;
@@ -10,7 +10,7 @@ This slice adds a bounded planner for a WAL recovery edge used by WordPress impo
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalRecoveryCheckpointSavepointCurrentSourceNext100Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-recovery-checkpoint-savepoint-current-source-next100.php`
+- `php lanes/libsqlite/examples/application-wal-recovery-checkpoint-savepoint-current-source-next100.php`
 - `php -l` on changed PHP files
 - `git diff --check -- lanes/libsqlite`
 

@@ -11,7 +11,7 @@ Validation:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext374Test.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext382Test.php`
 - `git diff --check`
 
-Examples: no separate WordPress self-test is present for the consolidated next367-374/next375-382 pager slice; coverage is the focused PHP test fixture.
+Examples: no separate Application self-test is present for the consolidated next367-374/next375-382 pager slice; coverage is the focused PHP test fixture.
 
 Non-overlap: builds only on accepted next367-374 statement/runtime reader-cache fences. It does not repeat rollback-journal apply, WAL checkpoint/savepoint, VFS writer/sync/lock, B-tree, JSON, SQL executor, PRAGMA schema, or unrelated planner behavior.
 

@@ -13,9 +13,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-covering-expression-stat4-current-source-next122.php`
+- `php -l lanes/libsqlite/examples/application-covering-expression-stat4-current-source-next122.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Test.php`
-- `php lanes/libsqlite/examples/wordpress-covering-expression-stat4-current-source-next122.php --self-test`
+- `php lanes/libsqlite/examples/application-covering-expression-stat4-current-source-next122.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: +72 focused PASS lines in a new lane-scoped test

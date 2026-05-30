@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for WAL reader checkpoint restart current-source validation.
 
-This slice adds `SQLiteWal::checkpointReaderRestartCurrentSourceNext()` for the WAL checkpoint restart boundary where a current SHM reader pins an older snapshot, another reader pins the latest commit, and the final retry can restart or truncate the WAL only after all read marks release. The new wrapper validates the raw current WAL sidecar bytes against the parsed WAL source before trusting SHM restart state, then reports current/next/final source provenance for copied WordPress database diagnostics.
+This slice adds `SQLiteWal::checkpointReaderRestartCurrentSourceNext()` for the WAL checkpoint restart boundary where a current SHM reader pins an older snapshot, another reader pins the latest commit, and the final retry can restart or truncate the WAL only after all read marks release. The new wrapper validates the raw current WAL sidecar bytes against the parsed WAL source before trusting SHM restart state, then reports current/next/final source provenance for copied Application database diagnostics.
 
 Focused evidence:
 
@@ -17,8 +17,8 @@ Additional verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointRestartCurrentSourceNext89Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-restart-current-source-next89.php
-php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-restart-current-source-next89.php --self-test
+php -l lanes/libsqlite/examples/application-wal-reader-checkpoint-restart-current-source-next89.php
+php lanes/libsqlite/examples/application-wal-reader-checkpoint-restart-current-source-next89.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

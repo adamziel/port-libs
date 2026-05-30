@@ -23,11 +23,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblo
 # 141 PASS lines
 ```
 
-WordPress smoke passed locally:
+Application smoke passed locally:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next231.php
-# wordpress-btree-vacuum-pointermap-freeblock-current-source-next231 self-test passed
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next231.php
+# application-btree-vacuum-pointermap-freeblock-current-source-next231 self-test passed
 ```
 
 The lane-status `phpPass` delta is +141, from the accepted batch200 baseline

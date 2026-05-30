@@ -10,8 +10,8 @@ tuple list is accepted. SQLite treats `(a,b) IN ()` as false and
 savepoint suppression of attempted rows, and retry statements that read from
 the restored current source.
 
-WordPress smoke:
-`wordpress-rowvalue-empty-in-savepoint-current-source-next188.php --self-test`
+Application smoke:
+`application-rowvalue-empty-in-savepoint-current-source-next188.php --self-test`
 models copied `wp_options` cleanup where an empty candidate tuple list deletes
 no rows, a speculative `NOT IN ()` update is rolled back, and retry cleanup
 deletes non-autoloaded rows before updating the remaining autoloaded options.
@@ -22,9 +22,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-empty-in-savepoint-current-source-next188.php
+php -l lanes/libsqlite/examples/application-rowvalue-empty-in-savepoint-current-source-next188.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-empty-in-savepoint-current-source-next188.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-empty-in-savepoint-current-source-next188.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

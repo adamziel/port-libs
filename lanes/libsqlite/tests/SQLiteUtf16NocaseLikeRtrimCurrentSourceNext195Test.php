@@ -48,7 +48,7 @@ $plan195 = static fn (
     string $nextSource = 'main.wp_options@195',
     int $currentCookie = 194,
     int $nextCookie = 195,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedLiteralTailPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedLiteralTailPlan(
     $current ?? $current195,
     $next ?? $nextOneNineFive,
     $pattern,
@@ -148,7 +148,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineFive stable exact lite
         $row195(2, 'PLUGIN_%_CACHE  ', 'UTF-16BE'),
         $row195(3, 'plugin_%_cache_alpha', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedLiteralTailPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedLiteralTailPlan(
         $rows,
         $rows,
         'plugin!_!%!_cache',
@@ -174,7 +174,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineFive demoted exact row
         $row195(1, 'plugin_%_cache_more', 'UTF-16LE'),
         $row195(2, 'PLUGIN_%_CACHE', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedLiteralTailPlan($current, $next, 'plugin!_!%!_cache', '!', 'same', 'same', 1, 1);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedLiteralTailPlan($current, $next, 'plugin!_!%!_cache', '!', 'same', 'same', 1, 1);
     $t->same([1, 2], $result['currentMatchedRowids']);
     $t->same([2], $result['nextMatchedRowids']);
     $t->same([1], $result['matchedDemotedToFalsePositiveRowids']);
@@ -201,7 +201,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineFive unescaped wildcar
 $tests['utf16 nocase like rtrim current source nextOneNineFive malformed row is isolated'] = static function (TestRunner $t) use ($current195, $nextOneNineFive): void {
     $badCurrent = array_merge($current195, [['option_id' => 11, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2]]);
     $badNext = array_merge($nextOneNineFive, [['option_id' => 12, 'option_name_bytes' => "x\0y", 'text_encoding' => 2]]);
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedLiteralTailPlan($badCurrent, $badNext);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedLiteralTailPlan($badCurrent, $badNext);
     $t->same([11], $result['currentMalformedRowids']);
     $t->same([12], $result['nextMalformedRowids']);
     $t->same('SQLite encoding source UTF-16 text payload ends with a high surrogate', $result['currentErrors'][11]);

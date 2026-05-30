@@ -5,8 +5,8 @@ the `1049-1064` range away from direct numbered test and example names:
 
 - Renamed the focused test to
   `SQLiteJsonTableGeneratedPathRowidCostSelectionReplayTest.php`.
-- Renamed the WordPress smoke to
-  `wordpress-json-table-generated-path-rowid-cost-selection-replay.php`.
+- Renamed the Application smoke to
+  `application-json-table-generated-path-rowid-cost-selection-replay.php`.
 - Updated both direct callers to use the canonical
   `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionPlan()`
   entry point and stable cost-selection result keys instead of numbered alias
@@ -15,10 +15,10 @@ the `1049-1064` range away from direct numbered test and example names:
 Verification:
 
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostSelectionReplayTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-selection-replay.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-selection-replay.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostSelectionReplayTest.php`
   - `1 test files, 9 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-selection-replay.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-selection-replay.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. This pass reuses the

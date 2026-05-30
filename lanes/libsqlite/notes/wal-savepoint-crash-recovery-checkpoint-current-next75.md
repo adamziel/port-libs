@@ -2,9 +2,9 @@
 
 This slice adds `SQLiteWalSavepointCheckpointPlan::crashRecoveryCurrentNextAfterRollbackTo()` for the WAL path where `ROLLBACK TO` first discards savepoint frames and a restart/truncate checkpoint then crashes before or after WAL sidecar persistence. The planner checkpoints only the retained WAL prefix, reports current-reader versus next-opener visibility, and proves discarded savepoint frames are not recovered even when the discarded tail contains corrupt bytes.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-wal-savepoint-crash-recovery-checkpoint-current-next75.php` models a copied `wp_options` plugin import where failed savepoint frames for `active_plugins` and a transient row are rolled back before checkpoint crash recovery.
+- `lanes/libsqlite/examples/application-wal-savepoint-crash-recovery-checkpoint-current-next75.php` models a copied `wp_options` plugin import where failed savepoint frames for `active_plugins` and a transient row are rolled back before checkpoint crash recovery.
 
 Focused evidence:
 
@@ -15,8 +15,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteWalSavepointCheckpointPla
 php -l lanes/libsqlite/tests/SQLiteWalSavepointCrashRecoveryCheckpointCurrentNext75Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteWalSavepointCrashRecoveryCheckpointCurrentNext75Test.php
 
-php -l lanes/libsqlite/examples/wordpress-wal-savepoint-crash-recovery-checkpoint-current-next75.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-wal-savepoint-crash-recovery-checkpoint-current-next75.php
+php -l lanes/libsqlite/examples/application-wal-savepoint-crash-recovery-checkpoint-current-next75.php
+No syntax errors detected in lanes/libsqlite/examples/application-wal-savepoint-crash-recovery-checkpoint-current-next75.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointCrashRecoveryCheckpointCurrentNext75Test.php
 Focused test run: 1 selected test files (root lock skipped)

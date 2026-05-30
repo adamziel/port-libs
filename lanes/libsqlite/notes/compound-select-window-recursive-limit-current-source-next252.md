@@ -2,17 +2,17 @@
 
 Status: focused PHP behavior growth for current-source compound SELECTs whose final limited page must be yield-acknowledged before a next source can publish rows.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next249 promotion epochs. The new final-page yield watermark binds current and next limited rows to the promotion epoch, recursive lineage token, window metric token, and current-only/next-only label delta before a copied WordPress `wp_options` row can cross the final compound page.
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next249 promotion epochs. The new final-page yield watermark binds current and next limited rows to the promotion epoch, recursive lineage token, window metric token, and current-only/next-only label delta before a copied Application `wp_options` row can cross the final compound page.
 
-WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next252.php` models copied autoloaded options where `plugin_prime` enters the final `UNION ALL` / `INTERSECT` / `EXCEPT` page only after the current page token, next page token, recursive lineage token, and window metric token are acknowledged together.
+Application path: `application-compound-select-window-recursive-limit-current-source-next252.php` models copied autoloaded options where `plugin_prime` enters the final `UNION ALL` / `INTERSECT` / `EXCEPT` page only after the current page token, next page token, recursive lineage token, and window metric token are acknowledged together.
 
 Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext252Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next252.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next252.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext252Test.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next252.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next252.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +80` from focused lane-local PASS lines. Mapped upstream coverage remains `663 / 1589`; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory.

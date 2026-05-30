@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWordPressJsonSchemaWalPlan;
+use PortLibs\LibSqlite\SQLiteJsonSchemaWalPlan;
 
 $tests = [];
 
@@ -67,7 +67,7 @@ $importRows = static fn (): array => [
     ['option_name' => 'blog_public', 'option_value' => '0', 'autoload' => 'no'],
 ];
 $jsonNames = ['plugin_json_settings', 'theme_mods_twentytwentyfour', 'broken_plugin_json'];
-$plan = static fn (): array => SQLiteWordPressJsonSchemaWalPlan::currentNext(
+$plan = static fn (): array => SQLiteJsonSchemaWalPlan::currentNext(
     $baseWal(),
     $databaseBytes,
     $databasePath,
@@ -82,7 +82,7 @@ $nextWal = static fn (): SQLiteWal => SQLiteWal::parse($plan()['wal_import']['ap
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'planned'],
-    'reason' => [static fn (): mixed => $plan()['reason'], 'wordpress_json_schema_wal_current_next'],
+    'reason' => [static fn (): mixed => $plan()['reason'], 'application_json_schema_wal_current_next'],
     'database path' => [static fn (): mixed => $plan()['database_path'], $databasePath],
     'wal path' => [static fn (): mixed => $plan()['wal_path'], $databasePath . '-wal'],
     'schema object names' => [static fn (): mixed => $plan()['schema_object_names'], ['wp_options', 'wp_options_autoload_name', 'wp_options_option_name', 'wp_json_options']],
@@ -123,8 +123,8 @@ $cases = [
     'wal page rejected value absent' => [static fn (): mixed => !str_contains($plan()['wal_import']['append']['wal_bytes'], 'broken_plugin_json'), true],
     'wal autoload index excludes json settings' => [static fn (): mixed => !str_contains($plan()['wal_import']['next_reader'][4]['image'], 'plugin_json_settings'), true],
     'dependency has schema bulk import' => [static fn (): mixed => in_array('sqlite-schema-bulk-import', $plan()['dependencies'], true), true],
-    'dependency has wal import' => [static fn (): mixed => in_array('wordpress-options-wal-import-current-next', $plan()['dependencies'], true), true],
-    'dependency has current slice' => [static fn (): mixed => in_array('wordpress-json-schema-wal-current-next', $plan()['dependencies'], true), true],
+    'dependency has wal import' => [static fn (): mixed => in_array('application-options-wal-import-current-next', $plan()['dependencies'], true), true],
+    'dependency has current slice' => [static fn (): mixed => in_array('application-json-schema-wal-current-next', $plan()['dependencies'], true), true],
     'next wal frame count' => [static fn (): mixed => $nextWal()->frameCount(), 7],
     'next wal last commit' => [static fn (): mixed => $nextWal()->lastCommitFrame()?->index, 7],
     'next wal uncommitted count' => [static fn (): mixed => $nextWal()->uncommittedFrameCount(), 0],
@@ -143,17 +143,17 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wordpress json schema wal current next43 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application json schema wal current next43 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
-$tests['wordpress json schema wal current next43 rejects invalid inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $schemaSql, $currentRows, $importRows, $jsonNames): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, 'CREATE TABLE wp_posts(id INTEGER);', $currentRows(), $importRows(), [2], $jsonNames));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), $importRows(), [2], []));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), $importRows(), [2], ['']));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), [['option_name' => 'broken_plugin_json', 'option_value' => '{"bad":']], [2], ['broken_plugin_json']));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), [['option_name' => '', 'option_value' => '{}']], [2], $jsonNames));
+$tests['application json schema wal current next43 rejects invalid inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $schemaSql, $currentRows, $importRows, $jsonNames): void {
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, 'CREATE TABLE wp_posts(id INTEGER);', $currentRows(), $importRows(), [2], $jsonNames));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), $importRows(), [2], []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), $importRows(), [2], ['']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), [['option_name' => 'broken_plugin_json', 'option_value' => '{"bad":']], [2], ['broken_plugin_json']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonSchemaWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $schemaSql, $currentRows(), [['option_name' => '', 'option_value' => '{}']], [2], $jsonNames));
 };
 
 return $tests;

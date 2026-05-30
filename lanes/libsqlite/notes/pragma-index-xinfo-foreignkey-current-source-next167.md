@@ -1,7 +1,7 @@
 # PRAGMA index_xinfo / foreign_key_list Current-Source Next167
 
 - Adds a bounded current-source helper for PRAGMA `index_xinfo` plus derived PRAGMA `foreign_key_list` diagnostics that preserves upstream `on_update`, `on_delete`, and `match` metadata.
-- WordPress smoke: copied `wp_options` rows repaired in the next source now report FK action changes alongside existing casefolded table/column handling and FK violation clearance.
+- Application smoke: copied `wp_options` rows repaired in the next source now report FK action changes alongside existing casefolded table/column handling and FK violation clearance.
 - Non-overlap: reuses accepted next156/next161/next164 pagination, implicit-parent, and casefolding behavior; this slice only adds action/match metadata and action-change summaries.
 - Dependency closure: no new support component is needed; existing `SQLitePragmaSchemaCatalog`, FK check, and `index_xinfo` helpers are reused.
 

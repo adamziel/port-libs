@@ -9,7 +9,7 @@ This slice adds current/next JSON table planner metadata for constraint cost and
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableConstraintCostOrderCurrentSourceNext113Test.php`
 - Result: `1 test files, 58 assertions, 0 failures`
 - Focused PASS-line delta: `+58`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-constraint-cost-order-current-source-next113.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-constraint-cost-order-current-source-next113.php --self-test`
 - Root harness: not run - isolated micro-slice
 
 ## Non-Overlap

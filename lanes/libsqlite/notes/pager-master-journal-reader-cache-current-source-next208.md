@@ -10,11 +10,11 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext208Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext208Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next208.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next208.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext208Test.php`
   - `1 test files, 55 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next208.php --self-test`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next208 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next208.php --self-test`
+  - `application-pager-master-journal-reader-cache-current-source-next208 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard delta: `phpPass` increases by 55 focused PASS lines, from

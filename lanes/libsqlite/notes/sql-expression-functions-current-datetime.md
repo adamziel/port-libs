@@ -13,8 +13,8 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectSqlCoreScalarFunctionCorpusTest.php`
   - `1 test files, 72 assertions, 0 failures`
   - New focused delta: `+20` PASS cases over the existing 52-case scalar corpus.
-- `php lanes/libsqlite/examples/wordpress-select-sql-datetime-functions.php --self-test`
-  - `wordpress-select-sql-datetime-functions self-test passed`
+- `php lanes/libsqlite/examples/application-select-sql-datetime-functions.php --self-test`
+  - `application-select-sql-datetime-functions self-test passed`
 
 ## Non-Overlap
 

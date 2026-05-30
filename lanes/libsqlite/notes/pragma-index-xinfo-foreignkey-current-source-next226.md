@@ -13,7 +13,7 @@ Behavior:
   `PRAGMA foreign_key_list` output and the schema table catalog.
 - Tracks current/next counts, repaired deltas, source hashes, pagination, and
   stale cursor rejection.
-- Adds a WordPress taxonomy relationship smoke where the next copied catalog
+- Adds a Application taxonomy relationship smoke where the next copied catalog
   restores `wp_term_taxonomy` and `wp_network_terms` before FK repair proceeds.
 
 Evidence:
@@ -21,8 +21,8 @@ Evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 57 assertions, 0 failures`
   - `47` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next226.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next226 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next226.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next226 self-test passed`
 
 Non-overlap:
 

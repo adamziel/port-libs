@@ -2,18 +2,18 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a reopened-reader ticket fence after accepted next227 publish receipts. It verifies each reopened reader has advanced to the next-source epoch, checkpoint frame/cookie, schema cookie, published page digests, and cannot still see the hot journal or a WAL tail hidden by the checkpoint.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next230.php` models copied `wp_options` import readers reopening only after the hot-journal/savepoint checkpoint is sealed and stale WAL tail visibility is fenced.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next230.php` models copied `wp_options` import readers reopening only after the hot-journal/savepoint checkpoint is sealed and stale WAL tail visibility is fenced.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next230.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next230.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next230.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next230.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

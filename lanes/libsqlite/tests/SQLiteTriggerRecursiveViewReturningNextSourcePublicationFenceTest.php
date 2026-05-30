@@ -154,7 +154,7 @@ $cases178 = [
     'dependency includes next178' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next178', $release178()['dependencies_next178'], true), true],
     'dependency includes snapshot fence' => [static fn (): mixed => in_array('sqlite-returning-current-source-snapshot-token-fence', $release178()['dependencies_next178'], true), true],
     'dependency includes schema fence' => [static fn (): mixed => in_array('sqlite-returning-view-schema-cookie-fence', $release178()['dependencies_next178'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next178', $release178()['dependencies_next178'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next178', $release178()['dependencies_next178'], true), true],
     'non overlap note names next175' => [static fn (): mixed => str_contains($release178()['non_overlap_next178'], 'next175 savepoint fencing'), true],
 
     'bad snapshot token throws' => [static fn (): mixed => $plan178(['snapshot_token' => 'bad token']), InvalidArgumentException::class],

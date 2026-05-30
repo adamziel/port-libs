@@ -33,7 +33,7 @@ $nextOneSixSeven = [
     ['option_id' => 10, 'option_name_bytes' => "x\0y", 'text_encoding' => 2],
 ];
 
-$plan167 = static fn (?array $current = null, ?array $next = null, string $pattern = 'éclair%', ?string $escape = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan(
+$plan167 = static fn (?array $current = null, ?array $next = null, string $pattern = 'éclair%', ?string $escape = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFallbackPlan(
     $current ?? $current167,
     $next ?? $nextOneSixSeven,
     $pattern,
@@ -139,7 +139,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixSeven escaped wildcard 
         $row167(2, 'éclair_admin_cache', 2),
         $row167(3, 'éclair_%cache  ', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFallbackPlan(
         $rows,
         $rows,
         'éclair!_!%cache',
@@ -162,7 +162,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixSeven ascii prefix stil
         $row167(2, 'Plugin_Cache', 3),
         $row167(3, 'theme_cache', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFallbackPlan(
         $rows,
         $rows,
         'plugin%',
@@ -181,7 +181,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixSeven ascii prefix stil
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixSeven rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan([['option_id' => 1, 'text_encoding' => 2]], [], 'éclair%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFallbackPlan([['option_id' => 1, 'text_encoding' => 2]], [], 'éclair%'));
 };
 
 return $tests;

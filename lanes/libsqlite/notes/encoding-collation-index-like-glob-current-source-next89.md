@@ -11,10 +11,10 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationIndexLikeGlobCurrentSourceNext89Test.php`
   - `1 test files, 75 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-encoding-collation-index-like-glob-current-source-next89.php --self-test`
-  - `wordpress-encoding-collation-index-like-glob-current-source-next89 self-test passed`
+- `php lanes/libsqlite/examples/application-encoding-collation-index-like-glob-current-source-next89.php --self-test`
+  - `application-encoding-collation-index-like-glob-current-source-next89 self-test passed`
 
 Non-overlap:
 

@@ -19,7 +19,7 @@ Behavior covered:
 - preserves inherited `index_xinfo`, `foreign_key_list`, parent expression
   UNIQUE, exact arity, collation, and pagination behavior.
 
-WordPress relevance:
+Application relevance:
 
 Copied taxonomy/import schemas can retain mixed-case quoted identifiers from
 export tools. SQLite still resolves parent-key columns case-insensitively, so
@@ -31,12 +31,12 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next236.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next236.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 69 assertions, 0 failures`
   - `54` PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next236.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next236 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next236.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next236 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +54`; mapped upstream coverage unchanged.

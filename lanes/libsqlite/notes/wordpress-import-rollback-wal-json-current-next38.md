@@ -1,10 +1,10 @@
-# yield-sqlite-wordpress-import-rollback-wal-json-current-next38
+# yield-sqlite-application-import-rollback-wal-json-current-next38
 
 2026-05-27 isolated libsqlite slice.
 
 ## Behavior
 
-Adds `SQLiteWordPressJsonImportRollbackWalPlan`, a bounded WordPress import
+Adds `SQLiteJsonImportRollbackWalPlan`, a bounded Application import
 rollback planner that wraps the existing JSON import savepoint plan and applies
 current-batch rollback semantics to both database bytes and WAL bytes. When a
 JSON mutation in a copied `wp_options` import batch fails, the planner restores
@@ -21,7 +21,7 @@ page-move/freeblock work.
 Focused command:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressImportRollbackWalJsonCurrentNext38Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteImportRollbackWalJsonCurrentNext38Test.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 50 assertions, 0 failures
@@ -30,7 +30,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-import-rollback-wal-json-current-next38.php
+php lanes/libsqlite/examples/application-import-rollback-wal-json-current-next38.php
 {
     "status": "rolled_back_current_json_batch",
     "failed_statements": [

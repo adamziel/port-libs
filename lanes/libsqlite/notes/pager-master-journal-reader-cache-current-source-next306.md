@@ -9,13 +9,13 @@ It adds four current-source pager-state fences:
 - next305: reader-cache query-only token
 - next306: reader-cache foreign-key token
 
-Reader-cache pages that pass the accepted next302 mmap-size fence still reopen when any of these pager configuration tokens predates the recovered master-journal current source. Next-read tickets are checked independently so a cache page can remain current while an older reader ticket still forces a reopen before WordPress option/user reads continue.
+Reader-cache pages that pass the accepted next302 mmap-size fence still reopen when any of these pager configuration tokens predates the recovered master-journal current source. Next-read tickets are checked independently so a cache page can remain current while an older reader ticket still forces a reopen before Application option/user reads continue.
 
 Validation:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext306Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next306.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next306.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext306Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next306.php --self-test`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next306.php --self-test`
 - `git diff --check`

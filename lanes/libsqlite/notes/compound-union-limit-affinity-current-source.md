@@ -1,6 +1,6 @@
 # compound-union-limit-affinity-current-source
 
-Status: focused PHP behavior growth for parser-level compound `UNION` duplicate elimination before final `ORDER BY` / `LIMIT` / `OFFSET` at a WordPress copied `wp_options` current/next boundary.
+Status: focused PHP behavior growth for parser-level compound `UNION` duplicate elimination before final `ORDER BY` / `LIMIT` / `OFFSET` at a Application copied `wp_options` current/next boundary.
 
 This slice now uses the canonical `SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareUnionLimitAffinity()` entry point. The old worker-numbered public method and private helper names were consolidated into stable descriptive names, and the direct test/example filenames were renamed to remove the numeric suffix.
 
@@ -17,10 +17,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundUnionLimitAffinityCu
 
 Expected dashboard movement: `phpPass +53` from the new focused test file. `benchmarkDenominator.mapped` remains unchanged; this reuses already mapped compound SELECT, affinity, ORDER BY, LIMIT/OFFSET, and current-source inventory rather than claiming a fresh upstream manifest row.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-compound-union-limit-affinity-current-source.php
+php lanes/libsqlite/examples/application-compound-union-limit-affinity-current-source.php
 ```
 
 Non-overlap: avoids accepted compound row composition, compound ORDER/LIMIT next110, recursive LIMIT next117, recursive affinity next120, compound values/name-resolution next121/123/127, correlated/window compound next124/126/128/129/131/132/133/134/135/136/137/138/139/140/141/142, SELECT SQL text/JOIN/GROUP/subquery/expression ORDER/comma LIMIT, JSON table source/cursor/constraint work, VFS/WAL/B-tree clusters, and encoding-only LIKE/GLOB/collation work. The narrower surface is non-recursive `UNION` numeric-vs-text duplicate affinity feeding a post-compound LIMIT/OFFSET current/next boundary.

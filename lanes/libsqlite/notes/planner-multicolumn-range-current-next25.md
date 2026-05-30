@@ -10,7 +10,7 @@ This slice adds bounded planner evidence for SQLite multicolumn index range beha
 - row estimates are reduced by the equality prefix plus the current range only;
 - ORDER BY compatibility is reported from the equality prefix/current range ordering.
 
-The WordPress smoke uses `wp_options(blog_id, option_name, autoload)` to model multisite option scans where `blog_id = ?` and `option_name >= ?` bound the index walk while an `autoload` range remains a post-scan filter.
+The Application smoke uses `wp_options(blog_id, option_name, autoload)` to model multisite option scans where `blog_id = ?` and `option_name >= ?` bound the index walk while an `autoload` range remains a post-scan filter.
 
 ## Evidence
 

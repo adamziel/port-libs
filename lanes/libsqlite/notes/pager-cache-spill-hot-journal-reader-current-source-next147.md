@@ -4,14 +4,14 @@ Status: focused PHP behavior growth for `pager-cache-spill-hot-journal-reader-cu
 
 This slice adds `SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan`. It composes hot rollback-journal recovery, current WAL reader snapshots, restarted next-generation WAL parsing, and WAL-mode dirty cache-spill routing. Cache pages are admitted only when their current image matches the pinned hot-journal reader source; reader-pinned pages, stale hot-source pages, and next-generation WAL cache images are deferred before the spill appends new WAL frames.
 
-WordPress smoke: `wordpress-pager-cache-spill-hot-journal-reader-current-source-next147.php` models a copied `wp_options` import retry where a hot rollback journal restores database pages, a current reader remains pinned to the recovered WAL source, and retry cache pages spill only after stale or reader-pinned pages are excluded.
+Application smoke: `application-pager-cache-spill-hot-journal-reader-current-source-next147.php` models a copied `wp_options` import retry where a hot rollback journal restores database pages, a current reader remains pinned to the recovered WAL source, and retry cache pages spill only after stale or reader-pinned pages are excluded.
 
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Test.php`
 - Result: `1 test files, 89 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-cache-spill-hot-journal-reader-current-source-next147.php --self-test`
-- Result: `wordpress-pager-cache-spill-hot-journal-reader-current-source-next147 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-cache-spill-hot-journal-reader-current-source-next147.php --self-test`
+- Result: `application-pager-cache-spill-hot-journal-reader-current-source-next147 self-test passed`
 
 Expected dashboard movement: `phpPass` +89, from `64992` to `65081`, from the independent PASS lines in the focused test. Mapped upstream coverage remains `606 / 1589`; this is focused pager/WAL behavior over already mapped hot-journal, reader, and cache-spill inventory rather than a fresh upstream denominator row.
 

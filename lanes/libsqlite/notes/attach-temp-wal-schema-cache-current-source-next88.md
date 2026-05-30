@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for parser-level prepared statement schema-c
 
 This slice adds bracket-quoted SQLite identifier support to the bounded schema-cache SQL extractor used by ATTACH/temp/WAL current-source prepared statement lifecycle planning. Prepared statements such as `SELECT ... FROM [main].[wp_options]`, `INSERT INTO [temp].[wp_options_stage]`, and `DELETE FROM [archive].[wp_options]` now normalize to the same schema/table names as bare or double-quoted identifiers before current/next schema-cookie and object-list comparison.
 
-WordPress relevance: copied WordPress migration and plugin-cache SQL often preserves bracket-quoted identifiers from admin/export tools. The smoke shows bracket-quoted main, temp, and attached `wp_options` statements expiring or staying reusable after WAL-backed schema writes, temp DDL shadowing, attached archive schema changes, and rollback.
+Application relevance: copied Application migration and plugin-cache SQL often preserves bracket-quoted identifiers from admin/export tools. The smoke shows bracket-quoted main, temp, and attached `wp_options` statements expiring or staying reusable after WAL-backed schema writes, temp DDL shadowing, attached archive schema changes, and rollback.
 
 Verification:
 
@@ -22,11 +22,11 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteAttachTempMainWalSchemaCa
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext88Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext88Test.php
 
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next88.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next88.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next88.php
+No syntax errors detected in lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next88.php
 
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next88.php --self-test
-wordpress-attach-temp-wal-schema-cache-current-source-next88 self-test passed
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next88.php --self-test
+application-attach-temp-wal-schema-cache-current-source-next88 self-test passed
 
 git diff --check -- lanes/libsqlite
 ```

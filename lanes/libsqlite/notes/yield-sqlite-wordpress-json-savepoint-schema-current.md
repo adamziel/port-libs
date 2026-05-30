@@ -1,11 +1,11 @@
-# yield-sqlite-wordpress-json-savepoint-schema-current
+# yield-sqlite-application-json-savepoint-schema-current
 
-Status: focused PHP behavior growth for WordPress JSON import batches that carry
+Status: focused PHP behavior growth for Application JSON import batches that carry
 `sqlite_schema` DDL changes inside savepoint/WAL current planning.
 
 Implementation:
 
-- Added `SQLiteWordPressJsonSavepointSchemaCurrentPlan`, a bounded native PHP
+- Added `SQLiteJsonSavepointSchemaCurrentPlan`, a bounded native PHP
   planner layered over the accepted schema-aware JSON savepoint/WAL import
   path.
 - Tracks `schema_version` and `data_version` current values across JSON import
@@ -13,14 +13,14 @@ Implementation:
   frames.
 - Invalid DDL changes roll back the current savepoint without advancing WAL,
   `schema_version`, `data_version`, option rows, or released schema rows.
-- Added `wordpress-json-savepoint-schema-current.php` as a copied
-  WordPress `wp_options` smoke showing one released schema batch and one
+- Added `application-json-savepoint-schema-current.php` as a copied
+  Application `wp_options` smoke showing one released schema batch and one
   rejected duplicate schema batch.
 
 Focused verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressJsonSavepointSchemaCurrentTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonSavepointSchemaCurrentTest.php
 Focused test run: 1 selected test files (root lock skipped)
 48 PASS lines
 1 test files, 160 assertions, 0 failures
@@ -29,7 +29,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Expected status delta:
 
 - `phpPass`: `19277 -> 19325` (+48 focused PASS cases).
-- `benchmarkDenominator.mapped`: unchanged; this is a lane-local WordPress
+- `benchmarkDenominator.mapped`: unchanged; this is a lane-local Application
   schema/savepoint current behavior surface, not a newly mapped upstream
   Tcl inventory unit.
 
@@ -42,10 +42,10 @@ JSON table cursor/source/hidden/visible constraint clusters, SELECT SQL text /
 JOIN / GROUP / subquery / ORDER / LIMIT clusters, Unicode GLOB, and rollback or
 super-journal commit paths. The new behavior is schema-cookie/data-version
 current-state preservation and WAL page-1 schema-cookie framing around
-WordPress JSON savepoint batches.
+Application JSON savepoint batches.
 
 Dependency closure:
 
 No new shared support component is needed. The slice reuses lane-local JSON
-extraction/validity, schema-aware WordPress JSON WAL savepoint import planning,
+extraction/validity, schema-aware Application JSON WAL savepoint import planning,
 and savepoint/WAL current-frame accounting.

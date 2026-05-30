@@ -14,7 +14,7 @@ Covered cases:
 - CTE and derived-table sources inside a grouped join.
 - Rejection of malformed grouped-join aliases and unsupported grouped-join column alias lists.
 
-## WordPress Relevance
+## Application Relevance
 
 The smoke models a copied `wp_options` import preview that groups a `FULL JOIN`
 between current and incoming options before joining labels. This preserves
@@ -31,7 +31,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-join-planner-current-next72.php
+php lanes/libsqlite/examples/application-select-join-planner-current-next72.php
 [
     {"option_name": "active_plugins", "label": "new-plugin"},
     {"option_name": "blogname", "label": "current-only"},

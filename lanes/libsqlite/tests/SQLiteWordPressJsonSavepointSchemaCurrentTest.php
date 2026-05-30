@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressJsonSavepointSchemaCurrentPlan;
+use PortLibs\LibSqlite\SQLiteJsonSavepointSchemaCurrentPlan;
 
 $currentRows = static fn (): array => [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -16,7 +16,7 @@ $schemaRows = static fn (): array => [
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
-$plan = static fn (array $batches, array $options = []) => SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan(
+$plan = static fn (array $batches, array $options = []) => SQLiteJsonSavepointSchemaCurrentPlan::plan(
     $currentRows(),
     $batches,
     $options + [
@@ -186,10 +186,10 @@ $tests = [
             ]), 'path' => '$.rows'],
         ]);
 
-        $t->same(true, in_array('sqlite-wordpress-json-savepoint-schema-current', $result['dependencies'], true));
+        $t->same(true, in_array('sqlite-application-json-savepoint-schema-current', $result['dependencies'], true));
     },
     'json schema current rejects empty batch list' => static function (TestRunner $t) use ($currentRows, $schemaRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan($currentRows(), [], [
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonSavepointSchemaCurrentPlan::plan($currentRows(), [], [
             'schema' => ['rows' => $schemaRows()],
         ]));
     },
@@ -256,7 +256,7 @@ foreach ([
 
 foreach ([0, 1, 7, 99] as $dataVersion) {
     $tests["json schema current preserves rolled back data version {$dataVersion}"] = static function (TestRunner $t) use ($currentRows, $schemaRows, $jsonRows, $dataVersion): void {
-        $result = SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan($currentRows(), [
+        $result = SQLiteJsonSavepointSchemaCurrentPlan::plan($currentRows(), [
             [
                 'name' => 'reject_data_' . $dataVersion,
                 'json' => $jsonRows([
@@ -313,7 +313,7 @@ foreach ([2 => 2, 70 => 3, 129 => 4, 193 => 5, 257 => 6] as $optionId => $expect
     $tests["json schema current update option {$optionId} keeps schema frame after row page"] = static function (TestRunner $t) use ($currentRows, $schemaRows, $jsonRows, $optionId, $expectedRowPage): void {
         $rows = $currentRows();
         $rows[] = ['option_id' => $optionId, 'option_name' => 'option_' . $optionId . '_settings', 'option_value' => '{"old":true}', 'autoload' => 'no'];
-        $result = SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan($rows, [
+        $result = SQLiteJsonSavepointSchemaCurrentPlan::plan($rows, [
             [
                 'name' => 'update_' . $optionId,
                 'json' => $jsonRows([

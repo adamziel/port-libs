@@ -100,7 +100,7 @@ $cases258 = [
     'resume tickets with token all' => [static fn (): mixed => $admitted258()['resume_tickets_next258'], $admitted258()['publication_sequence_tickets_next248']],
     'dependency includes transition token' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-current-source-transition-token-next258', $plan258()['dependencies_next258'], true), true],
     'dependency includes next admission' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-next-source-admission-after-window-high-water-next258', $plan258()['dependencies_next258'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-transition-current-source-next258', $plan258()['dependencies_next258'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-rowvalue-returning-window-transition-current-source-next258', $plan258()['dependencies_next258'], true), true],
     'dependency closure no new support' => [static fn (): mixed => str_contains($plan258()['dependency_closure_next258'], 'no new support component needed'), true],
     'non overlap mentions next252' => [static fn (): mixed => str_contains($plan258()['non_overlap_next258'], 'next252'), true],
     'non overlap mentions next248' => [static fn (): mixed => str_contains($plan258()['non_overlap_next258'], 'next248'), true],

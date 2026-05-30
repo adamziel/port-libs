@@ -10,6 +10,6 @@ Focused coverage:
 
 - `SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages596611Test.php` chains next596 through next611 from next595.
 - The same test blocks database digest mismatch, commit generation mismatch, missing next602 base for the next603 seal, schema cookie mismatch, held reader marks, and duplicate final seal receipts.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-after-current-stage-611.php` provides a WordPress-shaped example for the final seal.
+- `application-wal-hot-journal-savepoint-checkpoint-after-current-stage-611.php` provides a Application-shaped example for the final seal.
 
 Non-overlap: this stays inside the WAL checkpoint/hot-journal current-source receipt chain and does not repeat next580-595, upstream suite evidence, status/dashboard artifacts, SQL, JSON, B-tree, VFS writer application, planner, or unrelated pager surfaces.

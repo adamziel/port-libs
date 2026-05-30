@@ -8,8 +8,8 @@ Adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext212Plan`, a bounded cu
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext212Test.php`
   - `1 test files, 82 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next212.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next212 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next212.php`
+  - `application-trigger-recursive-view-returning-current-source-next212 self-test passed`
 - PHP lint for changed PHP files passes.
 - `git diff --check -- lanes/libsqlite` passes.
 

@@ -6,7 +6,7 @@ Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current/next PRAGMA 
 
 - Preserves `on_update`, `on_delete`, and `match` values from catalog-derived `pragma_foreign_key_list` rows.
 - Adds per-row `action_summary` for FK parent-index admission and violation rows.
-- Adds current/next source action summaries so copied WordPress imports can reject stale resume cursors when action-bearing FK catalog state changes.
+- Adds current/next source action summaries so copied Application imports can reject stale resume cursors when action-bearing FK catalog state changes.
 - Reuses the existing next156 pagination/source validation and next161 catalog FK derivation.
 
 ## Evidence
@@ -19,8 +19,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next165.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-current-source-next165 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next165.php --self-test
+application-pragma-index-xinfo-foreignkey-current-source-next165 self-test passed
 ```
 
 ## Non-overlap

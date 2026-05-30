@@ -2,7 +2,7 @@
 
 ## Slice
 
-- Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathCost()` for current/next-source JSON table planning when a copied WordPress host row carries a generated JSON path column.
+- Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathCost()` for current/next-source JSON table planning when a copied Application host row carries a generated JSON path column.
 - The planner layers on accepted path ORDER BY cost behavior without repeating JSON table cursor, SELECT-source, hidden constraint, visible constraint, path ORDER BY, or path/rowid cost clusters.
 - It validates the generated path column, compares it with the selected `path` constraint (`=`, `LIKE`, and `IN`), records coverage/cost transitions, and preserves current-source replan reasons.
 
@@ -10,7 +10,7 @@
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathCostTest.php`
 - Result: `1 test files, 61 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-cost.php`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-generated-path-cost.php`
 - Root harness: not run - isolated micro-slice.
 
 ## Dependency Closure

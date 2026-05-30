@@ -14,10 +14,10 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext166Test.php`
   - `1 test files, 71 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next166.php --self-test`
-  - `wordpress-planner-stat4-expression-partial-current-source-next166 self-test passed`
+- `php lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-next166.php --self-test`
+  - `application-planner-stat4-expression-partial-current-source-next166 self-test passed`
 
-WordPress path:
+Application path:
 
 The example models a copied `wp_options` plugin import where a prepared
 partial expression index over `lower(option_name)` was built before a current

@@ -11,10 +11,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 54 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-savepoint-journal-filehandle-current-source-next99.php --self-test
+php lanes/libsqlite/examples/application-pager-savepoint-journal-filehandle-current-source-next99.php --self-test
 {
     "status": "pager_savepoint_journal_filehandle_current_source_next99",
     "applied": 12,
@@ -28,7 +28,7 @@ php lanes/libsqlite/examples/wordpress-pager-savepoint-journal-filehandle-curren
     "outerStatementJournalPreserved": true,
     "pluginStatementJournalDeleted": true,
     "childStatementJournalDeleted": true,
-    "wordpressUse": "Rollback a failed copied wp_options plugin import savepoint from current file handles, then seed the next retry statement journal from the restored current source page."
+    "applicationUse": "Rollback a failed copied wp_options plugin import savepoint from current file handles, then seed the next retry statement journal from the restored current source page."
 }
 ```
 

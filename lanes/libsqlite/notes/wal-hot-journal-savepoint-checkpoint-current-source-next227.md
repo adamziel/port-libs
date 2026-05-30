@@ -5,7 +5,7 @@
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded
 publish-receipt validator for the WAL hot-journal savepoint checkpoint path.
 The prior next219 slice finalizes savepoint scopes before checkpoint source
-publication. This slice verifies that every finalized WordPress import
+publication. This slice verifies that every finalized Application import
 savepoint has a matching publish receipt with:
 
 - the same current-source token and epoch;
@@ -23,11 +23,11 @@ receipts.
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next227.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next227.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Test.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next227.php`
-  - `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next227 self-test passed`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next227.php`
+  - `application-wal-hot-journal-savepoint-checkpoint-current-source-next227 self-test passed`
 
 ## Non-Overlap
 

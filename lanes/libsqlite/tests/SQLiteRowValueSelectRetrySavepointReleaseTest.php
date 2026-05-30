@@ -134,7 +134,7 @@ $cases = [
     'plan receipt released tables' => [static fn (): mixed => $plan()['release_receipt']['released_tables'], ['wp_options', 'wp_import_targets']],
     'plan dependency subquery' => [static fn (): mixed => in_array('sqlite-rowvalue-in-select-update-delete-returning', $plan()['dependencies'], true), true],
     'plan dependency release' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-rollback-to-release-retry', $plan()['dependencies'], true), true],
-    'plan dependency wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-select-savepoint-release-current-source', $plan()['dependencies'], true), true],
+    'plan dependency application' => [static fn (): mixed => in_array('application-rowvalue-select-savepoint-release-current-source', $plan()['dependencies'], true), true],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'plan non overlap mentions yield-only rollback fencing' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'yield-only rollback fencing'), true],
     'custom plan savepoint' => [static fn (): mixed => $customPlan()['savepoint'], 'custom_rowvalue_select'],

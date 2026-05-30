@@ -10,7 +10,7 @@ bounded plans or looser `stat4RangeCurrentNext` evidence; same-value bounds use
 SQLite-style exclusivity rules, and empty exclusive point intervals are
 rejected.
 
-WordPress path: copied `wp_options` queries frequently stack option-name range
+Application path: copied `wp_options` queries frequently stack option-name range
 guards from user filters and importer safety clauses. The new smoke proves a
 `lower(option_name)` expression-index range scan uses the tight current-source
 interval (`home` to `transient_timeout`) rather than older looser bounds before
@@ -29,8 +29,8 @@ Focused test run: 1 selected test files (root lock skipped)
 11 PASS lines
 1 test files, 55 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-planner-stat4-expression-range-current-source-next86.php --self-test
-wordpress-planner-stat4-expression-range-current-source-next86 self-test passed
+php lanes/libsqlite/examples/application-planner-stat4-expression-range-current-source-next86.php --self-test
+application-planner-stat4-expression-range-current-source-next86 self-test passed
 ```
 
 Dependency closure: no new support component is needed. The patch reuses

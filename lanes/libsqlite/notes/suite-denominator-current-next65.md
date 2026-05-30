@@ -29,7 +29,7 @@ Status impact:
 
 Non-overlap:
 
-This avoids accepted release/all closure, focused runner artifact admission, current-next56 focused PASS admission, batch52-batch55 denominator burnup ledgers, artifact-directory provenance, SQL/JSON/WAL/B-tree/VFS behavior clusters, and WordPress runtime behavior smokes. The new surface is current-next65 suite-denominator countability with current-head focused PASS-line gating.
+This avoids accepted release/all closure, focused runner artifact admission, current-next56 focused PASS admission, batch52-batch55 denominator burnup ledgers, artifact-directory provenance, SQL/JSON/WAL/B-tree/VFS behavior clusters, and Application runtime behavior smokes. The new surface is current-next65 suite-denominator countability with current-head focused PASS-line gating.
 
 Dependency closure:
 

@@ -14,7 +14,7 @@ for an upstream-style trigger/view/RETURNING current-source edge:
   phase; rolling back the next source suppresses next `RETURNING` rows while
   retaining the current phase.
 
-The WordPress smoke models copied `wp_options` imports where a view-trigger
+The Application smoke models copied `wp_options` imports where a view-trigger
 `siteurl` update recursively refreshes `home` and `rewrite_rules`, while a
 next-source import remains the visible source after the current source is
 rolled back.

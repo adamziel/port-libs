@@ -17,8 +17,8 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteSelectSql.php`
 - `php -l lanes/libsqlite/src/SQLiteSelectQuery.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonAggregateObjectWindowFilterCurrentSourceNext93Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-aggregate-object-window-filter-current-source-next93.php`
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-object-window-filter-current-source-next93.php --self-test`
+- `php -l lanes/libsqlite/examples/application-json-aggregate-object-window-filter-current-source-next93.php`
+- `php lanes/libsqlite/examples/application-json-aggregate-object-window-filter-current-source-next93.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: avoids accepted JSON array aggregate FILTER/ORDER window slices,

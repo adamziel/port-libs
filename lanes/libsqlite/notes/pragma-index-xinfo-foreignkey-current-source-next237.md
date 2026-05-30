@@ -12,17 +12,17 @@ Implementation:
   next234 page and appends `foreign_key_parent_prefix_unique` rows.
 - Current/next source IDs now include exact-vs-prefix parent key summaries, so
   paged resumes are rejected after schema/index arity drift.
-- The WordPress smoke models copied `wp_options` import references where
+- The Application smoke models copied `wp_options` import references where
   `UNIQUE(blog_id, option_name, autoload)` must not satisfy
   `REFERENCES parent(blog_id, option_name)` until an exact UNIQUE index exists.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next237.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next237.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next237.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next237.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: focused PHP PASS-line growth from the next237

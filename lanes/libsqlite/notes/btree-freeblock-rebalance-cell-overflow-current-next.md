@@ -12,10 +12,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreeblockRebalanceCellO
 # 1 test files, 59 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-rebalance-cell-overflow-current-next.php
+php lanes/libsqlite/examples/application-btree-rebalance-cell-overflow-current-next.php
 ```
 
 The smoke reports a copied `wp_options` transient cleanup where deleting rowid

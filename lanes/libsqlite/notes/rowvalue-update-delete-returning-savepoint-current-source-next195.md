@@ -10,7 +10,7 @@ selection, RETURNING expressions, and UPDATE assignment expressions, then proves
 that a rolled-back savepoint suppresses attempted RETURNING rows and retries
 from the original current-source image.
 
-WordPress smoke: `wordpress-rowvalue-unary-not-distinct-savepoint-current-source-next195.php`
+Application smoke: `application-rowvalue-unary-not-distinct-savepoint-current-source-next195.php`
 models a copied `wp_options` import that updates only blog-1 live URL rows and
 deletes only non-blog-1 transient rows while preserving the blog-1 NULL-status
 transient through `IS NOT DISTINCT FROM` semantics.
@@ -20,9 +20,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext195Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-unary-not-distinct-savepoint-current-source-next195.php
+php -l lanes/libsqlite/examples/application-rowvalue-unary-not-distinct-savepoint-current-source-next195.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext195Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-unary-not-distinct-savepoint-current-source-next195.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-unary-not-distinct-savepoint-current-source-next195.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

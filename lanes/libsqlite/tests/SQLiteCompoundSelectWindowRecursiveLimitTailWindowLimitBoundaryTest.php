@@ -117,7 +117,7 @@ $tests['compound select window recursive limit tail-window-limit-boundary replan
     $t->true(in_array('prelimit-distinct-union-rowset-changed', $reasons, true));
     $t->true(in_array('compound-tail-window-limit-current-source-tail-window-limit-boundary', $reasons, true));
     $t->true(in_array('recursive-offset-window-arm-before-union-distinct-tail-window-limit-boundary', $reasons, true));
-    $t->true(in_array('wordpress-option-boundary-replans-final-limit-tail-window-limit-boundary', $reasons, true));
+    $t->true(in_array('application-option-boundary-replans-final-limit-tail-window-limit-boundary', $reasons, true));
 };
 
 $tests['compound select window recursive limit tail-window-limit-boundary rejects missing recursive cte'] = static function (TestRunner $t) use ($currentTables183): void {

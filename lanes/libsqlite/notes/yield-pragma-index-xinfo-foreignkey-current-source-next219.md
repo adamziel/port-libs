@@ -3,7 +3,7 @@
 ## Behavior
 
 - Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, extending the accepted current-source PRAGMA index/FK page with diagnostics for a UNIQUE parent index that contains exactly the referenced parent columns but in a different order.
-- SQLite requires the referenced parent key columns to match a parent primary key or UNIQUE index in the declared order. This slice reports `foreign_key_parent_key_permutation` rows so a copied WordPress taxonomy/termmeta import does not treat `UNIQUE(slug, blog_id)` as satisfying `REFERENCES parent(blog_id, slug)`.
+- SQLite requires the referenced parent key columns to match a parent primary key or UNIQUE index in the declared order. This slice reports `foreign_key_parent_key_permutation` rows so a copied Application taxonomy/termmeta import does not treat `UNIQUE(slug, blog_id)` as satisfying `REFERENCES parent(blog_id, slug)`.
 - The current/next page tracks repaired deltas, stable pagination/resume cursors, and the existing base PRAGMA source hash.
 
 ## Evidence
@@ -11,8 +11,8 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 58 assertions, 0 failures`
   - `48` PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next219.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next219 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next219.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next219 self-test passed`
 
 ## Non-Overlap
 

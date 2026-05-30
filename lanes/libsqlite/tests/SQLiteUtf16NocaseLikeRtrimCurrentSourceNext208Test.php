@@ -59,7 +59,7 @@ $plan208 = static fn (
     int|string $currentEscapeEncoding = 'UTF-16LE',
     ?string $nextEscapeBytes = null,
     int|string $nextEscapeEncoding = 'UTF-16BE',
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
     $current ?? $current208,
     $next ?? $nextTwoZeroEight,
     $pattern ?? 'plugin!_cache%',
@@ -180,7 +180,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroEight stable escaped p
         $row208(2, 'Plugin_Cache  ', 'UTF-16BE'),
         $row208(3, 'pluginXcache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -208,7 +208,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroEight escaped percent 
         $row208(2, 'pluginXcache', 'UTF-16BE'),
         $row208(3, 'plugin_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
         $rows,
         $rows,
         'plugin!%cache',
@@ -231,7 +231,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroEight escaped percent 
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroEight rejects malformed escape bytes'] = static function (TestRunner $t) use ($current208, $nextTwoZeroEight, $escapeBytes208): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
         $current208,
         $nextTwoZeroEight,
         'plugin!_cache%',
@@ -243,7 +243,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroEight rejects malforme
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroEight rejects multi character escape after bom'] = static function (TestRunner $t) use ($current208, $nextTwoZeroEight, $escapeBytes208): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
         $current208,
         $nextTwoZeroEight,
         'plugin!_cache%',

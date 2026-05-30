@@ -13,7 +13,7 @@ Validation targets:
 
 - `tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext10921107Test.php`
 - `tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext11081123Test.php`
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next1123.php --self-test`
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next1123.php --self-test`
 
 Non-overlap: next1108-1123 only advances the already consolidated after-current
 checkpoint receipt chain after next1092-1107. It does not add new VFS, B-tree,

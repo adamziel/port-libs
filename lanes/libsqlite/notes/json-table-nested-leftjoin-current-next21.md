@@ -17,7 +17,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-sql-json-dynamic-join.php
+php lanes/libsqlite/examples/application-select-sql-json-dynamic-join.php
 emits nestedLeftJoinRows with copied wp_options JSON-table nested LEFT JOIN diagnostics, including NULL rule_rowid for empty nested arrays.
 ```
 

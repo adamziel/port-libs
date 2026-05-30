@@ -19,11 +19,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 52 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-schema-alter-view-trigger-generated-current-source-next128.php --self-test
-wordpress-schema-alter-view-trigger-generated-current-source-next128 self-test passed
+php lanes/libsqlite/examples/application-schema-alter-view-trigger-generated-current-source-next128.php --self-test
+application-schema-alter-view-trigger-generated-current-source-next128 self-test passed
 ```
 
 ## Non-overlap

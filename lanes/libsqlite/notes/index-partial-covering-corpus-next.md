@@ -19,7 +19,7 @@ Verification:
   reported `1 test files, 47 assertions, 0 failures`.
 - The focused file contributes 31 independent TestRunner PASS cases, so
   `lane-status.json` `phpPass` moves from `1336` to `1367`.
-- `php lanes/libsqlite/examples/wordpress-index-partial-covering-corpus.php`
+- `php lanes/libsqlite/examples/application-index-partial-covering-corpus.php`
   selected `idx_wp_options_name_covering` for the default copied
   `wp_options` lookup smoke.
 - `php -l` passed for the new test and example files.

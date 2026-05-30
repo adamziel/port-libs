@@ -8,11 +8,11 @@ Adds current-source `json_tree` planner behavior for generated-path rowid seek p
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext164Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next164.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next164.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext164Test.php`
   - `1 test files, 60 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next164.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next164 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next164.php --self-test`
+  - `application-json-table-generated-path-rowid-cost-current-source-next164 self-test passed`
 
 ## Non-overlap
 

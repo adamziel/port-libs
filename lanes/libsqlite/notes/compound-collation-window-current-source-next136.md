@@ -8,10 +8,10 @@ This slice adds `SQLiteCompoundCollationWindowCurrentSourceNextPlan`. It checks 
 - `row_number()` window values are evaluated in each arm before `UNION` duplicate elimination;
 - the next copied `wp_options` source can suppress only rows whose collation key and window value both match.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-compound-collation-window-current-source-next136.php --self-test
+php lanes/libsqlite/examples/application-compound-collation-window-current-source-next136.php --self-test
 ```
 
 Focused tests:

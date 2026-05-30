@@ -10,8 +10,8 @@ Scope:
   row before applying the existing aggregate frame reducer, preserving
   `count(*)`, NULL-skipping aggregate values, `EXCLUDE`, partitioning,
   `CASE` predicates, and ROWS/RANGE/GROUPS current-to-following frames.
-- WordPress smoke:
-  `lanes/libsqlite/examples/wordpress-select-window-filter-aggregate-current-next21.php`
+- Application smoke:
+  `lanes/libsqlite/examples/application-select-window-filter-aggregate-current-next21.php`
   summarizes copied `wp_options` rows with filtered current/next autoload
   windows without requiring ext/sqlite.
 

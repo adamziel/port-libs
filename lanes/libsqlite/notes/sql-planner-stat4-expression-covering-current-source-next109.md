@@ -28,11 +28,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 51 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-planner-stat4-expression-covering-current-source-next109.php
-wordpress planner stat4 expression covering current-source next109: idx_wp_options_channel_covering_stat4_next109 rows=3 matched=2 keys=beta,beta,stable names=plugin_beta_a,plugin_beta_b,plugin_stable
+php lanes/libsqlite/examples/application-planner-stat4-expression-covering-current-source-next109.php
+application planner stat4 expression covering current-source next109: idx_wp_options_channel_covering_stat4_next109 rows=3 matched=2 keys=beta,beta,stable names=plugin_beta_a,plugin_beta_b,plugin_stable
 ```
 
 Dependency closure: no new support component is needed. This reuses the native

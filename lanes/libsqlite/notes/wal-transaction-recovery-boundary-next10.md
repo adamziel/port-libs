@@ -11,9 +11,9 @@ Focused evidence:
 - Result: `1 test files, 66 assertions, 0 failures`
 - PASS-line delta: `+66`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-wal-transaction-recovery-boundary.php --self-test`
+- `php lanes/libsqlite/examples/application-wal-transaction-recovery-boundary.php --self-test`
 - Result: self-test passed and reported a copied `wp_options` WAL sidecar with
   `3` valid frames, `2` committed frames, one valid draft frame discarded, one
   corrupt tail frame discarded, and checkpoint bytes containing only committed

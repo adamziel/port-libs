@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext261Plan`. It extends the accepted next258 pager spill-drain reader-cache fence by requiring cache rows and reader tickets to carry the rollback-journal reader-source token used by the current master-journal recovery. Pages admitted by the next258 chain are still reopened when their cached rollback-journal reader source predates the current recovered source.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next261.php` models a copied `wp_options` recovery where the schema and `active_plugins` pages keep current cache hits, while the `wp_options` root page is reopened because it was cached from an older rollback-journal reader source.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next261.php` models a copied `wp_options` recovery where the schema and `active_plugins` pages keep current cache hits, while the `wp_options` root page is reopened because it was cached from an older rollback-journal reader source.
 
 Verification:
 
@@ -12,12 +12,12 @@ Verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext261Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext261Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext261Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next261.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next261.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next261.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next261.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext261Test.php`
   - `1 test files, 69 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next261.php --self-test`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next261 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next261.php --self-test`
+  - `application-pager-master-journal-reader-cache-current-source-next261 self-test passed`
 
 Expected dashboard delta: `phpPass` moves from `142008` to `142077` from 69 newly passing focused PASS lines. Mapped upstream coverage remains `708 / 1589`; this is focused pager reader-cache current-source behavior over existing master-journal inventory rather than a fresh manifest row.
 

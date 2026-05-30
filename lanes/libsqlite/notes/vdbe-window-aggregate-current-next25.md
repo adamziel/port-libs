@@ -4,15 +4,15 @@
 
 - Added `SQLiteVdbeWindowAggregateCursor` for a bounded VDBE-style window aggregate loop over sorted row arrays.
 - The cursor sorts by partition and order keys, keeps `ROWS BETWEEN n PRECEDING AND n FOLLOWING` frames inside the current partition, supports SQL FILTER truthiness, and exposes current/next aggregate values without parser-level SELECT changes.
-- Added focused tests and a WordPress smoke for copied `wp_options` window aggregate previews.
+- Added focused tests and a Application smoke for copied `wp_options` window aggregate previews.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowAggregateCurrentNext25Test.php`
-- `php lanes/libsqlite/examples/wordpress-vdbe-window-aggregate-current-next25.php`
+- `php lanes/libsqlite/examples/application-vdbe-window-aggregate-current-next25.php`
 - `php -l lanes/libsqlite/src/SQLiteVdbeWindowAggregateCursor.php`
 - `php -l lanes/libsqlite/tests/SQLiteVdbeWindowAggregateCurrentNext25Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-vdbe-window-aggregate-current-next25.php`
+- `php -l lanes/libsqlite/examples/application-vdbe-window-aggregate-current-next25.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap

@@ -10,10 +10,10 @@ accounting.
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreeblockDefragCurrentNext70Test.php`
-- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-btree-freeblock-defrag-current-next70.php`
+- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/application-btree-freeblock-defrag-current-next70.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeFreeblockDefragPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeFreeblockDefragCurrentNext70Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-freeblock-defrag-current-next70.php`
+- `php -l lanes/libsqlite/examples/application-btree-freeblock-defrag-current-next70.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

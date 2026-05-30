@@ -238,7 +238,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-trigger-raise-rollback-current-source-next106',
                 'sqlite-savepoint-transaction-current-source-rollback',
-                'sqlite-wordpress-trigger-rollback-import',
+                'sqlite-application-trigger-rollback-import',
             ],
         ];
     }

@@ -13,18 +13,18 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLitePagerSavepointJournalFilehandleCurrentSourceNext94Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerSavepointJournalFilehandleCurrentSourceNext94Test.php
 
-php -l lanes/libsqlite/examples/wordpress-pager-savepoint-journal-filehandle-current-source-next94.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-savepoint-journal-filehandle-current-source-next94.php
+php -l lanes/libsqlite/examples/application-pager-savepoint-journal-filehandle-current-source-next94.php
+No syntax errors detected in lanes/libsqlite/examples/application-pager-savepoint-journal-filehandle-current-source-next94.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointJournalFilehandleCurrentSourceNext94Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 52 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-savepoint-journal-filehandle-current-source-next94.php --self-test
+php lanes/libsqlite/examples/application-pager-savepoint-journal-filehandle-current-source-next94.php --self-test
 {
     "status": "pager_savepoint_journal_filehandle_current_source_next94",
     "applied": 9,
@@ -42,7 +42,7 @@ php lanes/libsqlite/examples/wordpress-pager-savepoint-journal-filehandle-curren
     "outerStatementJournalPreserved": true,
     "pluginStatementJournalDeleted": true,
     "childStatementJournalDeleted": true,
-    "wordpressUse": "Rollback a failed copied wp_options plugin import savepoint from current VFS file handles, restore database pages, truncate the WAL prefix, and delete only stale statement journals while preserving the outer import journal."
+    "applicationUse": "Rollback a failed copied wp_options plugin import savepoint from current VFS file handles, restore database pages, truncate the WAL prefix, and delete only stale statement journals while preserving the outer import journal."
 }
 ```
 

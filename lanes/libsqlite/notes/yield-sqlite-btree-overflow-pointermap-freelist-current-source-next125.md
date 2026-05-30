@@ -5,7 +5,7 @@ Date: 2026-05-28T07:03:34Z
 ## Behavior
 
 Adds `SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan` for the
-WordPress large-option rewrite path where obsolete overflow pages are released
+Application large-option rewrite path where obsolete overflow pages are released
 to an auto-vacuum freelist and then immediately reused as the next overflow
 chain. The covered transition is:
 
@@ -25,8 +25,8 @@ or another standalone freelist release wrapper.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Test.php`
   - `1 test files, 166 assertions, 0 failures`
   - 76 PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-pointermap-freelist-current-source-next125.php --self-test`
-  - `wordpress-btree-overflow-pointermap-freelist-current-source-next125 self-test passed`
+- `php lanes/libsqlite/examples/application-btree-overflow-pointermap-freelist-current-source-next125.php --self-test`
+  - `application-btree-overflow-pointermap-freelist-current-source-next125 self-test passed`
 - PHP lint was run for the changed PHP source, test, and example.
 - `git diff --check -- lanes/libsqlite` was run after the note/status update.
 

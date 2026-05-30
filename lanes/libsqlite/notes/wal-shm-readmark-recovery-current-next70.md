@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for WAL SHM read-mark recovery.
 
 This slice adds `SQLiteShmIndex::recoverReadMarksFromWal()`. It models rebuilding SHM read marks from the current WAL bytes when the wal-index header copy is stale, the SHM salt no longer matches the WAL header, reader locks were abandoned, or the WAL has only an uncommitted tail. Matching WAL salt/header recovery preserves locked current readers through the last committed frame, discards unlocked, beyond-WAL, and uncommitted-tail marks, and reports the next reader frame/checkpoint plan.
 
-WordPress smoke: `wordpress-wal-shm-readmark-recovery-current-next70.php` reports copied `wp_options` WAL recovery diagnostics, including preserved reader slots, discarded stale slots, next read marks, checkpoint pinning, and dependency tags without requiring ext/sqlite.
+Application smoke: `application-wal-shm-readmark-recovery-current-next70.php` reports copied `wp_options` WAL recovery diagnostics, including preserved reader slots, discarded stale slots, next read marks, checkpoint pinning, and dependency tags without requiring ext/sqlite.
 
 Verified PASS delta: +57 focused PASS lines. `lane-status.json` `phpPass` moves from `26014` to `26071`. Mapped upstream coverage remains `464 / 1589` because this is a focused PHP WAL/SHM behavior slice over already mapped WAL read-mark inventory.
 
@@ -13,9 +13,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteShmIndex.php
 php -l lanes/libsqlite/tests/SQLiteWalShmReadMarkRecoveryCurrentNext70Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-shm-readmark-recovery-current-next70.php
+php -l lanes/libsqlite/examples/application-wal-shm-readmark-recovery-current-next70.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalShmReadMarkRecoveryCurrentNext70Test.php
-php lanes/libsqlite/examples/wordpress-wal-shm-readmark-recovery-current-next70.php --self-test
+php lanes/libsqlite/examples/application-wal-shm-readmark-recovery-current-next70.php --self-test
 ```
 
 Focused result: `1 test files, 57 assertions, 0 failures`.

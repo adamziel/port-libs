@@ -18,11 +18,11 @@ Focused test run: 1 selected test files (root lock skipped)
 56 PASS lines
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vfs-filecontrol-persistwal-lock-current-source-next94.php --self-test
-wordpress-vfs-filecontrol-persistwal-lock-current-source-next94 self-test passed
+php lanes/libsqlite/examples/application-vfs-filecontrol-persistwal-lock-current-source-next94.php --self-test
+application-vfs-filecontrol-persistwal-lock-current-source-next94 self-test passed
 ```
 
 Non-overlap:

@@ -12,8 +12,8 @@ the plan. Stale cardinality now returns
 `requires-current-source-stat4-histogram-reprepare` even when the selected page
 still materializes.
 
-WordPress smoke:
-`wordpress-sqlplanner-stat4-expression-partial-current-source-next234.php`
+Application smoke:
+`application-sqlplanner-stat4-expression-partial-current-source-next234.php`
 models copied `wp_options` plugin-admin pagination over a descending partial
 `lower(option_name)` index where duplicate plugin option names must preserve
 STAT4 peer counts after ANALYZE/source changes.

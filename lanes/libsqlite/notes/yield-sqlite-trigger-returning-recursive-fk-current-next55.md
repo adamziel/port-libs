@@ -4,7 +4,7 @@
 
 - Added `SQLiteTriggerForeignKeyReturningPlan` support for `ON UPDATE SET DEFAULT` and `ON DELETE SET DEFAULT` child-key rewrites.
 - Added 55 focused PASS cases in `SQLiteTriggerReturningRecursiveFkCurrentNext55Test.php`.
-- Added WordPress smoke coverage in `examples/wordpress-trigger-returning-set-default-fk.php` for copied `wp_posts` / `wp_postmeta` delete-returning behavior.
+- Added Application smoke coverage in `examples/application-trigger-returning-set-default-fk.php` for copied `wp_posts` / `wp_postmeta` delete-returning behavior.
 - Updated `lane-status.json` `phpPass` from `20008` to `20063`, exactly matching the new focused PASS-line delta verified locally.
 
 ## Focused evidence

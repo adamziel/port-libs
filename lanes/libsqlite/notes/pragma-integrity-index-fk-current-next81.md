@@ -5,7 +5,7 @@ Slice: `pragma-integrity-index-fk-current-next81`.
 This patch adds a bounded native PHP current/next stream that composes parent
 UNIQUE-index admission rows, live `foreign_key_check` violations, and
 `integrity_check` diagnostics into one resumable PRAGMA preflight. The intended
-WordPress import path is copied `wp_options` validation: page from parent-key
+Application import path is copied `wp_options` validation: page from parent-key
 metadata checks into row-level FK violations and finally storage/header
 integrity blockers without losing current/next cursor state.
 
@@ -14,9 +14,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIntegrityIndexForeignKeyCurrentNextYield.php
 php -l lanes/libsqlite/tests/SQLitePragmaIntegrityIndexForeignKeyCurrentNext81Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-integrity-index-fk-current-next81.php
+php -l lanes/libsqlite/examples/application-pragma-integrity-index-fk-current-next81.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityIndexForeignKeyCurrentNext81Test.php
-php lanes/libsqlite/examples/wordpress-pragma-integrity-index-fk-current-next81.php
+php lanes/libsqlite/examples/application-pragma-integrity-index-fk-current-next81.php
 git diff --check -- lanes/libsqlite
 ```
 

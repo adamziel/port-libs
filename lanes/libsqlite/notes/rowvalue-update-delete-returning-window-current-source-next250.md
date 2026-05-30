@@ -10,8 +10,8 @@ the frame while other rows from the same transition class are removed. The
 plan records preserved current rows, removed peer tie rowids, frame receipts,
 partition summaries, and a digest fence for retry-after-rollback visibility.
 
-WordPress path:
-`wordpress-rowvalue-returning-window-current-source-next250.php` models a
+Application path:
+`application-rowvalue-returning-window-current-source-next250.php` models a
 copied `wp_options` migration where attempted row-value UPDATE/DELETE
 RETURNING rows are rolled back, retried, and then audited with EXCLUDE TIES
 window semantics before the next source is published.
@@ -25,10 +25,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturnin
 
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext250Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext250Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next250.php
+php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next250.php
 
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next250.php --self-test
-# wordpress-rowvalue-returning-window-current-source-next250 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next250.php --self-test
+# application-rowvalue-returning-window-current-source-next250 self-test passed
 
 git diff --check -- lanes/libsqlite
 ```

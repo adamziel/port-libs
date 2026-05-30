@@ -28,16 +28,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 70 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-lateral-root-current-next28.php --self-test
-wordpress-json-table-lateral-root-current-next28 self-test passed
+php lanes/libsqlite/examples/application-json-table-lateral-root-current-next28.php --self-test
+application-json-table-lateral-root-current-next28 self-test passed
 ```
 
 Dependency closure: no new support component is needed. The slice reuses the
 lane-local SELECT SQL parser/executor, JSON table planner, JSONB codec, dynamic
-row callbacks, and WordPress copied `wp_options` row fixtures.
+row callbacks, and Application copied `wp_options` row fixtures.
 
 Non-overlap: avoids accepted JSON table cursor/source/hidden/visible
 constraint work, JSON host joins, grouped JSON rows, SELECT SQL JOIN/GROUP BY/

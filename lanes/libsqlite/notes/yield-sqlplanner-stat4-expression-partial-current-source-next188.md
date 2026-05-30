@@ -7,7 +7,7 @@ the current-source plan only when duplicate expression-key peers in that
 window use deterministic rowid tiebreak order and every peer is bracketed by
 current sqlite_stat4 samples.
 
-WordPress smoke: `wordpress-sqlplanner-stat4-expression-partial-current-source-next188.php`
+Application smoke: `application-sqlplanner-stat4-expression-partial-current-source-next188.php`
 models copied `wp_options` plugin screens where duplicate mixed-case
 `plugin_forms` option names share the same `lower(option_name)` key. The plan
 can reuse the partial expression index only when those peers are ordered by
@@ -18,8 +18,8 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext188Test.php`
 - `1 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next188.php --self-test`
-- `wordpress-sqlplanner-stat4-expression-partial-current-source-next188 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next188.php --self-test`
+- `application-sqlplanner-stat4-expression-partial-current-source-next188 self-test passed`
 
 Dependency closure: no new support component is needed. The slice reuses the
 accepted current-source STAT4 expression partial planner chain and adds a

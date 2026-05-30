@@ -15,9 +15,9 @@ bounded executor models the transaction-level rollback boundary:
   the outer or savepoint current source;
 - the final current/next source reflects only the retry statements.
 
-WordPress smoke:
+Application smoke:
 
-`lanes/libsqlite/examples/wordpress-rowvalue-rollback-savepoint-current-source-next204.php`
+`lanes/libsqlite/examples/application-rowvalue-rollback-savepoint-current-source-next204.php`
 models a copied `wp_options` migration where a network option rewrite conflicts
 with an existing `(blog_id, option_name)` key and rolls back both outer and
 savepoint changes before retrying from the original source.
@@ -27,9 +27,9 @@ Focused verification:
 ```bash
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext204Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-rollback-savepoint-current-source-next204.php
+php -l lanes/libsqlite/examples/application-rowvalue-rollback-savepoint-current-source-next204.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext204Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-rollback-savepoint-current-source-next204.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-rollback-savepoint-current-source-next204.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

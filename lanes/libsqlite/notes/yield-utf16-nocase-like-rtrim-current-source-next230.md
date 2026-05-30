@@ -1,7 +1,7 @@
 # UTF-16 NOCASE LIKE RTRIM current-source next230
 
 This slice adds focused coverage for `rtrim(option_name) COLLATE NOCASE LIKE ?`
-over copied WordPress `wp_options` rows when UTF-16 text ends with CR, LF, or
+over copied Application `wp_options` rows when UTF-16 text ends with CR, LF, or
 form-feed bytes. SQLite `RTRIM` only removes ASCII space for this expression, so
 line-break/control suffixes stay part of the residual `LIKE` comparison and
 must invalidate stale current-source cursors when a next source rewrites them
@@ -10,7 +10,7 @@ to exact or ASCII-space-padded option names.
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext230Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next230.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next230.php --self-test`
 - PHP lint on the changed PHP files
 - `git diff --check -- lanes/libsqlite`
 

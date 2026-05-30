@@ -1,6 +1,6 @@
 # PRAGMA integrity_check pointer-map current-source next119
 
-This slice adds `SQLitePragmaIntegrityPointerMapCurrentSourceNext`, a byte-level current/next gate for `PRAGMA integrity_check` pointer-map and freelist diagnostics. It compares current auto-vacuum database bytes with a proposed next source and reports resolved, persisting, and introduced diagnostics before a WordPress copy/import path admits the next database image.
+This slice adds `SQLitePragmaIntegrityPointerMapCurrentSourceNext`, a byte-level current/next gate for `PRAGMA integrity_check` pointer-map and freelist diagnostics. It compares current auto-vacuum database bytes with a proposed next source and reports resolved, persisting, and introduced diagnostics before a Application copy/import path admits the next database image.
 
 Focused behavior:
 
@@ -13,10 +13,10 @@ Focused behavior:
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityPointerMapCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-current-source-next.php`
+- `php lanes/libsqlite/examples/application-pragma-integrity-pointermap-current-source-next.php`
 - `php -l lanes/libsqlite/src/SQLitePragmaIntegrityPointerMapCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIntegrityPointerMapCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-current-source-next.php`
+- `php -l lanes/libsqlite/examples/application-pragma-integrity-pointermap-current-source-next.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

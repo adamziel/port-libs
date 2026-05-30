@@ -112,7 +112,7 @@ $cases = [
     'publication digest length' => [static fn (): mixed => strlen($plan()['publication_digest']), 64],
     'dependency next223' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next223', $plan()['dependencies'], true), true],
     'dependency receipts' => [static fn (): mixed => in_array('sqlite-checkpoint-reset-publication-receipts', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-checkpoint-current-source-publication', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-checkpoint-current-source-publication', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next218 restart/truncate reset admission'), true],
     'truncate mode' => [static fn (): mixed => $truncate()['mode'], 'truncate'],

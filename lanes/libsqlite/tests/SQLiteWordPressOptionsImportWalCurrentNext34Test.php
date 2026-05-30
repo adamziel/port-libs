@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWordPressOptionsWalImportPlan;
+use PortLibs\LibSqlite\SQLiteOptionRowsWalImportPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $importRows = static fn (): array => [
     ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true,"mode":"safe"}', 'autoload' => 'no'],
     ['option_name' => 'siteurl', 'option_value' => 'https://new.example', 'autoload' => 'yes'],
 ];
-$plan = static fn (): array => SQLiteWordPressOptionsWalImportPlan::currentNext(
+$plan = static fn (): array => SQLiteOptionRowsWalImportPlan::currentNext(
     $baseWal(),
     $databaseBytes,
     $databasePath,
@@ -65,7 +65,7 @@ $nextWal = static fn (): SQLiteWal => SQLiteWal::parse($plan()['append']['wal_by
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'planned'],
-    'reason' => [static fn (): mixed => $plan()['reason'], 'wordpress_options_import_wal_commit_current_next_visibility'],
+    'reason' => [static fn (): mixed => $plan()['reason'], 'application_options_import_wal_commit_current_next_visibility'],
     'database path' => [static fn (): mixed => $plan()['database_path'], $databasePath],
     'wal path' => [static fn (): mixed => $plan()['wal_path'], $databasePath . '-wal'],
     'current row count' => [static fn (): mixed => count($plan()['current_rows']), 3],
@@ -105,7 +105,7 @@ $cases = [
     'next page siteurl updated' => [static fn (): mixed => str_contains($plan()['next_reader'][3]['image'], 'https://new.example'), true],
     'next autoload index names' => [static fn (): mixed => str_contains($plan()['next_reader'][4]['image'], '"option_names":["active_plugins","siteurl"]'), true],
     'next autoload excludes plugin settings' => [static fn (): mixed => !str_contains($plan()['next_reader'][4]['image'], 'plugin_settings'), true],
-    'dependency includes wp import' => [static fn (): mixed => in_array('wordpress-options-wal-import-current-next', $plan()['dependencies'], true), true],
+    'dependency includes wp import' => [static fn (): mixed => in_array('application-options-wal-import-current-next', $plan()['dependencies'], true), true],
     'dependency includes wal append' => [static fn (): mixed => in_array('sqlite-wal-append-transaction', $plan()['dependencies'], true), true],
     'next wal frame count' => [static fn (): mixed => $nextWal()->frameCount(), 7],
     'next wal uncommitted count' => [static fn (): mixed => $nextWal()->uncommittedFrameCount(), 0],
@@ -127,12 +127,12 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wordpress options import wal current next34 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application options import wal current next34 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
-$tests['wordpress options import wal current next34 applies append through vfs writer'] = static function (TestRunner $t) use ($baseWalBytes, $baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
+$tests['application options import wal current next34 applies append through vfs writer'] = static function (TestRunner $t) use ($baseWalBytes, $baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
     $root = sys_get_temp_dir() . '/port-libsqlite-wp-options-wal34-' . bin2hex(random_bytes(4));
     $localWal = $root . '/' . $databasePath . '-wal';
     $directory = dirname($localWal);
@@ -141,7 +141,7 @@ $tests['wordpress options import wal current next34 applies append through vfs w
     }
     file_put_contents($localWal, $baseWalBytes());
 
-    $plan = SQLiteWordPressOptionsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), [2, 5, 6]);
+    $plan = SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), [2, 5, 6]);
     $applied = (new SQLiteVfsFileWriter($root))->applyWalAppendTransactions($baseWal(), $databasePath, [[
         'pages' => array_combine(
             array_column($plan['append']['frames'], 'page_number'),
@@ -159,13 +159,13 @@ $tests['wordpress options import wal current next34 applies append through vfs w
     $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 6, 7)['image'], 'wp_options_autoload'));
 };
 
-$tests['wordpress options import wal current next34 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressOptionsWalImportPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressOptionsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressOptionsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressOptionsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressOptionsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['option_name' => '', 'option_value' => 'x']], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWordPressOptionsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
+$tests['application options import wal current next34 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['option_name' => '', 'option_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
 };
 
 return $tests;

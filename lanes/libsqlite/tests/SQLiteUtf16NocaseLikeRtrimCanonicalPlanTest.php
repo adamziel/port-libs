@@ -33,7 +33,7 @@ $nextRows = [
     $row(5, 'PLUGIN_CACHE', 'UTF-16LE'),
 ];
 
-$plan = static fn (string $pattern, ?string $escape = '\\'): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUtf16NocaseRtrimPlan(
+$plan = static fn (string $pattern, ?string $escape = '\\'): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUtf16NocaseRtrimPlan(
     $currentRows,
     $nextRows,
     $pattern,
@@ -45,8 +45,8 @@ $plan = static fn (string $pattern, ?string $escape = '\\'): array => SQLiteUtf1
 );
 
 $tests['utf16 nocase like rtrim canonical plan aliases existing implementation'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $alias = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUtf16NocaseRtrimPlan($currentRows, $nextRows, 'plugin\\_cache', '\\', 'stable', 'stable', 1, 1);
-    $legacy = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNoCasePlan($currentRows, $nextRows, 'plugin\\_cache', '\\', 'stable', 'stable', 1, 1);
+    $alias = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUtf16NocaseRtrimPlan($currentRows, $nextRows, 'plugin\\_cache', '\\', 'stable', 'stable', 1, 1);
+    $legacy = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNoCasePlan($currentRows, $nextRows, 'plugin\\_cache', '\\', 'stable', 'stable', 1, 1);
 
     $t->same($legacy['status'], $alias['status']);
     $t->same($legacy['currentMatchedRowids'], $alias['currentMatchedRowids']);
@@ -85,7 +85,7 @@ $tests['utf16 nocase like rtrim canonical plan rejects malformed utf16 source ro
         ],
     ];
 
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUtf16NocaseRtrimPlan($badRows, $nextRows, 'plugin%');
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUtf16NocaseRtrimPlan($badRows, $nextRows, 'plugin%');
 
     $t->same([2], $result['currentMalformedRowids']);
     $t->same('SQLite encoding source UTF-16 text payload ends with a high surrogate', $result['currentErrors'][2]);

@@ -32,10 +32,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 66 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-attach-temp-schema-trigger-cache-reprepare.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-schema-trigger-cache-reprepare.php --self-test
 ```
 
 ## Non-Overlap

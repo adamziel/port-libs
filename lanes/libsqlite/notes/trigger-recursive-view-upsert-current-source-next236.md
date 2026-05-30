@@ -10,7 +10,7 @@ current view source, trigger source, returning generation, row ordinal,
 returned value, event, depth, and trigger alias before attempted next-source
 rows can be published.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next236.php`
+Application path: `application-trigger-recursive-view-upsert-current-source-next236.php`
 models a copied `wp_options` import view where recursive trigger-generated
 UPSERT rows for `blogdescription_child` and `template_child` must have current
 row images sealed before a plugin migration's next-source `home` and
@@ -20,8 +20,8 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext236Test.php`
 - Result: `1 test files, 87 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next236.php`
-- Result: `wordpress-trigger-recursive-view-upsert-current-source-next236 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next236.php`
+- Result: `application-trigger-recursive-view-upsert-current-source-next236 self-test passed`
 
 Dashboard delta: expected `phpPass +87` from the focused PASS lines in
 `SQLiteTriggerRecursiveViewUpsertCurrentSourceNext236Test.php`. Mapped coverage

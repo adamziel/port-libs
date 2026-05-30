@@ -4,14 +4,14 @@
 
 - Added `SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan` for a stale prepared `lower(option_name) DESC` covering expression range cursor.
 - The plan reparses against the current schema/stat4/index source, rejects stale prepared lower-bound rowids, streams current rows in descending expression-key order, and keeps payload projection on the covering index cursor without deferred table seeks.
-- WordPress smoke: copied `wp_options` plugin admin scans can stream `lower(option_name) DESC` after ANALYZE/schema changes while preserving current/next cursor pairs.
+- Application smoke: copied `wp_options` plugin admin scans can stream `lower(option_name) DESC` after ANALYZE/schema changes while preserving current/next cursor pairs.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringExpressionRangeDescendingCurrentSourceTest.php`
   - `1 test files, 67 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-covering-expression-range-descending-current-source.php --self-test`
-  - `wordpress-covering-expression-range-current-source-descending self-test passed`
+- `php lanes/libsqlite/examples/application-covering-expression-range-descending-current-source.php --self-test`
+  - `application-covering-expression-range-current-source-descending self-test passed`
 
 ## Non-Overlap
 

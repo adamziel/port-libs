@@ -12,7 +12,7 @@ handling is shared with table-scoped `PRAGMA "main".quick_check(...)` and
 schema SQL in source identity instead of rejecting the current quick-check
 preflight before rows are collected.
 
-The focused coverage uses a WordPress archive attachment and verifies:
+The focused coverage uses a Application archive attachment and verifies:
 
 - schema-qualified table-valued `archive.pragma_foreign_key_check(...)` rows
   keep their attached schema/target provenance while sharing the quick_check
@@ -32,11 +32,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 44 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next145.php --self-test
-wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next145 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-quickcheck-foreignkey-rootpage-current-source-next145.php --self-test
+application-pragma-quickcheck-foreignkey-rootpage-current-source-next145 self-test passed
 ```
 
 Follow-up verification:

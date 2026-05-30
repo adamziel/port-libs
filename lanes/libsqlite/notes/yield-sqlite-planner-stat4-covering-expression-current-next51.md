@@ -27,8 +27,8 @@ php -l lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4CoveringExpressionCurrentNext51Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePlannerStat4CoveringExpressionCurrentNext51Test.php
-php -l lanes/libsqlite/examples/wordpress-planner-stat4-covering-expression-current-next51.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-planner-stat4-covering-expression-current-next51.php
+php -l lanes/libsqlite/examples/application-planner-stat4-covering-expression-current-next51.php
+No syntax errors detected in lanes/libsqlite/examples/application-planner-stat4-covering-expression-current-next51.php
 ```
 
 ```text
@@ -41,8 +41,8 @@ Focused test run: 1 selected test files (root lock skipped)
 `grep -c '^PASS '` over the focused run output reported `57` new PASS lines.
 
 ```text
-php lanes/libsqlite/examples/wordpress-planner-stat4-covering-expression-current-next51.php --self-test
-wordpress-planner-stat4-covering-expression-current-next51 self-test passed
+php lanes/libsqlite/examples/application-planner-stat4-covering-expression-current-next51.php --self-test
+application-planner-stat4-covering-expression-current-next51 self-test passed
 ```
 
 Non-overlap: this does not repeat batch48 STAT4 skip-scan covering loop

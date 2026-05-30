@@ -18,7 +18,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreeblockCoalesceCurren
 Result: `1 test files, 54 assertions, 0 failures`.
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-freeblock-coalesce-current-next31.php
+php lanes/libsqlite/examples/application-btree-freeblock-coalesce-current-next31.php
 ```
 
 Result: JSON smoke reports copied `wp_options` overflow-backed delete page

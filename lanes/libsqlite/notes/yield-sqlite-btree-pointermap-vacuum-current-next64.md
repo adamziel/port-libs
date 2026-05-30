@@ -23,10 +23,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The focused run emitted 57 PASS lines.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-current-next64.php
+$ php lanes/libsqlite/examples/application-btree-pointermap-vacuum-current-next64.php
 {
     "scenario": "copied wp_options overflow delete plus incremental vacuum pointer-map current/next64",
     "released_overflow_pages": [306, 307, 308, 309, 310],

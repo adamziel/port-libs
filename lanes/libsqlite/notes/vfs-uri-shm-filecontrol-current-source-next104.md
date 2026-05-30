@@ -23,8 +23,8 @@ Focused test run: 4 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-vfs-uri-shm-filecontrol-current-source-next104.php
-Self-test passed and emitted JSON for the copied WordPress database URI/sidecar scenario.
+php lanes/libsqlite/examples/application-vfs-uri-shm-filecontrol-current-source-next104.php
+Self-test passed and emitted JSON for the copied Application database URI/sidecar scenario.
 ```
 
 ## Non-Overlap

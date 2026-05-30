@@ -10,7 +10,7 @@ blocker where nested `wp_options` export views carried
 nested view dropped that generated-index dependency before current-source
 reparse admission.
 
-WordPress path: `wordpress-schema-generated-view-index-reparse-current-source-next138.php` models copied `wp_options` export views layered on a generated-column index view, then a plugin import trigger reading the nested view before stale prepared statements resume.
+Application path: `application-schema-generated-view-index-reparse-current-source-next138.php` models copied `wp_options` export views layered on a generated-column index view, then a plugin import trigger reading the nested view before stale prepared statements resume.
 
 Focused evidence:
 
@@ -35,8 +35,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaAlterGeneratedCheckRep
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-schema-generated-view-index-reparse-current-source-next138.php --self-test
-wordpress-schema-generated-view-index-reparse-current-source-next138 self-test passed
+php lanes/libsqlite/examples/application-schema-generated-view-index-reparse-current-source-next138.php --self-test
+application-schema-generated-view-index-reparse-current-source-next138 self-test passed
 ```
 
 Dashboard delta: this is blocker reduction over existing focused tests, so

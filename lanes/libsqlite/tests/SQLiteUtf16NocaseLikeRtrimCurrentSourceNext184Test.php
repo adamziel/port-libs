@@ -47,7 +47,7 @@ $plan184 = static fn (
     string $nextSource = 'stable',
     int $currentCookie = 184,
     int $nextCookie = 184,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedPeerReplayPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedPeerReplayPlan(
     $current ?? $rows184,
     $next ?? $rows184,
     $pattern,
@@ -140,7 +140,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightFour escaped percent 
     $bad['keyEncoding'] = 2;
     $bad['bytesHex'] = bin2hex($bad['keyBytes']);
     $bad['encoding'] = 'UTF-16LE';
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache%', '!', $bad, 'stable', 'stable', 184, 184);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache%', '!', $bad, 'stable', 'stable', 184, 184);
     $t->same(false, $result['tokenMatchesEscapedLikeResidual']);
     $t->same(['yield-token-not-stable', 'yield-token-like-residual-mismatch'], $result['peerReplayUnsafeReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
@@ -153,7 +153,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightFour escaped undersco
     $bad['rowid'] = 7;
     $bad['keyBytes'] = $enc184('plugin__cache', 'UTF-16BE');
     $bad['bytesHex'] = bin2hex($bad['keyBytes']);
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache%', '!', $bad, 'stable', 'stable', 184, 184);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache%', '!', $bad, 'stable', 'stable', 184, 184);
     $t->same(false, $result['tokenMatchesEscapedLikeResidual']);
     $t->same(['yield-token-not-stable', 'yield-token-like-residual-mismatch'], $result['peerReplayUnsafeReasons']);
     $t->same('reprepare-from-range-start', $result['replayPlanMode']);
@@ -167,7 +167,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightFour token trailing s
     $token['keyEncoding'] = 2;
     $token['bytesHex'] = bin2hex($token['keyBytes']);
     $token['encoding'] = 'UTF-16LE';
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache', '!', $token, 'stable', 'stable', 184, 184);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache', '!', $token, 'stable', 'stable', 184, 184);
     $t->same('Plugin_%Cache', $result['tokenRtrimText']);
     $t->same(true, $result['tokenMatchesEscapedLikeResidual']);
     $t->same([2, 3], $result['sameKeyReplayRowids']);
@@ -179,7 +179,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightFour tab suffix does 
     $token['rowid'] = 6;
     $token['keyBytes'] = $enc184("plugin_%cache\t", 'UTF-16LE');
     $token['keyEncoding'] = 2;
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache', '!', $token, 'stable', 'stable', 184, 184);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache', '!', $token, 'stable', 'stable', 184, 184);
     $t->same('plugin_%cache', $result['tokenRtrimText']);
     $t->same(true, $result['tokenMatchesEscapedLikeResidual']);
     $t->same(true, in_array('yield-token-not-stable', $result['peerReplayUnsafeReasons'], true));
@@ -189,7 +189,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightFour malformed token 
     $bad = $token184;
     $bad['keyBytes'] = "\x00\xd8";
     $bad['keyEncoding'] = 2;
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache%', '!', $bad, 'stable', 'stable', 184, 184));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache%', '!', $bad, 'stable', 'stable', 184, 184));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightFour source change still defeats escaped token continuation'] = static function (TestRunner $t) use ($plan184): void {

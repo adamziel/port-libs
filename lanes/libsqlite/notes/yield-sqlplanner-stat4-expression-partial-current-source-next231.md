@@ -11,8 +11,8 @@ selected LIMIT/OFFSET page, and records a VDBE-style
 `RecheckCurrentStat4ExpressionPartialPage` cursor opcode only when the selected
 page still matches the current source.
 
-WordPress smoke:
-`wordpress-sqlplanner-stat4-expression-partial-current-source-next231.php`
+Application smoke:
+`application-sqlplanner-stat4-expression-partial-current-source-next231.php`
 models copied `wp_options` plugin-admin pagination over a descending partial
 `lower(option_name)` index after ANALYZE/source changes.
 

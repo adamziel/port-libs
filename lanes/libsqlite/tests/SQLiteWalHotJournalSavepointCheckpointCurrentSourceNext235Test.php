@@ -100,7 +100,7 @@ $cases = [
     'operation admit' => [static fn (): mixed => in_array('admit_durable_reopened_current_source_next235', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next232', $plan()['dependencies'], true), true],
     'dependency next235' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next235', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-durable-current-source', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-durable-current-source', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'database row accepted' => [static fn (): mixed => $plan()['receipt_rows'][0]['accepted'], true],

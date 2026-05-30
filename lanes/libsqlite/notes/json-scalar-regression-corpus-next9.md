@@ -10,12 +10,12 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonScalarRegressionCorpusTest.php`
   - Result: `1 test files, 55 assertions, 0 failures`
   - PASS-line delta: `+55`
-- `php lanes/libsqlite/examples/wordpress-json-scalar-regression.php`
+- `php lanes/libsqlite/examples/application-json-scalar-regression.php`
   - Result: emitted `plugin_settings` JSON with canonical payload, patched
     payload, quoted option name, and `pretty_lines: 11`.
 - `php -l lanes/libsqlite/tests/SQLiteJsonScalarRegressionCorpusTest.php`
   - Result: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-json-scalar-regression.php`
+- `php -l lanes/libsqlite/examples/application-json-scalar-regression.php`
   - Result: no syntax errors.
 - `git diff --check -- lanes/libsqlite`
   - Result: no whitespace errors.

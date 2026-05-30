@@ -22,10 +22,10 @@ PASS delta: `+60` verified PASS lines. `lane-status.json` `phpPass` moves from
 focused PHP corpus coverage for an already mapped SELECT/subquery predicate
 surface rather than a newly hydrated upstream inventory unit.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-subquery-null-semantics.php
+php lanes/libsqlite/examples/application-select-subquery-null-semantics.php
 ```
 
 Non-overlap: this does not repeat accepted broad correlated subquery execution,

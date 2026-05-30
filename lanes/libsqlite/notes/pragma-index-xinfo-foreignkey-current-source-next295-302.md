@@ -11,4 +11,4 @@ Prepared the next PRAGMA/FK current-source slice after next287-294.
 - next301: `NO ACTION` relationship without a child lookup index prefix.
 - next302: deferrable foreign key clause.
 
-Validation target: focused test `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext295302Test.php` and example self-test `wordpress-pragma-index-xinfo-foreignkey-current-source-next295-302.php --self-test`.
+Validation target: focused test `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext295302Test.php` and example self-test `application-pragma-index-xinfo-foreignkey-current-source-next295-302.php --self-test`.

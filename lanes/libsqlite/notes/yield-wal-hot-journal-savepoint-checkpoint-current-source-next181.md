@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a reopen-time admission check after the next178 post-apply receipt. It verifies the durable database bytes, confirms the hot journal remains absent, reparses the reopened WAL with checksums enabled, and records commit-frame metadata before allowing a WordPress import/checkpoint publication to reopen readers.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a reopen-time admission check after the next178 post-apply receipt. It verifies the durable database bytes, confirms the hot journal remains absent, reparses the reopened WAL with checksums enabled, and records commit-frame metadata before allowing a Application import/checkpoint publication to reopen readers.
 
 This intentionally follows the next178 receipt. It does not repeat next175 VFS writes, next173 source-hash admission, or next178 post-apply file matching.
 
@@ -16,10 +16,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 41 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next181.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next181.php
 {
     "status": "wal-hot-journal-savepoint-checkpoint-current-source-next181",
     "can_reopen_publish": true,

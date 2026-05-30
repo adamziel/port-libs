@@ -14,12 +14,12 @@ ORDER BY/LIMIT/OFFSET after HAVING.
 ## Evidence
 
 - `php -l lanes/libsqlite/tests/SQLiteSelectHavingGroupAggregateNext7Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-select-having-group-aggregate-next7.php`
+- `php -l lanes/libsqlite/examples/application-select-having-group-aggregate-next7.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectHavingGroupAggregateNext7Test.php`
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 50 assertions, 0 failures`
   - 50 PASS lines
-- `php lanes/libsqlite/examples/wordpress-select-having-group-aggregate-next7.php`
+- `php lanes/libsqlite/examples/application-select-having-group-aggregate-next7.php`
   emits copied `wp_options` grouped HAVING preview JSON without requiring
   `ext/sqlite`.
 
@@ -43,5 +43,5 @@ pushdown.
 ## Dependency Closure
 
 No new support component is needed. The corpus reuses existing native PHP
-`SQLiteSelectSql` and row-array execution; the WordPress smoke runs without
+`SQLiteSelectSql` and row-array execution; the Application smoke runs without
 `ext/sqlite` or live services.

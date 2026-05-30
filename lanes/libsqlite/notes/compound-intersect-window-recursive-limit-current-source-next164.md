@@ -12,7 +12,7 @@ Focused behavior:
   computed for the compound arm;
 - both sides of `INTERSECT` evaluate `row_number()` before set comparison;
 - final LIMIT/OFFSET is applied after the intersected rowset, so a new
-  high-weight option shifts the yielded WordPress option boundary;
+  high-weight option shifts the yielded Application option boundary;
 - diagnostics expose changed matched labels, yield boundary rows, recursive
   trace counts, and current/next replan reasons.
 
@@ -28,4 +28,4 @@ Non-overlap:
 Verification:
 
 - focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundIntersectWindowRecursiveLimitCurrentSourceNext164Test.php`
-- smoke: `php lanes/libsqlite/examples/wordpress-compound-intersect-window-recursive-limit.php`
+- smoke: `php lanes/libsqlite/examples/application-compound-intersect-window-recursive-limit.php`

@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteWordPressOption;
+use PortLibs\LibSqlite\SQLiteOptionRow;
 
 $path = static function (string $expression, string $operator = 'text'): ?string {
     $sql = 'CREATE INDEX fixture ON wp_options(' . $expression . ') WHERE option_value IS NOT NULL';
@@ -161,7 +161,7 @@ return [
         null,
         $path("option_value -> ('$.rules[#-]' COLLATE nocase)", 'value'),
     ),
-    'uses wordpress json text operator index with collated RHS label' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $indexCell, $pageSize): void {
+    'uses application json text operator index with collated RHS label' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $indexCell, $pageSize): void {
         $schemaPage = SQLiteTableLeafPage::assemble([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
             $schemaCell(['index', 'wp_options_json_cache', 'wp_options', 3, "CREATE INDEX wp_options_json_cache ON wp_options(option_value ->> ('cache' COLLATE nocase)) WHERE option_value IS NOT NULL"], 2),
@@ -172,9 +172,9 @@ return [
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . SQLiteIndexLeafPage::assemble([$indexCell(['hit', 1])], $pageSize));
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.cache', 'hit'));
-        $t->same(['plugin_cache_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$.cache', 'hit')));
+        $t->same(['plugin_cache_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$.cache', 'hit')));
     },
-    'uses wordpress json text operator index with collated RHS dotted label' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $indexCell, $pageSize): void {
+    'uses application json text operator index with collated RHS dotted label' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $indexCell, $pageSize): void {
         $schemaPage = SQLiteTableLeafPage::assemble([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
             $schemaCell(['index', 'wp_options_json_enabled', 'wp_options', 3, "CREATE INDEX wp_options_json_enabled ON wp_options(option_value ->> ('plugin.enabled' COLLATE binary)) WHERE option_value IS NOT NULL"], 2),
@@ -185,6 +185,6 @@ return [
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . SQLiteIndexLeafPage::assemble([$indexCell(['yes', 1])], $pageSize));
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."plugin.enabled"', 'yes'));
-        $t->same(['plugin_enabled_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$."plugin.enabled"', 'yes')));
+        $t->same(['plugin_enabled_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$."plugin.enabled"', 'yes')));
     },
 ];

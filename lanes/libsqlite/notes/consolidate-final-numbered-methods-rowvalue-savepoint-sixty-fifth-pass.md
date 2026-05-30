@@ -7,8 +7,8 @@ worker-numbered production/test/example names and diagnostics.
   `SQLiteRowValueNestedSavepointReturningPlan`.
 - Renamed the direct focused test to
   `SQLiteRowValueNestedSavepointReturningTest.php`.
-- Renamed the WordPress smoke to
-  `wordpress-rowvalue-nested-savepoint-returning.php`.
+- Renamed the Application smoke to
+  `application-rowvalue-nested-savepoint-returning.php`.
 - Removed worker-number suffixes from the production status, dependencies,
   savepoint defaults, exception text, test names, and direct note references.
 
@@ -16,9 +16,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueNestedSavepointReturningPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueNestedSavepointReturningTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-returning.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-nested-savepoint-returning.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueNestedSavepointReturningTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-returning.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-nested-savepoint-returning.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this cleanup reuses the

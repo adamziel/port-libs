@@ -24,8 +24,8 @@ quarantined with rowid, byte, and decoder-error evidence.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteMalformedUtf16LikeRangeCurrentSourceNext97Test.php`
   - `1 test files, 56 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-malformed-utf16-like-range-current-source-next97.php --self-test`
-  - `wordpress-malformed-utf16-like-range-current-source-next97 self-test passed`
+- `php lanes/libsqlite/examples/application-malformed-utf16-like-range-current-source-next97.php --self-test`
+  - `application-malformed-utf16-like-range-current-source-next97 self-test passed`
 
 Root harness: not run - isolated micro-slice.
 

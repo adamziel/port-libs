@@ -17,8 +17,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerSkipScanStat4PartialO
 Focused test run: 2 selected test files (root lock skipped)
 124 assertions / 0 failures
 
-php lanes/libsqlite/examples/wordpress-planner-stat4-partial-skipscan-order-current-next52.php --self-test
-wordpress-planner-stat4-partial-skipscan-order-current-next52 self-test passed
+php lanes/libsqlite/examples/application-planner-stat4-partial-skipscan-order-current-next52.php --self-test
+application-planner-stat4-partial-skipscan-order-current-next52 self-test passed
 ```
 
 New dashboard-visible focused PASS delta: `+55` verified PHP PASS lines from
@@ -27,7 +27,7 @@ the new current-next52 test file, raising lane-local `phpPass` from `19277` to
 
 Dependency closure: no new support component is needed. This reuses existing
 native PHP skip-scan, partial-index predicate proof, STAT4 sample metadata, and
-WordPress copied-row planner fixtures.
+Application copied-row planner fixtures.
 
 Non-overlap: this avoids accepted batch49 STAT4 partial-expression ORDER
 planning, accepted current-next36 skip-scan STAT4 partial ORDER basics,

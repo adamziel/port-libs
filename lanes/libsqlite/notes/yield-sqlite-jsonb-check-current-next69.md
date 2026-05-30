@@ -11,7 +11,7 @@
 - Adds focused current/next admission coverage for copied `wp_options` JSONB
   plugin rows where denied channels, legacy families, and reserved rank/version
   ranges are rejected before storage admission.
-- Adds a WordPress smoke for plugin-setting imports guarded by `NOT IN` and
+- Adds a Application smoke for plugin-setting imports guarded by `NOT IN` and
   `NOT BETWEEN` CHECK constraints.
 
 ## Evidence
@@ -31,9 +31,9 @@ Focused test run: 2 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-jsonb-check-current-next69.php
+php lanes/libsqlite/examples/application-jsonb-check-current-next69.php
 {
-    "scenario": "wordpress-jsonb-check-current-next69",
+    "scenario": "application-jsonb-check-current-next69",
     "changes": 2,
     "rejectedChanges": 2,
     "acceptedRowids": [
@@ -48,7 +48,7 @@ php lanes/libsqlite/examples/wordpress-jsonb-check-current-next69.php
         "CHECK(json_extract(option_value, '$.plugin.channel') NOT IN ('nightly','dev','blocked'))",
         "CHECK(json_extract(option_value, '$.plugin.min_wp') NOT BETWEEN 6.8 AND 7.9)"
     ],
-    "wordpressUse": "Preflight copied wp_options JSONB plugin settings with SQLite NOT IN and NOT BETWEEN CHECK guards before import rows are admitted."
+    "applicationUse": "Preflight copied wp_options JSONB plugin settings with SQLite NOT IN and NOT BETWEEN CHECK guards before import rows are admitted."
 }
 ```
 

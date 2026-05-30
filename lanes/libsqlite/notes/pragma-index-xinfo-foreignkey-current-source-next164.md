@@ -19,8 +19,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next164.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-current-source-next164 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next164.php --self-test
+application-pragma-index-xinfo-foreignkey-current-source-next164 self-test passed
 ```
 
 ## Non-overlap

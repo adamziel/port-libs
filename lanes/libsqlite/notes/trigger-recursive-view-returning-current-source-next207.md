@@ -11,9 +11,9 @@ next view/trigger source can publish rows.
 - Current-source rows remain visible while missing, unexpected, reordered,
   stale-token, stale-count, or base-held drain evidence suppresses attempted
   next-source rows.
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next207.php`
-  returned `wordpress-trigger-recursive-view-returning-current-source-next207 self-test passed`.
+- Application smoke:
+  `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next207.php`
+  returned `application-trigger-recursive-view-returning-current-source-next207 self-test passed`.
 
 Verification:
 
@@ -31,8 +31,8 @@ $ php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNex
 No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext207Plan.php
 $ php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext207Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext207Test.php
-$ php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next207.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next207.php
+$ php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next207.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next207.php
 ```
 
 Expected dashboard movement: `phpPass +97` from the new focused test file.

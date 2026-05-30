@@ -159,7 +159,7 @@ $cases = [
     'base discarded indexes' => [static fn (): mixed => $restart()['base_plan']['discarded_frame_indexes'], [3, 4, 5]],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next165', $restart()['dependencies'], true), true],
     'dependency publish' => [static fn (): mixed => in_array('sqlite-wal-checkpoint-publish-sequence', $restart()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-current-source-checkpoint-publish', $restart()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-current-source-checkpoint-publish', $restart()['dependencies'], true), true],
     'dependency closure text' => [static fn (): mixed => str_contains($restart()['dependency_closure'], 'no new support component needed'), true],
     'non overlap text' => [static fn (): mixed => str_contains($restart()['non_overlap'], 'extends next162'), true],
     'truncate released action' => [static fn (): mixed => $truncate()['released_checkpoint_wal_action'], 'truncate_wal'],

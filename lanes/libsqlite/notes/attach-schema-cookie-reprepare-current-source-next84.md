@@ -13,10 +13,10 @@ reset, can be retried as a read, or must block before write retry.
 Verification evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachSchemaCookieReprepareCurrentSourceNext84Test.php`
-- `php lanes/libsqlite/examples/wordpress-attach-schema-cookie-reprepare-current-source.php`
+- `php lanes/libsqlite/examples/application-attach-schema-cookie-reprepare-current-source.php`
 - `php -l lanes/libsqlite/src/SQLiteAttachSchemaCookieRepreparePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteAttachSchemaCookieReprepareCurrentSourceNext84Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-attach-schema-cookie-reprepare-current-source.php`
+- `php -l lanes/libsqlite/examples/application-attach-schema-cookie-reprepare-current-source.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The slice reuses the

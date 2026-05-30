@@ -14,11 +14,11 @@ rows, paginates analysis entries, resumes from a cursor, and rejects stale
 source IDs or offsets. The summary includes visible/generated/default/not-null
 table counts plus key/auxiliary/expression/rowid/collation index counts.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-tableinfo-analysis-current-source-next108.php --self-test
-wordpress-pragma-index-xinfo-tableinfo-analysis-current-source-next108 self-test passed
+php lanes/libsqlite/examples/application-pragma-index-xinfo-tableinfo-analysis-current-source-next108.php --self-test
+application-pragma-index-xinfo-tableinfo-analysis-current-source-next108 self-test passed
 ```
 
 Focused verification:
@@ -36,7 +36,7 @@ Additional checks:
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIndexTableInfoAnalysis.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexTableInfoAnalysisCurrentSourceNext108Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-tableinfo-analysis-current-source-next108.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-tableinfo-analysis-current-source-next108.php
 git diff --check -- lanes/libsqlite
 ```
 

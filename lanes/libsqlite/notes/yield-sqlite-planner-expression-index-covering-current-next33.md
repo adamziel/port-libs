@@ -23,7 +23,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-expression-index-covering.php
+php lanes/libsqlite/examples/application-select-expression-index-covering.php
 ```
 
 The smoke reports `idx_wp_options_lower_name_covering` selected with

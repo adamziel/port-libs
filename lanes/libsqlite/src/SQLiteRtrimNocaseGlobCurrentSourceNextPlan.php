@@ -6,14 +6,14 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteRtrimNocaseGlobCurrentSourceNextPlan
 {
-    public static function wordpressOptionNamePlan(mixed ...$args): array
+    public static function optionRowNamePlan(mixed ...$args): array
     {
-        return SQLiteRtrimNocaseGlobCurrentSourceNextPlainImpl::wordpressOptionNamePlan(...$args);
+        return SQLiteRtrimNocaseGlobCurrentSourceNextPlainImpl::optionRowNamePlan(...$args);
     }
 
-    public static function wordpressOptionNameExpressionPlan(mixed ...$args): array
+    public static function optionRowNameExpressionPlan(mixed ...$args): array
     {
-        return SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl::wordpressOptionNameExpressionPlan(...$args);
+        return SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl::optionRowNameExpressionPlan(...$args);
     }
 
 }
@@ -25,7 +25,7 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextPlainImpl
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePlan(
+    public static function optionRowNamePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -228,7 +228,7 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameExpressionPlan(
+    public static function optionRowNameExpressionPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

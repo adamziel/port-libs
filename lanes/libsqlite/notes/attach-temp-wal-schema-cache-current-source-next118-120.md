@@ -11,6 +11,6 @@ Focused checks:
 ```text
 php lanes/libsqlite/tests/run.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext117Test.php
 php lanes/libsqlite/tests/run.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext118120Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next117.php --self-test
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next118-120.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next117.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next118-120.php --self-test
 ```

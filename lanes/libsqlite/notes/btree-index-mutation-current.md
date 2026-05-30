@@ -21,7 +21,7 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeIndexMutationCurrentTest.php`
   expected result: `1 test files, 43 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-btree-index-mutation-current.php --self-test`
+- `php lanes/libsqlite/examples/application-btree-index-mutation-current.php --self-test`
   expected result: JSON `status` of `ok`.
 - `php -l` for changed PHP files.
 - `git diff --check -- lanes/libsqlite`.

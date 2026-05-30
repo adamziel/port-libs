@@ -11,7 +11,7 @@
 - Focused command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableConstraintPlannerCurrentNext70Test.php`
 - Result: `1 test files, 53 assertions, 0 failures`
 - New focused PASS-line delta: `+53`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-current-next70.php`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-current-next70.php`
 
 ## Non-Overlap
 

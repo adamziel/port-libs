@@ -125,7 +125,7 @@ $cases = [
     'dependency next181 carried' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next181', $plan()['dependencies'], true), true],
     'dependency next184' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next184', $plan()['dependencies'], true), true],
     'dependency reader mark separation' => [static fn (): mixed => in_array('sqlite-wal-reader-mark-source-separation-after-reopen', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-retry-wal-salt-checkpoint-fence', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-retry-wal-salt-checkpoint-fence', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next178'), true],
     'blocked reopen status' => [static fn (): mixed => $plan($blockedReopen)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next184'],

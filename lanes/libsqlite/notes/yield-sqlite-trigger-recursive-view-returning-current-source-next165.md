@@ -17,7 +17,7 @@ generations.
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext165Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next165.php`
+- Application smoke: `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next165.php`
 - PHP lint: `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext165Plan.php`
 - Whitespace: `git diff --check -- lanes/libsqlite`
 

@@ -10884,7 +10884,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             'dependencies' => [
                 'sqlite-pragma-index-xinfo-current-source',
                 'sqlite-pragma-foreign-key-list-current-source',
-                'sqlite-wordpress-copied-schema-reparse-preflight',
+                'sqlite-application-copied-schema-reparse-preflight',
             ],
         ];
     }
@@ -11483,7 +11483,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             'dependencies' => [
                 'sqlite-pragma-index-xinfo-current-source',
                 'sqlite-pragma-foreign-key-list-table-valued-current-source',
-                'sqlite-wordpress-copied-schema-reparse-preflight',
+                'sqlite-application-copied-schema-reparse-preflight',
             ],
         ];
     }

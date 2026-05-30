@@ -11,13 +11,13 @@
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext221Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next221.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next221.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext221Test.php`
 - Result: `1 test files, 65 assertions, 0 failures`
 
-## WordPress Smoke
+## Application Smoke
 
-- `wordpress-sqlplanner-stat4-expression-partial-current-source-next221.php` models copied `wp_options` plugin scans that reuse a current-source partial expression index across cursor yields only after the yielded page and lookahead row stay inside current STAT4 sample windows.
+- `application-sqlplanner-stat4-expression-partial-current-source-next221.php` models copied `wp_options` plugin scans that reuse a current-source partial expression index across cursor yields only after the yielded page and lookahead row stay inside current STAT4 sample windows.
 
 ## Non-overlap
 

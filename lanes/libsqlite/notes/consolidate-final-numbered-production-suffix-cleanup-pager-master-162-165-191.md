@@ -22,7 +22,7 @@ Verification:
   - `5 test files, 425 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext*Test.php`
   - `120 test files, 8684 assertions, 0 failures`
-- `php` self-test runs for the five changed pager-master WordPress examples.
+- `php` self-test runs for the five changed pager-master Application examples.
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this is a production

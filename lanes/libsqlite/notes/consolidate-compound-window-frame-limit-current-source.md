@@ -7,15 +7,15 @@ private helpers with stable descriptive method names.
 Direct test/example migration:
 
 - `SQLiteCompoundWindowFrameLimitCurrentSourceNextTest.php`
-- `wordpress-compound-window-frame-limit-current-source.php`
+- `application-compound-window-frame-limit-current-source.php`
 
 Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundWindowFrameLimitCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-window-frame-limit-current-source.php`
+- `php -l lanes/libsqlite/examples/application-compound-window-frame-limit-current-source.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowFrameLimitCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-compound-window-frame-limit-current-source.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-window-frame-limit-current-source.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this is a consolidation

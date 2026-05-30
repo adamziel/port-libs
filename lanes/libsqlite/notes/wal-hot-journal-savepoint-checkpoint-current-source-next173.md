@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-cu
 
 This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It composes the existing next167 current/next WAL token and publication-fingerprint guard with filesystem byte-hash admission for the database, hot rollback journal, and WAL sidecar before publishing the checkpoint operation order.
 
-WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next173.php` models a copied `wp_options` import crash where the prepared checkpoint can publish only when the database, journal, and WAL bytes still match the guarded current-source hashes; a stale WAL byte stream blocks publication before deleting the hot journal or writing checkpoint bytes.
+Application smoke: `application-wal-hot-journal-savepoint-checkpoint-current-source-next173.php` models a copied `wp_options` import crash where the prepared checkpoint can publish only when the database, journal, and WAL bytes still match the guarded current-source hashes; a stale WAL byte stream blocks publication before deleting the hot journal or writing checkpoint bytes.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next173.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next173.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Test.php` -> `1 test files, 60 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next173.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next173.php`
 
 Expected dashboard delta: `phpPass` moves from `77680` to `77740` from 60 newly passing focused PASS lines. Mapped upstream coverage remains `612 / 1589`; this is focused WAL/pager current-source behavior over existing checkpoint/hot-journal/savepoint inventory rather than a new manifest row.
 

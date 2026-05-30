@@ -131,7 +131,7 @@ $cases = [
     'plan receipt conflict row' => [static fn (): mixed => $plan()['rollback_receipt']['fail_statement_conflict']['row_id'], 8],
     'plan dependency inner rollback' => [static fn (): mixed => in_array('sqlite-rowvalue-inner-savepoint-rollback-suppresses-returning', $plan()['dependencies'], true), true],
     'plan dependency fail rollback' => [static fn (): mixed => in_array('sqlite-rowvalue-update-or-fail-prior-rows-rolled-back-by-savepoint', $plan()['dependencies'], true), true],
-    'plan dependency wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-savepoint-retry-reads-outer-current-source', $plan()['dependencies'], true), true],
+    'plan dependency application' => [static fn (): mixed => in_array('application-rowvalue-savepoint-retry-reads-outer-current-source', $plan()['dependencies'], true), true],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'plan non overlap avoids trigger' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'trigger RETURNING') && !preg_match('/next[0-9]+/i', $plan()['non_overlap']), true],
     'custom savepoints' => [static fn (): mixed => [$customPlan()['outer_savepoint'], $customPlan()['inner_savepoint']], ['outer_custom', 'inner_custom']],

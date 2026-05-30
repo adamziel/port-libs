@@ -188,7 +188,7 @@ $cases = [
     'blocked status' => [static fn (): mixed => $blocked()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next159'],
     'blocked hot recovered false' => [static fn (): mixed => $blocked()['hot_recovered'], false],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next159', $restart()['dependencies'], true), true],
-    'dependency wordpress marker' => [static fn (): mixed => in_array('wordpress-import-hot-journal-savepoint-checkpoint-current-source', $restart()['dependencies'], true), true],
+    'dependency application marker' => [static fn (): mixed => in_array('application-import-hot-journal-savepoint-checkpoint-current-source', $restart()['dependencies'], true), true],
     'dependency closure text' => [static fn (): mixed => str_contains($restart()['dependency_closure'], 'no new support component needed'), true],
     'non overlap text' => [static fn (): mixed => str_contains($restart()['non_overlap'], 'checkpoint materialization'), true],
 ];

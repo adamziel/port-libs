@@ -2,7 +2,7 @@
 
 ## Scope
 
-Added focused parser-level SELECT SQL coverage for MATERIALIZED recursive CTE rows feeding current `json_each()` / `json_tree()` roots. The slice covers copied WordPress `wp_options` navigation JSON stored as text JSON and JSONB, recursive object-root queueing, grouped and limited outer scans, recursive trace dependency evidence, and malformed dynamic-root rejection.
+Added focused parser-level SELECT SQL coverage for MATERIALIZED recursive CTE rows feeding current `json_each()` / `json_tree()` roots. The slice covers copied Application `wp_options` navigation JSON stored as text JSON and JSONB, recursive object-root queueing, grouped and limited outer scans, recursive trace dependency evidence, and malformed dynamic-root rejection.
 
 ## Evidence
 

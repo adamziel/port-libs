@@ -11,7 +11,7 @@ trigger generation can become visible. Missing, unexpected, out-of-order,
 cursor-mismatched, and token-mismatched seals fence the subsequent next-source
 rows while retaining the already visible current/following rows.
 
-WordPress path: copied `wp_options` recursive import views can drain current,
+Application path: copied `wp_options` recursive import views can drain current,
 next, and following-current `RETURNING` rows, then safely admit a subsequent
 next-source import for options such as `cron` and `widget_block` only after the
 following-current stream is sealed.
@@ -33,13 +33,13 @@ Focused test run: 1 selected test files (root lock skipped)
 Smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next226.php
+php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next226.php
 ```
 
 Result:
 
 ```text
-wordpress-trigger-recursive-view-returning-current-source-next226 self-test passed
+application-trigger-recursive-view-returning-current-source-next226 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +94 (`108262` to `108356`) once this

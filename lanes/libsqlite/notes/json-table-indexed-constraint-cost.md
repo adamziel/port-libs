@@ -8,12 +8,12 @@ This slice adds current/next JSON table planner metadata for the selected indexe
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableIndexedConstraintCostTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-indexed-constraint-cost.php`
+- `php -l lanes/libsqlite/examples/application-json-table-indexed-constraint-cost.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableIndexedConstraintCostTest.php`
 - Result: `1 test files, 52 assertions, 0 failures`
 - Focused PASS-line delta: `+52`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-indexed-constraint-cost.php --self-test`
-- Smoke result: `wordpress-json-table-indexed-constraint-cost self-test passed`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-indexed-constraint-cost.php --self-test`
+- Smoke result: `application-json-table-indexed-constraint-cost self-test passed`
 - Root harness: not run - isolated micro-slice
 
 ## Non-Overlap

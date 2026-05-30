@@ -21,10 +21,10 @@ generations, database/WAL/consumer digest mismatch, missing retained current
 consumers, missing reopened stale consumers, retained hot-journal identity,
 open savepoints, dirty cache, and closed writer handles.
 
-## WordPress Smoke
+## Application Smoke
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next209.php`
-models a copied WordPress `wp_options` import after hot-journal recovery and
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next209.php`
+models a copied Application `wp_options` import after hot-journal recovery and
 checkpoint publication. It admits the current autoload update writer and
 reopens the stale plugin writer before any new WAL append.
 

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This slice extends the bounded `SQLiteUpdateFromSql` executor for WordPress
+This slice extends the bounded `SQLiteUpdateFromSql` executor for Application
 current-row imports:
 
 - preserves a leading `WITH` / CTE clause when generating the internal SELECT
@@ -16,7 +16,7 @@ current-row imports:
 - keeps existing current-row behavior for duplicate source rows and `OR REPLACE`
   unique `option_name` conflicts.
 
-The WordPress path is copied `wp_options` import staging where current rows are
+The Application path is copied `wp_options` import staging where current rows are
 updated from a CTE-backed staging set without requiring ext/sqlite.
 
 ## Evidence
@@ -37,7 +37,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-update-from-current-next25.php
+php lanes/libsqlite/examples/application-update-from-current-next25.php
 ```
 
 The smoke now includes an ordered/limited staged `wp_options` import and emits

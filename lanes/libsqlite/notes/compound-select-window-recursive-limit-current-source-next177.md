@@ -15,10 +15,10 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext177Test.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next177.php --self-test
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next177.php --self-test
 ```
 
 Expected dashboard movement: focused `phpPass +63` from the new test file after acceptance (`255` assertions, `0` failures). `benchmarkDenominator.mapped` remains unchanged; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, ORDER BY, and LIMIT inventory.

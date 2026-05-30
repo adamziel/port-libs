@@ -38,10 +38,10 @@ Focused test run: 4 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-upsert-trigger-returning-conflict-current-next32.php
+php lanes/libsqlite/examples/application-upsert-trigger-returning-conflict-current-next32.php
 ```
 
-The WordPress smoke reports copied `wp_options` UPSERT RETURNING rows with
+The Application smoke reports copied `wp_options` UPSERT RETURNING rows with
 statement-current `option_name`, `slug`, and `slot` uniqueness plus a rejected
 current `slug` collision, without requiring ext/sqlite.
 
@@ -57,4 +57,4 @@ constraints.
 Dependency closure:
 
 No new support component is needed. The slice reuses the existing lane-local
-row-array UPSERT trigger executor and copied WordPress option fixtures.
+row-array UPSERT trigger executor and copied Application option fixtures.

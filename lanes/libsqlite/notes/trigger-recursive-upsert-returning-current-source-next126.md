@@ -17,10 +17,10 @@ Focused coverage:
 - `recursive_triggers = false`, `RETURNING *`, bad source tokens, malformed row
   lists, missing conflict columns, and max-depth failures are covered.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-trigger-recursive-upsert-returning-current-source-next126.php --self-test
+php lanes/libsqlite/examples/application-trigger-recursive-upsert-returning-current-source-next126.php --self-test
 ```
 
 Dependency closure: reuses existing recursive UPSERT trigger and RETURNING

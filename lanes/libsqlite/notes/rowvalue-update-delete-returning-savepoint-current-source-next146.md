@@ -2,9 +2,9 @@
 
 Status: focused PHP behavior growth for row-value UPDATE/DELETE RETURNING current-source handling when `UPDATE OR ROLLBACK` conflicts inside a savepoint.
 
-This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext146Plan`. It models a WordPress `wp_options` import batch where earlier row-value UPDATE and DELETE statements produce attempted `RETURNING` rows, then a later row-value `UPDATE OR ROLLBACK` hits the composite `(blog_id, option_name)` uniqueness constraint. SQLite's rollback conflict action rolls back the transaction, so the current and next source return to the transaction image, the savepoint is not preserved, and attempted prior `RETURNING` rows are discarded rather than committed or retried.
+This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext146Plan`. It models a Application `wp_options` import batch where earlier row-value UPDATE and DELETE statements produce attempted `RETURNING` rows, then a later row-value `UPDATE OR ROLLBACK` hits the composite `(blog_id, option_name)` uniqueness constraint. SQLite's rollback conflict action rolls back the transaction, so the current and next source return to the transaction image, the savepoint is not preserved, and attempted prior `RETURNING` rows are discarded rather than committed or retried.
 
-WordPress smoke: `wordpress-rowvalue-rollback-returning-current-source-next146.php` covers copied `wp_options` option staging and transient cleanup where a later duplicate `siteurl` move aborts the whole import transaction.
+Application smoke: `application-rowvalue-rollback-returning-current-source-next146.php` covers copied `wp_options` option staging and transient cleanup where a later duplicate `siteurl` move aborts the whole import transaction.
 
 Verification:
 
@@ -14,8 +14,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturnin
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-rowvalue-rollback-returning-current-source-next146.php --self-test
-wordpress-rowvalue-rollback-returning-current-source-next146 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-rollback-returning-current-source-next146.php --self-test
+application-rowvalue-rollback-returning-current-source-next146 self-test passed
 ```
 
 Dashboard delta: update `phpPass` by the focused PASS-line/assertion delta verified for this new test file (`+59`, from `64992` to `65051`). `benchmarkDenominator.mapped` is unchanged; this is additional current-source PHP behavior over already mapped row-value UPDATE/DELETE RETURNING and savepoint/conflict surfaces, not a newly hydrated upstream Tcl inventory row.

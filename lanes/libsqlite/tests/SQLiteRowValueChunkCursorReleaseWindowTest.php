@@ -101,7 +101,7 @@ $cases253 = [
     'rolled back feed remains' => [static fn (): mixed => in_array(3, array_column($plan253()['current_source_tables']['wp_options'], 'option_id'), true), true],
     'suppressed orphan remains' => [static fn (): mixed => in_array(8, array_column($plan253()['current_source_tables']['wp_options'], 'option_id'), true), true],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-window-current-source-chunk-gate-next253', $plan253()['dependencies_next253'], true), true],
-    'wordpress marker' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-current-source-next253', $plan253()['dependencies_next253'], true), true],
+    'application marker' => [static fn (): mixed => in_array('application-rowvalue-returning-window-current-source-next253', $plan253()['dependencies_next253'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan253()['dependency_closure_next253'], 'no new support component needed'), true],
     'non overlap next249' => [static fn (): mixed => str_contains($plan253()['non_overlap_next253'], 'next249'), true],
     'non overlap next248' => [static fn (): mixed => str_contains($plan253()['non_overlap_next253'], 'next248'), true],

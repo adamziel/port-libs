@@ -5,15 +5,15 @@ Status: focused PHP behavior growth for `INSTEAD OF` view-trigger UPSERT
 view trigger body.
 
 This slice adds `SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan`.
-It models copied WordPress `wp_options` import rows inserted through a view
+It models copied Application `wp_options` import rows inserted through a view
 trigger. The current trigger source is drained first and its `RETURNING` rows
 are captured with the current trigger-source token. A changed next trigger
 source is reported separately as attempted-only unless the caller explicitly
 admits it. `RAISE(IGNORE)`-style skipped rows suppress `RETURNING` rows without
 rolling back the current source.
 
-WordPress path:
-`wordpress-trigger-returning-upsert-view-current-source-next.php` previews a
+Application path:
+`application-trigger-returning-upsert-view-current-source-next.php` previews a
 plugin migration that rewrites the import view trigger between current and next
 schema cookies. The smoke proves the current trigger source remains visible
 until reset while next-source `RETURNING` rows stay attempted-only.
@@ -25,12 +25,12 @@ $ php -l lanes/libsqlite/src/SQLiteTriggerReturningUpsertViewCurrentSourceNextPl
 No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan.php
 $ php -l lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNextTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNextTest.php
-$ php -l lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next.php
+$ php -l lanes/libsqlite/examples/application-trigger-returning-upsert-view-current-source-next.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-returning-upsert-view-current-source-next.php
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNextTest.php
 1 test files, 69 assertions, 0 failures
-$ php lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next.php --self-test
-wordpress-trigger-returning-upsert-view-current-source-next self-test passed
+$ php lanes/libsqlite/examples/application-trigger-returning-upsert-view-current-source-next.php --self-test
+application-trigger-returning-upsert-view-current-source-next self-test passed
 ```
 
 Dashboard delta: `phpPass` should increase by 69 focused PASS lines

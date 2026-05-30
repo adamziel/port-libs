@@ -16,9 +16,9 @@ Result:
 
 `1 test files, 44 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-`php lanes/libsqlite/examples/wordpress-json-path-operator-negative-index-current-source-next115.php`
+`php lanes/libsqlite/examples/application-json-path-operator-negative-index-current-source-next115.php`
 
 Result: JSON output includes `plugin_cache_settings` with `last_rule=serve` / `last_channel=stable` and `plugin_forms_settings` with `last_rule=notify` / `last_channel=beta`.
 

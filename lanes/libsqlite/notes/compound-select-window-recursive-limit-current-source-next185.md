@@ -6,17 +6,17 @@ Behavior covered:
 
 - recursive queue offset skips the anchor and intermediate rows before the single emitted row;
 - `row_number()`, `dense_rank()`, and `rank()` window values are materialized inside their compound arms before set operations;
-- `UNION` distinct duplicate collapse happens before the final `UNION ALL` tail preserves duplicate WordPress option rows;
+- `UNION` distinct duplicate collapse happens before the final `UNION ALL` tail preserves duplicate Application option rows;
 - final compound `ORDER BY metric, id LIMIT 5 OFFSET 1` decides the current/next boundary after the current source gains a plugin option.
 
 Verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext185Test.php
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next185.php --self-test
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next185.php --self-test
 php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext185Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next185.php
+php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next185.php
 git diff --check -- lanes/libsqlite
 ```
 

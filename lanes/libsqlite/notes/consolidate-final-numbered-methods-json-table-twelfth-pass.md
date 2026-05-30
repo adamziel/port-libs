@@ -20,7 +20,7 @@ Verification:
   tests, and six changed JSON-table examples: passed.
 - `php tools/run-tests.php` on the fourteen changed/affected focused
   JSON-table tests: passed with `14 test files, 839 assertions, 0 failures`.
-- The six changed WordPress JSON-table examples passed with `--self-test`.
+- The six changed Application JSON-table examples passed with `--self-test`.
 - `git diff --check -- lanes/libsqlite` passed.
 
 Dependency closure: reuses the existing native JSON table planner, lateral host

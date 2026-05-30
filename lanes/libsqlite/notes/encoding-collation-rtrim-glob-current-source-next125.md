@@ -6,7 +6,7 @@ boundary.
 
 Behavior:
 
-- Adds `SQLiteUtf16RtrimGlobCurrentSourceNextPlan::wordpressOptionNamePlan()`.
+- Adds `SQLiteUtf16RtrimGlobCurrentSourceNextPlan::optionRowNamePlan()`.
 - Decodes per-row UTF-8, UTF-16LE, and UTF-16BE option-name bytes.
 - Uses SQLite GLOB prefix bounds with `RTRIM` comparison for range candidates,
   then applies exact GLOB residual matching so trailing ASCII spaces, tabs,
@@ -15,9 +15,9 @@ Behavior:
   entered / exited matched rowids, malformed text rowids, byte/encoding/text
   changes, and cursor invalidation reasons.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-utf16-rtrim-glob-current-source-next125.php --self-test`
+- `lanes/libsqlite/examples/application-utf16-rtrim-glob-current-source-next125.php --self-test`
 
 Focused evidence:
 

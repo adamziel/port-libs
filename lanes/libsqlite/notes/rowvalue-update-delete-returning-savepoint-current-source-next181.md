@@ -7,12 +7,12 @@ This slice fixes row-value `IN` / `NOT IN` membership over nullable tuples.
 The bounded executor already handled nullable row-value `=` / `<>` when a
 later non-NULL element proves inequality; `IN` still used lexicographic
 comparison and returned UNKNOWN too early. The new behavior uses row-value
-equality semantics for each RHS tuple so WordPress cleanup predicates such as
+equality semantics for each RHS tuple so Application cleanup predicates such as
 `(blog_id, status, option_name) NOT IN (...)` keep exact nullable tuple
 members and select rows that are deterministically outside the list.
 
-WordPress smoke:
-`wordpress-rowvalue-in-savepoint-current-source-next181.php` models a copied
+Application smoke:
+`application-rowvalue-in-savepoint-current-source-next181.php` models a copied
 `wp_options` import savepoint with nullable row-value `NOT IN`, speculative
 RETURNING rows, an `UPDATE OR FAIL` conflict, rollback-to-savepoint, and retry
 from the restored current source.
@@ -22,9 +22,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext181Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-in-savepoint-current-source-next181.php
+php -l lanes/libsqlite/examples/application-rowvalue-in-savepoint-current-source-next181.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext181Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-in-savepoint-current-source-next181.php
+php lanes/libsqlite/examples/application-rowvalue-in-savepoint-current-source-next181.php
 git diff --check -- lanes/libsqlite
 ```
 

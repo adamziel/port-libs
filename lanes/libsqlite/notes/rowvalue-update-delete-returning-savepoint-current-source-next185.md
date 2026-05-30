@@ -10,8 +10,8 @@ before rollback, but `ROLLBACK TO` restores the savepoint image and suppresses
 those attempted RETURNING rows before retrying durable UPDATE/DELETE RETURNING
 statements.
 
-WordPress smoke:
-`wordpress-rowvalue-or-fail-savepoint-current-source-next185.php --self-test`
+Application smoke:
+`application-rowvalue-or-fail-savepoint-current-source-next185.php --self-test`
 covers transient cleanup plus retrying pending option imports after a row-value
 unique conflict.
 
@@ -20,9 +20,9 @@ Verification:
 ```bash
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-or-fail-savepoint-current-source-next185.php
+php -l lanes/libsqlite/examples/application-rowvalue-or-fail-savepoint-current-source-next185.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-or-fail-savepoint-current-source-next185.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-or-fail-savepoint-current-source-next185.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

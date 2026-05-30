@@ -11,8 +11,8 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateFilterOrderCurrentNext73Test.php`
   - `1 test files, 37 assertions, 0 failures`
   - 23 focused PASS lines.
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-filter-order-current-next73.php`
-  - local WordPress smoke for copied `wp_options` aggregate summaries.
+- `php lanes/libsqlite/examples/application-json-aggregate-filter-order-current-next73.php`
+  - local Application smoke for copied `wp_options` aggregate summaries.
 
 ## Non-Overlap
 

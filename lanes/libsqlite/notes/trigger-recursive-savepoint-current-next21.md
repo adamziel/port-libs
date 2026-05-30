@@ -2,7 +2,7 @@
 
 This slice adds `SQLiteRecursiveTriggerSavepointPlan`, a bounded native PHP wrapper for recursive `AFTER INSERT` trigger effects that hit a current-row conflict inside a named savepoint.
 
-The behavior is intentionally scoped to copied WordPress `wp_options` import rows:
+The behavior is intentionally scoped to copied Application `wp_options` import rows:
 
 - successful recursive trigger expansion leaves the current savepoint rows plus descendants;
 - recursive `ON CONFLICT ROLLBACK` restores the current savepoint image instead of leaking the seed/child rows;
@@ -12,8 +12,8 @@ The behavior is intentionally scoped to copied WordPress `wp_options` import row
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveSavepointCurrentNext21Test.php` -> `1 test files, 44 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-recursive-trigger-savepoint-current.php` -> reports `rollbackScope: savepoint`, current option names `siteurl, preflight_marker`, and discarded option name `plugin_seed`
-- `php -l lanes/libsqlite/src/SQLiteRecursiveTriggerSavepointPlan.php`, `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveSavepointCurrentNext21Test.php`, and `php -l lanes/libsqlite/examples/wordpress-recursive-trigger-savepoint-current.php` pass
+- `php lanes/libsqlite/examples/application-recursive-trigger-savepoint-current.php` -> reports `rollbackScope: savepoint`, current option names `siteurl, preflight_marker`, and discarded option name `plugin_seed`
+- `php -l lanes/libsqlite/src/SQLiteRecursiveTriggerSavepointPlan.php`, `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveSavepointCurrentNext21Test.php`, and `php -l lanes/libsqlite/examples/application-recursive-trigger-savepoint-current.php` pass
 - `git diff --check -- lanes/libsqlite` passes
 
 Dependency closure: no new support component is needed. The slice reuses the accepted recursive trigger conflict executor and models only the savepoint-current wrapper state needed for rollback diagnostics.

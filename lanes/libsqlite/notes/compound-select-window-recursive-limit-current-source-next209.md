@@ -7,7 +7,7 @@ combines:
 - aggregate window output from `sum(...) OVER (...)` and `count(*) OVER (...)`;
 - compound `UNION ALL`, `EXCEPT`, and final distinct `UNION` membership; and
 - a final compound `ORDER BY metric, id LIMIT/OFFSET` current-source token
-  fence over WordPress-style `wp_options` rows.
+  fence over Application-style `wp_options` rows.
 
 Focused verification:
 
@@ -17,8 +17,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiv
 
 Expected focused movement is 71 PASS lines from the new lane-scoped test file
 (`397` assertions, `0` failures).
-The WordPress smoke is
-`lanes/libsqlite/examples/wordpress-compound-window-recursive-limit-current-source-next209.php`.
+The Application smoke is
+`lanes/libsqlite/examples/application-compound-window-recursive-limit-current-source-next209.php`.
 
 Non-overlap: avoids accepted next206 lead/nth_value INTERSECT fencing, next203
 lag/last_value EXCEPT fencing, next196 ntile/first_value UNION distinct,

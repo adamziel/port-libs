@@ -1,13 +1,13 @@
-# yield-sqlite-wordpress-import-rollback-journal-current-next32
+# yield-sqlite-application-import-rollback-journal-current-next32
 
-Status: focused PHP behavior growth for rollback-journal WordPress import current/next reader boundaries.
+Status: focused PHP behavior growth for rollback-journal Application import current/next reader boundaries.
 
 ## Implementation
 
 - Added `SQLiteRollbackJournalCurrentNextPlan::importTransaction()` to compose rollback-journal commit planning with current/next database images.
 - The planner preserves the current reader on the pre-commit database image through journal write, journal sync, dirty database page writes, and database sync.
 - The next reader becomes visible only when the rollback journal is deleted, truncated, or zeroed for persist mode, matching the commit boundary expected by copied `wp_options` import transactions.
-- Added `wordpress-import-rollback-journal-current-next.php` as a WordPress smoke for copied `wp_options` rows.
+- Added `application-import-rollback-journal-current-next.php` as a Application smoke for copied `wp_options` rows.
 
 ## Focused Evidence
 
@@ -19,7 +19,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-import-rollback-journal-current-next.php
+php lanes/libsqlite/examples/application-import-rollback-journal-current-next.php
 {
     "status": "planned",
     "databasePath": "/wp-content/database/.ht.sqlite",
@@ -44,7 +44,7 @@ php lanes/libsqlite/examples/wordpress-import-rollback-journal-current-next.php
         "durable-journal-before-database-write",
         "vfs-file-write-coordination",
         "sqlite-rollback-journal-current-next-reader-boundary",
-        "wordpress-import-rollback-journal-current-next"
+        "application-import-rollback-journal-current-next"
     ]
 }
 ```
@@ -57,7 +57,7 @@ transactions, VFS sync/locked-writer/process-lock clusters, JSON table
 source/cursor/constraint work, SELECT SQL text/subquery/GROUP/ORDER clusters,
 B-tree page move/root-collapse/overflow freelist clusters, and Unicode GLOB
 work. The new surface is the rollback-journal current/next reader visibility
-boundary during copied WordPress import commits.
+boundary during copied Application import commits.
 
 ## Dependency Closure
 

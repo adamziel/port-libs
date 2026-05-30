@@ -19,7 +19,7 @@ The focused run emitted 96 `PASS` lines. The test covers admitted vs preserved r
 
 Non-overlap:
 
-This suite-only slice avoids accepted batch107/108 and batch109-113 behavior surfaces, accepted suite next155 through next398 veryquick-shard rows, exact-shard next148, queued `runner106` and `jsonvt104` rebase items, and live B-tree, JSON, VFS, WAL, planner, PRAGMA, ATTACH, trigger, window, encoding, and VDBE implementation work. It changes no WordPress example because it is an upstream-runner countability blocker removal.
+This suite-only slice avoids accepted batch107/108 and batch109-113 behavior surfaces, accepted suite next155 through next398 veryquick-shard rows, exact-shard next148, queued `runner106` and `jsonvt104` rebase items, and live B-tree, JSON, VFS, WAL, planner, PRAGMA, ATTACH, trigger, window, encoding, and VDBE implementation work. It changes no Application example because it is an upstream-runner countability blocker removal.
 
 Dependency closure:
 

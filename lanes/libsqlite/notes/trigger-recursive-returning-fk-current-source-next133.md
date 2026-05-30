@@ -8,7 +8,7 @@ source rolls back or blocks on deferred FK validation, the next source is not
 executed; if the next source later rolls back, its attempted RETURNING rows are
 reported separately from the committed stream.
 
-WordPress relevance: copied `wp_options` refresh/import batches can run
+Application relevance: copied `wp_options` refresh/import batches can run
 recursive option triggers while metadata rows retain deferred FK references.
 The smoke demonstrates current schema-cookie rows yielding before FK admission,
 then the next schema-cookie source yielding only after the current source is
@@ -18,11 +18,11 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-returning-fk-current-source-next133.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-returning-fk-current-source-next133.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Test.php`
 - Result: `1 test files, 58 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-returning-fk-current-source-next133.php --self-test`
-- Result: `wordpress-trigger-recursive-returning-fk-current-source-next133 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-returning-fk-current-source-next133.php --self-test`
+- Result: `application-trigger-recursive-returning-fk-current-source-next133 self-test passed`
 
 Dependency closure: no new support component is needed. This slice reuses the
 existing native PHP recursive trigger deferred RETURNING executor from next121

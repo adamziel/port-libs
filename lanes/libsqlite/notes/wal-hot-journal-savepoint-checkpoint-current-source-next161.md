@@ -15,10 +15,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 84 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next161.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next161.php
 ```
 
 Non-overlap: this does not repeat next159 checkpoint payload writes, WAL byte truncation, VFS savepoint rollback application, rollback-journal apply/commit, or checkpoint transaction planning. It focuses on reader-cache admission and invalidation across the current-source token boundary.

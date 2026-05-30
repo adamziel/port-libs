@@ -5,7 +5,7 @@ over current and next copied `wp_options` rows.
 
 This slice extends `SQLiteJsonbCheckCurrentNextPlan` beyond accepted next64
 AND-only terms by evaluating nested logical `OR`, `NOT`, and grouped `AND`
-terms. It covers WordPress plugin-setting imports where JSONB rows must satisfy
+terms. It covers Application plugin-setting imports where JSONB rows must satisfy
 channel allow-lists, not-deprecated guards, optional version requirements, and
 beta/rank exclusion rules before INSERT/UPDATE candidates are admitted.
 
@@ -23,10 +23,10 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteJsonbCheckCurrentNextPlan
 $ php -l lanes/libsqlite/tests/SQLiteJsonbCheckCurrentNext67Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonbCheckCurrentNext67Test.php
 
-$ php -l lanes/libsqlite/examples/wordpress-jsonb-check-current-next67.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-jsonb-check-current-next67.php
+$ php -l lanes/libsqlite/examples/application-jsonb-check-current-next67.php
+No syntax errors detected in lanes/libsqlite/examples/application-jsonb-check-current-next67.php
 
-$ php lanes/libsqlite/examples/wordpress-jsonb-check-current-next67.php
+$ php lanes/libsqlite/examples/application-jsonb-check-current-next67.php
 printed changes=2, rejectedChanges=1, accepted rowids 301/303, rejected rowid 302, and the failed beta/rank CHECK.
 
 $ git diff --check -- lanes/libsqlite

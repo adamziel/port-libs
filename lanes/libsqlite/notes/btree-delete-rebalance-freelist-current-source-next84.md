@@ -10,13 +10,13 @@ into the freelist and pointer-map entries are rewritten as free pages.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeDeleteRebalanceFreelistCurrentSourceNext84Test.php`
   - `1 test files, 63 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-btree-delete-rebalance-freelist-current-source-next84.php`
+- `php lanes/libsqlite/examples/application-btree-delete-rebalance-freelist-current-source-next84.php`
   - emits copied `wp_options` transient cleanup diagnostics with current-source
     deleted rowids, released overflow pages, final freelist count, and
     materialized page numbers.
 - `php -l lanes/libsqlite/src/SQLiteBTreeDeleteRebalanceFreelistCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeDeleteRebalanceFreelistCurrentSourceNext84Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-delete-rebalance-freelist-current-source-next84.php`
+- `php -l lanes/libsqlite/examples/application-btree-delete-rebalance-freelist-current-source-next84.php`
 
 ## Non-overlap
 

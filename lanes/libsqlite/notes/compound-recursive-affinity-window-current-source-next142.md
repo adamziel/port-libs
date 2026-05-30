@@ -10,7 +10,7 @@ execution where:
 - each compound arm evaluates its window function before the outer compound
   `UNION` set operation,
 - the final compound row names and `ORDER BY` terms come from the left-most arm,
-- next-source WordPress option rows change the recursive trace and compound
+- next-source Application option rows change the recursive trace and compound
   output without requiring ext/sqlite.
 
 This intentionally avoids the accepted next137/next139 final LIMIT and
@@ -32,16 +32,16 @@ Result:
 1 test files, 279 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-compound-recursive-affinity-window-current-source-next142.php --self-test
+php lanes/libsqlite/examples/application-compound-recursive-affinity-window-current-source-next142.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-compound-recursive-affinity-window-current-source-next142 self-test passed
+application-compound-recursive-affinity-window-current-source-next142 self-test passed
 ```
 
 ## Dependency Closure

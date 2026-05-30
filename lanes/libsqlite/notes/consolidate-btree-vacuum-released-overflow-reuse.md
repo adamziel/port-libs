@@ -5,7 +5,7 @@ test/example surface for the old current-source worker slice and keeps the
 scenario on the canonical `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`
 entrypoint:
 
-- renamed the focused test and WordPress smoke to descriptive released-overflow-reuse filenames;
+- renamed the focused test and Application smoke to descriptive released-overflow-reuse filenames;
 - updated the smoke to call `tableAndIndexReleasedOverflowReuseFromCurrentSourceDeleteResults()`;
 - replaced the numbered action/scenario/test labels with
   `btree-vacuum-pointermap-freeblock-released-overflow-reuse`;
@@ -14,9 +14,9 @@ entrypoint:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockReleasedOverflowReuseTest.php && php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-released-overflow-reuse.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockReleasedOverflowReuseTest.php && php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-released-overflow-reuse.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockReleasedOverflowReuseTest.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-released-overflow-reuse.php --self-test`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-released-overflow-reuse.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this reuses the existing

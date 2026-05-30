@@ -4,9 +4,9 @@
 
 Added `SQLiteJsonTablePlan::currentSourceHiddenRowidPlannerNext94()` for JSON table source switching where `rowid`, `_rowid_`, or `oid` remains a residual hidden constraint over the current JSON source. The helper builds on the accepted current-source and hidden-constraint planners, but adds rowid-specific summaries, row transitions, current/next rowid sets, and replan reasons when the same rowid points at a changed payload, a shifted root, or an empty next rowset.
 
-## WordPress relevance
+## Application relevance
 
-The smoke `wordpress-json-table-hidden-rowid-source-current-next94.php` models a copied `wp_options` plugin-settings row where `json_tree()` is pinned to a hidden rowid while a settings import flips a nested `enabled` flag. It reports the current and next rowid sets, payload transition, and next reader policy without requiring `ext/sqlite`.
+The smoke `application-json-table-hidden-rowid-source-current-next94.php` models a copied `wp_options` plugin-settings row where `json_tree()` is pinned to a hidden rowid while a settings import flips a nested `enabled` flag. It reports the current and next rowid sets, payload transition, and next reader policy without requiring `ext/sqlite`.
 
 ## Verification
 
@@ -27,8 +27,8 @@ Additional checks:
 ```text
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableHiddenRowidSourceCurrentNext94Test.php
-php -l lanes/libsqlite/examples/wordpress-json-table-hidden-rowid-source-current-next94.php
-php lanes/libsqlite/examples/wordpress-json-table-hidden-rowid-source-current-next94.php
+php -l lanes/libsqlite/examples/application-json-table-hidden-rowid-source-current-next94.php
+php lanes/libsqlite/examples/application-json-table-hidden-rowid-source-current-next94.php
 ```
 
 ## Non-overlap

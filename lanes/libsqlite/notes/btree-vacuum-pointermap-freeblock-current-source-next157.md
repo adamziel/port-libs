@@ -1,7 +1,7 @@
 # B-tree vacuum pointer-map freeblock current-source next157
 
 - Behavior: adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext157Plan`, which composes the existing current-source delete/vacuum/freeblock plan and records source-to-next overflow-next pointer transitions for the deleted leaf, surviving freelist trunk, and truncated overflow tail pages.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next157.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next157.php --self-test`
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext157Test.php`
 
 ## Non-overlap

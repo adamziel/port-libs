@@ -19,13 +19,13 @@ php -l lanes/libsqlite/src/SQLiteWalCheckpointCrashRecoveryPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalCrashRecoveryCheckpointCurrentNext33Test.php
 # No syntax errors detected in lanes/libsqlite/tests/SQLiteWalCrashRecoveryCheckpointCurrentNext33Test.php
 
-php -l lanes/libsqlite/examples/wordpress-wal-crash-recovery-checkpoint-current-next33.php
-# No syntax errors detected in lanes/libsqlite/examples/wordpress-wal-crash-recovery-checkpoint-current-next33.php
+php -l lanes/libsqlite/examples/application-wal-crash-recovery-checkpoint-current-next33.php
+# No syntax errors detected in lanes/libsqlite/examples/application-wal-crash-recovery-checkpoint-current-next33.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCrashRecoveryCheckpointCurrentNext33Test.php
 # 1 test files, 69 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-wal-crash-recovery-checkpoint-current-next33.php
+php lanes/libsqlite/examples/application-wal-crash-recovery-checkpoint-current-next33.php
 # Prints recovered checkpoint visibility for copied wp_options pages after an after_database_sync crash.
 ```
 

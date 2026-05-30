@@ -7,10 +7,10 @@ comparator with current row-stream materialization. A stale prepared
 fence, covered current rowids, STAT4 anchor keys, current/next row stream, and
 cursor opcodes that elide table lookup.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-partial-covering-range.php --self-test`
-- `wordpress-planner-stat4-partial-covering-range self-test passed`
+- `php lanes/libsqlite/examples/application-planner-stat4-partial-covering-range.php --self-test`
+- `application-planner-stat4-partial-covering-range self-test passed`
 
 Focused verification:
 

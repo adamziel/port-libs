@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds focused current-source B-tree coverage for a WordPress-style
+This slice adds focused current-source B-tree coverage for a Application-style
 delete/reinsert path where obsolete overflow pages are released to the freelist
 and a larger replacement overflow payload consumes every freelist entry,
 including the freelist trunk page itself.
@@ -24,10 +24,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The focused test emits 73 PASS lines for `SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Test.php`.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-freelist-pointermap-overflow-current-source-next136.php
+php lanes/libsqlite/examples/application-btree-freelist-pointermap-overflow-current-source-next136.php
 ```
 
 The smoke prints the allocated overflow chain `[12, 9, 8, 7, 6, 10]`, final

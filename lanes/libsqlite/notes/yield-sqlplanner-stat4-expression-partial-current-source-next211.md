@@ -5,7 +5,7 @@ reuse where the grouped partial OR predicate is already proven, but the cursor
 must also prove that the current STAT4 seek-window probe samples and selected
 window rowids still resolve to the current source.
 
-WordPress smoke: `wordpress-sqlplanner-stat4-expression-partial-current-source-next211.php`
+Application smoke: `application-sqlplanner-stat4-expression-partial-current-source-next211.php`
 models copied `wp_options` plugin admin pagination over
 `lower(option_name)` after ANALYZE/source changes. The planner admits reuse only
 when the current lower/upper STAT4 samples for the DESC windows still point to
@@ -16,9 +16,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext211Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next211.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next211.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext211Test.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next211.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next211.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed. This composes existing

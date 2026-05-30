@@ -21,10 +21,10 @@ Run from the repository root:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentPageDrainTest.php
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-page-drain.php
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-page-drain.php
 php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentPageDrainTest.php
-php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-page-drain.php
+php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-page-drain.php
 git diff --check -- lanes/libsqlite
 ```
 

@@ -1,16 +1,16 @@
 # WAL hot-journal savepoint checkpoint current-source next168
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a publication gate for the WordPress import path where hot rollback-journal recovery and savepoint rollback have produced a checkpoint current-source token, but the pager still needs to decide whether it may publish that source, delete the hot journal, preserve/reset WAL sidecars, sync the directory, and advertise the next WAL generation.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a publication gate for the Application import path where hot rollback-journal recovery and savepoint rollback have produced a checkpoint current-source token, but the pager still needs to decide whether it may publish that source, delete the hot journal, preserve/reset WAL sidecars, sync the directory, and advertise the next WAL generation.
 
 Focused verification:
 
 ```text
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext168Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next168.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next168.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext168Test.php
 1 test files, 69 assertions, 0 failures
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next168.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next168.php
 ```
 
 The example reports `wal-hot-journal-savepoint-checkpoint-current-source-next168`, allows hot-journal deletion after source publish, preserves WAL for readers, and publishes the next WAL generation.

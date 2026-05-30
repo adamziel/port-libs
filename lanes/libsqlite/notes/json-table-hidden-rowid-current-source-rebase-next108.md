@@ -9,7 +9,7 @@ This slice wires parser-level JSON table joins so hidden rowid aliases supplied 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenRowidCurrentSourceRebaseNext108Test.php`
 - Result: `1 test files, 51 assertions, 0 failures`
 - Focused PASS-line delta: `+51`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-hidden-rowid-current-source-rebase-next108.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-hidden-rowid-current-source-rebase-next108.php --self-test`
 - Root harness: not run - isolated micro-slice
 
 ## Non-Overlap
@@ -18,4 +18,4 @@ Avoids accepted JSON table cursor/source, hidden-constraint extraction, visible-
 
 ## Dependency Closure
 
-No new support component is needed. The patch reuses the existing native PHP JSON table planner, SELECT parser, row-array executor, and WordPress copied `wp_options` smoke path.
+No new support component is needed. The patch reuses the existing native PHP JSON table planner, SELECT parser, row-array executor, and Application copied `wp_options` smoke path.

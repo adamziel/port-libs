@@ -4,7 +4,7 @@ This slice adds current-source coverage for a foreign-key parent-key catalog
 edge exposed by `PRAGMA index_xinfo`: descending terms in a UNIQUE parent index
 are metadata for ordering and do not disqualify the index from satisfying a
 foreign key. The new helper reports `foreign_key_parent_desc_unique` rows so a
-copied WordPress taxonomy import can distinguish valid DESC UNIQUE parent keys
+copied Application taxonomy import can distinguish valid DESC UNIQUE parent keys
 from expression, partial, non-unique, or missing parent-key cases.
 
 Verification:
@@ -12,14 +12,14 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 61 assertions, 0 failures`
   - 48 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next235.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next235 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next235.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next235 self-test passed`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next235.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next235.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next235.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next235.php`
 - `git diff --check -- lanes/libsqlite`
   - passed
 

@@ -36,9 +36,9 @@ Expected dashboard movement:
 - `phpPass`: `1684 -> 1709` (`+25`, exact focused PASS-line delta)
 - `benchmarkDenominator.mapped`: unchanged; this slice adds native focused PHP corpus coverage, not a newly mapped upstream inventory unit.
 
-## WordPress Smoke
+## Application Smoke
 
-Added `lanes/libsqlite/examples/wordpress-fts5-option-search.php` for copied `wp_options` full-text diagnostics. It ranks option rows for `search cache`, returns selected option ids, snippets, and bounded ranks without requiring `ext/sqlite`.
+Added `lanes/libsqlite/examples/application-fts5-option-search.php` for copied `wp_options` full-text diagnostics. It ranks option rows for `search cache`, returns selected option ids, snippets, and bounded ranks without requiring `ext/sqlite`.
 
 ## Non-Overlap
 

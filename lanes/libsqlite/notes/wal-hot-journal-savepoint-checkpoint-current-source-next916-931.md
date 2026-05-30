@@ -7,4 +7,4 @@ No new numbered source class is introduced. The implementation reuses the existi
 Focused coverage:
 
 - `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext916931Test.php` chains next916 through next931 from next915 and preserves the next900-915 receipt chain.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next931.php --self-test` verifies the example receipt seal.
+- `application-wal-hot-journal-savepoint-checkpoint-current-source-next931.php --self-test` verifies the example receipt seal.

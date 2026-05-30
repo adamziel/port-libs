@@ -14,8 +14,8 @@ Prepared the next366-373 row-value `UPDATE`/`DELETE ... RETURNING` window curren
 Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next366-373.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next366-373.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext366373Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext366373Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next366-373.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next366-373.php --self-test`
 - `git diff --check`

@@ -9,7 +9,7 @@ subquery row width, matching the public SELECT path.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectCorrelatedAggregateLimitCurrentNext18Test.php`
-- `php lanes/libsqlite/examples/wordpress-select-correlated-aggregate-limit-current.php`
+- `php lanes/libsqlite/examples/application-select-correlated-aggregate-limit-current.php`
 
 The focused test adds 26 independent PASS cases and 74 assertions for grouped
 aggregate scalar subqueries in `LIMIT`, `OFFSET`, comma LIMIT, constant SELECT,

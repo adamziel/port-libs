@@ -2,7 +2,7 @@
 
 ## Scope
 
-This isolated slice extends the existing VFS URI/SHM/file-control current-source planner with connection-aware SHM byte-lock ownership. It keeps the accepted next87/next92/next104 sidecar URI, file-control routing, and data-version generation behavior, then adds current-source SHM ownership evidence for multi-connection WordPress copy/import paths.
+This isolated slice extends the existing VFS URI/SHM/file-control current-source planner with connection-aware SHM byte-lock ownership. It keeps the accepted next87/next92/next104 sidecar URI, file-control routing, and data-version generation behavior, then adds current-source SHM ownership evidence for multi-connection Application copy/import paths.
 
 ## Behavior
 
@@ -19,7 +19,7 @@ This isolated slice extends the existing VFS URI/SHM/file-control current-source
   - `1 test files, 52 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmFileControlLockCurrentSourceNext87Test.php lanes/libsqlite/tests/SQLiteVfsUriShmFileControlCurrentSourceNext92Test.php lanes/libsqlite/tests/SQLiteVfsUriShmFileControlCurrentSourceNext104Test.php lanes/libsqlite/tests/SQLiteVfsUriShmFileControlLockCurrentSourceNext126Test.php`
   - `4 test files, 230 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-vfs-uri-shm-lock-current-source-next126.php`
+- `php lanes/libsqlite/examples/application-vfs-uri-shm-lock-current-source-next126.php`
   - Prints valid JSON with `blockedExclusiveStatus: busy`, `blockedExclusiveOwners: ["wp-cron"]`, and stale SHM data-version detection.
 - PHP lint passed for the changed source, test, and example.
 - `git diff --check -- lanes/libsqlite` passed.

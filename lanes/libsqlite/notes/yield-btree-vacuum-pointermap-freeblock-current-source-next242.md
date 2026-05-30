@@ -4,9 +4,9 @@
 
 Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext242Plan`, a current-source freeblock handoff layer over the accepted next238 freelist-link admission. The slice verifies that reusable freeblock pages are exposed only after pointer-map barriers, leaf freeblock receipts are visible, the freelist trunk candidate remains stable, reusable pages are monotonic, and fenced tail pages stay excluded.
 
-## WordPress Scenario
+## Application Scenario
 
-`examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next242.php` models deletion of an overflow-backed copied `wp_options` transient before vacuum/reuse. The smoke reports pointer-map source pages, reusable freeblock pages, trunk candidate pages, and the receipt/barrier guards needed before the current source can reuse those pages.
+`examples/application-btree-vacuum-pointermap-freeblock-current-source-next242.php` models deletion of an overflow-backed copied `wp_options` transient before vacuum/reuse. The smoke reports pointer-map source pages, reusable freeblock pages, trunk candidate pages, and the receipt/barrier guards needed before the current source can reuse those pages.
 
 ## Evidence
 

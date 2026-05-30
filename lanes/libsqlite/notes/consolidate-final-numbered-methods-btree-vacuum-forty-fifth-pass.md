@@ -7,7 +7,7 @@ Consolidates the B-tree vacuum pointer-map freeblock source-cursor surface into 
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCursorTest.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-cursor.php`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-cursor.php`
 - PHP lint: changed PHP files only.
 - Diff check: `git diff --check -- lanes/libsqlite`
 

@@ -1,18 +1,18 @@
-# WordPress Import Transaction Current Next21
+# Application Import Transaction Current Next21
 
 Status: focused PHP corpus growth for copied `wp_options` current import transaction planning.
 
 Behavior:
 
-- Added `SQLiteWordPressImportTransactionPlan` for bounded current-row WordPress option imports under `BEGIN IMMEDIATE` / `BEGIN EXCLUSIVE`.
+- Added `SQLiteImportTransactionPlan` for bounded current-row Application option imports under `BEGIN IMMEDIATE` / `BEGIN EXCLUSIVE`.
 - The plan computes staged updates, inserts, optional delete-missing cleanup, unique `option_name` replace-conflict deletion, final row images, dirty leaf pages, rollback-journal byte estimates, and VFS sync sequence targets.
-- Added `wordpress-import-transaction-current-next21.php` to smoke copied `wp_options` current import rows without requiring `ext/sqlite`.
+- Added `application-import-transaction-current-next21.php` to smoke copied `wp_options` current import rows without requiring `ext/sqlite`.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressImportTransactionCurrentNext21Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteImportTransactionCurrentNext21Test.php`
 - Result: `1 test files, 56 assertions, 0 failures` with 56 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-import-transaction-current-next21.php`
+- `php lanes/libsqlite/examples/application-import-transaction-current-next21.php`
 
 Dashboard:
 
@@ -22,7 +22,7 @@ Dashboard:
 Non-overlap:
 
 - Avoids accepted rollback-journal commit/apply, savepoint rollback, WAL byte truncation, VFS sync apply, super-journal, process locks, SELECT SQL, JSON table, Unicode GLOB, and B-tree page/freelist clusters.
-- This slice is bounded to WordPress current import transaction row planning and conflict/delete-missing effects before native file-handle application.
+- This slice is bounded to Application current import transaction row planning and conflict/delete-missing effects before native file-handle application.
 
 Dependency closure:
 

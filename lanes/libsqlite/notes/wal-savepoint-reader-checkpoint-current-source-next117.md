@@ -10,9 +10,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalSavepointReaderCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalSavepointReaderCheckpointCurrentSourceNext117Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-savepoint-reader-checkpoint-current-source-next117.php
+php -l lanes/libsqlite/examples/application-wal-savepoint-reader-checkpoint-current-source-next117.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointReaderCheckpointCurrentSourceNext117Test.php
-php lanes/libsqlite/examples/wordpress-wal-savepoint-reader-checkpoint-current-source-next117.php --self-test
+php lanes/libsqlite/examples/application-wal-savepoint-reader-checkpoint-current-source-next117.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

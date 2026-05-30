@@ -24,11 +24,11 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerCoveringRangeOrderCurrentSourceNext119Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-planner-covering-range-order-current-source-next119.php`
+- `php -l lanes/libsqlite/examples/application-planner-covering-range-order-current-source-next119.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringRangeOrderCurrentSourceNext119Test.php`
   - `1 test files, 77 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-planner-covering-range-order-current-source-next119.php --self-test`
-  - `wordpress-planner-covering-range-order-current-source-next119 self-test passed`
+- `php lanes/libsqlite/examples/application-planner-covering-range-order-current-source-next119.php --self-test`
+  - `application-planner-covering-range-order-current-source-next119 self-test passed`
 
 Expected dashboard movement: `phpPass +77` after clean integration, no mapped
 upstream denominator movement claimed.
@@ -41,4 +41,4 @@ Non-overlap: avoids accepted expression `ORDER BY`, expression-index range
 cost, STAT4 expression covering, subquery covering partial indexes, parser-level
 SELECT text, grouped SELECT, JSON table, WAL/VFS, and B-tree accepted clusters.
 The new surface is ordinary multicolumn covering range `ORDER BY` current-source
-cursor materialization for WordPress `wp_options` plugin-option scans.
+cursor materialization for Application `wp_options` plugin-option scans.

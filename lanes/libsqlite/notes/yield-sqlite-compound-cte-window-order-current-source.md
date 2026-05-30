@@ -9,7 +9,7 @@ This avoids the accepted compound row-composition, compound HAVING/window, recur
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundCteWindowOrderCurrentSourceTest.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-compound-cte-window-order-current-source.php`
+- Example smoke: `php lanes/libsqlite/examples/application-compound-cte-window-order-current-source.php`
 - PHP lint: changed PHP files under this slice.
 - Whitespace: `git diff --check -- lanes/libsqlite`
 

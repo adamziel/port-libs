@@ -9,12 +9,12 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Test.php`
   - `1 test files, 53 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-pointermap-rebalance-current-source-next118.php`
-  - `WordPress btree118 transition pages: 7,8,9`
-  - `WordPress btree118 current types: first-overflow-page,overflow-page,none`
-  - `WordPress btree118 next types: overflow-page,first-overflow-page,overflow-page`
-  - `WordPress btree118 roles: obsolete-reused,obsolete-reused,replacement-appended`
-  - `WordPress btree118 replacement pages: 8,7,9`
+- `php lanes/libsqlite/examples/application-btree-overflow-pointermap-rebalance-current-source-next118.php`
+  - `Application btree118 transition pages: 7,8,9`
+  - `Application btree118 current types: first-overflow-page,overflow-page,none`
+  - `Application btree118 next types: overflow-page,first-overflow-page,overflow-page`
+  - `Application btree118 roles: obsolete-reused,obsolete-reused,replacement-appended`
+  - `Application btree118 replacement pages: 8,7,9`
 
 Non-overlap:
 

@@ -15,9 +15,9 @@ Behavior:
   wildcard, and non-ASCII prefix behavior. Non-ASCII NOCASE remains
   ASCII-only, matching SQLite's built-in NOCASE semantics.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-cast-nocase-current-source-next129.php`
+- `lanes/libsqlite/examples/application-cast-nocase-current-source-next129.php`
   models copied `wp_options` import scans where mixed-case plugin option
   payloads are matched through `CAST(option_value AS TEXT) LIKE
   'plugin\_cache%' COLLATE NOCASE`.
@@ -40,4 +40,4 @@ UTF-16 cast/RTRIM/GLOB range current-source next127, cast/collation LIKE
 current-source next123, predicate-affinity current-source next109, JSON table,
 VFS/WAL, B-tree, PRAGMA, trigger/FK, compound SELECT, and suite-runner
 surfaces. The new surface is CASTed `NOCASE LIKE` prefix-range invalidation
-over current/next copied WordPress option sources.
+over current/next copied Application option sources.

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext247Plan` for WordPress `wp_options.option_name` LIKE scans whose literal prefix contains non-ASCII text.
+- Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext247Plan` for Application `wp_options.option_name` LIKE scans whose literal prefix contains non-ASCII text.
 - Models SQLite NOCASE as ASCII-only for LIKE residual evaluation: `PLUGIN_CAFÉ%` matches `plugin_café%`, while `plugin_cafÉ%` does not match `plugin_café%`.
 - Keeps non-ASCII LIKE prefixes out of the optimistic NOCASE range path and records `non_ascii_prefix_requires_residual_scan`.
 - Tracks current-source invalidation across UTF-16LE/UTF-16BE source switches, scalar text-affinity coercions, matched rowset changes, and encoded-byte changes.
@@ -13,14 +13,14 @@ Focused commands run:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext247Test.php
-php lanes/libsqlite/examples/wordpress-unicode-nocase-like-current-source-next247.php --self-test
+php lanes/libsqlite/examples/application-unicode-nocase-like-current-source-next247.php --self-test
 ```
 
 Observed output:
 
 - `1 test files, 101 assertions, 0 failures`
 - `87` focused PASS lines
-- `wordpress-unicode-nocase-like-current-source-next247 self-test passed`
+- `application-unicode-nocase-like-current-source-next247 self-test passed`
 
 ## Non-overlap
 

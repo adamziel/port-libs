@@ -55,7 +55,7 @@ $plan206 = static fn (
     ?string $nextPatternBytes = null,
     int|string $nextEncoding = 'UTF-16BE',
     ?string $escape = '!',
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedBomPatternPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedBomPatternPlan(
     $current ?? $current206,
     $next ?? $nextTwoZeroSix,
     $currentPatternBytes ?? $pattern206('plugin!_cache%', 'UTF-16LE', false),
@@ -166,7 +166,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroSix stable no bom can 
         $row206(2, 'Plugin_Cache  ', 'UTF-16BE'),
         $row206(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedBomPatternPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedBomPatternPlan(
         $rows,
         $rows,
         $pattern206('plugin!_cache%', 'UTF-16LE'),
@@ -194,7 +194,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroSix utf8 bom pattern i
         $row206(2, 'plugin_cache_new', 'UTF-16LE'),
         $row206(3, "\xef\xbb\xbfplugin_cache", 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedBomPatternPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedBomPatternPlan(
         $rows,
         $rows,
         $pattern206('plugin!_cache%', 'UTF-8', true),
@@ -221,7 +221,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroSix pattern change aft
         $row206(1, 'plugin_cache', 'UTF-16LE'),
         $row206(2, 'plugin_option', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedBomPatternPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedBomPatternPlan(
         $rows,
         $rows,
         $pattern206('plugin!_cache%', 'UTF-16LE', true),
@@ -243,7 +243,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroSix pattern change aft
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroSix rejects malformed prepared pattern'] = static function (TestRunner $t) use ($current206, $nextTwoZeroSix, $pattern206): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedBomPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedBomPatternPlan(
         $current206,
         $nextTwoZeroSix,
         $pattern206('plugin%', 'UTF-16LE'),

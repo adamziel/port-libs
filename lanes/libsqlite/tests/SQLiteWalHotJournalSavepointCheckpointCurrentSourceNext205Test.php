@@ -130,7 +130,7 @@ $cases = [
     'dependency previous' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next195', $ok()['dependencies'], true), true],
     'dependency next205' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next205', $ok()['dependencies'], true), true],
     'dependency page image' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-reader-page-image-current-source', $ok()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-reader-cache-reopen-after-hot-journal-checkpoint', $ok()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-reader-cache-reopen-after-hot-journal-checkpoint', $ok()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($ok()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($ok()['non_overlap'], 'does not repeat next195 token-only reader retry admission'), true],
     'unpublished blocked' => [static fn (): mixed => $plan($unpublished)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next205'],

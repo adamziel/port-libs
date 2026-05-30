@@ -10,7 +10,7 @@ Status delta:
   `EXCEPT` can now read the outer row before derived-table `ORDER BY`,
   `LIMIT`, and `OFFSET` decide the current/next row yielded to the parent
   subquery.
-- Added a WordPress import-staging smoke where copied `wp_options` rows choose
+- Added a Application import-staging smoke where copied `wp_options` rows choose
   the first metadata/stage key through a correlated compound derived table.
 
 Focused evidence:

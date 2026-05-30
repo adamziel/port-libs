@@ -230,11 +230,11 @@ $tests = [
         ], $or($point('option_name', 'home'), $point('option_name', 'siteurl')), ['option_id']);
         $t->same([], $plans);
     },
-    'or optimization current next29 plans WordPress autoload or transient lookup as union' => static function (TestRunner $t) use ($indexes, $point, $range, $or): void {
+    'or optimization current next29 plans Application autoload or transient lookup as union' => static function (TestRunner $t) use ($indexes, $point, $range, $or): void {
         $plan = SQLiteOrOptimizationPlan::choose($indexes(), $or($point('autoload', 'yes'), $range('option_name', '>=', '_transient_')), ['option_id', 'option_name', 'autoload']);
         $t->same(['idx_autoload', 'idx_name_covering'], $plan['indexes']);
     },
-    'or optimization current next29 preserves WordPress option name range value' => static function (TestRunner $t) use ($indexes, $point, $range, $or): void {
+    'or optimization current next29 preserves Application option name range value' => static function (TestRunner $t) use ($indexes, $point, $range, $or): void {
         $plan = SQLiteOrOptimizationPlan::choose($indexes(), $or($point('autoload', 'yes'), $range('option_name', '>=', '_transient_')), ['option_id']);
         $t->same('_transient_', $plan['arms'][1]['values']);
     },

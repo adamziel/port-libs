@@ -6,14 +6,14 @@
 - The current source can show a pointer-map/rootpage blocker while the next source proves the repaired image clears it; both current and next database/catalog/SQL hashes are included in the resume source id.
 - Cursor resume rejects stale next database bytes, stale next catalog metadata, stale SQL, stale integrity SQL, and stale offsets.
 
-## WordPress path
+## Application path
 
 Copied `wp_options` imports often rebuild partial and auto indexes after cleanup. The smoke keeps the copied index repair resumable only when `PRAGMA index_list(wp_options)` metadata and the repaired rootpage integrity view match the same current/next source images.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexListIntegrityRootpageCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-list-integrity-rootpage-current-source-next.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-list-integrity-rootpage-current-source-next.php --self-test`
 
 ## Non-overlap
 

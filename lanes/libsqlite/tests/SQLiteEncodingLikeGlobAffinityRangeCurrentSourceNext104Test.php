@@ -46,7 +46,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options',
     int $currentSchemaCookie = 1,
     int $nextSchemaCookie = 1,
-): array => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan(
+): array => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -129,39 +129,39 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['encoding like glob affinity range current source next104 stable identical sources reusable'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'option_value', 'plugin:%');
+    $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $currentRows, 'option_value', 'plugin:%');
     $t->same(true, $plan['cursorReusable']);
     $t->same([], $plan['invalidationReasons']);
 };
 
 $tests['encoding like glob affinity range current source next104 leading wildcard is residual only'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'option_value', '%alpha');
+    $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $currentRows, 'option_value', '%alpha');
     $t->same(false, $plan['rangeUsable']);
     $t->same('residual-only', $plan['currentRows'][0]['rangeClass']);
 };
 
 $tests['encoding like glob affinity range current source next104 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'option_value', 'x', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $currentRows, 'option_value', 'x', 'REGEXP'));
 };
 
 $tests['encoding like glob affinity range current source next104 rejects glob escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'option_value', 'plugin:*', 'GLOB', 'TEXT', 'BINARY', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $currentRows, 'option_value', 'plugin:*', 'GLOB', 'TEXT', 'BINARY', '!'));
 };
 
 $tests['encoding like glob affinity range current source next104 rejects missing column'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'missing_value', 'plugin:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $currentRows, 'missing_value', 'plugin:%'));
 };
 
 $tests['encoding like glob affinity range current source next104 rejects nonscalar value'] = static function (TestRunner $t) use ($currentRows): void {
     $rows = $currentRows;
     $rows[] = ['option_id' => 20, 'option_value' => ['plugin']];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'option_value', 'plugin:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'option_value', 'plugin:%'));
 };
 
 $tests['encoding like glob affinity range current source next104 rejects malformed utf8'] = static function (TestRunner $t) use ($currentRows): void {
     $rows = $currentRows;
     $rows[] = ['option_id' => 21, 'option_value' => "plugin:\xc3"];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'option_value', 'plugin:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'option_value', 'plugin:%'));
 };
 
 return $tests;

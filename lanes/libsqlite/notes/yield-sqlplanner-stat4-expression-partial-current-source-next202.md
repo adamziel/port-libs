@@ -11,11 +11,11 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext202Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next202.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next202.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext202Test.php`
 - Result: `1 test files, 62 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next202.php --self-test`
-- Result: `wordpress-sqlplanner-stat4-expression-partial-current-source-next202 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next202.php --self-test`
+- Result: `application-sqlplanner-stat4-expression-partial-current-source-next202 self-test passed`
 
 Non-overlap: avoids accepted next196 duplicate peer order, next192
 covering-column admission, next191 payload expression-key rechecks, next189

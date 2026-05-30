@@ -9,7 +9,7 @@ The behavior is intentionally narrower than accepted cache-spill/master-journal 
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext149Test.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-pager-hot-journal-savepoint-cache-current-source-next149.php`
+- Example smoke: `php lanes/libsqlite/examples/application-pager-hot-journal-savepoint-cache-current-source-next149.php`
 - PHP syntax checks and `git diff --check -- lanes/libsqlite` are required before handoff.
 
 ## Dependency Closure

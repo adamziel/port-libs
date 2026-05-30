@@ -4,7 +4,7 @@ Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
 planner refinement for STAT4-backed partial expression indexes when the usable
 range has an exclusive lower bound and inclusive upper bound.
 
-The WordPress path models copied `wp_options` plugin scans using
+The Application path models copied `wp_options` plugin scans using
 `lower(option_name)` over a partial expression index. The plan keeps stale
 prepared-statement fences from next164, but emits exact cursor boundaries:
 `SeekGT` for `lower(option_name) > 'plugin_cache'` and `IdxLE` for
@@ -25,16 +25,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 59 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next176.php --self-test
+php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next176.php --self-test
 ```
 
 Expected:
 
 ```text
-wordpress-sqlplanner-stat4-expression-partial-current-source-next176 self-test passed
+application-sqlplanner-stat4-expression-partial-current-source-next176 self-test passed
 ```
 
 Non-overlap: avoids accepted next173 duplicate STAT4 sample fanout, next172

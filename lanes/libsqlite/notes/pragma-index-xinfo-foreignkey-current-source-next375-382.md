@@ -14,15 +14,15 @@ Prepared the direct follow-on to merged next367-374 for descending child lookup 
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext375382Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next375-382.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next375-382.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext375382Test.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext367374Test.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext375382Test.php
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next375-382.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next375-382.php --self-test
 git diff --check
 ```
 
 Expected self-test line:
 
 ```text
-wordpress-pragma-index-xinfo-foreignkey-current-source-next375-382 self-test passed
+application-pragma-index-xinfo-foreignkey-current-source-next375-382 self-test passed
 ```

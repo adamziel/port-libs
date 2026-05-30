@@ -21,11 +21,11 @@ Local verification in this lane:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerDirtyPageCacheSpillCurrentNext71Test.php`
   - `1 test files, 59 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-dirty-page-cache-spill-current-next71.php`
-  - `wordpress-pager-dirty-page-cache-spill-current-next71 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-dirty-page-cache-spill-current-next71.php`
+  - `application-pager-dirty-page-cache-spill-current-next71 self-test passed`
 - `php -l lanes/libsqlite/src/SQLitePagerDirtyPageCacheSpillPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerDirtyPageCacheSpillCurrentNext71Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-dirty-page-cache-spill-current-next71.php`
+- `php -l lanes/libsqlite/examples/application-pager-dirty-page-cache-spill-current-next71.php`
   - all changed PHP files reported no syntax errors
 - `git diff --check -- lanes/libsqlite`
   - passed with no output

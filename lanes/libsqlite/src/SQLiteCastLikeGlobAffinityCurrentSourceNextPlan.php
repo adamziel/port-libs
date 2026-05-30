@@ -11,7 +11,7 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValuePlan(
+    public static function optionRowValuePlan(
         array $currentRows,
         array $nextRows,
         string $castTarget,

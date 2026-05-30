@@ -52,7 +52,7 @@ $plan141 = static fn (
     string $nextSource = 'main.wp_options@141',
     string $currentEncoding = 'UTF-16LE',
     string $nextEncoding = 'UTF-16BE',
-): array => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan(
+): array => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::optionRowNameResidualPlan(
     $current ?? $current141,
     $next ?? $residualRows,
     $pattern,
@@ -198,15 +198,15 @@ $tests['utf16 nocase like residual rejects non utf16 database encoding'] = stati
 };
 
 $tests['utf16 nocase like residual rejects non integer option id'] = static function (TestRunner $t) use ($residualRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $residualRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::optionRowNameResidualPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $residualRows, 'plugin%'));
 };
 
 $tests['utf16 nocase like residual rejects missing option bytes'] = static function (TestRunner $t) use ($residualRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => 1, 'text_encoding' => 2]], $residualRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::optionRowNameResidualPlan([['option_id' => 1, 'text_encoding' => 2]], $residualRows, 'plugin%'));
 };
 
 $tests['utf16 nocase like residual rejects non utf16 row encoding'] = static function (TestRunner $t) use ($residualRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $residualRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::optionRowNameResidualPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $residualRows, 'plugin%'));
 };
 
 return $tests;

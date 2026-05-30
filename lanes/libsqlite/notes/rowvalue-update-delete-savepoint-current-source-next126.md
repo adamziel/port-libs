@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `rowvalue-update-delete-savepoint-curren
 
 This slice adds `SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan`, a bounded current-source DML planner that composes existing row-value `UPDATE` / `DELETE ... RETURNING` execution with savepoint rollback behavior. It records the savepoint image, applies a sequence of row-value DML statements, detects copied SQLite `UNIQUE(blog_id, option_name)` conflicts, rolls the current source back to the savepoint image, and keeps the attempted next-source image as diagnostic evidence.
 
-WordPress smoke: `wordpress-rowvalue-update-delete-savepoint-current-source-next126.php` models a copied multisite `wp_options` cleanup where a transient delete succeeds, the following row-value update would duplicate `(blog_id, option_name)`, and `ROLLBACK TO` restores the current source while preserving already yielded delete `RETURNING` rows and attempted update evidence.
+Application smoke: `application-rowvalue-update-delete-savepoint-current-source-next126.php` models a copied multisite `wp_options` cleanup where a transient delete succeeds, the following row-value update would duplicate `(blog_id, option_name)`, and `ROLLBACK TO` restores the current source while preserving already yielded delete `RETURNING` rows and attempted update evidence.
 
 Focused verification:
 

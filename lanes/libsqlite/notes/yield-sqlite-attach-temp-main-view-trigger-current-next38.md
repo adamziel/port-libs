@@ -18,13 +18,13 @@ Focused test run: 1 selected test files (root lock skipped)
 Expected lane-status movement: `phpPass` +52, from 13431 to 13483. Mapped
 upstream denominator is unchanged; this is current-source focused behavior.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-attach-temp-view-trigger-yield-current-next38.php
+php lanes/libsqlite/examples/application-attach-temp-view-trigger-yield-current-next38.php
 ```
 
-The smoke previews copied WordPress option imports through TEMP, main, and
+The smoke previews copied Application option imports through TEMP, main, and
 attached `INSTEAD OF` view triggers while honoring `WHEN` before yielding
 writes, so skipped TEMP imports do not produce phantom native PHP write plans.
 

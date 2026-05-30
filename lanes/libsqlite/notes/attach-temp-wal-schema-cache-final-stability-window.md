@@ -10,9 +10,9 @@ Validation:
 
 ```sh
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalStabilityWindowTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-stability-window.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-final-stability-window.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalLocalePublishTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalStabilityWindowTest.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-stability-window.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-final-stability-window.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

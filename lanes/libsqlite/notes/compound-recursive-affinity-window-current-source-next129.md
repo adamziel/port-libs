@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for parser-level compound SELECT output
 over recursive CTE rows, SQLite affinity duplicate classes, and window FILTER
-frames across current/next WordPress option sources.
+frames across current/next Application option sources.
 
 Behavior:
 
@@ -17,14 +17,14 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Test.php`
   - `1 test files, 112 assertions, 0 failures`
   - `36` PASS lines.
-- `php lanes/libsqlite/examples/wordpress-compound-recursive-affinity-window-current-source-next129.php --self-test`
-  - `wordpress-compound-recursive-affinity-window-current-source-next129 self-test passed`
+- `php lanes/libsqlite/examples/application-compound-recursive-affinity-window-current-source-next129.php --self-test`
+  - `application-compound-recursive-affinity-window-current-source-next129 self-test passed`
 - `php -l lanes/libsqlite/src/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-recursive-affinity-window-current-source-next129.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-compound-recursive-affinity-window-current-source-next129.php`
+- `php -l lanes/libsqlite/examples/application-compound-recursive-affinity-window-current-source-next129.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-compound-recursive-affinity-window-current-source-next129.php`
 
 Dashboard delta:
 

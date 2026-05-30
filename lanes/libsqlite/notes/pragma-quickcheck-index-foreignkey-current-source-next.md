@@ -11,8 +11,8 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaQuickcheckIndexForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 84 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-quickcheck-index-foreignkey-current-source-next.php --self-test`
-  - `wordpress-pragma-quickcheck-index-foreignkey-current-source-next self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-quickcheck-index-foreignkey-current-source-next.php --self-test`
+  - `application-pragma-quickcheck-index-foreignkey-current-source-next self-test passed`
 
 Non-overlap: avoids accepted quickcheck/index_xinfo single-index pagination
 next103, table-level index integrity cursor next133, quickcheck/FK/rootpage

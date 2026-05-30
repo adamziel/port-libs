@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined after-ready publication follow-on seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-after-ready-publication.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-after-ready-publication.php';
 
         $t->same('rowvalue-update-delete-returning-window-after-ready-publication', $result['status']);
         $t->same([

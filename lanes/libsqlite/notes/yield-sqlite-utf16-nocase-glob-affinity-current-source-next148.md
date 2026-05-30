@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan` for WordPress-style `wp_options.option_name` scans where a NOCASE index/source cursor can use folded UTF-16 decoded prefix keys for candidate discovery.
+- Adds `SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan` for Application-style `wp_options.option_name` scans where a NOCASE index/source cursor can use folded UTF-16 decoded prefix keys for candidate discovery.
 - Preserves SQLite GLOB residual semantics as case-sensitive, so mixed-case rows can be candidates but still be rejected after TEXT affinity and UTF-16LE/UTF-16BE decoding.
 - Tracks current/next source invalidation for malformed text, range byte encoding changes, candidate/matched rowsets, retained text/storage/encoding/byte changes, and stable cursor reuse.
 
@@ -11,8 +11,8 @@
 - Focused test:
   `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseGlobAffinityCurrentSourceNext148Test.php`
   Result: `1 test files, 98 assertions, 0 failures` with 78 PASS lines.
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-utf16-nocase-glob-affinity-current-source-next148.php`
+- Application smoke:
+  `php lanes/libsqlite/examples/application-utf16-nocase-glob-affinity-current-source-next148.php`
   Expected: JSON reports NOCASE candidates, case-sensitive GLOB residual rejects, entered rowids, and dependency closure.
 - Root harness: not run - isolated micro-slice.
 

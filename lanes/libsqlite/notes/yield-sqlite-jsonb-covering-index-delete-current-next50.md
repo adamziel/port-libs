@@ -16,7 +16,7 @@ Behavior covered:
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonbCoveringIndexDeleteCurrentNext50Test.php`
-- `php lanes/libsqlite/examples/wordpress-jsonb-covering-index-delete-current-next50.php`
+- `php lanes/libsqlite/examples/application-jsonb-covering-index-delete-current-next50.php`
 
 Non-overlap: this does not repeat accepted JSONB generated UPDATE index
 maintenance, JSONB generated-index B-tree yield updates, partial-index WHERE

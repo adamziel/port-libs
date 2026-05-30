@@ -20,7 +20,7 @@ WAL sidecar digest matches the durable sidecar publication state.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Test.php`
   - `1 test files, 65 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next196.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next196.php`
   - JSON self-test reports status
     `wal-hot-journal-savepoint-checkpoint-current-source-next196`
 

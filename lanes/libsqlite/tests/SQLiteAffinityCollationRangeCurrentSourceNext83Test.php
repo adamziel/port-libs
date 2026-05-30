@@ -120,18 +120,18 @@ $wpRows = [
     ['option_id' => 107, 'option_name' => 'theme_mods_twenty', 'option_value' => '10e0', 'autoload' => 'yes'],
 ];
 
-$tests['affinity collation range current source next83 wordpress numeric autoload range'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteAffinityRangeCurrentSourceCursor::wordpressOptionRange($wpRows, 'option_value', 2, 10, 'NUMERIC', 'BINARY', ['autoload' => 'yes']);
+$tests['affinity collation range current source next83 application numeric autoload range'] = static function (TestRunner $t) use ($wpRows): void {
+    $rows = SQLiteAffinityRangeCurrentSourceCursor::optionRowRange($wpRows, 'option_value', 2, 10, 'NUMERIC', 'BINARY', ['autoload' => 'yes']);
     $t->same([102, 106], array_column($rows, 'rowid'));
 };
 
-$tests['affinity collation range current source next83 wordpress nocase option name range'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteAffinityRangeCurrentSourceCursor::wordpressOptionRange($wpRows, 'option_name', 'plugin_', 'theme_', 'TEXT', 'NOCASE');
+$tests['affinity collation range current source next83 application nocase option name range'] = static function (TestRunner $t) use ($wpRows): void {
+    $rows = SQLiteAffinityRangeCurrentSourceCursor::optionRowRange($wpRows, 'option_name', 'plugin_', 'theme_', 'TEXT', 'NOCASE');
     $t->same([105, 106, 101], array_column($rows, 'rowid'));
 };
 
-$tests['affinity collation range current source next83 wordpress filter excludes non autoload peer'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteAffinityRangeCurrentSourceCursor::wordpressOptionRange($wpRows, 'option_name', 'plugin_', 'theme_', 'TEXT', 'NOCASE', ['autoload' => 'yes']);
+$tests['affinity collation range current source next83 application filter excludes non autoload peer'] = static function (TestRunner $t) use ($wpRows): void {
+    $rows = SQLiteAffinityRangeCurrentSourceCursor::optionRowRange($wpRows, 'option_name', 'plugin_', 'theme_', 'TEXT', 'NOCASE', ['autoload' => 'yes']);
     $t->same([106, 101], array_column($rows, 'rowid'));
 };
 
@@ -153,8 +153,8 @@ $tests['affinity collation range current source next83 rejects unsupported colla
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteAffinityRangeCurrentSourceCursor($entries, 1, 2, 'NUMERIC', 'UNICODE'));
 };
 
-$tests['affinity collation range current source next83 rejects missing wordpress column'] = static function (TestRunner $t) use ($wpRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAffinityRangeCurrentSourceCursor::wordpressOptionRange($wpRows, 'missing_column', 1, 2));
+$tests['affinity collation range current source next83 rejects missing application column'] = static function (TestRunner $t) use ($wpRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAffinityRangeCurrentSourceCursor::optionRowRange($wpRows, 'missing_column', 1, 2));
 };
 
 $tests['affinity collation range current source next83 rejects non scalar row key'] = static function (TestRunner $t): void {

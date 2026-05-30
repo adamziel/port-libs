@@ -5,7 +5,7 @@ affinity and current-source cursor reuse.
 
 Behavior:
 - Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext246Plan` for copied
-  WordPress `wp_options.option_value` scans where the `ESCAPE` operand is a
+  Application `wp_options.option_value` scans where the `ESCAPE` operand is a
   bound value rather than a fixed SQL literal.
 - Applies SQLite-style text affinity to integer, boolean, float, and text
   escape operands before validating that the escape is exactly one SQLite
@@ -17,8 +17,8 @@ Behavior:
   recorded for ordering/invalidation, while the dynamic ESCAPE operand controls
   literal `_` / `%` interpretation.
 
-WordPress path:
-- `wordpress-dynamic-escape-like-current-source-next246.php` models plugin
+Application path:
+- `application-dynamic-escape-like-current-source-next246.php` models plugin
   option values such as `plugin_%enabled` where a migration/import preview uses
   a user-provided escape character. Rebinding the escape changes the visible
   rowset and must force a cursor recheck before publishing the next source.
@@ -28,13 +28,13 @@ Verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext246Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext246Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext246Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-dynamic-escape-like-current-source-next246.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-dynamic-escape-like-current-source-next246.php`
+- `php -l lanes/libsqlite/examples/application-dynamic-escape-like-current-source-next246.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-dynamic-escape-like-current-source-next246.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext246Test.php`
   - `1 test files, 88 assertions, 0 failures`
   - `71` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-dynamic-escape-like-current-source-next246.php --self-test`
-  - `wordpress-dynamic-escape-like-current-source-next246 self-test passed`
+- `php lanes/libsqlite/examples/application-dynamic-escape-like-current-source-next246.php --self-test`
+  - `application-dynamic-escape-like-current-source-next246 self-test passed`
 
 Expected dashboard movement: `phpPass +71`, from `125265` to `125336`.
 Mapped upstream coverage remains `650 / 1589`; this is focused PHP behavior

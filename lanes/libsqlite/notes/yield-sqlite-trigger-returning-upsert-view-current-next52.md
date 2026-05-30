@@ -30,10 +30,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 67 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-next52.php
+php lanes/libsqlite/examples/application-trigger-returning-upsert-view-current-next52.php
 ```
 
 Non-overlap:

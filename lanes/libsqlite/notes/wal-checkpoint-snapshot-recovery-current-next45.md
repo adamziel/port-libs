@@ -30,7 +30,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-snapshot-recovery-current-next.php
+php lanes/libsqlite/examples/application-wal-checkpoint-snapshot-recovery-current-next.php
 ```
 
 ## Non-overlap

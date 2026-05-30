@@ -9,15 +9,15 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-hot-journal-reader-current-source-next144.php
+php -l lanes/libsqlite/examples/application-wal-checkpoint-hot-journal-reader-current-source-next144.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Test.php
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-hot-journal-reader-current-source-next144.php --self-test
+php lanes/libsqlite/examples/application-wal-checkpoint-hot-journal-reader-current-source-next144.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 
 Focused result: `1 test files, 72 assertions, 0 failures` with 72 PASS lines.
 
-WordPress smoke: `wordpress-wal-checkpoint-hot-journal-reader-current-source-next144 self-test passed`.
+Application smoke: `application-wal-checkpoint-hot-journal-reader-current-source-next144 self-test passed`.
 
 Expected dashboard movement: `phpPass` +72 from the focused next144 PASS lines. Mapped upstream coverage remains conservative because this is focused PHP WAL/pager behavior over existing WAL hot-journal/checkpoint inventory.
 

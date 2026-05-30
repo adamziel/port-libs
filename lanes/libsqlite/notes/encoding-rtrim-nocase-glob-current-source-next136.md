@@ -20,8 +20,8 @@ Slice: `encoding-rtrim-nocase-glob-current-source-next136`.
   - `1 test files, 89 assertions, 0 failures`
 - `php -l lanes/libsqlite/src/SQLiteRtrimNocaseGlobCurrentSourceNext136Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRtrimNocaseGlobCurrentSourceNext136Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rtrim-nocase-glob-current-source-next136.php`
-- `php lanes/libsqlite/examples/wordpress-rtrim-nocase-glob-current-source-next136.php --self-test`
+- `php -l lanes/libsqlite/examples/application-rtrim-nocase-glob-current-source-next136.php`
+- `php lanes/libsqlite/examples/application-rtrim-nocase-glob-current-source-next136.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

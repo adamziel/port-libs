@@ -9,15 +9,15 @@ Behavior covered:
 - The final compound `ORDER BY ... LIMIT ... OFFSET` page changes when a next-source `wp_options` row is introduced.
 - A next242 commit fence records recursive queue, window output, and final page tokens and rejects stale or incomplete cursor acknowledgements.
 
-WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next242.php` models a copied `wp_options` import where a plugin option crosses the displayed compound page while recursive dependency rows keep their window rank.
+Application path: `application-compound-select-window-recursive-limit-current-source-next242.php` models a copied `wp_options` import where a plugin option crosses the displayed compound page while recursive dependency rows keep their window rank.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext242Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next242.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next242.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext242Test.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next242.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next242.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: focused `phpPass +85` from the new test file. `benchmarkDenominator.mapped` remains unchanged because this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory, not a newly hydrated upstream row.

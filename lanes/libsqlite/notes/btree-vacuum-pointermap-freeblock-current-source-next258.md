@@ -7,9 +7,9 @@
 - Adds the next-source reusable-page handoff fence so stale current-source slots are fenced before reusable payload/overflow pages are consumed by the next source.
 - Verifies pointer-map fences are visible before reuse, current-source tokens remain chained, next reusable pages have page-local slots, leaf freeblock receipts survive the handoff, and batch-size changes preserve the same reusable-page set.
 
-## WordPress Smoke
+## Application Smoke
 
-- `examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next258.php`
+- `examples/application-btree-vacuum-pointermap-freeblock-current-source-next258.php`
 - Scenario: copied `wp_options` transient cleanup deletes an overflow-backed row, vacuums tail pages, and prevents the next import cursor from consuming reusable overflow pages until stale current-source freeblock slots are fenced.
 
 ## Verification
@@ -17,8 +17,8 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext258Test.php`
 - Result: `1 test files, 1402 assertions, 0 failures`
 - PASS-line delta: `154`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next258.php`
-- Result: `wordpress-btree-vacuum-pointermap-freeblock-current-source-next258 self-test passed`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next258.php`
+- Result: `application-btree-vacuum-pointermap-freeblock-current-source-next258 self-test passed`
 
 ## Non-overlap
 

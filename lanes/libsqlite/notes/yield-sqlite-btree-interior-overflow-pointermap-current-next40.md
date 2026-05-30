@@ -17,10 +17,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The run emits 50 PASS lines for the new focused test file.
 
-## WordPress Smoke
+## Application Smoke
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-interior-overflow-pointermap-current-next40.php
+php lanes/libsqlite/examples/application-btree-interior-overflow-pointermap-current-next40.php
 ```
 
 The smoke models a copied `wp_options` option-name index interior merge where a plugin-settings separator payload spills into overflow pages and needs pointer-map ownership retargeted to the merged page.

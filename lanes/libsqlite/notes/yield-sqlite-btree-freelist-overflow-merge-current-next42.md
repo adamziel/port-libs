@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds `SQLiteOverflowFreelistMergePlan` for obsolete overflow pages released by WordPress-style table and index deletes when the current freelist trunk is almost full. The plan records whether each obsolete overflow page merges into the current trunk as a leaf or becomes the new current trunk that points at the previous current/next chain.
+Adds `SQLiteOverflowFreelistMergePlan` for obsolete overflow pages released by Application-style table and index deletes when the current freelist trunk is almost full. The plan records whether each obsolete overflow page merges into the current trunk as a leaf or becomes the new current trunk that points at the previous current/next chain.
 
 ## Verification
 

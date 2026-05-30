@@ -12,7 +12,7 @@ Behavior covered:
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next244.php --self-test`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next244.php --self-test`
 - PHP lint on changed PHP files.
 - `git diff --check -- lanes/libsqlite`
 

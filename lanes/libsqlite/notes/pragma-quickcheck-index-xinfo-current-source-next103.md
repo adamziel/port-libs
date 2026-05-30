@@ -16,7 +16,7 @@ Focused coverage:
   table-valued mode;
 - stale cursor rejection for changed database bytes, changed catalog, changed
   SQL, changed integrity PRAGMA, and mismatched offsets;
-- WordPress copied `wp_options` smoke for paged JSON expression index metadata
+- Application copied `wp_options` smoke for paged JSON expression index metadata
   plus quick_check root diagnostics.
 
 Verification:
@@ -28,8 +28,8 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 73 assertions, 0 failures
 PASS_LINES=63
 
-$ php lanes/libsqlite/examples/wordpress-pragma-quickcheck-index-xinfo-current-source-next103.php --self-test
-wordpress-pragma-quickcheck-index-xinfo-current-source-next103 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-quickcheck-index-xinfo-current-source-next103.php --self-test
+application-pragma-quickcheck-index-xinfo-current-source-next103 self-test passed
 ```
 
 Dashboard delta:

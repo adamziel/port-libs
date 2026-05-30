@@ -23,10 +23,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableUpdateFromRecursive
 ```
 
 Expected focused movement: 51 new focused PASS lines in a new lane-scoped test
-file. The WordPress smoke is:
+file. The Application smoke is:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-json-table-update-from-recursive-current-next36.php
+php lanes/libsqlite/examples/application-json-table-update-from-recursive-current-next36.php
 ```
 
 ## Non-Overlap
@@ -42,5 +42,5 @@ combined executor path where a recursive CTE seeded by `json_tree()` feeds
 
 No new support component is needed. The slice reuses the existing bounded
 native PHP `SQLiteSelectSql`, `SQLiteJsonTablePlan`, and `SQLiteUpdateFromSql`
-components; activation evidence is the focused PHP test and local WordPress
+components; activation evidence is the focused PHP test and local Application
 smoke above.

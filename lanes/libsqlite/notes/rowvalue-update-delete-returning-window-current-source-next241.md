@@ -9,9 +9,9 @@ RETURNING pair is isolated as `ROWS BETWEEN CURRENT ROW AND CURRENT ROW`, so a
 retry-yielded row cannot inherit adjacent discarded current-source rows after a
 savepoint rollback.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next241.php`
+- `lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next241.php`
   models copied `wp_options` rows where plugin/theme retry updates and transient
   cleanup deletes are selected by row-value subqueries.
 
@@ -20,15 +20,15 @@ Verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next241.php
+php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next241.php
 No syntax errors detected in all changed PHP files.
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 72 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next241.php --self-test
-wordpress-rowvalue-returning-window-current-source-next241 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next241.php --self-test
+application-rowvalue-returning-window-current-source-next241 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +72` from the new focused test file.

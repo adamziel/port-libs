@@ -15,8 +15,8 @@ same temp/main/attached source that SQLite would use for the target table.
   - `1 test files, 59 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyCheckCorpusTest.php lanes/libsqlite/tests/SQLitePragmaForeignKeyIndexIntegrityCurrentNext71Test.php lanes/libsqlite/tests/SQLitePragmaIntegrityForeignKeyCurrentNext73Test.php lanes/libsqlite/tests/SQLitePragmaIntegrityFkIndexCurrentSourceNext82Test.php`
   - `4 test files, 291 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-fk-index-current-source-next82.php --self-test`
-  - `wordpress-pragma-integrity-fk-index-current-source-next82 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-integrity-fk-index-current-source-next82.php --self-test`
+  - `application-pragma-integrity-fk-index-current-source-next82 self-test passed`
 
 ## Non-Overlap
 

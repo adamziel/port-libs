@@ -7,13 +7,13 @@ inside a windowed compound SELECT. This is distinct from accepted exhausted
 recursive LIMIT queues and LIMIT 0 slices: the recursive queue remains
 unbounded, OFFSET skips the anchor rows, window terms run before compound
 UNION/UNION ALL composition, and the final compound LIMIT/OFFSET decides which
-current/next WordPress option rows are visible.
+current/next Application option rows are visible.
 
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext187Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next187.php --self-test`
-- PHP lint: `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext187Test.php`, `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next187.php`
+- Application smoke: `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next187.php --self-test`
+- PHP lint: `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext187Test.php`, `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next187.php`
 - Diff check: `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap

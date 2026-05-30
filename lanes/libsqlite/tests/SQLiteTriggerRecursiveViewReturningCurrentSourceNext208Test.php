@@ -184,7 +184,7 @@ $cases208 = [
     'dependency includes next208' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next208', $released208()['dependencies_next208'], true), true],
     'dependency includes close fence' => [static fn (): mixed => in_array('sqlite-returning-current-source-cursor-close-fence', $released208()['dependencies_next208'], true), true],
     'dependency includes next206' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next206', $released208()['dependencies_next208'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next208', $released208()['dependencies_next208'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next208', $released208()['dependencies_next208'], true), true],
     'non overlap mentions next206' => [static fn (): mixed => str_contains($released208()['non_overlap_next208'], 'next206 yield watermark'), true],
     'bad close cursor rejected' => [static fn (): mixed => $plan208(['close_current_cursor_next208' => 'bad cursor']), InvalidArgumentException::class],
     'bad expected cursor rejected' => [static fn (): mixed => $plan208(['expected_close_current_cursor_next208' => 'bad cursor']), InvalidArgumentException::class],

@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for trigger-driven `RETURNING` rows across a
 
 This slice adds `SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield()`. It composes the existing trigger/FK `RETURNING` executor with savepoint rollback metadata and reports the current attempted row/yield stream separately from the next visible row/yield stream after rollback to the savepoint image.
 
-WordPress relevance: copied `wp_options` import batches may update option rowids under BEFORE/AFTER triggers while deferred child metadata references are checked at statement end. The smoke shows attempted `RETURNING` rows with trigger-mutated values, then a rollback-to-savepoint boundary where the next visible rowids, metadata rows, dirty pages, and WAL tail return to the savepoint image.
+Application relevance: copied `wp_options` import batches may update option rowids under BEFORE/AFTER triggers while deferred child metadata references are checked at statement end. The smoke shows attempted `RETURNING` rows with trigger-mutated values, then a rollback-to-savepoint boundary where the next visible rowids, metadata rows, dirty pages, and WAL tail return to the savepoint image.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerReturningForeignKeySavepointPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerReturningSavepointCurrentNext64Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-returning-savepoint-current-next64.php
+php -l lanes/libsqlite/examples/application-trigger-returning-savepoint-current-next64.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningSavepointCurrentNext64Test.php
-php lanes/libsqlite/examples/wordpress-trigger-returning-savepoint-current-next64.php
+php lanes/libsqlite/examples/application-trigger-returning-savepoint-current-next64.php
 git diff --check -- lanes/libsqlite
 ```
 

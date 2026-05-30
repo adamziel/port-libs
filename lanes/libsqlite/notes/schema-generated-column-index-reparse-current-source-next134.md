@@ -15,8 +15,8 @@ classifies dependent index records on the changed table:
 - `index_generated_column_references` records generated-column references per
   index name.
 
-WordPress path:
-`wordpress-schema-generated-column-index-reparse-current-source-next134.php`
+Application path:
+`application-schema-generated-column-index-reparse-current-source-next134.php`
 models a copied `wp_options` import that admits `option_name_lc` and must
 reparse legacy/generated index records before prepared indexed statements are
 reused.
@@ -30,8 +30,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteSchemaDdlReparsePlan.php
 $ php -l lanes/libsqlite/tests/SQLiteSchemaGeneratedColumnIndexReparseCurrentSourceNext134Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteSchemaGeneratedColumnIndexReparseCurrentSourceNext134Test.php
 
-$ php -l lanes/libsqlite/examples/wordpress-schema-generated-column-index-reparse-current-source-next134.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-schema-generated-column-index-reparse-current-source-next134.php
+$ php -l lanes/libsqlite/examples/application-schema-generated-column-index-reparse-current-source-next134.php
+No syntax errors detected in lanes/libsqlite/examples/application-schema-generated-column-index-reparse-current-source-next134.php
 
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaGeneratedColumnIndexReparseCurrentSourceNext134Test.php
 Focused test run: 1 selected test files (root lock skipped)

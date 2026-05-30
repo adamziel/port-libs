@@ -16,9 +16,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext196Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext196Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next196.php
+php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next196.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext196Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next196.php
+php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next196.php
 git diff --check -- lanes/libsqlite
 ```
 

@@ -33,7 +33,7 @@ final class SQLiteEncodingLikeGlobSourceSwitchPlan
      *   dependencies:list<string>
      * }
      */
-    public static function wordpressOptionNameSourceSwitch(
+    public static function optionRowNameSourceSwitch(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -44,7 +44,7 @@ final class SQLiteEncodingLikeGlobSourceSwitchPlan
         string $currentSource = 'current',
         string $nextSource = 'next',
     ): array {
-        $currentMatches = SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan(
+        $currentMatches = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
             $currentRows,
             $pattern,
             $operator,
@@ -52,7 +52,7 @@ final class SQLiteEncodingLikeGlobSourceSwitchPlan
             $escape,
             $caseSensitiveLike,
         );
-        $nextMatches = SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan(
+        $nextMatches = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
             $nextRows,
             $pattern,
             $operator,

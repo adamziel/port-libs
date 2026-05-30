@@ -24,10 +24,10 @@ Result:
 1 test files, 55 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-trigger-upsert-savepoint-returning-current-source-next132.php --self-test
+php lanes/libsqlite/examples/application-trigger-upsert-savepoint-returning-current-source-next132.php --self-test
 ```
 
 ## Dependency Closure

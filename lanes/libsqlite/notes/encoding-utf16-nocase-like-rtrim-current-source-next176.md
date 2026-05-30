@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for duplicate UTF-16 `rtrim(option_name) COL
 
 This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`. It extends the accepted next165/168/169/173 UTF-16 NOCASE LIKE/RTRIM current-source chain without repeating their pattern normalization, case-sensitive LIKE, byte-only reprepare, or high-water page behavior. The new surface is rowid-tied peer ordering when case and trailing-space variants collapse to the same NOCASE/RTRIM key, including duplicate peer groups that straddle the resume token or a bounded yield page.
 
-WordPress smoke: `wordpress-utf16-nocase-like-rtrim-current-source-next176.php` models copied `wp_options` rows where `Plugin_Cache`, `plugin_cache  `, and `PLUGIN_CACHE   ` share the same index key but must resume in rowid order without duplicating or skipping the next peer.
+Application smoke: `application-utf16-nocase-like-rtrim-current-source-next176.php` models copied `wp_options` rows where `Plugin_Cache`, `plugin_cache  `, and `PLUGIN_CACHE   ` share the same index key but must resume in rowid order without duplicating or skipping the next peer.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext176Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next176.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next176.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext176Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next176.php`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next176.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +66`, from `81770` to `81836`. Mapped upstream coverage remains `613 / 1589`; this is additional current-source PHP behavior over the already mapped encoding/collation/LIKE inventory rather than a fresh upstream manifest row.

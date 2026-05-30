@@ -18,9 +18,9 @@ Behavior covered:
 - Invalid STAT4 payloads and invalid covering-column lists throw bounded
   planner errors.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-planner-stat4-json-covering-order-current-next55.php`
+- `examples/application-planner-stat4-json-covering-order-current-next55.php`
   previews a copied `wp_options` plugin-channel index plan with matched keys
   `beta,delta,stable,theta`, covering payload columns, partial-index proof, and
   expression ordering.
@@ -30,9 +30,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4JsonCoveringOrderCurrentNext55Test.php
-php -l lanes/libsqlite/examples/wordpress-planner-stat4-json-covering-order-current-next55.php
+php -l lanes/libsqlite/examples/application-planner-stat4-json-covering-order-current-next55.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4JsonCoveringOrderCurrentNext55Test.php
-php lanes/libsqlite/examples/wordpress-planner-stat4-json-covering-order-current-next55.php
+php lanes/libsqlite/examples/application-planner-stat4-json-covering-order-current-next55.php
 git diff --check -- lanes/libsqlite
 ```
 

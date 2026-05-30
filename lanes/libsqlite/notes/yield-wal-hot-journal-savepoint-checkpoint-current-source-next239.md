@@ -2,18 +2,18 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, an atomic commit barrier after accepted next236 statement finalizers. It admits a checkpoint current-source switch only when database, WAL, hot-journal delete, and directory receipts share the same source token, writer generations, schema cookie, database digest, exclusive lock, fsync evidence, and finalized statement coverage.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next239.php` models a copied `wp_options` import switching reopened readers only after the database image, restarted WAL, deleted hot journal, and directory fsync receipts all cover finalized statements under one atomic barrier.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next239.php` models a copied `wp_options` import switching reopened readers only after the database image, restarted WAL, deleted hot journal, and directory fsync receipts all cover finalized statements under one atomic barrier.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext239Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next239.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next239.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext239Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next239.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next239.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -4,17 +4,17 @@ Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-cu
 
 This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It sits after the accepted next211 checkpoint-reader acknowledgement admission and requires durable receipt fencing before the next current source can be published: retained readers must acknowledge the exact current-source token/frame/cookie/schema/image digest, reopened readers must carry a deterministic reopen fence token, and every row must prove hot-journal deletion, WAL sync, and directory sync durability. Stale, missing, or orphan receipts block publication.
 
-WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next217.php` models a copied `wp_options` import that only advances after current import readers acknowledge page images and an old plugin-settings reader is fenced for reopen.
+Application smoke: `application-wal-hot-journal-savepoint-checkpoint-current-source-next217.php` models a copied `wp_options` import that only advances after current import readers acknowledge page images and an old plugin-settings reader is fenced for reopen.
 
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext217Test.php`
 - Result: `1 test files, 68 assertions, 0 failures`, with `68` PASS lines.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next217.php --self-test`
-- Result: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next217 self-test passed`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next217.php --self-test`
+- Result: `application-wal-hot-journal-savepoint-checkpoint-current-source-next217 self-test passed`
 
 Expected dashboard movement:
 

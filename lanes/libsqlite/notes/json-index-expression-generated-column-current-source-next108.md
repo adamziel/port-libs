@@ -25,9 +25,9 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonIndexExpressionGeneratedColumnCurrentSourceNext108Test.php`
   - `1 test files, 45 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-json-index-expression-generated-column-current-source-next108.php`
+- `php lanes/libsqlite/examples/application-json-index-expression-generated-column-current-source-next108.php`
 
 Non-overlap:
 

@@ -15,7 +15,7 @@ covered by the accepted scalar operator corpus:
 - SQL NULL propagation for unary/bitwise operands
 - parser-level SELECT usage in projection, WHERE, HAVING, and ORDER BY
 
-The WordPress smoke uses copied `wp_options` flag rows to prove bit-mask style
+The Application smoke uses copied `wp_options` flag rows to prove bit-mask style
 option filtering without requiring `ext/sqlite`.
 
 ## Verification
@@ -40,7 +40,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteExpressionOperatorCorpusTest
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 60 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-select-sql-bitwise-operators.php
+php lanes/libsqlite/examples/application-select-sql-bitwise-operators.php
 [
     {
         "name": "siteurl",

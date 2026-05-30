@@ -11,9 +11,9 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext193Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext193Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next193.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next193.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext193Test.php` -> `1 test files, 705 assertions, 0 failures` with 100 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next193.php` -> self-test passed.
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next193.php` -> self-test passed.
 
 Non-overlap:
 

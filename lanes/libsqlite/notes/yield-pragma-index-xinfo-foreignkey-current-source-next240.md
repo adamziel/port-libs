@@ -13,13 +13,13 @@ Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a lane-local catalog p
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 56 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next240.php`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next240.php`
   - self-test passed
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
   - no syntax errors
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - no syntax errors
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next240.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next240.php`
   - no syntax errors
 
 ## Non-Overlap

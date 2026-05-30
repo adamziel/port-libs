@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a focused mixed-encoding WordPress `wp_options.option_name LIKE` current-source plan for UTF-8, UTF-16LE, and UTF-16BE rows. The slice preserves SQLite's ASCII-only `NOCASE` behavior, so ASCII prefix case folds while accented bytes such as `é` and `É` remain distinct. It also records encoded-byte and text-encoding changes across current/next sources so a copied import cursor is not reused after the same decoded option name moves between UTF-16 byte orders.
+Adds a focused mixed-encoding Application `wp_options.option_name LIKE` current-source plan for UTF-8, UTF-16LE, and UTF-16BE rows. The slice preserves SQLite's ASCII-only `NOCASE` behavior, so ASCII prefix case folds while accented bytes such as `é` and `É` remain distinct. It also records encoded-byte and text-encoding changes across current/next sources so a copied import cursor is not reused after the same decoded option name moves between UTF-16 byte orders.
 
 ## Evidence
 
@@ -10,10 +10,10 @@ Focused verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext244Test.php
-php lanes/libsqlite/examples/wordpress-encoding-collation-affinity-like-current-source-next244.php
+php lanes/libsqlite/examples/application-encoding-collation-affinity-like-current-source-next244.php
 php -l lanes/libsqlite/src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext244Plan.php
 php -l lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext244Test.php
-php -l lanes/libsqlite/examples/wordpress-encoding-collation-affinity-like-current-source-next244.php
+php -l lanes/libsqlite/examples/application-encoding-collation-affinity-like-current-source-next244.php
 git diff --check -- lanes/libsqlite
 ```
 

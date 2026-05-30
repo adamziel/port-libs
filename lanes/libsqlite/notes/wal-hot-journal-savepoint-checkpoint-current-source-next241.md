@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-cu
 
 This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-publication writer-commit fence after accepted next238 writer admission. It advances the next reader to writer generation 241 only when commit, WAL, lock, and directory receipts all match the admitted current source, WAL salt, schema cookie, database digest, checkpoint-covered pages, committed frame set, WAL sync, commit marker, reserved-lock release, preserved shared-lock state, and persisted sidecars.
 
-WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next241.php` models a copied `wp_options` import where the first autoload-option writer after a hot-journal savepoint checkpoint is not visible to the next reader until committed WAL frames and file-handle receipts are durable.
+Application smoke: `application-wal-hot-journal-savepoint-checkpoint-current-source-next241.php` models a copied `wp_options` import where the first autoload-option writer after a hot-journal savepoint checkpoint is not visible to the next reader until committed WAL frames and file-handle receipts are durable.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext241Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next241.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next241.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext241Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next241.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next241.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

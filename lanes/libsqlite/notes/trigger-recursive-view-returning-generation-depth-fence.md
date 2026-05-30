@@ -4,7 +4,7 @@ Status: consolidated recursive view trigger RETURNING current-generation and rec
 
 This slice now uses `SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentGenerationDepthFence()`. It builds on the accepted child drain model and keeps the later current-source guard: even after the child-drain stage allows next-source publication, the next view generation is held until the current view generation token matches and every required recursive depth has been acknowledged.
 
-WordPress smoke: `wordpress-trigger-recursive-view-returning-generation-depth-fence.php` covers a copied `wp_options` recursive import view where following current rows and recursive child RETURNING rows must publish under the current view generation before next-source `home` / `next_plugin` rows become visible.
+Application smoke: `application-trigger-recursive-view-returning-generation-depth-fence.php` covers a copied `wp_options` recursive import view where following current rows and recursive child RETURNING rows must publish under the current view generation before next-source `home` / `next_plugin` rows become visible.
 
 Verification:
 

@@ -29,7 +29,7 @@ Result:
 Example smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-stat4-expression-partial-current-source-next163.php
+php lanes/libsqlite/examples/application-stat4-expression-partial-current-source-next163.php
 ```
 
 Result: emits JSON with `status` =

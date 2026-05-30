@@ -2,14 +2,14 @@
 
 Status: focused PHP behavior growth for UTF-16 NOCASE LIKE/RTRIM current-source replay tokens.
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan()`. It reuses the accepted next171 duplicate-key replay scan, then verifies the yielded token's stored byte and encoding fingerprint against the next source row before allowing replay to continue after the key/rowid token.
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameTokenFingerprintPlan()`. It reuses the accepted next171 duplicate-key replay scan, then verifies the yielded token's stored byte and encoding fingerprint against the next source row before allowing replay to continue after the key/rowid token.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-token-current-source-next175.php` models copied `wp_options.option_name` rows where the same rowid and RTRIM/NOCASE key survive a source transition, but the UTF-16 byte payload gains trailing spaces. SQLite's residual comparison still matches after `rtrim(option_name)`, but the prepared cursor must reprepare because the yielded token's byte fingerprint is stale.
+Application path: `application-utf16-nocase-like-rtrim-token-current-source-next175.php` models copied `wp_options.option_name` rows where the same rowid and RTRIM/NOCASE key survive a source transition, but the UTF-16 byte payload gains trailing spaces. SQLite's residual comparison still matches after `rtrim(option_name)`, but the prepared cursor must reprepare because the yielded token's byte fingerprint is stale.
 
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-token-current-source-next175.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-token-current-source-next175.php --self-test`
 
 Expected dashboard movement: `phpPass +56`, from `81770` to `81826`. Mapped upstream coverage remains `613 / 1589`; this is focused current-source PHP behavior over already mapped UTF-16, NOCASE LIKE, RTRIM, and cursor replay inventory.
 

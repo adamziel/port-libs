@@ -17,7 +17,7 @@
 - Result: `1 test files, 170 assertions, 0 failures`
 - PASS lines: 66
 
-## WordPress Relevance
+## Application Relevance
 
 The fixture models a copied `wp_options` autoload/option-name index where a
 large transient index entry is deleted, sibling leaves rebalance, obsolete

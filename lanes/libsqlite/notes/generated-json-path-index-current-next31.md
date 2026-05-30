@@ -1,7 +1,7 @@
 # Generated JSON Path Index Current/Next 31
 
 This slice adds `SQLiteGeneratedJsonPathIndexPlan`, a bounded native-PHP planner
-for WordPress option rows whose generated columns are defined by
+for Application option rows whose generated columns are defined by
 `json_extract()` or `jsonb_extract()` paths and indexed as ordinary generated
 columns.
 
@@ -19,7 +19,7 @@ Focused behavior:
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteGeneratedJsonPathIndexCurrentNext31Test.php`
-- `php lanes/libsqlite/examples/wordpress-generated-json-path-index-current-next31.php`
+- `php lanes/libsqlite/examples/application-generated-json-path-index-current-next31.php`
 
 Non-overlap:
 

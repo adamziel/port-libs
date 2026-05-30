@@ -17,13 +17,13 @@ The slice blocks publication when a receipt has stale paths, stale digests, reus
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next261.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next261.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Test.php`
   - `1 test files, 109 assertions, 0 failures`
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next261.php --self-test` verifies a copied WordPress import only advances reopened readers after the post-restart WAL writer source has database/WAL/SHM/read-mark/savepoint/sync receipts.
+`lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next261.php --self-test` verifies a copied Application import only advances reopened readers after the post-restart WAL writer source has database/WAL/SHM/read-mark/savepoint/sync receipts.
 
 ## Non-Overlap
 

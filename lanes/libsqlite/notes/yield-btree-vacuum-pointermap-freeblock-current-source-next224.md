@@ -6,9 +6,9 @@
 - Composes accepted `next218` write receipts and adds current-source next-page cursor sequencing for vacuumed pointer-map/freeblock writes.
 - Proves pointer-map source pages are visible before payload source pages advance, freeblock receipts remain carried, and fenced tail pages stay out of the source cursor.
 
-## WordPress Smoke
+## Application Smoke
 
-- `examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next224.php`
+- `examples/application-btree-vacuum-pointermap-freeblock-current-source-next224.php`
 - Scenario: copied `wp_options` transient cleanup deletes an overflow-backed row, vacuums tail pages, and chains current-source next-page receipts before payload source pages are exposed.
 
 ## Verification

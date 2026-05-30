@@ -14,7 +14,7 @@ Behavior:
   current/next source pagination.
 - Cursor source IDs now include the FK-list column-sequence summary, so stale
   pagination cursors are rejected when FK column DDL changes.
-- WordPress smoke coverage models copied multisite `wp_options` rows whose
+- Application smoke coverage models copied multisite `wp_options` rows whose
   parent `wp_sites` and composite `wp_option_names` rows are repaired between
   current and next source snapshots.
 
@@ -23,8 +23,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 71 assertions, 0 failures`
   - `62` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next175.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next175 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next175.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next175 self-test passed`
 
 Non-overlap:
 

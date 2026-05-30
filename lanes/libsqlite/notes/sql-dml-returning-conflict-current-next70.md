@@ -20,9 +20,9 @@ Expected focused result after this patch:
 
 New PASS-line delta: `+53`.
 
-## WordPress smoke
+## Application smoke
 
-`lanes/libsqlite/examples/wordpress-upsert-returning-expression-current-next70.php` previews copied `wp_options` import rows using UPSERT conflict updates with `RETURNING` expressions such as `hits + 1 AS next_hits` and `option_name || ':' || touched AS label`, without requiring `ext/sqlite`.
+`lanes/libsqlite/examples/application-upsert-returning-expression-current-next70.php` previews copied `wp_options` import rows using UPSERT conflict updates with `RETURNING` expressions such as `hits + 1 AS next_hits` and `option_name || ':' || touched AS label`, without requiring `ext/sqlite`.
 
 ## Non-overlap
 

@@ -12,8 +12,8 @@ out-of-order reset receipts hold the following current source; cursor or
 following-source token mismatches also hold it. The accepted next217 provenance
 state remains the base admission gate.
 
-WordPress path:
-`wordpress-trigger-recursive-view-returning-current-source-next219.php` models a
+Application path:
+`application-trigger-recursive-view-returning-current-source-next219.php` models a
 copied `wp_options` import through a recursive view trigger where admitted
 next-source rows (`home`, `next_plugin`) must be reset before a following
 current-source plugin/theme option batch (`active_plugins`, `rewrite_rules`,
@@ -26,13 +26,13 @@ $ php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNex
 No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext219Plan.php
 $ php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext219Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext219Test.php
-$ php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next219.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next219.php
+$ php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next219.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next219.php
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext219Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 94 assertions, 0 failures
-$ php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next219.php
-wordpress-trigger-recursive-view-returning-current-source-next219 self-test passed
+$ php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next219.php
+application-trigger-recursive-view-returning-current-source-next219 self-test passed
 ```
 
 Dashboard delta: update `phpPass` by the focused PASS-line delta verified for

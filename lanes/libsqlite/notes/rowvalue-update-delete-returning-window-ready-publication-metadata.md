@@ -11,9 +11,9 @@ Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationMetadataTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-metadata.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-ready-publication-metadata.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationMetadataTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-metadata.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-ready-publication-metadata.php --self-test`
 
 Dependency closure: no new support component is needed; the slice reuses the
 existing row-value UPDATE/DELETE RETURNING window candidate payloads.

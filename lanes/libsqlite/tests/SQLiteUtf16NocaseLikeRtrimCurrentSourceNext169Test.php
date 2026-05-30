@@ -62,7 +62,7 @@ $plan = static function (
     int $currentSchemaCookie = 169,
     int $nextSchemaCookie = 169,
 ) use ($currentRows, $nextRows, $enc, $code): array {
-    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldReplayPlan(
+    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameYieldReplayPlan(
         $current ?? $currentRows,
         $next ?? $nextRows,
         $enc($currentPattern, $currentPatternEncoding),

@@ -20,10 +20,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 279 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-apply-current-next66.php
+php lanes/libsqlite/examples/application-btree-pointermap-vacuum-apply-current-next66.php
 ```
 
 Scenario: copied `wp_options` overflow delete plus incremental vacuum

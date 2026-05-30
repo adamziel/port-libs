@@ -16,7 +16,7 @@ Focused behavior:
   and next122 replan reasons.
 - Distinguishes hidden source/root ORDER changes from visible `id` streaming
   order and from unchanged stable current/next plans.
-- Adds a WordPress smoke for copied plugin rule metadata in `wp_options`.
+- Adds a Application smoke for copied plugin rule metadata in `wp_options`.
 
 Verification:
 
@@ -27,8 +27,8 @@ Verification:
   - focused regression pair for accepted next119 plus next122
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableIndexedHiddenOrderTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-indexed-hidden-order.php`
-- `php lanes/libsqlite/examples/wordpress-json-table-indexed-hidden-order.php --self-test`
+- `php -l lanes/libsqlite/examples/application-json-table-indexed-hidden-order.php`
+- `php lanes/libsqlite/examples/application-json-table-indexed-hidden-order.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta:
@@ -40,7 +40,7 @@ Dashboard delta:
 
 Dependency closure: no new support component is needed. This reuses native JSON
 table planning, current-source hidden argument metadata, indexed visible
-constraint costing, row-array filtering, and WordPress example bootstrap.
+constraint costing, row-array filtering, and Application example bootstrap.
 
 Non-overlap: this does not repeat accepted JSON visible/hidden constraint
 pushdown, parser-level JSON table SELECT sources/cursor behavior, rowid hidden

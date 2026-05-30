@@ -18,7 +18,7 @@ Behavior covered:
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext192Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next192.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next192.php`
 
 Dependency closure: no new support component is required. The slice reuses the
 existing pager master-journal reader-cache and current-source model and adds

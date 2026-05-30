@@ -12,7 +12,7 @@ code-unit trap separately from normal residual matches so stale cursor replay
 does not regress to UTF-16 code-unit matching. It also preserves ASCII-only
 NOCASE and ASCII-space-only RTRIM behavior.
 
-WordPress smoke: `examples/wordpress-utf16-nocase-like-rtrim-current-source-next219.php`
+Application smoke: `examples/application-utf16-nocase-like-rtrim-current-source-next219.php`
 models copied `wp_options` rows with UTF-16LE/UTF-16BE emoji option names and a
 plugin cache wildcard scan.
 
@@ -20,9 +20,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext219Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next219.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next219.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext219Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next219.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next219.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected focused movement: `+65` PASS lines in the new focused test file.

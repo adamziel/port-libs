@@ -8,8 +8,8 @@ Behavior:
 - Releases both chains into the freelist with auto-vacuum pointer-map entries changed to `free-page` parent `0`.
 - Allocates a replacement overflow chain from the resulting freelist and rewrites pointer-map parents to match the newly materialized overflow order, including an existing freelist page before reused obsolete overflow pages.
 
-WordPress smoke:
-- `php lanes/libsqlite/examples/wordpress-btree-freelist-overflow-pointermap-current-source-next132.php --self-test`
+Application smoke:
+- `php lanes/libsqlite/examples/application-btree-freelist-overflow-pointermap-current-source-next132.php --self-test`
 
 Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Test.php`

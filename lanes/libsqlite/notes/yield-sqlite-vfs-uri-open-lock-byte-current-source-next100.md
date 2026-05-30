@@ -8,7 +8,7 @@
   paths, file-wide byte-lock conflicts across aliases, reopen reference counts,
   close-time holder release, and lock-byte transitions including explicit
   `none` release.
-- Added a WordPress smoke for copied `wp-content/database/wp.sqlite` reader and
+- Added a Application smoke for copied `wp-content/database/wp.sqlite` reader and
   import handles sharing one decoded path while retaining independent current
   source state.
 

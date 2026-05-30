@@ -9,7 +9,7 @@ Adds `SQLitePagerHotJournalCacheSpillCurrentSourceNextPlan`, which models the pa
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalCacheSpillCurrentSourceNext127Test.php`
 - Result: `1 test files, 68 assertions, 0 failures`
 - PHP lint passed for the changed source, test, and example files.
-- WordPress smoke: `lanes/libsqlite/examples/wordpress-pager-hot-journal-cache-spill-current-source-next127.php`
+- Application smoke: `lanes/libsqlite/examples/application-pager-hot-journal-cache-spill-current-source-next127.php`
 
 ## Non-Overlap
 

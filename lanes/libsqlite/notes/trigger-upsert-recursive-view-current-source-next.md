@@ -4,7 +4,7 @@
 
 Adds focused current-source behavior for `INSERT ... ON CONFLICT DO UPDATE RETURNING`
 through an `INSTEAD OF` view trigger when recursive update triggers upsert dependent
-WordPress option rows. The slice is intentionally narrower than accepted trigger
+Application option rows. The slice is intentionally narrower than accepted trigger
 RETURNING/view work: it covers recursive side effects and confirms the current
 source yields diagnostics before the next source is admitted.
 
@@ -13,7 +13,7 @@ source yields diagnostics before the next source is admitted.
 - `php -l lanes/libsqlite/src/SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-upsert-recursive-view-current-source-next148.php`
+- `php lanes/libsqlite/examples/application-trigger-upsert-recursive-view-current-source-next148.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap

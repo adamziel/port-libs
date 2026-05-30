@@ -11,7 +11,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext200Test.php`
 - Result: `1 test files, 47 assertions, 0 failures`
 - PASS-line delta: `+47`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next200.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next200.php --self-test`
 
 ## Non-overlap
 

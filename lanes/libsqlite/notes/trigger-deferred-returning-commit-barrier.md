@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for `trigger-deferred-returning-commit-barri
 
 This slice adds `SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan`. It composes the existing deferred trigger RETURNING savepoint executor with a commit-attempt barrier: RETURNING rows are yielded during the current statement, a deferred FK violation blocks commit at the next source, `ROLLBACK TO` restores the savepoint image, invalidates those yielded rows as non-durable, clears the deferred queue, and admits the next retry from the restored current source.
 
-WordPress path: `wordpress-trigger-deferred-returning-commit-barrier.php` models a copied `wp_posts`/`wp_postmeta` import that recursively rekeys posts, emits RETURNING rows for UI/import diagnostics, then hits a deferred FK audit orphan at commit and retries from the restored savepoint image.
+Application path: `application-trigger-deferred-returning-commit-barrier.php` models a copied `wp_posts`/`wp_postmeta` import that recursively rekeys posts, emits RETURNING rows for UI/import diagnostics, then hits a deferred FK audit orphan at commit and retries from the restored savepoint image.
 
 Verification:
 
 ```text
 php -l lanes/libsqlite/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerDeferredReturningCommitBarrierTest.php
-php -l lanes/libsqlite/examples/wordpress-trigger-deferred-returning-commit-barrier.php
+php -l lanes/libsqlite/examples/application-trigger-deferred-returning-commit-barrier.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerDeferredReturningCommitBarrierTest.php
-php lanes/libsqlite/examples/wordpress-trigger-deferred-returning-commit-barrier.php --self-test
+php lanes/libsqlite/examples/application-trigger-deferred-returning-commit-barrier.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -8,16 +8,16 @@ Behavior covered:
 - Window functions in compound arms are evaluated before final compound ordering and LIMIT/OFFSET.
 - The current-source signature includes normalized SQL, compound operators/order, recursive emitted/skipped labels, window function names, and the current final-boundary label.
 - A stale cursor with a mismatched current-source signature is rejected before next-source rows are admitted.
-- Copied WordPress `wp_options` preview rows produce a distinct next-source signature when staged autoload rows move the compound boundary.
+- Copied Application `wp_options` preview rows produce a distinct next-source signature when staged autoload rows move the compound boundary.
 
 Focused verification:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext193Test.php
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next193.php
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next193.php
 php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext193Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next193.php
+php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next193.php
 git diff --check -- lanes/libsqlite
 ```
 

@@ -8,19 +8,19 @@ require_once __DIR__ . '/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextPlan.php';
 
 final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
 {
-    public static function wordpressOptionNameNoCasePlan(mixed ...$args): array
+    public static function optionRowNameNoCasePlan(mixed ...$args): array
     {
-        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl::wordpressOptionNamePlan(...$args);
+        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl::optionRowNamePlan(...$args);
     }
 
-    public static function wordpressOptionNameUtf16NocaseRtrimPlan(mixed ...$args): array
+    public static function optionRowNameUtf16NocaseRtrimPlan(mixed ...$args): array
     {
-        return self::wordpressOptionNameNoCasePlan(...$args);
+        return self::optionRowNameNoCasePlan(...$args);
     }
 
-    public static function wordpressOptionNameNormalizedPatternPlan(mixed ...$args): array
+    public static function optionRowNameNormalizedPatternPlan(mixed ...$args): array
     {
-        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl::wordpressOptionNameNormalizedPatternPlan(...$args);
+        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl::optionRowNameNormalizedPatternPlan(...$args);
     }
 
     /* Consolidated from SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php. */
@@ -30,7 +30,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePlan(
+    public static function optionRowNamePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -43,7 +43,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         self::assertUtf16ByteOrderRows($currentRows);
         self::assertUtf16ByteOrderRows($nextRows);
 
-        $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
+        $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -143,7 +143,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameSourceDeltaPlan(
+    public static function optionRowNameSourceDeltaPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -441,7 +441,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameGenerationPlan(
+    public static function optionRowNameGenerationPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -455,7 +455,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         string $currentLikeGeneration = 'like@160',
         string $nextLikeGeneration = 'like@161',
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceDeltaPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceDeltaPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -580,7 +580,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameYieldPlan(
+    public static function optionRowNameYieldPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -596,7 +596,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         string $currentPreparedStatement = 'select-rtrim-nocase-like@163',
         string $nextPreparedStatement = 'select-rtrim-nocase-like@164',
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameGenerationPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameGenerationPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -786,7 +786,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameResumePlan(
+    public static function optionRowNameResumePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -805,7 +805,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     ): array {
         self::v165_assertLastYielded($lastYielded);
 
-        $base = self::wordpressOptionNameNormalizedPatternPlan(
+        $base = self::optionRowNameNormalizedPatternPlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -1014,7 +1014,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameFallbackPlan(
+    public static function optionRowNameFallbackPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -1314,7 +1314,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameCaseSensitiveLikePlan(
+    public static function optionRowNameCaseSensitiveLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -1669,7 +1669,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameYieldReplayPlan(
+    public static function optionRowNameYieldReplayPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -1691,7 +1691,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixNine yield page size must be positive');
         }
 
-        $resume = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumePlan(
+        $resume = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumePlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -1879,7 +1879,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameDuplicateKeyReplayPlan(
+    public static function optionRowNameDuplicateKeyReplayPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -2203,7 +2203,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameYieldTokenPlan(
+    public static function optionRowNameYieldTokenPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -2220,7 +2220,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 171,
         int $nextSchemaCookie = 172,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumePlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -2337,7 +2337,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameSourcePlan(
+    public static function optionRowNameSourcePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -2656,7 +2656,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameTokenFingerprintPlan(
+    public static function optionRowNameTokenFingerprintPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -2667,7 +2667,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 174,
         int $nextSchemaCookie = 175,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicateKeyReplayPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -2779,7 +2779,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePeerYieldPlan(
+    public static function optionRowNamePeerYieldPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -3165,7 +3165,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameUnicodeWildcardPlan(
+    public static function optionRowNameUnicodeWildcardPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -3550,7 +3550,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string,keyBytes?:string,keyEncoding?:int|string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameCanonicalTokenPlan(
+    public static function optionRowNameCanonicalTokenPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -3562,7 +3562,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $nextSchemaCookie = 178,
     ): array {
         $token = self::v178_canonicalizeToken($lastYielded);
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameTokenFingerprintPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -3763,7 +3763,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameNonAsciiPrefixPlan(
+    public static function optionRowNameNonAsciiPrefixPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4069,7 +4069,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string,keyBytes?:string,keyEncoding?:int|string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePeerReplayPlan(
+    public static function optionRowNamePeerReplayPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4080,7 +4080,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 180,
         int $nextSchemaCookie = 181,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -4301,7 +4301,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameAsciiPrefixRangePlan(
+    public static function optionRowNameAsciiPrefixRangePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache',
@@ -4311,7 +4311,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 182,
         int $nextSchemaCookie = 183,
     ): array {
-        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixPlan(
+        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiPrefixPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -4389,7 +4389,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string,keyBytes?:string,keyEncoding?:int|string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEscapedPeerReplayPlan(
+    public static function optionRowNameEscapedPeerReplayPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4400,7 +4400,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 183,
         int $nextSchemaCookie = 184,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -4565,7 +4565,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameDeletedTokenResumePlan(
+    public static function optionRowNameDeletedTokenResumePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4846,7 +4846,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameResumeBoundaryPlan(
+    public static function optionRowNameResumeBoundaryPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -4857,7 +4857,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $nextSchemaCookie = 186,
         ?array $resumeToken = null,
     ): array {
-        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5021,7 +5021,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameDanglingEscapePlan(
+    public static function optionRowNameDanglingEscapePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!',
@@ -5031,7 +5031,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 186,
         int $nextSchemaCookie = 187,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5162,7 +5162,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameReusedRowidResumePlan(
+    public static function optionRowNameReusedRowidResumePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -5173,7 +5173,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 187,
         int $nextSchemaCookie = 188,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDeletedTokenResumePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5318,7 +5318,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePeerWindowPlan(
+    public static function optionRowNamePeerWindowPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -5329,7 +5329,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 188,
         int $nextSchemaCookie = 189,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5522,7 +5522,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
+    public static function optionRowNameAsciiSpaceTrimBoundaryPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin%',
@@ -5532,7 +5532,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 189,
         int $nextSchemaCookie = 190,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5679,7 +5679,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePreparedPatternRebindPlan(
+    public static function optionRowNamePreparedPatternRebindPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -5704,7 +5704,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             ? null
             : self::v191_decodePreparedText($nextEscapeBytes, $nextEscapeEncoding ?? $nextPatternEncoding, 'escape');
 
-        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $currentRows,
             $currentPattern,
@@ -5714,7 +5714,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $nextRows,
             $nextRows,
             $nextPattern,
@@ -5892,7 +5892,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameCandidateTokenPlan(
+    public static function optionRowNameCandidateTokenPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache',
@@ -5903,7 +5903,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 191,
         int $nextSchemaCookie = 192,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6091,7 +6091,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameLimitOffsetPlan(
+    public static function optionRowNameLimitOffsetPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -6110,7 +6110,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneNineThree OFFSET must be non-negative');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6259,7 +6259,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEscapedWildcardPrefixPlan(
+    public static function optionRowNameEscapedWildcardPrefixPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!%%',
@@ -6269,7 +6269,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 193,
         int $nextSchemaCookie = 194,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6460,7 +6460,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEscapedLiteralTailPlan(
+    public static function optionRowNameEscapedLiteralTailPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_!%!_cache',
@@ -6470,7 +6470,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 194,
         int $nextSchemaCookie = 195,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6595,7 +6595,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameDuplicatePeerResumePlan(
+    public static function optionRowNameDuplicatePeerResumePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache',
@@ -6606,7 +6606,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 195,
         int $nextSchemaCookie = 196,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCandidateTokenPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6811,7 +6811,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEscapeRebindPlan(
+    public static function optionRowNameEscapeRebindPlan(
         array $currentRows,
         array $nextRows,
         string $currentPattern = 'plugin!_%',
@@ -7083,7 +7083,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<string,mixed> $nextPatternRow
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameSourcePatternPlan(
+    public static function optionRowNameSourcePatternPlan(
         array $currentRows,
         array $nextRows,
         array $currentPatternRow,
@@ -7097,7 +7097,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentPattern = self::v202_decodePatternRow($currentPatternRow, 'current');
         $nextPattern = self::v202_decodePatternRow($nextPatternRow, 'next');
 
-        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $currentRows,
             $currentRows,
             $currentPattern,
@@ -7107,7 +7107,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
+        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
             $nextRows,
             $nextRows,
             $nextPattern,
@@ -7284,7 +7284,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameFullScanPlan(
+    public static function optionRowNameFullScanPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = '%cache',
@@ -7554,7 +7554,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameNonAsciiFullScanPlan(
+    public static function optionRowNameNonAsciiFullScanPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plüg!_%',
@@ -7776,7 +7776,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePreparedBomPatternPlan(
+    public static function optionRowNamePreparedBomPatternPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -7796,7 +7796,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentHadBom = $currentDecoded !== $currentPattern;
         $nextHadBom = $nextDecoded !== $nextPattern;
 
-        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $currentRows,
             $currentPattern,
@@ -7808,7 +7808,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $nextRows,
             $nextRows,
             $nextPattern,
@@ -7820,7 +7820,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $nextSchemaCookie,
             $nextSchemaCookie,
         );
-        $nextWithoutBomStrip = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $nextWithoutBomStrip = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $nextRows,
             $nextRows,
             $nextDecoded,
@@ -7981,7 +7981,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameRtrimCollationRebindPlan(
+    public static function optionRowNameRtrimCollationRebindPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -8233,7 +8233,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePreparedEscapePlan(
+    public static function optionRowNamePreparedEscapePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -8258,7 +8258,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentPattern = self::v208_rewritePatternEscape($pattern, '!', $currentEscape);
         $nextPattern = self::v208_rewritePatternEscape($pattern, '!', $nextEscape);
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $currentPattern,
@@ -8274,7 +8274,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $rawNext = null;
         $rawNextError = null;
         try {
-            $rawNext = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+            $rawNext = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
                 $nextRows,
                 $nextRows,
                 $nextPattern,
@@ -8438,7 +8438,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameAsciiSpaceRtrimPlan(
+    public static function optionRowNameAsciiSpaceRtrimPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin%',
@@ -8448,7 +8448,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 208,
         int $nextSchemaCookie = 209,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -8676,7 +8676,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEmbeddedNulPlan(
+    public static function optionRowNameEmbeddedNulPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = "plugin\0cache%",
@@ -8690,7 +8690,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneZero expects an embedded-NUL LIKE pattern');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -8912,7 +8912,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameSourceRefreshPlan(
+    public static function optionRowNameSourceRefreshPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -9235,7 +9235,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameUnicodeEscapePlan(
+    public static function optionRowNameUnicodeEscapePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -9256,7 +9256,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentEscape = self::v212_decodePreparedText($currentEscapeBytes, $currentEscapeEncoding, 'current escape');
         $nextEscape = self::v212_decodePreparedText($nextEscapeBytes, $nextEscapeEncoding, 'next escape');
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $currentPattern,
@@ -9271,7 +9271,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
 
         $currentAsciiEscape = self::v212_replaceEscapeCharacter($currentPattern, $currentEscape, '!');
         $nextAsciiEscape = self::v212_replaceEscapeCharacter($nextPattern, $nextEscape, '!');
-        $currentAscii = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $currentAscii = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $currentRows,
             $currentAsciiEscape,
@@ -9283,7 +9283,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $nextAscii = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $nextAscii = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $nextRows,
             $nextRows,
             $nextAsciiEscape,
@@ -9461,7 +9461,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameSelfEscapedEscapePlan(
+    public static function optionRowNameSelfEscapedEscapePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -9480,7 +9480,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneThree ESCAPE must decode to one SQLite text character');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeEscapePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeEscapePlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -9689,7 +9689,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePreparedPatternSpacePlan(
+    public static function optionRowNamePreparedPatternSpacePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -9707,7 +9707,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentSpace = self::v217_spaceBeforeFirstWildcard($currentPattern, $escape);
         $nextSpace = self::v217_spaceBeforeFirstWildcard($nextPattern, $escape);
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $currentPattern,
@@ -9722,7 +9722,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
 
         $currentWithoutSpace = self::v217_removeSpaceBeforeFirstWildcard($currentPattern, $escape);
         $nextWithoutSpace = self::v217_removeSpaceBeforeFirstWildcard($nextPattern, $escape);
-        $currentWithoutSpacePlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $currentWithoutSpacePlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $currentRows,
             $currentWithoutSpace,
@@ -9734,7 +9734,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $nextWithoutSpacePlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $nextWithoutSpacePlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $nextRows,
             $nextRows,
             $nextWithoutSpace,
@@ -9982,7 +9982,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<string,mixed>|null $cursor
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameYieldPagePlan(
+    public static function optionRowNameYieldPagePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -10005,7 +10005,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneEight OFFSET must be non-negative');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -10206,7 +10206,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameSupplementaryWildcardPlan(
+    public static function optionRowNameSupplementaryWildcardPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache_',
@@ -10585,7 +10585,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePreparedByteSignaturePlan(
+    public static function optionRowNamePreparedByteSignaturePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -10606,7 +10606,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentEscape = self::decodePreparedLikeText($currentEscapeBytes, $currentEscapeEncoding, 'current escape');
         $nextEscape = self::decodePreparedLikeText($nextEscapeBytes, $nextEscapeEncoding, 'next escape');
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $currentPattern,
@@ -10762,7 +10762,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<string,mixed>|null $cursor
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameDescYieldPagePlan(
+    public static function optionRowNameDescYieldPagePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -10785,7 +10785,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoThree OFFSET must be non-negative');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPagePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameYieldPagePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -10999,7 +10999,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<string,mixed>|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameKeysetResumePlan(
+    public static function optionRowNameKeysetResumePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -11020,7 +11020,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoFour page size must be positive');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -11242,7 +11242,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameSourceBytePlan(
+    public static function optionRowNameSourceBytePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -11252,7 +11252,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 224,
         int $nextSchemaCookie = 225,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSupplementaryWildcardPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSupplementaryWildcardPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -11472,7 +11472,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameCombiningMarkPlan(
+    public static function optionRowNameCombiningMarkPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_caf_',
@@ -11843,7 +11843,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameAsciiSpaceBoundaryPlan(
+    public static function optionRowNameAsciiSpaceBoundaryPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_cache',
@@ -12173,7 +12173,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameHeaderEncodingFencePlan(
+    public static function optionRowNameHeaderEncodingFencePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -12190,7 +12190,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $nextEncoding = self::v228_encodingName($nextDatabaseEncoding);
         $statementEncoding = self::v228_encodingName($preparedEncoding);
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceRefreshPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceRefreshPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -12324,7 +12324,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameUnicodeSpaceRtrimPlan(
+    public static function optionRowNameUnicodeSpaceRtrimPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -12338,7 +12338,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 228,
         int $nextSchemaCookie = 229,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameKeysetResumePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameKeysetResumePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -12541,7 +12541,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameLineBreakBoundaryPlan(
+    public static function optionRowNameLineBreakBoundaryPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_cache',
@@ -12895,7 +12895,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameAsciiOnlyNocasePlan(
+    public static function optionRowNameAsciiOnlyNocasePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_cafÉ%',
@@ -13223,7 +13223,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameCanonicalUnicodePlan(
+    public static function optionRowNameCanonicalUnicodePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_caf_',
@@ -13655,7 +13655,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameNullPatternRebindPlan(
+    public static function optionRowNameNullPatternRebindPlan(
         array $currentRows,
         array $nextRows,
         ?string $currentPattern = 'plugin!_cache%',
@@ -13906,7 +13906,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameNonAsciiPrefixFullScanPlan(
+    public static function optionRowNameNonAsciiPrefixFullScanPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_é%',
@@ -14187,7 +14187,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEmbeddedNulTokenPlan(
+    public static function optionRowNameEmbeddedNulTokenPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',

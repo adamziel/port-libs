@@ -24,10 +24,10 @@ PASS delta: `+53` verified PASS lines. `lane-status.json` `phpPass` moves from
 focused PHP corpus coverage for an already mapped upstream SELECT/subquery
 surface rather than a new hydrated upstream inventory unit.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-subquery-flattening-exists.php
+php lanes/libsqlite/examples/application-select-subquery-flattening-exists.php
 ```
 
 Non-overlap: this does not repeat the accepted parser-level correlated

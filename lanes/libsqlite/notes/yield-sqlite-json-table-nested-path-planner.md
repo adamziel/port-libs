@@ -26,14 +26,14 @@ Syntax:
 ```text
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableNestedPathPlannerTest.php
-php -l lanes/libsqlite/examples/wordpress-json-table-nested-path.php
+php -l lanes/libsqlite/examples/application-json-table-nested-path.php
 No syntax errors detected
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-nested-path.php
+php lanes/libsqlite/examples/application-json-table-nested-path.php
 ```
 
 The smoke composes `$.plugin.groups[0].rules` and `$.plugin.groups[1].rules` for copied `wp_options` plugin settings and returns ordered priority leaves `[7, 2]` and `[6, 4]`.

@@ -2,18 +2,18 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which gates checkpoint WAL truncation until every reopened reader admitted by the next245 checkpoint source has released its snapshot, clean page cache, shared lock, hot-journal fence, and savepoint scope. This covers the later reader-release/truncate lifecycle rather than repeating next245 reopened-reader admission.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next248.php` models `wp_options`, `wp_posts`, and plugin-cache readers releasing after a copied WordPress import checkpoint so the WAL can be truncated.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next248.php` models `wp_options`, `wp_posts`, and plugin-cache readers releasing after a copied Application import checkpoint so the WAL can be truncated.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext248Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next248.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next248.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext248Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next248.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next248.php
 git diff --check -- lanes/libsqlite
 ```
 

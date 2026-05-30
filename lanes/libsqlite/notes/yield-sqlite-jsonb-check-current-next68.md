@@ -7,7 +7,7 @@ where a CHECK expression only rejects false/zero results; NULL comparison
 results are admitted. It also adds top-level OR disjunction evaluation inside
 CHECK terms, preserving child term diagnostics for current/next row previews.
 
-WordPress smoke: `examples/wordpress-jsonb-check-current-next68.php` preflights
+Application smoke: `examples/application-jsonb-check-current-next68.php` preflights
 copied `wp_options` plugin-setting JSONB rows with optional fields such as
 description, channel, and priority before storage admission.
 

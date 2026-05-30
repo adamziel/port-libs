@@ -2,7 +2,7 @@
 
 This slice adds a current/next PRAGMA evidence layer for foreign-key child
 columns that remain nullable. SQLite does not check a foreign key when any
-child-key column is NULL, so copied WordPress import schemas need this
+child-key column is NULL, so copied Application import schemas need this
 diagnostic before treating a child key as enforced.
 
 Focused behavior:
@@ -22,11 +22,11 @@ Verification evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 63 assertions, 0 failures`
   - `55` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next211.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next211 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next211.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next211 self-test passed`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next211.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next211.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

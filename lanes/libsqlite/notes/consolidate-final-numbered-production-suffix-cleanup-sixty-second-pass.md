@@ -10,14 +10,14 @@
   - `currentSourceGeneratedPathRowidYieldGuardPlan()`
   - `currentSourceGeneratedPathRowidXColumnYieldPlan()`
   - `currentSourceGeneratedPathRowidPinnedSourcePlan()`
-- Renamed the direct focused tests and WordPress examples to stable descriptive filenames and migrated their direct calls.
+- Renamed the direct focused tests and Application examples to stable descriptive filenames and migrated their direct calls.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l` for each renamed focused test/example file
 - `php tools/run-tests.php` for the six renamed focused JSON table generated-path rowid tests
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-*.php --self-test` for the six renamed examples
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-*.php --self-test` for the six renamed examples
 - `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

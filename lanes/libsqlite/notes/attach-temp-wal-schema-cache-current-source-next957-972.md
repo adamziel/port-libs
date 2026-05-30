@@ -10,8 +10,8 @@ Validation:
 ```bash
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCachePublishHandoffWindowTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-publish-handoff-window.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-publish-handoff-window.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheReportWindowTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCachePublishHandoffWindowTest.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-publish-handoff-window.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-publish-handoff-window.php --self-test
 git diff --check
 ```

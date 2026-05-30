@@ -11,7 +11,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameRtrimPatternPlan(
+    public static function optionRowNameRtrimPatternPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -31,7 +31,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
         $currentTrimmedBytes = SQLiteEncodingCollationSourceCursor::encodeText($currentTrimmedPattern, $currentPatternEncoding);
         $nextTrimmedBytes = SQLiteEncodingCollationSourceCursor::encodeText($nextTrimmedPattern, $nextPatternEncoding);
 
-        $currentPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceDeltaPlan(
+        $currentPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceDeltaPlan(
             $currentRows,
             $currentRows,
             $currentTrimmedPattern,
@@ -41,7 +41,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $nextPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceDeltaPlan(
+        $nextPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceDeltaPlan(
             $nextRows,
             $nextRows,
             $nextTrimmedPattern,

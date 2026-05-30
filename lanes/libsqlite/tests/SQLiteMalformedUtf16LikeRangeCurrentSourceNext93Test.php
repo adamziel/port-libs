@@ -54,7 +54,7 @@ $plan = static fn (
     bool $caseSensitive = false,
     string $currentSource = 'main.wp_options@cookie92',
     string $nextSource = 'main.wp_options@cookie93',
-): array => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::wordpressOptionNameLikeRange(
+): array => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::optionRowNameLikeRange(
     $currentRows,
     $nextRows,
     $pattern,
@@ -130,23 +130,23 @@ foreach ($cases as $name => $case) {
 $tests['malformed utf16 like range current source next93 rejects utf8 rows'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $bad = $currentRows;
     $bad[] = ['option_id' => 20, 'option_name_bytes' => 'plugin_utf8', 'text_encoding' => 1];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::wordpressOptionNameLikeRange($bad, $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::optionRowNameLikeRange($bad, $nextRows, 'plugin%'));
 };
 
 $tests['malformed utf16 like range current source next93 rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::wordpressOptionNameLikeRange([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::optionRowNameLikeRange([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
 };
 
 $tests['malformed utf16 like range current source next93 rejects non integer rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::wordpressOptionNameLikeRange([['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 2]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::optionRowNameLikeRange([['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 2]], $nextRows, 'plugin%'));
 };
 
 $tests['malformed utf16 like range current source next93 rejects bad collation'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::wordpressOptionNameLikeRange($currentRows, $nextRows, 'plugin%', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::optionRowNameLikeRange($currentRows, $nextRows, 'plugin%', 'WP_LOCALE'));
 };
 
 $tests['malformed utf16 like range current source next93 rejects bad escape'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::wordpressOptionNameLikeRange($currentRows, $nextRows, 'plugin%', 'NOCASE', 'xx'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::optionRowNameLikeRange($currentRows, $nextRows, 'plugin%', 'NOCASE', 'xx'));
 };
 
 return $tests;

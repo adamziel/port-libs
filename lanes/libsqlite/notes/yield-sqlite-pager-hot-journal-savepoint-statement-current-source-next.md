@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a pager-only current-source recovery plan for a WordPress plugin import
+Adds a pager-only current-source recovery plan for a Application plugin import
 that starts from dirty database bytes, applies hot rollback-journal pages when
 the super-journal/reserved-lock gates allow recovery, captures savepoint
 before-images, rolls back a failed statement from statement before-images, and
@@ -16,7 +16,7 @@ application is modeled here.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalSavepointStatementCurrentSourceNext97Test.php`
 - Result: `1 test files, 80 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-hot-journal-savepoint-statement-current-source-next97.php`
+- `php lanes/libsqlite/examples/application-pager-hot-journal-savepoint-statement-current-source-next97.php`
 - Result: JSON smoke reports `hotRecovered: true`, `hasRetryActivePlugins:
   true`, and `hasFailedActivePlugins: false`.
 

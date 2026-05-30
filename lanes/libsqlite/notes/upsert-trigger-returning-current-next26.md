@@ -16,7 +16,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 53 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-upsert-trigger-returning-current-next26.php
+php lanes/libsqlite/examples/application-upsert-trigger-returning-current-next26.php
 changes: 2; yieldedStatuses: changed, changed, skipped; returning rows capture
 siteurl and fresh_plugin before the AFTER trigger changes the final siteurl row.
 ```

@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for current-source row-value `UPDATE`/`DELET
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext253Plan`. It layers a chunk-token source gate over the accepted next249 yielded window chunks: next-source retry windows stay hidden until the current-source yield tickets and the derived current-window chunk tokens are both complete. The cursor exposes current chunk rows first, then retry rows only after the chunk source is acknowledged.
 
-WordPress path: `wordpress-rowvalue-chunk-cursor-release-window.php` models copied `wp_options` import batches where yielded current-source row-value RETURNING windows must be acknowledged before retry rows from the next source can publish migration progress.
+Application path: `application-rowvalue-chunk-cursor-release-window.php` models copied `wp_options` import batches where yielded current-source row-value RETURNING windows must be acknowledged before retry rows from the next source can publish migration progress.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext253Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueChunkCursorReleaseWindowTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-chunk-cursor-release-window.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-chunk-cursor-release-window.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueChunkCursorReleaseWindowTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-chunk-cursor-release-window.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-chunk-cursor-release-window.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +65` from the new focused test file. `benchmarkDenominator.mapped` remains unchanged; this is current-source PHP behavior over already mapped row-value DML, RETURNING, savepoint retry, and window inventory.

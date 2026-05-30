@@ -12,16 +12,16 @@ records the partial-predicate delta, exact STAT4 equality buckets, blocked
 prepared rowids, current-only rowids, next-source admission/replan reasons, and
 a cursor program that fences the partial predicate before deferred table reads.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality.php --self-test`
-- `wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality.php --self-test`
+- `application-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality self-test passed`
 
 Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentPartialPredicateDeltaEqualityTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentPartialPredicateDeltaEqualityTest.php`
 - Result: `1 test files, 68 assertions, 0 failures`
 

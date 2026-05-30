@@ -40,13 +40,13 @@ $timediffCases = [
     'julian day numeric forward' => [2440588.5, 2440587.5, '+0000-00-01 00:00:00.000'],
     'julian day numeric backward' => [2440587.5, 2440588.5, '-0000-00-01 00:00:00.000'],
     'mixed julian day and text' => [2440588.5, '1970-01-01 00:00:00', '+0000-00-01 00:00:00.000'],
-    'wordpress cron daily interval' => ['2026-05-28 04:00:00', '2026-05-27 04:00:00', '+0000-00-01 00:00:00.000'],
-    'wordpress monthly archive interval' => ['2026-06-01', '2026-05-01', '+0000-01-00 00:00:00.000'],
-    'wordpress import elapsed label' => ['2026-05-27 18:42:34', '2026-05-27 18:40:04', '+0000-00-00 00:02:30.000'],
-    'wordpress reverse import elapsed label' => ['2026-05-27 18:40:04', '2026-05-27 18:42:34', '-0000-00-00 00:02:30.000'],
-    'wordpress yearly cleanup interval' => ['2027-01-01', '2026-01-01', '+0001-00-00 00:00:00.000'],
-    'wordpress leap cleanup interval' => ['2024-03-01', '2024-02-28', '+0000-00-02 00:00:00.000'],
-    'wordpress option expiration drift' => ['2026-05-27 18:42:34', '2026-05-26 16:12:34', '+0000-00-01 02:30:00.000'],
+    'application cron daily interval' => ['2026-05-28 04:00:00', '2026-05-27 04:00:00', '+0000-00-01 00:00:00.000'],
+    'application monthly archive interval' => ['2026-06-01', '2026-05-01', '+0000-01-00 00:00:00.000'],
+    'application import elapsed label' => ['2026-05-27 18:42:34', '2026-05-27 18:40:04', '+0000-00-00 00:02:30.000'],
+    'application reverse import elapsed label' => ['2026-05-27 18:40:04', '2026-05-27 18:42:34', '-0000-00-00 00:02:30.000'],
+    'application yearly cleanup interval' => ['2027-01-01', '2026-01-01', '+0001-00-00 00:00:00.000'],
+    'application leap cleanup interval' => ['2024-03-01', '2024-02-28', '+0000-00-02 00:00:00.000'],
+    'application option expiration drift' => ['2026-05-27 18:42:34', '2026-05-26 16:12:34', '+0000-00-01 02:30:00.000'],
 ];
 
 foreach ($timediffCases as $name => [$left, $right, $expected]) {
@@ -79,7 +79,7 @@ $tests['upstream timediff corpus rejects malformed right value'] = static functi
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('timediff', ['2026-05-27', 'not-a-date']));
 };
 
-$tests['upstream timediff corpus wordpress schedule summary'] = static function (TestRunner $t): void {
+$tests['upstream timediff corpus application schedule summary'] = static function (TestRunner $t): void {
     $summary = [
         'daily' => SQLiteCoreScalarFunction::sqlFunctionArguments('timediff', ['2026-05-28 04:00:00', '2026-05-27 04:00:00']),
         'elapsed' => SQLiteCoreScalarFunction::sqlFunctionArguments('timediff', ['2026-05-27 18:42:34', '2026-05-27 18:40:04']),

@@ -8,10 +8,10 @@ trigger ordering, grandchild `ON UPDATE CASCADE`, current child/grandchild
 changes before COMMIT, NO ACTION deferred violations, and RESTRICT immediate
 blocking.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-foreign-key-deferred-cascade-update-trigger-current-source-next116.php --self-test`
-- Result: `wordpress-foreign-key-deferred-cascade-update-trigger-current-source-next116 self-test passed`
+- `php lanes/libsqlite/examples/application-foreign-key-deferred-cascade-update-trigger-current-source-next116.php --self-test`
+- Result: `application-foreign-key-deferred-cascade-update-trigger-current-source-next116 self-test passed`
 
 Focused verification:
 

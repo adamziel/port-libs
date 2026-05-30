@@ -91,7 +91,7 @@ foreach ($indexLengths as $index => [$payloadLength, $firstPage]) {
     };
 }
 
-$wordpressPayloads = [
+$applicationPayloads = [
     ['siteurl', 'https://example.test', []],
     ['home', 'https://example.test/site', []],
     ['active_plugins', str_repeat('plugin-a/plugin.php;', 40), [130]],
@@ -100,8 +100,8 @@ $wordpressPayloads = [
     ['_transient_update_plugins', str_repeat('plugin-update:', 180), [136, 137, 138, 139]],
 ];
 
-foreach ($wordpressPayloads as $index => [$optionName, $optionValue, $pages]) {
-    $tests['btree cell payload split current next36 wordpress table option ' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($optionName, $optionValue, $pages): void {
+foreach ($applicationPayloads as $index => [$optionName, $optionValue, $pages]) {
+    $tests['btree cell payload split current next36 application table option ' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($optionName, $optionValue, $pages): void {
         $payload = SQLiteRecord::encode([null, $optionName, $optionValue, 'yes']);
         $cell = new SQLiteTableLeafCell(
             strlen($payload),
@@ -123,7 +123,7 @@ foreach ($wordpressPayloads as $index => [$optionName, $optionValue, $pages]) {
     };
 }
 
-$wordpressIndexPayloads = [
+$applicationIndexPayloads = [
     ['autoload', 1, []],
     ['siteurl', 2, []],
     [str_repeat('_transient_timeout_', 18), 3, [180]],
@@ -132,8 +132,8 @@ $wordpressIndexPayloads = [
     [str_repeat('long_option_name_for_network_', 42), 6, [186, 187, 188, 189]],
 ];
 
-foreach ($wordpressIndexPayloads as $index => [$optionName, $rowId, $pages]) {
-    $tests['btree cell payload split current next36 wordpress index option ' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($optionName, $rowId, $pages): void {
+foreach ($applicationIndexPayloads as $index => [$optionName, $rowId, $pages]) {
+    $tests['btree cell payload split current next36 application index option ' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($optionName, $rowId, $pages): void {
         $payload = SQLiteRecord::encode([$optionName, $rowId]);
         $cell = new SQLiteIndexCell(
             strlen($payload),

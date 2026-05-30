@@ -17,11 +17,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 54 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-trigger-deferred-fk-current-next24.php --self-test
-wordpress-trigger-deferred-fk-current-next24 self-test passed
+php lanes/libsqlite/examples/application-trigger-deferred-fk-current-next24.php --self-test
+application-trigger-deferred-fk-current-next24 self-test passed
 ```
 
 Syntax:
@@ -29,7 +29,7 @@ Syntax:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerDeferredForeignKeyPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerDeferredForeignKeyCurrentNext24Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-deferred-fk-current-next24.php
+php -l lanes/libsqlite/examples/application-trigger-deferred-fk-current-next24.php
 ```
 
 Status delta:

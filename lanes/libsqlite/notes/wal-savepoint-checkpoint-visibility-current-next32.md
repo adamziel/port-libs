@@ -22,9 +22,9 @@ handles.
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteWalSavepointCheckpointVisibilityCurrentNext32Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-savepoint-checkpoint-visibility-current-next32.php
+php -l lanes/libsqlite/examples/application-wal-savepoint-checkpoint-visibility-current-next32.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointCheckpointVisibilityCurrentNext32Test.php
-php lanes/libsqlite/examples/wordpress-wal-savepoint-checkpoint-visibility-current-next32.php --self-test
+php lanes/libsqlite/examples/application-wal-savepoint-checkpoint-visibility-current-next32.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -13,14 +13,14 @@ Prepared the direct follow-on to merged next343-350 for action relationship diag
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
 php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext351358Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next351-358.php
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next351-358.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext351358Test.php
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next351-358.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next351-358.php --self-test
 git diff --check
 ```
 
 Expected self-test line:
 
 ```text
-wordpress-pragma-index-xinfo-foreignkey-current-source-next351-358 self-test passed
+application-pragma-index-xinfo-foreignkey-current-source-next351-358 self-test passed
 ```

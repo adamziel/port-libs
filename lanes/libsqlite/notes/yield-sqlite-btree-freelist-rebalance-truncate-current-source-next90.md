@@ -23,12 +23,12 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The focused run emits 68 PASS lines for the new current-source B-tree behavior.
 
-## WordPress Smoke
+## Application Smoke
 
 Command:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-btree-rebalance-truncate-current-source-next90.php
+php lanes/libsqlite/examples/application-btree-rebalance-truncate-current-source-next90.php
 ```
 
 The smoke builds a copied `wp_options`-style option-name index where deleting a large transient key rebalances index leaves, releases overflow pages 406-412, keeps 406-408 as freelist pages, truncates 409-412 from the database image, and reports the final page count and materialized byte length without ext/sqlite.

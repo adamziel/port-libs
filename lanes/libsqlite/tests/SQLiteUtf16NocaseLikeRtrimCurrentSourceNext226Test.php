@@ -58,7 +58,7 @@ $plan226 = static fn (
     string $nextSource = 'main.wp_options@226',
     int $currentCookie = 225,
     int $nextCookie = 226,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCombiningMarkPlan(
     $current ?? $currentRows226,
     $next ?? $nextRows226,
     $pattern,
@@ -178,7 +178,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSix stable composed row
         $row226(2, 'Plugin_Caf' . $composed226 . '  ', 'UTF-16BE'),
         $row226(3, 'plugin_cafe', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCombiningMarkPlan(
         $rows,
         $rows,
         'plugin_caf_',
@@ -203,7 +203,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSix decomposed text nee
         $row226(2, 'plugin_caf' . $composed226, 'UTF-16BE'),
         $row226(3, 'plugin_cafex', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCombiningMarkPlan(
         $rows,
         $rows,
         'plugin_caf__',
@@ -225,7 +225,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSix ascii nocase does n
         $row226(1, 'PLUGIN_CAF' . $composed226, 'UTF-16LE'),
         $row226(2, 'plugin_caf' . $composed226, 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCombiningMarkPlan(
         $rows,
         $rows,
         'plugin_caf_',
@@ -243,7 +243,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoSix ascii nocase does n
 
 $tests['utf16 nocase like rtrim current source nextTwoTwoSix rejects malformed row shape'] = static function (TestRunner $t) use ($enc226): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc226('plugin_cafe', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCombiningMarkPlan($rows, $rows));
 };
 
 return $tests;

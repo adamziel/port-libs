@@ -16,7 +16,7 @@ to the next cursor until every current-source `RETURNING` row is acknowledged.
 - Family command:
   `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturning*Test.php`
 - Example smoke:
-  `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next154.php --self-test`
+  `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next154.php --self-test`
 
 ## Dependency Closure
 

@@ -7,6 +7,6 @@ The focused behavior is intentionally narrower than accepted JSON table cursor/s
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableLateralPlannerConstraintCurrentNext75Test.php`
-- `php lanes/libsqlite/examples/wordpress-json-table-lateral-planner-current-next75.php`
+- `php lanes/libsqlite/examples/application-json-table-lateral-planner-current-next75.php`
 
 Dependency closure: no new support component is needed. The slice reuses the existing native PHP JSON text/JSONB decoders, JSON path validator, and JSON table xBestIndex planner.

@@ -118,7 +118,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('seal_current_source_next261', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next258', $plan()['dependencies'], true), true],
     'dependency added' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next261', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-wal-current-source-seal', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-wal-current-source-seal', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next258 writer admission'), true],
     'first row accepted' => [static fn (): mixed => $plan()['publish_rows'][0]['accepted'], true],

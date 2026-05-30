@@ -4,13 +4,13 @@
 
 - Added `SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext85()` for WAL-mode VFS coordination where xFileControl writes require an exclusive SHM write/checkpoint/recover lock and a fresh current-source generation.
 - Added focused tests for writer, readonly reader, stale-source blocking, read-lock conflict, checkpoint-lock writes, validation, and no-lock blockers.
-- Added a WordPress smoke for copied `wp_options` WAL-mode opens that rehydrate persisted controls only after SHM-locked current-source updates.
+- Added a Application smoke for copied `wp_options` WAL-mode opens that rehydrate persisted controls only after SHM-locked current-source updates.
 
 ## Evidence
 
 - Focused command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmLockFileControlCurrentSourceNext85Test.php`
 - Expected focused delta: 47 PASS lines in one new focused test file.
-- Example smoke: `php lanes/libsqlite/examples/wordpress-vfs-shm-lock-filecontrol-current-source-next85.php`
+- Example smoke: `php lanes/libsqlite/examples/application-vfs-shm-lock-filecontrol-current-source-next85.php`
 
 ## Non-Overlap
 

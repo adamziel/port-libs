@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWordPressJsonImportWalSavepointPlan;
+use PortLibs\LibSqlite\SQLiteJsonImportWalSavepointPlan;
 
 $pageSize = 512;
 $salt1 = 0x50505050;
@@ -49,7 +49,7 @@ $currentRows = static fn (): array => [
 ];
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
 
-$plan = static fn (array $imports = null, array $options = []): array => SQLiteWordPressJsonImportWalSavepointPlan::insertWalCurrentNext(
+$plan = static fn (array $imports = null, array $options = []): array => SQLiteJsonImportWalSavepointPlan::insertWalCurrentNext(
     $wal(),
     $databaseBytes,
     $currentRows(),
@@ -73,7 +73,7 @@ $decodePage = static function (array $result, int $readerOffset): array {
 
 $cases = [
     'status includes rolled back later batch' => [static fn (): mixed => $plan()['status'], 'partial_rollback'],
-    'reason names next50 behavior' => [static fn (): mixed => $plan()['reason'], 'wordpress_json_import_insert_wal_current_next50'],
+    'reason names next50 behavior' => [static fn (): mixed => $plan()['reason'], 'application_json_import_insert_wal_current_next50'],
     'released batches preserved' => [static fn (): mixed => $plan()['released_batches'], ['plugin_batch', 'theme_batch']],
     'rolled back batch recorded' => [static fn (): mixed => $plan()['rolled_back_batches'], ['bad_batch']],
     'changed option names include inserts and updates' => [static fn (): mixed => $plan()['changed_option_names'], ['active_plugins', 'theme_mods_twenty', 'plugin_settings', 'theme_palette']],
@@ -82,7 +82,7 @@ $cases = [
     'append frame count covers option pages plus autoload index' => [static fn (): mixed => $plan()['append_frame_count'], 6],
     'last commit frame follows existing wal frames' => [static fn (): mixed => $plan()['last_commit_frame'], 8],
     'wal import status planned' => [static fn (): mixed => $plan()['wal_import']['status'], 'planned'],
-    'wal import reason preserved' => [static fn (): mixed => $plan()['wal_import']['reason'], 'wordpress_options_import_wal_commit_current_next_visibility'],
+    'wal import reason preserved' => [static fn (): mixed => $plan()['wal_import']['reason'], 'application_options_import_wal_commit_current_next_visibility'],
     'wal import database path' => [static fn (): mixed => $plan()['wal_import']['database_path'], '/tmp/wp-json-import-insert-wal-next50.sqlite'],
     'wal import wal path' => [static fn (): mixed => $plan()['wal_import']['wal_path'], '/tmp/wp-json-import-insert-wal-next50.sqlite-wal'],
     'wal import inserted names sorted by option row order' => [static fn (): mixed => $plan()['wal_import']['inserted_names'], ['plugin_settings', 'theme_palette']],
@@ -99,9 +99,9 @@ $cases = [
     'rolled back batch starts after released wal frames' => [static fn (): mixed => $plan()['json_import']['batches'][2]['wal_start_frame'], 2],
     'plugin batch updates one and inserts one' => [static fn (): mixed => [$plan()['json_import']['batches'][0]['updated'], $plan()['json_import']['batches'][0]['inserted']], [1, 1]],
     'theme batch updates one and inserts one' => [static fn (): mixed => [$plan()['json_import']['batches'][1]['updated'], $plan()['json_import']['batches'][1]['inserted']], [1, 1]],
-    'dependency includes next50' => [static fn (): mixed => in_array('sqlite-wordpress-json-import-insert-wal-current-next50', $plan()['dependencies'], true), true],
-    'dependency includes WAL savepoint import planner' => [static fn (): mixed => in_array('sqlite-wordpress-json-import-wal-savepoint', $plan()['dependencies'], true), true],
-    'dependency includes options wal import' => [static fn (): mixed => in_array('wordpress-options-wal-import-current-next', $plan()['dependencies'], true), true],
+    'dependency includes next50' => [static fn (): mixed => in_array('sqlite-application-json-import-insert-wal-current-next50', $plan()['dependencies'], true), true],
+    'dependency includes WAL savepoint import planner' => [static fn (): mixed => in_array('sqlite-application-json-import-wal-savepoint', $plan()['dependencies'], true), true],
+    'dependency includes options wal import' => [static fn (): mixed => in_array('application-options-wal-import-current-next', $plan()['dependencies'], true), true],
     'dependency includes wal append transaction' => [static fn (): mixed => in_array('sqlite-wal-append-transaction', $plan()['dependencies'], true), true],
     'active plugins next page name' => [static fn (): mixed => $decodePage($plan(), 0)['option_name'], 'active_plugins'],
     'active plugins next page value' => [static fn (): mixed => $decodePage($plan(), 0)['option_value'], '["akismet/akismet.php"]'],
@@ -152,7 +152,7 @@ $cases = [
     'custom autoload page is honored' => [static fn (): mixed => $plan(null, ['autoload_index_page_number' => 30])['wal_import']['database_page_count'], 30],
     'bad wal page list propagates validation' => [static function () use ($wal, $databaseBytes, $currentRows, $jsonRows): string {
         try {
-            SQLiteWordPressJsonImportWalSavepointPlan::insertWalCurrentNext($wal(), $databaseBytes, $currentRows(), [
+            SQLiteJsonImportWalSavepointPlan::insertWalCurrentNext($wal(), $databaseBytes, $currentRows(), [
                 ['name' => 'plugin_batch', 'json' => $jsonRows([
                     ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true}'],
                 ]), 'path' => '$.rows'],
@@ -167,7 +167,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wordpress json import insert wal current next50 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application json import insert wal current next50 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }

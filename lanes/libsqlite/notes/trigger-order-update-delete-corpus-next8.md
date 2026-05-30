@@ -16,7 +16,7 @@
   - DELETE row visitation order.
   - BEFORE/AFTER DELETE OLD-row visibility.
   - DELETE WHEN filtering and malformed-trigger guards.
-- Added `wordpress-trigger-order-update-delete.php` smoke for copied `wp_options` plugin-setting update and transient-delete audit behavior.
+- Added `application-trigger-order-update-delete.php` smoke for copied `wp_options` plugin-setting update and transient-delete audit behavior.
 
 ## Verification
 
@@ -28,7 +28,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-order-update-delete.php
+php lanes/libsqlite/examples/application-trigger-order-update-delete.php
 ```
 
 Passed and emitted update/delete audit JSON with remaining options.
@@ -36,7 +36,7 @@ Passed and emitted update/delete audit JSON with remaining options.
 ```text
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteTriggerOrderPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerOrderUpdateDeleteCorpusTest.php
-php -l lanes/libsqlite/examples/wordpress-trigger-order-update-delete.php
+php -l lanes/libsqlite/examples/application-trigger-order-update-delete.php
 git diff --check -- lanes/libsqlite
 ```
 

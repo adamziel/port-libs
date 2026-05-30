@@ -3,7 +3,7 @@
 Adds a disjoint `SQLiteJoinOrderPlan` helper for bounded stat1-style nested
 loop ordering. The planner reuses existing `SQLiteAnalyzeStatPlanner` access
 decisions, then tests connected join permutations so outer-loop filters and
-inner join-equality probes choose stable plans for copied WordPress
+inner join-equality probes choose stable plans for copied Application
 `wp_posts`/`wp_postmeta`/taxonomy previews.
 
 This intentionally avoids the rejected `sqlplan71` expression-index/stat4
@@ -19,10 +19,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 81 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-join-order-planner-current-next76.php
+php lanes/libsqlite/examples/application-join-order-planner-current-next76.php
 ```
 
 Status delta: adds 50 focused PASS lines in

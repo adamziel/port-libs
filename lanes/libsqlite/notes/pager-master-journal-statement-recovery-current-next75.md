@@ -18,11 +18,11 @@ combined operation sequence atomically through bounded native PHP file handles.
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalStatementRecoveryPlan.php`
 - `php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentNext75Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-statement-recovery-current-next75.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-statement-recovery-current-next75.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentNext75Test.php`
   - `1 test files, 64 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-statement-recovery-current-next75.php`
-  - `wordpress-pager-master-journal-statement-recovery-current-next75 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-statement-recovery-current-next75.php`
+  - `application-pager-master-journal-statement-recovery-current-next75 self-test passed`
 
 ## Non-Overlap
 

@@ -21,8 +21,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityPointerMapForeignKeyCurrentSourceNext94Test.php`
   - `1 test files, 40 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-foreignkey-current-source-next94.php --self-test`
-  - `wordpress-pragma-integrity-pointermap-foreignkey-current-source-next94 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-integrity-pointermap-foreignkey-current-source-next94.php --self-test`
+  - `application-pragma-integrity-pointermap-foreignkey-current-source-next94 self-test passed`
 - PHP lint covered the changed source, new test, and new example.
 
 Non-overlap:

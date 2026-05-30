@@ -10,7 +10,7 @@ additional blocks: handoff metadata, current/next source hash auditing,
 throughput preflight counters, and final ready seals for next382-385,
 next386-389, next390-393, and next394-397.
 
-WordPress smoke: `wordpress-rowvalue-returning-window-current-source-next382-397.php`
+Application smoke: `application-rowvalue-returning-window-current-source-next382-397.php`
 models copied `wp_options` UPDATE and DELETE RETURNING phases that yield,
 roll back attempted rows, retry from the current source, and verify the four
 new ready seals preserve the current-source handoff.
@@ -18,10 +18,10 @@ new ready seals preserve the current-source handoff.
 Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next382-397.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next382-397.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext382397Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext382397Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next382-397.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next382-397.php --self-test`
 
 Expected dashboard movement: `phpPass +1` from the focused test file.
 `benchmarkDenominator.mapped` remains unchanged; this is current-source PHP

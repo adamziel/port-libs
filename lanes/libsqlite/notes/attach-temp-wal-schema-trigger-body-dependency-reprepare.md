@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for prepared trigger reprepare decisions acr
 
 This slice adds `SQLiteAttachTempWalSchemaTriggerPlan::triggerBodyDependencyRepreparePlan()`. It extends the accepted next90 trigger current-source comparison by resolving trigger-body table dependencies against the current and next schema catalogs. A prepared TEMP trigger whose body writes an unqualified `wp_option_audit` table now records that the current source resolved to `main.wp_option_audit`, while the next source resolves to `temp.wp_option_audit` after TEMP DDL. Active triggers finish the current source and report `SQLITE_SCHEMA` on reset; inactive triggers report `SQLITE_SCHEMA` before the next trigger-body step. Non-TEMP triggers keep unqualified body dependencies scoped to their trigger schema, and explicitly qualified attached dependencies remain stable.
 
-WordPress path: `wordpress-attach-temp-wal-schema-trigger-body-dependency-reprepare.php` models copied `wp_options` import triggers where a plugin creates a TEMP audit table while WAL schema cookies also advance. The smoke proves the TEMP trigger body must reprepare because its unqualified audit write changes source, while the attached site trigger remains reusable.
+Application path: `application-attach-temp-wal-schema-trigger-body-dependency-reprepare.php` models copied `wp_options` import triggers where a plugin creates a TEMP audit table while WAL schema cookies also advance. The smoke proves the TEMP trigger body must reprepare because its unqualified audit write changes source, while the attached site trigger remains reusable.
 
 Verification:
 
 ```text
 php -l lanes/libsqlite/src/SQLiteAttachTempWalSchemaTriggerPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaTriggerBodyDependencyReprepareTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-trigger-body-dependency-reprepare.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-trigger-body-dependency-reprepare.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaTriggerBodyDependencyReprepareTest.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-trigger-body-dependency-reprepare.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-trigger-body-dependency-reprepare.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

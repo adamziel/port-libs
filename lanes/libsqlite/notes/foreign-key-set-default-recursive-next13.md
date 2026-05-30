@@ -3,7 +3,7 @@
 This slice adds `SQLiteForeignKeySetDefaultRecursivePlan`, a bounded native PHP
 planner for SQLite-style recursive ON DELETE foreign-key actions where
 `SET DEFAULT` rewrites child keys and queued cascading parent deletes can cause
-later default rewrites in dependent tables. The focused WordPress-shaped fixture
+later default rewrites in dependent tables. The focused Application-shaped fixture
 uses copied category/post/postmeta rows so plugin import cleanup can delete a
 parent category while preserving child rows by moving them to the configured
 default key.
@@ -16,11 +16,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 40 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-fk-set-default-recursive.php --self-test
-wordpress-fk-set-default-recursive self-test passed
+php lanes/libsqlite/examples/application-fk-set-default-recursive.php --self-test
+application-fk-set-default-recursive self-test passed
 ```
 
 Dashboard movement: `phpPass` increases by the verified 40 focused PASS lines.

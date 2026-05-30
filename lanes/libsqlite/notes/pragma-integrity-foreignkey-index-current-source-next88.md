@@ -1,7 +1,7 @@
 # pragma-integrity-foreignkey-index-current-source-next88
 
 This slice adds a schema-aware combined PRAGMA integrity/FK/index current-source
-collector for copied WordPress databases with `main`, `temp`, and attached
+collector for copied Application databases with `main`, `temp`, and attached
 option archives. It reuses the existing native FK parent-index admission,
 `foreign_key_check`, and `integrity_check` primitives, but keeps the owning
 schema and current-source provenance on every paged row.
@@ -23,8 +23,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityForeignKeyIndexCurrentSourceNext88Test.php`
 - `php -l lanes/libsqlite/src/SQLitePragmaIntegrityForeignKeyIndexCurrentSourceYield.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIntegrityForeignKeyIndexCurrentSourceNext88Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-integrity-foreignkey-index-current-source-next88.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-foreignkey-index-current-source-next88.php`
+- `php -l lanes/libsqlite/examples/application-pragma-integrity-foreignkey-index-current-source-next88.php`
+- `php lanes/libsqlite/examples/application-pragma-integrity-foreignkey-index-current-source-next88.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this does not repeat accepted next81 raw combined streams, next82

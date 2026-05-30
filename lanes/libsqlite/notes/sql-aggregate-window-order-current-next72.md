@@ -4,9 +4,9 @@ Status: focused PHP behavior growth for VDBE-style window aggregate `ORDER BY` i
 
 This slice adds `SQLiteVdbeWindowAggregateCursor::currentNextOrderedAggregateSummary()`. It keeps the existing window scan order for frame membership, applies EXCLUDE/FILTER through `currentFrameRows(true)`, then sorts the aggregate input rows by a separate aggregate `ORDER BY` key list before computing `group_concat`, numeric aggregate summaries, and current/next rowid diagnostics. The current cursor position is restored after peeking the next row.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sql-aggregate-window-order-current-next72.php --self-test`
+- `php lanes/libsqlite/examples/application-sql-aggregate-window-order-current-next72.php --self-test`
 - Scenario: copied `wp_options` import rows use a window frame ordered by import sequence while `group_concat(option_group ORDER BY priority, option_name) FILTER (WHERE ok)` uses a separate aggregate sorter for current and next frames, without `ext/sqlite`.
 
 Focused verification:

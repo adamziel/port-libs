@@ -17,17 +17,17 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableIndexedConstraintCorpusTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonTableIndexedConstraintCorpusTest.php
 
-php -l lanes/libsqlite/examples/wordpress-json-table-commuted-hidden-constraints.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-json-table-commuted-hidden-constraints.php
+php -l lanes/libsqlite/examples/application-json-table-commuted-hidden-constraints.php
+No syntax errors detected in lanes/libsqlite/examples/application-json-table-commuted-hidden-constraints.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableIndexedConstraintCorpusTest.php
 Focused test run: 1 selected test files (root lock skipped)
 30 PASS lines
 1 test files, 48 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-json-table-commuted-hidden-constraints.php
+php lanes/libsqlite/examples/application-json-table-commuted-hidden-constraints.php
 {
-    "scenario": "wordpress-json-table-commuted-hidden-constraints",
+    "scenario": "application-json-table-commuted-hidden-constraints",
     "priority_count": 3,
     "priorities": [
         7,

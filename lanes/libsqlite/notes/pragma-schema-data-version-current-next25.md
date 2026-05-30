@@ -11,11 +11,11 @@
 - Attached schema state is isolated, and `SQLitePragmaSnapshot` can seed the
   model from a parsed database header.
 
-## WordPress smoke
+## Application smoke
 
-- Added `wordpress-pragma-schema-data-version-current-next25.php` to preview
+- Added `application-pragma-schema-data-version-current-next25.php` to preview
   schema-cookie writes and external writer data-version bumps for copied
-  WordPress databases without requiring ext/sqlite.
+  Application databases without requiring ext/sqlite.
 
 ## Verification
 

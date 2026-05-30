@@ -121,7 +121,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('admit_reopened_reader_snapshot_baseline_next243', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next240', $plan()['dependencies'], true), true],
     'dependency next243' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next243', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-reader-snapshot-after-autocheckpoint', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-reader-snapshot-after-autocheckpoint', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat checkpoint publication'), true],
     'stale token blocked' => [static fn (): mixed => $blockedReader(['source_token' => 'old-source'])['blocked_reader_reasons'], ['reader_snapshot_source_token_mismatch', 'reader_snapshot_dirty_page_unobserved']],

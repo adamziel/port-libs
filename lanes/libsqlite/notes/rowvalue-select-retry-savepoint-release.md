@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a focused current-source row-value DML slice for copied WordPress options imports where `UPDATE` and `DELETE ... RETURNING` select mutation targets through row-value `IN (SELECT ...)` staging-table subqueries.
+Adds a focused current-source row-value DML slice for copied Application options imports where `UPDATE` and `DELETE ... RETURNING` select mutation targets through row-value `IN (SELECT ...)` staging-table subqueries.
 
 The modeled sequence is:
 
@@ -22,13 +22,13 @@ Result:
 
 `1 test files, 83 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-`php lanes/libsqlite/examples/wordpress-rowvalue-select-retry-savepoint-release.php`
+`php lanes/libsqlite/examples/application-rowvalue-select-retry-savepoint-release.php`
 
 Result:
 
-`wordpress-rowvalue-select-retry-savepoint-release` JSON smoke passed and reported yielded ids `[3,4,2]`, suppressed ids `[3,4,5]`, retry ids `[3,4,6,2,7]`, and final option ids `[1,3,4,5,6]`.
+`application-rowvalue-select-retry-savepoint-release` JSON smoke passed and reported yielded ids `[3,4,2]`, suppressed ids `[3,4,5]`, retry ids `[3,4,6,2,7]`, and final option ids `[1,3,4,5,6]`.
 
 ## Non-Overlap
 

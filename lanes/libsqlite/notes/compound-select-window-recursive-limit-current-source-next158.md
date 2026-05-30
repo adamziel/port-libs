@@ -20,7 +20,7 @@ window/limit coverage.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext158Test.php`
 - Result: `1 test files, 208 assertions, 0 failures`
 - PASS lines added: `65`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next158.php`
+- Application smoke: `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next158.php`
 
 ## Dependency Closure
 

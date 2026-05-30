@@ -25,10 +25,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 181 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-rootpage-integrity-analysis-current-source-next.php
+$ php lanes/libsqlite/examples/application-pragma-rootpage-integrity-analysis-current-source-next.php
 ```
 
 Dashboard delta: `phpPass` increases by 37 PASS lines, from `42491` to

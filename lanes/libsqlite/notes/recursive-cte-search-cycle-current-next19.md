@@ -3,7 +3,7 @@
 - Added SQLite-style current-row queue execution for recursive CTEs instead of evaluating each recursive term against the whole frontier batch.
 - Recursive-arm `ORDER BY` now controls queue extraction priority for bounded depth-first/breadth-first graph searches, including cyclic `UNION` and bounded `UNION ALL` traversals.
 - Added `SQLiteRecursiveCteSearchCycleCurrentNext19Test.php` with 28 new PASS lines covering ordinal/column queue priority, FIFO ties, NULL ordering, cyclic graph convergence, outer joins/predicates/aggregates/compound SELECTs, and malformed recursive queue `ORDER BY` guards.
-- Added `wordpress-recursive-cte-search-cycle.php`, a copied `wp_options` dependency traversal smoke that joins recursive option dependency rows back to option metadata without ext/sqlite.
+- Added `application-recursive-cte-search-cycle.php`, a copied `wp_options` dependency traversal smoke that joins recursive option dependency rows back to option metadata without ext/sqlite.
 
 Verification:
 

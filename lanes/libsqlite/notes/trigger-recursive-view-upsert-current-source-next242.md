@@ -11,8 +11,8 @@ The new layer derives statement receipts from the current source UPSERT rows, st
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext242Test.php`
   - `1 test files, 83 assertions, 0 failures`
   - 83 PASS lines
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next242.php`
-  - `wordpress-trigger-recursive-view-upsert-current-source-next242 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next242.php`
+  - `application-trigger-recursive-view-upsert-current-source-next242 self-test passed`
 
 ## Non-Overlap
 

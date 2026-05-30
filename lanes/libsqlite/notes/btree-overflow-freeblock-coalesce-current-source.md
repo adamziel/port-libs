@@ -2,7 +2,7 @@
 
 This consolidated slice keeps the canonical `SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan`
 implementation while removing the generated `next89` label from its direct
-test, WordPress example, note, and public action string. It materializes one
+test, Application example, note, and public action string. It materializes one
 delete step that coalesces current/next leaf freeblock
 fragments and releases the same row's obsolete overflow pages into the full
 freelist with auto-vacuum pointer-map entries rewritten to free-page.
@@ -15,9 +15,9 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreeblockCoalesceCurrentNext31Test.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceTest.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceBaseTest.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceExtendedTest.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Test.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext140Test.php lanes/libsqlite/tests/SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNext131Test.php lanes/libsqlite/tests/SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNext138Test.php`
   - `8 test files, 1863 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-freeblock-coalesce-current-source.php`
+- `php lanes/libsqlite/examples/application-btree-overflow-freeblock-coalesce-current-source.php`
   - emits copied `wp_options` overflow-backed transient delete evidence showing
     leaf freeblock coalescing, secure-delete clearing, freelist trunk/leaf
     materialization, and pointer-map free-page rewrites without `ext/sqlite`.

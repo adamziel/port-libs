@@ -28,11 +28,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpdateDeleteReturningSqlTest
 105 PASS lines
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-row-value-update-delete-current-source-next110.php --self-test
-wordpress-row-value-update-delete-current-source-next110 self-test passed
+php lanes/libsqlite/examples/application-row-value-update-delete-current-source-next110.php --self-test
+application-row-value-update-delete-current-source-next110 self-test passed
 ```
 
 Dashboard delta:
@@ -45,7 +45,7 @@ Dependency closure:
 
 - No new support component is needed. This reuses the existing bounded
   `SQLiteUpdateDeleteReturningSql`, `SQLiteUpdateDeleteLimitPlan`, and row-array
-  WordPress copy/import execution path.
+  Application copy/import execution path.
 
 Non-overlap:
 

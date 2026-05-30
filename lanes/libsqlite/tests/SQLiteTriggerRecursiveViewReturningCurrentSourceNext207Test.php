@@ -207,7 +207,7 @@ $cases207 = [
     'dependency includes next207' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next207', $released207()['dependencies_next207'], true), true],
     'dependency includes drain fence' => [static fn (): mixed => in_array('sqlite-returning-current-source-drain-fence', $released207()['dependencies_next207'], true), true],
     'dependency includes next206' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next206', $released207()['dependencies_next207'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next207', $released207()['dependencies_next207'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next207', $released207()['dependencies_next207'], true), true],
     'non overlap mentions next206' => [static fn (): mixed => str_contains($released207()['non_overlap_next207'], 'next206 yield watermark'), true],
     'explicit drain keys accepted' => [static fn (): mixed => $plan207(['acknowledged_current_returning_drain_keys_next207' => $drainKeys207()])['current_returning_drain_clear_next207'], true],
     'explicit count accepted' => [static fn (): mixed => $plan207(['auto_ack_current_returning_drain_next207' => true, 'expected_current_returning_drain_count_next207' => 2])['current_returning_drain_count_matches_next207'], true],

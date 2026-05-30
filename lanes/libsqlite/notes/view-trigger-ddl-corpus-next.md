@@ -8,7 +8,7 @@ Behavior added:
 
 - Added `SQLiteViewTriggerDdlCorpus`, a bounded schema-record inspector for upstream-style `CREATE VIEW`, `CREATE TEMP VIEW`, `CREATE TRIGGER`, `CREATE TEMP TRIGGER`, and `CREATE TRIGGER ... INSTEAD OF` metadata.
 - Covers view column lists, view source dependencies, trigger timing/event extraction, trigger body statement counts, `NEW` / `OLD` pseudo-column references, TEMP object detection, dangling trigger targets, DROP VIEW / DROP TRIGGER bookkeeping, `IF EXISTS`, case-insensitive object names, and malformed schema-record guardrails.
-- Added `wordpress-view-trigger-ddl-corpus.php` for copied WordPress `sqlite_schema` diagnostics where import tooling preserves autoloaded-option views, view triggers, and drop bookkeeping without requiring `ext/sqlite`.
+- Added `application-view-trigger-ddl-corpus.php` for copied Application `sqlite_schema` diagnostics where import tooling preserves autoloaded-option views, view triggers, and drop bookkeeping without requiring `ext/sqlite`.
 
 Focused evidence:
 

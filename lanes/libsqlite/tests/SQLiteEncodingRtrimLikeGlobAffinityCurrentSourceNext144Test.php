@@ -46,7 +46,7 @@ $plan = static fn (
     ?array $next = null,
     string|int $currentEncoding = 'UTF-16LE',
     string|int $nextEncoding = 'UTF-16BE',
-): array => SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
+): array => SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     'option_value',
@@ -147,7 +147,7 @@ $tests['encoding rtrim like glob affinity current source next144 stable identica
         ['option_id' => 1, 'option_value' => 'cache  ', 'option_pattern' => 'cache', 'option_escape' => '!'],
         ['option_id' => 2, 'option_value' => 42, 'option_pattern' => '4_', 'option_escape' => '!'],
     ];
-    $result = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'option_value', 'option_pattern', 'LIKE', 'option_escape', 'stable', 'stable', 7, 7, 'UTF-8', 'UTF-8');
+    $result = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'option_value', 'option_pattern', 'LIKE', 'option_escape', 'stable', 'stable', 7, 7, 'UTF-8', 'UTF-8');
     $t->same([2, 1], $result['currentOrderRowids']);
     $t->same([2], $result['currentMatchedRowids']);
     $t->same([], $result['invalidationReasons']);
@@ -177,12 +177,12 @@ $tests['encoding rtrim like glob affinity current source next144 rejects unsuppo
 
 $tests['encoding rtrim like glob affinity current source next144 rejects missing pattern column'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => 'cache']];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'option_value', 'option_pattern'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'option_value', 'option_pattern'));
 };
 
 $tests['encoding rtrim like glob affinity current source next144 records array value as malformed'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => ['cache'], 'option_pattern' => '%']];
-    $result = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'option_value', 'option_pattern');
+    $result = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'option_value', 'option_pattern');
     $t->same([1], $result['currentMalformedRowids']);
     $t->same('SQLite RTRIM affinity current-source next144 value must be scalar text-affinity input', $result['currentErrors'][1]);
 };

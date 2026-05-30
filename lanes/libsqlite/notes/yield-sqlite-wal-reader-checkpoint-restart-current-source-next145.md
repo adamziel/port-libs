@@ -13,11 +13,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 77 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-restart-current-source-next145.php
-wordpress-wal-reader-checkpoint-restart-current-source-next145 self-test passed
+php lanes/libsqlite/examples/application-wal-reader-checkpoint-restart-current-source-next145.php
+application-wal-reader-checkpoint-restart-current-source-next145 self-test passed
 ```
 
 Dependency closure: no new support component needed; this reuses the native PHP WAL parser/checkpoint/savepoint, SHM read-mark, and WAL append planning helpers.

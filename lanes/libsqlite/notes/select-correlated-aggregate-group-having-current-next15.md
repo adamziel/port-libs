@@ -10,7 +10,7 @@ the remaining blocker was an explicit rejection of grouped subquery plans.
 ## Evidence
 
 - Focused test file: `lanes/libsqlite/tests/SQLiteSelectCorrelatedAggregateGroupHavingCurrentNext15Test.php`
-- WordPress smoke: `lanes/libsqlite/examples/wordpress-select-correlated-aggregate-group-having.php`
+- Application smoke: `lanes/libsqlite/examples/application-select-correlated-aggregate-group-having.php`
 - Expected `phpPass` movement: `+31` verified focused PASS lines.
 
 ## Non-Overlap

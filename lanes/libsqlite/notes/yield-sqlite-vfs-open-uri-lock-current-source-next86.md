@@ -13,9 +13,9 @@
 - Result: `1 test files, 51 assertions, 0 failures`
 - PASS lines: 51
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-vfs-open-uri-lock-current-source-next86.php`
+- `php lanes/libsqlite/examples/application-vfs-open-uri-lock-current-source-next86.php`
 - Result: JSON summary emitted for copied `wp_options` database URI reopen behavior.
 
 ## Non-Overlap

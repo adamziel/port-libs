@@ -9,7 +9,7 @@ Validation:
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext959974Test.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeBranchConditionFenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-branch-condition-fence.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-branch-condition-fence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext959974Test.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeBranchConditionFenceTest.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-branch-condition-fence.php --self-test`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-branch-condition-fence.php --self-test`
 - `git diff --check -- lanes/libsqlite`

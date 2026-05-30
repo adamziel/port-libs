@@ -65,7 +65,7 @@ $database134 = static function () use ($makeFirstPage134, $putPointerMapEntry134
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$payload134 = str_repeat('wordpress-option-replacement-next134-', 35);
+$payload134 = str_repeat('application-option-replacement-next134-', 35);
 
 $plan134 = static fn (bool $secureDelete = true): SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan::tableLeafReplacement(
     $database134(),

@@ -10,7 +10,7 @@ It intentionally avoids accepted next158/next159/next160 coverage for two-arm re
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitExceptLeadLimitOffsetTest.php`
   - Result: `1 test files, 272 assertions, 0 failures`, with 68 PASS lines.
-- Example smoke: `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-except-lead-limit-offset.php`
+- Example smoke: `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-except-lead-limit-offset.php`
 - Dependency closure: no new support component needed; the slice reuses lane-local recursive CTE queue, SELECT SQL compound combiner, EXCEPT, window execution, ORDER BY, and tail LIMIT/OFFSET helpers.
 
 ## Next

@@ -18,8 +18,8 @@ numbered worker suffixes.
 php -l lanes/libsqlite/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerDeferredReturningSavepointTest.php
 php -l lanes/libsqlite/tests/SQLiteTriggerDeferredReturningCommitBarrierTest.php
-php -l lanes/libsqlite/examples/wordpress-trigger-deferred-returning-savepoint.php
-php -l lanes/libsqlite/examples/wordpress-trigger-deferred-returning-commit-barrier.php
+php -l lanes/libsqlite/examples/application-trigger-deferred-returning-savepoint.php
+php -l lanes/libsqlite/examples/application-trigger-deferred-returning-commit-barrier.php
 No syntax errors detected in all 5 changed PHP files.
 ```
 
@@ -29,11 +29,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerDeferredReturningSave
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-deferred-returning-savepoint.php --self-test
-wordpress-trigger-deferred-returning-savepoint self-test passed
+php lanes/libsqlite/examples/application-trigger-deferred-returning-savepoint.php --self-test
+application-trigger-deferred-returning-savepoint self-test passed
 
-php lanes/libsqlite/examples/wordpress-trigger-deferred-returning-commit-barrier.php --self-test
-wordpress-trigger-deferred-returning-commit-barrier self-test passed
+php lanes/libsqlite/examples/application-trigger-deferred-returning-commit-barrier.php --self-test
+application-trigger-deferred-returning-commit-barrier self-test passed
 ```
 
 ```text

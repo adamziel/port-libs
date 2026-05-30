@@ -26,8 +26,8 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 63 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next195.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next195 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next195.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next195 self-test passed`
 
 Non-overlap: this avoids accepted next191 parent-key superset diagnostics,
 next190 expression parent-index diagnostics, next188 partial parent-index

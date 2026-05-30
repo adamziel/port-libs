@@ -341,7 +341,7 @@ $tests['vfs filecontrol sql filecontrol sequence rejects name hint nul'] = stati
     $t->throws(InvalidArgumentException::class, static fn () => $makeState()->sqlFileControlSequence([['op' => 'name_hint', 'value' => "bad\0hint"]]));
 };
 
-$tests['vfs filecontrol sql filecontrol sequence wordpress import sequence'] = static function (TestRunner $t) use ($makeState): void {
+$tests['vfs filecontrol sql filecontrol sequence application import sequence'] = static function (TestRunner $t) use ($makeState): void {
     $sequence = $makeState(['size_limit' => 8388608, 'data_version' => 19])->sqlFileControlSequence([
         "file_control(name_hint, 'wp-options-import')",
         'PRAGMA busy_timeout=2500',
@@ -361,7 +361,7 @@ $tests['vfs filecontrol sql filecontrol sequence wordpress import sequence'] = s
     $t->same(19, $sequence['pairs'][5]['result']['value']);
 };
 
-$tests['vfs filecontrol sql filecontrol sequence wordpress import cap blocks oversized preallocation'] = static function (TestRunner $t) use ($makeState): void {
+$tests['vfs filecontrol sql filecontrol sequence application import cap blocks oversized preallocation'] = static function (TestRunner $t) use ($makeState): void {
     $sequence = $makeState(['size_limit' => 1048576])->sqlFileControlSequence([
         "file_control(name_hint, 'wp-options-import')",
         'file_control(size_hint, 4194304)',
@@ -372,7 +372,7 @@ $tests['vfs filecontrol sql filecontrol sequence wordpress import cap blocks ove
     $t->same(1048576, $sequence['pairs'][1]['current']['size_limit']);
 };
 
-$tests['vfs filecontrol sql filecontrol sequence wordpress readonly archive summary'] = static function (TestRunner $t): void {
+$tests['vfs filecontrol sql filecontrol sequence application readonly archive summary'] = static function (TestRunner $t): void {
     $state = SQLiteVfsFileControlState::fromCapabilityPlan(SQLiteVfsCapabilityPlan::forFilename('file:/srv/www/wp-content/database/archive.sqlite?mode=ro&immutable=1', true, false));
     $sequence = $state->sqlFileControlSequence([
         'PRAGMA mmap_size=262144',

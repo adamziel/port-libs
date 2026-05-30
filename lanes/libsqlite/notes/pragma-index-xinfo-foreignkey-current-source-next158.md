@@ -12,8 +12,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCu
 # Focused test run: 1 selected test files (root lock skipped)
 # 1 test files, 69 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next158.php --self-test
-# wordpress-pragma-index-xinfo-foreignkey-current-source-next158 self-test passed
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next158.php --self-test
+# application-pragma-index-xinfo-foreignkey-current-source-next158 self-test passed
 ```
 
 Dependency closure: reuses existing native PHP schema catalog, index_xinfo,

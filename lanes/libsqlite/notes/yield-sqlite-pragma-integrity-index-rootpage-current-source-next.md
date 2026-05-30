@@ -3,7 +3,7 @@
 Slice: `pragma-integrity-index-rootpage-current-source-next`.
 
 This adds `SQLitePragmaIntegrityIndexRootpageCurrentSourceNext`, a focused
-current-source pager for copied WordPress schema preflight. It combines
+current-source pager for copied Application schema preflight. It combines
 `PRAGMA index_xinfo(...)` rows for one target index with concrete
 `sqlite_schema` rootpage analysis rows for the target index and its table, so
 a resume cursor can stay bound to the same database image, catalog snapshot,
@@ -24,8 +24,8 @@ Evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityIndexRootpageCurrentSourceNextTest.php`
   - `1 test files, 81 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-index-rootpage-current-source-next.php --self-test`
-  - `wordpress-pragma-integrity-index-rootpage-current-source-next self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-integrity-index-rootpage-current-source-next.php --self-test`
+  - `application-pragma-integrity-index-rootpage-current-source-next self-test passed`
 
 Dashboard delta:
 

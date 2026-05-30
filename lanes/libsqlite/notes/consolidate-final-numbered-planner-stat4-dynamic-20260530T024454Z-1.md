@@ -8,7 +8,7 @@ Change:
   `materializeCurrentSourceRangeRefresh()`.
 - Renamed the private helper family for that current-source range refresh away
   from `Next172` suffixes.
-- Renamed the direct focused test and WordPress smoke to stable descriptive
+- Renamed the direct focused test and Application smoke to stable descriptive
   filenames and migrated their production calls.
 
 Observable result metadata intentionally remains unchanged: `next172` status
@@ -21,12 +21,12 @@ Verification:
   passed.
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceRangeRefreshTest.php`
   passed.
-- `php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-range-refresh.php`
+- `php -l lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-range-refresh.php`
   passed.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceRangeRefreshTest.php`
   passed: 1 file / 63 assertions / 0 failures.
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-range-refresh.php --self-test`
-  passed: printed `wordpress-planner-stat4-expression-partial-current-source-range-refresh self-test passed`.
+- `php lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-range-refresh.php --self-test`
+  passed: printed `application-planner-stat4-expression-partial-current-source-range-refresh self-test passed`.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php`
   passed: 133 files / 7543 assertions / 0 failures.
 - `git diff --check -- lanes/libsqlite` passed.

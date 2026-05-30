@@ -11,7 +11,7 @@ final class SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValuePlan(
+    public static function optionRowValuePlan(
         array $currentRows,
         array $nextRows,
         string $patternBytes,
@@ -47,7 +47,7 @@ final class SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan
             }
         }
 
-        $base = SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
+        $base = SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
             $currentRows,
             $nextRows,
             $patternBytes,

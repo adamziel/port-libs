@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteWordPressSchemaJsonWalImportPlan;
+use PortLibs\LibSqlite\SQLiteSchemaJsonWalImportPlan;
 
 $schemaSql = <<<'SQL'
 CREATE TABLE wp_options (
@@ -73,7 +73,7 @@ $mutations = static fn (): array => [
     ],
 ];
 
-$plan = static fn (array $options = [], ?array $inputRows = null, ?array $inputMutations = null, ?string $sql = null, array $existing = []): array => SQLiteWordPressSchemaJsonWalImportPlan::plan(
+$plan = static fn (array $options = [], ?array $inputRows = null, ?array $inputMutations = null, ?string $sql = null, array $existing = []): array => SQLiteSchemaJsonWalImportPlan::plan(
     $sql ?? $schemaSql,
     $inputRows ?? $rows(),
     $inputMutations ?? $mutations(),
@@ -158,8 +158,8 @@ $cases = [
     ])['failed_wal_frames'],
     'json plan final rows are exposed' => static fn (): mixed => $valueAt($plan(), 'json.final_rows.count'),
     'schema ordered names are exposed' => static fn (): mixed => $plan()['schema']['ordered_names'],
-    'dependencies include schema bulk import' => static fn (): mixed => in_array('sqlite-wordpress-schema-bulk-import', $plan()['dependencies'], true),
-    'dependencies include json savepoint import' => static fn (): mixed => in_array('sqlite-wordpress-json-import-savepoint', $plan()['dependencies'], true),
+    'dependencies include schema bulk import' => static fn (): mixed => in_array('sqlite-application-schema-bulk-import', $plan()['dependencies'], true),
+    'dependencies include json savepoint import' => static fn (): mixed => in_array('sqlite-application-json-import-savepoint', $plan()['dependencies'], true),
     'dependencies include WAL import yield' => static fn (): mixed => in_array('sqlite-wal-import-yield', $plan()['dependencies'], true),
     'custom json transaction option is passed through' => static fn (): mixed => $plan(['json' => ['transaction' => 'wp_schema_json']])['json']['transaction'],
     'custom json savepoint option is passed through' => static fn (): mixed => $plan(['json' => ['savepoint' => 'plugin_batch']])['json']['savepoint'],
@@ -257,7 +257,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress schema json wal import current next41 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application schema json wal import current next41 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

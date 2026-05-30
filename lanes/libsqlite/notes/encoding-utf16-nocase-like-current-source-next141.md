@@ -2,18 +2,18 @@
 
 Status: focused PHP behavior growth for UTF-16 NOCASE LIKE current-source scans with malformed-row isolation.
 
-WordPress path: `wordpress-utf16-nocase-like-current-source-next141.php` models a copied `wp_options.option_name` prefix scan over mixed UTF-16LE/UTF-16BE rows. Valid plugin cache keys continue to be matched under NOCASE LIKE while malformed current/next text payloads are reported as cursor invalidation diagnostics instead of aborting the whole scan.
+Application path: `application-utf16-nocase-like-current-source-next141.php` models a copied `wp_options.option_name` prefix scan over mixed UTF-16LE/UTF-16BE rows. Valid plugin cache keys continue to be matched under NOCASE LIKE while malformed current/next text payloads are reported as cursor invalidation diagnostics instead of aborting the whole scan.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeCurrentSourceNext141Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeCurrentSourceNext141Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-current-source-next141.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-current-source-next141.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeCurrentSourceNext141Test.php`
   - `1 test files, 91 assertions, 0 failures`
   - `75` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-current-source-next141.php --self-test`
-  - `wordpress-utf16-nocase-like-current-source-next141 self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-current-source-next141.php --self-test`
+  - `application-utf16-nocase-like-current-source-next141 self-test passed`
 
 Expected dashboard movement: `phpPass +75`, from `60841` to `60916`. Mapped upstream coverage remains `606 / 1589`; this is current-source PHP behavior over already mapped encoding, collation, and LIKE inventory rather than a fresh upstream manifest row.
 

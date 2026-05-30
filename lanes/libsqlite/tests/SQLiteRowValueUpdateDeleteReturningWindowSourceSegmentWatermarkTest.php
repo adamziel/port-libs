@@ -127,7 +127,7 @@ $cases261 = [
     'missing yield ack blocks admission' => [static fn (): mixed => $plan261(null, null, null, $missingAck261())['source_window_barrier_next261']['blocked_reasons'], ['row-receipt-admission-not-ready-next261']],
     'missing yield ack state held' => [static fn (): mixed => $plan261(null, null, null, $missingAck261())['source_window_state_next261'], 'current-source-window-watermarks-hold-next-source-next261'],
     'dependency includes watermark' => [static fn (): mixed => in_array('sqlite-returning-window-segment-watermark-next261', $plan261()['dependencies_next261'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-source-watermark-next261', $plan261()['dependencies_next261'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-rowvalue-returning-window-source-watermark-next261', $plan261()['dependencies_next261'], true), true],
     'dependency closure no new support' => [static fn (): mixed => str_contains($plan261()['dependency_closure_next261'], 'no new support component needed'), true],
     'non overlap mentions next254' => [static fn (): mixed => str_contains($plan261()['non_overlap_next261'], 'next254'), true],
     'non overlap mentions next251' => [static fn (): mixed => str_contains($plan261()['non_overlap_next261'], 'next251'), true],

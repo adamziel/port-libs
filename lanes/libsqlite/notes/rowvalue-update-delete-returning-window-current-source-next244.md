@@ -6,13 +6,13 @@ RETURNING` current-source window execution.
 This slice adds `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext244Plan`
 on top of the accepted current/next pair and `CURRENT ROW` frame layers. It
 computes lag/lead transition windows over each action partition after a
-savepoint rollback and retry, so copied WordPress import/migration batches can
+savepoint rollback and retry, so copied Application import/migration batches can
 tell whether a yielded RETURNING row is adjacent to discarded current-source
 rows or restart-only retry rows.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next244.php --self-test`
+- `lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next244.php --self-test`
   models copied `wp_options` retry updates and transient cleanup deletes
   selected by row-value subqueries.
 
@@ -21,15 +21,15 @@ Verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext244Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext244Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next244.php
+php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next244.php
 No syntax errors detected in all changed PHP files.
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext244Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 79 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next244.php --self-test
-wordpress-rowvalue-returning-window-current-source-next244 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next244.php --self-test
+application-rowvalue-returning-window-current-source-next244 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +79` from the new focused test file.

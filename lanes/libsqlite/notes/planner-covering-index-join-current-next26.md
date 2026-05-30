@@ -31,16 +31,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 64 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-planner-covering-index-join-current-next26.php --self-test
+php lanes/libsqlite/examples/application-planner-covering-index-join-current-next26.php --self-test
 ```
 
 Output:
 
 ```text
-wordpress-planner-covering-index-join-current-next26 self-test passed
+application-planner-covering-index-join-current-next26 self-test passed
 ```
 
 Status delta: +51 focused `TestRunner` PASS cases in

@@ -12,12 +12,12 @@ Prepared the follow-on current-source pages after the merged next335-342 chain.
 
 ```sh
 php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
-php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next343-350.php
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next343-350.php --self-test
+php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next343-350.php
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next343-350.php --self-test
 ```
 
 Expected self-test line:
 
 ```text
-wordpress-pragma-index-xinfo-foreignkey-current-source-next343-350 self-test passed
+application-pragma-index-xinfo-foreignkey-current-source-next343-350 self-test passed
 ```

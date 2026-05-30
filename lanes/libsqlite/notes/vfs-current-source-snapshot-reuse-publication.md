@@ -5,7 +5,7 @@ Consolidation slice: `consolidate-final-numbered-methods-wal-vfs-fifty-seventh-p
 The VFS current-source snapshot/reuse/publication implementation now uses the
 stable private `runSnapshotReusePublication()` helper and descriptive
 `*SnapshotReusePublication()` support helpers instead of the generated numbered
-wrapper names. The direct test and WordPress smoke were renamed to stable
+wrapper names. The direct test and Application smoke were renamed to stable
 snapshot-reuse filenames while preserving the same assertions and self-test
 coverage.
 
@@ -25,7 +25,7 @@ Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceSnapshotReuseTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-snapshot-reuse.php`
+- `php -l lanes/libsqlite/examples/application-vfs-current-source-snapshot-reuse.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceSnapshotReuseTest.php`
-- `php lanes/libsqlite/examples/wordpress-vfs-current-source-snapshot-reuse.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-current-source-snapshot-reuse.php --self-test`
 - `git diff --check -- lanes/libsqlite`

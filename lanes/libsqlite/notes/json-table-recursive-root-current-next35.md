@@ -14,7 +14,7 @@ cover:
   behavior, quoted member labels, and negative array roots;
 - current-frame row-local ids, parent ids, path/fullkey/root/json column
   preservation, atom-only projections, breadth-first queued root traversal,
-  drain limits, and WordPress plugin-rule `next` traversal.
+  drain limits, and Application plugin-rule `next` traversal.
 
 Focused verification:
 
@@ -25,11 +25,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 67 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-json-table-recursive-root-current-next35.php --self-test
-wordpress-json-table-recursive-root-current-next35 self-test passed
+$ php lanes/libsqlite/examples/application-json-table-recursive-root-current-next35.php --self-test
+application-json-table-recursive-root-current-next35 self-test passed
 ```
 
 Non-overlap:

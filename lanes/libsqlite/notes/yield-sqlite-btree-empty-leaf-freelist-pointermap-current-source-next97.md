@@ -15,9 +15,9 @@ This slice adds `SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan`, a
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Test.php`
 - Result: `1 test files, 256 assertions, 0 failures`, with `64` PASS lines.
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-btree-empty-leaf-freelist-pointermap-next97.php`
+- `php lanes/libsqlite/examples/application-btree-empty-leaf-freelist-pointermap-next97.php`
 - The smoke models copied `wp_options` transient cleanup where an empty table leaf and an empty option-name index leaf are released with their obsolete overflow pages before the next insert reuses the freelist.
 
 ## Non-overlap

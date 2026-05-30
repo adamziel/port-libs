@@ -2,18 +2,18 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which admits the first writer generation after the next252 post-truncate current-source seal. The admission requires a fresh WAL header salt, reset SHM `mxFrame`, reset read marks, advanced schema cookie, confirmed hot-journal absence, durable receipts, and writer-lock release ordering.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next259.php` models a WordPress database copy/import path where front-page, plugin-cache, and import readers have released and the checkpoint reset has sealed. It verifies that a new writer generation is admitted only after WAL/SHM/readmark/schema-cookie fences are current and durable.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next259.php` models a Application database copy/import path where front-page, plugin-cache, and import readers have released and the checkpoint reset has sealed. It verifies that a new writer generation is admitted only after WAL/SHM/readmark/schema-cookie fences are current and durable.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next259.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next259.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next259.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next259.php
 git diff --check -- lanes/libsqlite
 ```
 

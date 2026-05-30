@@ -52,7 +52,7 @@ $walBytesWithoutCommitBeforeSavepoint = $buildWal([
 
 $stack = static function (): SQLiteSavepointStack {
     $savepoints = new SQLiteSavepointStack();
-    $savepoints->beginTransaction('wordpress-import');
+    $savepoints->beginTransaction('application-import');
     $savepoints->recordWalFrameWrite(1, 1, false);
     $savepoints->recordWalFrameWrite(2, 2, true);
     $savepoints->savepoint('plugin-settings');
@@ -63,7 +63,7 @@ $stack = static function (): SQLiteSavepointStack {
 };
 $stackWithoutCommitBeforeSavepoint = static function (): SQLiteSavepointStack {
     $savepoints = new SQLiteSavepointStack();
-    $savepoints->beginTransaction('wordpress-import');
+    $savepoints->beginTransaction('application-import');
     $savepoints->recordWalFrameWrite(1, 1, false);
     $savepoints->recordWalFrameWrite(2, 2, false);
     $savepoints->savepoint('plugin-settings');

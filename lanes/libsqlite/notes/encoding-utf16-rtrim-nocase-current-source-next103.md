@@ -1,6 +1,6 @@
 # Encoding UTF-16 RTRIM NOCASE current-source next103
 
-Status: focused PHP behavior growth for WordPress `wp_options.option_name`
+Status: focused PHP behavior growth for Application `wp_options.option_name`
 comparisons using `rtrim(option_name) COLLATE NOCASE` across UTF-8,
 UTF-16LE, and UTF-16BE current/next sources.
 
@@ -13,16 +13,16 @@ Behavior:
   invalidation, repaired/new malformed rows, ASCII-only case folding,
   non-trimmed tab and NBSP suffixes, emoji and non-ASCII case boundaries, and
   stable-source no-reprepare behavior.
-- Added a WordPress smoke at
-  `lanes/libsqlite/examples/wordpress-utf16-rtrim-nocase-current-source-next103.php`.
+- Added a Application smoke at
+  `lanes/libsqlite/examples/application-utf16-rtrim-nocase-current-source-next103.php`.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16RtrimNocaseCurrentSourceNext103Test.php`
 - `php -l lanes/libsqlite/src/SQLiteUtf16RtrimNocaseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16RtrimNocaseCurrentSourceNext103Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-rtrim-nocase-current-source-next103.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-rtrim-nocase-current-source-next103.php --self-test`
+- `php -l lanes/libsqlite/examples/application-utf16-rtrim-nocase-current-source-next103.php`
+- `php lanes/libsqlite/examples/application-utf16-rtrim-nocase-current-source-next103.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta:

@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteWordPressJsonImportSavepointPlan;
+use PortLibs\LibSqlite\SQLiteJsonImportSavepointPlan;
 
 $currentRows = static fn (): array => [
     [
@@ -70,7 +70,7 @@ $mutations = static fn (): array => [
     ],
 ];
 
-$plan = static fn (array $rows = null, array $steps = null, array $options = []): array => SQLiteWordPressJsonImportSavepointPlan::plan(
+$plan = static fn (array $rows = null, array $steps = null, array $options = []): array => SQLiteJsonImportSavepointPlan::plan(
     $rows ?? $currentRows(),
     $steps ?? $mutations(),
     array_replace(['page_size' => 512], $options)
@@ -171,7 +171,7 @@ $cases = [
     'inserted json replace leaves missing path unchanged' => static fn (): mixed => $decodeOption($finalRow($plan($currentRows(), [
         ['option_name' => 'replace_insert', 'on_missing' => 'insert', 'function' => 'json_replace', 'initial_value' => '{"count":1}', 'path' => '$.missing', 'value' => 2],
     ]), 'replace_insert')['option_value']),
-    'dependencies include next48 insert savepoint marker' => static fn (): mixed => in_array('sqlite-wordpress-json-import-savepoint-insert-current-next48', $plan()['dependencies'], true),
+    'dependencies include next48 insert savepoint marker' => static fn (): mixed => in_array('sqlite-application-json-import-savepoint-insert-current-next48', $plan()['dependencies'], true),
 ];
 
 $expected = [
@@ -234,7 +234,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress json import savepoint current next48 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application json import savepoint current next48 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

@@ -11,7 +11,7 @@ final class SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameGlobPlan(
+    public static function optionRowNameGlobPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

@@ -14,16 +14,16 @@ Behavior covered:
 - Current/next plans record matched, entered, exited, residual-rejected,
   malformed, endian-changed, byte-changed, text-changed, and RTRIM-key-changed
   rowids.
-- WordPress smoke coverage demonstrates copied `wp_options` option-name scans
+- Application smoke coverage demonstrates copied `wp_options` option-name scans
   during import/diff planning without relying on ext/sqlite.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16LikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16LikeRtrimCurrentSourceNext137Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-like-rtrim-current-source-next137.php`
+- `php -l lanes/libsqlite/examples/application-utf16-like-rtrim-current-source-next137.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16LikeRtrimCurrentSourceNext137Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-like-rtrim-current-source-next137.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-like-rtrim-current-source-next137.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: avoids accepted next121 UTF-16 RTRIM LIKE rowset invalidation,

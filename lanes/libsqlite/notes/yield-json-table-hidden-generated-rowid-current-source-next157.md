@@ -4,9 +4,9 @@
 
 Adds `SQLiteJsonTablePlan::currentSourceHiddenGeneratedRowidNext157()`, composing the accepted hidden path/generated-cost planner with a rowid alias intersection over the pinned current JSON table source. The slice covers `rowid`, `_rowid_`, and `oid` normalization, generated value filters, point rowid seeks, range/non-point rowid constraints, JSONB next-source preservation, SQL NULL unrunnable next-source handling, transition reasons, and reader-policy selection.
 
-## WordPress smoke
+## Application smoke
 
-`examples/wordpress-json-table-hidden-generated-rowid-current-source-next157.php` models a copied `wp_options` plugin-setting preview where a `json_tree()` hidden path seek and generated `slug`/`priority`/`enabled` filters remain pinned to the current cache rule rowid while a next import mutates sibling JSON values.
+`examples/application-json-table-hidden-generated-rowid-current-source-next157.php` models a copied `wp_options` plugin-setting preview where a `json_tree()` hidden path seek and generated `slug`/`priority`/`enabled` filters remain pinned to the current cache rule rowid while a next import mutates sibling JSON values.
 
 ## Verification
 

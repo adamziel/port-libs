@@ -28,10 +28,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 71 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-aggregate-filter-order-window-current-source-next84.php
+php lanes/libsqlite/examples/application-json-aggregate-filter-order-window-current-source-next84.php
 ```
 
 Result: emitted copied `wp_options` JSON showing current-row aggregate windows and decoded JSONB frame output.
@@ -42,7 +42,7 @@ Syntax checks:
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/src/SQLiteSelectQuery.php
 php -l lanes/libsqlite/tests/SQLiteJsonAggregateFilterOrderWindowCurrentSourceNext84Test.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-filter-order-window-current-source-next84.php
+php -l lanes/libsqlite/examples/application-json-aggregate-filter-order-window-current-source-next84.php
 ```
 
 All reported no syntax errors.

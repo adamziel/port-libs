@@ -76,7 +76,7 @@ $cases = [
     'digest length' => [static fn (): mixed => strlen($plan()['reader_reopen_digest']), 64],
     'dependency next219' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next219', $plan()['dependencies'], true), true],
     'dependency next220' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next220', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-reader-cache-reopen', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-reader-cache-reopen', $plan()['dependencies'], true), true],
     'closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next219'), true],
     'blocked status' => [static fn (): mixed => $plan(null, $blockedReceipts)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next220'],

@@ -100,7 +100,7 @@ $cases248 = [
     'unexpected blocked reason' => [static fn (): mixed => $plan248($unexpectedAck248())['publication_barrier_next248']['blocked_reasons'], ['unexpected-current-source-yield-ticket-next248']],
     'unexpected ticket preserved from next245' => [static fn (): mixed => $plan248($unexpectedAck248())['yield_current_source_gate_next245']['unexpected_tickets'], ['unexpected:publication:next248']],
     'dependencies include cursor' => [static fn (): mixed => in_array('sqlite-returning-current-source-publication-cursor-next248', $plan248()['dependencies_next248'], true), true],
-    'dependencies include wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-resume-barrier-next248', $plan248()['dependencies_next248'], true), true],
+    'dependencies include application' => [static fn (): mixed => in_array('application-rowvalue-returning-window-resume-barrier-next248', $plan248()['dependencies_next248'], true), true],
     'dependency closure no new support' => [static fn (): mixed => str_contains($plan248()['dependency_closure_next248'], 'no new support component needed'), true],
     'non overlap mentions next245' => [static fn (): mixed => str_contains($plan248()['non_overlap_next248'], 'next245'), true],
     'non overlap mentions next236' => [static fn (): mixed => str_contains($plan248()['non_overlap_next248'], 'next236'), true],

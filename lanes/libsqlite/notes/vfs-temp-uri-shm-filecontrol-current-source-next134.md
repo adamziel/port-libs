@@ -18,10 +18,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 58 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vfs-temp-uri-shm-filecontrol-current-source-next134.php
+php lanes/libsqlite/examples/application-vfs-temp-uri-shm-filecontrol-current-source-next134.php
 ```
 
 Expected dashboard movement: `phpPass +58` from a new focused lane test file. Mapped upstream coverage is unchanged; this is current-source behavior coverage rather than a newly mapped upstream manifest row.

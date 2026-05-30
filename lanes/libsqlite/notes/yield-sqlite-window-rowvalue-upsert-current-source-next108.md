@@ -5,7 +5,7 @@ Implemented `SQLiteWindowRowValueUpsertCurrentSourcePlan`, a bounded native PHP 
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowRowValueUpsertCurrentSourceNext108Test.php`
-- `php lanes/libsqlite/examples/wordpress-window-rowvalue-upsert-current-source-next108.php --self-test`
+- `php lanes/libsqlite/examples/application-window-rowvalue-upsert-current-source-next108.php --self-test`
 
 Non-overlap:
 

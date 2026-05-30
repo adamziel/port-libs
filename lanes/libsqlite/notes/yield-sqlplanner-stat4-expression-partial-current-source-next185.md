@@ -10,10 +10,10 @@ the current STAT4 sample signature changed, every selected window rowid exists
 in the current source, and the cursor program records a current STAT4 sample
 fence.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next185.php --self-test`
-- `wordpress-sqlplanner-stat4-expression-partial-current-source-next185 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next185.php --self-test`
+- `application-sqlplanner-stat4-expression-partial-current-source-next185 self-test passed`
 
 Focused verification:
 

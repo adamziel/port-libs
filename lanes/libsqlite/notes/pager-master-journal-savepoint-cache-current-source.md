@@ -16,8 +16,8 @@ bytes.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalSavepointCacheCurrentSourceTest.php`
   - `1 test files, 62 assertions, 0 failures`
   - `62` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-savepoint-cache-current-source.php`
-  - `wordpress-pager-master-journal-savepoint-cache-current-source self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-savepoint-cache-current-source.php`
+  - `application-pager-master-journal-savepoint-cache-current-source self-test passed`
 - PHP lint and `git diff --check -- lanes/libsqlite` were run for the changed lane files.
 
 Expected dashboard delta: none. This is consolidation-only cleanup of numbered

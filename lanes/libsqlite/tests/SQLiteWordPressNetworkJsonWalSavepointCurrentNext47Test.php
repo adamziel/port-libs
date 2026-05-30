@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteWordPressNetworkJsonWalSavepointPlan;
+use PortLibs\LibSqlite\SQLiteNetworkJsonWalSavepointPlan;
 
 $siteRows = static fn (): array => [
     [
@@ -36,7 +36,7 @@ $globalImports = static fn (): array => [
     ['name' => 'network_flags', 'json' => '{"rows":[{"option_name":"site_admins","option_value":"a:1:{i:0;s:5:\"admin\";}","autoload":"no"},{"option_name":"registration","option_value":"none","autoload":"no"}]}', 'path' => '$.rows'],
 ];
 
-$plan = static fn (array $sites = null, array $options = []): array => SQLiteWordPressNetworkJsonWalSavepointPlan::plan(
+$plan = static fn (array $sites = null, array $options = []): array => SQLiteNetworkJsonWalSavepointPlan::plan(
     $sites ?? $siteRows(),
     $options + [
         'database_path' => '/tmp/wp-network-json-current-next47.sqlite',
@@ -94,8 +94,8 @@ $cases = [
     'global first WAL frame names sitemeta' => [static fn (): mixed => $plan()['network_wal']['frames'][2]['table'], 'wp_sitemeta'],
     'global WAL frame receives next network index' => [static fn (): mixed => $plan()['network_wal']['frames'][2]['network_frame_index'], 3],
     'global WAL bytes include per table WAL headers' => [static fn (): mixed => $plan()['network_wal']['bytes'], 3240],
-    'dependency names network JSON WAL slice' => [static fn (): mixed => in_array('sqlite-wordpress-network-json-wal-savepoint', $plan()['dependencies'], true), true],
-    'dependency names JSON WAL import planner' => [static fn (): mixed => in_array('sqlite-wordpress-json-import-wal-savepoint', $plan()['dependencies'], true), true],
+    'dependency names network JSON WAL slice' => [static fn (): mixed => in_array('sqlite-application-network-json-wal-savepoint', $plan()['dependencies'], true), true],
+    'dependency names JSON WAL import planner' => [static fn (): mixed => in_array('sqlite-application-json-import-wal-savepoint', $plan()['dependencies'], true), true],
     'dependency names WAL rollback primitive' => [static fn (): mixed => in_array('sqlite-savepoint-wal-rollback', $plan()['dependencies'], true), true],
     'delete journal mode is preserved while WAL model is reported' => [static fn (): mixed => $plan(null, ['journal_mode' => 'delete'])['journal_mode'], 'delete'],
     'full sync mode is preserved' => [static fn (): mixed => $plan(null, ['sync_mode' => 'full'])['sync_mode'], 'full'],
@@ -123,7 +123,7 @@ $cases = [
         array_replace($siteRows()[0], ['json_imports' => [['name' => 'bad-name', 'json' => '{"rows":[]}']]]),
         $siteRows()[1],
     ], ['continue_on_site_error' => false]), InvalidArgumentException::class],
-    'empty site list rejected' => [static fn (): mixed => SQLiteWordPressNetworkJsonWalSavepointPlan::plan([]), InvalidArgumentException::class],
+    'empty site list rejected' => [static fn (): mixed => SQLiteNetworkJsonWalSavepointPlan::plan([]), InvalidArgumentException::class],
     'duplicate blog id rejected' => [static fn (): mixed => $plan([$siteRows()[0], $siteRows()[0]]), InvalidArgumentException::class],
     'zero blog id rejected' => [static fn (): mixed => $plan([['blog_id' => 0, 'current_rows' => [], 'json_imports' => []]]), InvalidArgumentException::class],
     'missing current rows rejected' => [static fn (): mixed => $plan([['blog_id' => 3, 'json_imports' => []]]), InvalidArgumentException::class],
@@ -135,7 +135,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wordpress network json wal savepoint current next47 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application network json wal savepoint current next47 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

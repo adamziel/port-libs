@@ -10,6 +10,6 @@ Focused coverage:
 
 - `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext612627Test.php` chains next612 through next627 from next611.
 - The same test blocks unsynced database header, source-token mismatch, missing next618 base for the next619 seal, schema-cookie mismatch, visible hot journal, and duplicate final seal receipts.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next627.php` provides a WordPress-shaped example for the final seal.
+- `application-wal-hot-journal-savepoint-checkpoint-current-source-next627.php` provides a Application-shaped example for the final seal.
 
 Non-overlap: this stays inside the WAL checkpoint/hot-journal current-source receipt chain and does not repeat next596-611, upstream suite evidence, status/dashboard artifacts, SQL, JSON, B-tree, VFS writer application, planner, or unrelated pager surfaces.

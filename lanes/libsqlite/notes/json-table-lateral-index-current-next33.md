@@ -6,8 +6,8 @@
   semantic residual filter.
 - Covered `IN`, `IS NOT NULL`, range comparison, and rowid alias constraints
   over copied `wp_options` JSON text and JSONB settings rows.
-- Added the WordPress smoke
-  `lanes/libsqlite/examples/wordpress-json-table-lateral-index-current-next33.php`
+- Added the Application smoke
+  `lanes/libsqlite/examples/application-json-table-lateral-index-current-next33.php`
   for plugin settings queries that read current text JSON and next JSONB rows
   through the same lateral virtual-table index path.
 
@@ -19,8 +19,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 42 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-json-table-lateral-index-current-next33.php --self-test
-wordpress-json-table-lateral-index-current-next33 self-test passed
+php lanes/libsqlite/examples/application-json-table-lateral-index-current-next33.php --self-test
+application-json-table-lateral-index-current-next33 self-test passed
 ```
 
 Non-overlap:

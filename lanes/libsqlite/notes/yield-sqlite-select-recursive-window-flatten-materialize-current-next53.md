@@ -9,10 +9,10 @@ SQL, records the CTE flatten/materialize decision, preserves recursive trace
 evidence, and emits current/next row transitions with selected window output
 columns.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-recursive-window-flatten-materialize-current-next53.php --self-test
+php lanes/libsqlite/examples/application-select-recursive-window-flatten-materialize-current-next53.php --self-test
 ```
 
 Focused test:

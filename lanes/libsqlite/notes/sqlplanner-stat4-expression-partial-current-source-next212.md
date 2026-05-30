@@ -9,9 +9,9 @@ keeps the accepted next209 row stream for base range/materialization, then
 proves the query implies the complete grouped `LIKE` arm and rechecks selected
 payload rows before admitting stale prepared STAT4 expression-index reuse.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next212.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next212.php`
 - Result: `stat4-expression-partial-current-source-next212-ready` with rowids
   `[30, 50, 20, 21, 22]`.
 
@@ -19,7 +19,7 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext212Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next212.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next212.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext212Test.php`
 - Result: `1 test files, 69 assertions, 0 failures`.
 

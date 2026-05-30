@@ -8,14 +8,14 @@ This slice adds
 `SQLiteAttachTempWalSchemaTriggerPlan::triggerViewInvalidationCurrentSourceNext108()`.
 It extends the accepted trigger-view cache and trigger-body dependency work by
 resolving view `FROM` dependencies against the current and next schema catalogs.
-A copied WordPress `TEMP VIEW active_options AS ... FROM wp_options` can keep
+A copied Application `TEMP VIEW active_options AS ... FROM wp_options` can keep
 the same SQL text while a new TEMP `wp_options` staging table appears; the
 prepared trigger must finish its current source and report `SQLITE_SCHEMA` on
 reset because the view source moves from `main.wp_options` to
 `temp.wp_options`.
 
-WordPress path:
-`wordpress-attach-temp-trigger-view-invalidation-current-source-next108.php`
+Application path:
+`application-attach-temp-trigger-view-invalidation-current-source-next108.php`
 models a copied `wp_options` import trigger over a TEMP view where a plugin
 creates a TEMP staging table between current and next sources.
 
@@ -24,9 +24,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteAttachTempWalSchemaTriggerPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempTriggerViewInvalidationCurrentSourceNext108Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-trigger-view-invalidation-current-source-next108.php
+php -l lanes/libsqlite/examples/application-attach-temp-trigger-view-invalidation-current-source-next108.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempTriggerViewInvalidationCurrentSourceNext108Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-trigger-view-invalidation-current-source-next108.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-trigger-view-invalidation-current-source-next108.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

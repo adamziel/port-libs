@@ -33,13 +33,13 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteFts5CorpusTest.php
 
 Result after implementation: `1 test files, 33 assertions, 0 failures`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-fts5-option-search.php --self-test
+php lanes/libsqlite/examples/application-fts5-option-search.php --self-test
 ```
 
-Result: `wordpress-fts5-option-search self-test passed`.
+Result: `application-fts5-option-search self-test passed`.
 
 ## Non-Overlap
 

@@ -1,7 +1,7 @@
 # encoding-collation-affinity-like-current-source-next251
 
 Status: focused PHP behavior growth for prepared LIKE pattern and ESCAPE
-affinity changes across copied WordPress option sources.
+affinity changes across copied Application option sources.
 
 This slice adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan`.
 It models `option_value LIKE ? ESCAPE ?` scans where the prepared pattern or
@@ -10,7 +10,7 @@ storage class between current and next sources. The plan reports pattern text,
 pattern bytes, storage class, prefix range, matched rowsets, retained value
 storage changes, and cursor invalidation reasons.
 
-WordPress path: `wordpress-prepared-pattern-affinity-like-current-source-next251.php`
+Application path: `application-prepared-pattern-affinity-like-current-source-next251.php`
 models copied `wp_options` imports where plugin code rebinds a numeric pattern
 as text while option values also change storage class.
 
@@ -19,8 +19,8 @@ Evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Test.php`
   - `1 test files, 72 assertions, 0 failures`
   - 72 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-prepared-pattern-affinity-like-current-source-next251.php --self-test`
-  - `wordpress-prepared-pattern-affinity-like-current-source-next251 self-test passed`
+- `php lanes/libsqlite/examples/application-prepared-pattern-affinity-like-current-source-next251.php --self-test`
+  - `application-prepared-pattern-affinity-like-current-source-next251 self-test passed`
 
 Expected dashboard movement: `phpPass +72`, from `129612` to `129684`.
 Mapped upstream coverage remains `659 / 1589`; this is focused PHP behavior

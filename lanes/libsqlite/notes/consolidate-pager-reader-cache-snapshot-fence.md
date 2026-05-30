@@ -4,7 +4,7 @@ Status: numbered production helper cleanup for the pager reader-cache master-jou
 
 This slice renames the numbered production entrypoint to `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterJournalReaderSnapshotFence()`. The returned status, dependency, operation, and non-overlap strings still preserve the established next250 evidence keys so downstream generated arrays and receipts keep their observable shape.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-snapshot-fence.php` covers a copied `wp_options` database where the schema cache remains reusable, an options-root cache page reopens because its reader snapshot predates the recovered master journal, and an `active_plugins` reader reopens because its source provenance is stale.
+Application smoke: `application-pager-master-journal-reader-cache-snapshot-fence.php` covers a copied `wp_options` database where the schema cache remains reusable, an options-root cache page reopens because its reader snapshot predates the recovered master journal, and an `active_plugins` reader reopens because its source provenance is stale.
 
 Focused verification:
 
@@ -12,14 +12,14 @@ Focused verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMasterJournalReaderSnapshotFenceTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMasterJournalReaderSnapshotFenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-snapshot-fence.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-snapshot-fence.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-snapshot-fence.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pager-master-journal-reader-cache-snapshot-fence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMasterJournalReaderSnapshotFenceTest.php`
   - `1 test files, 96 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCache*.php`
   - `149 test files, 9983 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-snapshot-fence.php`
-  - `wordpress-pager-master-journal-reader-cache-snapshot-fence self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-snapshot-fence.php`
+  - `application-pager-master-journal-reader-cache-snapshot-fence self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - passed
 

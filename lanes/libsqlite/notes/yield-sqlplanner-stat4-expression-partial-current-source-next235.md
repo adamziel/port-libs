@@ -15,9 +15,9 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext235Test.php`
 - `1 test files, 73 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next235.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next235.php --self-test`
 - Expected output includes `stat4-expression-partial-current-source-next235-ready`.
 
 Dashboard delta:

@@ -27,10 +27,10 @@ Result:
 50 PASS lines
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-trigger-view-cache-current-source-next97.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-trigger-view-cache-current-source-next97.php --self-test
 ```
 
 ## Non-Overlap

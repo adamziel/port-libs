@@ -97,7 +97,7 @@ $cases = [
     'operation admit' => [static fn (): mixed => in_array('admit_reopened_reader_cache_current_source_next245', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next242', $plan()['dependencies'], true), true],
     'dependency next245' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next245', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-reopened-reader-after-checkpoint-commit', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-reopened-reader-after-checkpoint-commit', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat writer commit receipt validation'), true],
     'first row accepted' => [static fn (): mixed => $plan()['reader_rows'][0]['accepted'], true],

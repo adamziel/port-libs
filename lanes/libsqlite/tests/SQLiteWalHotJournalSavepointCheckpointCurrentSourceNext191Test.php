@@ -92,7 +92,7 @@ $cases = [
     'cache digest length' => [static fn (): mixed => strlen($ok()['cache_digest']), 64],
     'dependency next188' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next188', $ok()['dependencies'], true), true],
     'dependency next191' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next191', $ok()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-page-cache-current-source-fence', $ok()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-page-cache-current-source-fence', $ok()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($ok()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($ok()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'base plan embedded' => [static fn (): mixed => $ok()['base_plan']['hook_digest'], $basePlan['hook_digest']],

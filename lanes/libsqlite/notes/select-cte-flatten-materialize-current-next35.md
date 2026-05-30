@@ -19,10 +19,10 @@ for `phpPass` from the new lane-scoped test file. This does not change the
 mapped upstream denominator because it is a bounded current-source planner
 surface, not a newly mapped upstream inventory unit.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-cte-flatten-materialize-current-next35.php --self-test
+php lanes/libsqlite/examples/application-select-cte-flatten-materialize-current-next35.php --self-test
 ```
 
 Non-overlap: this slice does not repeat accepted non-recursive CTE

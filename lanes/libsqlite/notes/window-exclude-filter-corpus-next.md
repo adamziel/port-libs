@@ -23,15 +23,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteWindowFunction.php
 php -l lanes/libsqlite/tests/SQLiteWindowExcludeFilterCorpusTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteWindowExcludeFilterCorpusTest.php
 
-php -l lanes/libsqlite/examples/wordpress-window-exclude-filter-summary.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-window-exclude-filter-summary.php
+php -l lanes/libsqlite/examples/application-window-exclude-filter-summary.php
+No syntax errors detected in lanes/libsqlite/examples/application-window-exclude-filter-summary.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowExcludeFilterCorpusTest.php
 Focused test run: 1 selected test files (root lock skipped)
 37 PASS lines
 1 test files, 38 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-window-exclude-filter-summary.php
+php lanes/libsqlite/examples/application-window-exclude-filter-summary.php
 passed and emitted copied wp_options window EXCLUDE/FILTER JSON summary
 ```
 

@@ -14,7 +14,7 @@ New implementation:
 - `SQLiteVacuumBackupSerializePlan::backup()` models full and stepped page-copy
   backup behavior with remaining-page accounting.
 - `SQLiteVacuumBackupSerializePlan::vacuumInto()` plans the target image write,
-  durable file sync, and directory sync needed by a copied WordPress database
+  durable file sync, and directory sync needed by a copied Application database
   maintenance flow.
 
 Focused verification:
@@ -26,8 +26,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVacuumBackupSerializePlan
 php -l lanes/libsqlite/tests/SQLiteVacuumBackupSerializeCorpusTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteVacuumBackupSerializeCorpusTest.php
 
-php -l lanes/libsqlite/examples/wordpress-vacuum-backup-serialize.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-vacuum-backup-serialize.php
+php -l lanes/libsqlite/examples/application-vacuum-backup-serialize.php
+No syntax errors detected in lanes/libsqlite/examples/application-vacuum-backup-serialize.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVacuumBackupSerializeCorpusTest.php
 Focused test run: 1 selected test files (root lock skipped)
@@ -37,10 +37,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 PASS-line delta: `+55` focused PHP TestRunner PASS cases.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vacuum-backup-serialize.php
+php lanes/libsqlite/examples/application-vacuum-backup-serialize.php
 ```
 
 The smoke reports a copied `wp_options` database image serialized, reopened

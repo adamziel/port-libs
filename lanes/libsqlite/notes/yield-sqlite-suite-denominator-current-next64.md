@@ -1,6 +1,6 @@
 # SQLite Suite Denominator Current-Next64
 
-- Scope: suite-denominator admission/countability only; no JSON, WAL, B-tree, VFS, trigger, planner, or WordPress runtime behavior is changed.
+- Scope: suite-denominator admission/countability only; no JSON, WAL, B-tree, VFS, trigger, planner, or Application runtime behavior is changed.
 - Added `SQLiteUpstreamSuiteEvidence::releaseRunnerSuiteDenominatorCurrentNext64()` to classify current/next suite denominator rows, require concrete runner commands and evidence for countable rows, preserve regression blockers, and keep release/all parity gated on accepted zero-error broad runner artifacts.
 - Added `SQLiteReleaseRunnerSuiteDenominatorCurrentNext64Test.php` with 71 focused PASS lines covering 64 admitted current-next64 units plus tier summaries, missing evidence/command blockers, duplicate rows, regressions, focused-output blockers, and invalid setup guards.
 - Focused verification:

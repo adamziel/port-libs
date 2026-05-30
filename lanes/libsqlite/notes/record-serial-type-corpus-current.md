@@ -15,7 +15,7 @@ Adds focused native PHP coverage for SQLite record-format serial-type parity:
   serial types 10/11, trailing body bytes, and incomplete varints.
 
 This is upstream file-format behavior coverage only. It does not claim a new
-mapped upstream inventory row, does not touch the WordPress smoke set, and does
+mapped upstream inventory row, does not touch the Application smoke set, and does
 not overlap accepted UTF-16 malformed-text guards, B-tree overflow/freelist
 work, VFS writer/sync/lock work, SELECT SQL text dispatch, JSON table cursor or
 constraint work, or WAL savepoint/checkpoint slices.

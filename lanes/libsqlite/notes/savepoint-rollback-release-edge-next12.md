@@ -6,16 +6,16 @@ Changes:
 
 - Updated `SQLiteSavepointStack` savepoint lookup to match SQLite's case-insensitive savepoint name behavior.
 - Added `SQLiteSavepointRollbackReleaseEdgeNext12Test.php` with 30 independent PASS cases covering mixed-case `ROLLBACK TO` / `RELEASE`, duplicate savepoint names resolving to the most recent match, RELEASE merging into the earlier duplicate, post-rollback WAL frame reuse, and case-insensitive transaction release.
-- Added `wordpress-savepoint-rollback-release-edge-next12.php` to smoke a copied `wp_options` plugin-settings import where mixed-case application savepoint labels still roll back and release the intended SQLite savepoint.
+- Added `application-savepoint-rollback-release-edge-next12.php` to smoke a copied `wp_options` plugin-settings import where mixed-case application savepoint labels still roll back and release the intended SQLite savepoint.
 
 Evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteSavepointStack.php` -> no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteSavepointRollbackReleaseEdgeNext12Test.php` -> no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-savepoint-rollback-release-edge-next12.php` -> no syntax errors.
+- `php -l lanes/libsqlite/examples/application-savepoint-rollback-release-edge-next12.php` -> no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSavepointRollbackReleaseEdgeNext12Test.php` -> 1 test files, 30 assertions, 0 failures, 30 PASS lines.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSavepointRollbackReleaseEdgeNext12Test.php lanes/libsqlite/tests/SQLiteSavepointReleaseCorpusTest.php lanes/libsqlite/tests/SQLitePagerWalSavepointCorpusTest.php` -> 3 test files, 90 assertions, 0 failures.
-- `php lanes/libsqlite/examples/wordpress-savepoint-rollback-release-edge-next12.php --self-test` -> printed mixed-case rollback/release summary and exited 0.
+- `php lanes/libsqlite/examples/application-savepoint-rollback-release-edge-next12.php --self-test` -> printed mixed-case rollback/release summary and exited 0.
 - `jq empty lanes/libsqlite/lane-status.json` -> passed.
 - `git diff --check -- lanes/libsqlite` -> passed.
 

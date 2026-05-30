@@ -181,7 +181,7 @@ $cases = [
     'operation advance' => [static fn (): mixed => in_array('advance_reopened_current_source_after_wal_index_next231', $plan()['operation_names'], true), true],
     'dependency next231' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next231', $plan()['dependencies'], true), true],
     'dependency readmark fence' => [static fn (): mixed => in_array('sqlite-wal-index-reopen-readmark-fence', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-wal-index-reopen-current-source', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-wal-index-reopen-current-source', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'standalone SHM read-mark diagnostics'), true],
     'first row reopenable' => [static fn (): mixed => $plan()['receipt_rows'][0]['reopenable'], true],

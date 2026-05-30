@@ -155,7 +155,7 @@ $cases = [
     'ticket row no hot journal' => [static fn (): mixed => $plan()['ticket_rows'][0]['hot_journal_digest_retained'], false],
     'dependency next190' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next190', $plan()['dependencies'], true), true],
     'dependency next194' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next194', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-retry-checkpoint-reader-exposure', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-retry-checkpoint-reader-exposure', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'bad publication status blocks' => [static fn (): mixed => $plan($badPublicationStatus)['blocked_reasons'], ['next190_retry_checkpoint_publication_required']],

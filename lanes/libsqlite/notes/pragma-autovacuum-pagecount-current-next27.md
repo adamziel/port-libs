@@ -25,10 +25,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaAutoVacuumPageCountCur
 
 Result: `1 test files, 51 assertions, 0 failures`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pragma-autovacuum-pagecount-current-next27.php
+php lanes/libsqlite/examples/application-pragma-autovacuum-pagecount-current-next27.php
 ```
 
 The smoke reports a copied `wp_options` database where enabling incremental

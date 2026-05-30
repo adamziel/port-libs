@@ -8,7 +8,7 @@ $tests = [];
 
 $run = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::plan($ops, $options);
 
-$wordpress = static function () use ($run): array {
+$application = static function () use ($run): array {
     static $result = null;
     if ($result === null) {
         $result = $run([
@@ -145,49 +145,49 @@ $hydrated = [
 
 $hydratedReplay = static fn (): array => $run(['shm read0 exclusive wp-import'], ['current' => $hydrated]);
 
-$tests['vfs lock byte uri shm current source next97 dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-lock-byte-uri-shm-current-source-next97', $wordpress()['dependencies'], true));
-$tests['vfs lock byte uri shm current source next97 event count'] = static fn (TestRunner $t) => $t->same(15, count($wordpress()['events']));
-$tests['vfs lock byte uri shm current source next97 first open status'] = static fn (TestRunner $t) => $t->same('shm-open', $wordpress()['events'][0]['status']);
-$tests['vfs lock byte uri shm current source next97 first open source shm'] = static fn (TestRunner $t) => $t->same('shm', $wordpress()['events'][0]['source']);
-$tests['vfs lock byte uri shm current source next97 first open decoded path'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite-shm', $wordpress()['events'][0]['path']);
-$tests['vfs lock byte uri shm current source next97 first open owner canonical'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $wordpress()['events'][0]['owner']);
-$tests['vfs lock byte uri shm current source next97 first open sidecar first'] = static fn (TestRunner $t) => $t->same(true, $wordpress()['events'][0]['sidecar_open_first']);
-$tests['vfs lock byte uri shm current source next97 shm read acquired'] = static fn (TestRunner $t) => $t->same('acquired', $wordpress()['events'][1]['status']);
-$tests['vfs lock byte uri shm current source next97 shm read owner routed'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $wordpress()['events'][1]['owner']);
-$tests['vfs lock byte uri shm current source next97 shm read stored on owner'] = static fn (TestRunner $t) => $t->same(['wp-reader' => 'shared'], $wordpress()['events'][1]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['read0']);
-$tests['vfs lock byte uri shm current source next97 main open status'] = static fn (TestRunner $t) => $t->same('main-open', $wordpress()['events'][2]['status']);
-$tests['vfs lock byte uri shm current source next97 main open not sidecar first'] = static fn (TestRunner $t) => $t->same(false, $wordpress()['events'][2]['sidecar_open_first']);
-$tests['vfs lock byte uri shm current source next97 main uri authority localhost'] = static fn (TestRunner $t) => $t->same('localhost', $wordpress()['events'][2]['uri']['authority']);
-$tests['vfs lock byte uri shm current source next97 shared lock status'] = static fn (TestRunner $t) => $t->same('planned', $wordpress()['events'][3]['status']);
-$tests['vfs lock byte uri shm current source next97 shared lock source main'] = static fn (TestRunner $t) => $t->same('main', $wordpress()['events'][3]['source']);
-$tests['vfs lock byte uri shm current source next97 shared lock path main'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $wordpress()['events'][3]['path']);
-$tests['vfs lock byte uri shm current source next97 shared lock byte offset'] = static fn (TestRunner $t) => $t->same(1073741837, $wordpress()['events'][3]['plan']['acquire'][0]['offset']);
-$tests['vfs lock byte uri shm current source next97 source shm ok'] = static fn (TestRunner $t) => $t->same('ok', $wordpress()['events'][4]['status']);
-$tests['vfs lock byte uri shm current source next97 write shm acquired'] = static fn (TestRunner $t) => $t->same('acquired', $wordpress()['events'][5]['status']);
-$tests['vfs lock byte uri shm current source next97 write shm stored'] = static fn (TestRunner $t) => $t->same(['wp-import' => 'exclusive'], $wordpress()['events'][5]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['write']);
-$tests['vfs lock byte uri shm current source next97 source main ok'] = static fn (TestRunner $t) => $t->same('ok', $wordpress()['events'][6]['status']);
-$tests['vfs lock byte uri shm current source next97 reserved writer coexists'] = static fn (TestRunner $t) => $t->same('planned', $wordpress()['events'][7]['status']);
-$tests['vfs lock byte uri shm current source next97 reserved holder stored'] = static fn (TestRunner $t) => $t->same('reserved', $wordpress()['events'][7]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['holders']['wp-import']);
-$tests['vfs lock byte uri shm current source next97 wal open source'] = static fn (TestRunner $t) => $t->same('wal', $wordpress()['events'][8]['source']);
-$tests['vfs lock byte uri shm current source next97 wal open owner shared'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $wordpress()['events'][8]['owner']);
-$tests['vfs lock byte uri shm current source next97 wal open cache private'] = static fn (TestRunner $t) => $t->same('private', $wordpress()['events'][8]['uri']['cache']);
-$tests['vfs lock byte uri shm current source next97 checkpoint acquired via wal current'] = static fn (TestRunner $t) => $t->same('acquired', $wordpress()['events'][9]['status']);
-$tests['vfs lock byte uri shm current source next97 checkpoint source wal'] = static fn (TestRunner $t) => $t->same('wal', $wordpress()['events'][9]['source']);
-$tests['vfs lock byte uri shm current source next97 checkpoint stored owner'] = static fn (TestRunner $t) => $t->same(['wp-import' => 'exclusive'], $wordpress()['events'][9]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['checkpoint']);
-$tests['vfs lock byte uri shm current source next97 exclusive blocked by reader'] = static fn (TestRunner $t) => $t->same('blocked', $wordpress()['events'][11]['status']);
-$tests['vfs lock byte uri shm current source next97 exclusive blocker names reader'] = static fn (TestRunner $t) => $t->same(['wp-reader:shared'], $wordpress()['events'][11]['blocking']);
-$tests['vfs lock byte uri shm current source next97 exclusive block reason'] = static fn (TestRunner $t) => $t->same('owner_byte_lock_conflict', $wordpress()['events'][11]['reason']);
-$tests['vfs lock byte uri shm current source next97 yield releases reader byte lock'] = static fn (TestRunner $t) => $t->same(false, array_key_exists('wp-reader', $wordpress()['events'][12]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['holders']));
-$tests['vfs lock byte uri shm current source next97 yield releases reader shm lock'] = static fn (TestRunner $t) => $t->same([], $wordpress()['events'][12]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['read0']);
-$tests['vfs lock byte uri shm current source next97 exclusive succeeds after yield'] = static fn (TestRunner $t) => $t->same('planned', $wordpress()['events'][13]['status']);
-$tests['vfs lock byte uri shm current source next97 exclusive holder stored'] = static fn (TestRunner $t) => $t->same('exclusive', $wordpress()['events'][13]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['holders']['wp-import']);
-$tests['vfs lock byte uri shm current source next97 unlock idempotent released'] = static fn (TestRunner $t) => $t->same('released', $wordpress()['events'][14]['status']);
-$tests['vfs lock byte uri shm current source next97 final status released'] = static fn (TestRunner $t) => $t->same('released', $wordpress()['status']);
-$tests['vfs lock byte uri shm current source next97 final current source main'] = static fn (TestRunner $t) => $t->same('main', $wordpress()['next']['current_source']);
-$tests['vfs lock byte uri shm current source next97 final open by source'] = static fn (TestRunner $t) => $t->same(['main' => 1, 'wal' => 1, 'shm' => 1], $wordpress()['next']['open_by_source']);
-$tests['vfs lock byte uri shm current source next97 final one owner'] = static fn (TestRunner $t) => $t->same(1, $wordpress()['next']['owner_count']);
-$tests['vfs lock byte uri shm current source next97 final lock count'] = static fn (TestRunner $t) => $t->same(1, $wordpress()['next']['lock_holder_count']);
-$tests['vfs lock byte uri shm current source next97 final shm lock count'] = static fn (TestRunner $t) => $t->same(2, $wordpress()['next']['shm_lock_count']);
+$tests['vfs lock byte uri shm current source next97 dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-lock-byte-uri-shm-current-source-next97', $application()['dependencies'], true));
+$tests['vfs lock byte uri shm current source next97 event count'] = static fn (TestRunner $t) => $t->same(15, count($application()['events']));
+$tests['vfs lock byte uri shm current source next97 first open status'] = static fn (TestRunner $t) => $t->same('shm-open', $application()['events'][0]['status']);
+$tests['vfs lock byte uri shm current source next97 first open source shm'] = static fn (TestRunner $t) => $t->same('shm', $application()['events'][0]['source']);
+$tests['vfs lock byte uri shm current source next97 first open decoded path'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite-shm', $application()['events'][0]['path']);
+$tests['vfs lock byte uri shm current source next97 first open owner canonical'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $application()['events'][0]['owner']);
+$tests['vfs lock byte uri shm current source next97 first open sidecar first'] = static fn (TestRunner $t) => $t->same(true, $application()['events'][0]['sidecar_open_first']);
+$tests['vfs lock byte uri shm current source next97 shm read acquired'] = static fn (TestRunner $t) => $t->same('acquired', $application()['events'][1]['status']);
+$tests['vfs lock byte uri shm current source next97 shm read owner routed'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $application()['events'][1]['owner']);
+$tests['vfs lock byte uri shm current source next97 shm read stored on owner'] = static fn (TestRunner $t) => $t->same(['wp-reader' => 'shared'], $application()['events'][1]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['read0']);
+$tests['vfs lock byte uri shm current source next97 main open status'] = static fn (TestRunner $t) => $t->same('main-open', $application()['events'][2]['status']);
+$tests['vfs lock byte uri shm current source next97 main open not sidecar first'] = static fn (TestRunner $t) => $t->same(false, $application()['events'][2]['sidecar_open_first']);
+$tests['vfs lock byte uri shm current source next97 main uri authority localhost'] = static fn (TestRunner $t) => $t->same('localhost', $application()['events'][2]['uri']['authority']);
+$tests['vfs lock byte uri shm current source next97 shared lock status'] = static fn (TestRunner $t) => $t->same('planned', $application()['events'][3]['status']);
+$tests['vfs lock byte uri shm current source next97 shared lock source main'] = static fn (TestRunner $t) => $t->same('main', $application()['events'][3]['source']);
+$tests['vfs lock byte uri shm current source next97 shared lock path main'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $application()['events'][3]['path']);
+$tests['vfs lock byte uri shm current source next97 shared lock byte offset'] = static fn (TestRunner $t) => $t->same(1073741837, $application()['events'][3]['plan']['acquire'][0]['offset']);
+$tests['vfs lock byte uri shm current source next97 source shm ok'] = static fn (TestRunner $t) => $t->same('ok', $application()['events'][4]['status']);
+$tests['vfs lock byte uri shm current source next97 write shm acquired'] = static fn (TestRunner $t) => $t->same('acquired', $application()['events'][5]['status']);
+$tests['vfs lock byte uri shm current source next97 write shm stored'] = static fn (TestRunner $t) => $t->same(['wp-import' => 'exclusive'], $application()['events'][5]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['write']);
+$tests['vfs lock byte uri shm current source next97 source main ok'] = static fn (TestRunner $t) => $t->same('ok', $application()['events'][6]['status']);
+$tests['vfs lock byte uri shm current source next97 reserved writer coexists'] = static fn (TestRunner $t) => $t->same('planned', $application()['events'][7]['status']);
+$tests['vfs lock byte uri shm current source next97 reserved holder stored'] = static fn (TestRunner $t) => $t->same('reserved', $application()['events'][7]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['holders']['wp-import']);
+$tests['vfs lock byte uri shm current source next97 wal open source'] = static fn (TestRunner $t) => $t->same('wal', $application()['events'][8]['source']);
+$tests['vfs lock byte uri shm current source next97 wal open owner shared'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $application()['events'][8]['owner']);
+$tests['vfs lock byte uri shm current source next97 wal open cache private'] = static fn (TestRunner $t) => $t->same('private', $application()['events'][8]['uri']['cache']);
+$tests['vfs lock byte uri shm current source next97 checkpoint acquired via wal current'] = static fn (TestRunner $t) => $t->same('acquired', $application()['events'][9]['status']);
+$tests['vfs lock byte uri shm current source next97 checkpoint source wal'] = static fn (TestRunner $t) => $t->same('wal', $application()['events'][9]['source']);
+$tests['vfs lock byte uri shm current source next97 checkpoint stored owner'] = static fn (TestRunner $t) => $t->same(['wp-import' => 'exclusive'], $application()['events'][9]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['checkpoint']);
+$tests['vfs lock byte uri shm current source next97 exclusive blocked by reader'] = static fn (TestRunner $t) => $t->same('blocked', $application()['events'][11]['status']);
+$tests['vfs lock byte uri shm current source next97 exclusive blocker names reader'] = static fn (TestRunner $t) => $t->same(['wp-reader:shared'], $application()['events'][11]['blocking']);
+$tests['vfs lock byte uri shm current source next97 exclusive block reason'] = static fn (TestRunner $t) => $t->same('owner_byte_lock_conflict', $application()['events'][11]['reason']);
+$tests['vfs lock byte uri shm current source next97 yield releases reader byte lock'] = static fn (TestRunner $t) => $t->same(false, array_key_exists('wp-reader', $application()['events'][12]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['holders']));
+$tests['vfs lock byte uri shm current source next97 yield releases reader shm lock'] = static fn (TestRunner $t) => $t->same([], $application()['events'][12]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['read0']);
+$tests['vfs lock byte uri shm current source next97 exclusive succeeds after yield'] = static fn (TestRunner $t) => $t->same('planned', $application()['events'][13]['status']);
+$tests['vfs lock byte uri shm current source next97 exclusive holder stored'] = static fn (TestRunner $t) => $t->same('exclusive', $application()['events'][13]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['holders']['wp-import']);
+$tests['vfs lock byte uri shm current source next97 unlock idempotent released'] = static fn (TestRunner $t) => $t->same('released', $application()['events'][14]['status']);
+$tests['vfs lock byte uri shm current source next97 final status released'] = static fn (TestRunner $t) => $t->same('released', $application()['status']);
+$tests['vfs lock byte uri shm current source next97 final current source main'] = static fn (TestRunner $t) => $t->same('main', $application()['next']['current_source']);
+$tests['vfs lock byte uri shm current source next97 final open by source'] = static fn (TestRunner $t) => $t->same(['main' => 1, 'wal' => 1, 'shm' => 1], $application()['next']['open_by_source']);
+$tests['vfs lock byte uri shm current source next97 final one owner'] = static fn (TestRunner $t) => $t->same(1, $application()['next']['owner_count']);
+$tests['vfs lock byte uri shm current source next97 final lock count'] = static fn (TestRunner $t) => $t->same(1, $application()['next']['lock_holder_count']);
+$tests['vfs lock byte uri shm current source next97 final shm lock count'] = static fn (TestRunner $t) => $t->same(2, $application()['next']['shm_lock_count']);
 
 $tests['vfs lock byte uri shm current source next97 nolock shared blocked'] = static fn (TestRunner $t) => $t->same('blocked', $readonlyNolock()['events'][1]['status']);
 $tests['vfs lock byte uri shm current source next97 nolock reason'] = static fn (TestRunner $t) => $t->same('nolock VFS disables POSIX byte-range locking', $readonlyNolock()['events'][1]['reason']);

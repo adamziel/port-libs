@@ -8,8 +8,8 @@
 
 ## Validation
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-final-handoff.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-ready-publication-final-handoff.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationFinalHandoffTest.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationFinalHandoffTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-final-handoff.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-ready-publication-final-handoff.php --self-test`
 - `git diff --check`

@@ -12,7 +12,7 @@ Focused movement:
 - Covered table-interior and index-interior valid child maps, type mismatches,
   parent mismatches, right-most child mismatches, bounded error limits, child
   pages beyond the database image, and `quick_check` skipping this deep scan.
-- Added a WordPress smoke showing copied `wp_options` index preflight with
+- Added a Application smoke showing copied `wp_options` index preflight with
   valid child parentage, a corrupt right-most pointer-map parent, and
   shallow `quick_check` behavior.
 

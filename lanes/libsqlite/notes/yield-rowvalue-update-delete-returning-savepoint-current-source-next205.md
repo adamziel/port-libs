@@ -14,14 +14,14 @@ released current source, so `UPDATE OR REPLACE` conflict deletes and row-value
 - Focused test:
   `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext205Test.php`
   passed with `1 test files, 64 assertions, 0 failures` and 64 PASS lines.
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next205.php`
+- Application smoke:
+  `php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next205.php`
   passed and reported `nextReadReleasedCurrentSource: true`, `savepointReturned:
   3`, `nextReturned: 4`, and final copied `wp_options` ids `[1,3,5,6]`.
 - Syntax:
   `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext205Plan.php`
   `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext205Test.php`
-  `php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next205.php`
+  `php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next205.php`
 
 ## Non-Overlap
 

@@ -16,10 +16,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowExcludeFilterRange
 # 1 test files, 53 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-vdbe-window-exclude-filter-range-current-next51.php
+php lanes/libsqlite/examples/application-vdbe-window-exclude-filter-range-current-next51.php
 ```
 
 ## Status Delta

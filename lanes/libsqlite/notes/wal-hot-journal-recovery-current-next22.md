@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLiteVfsFileWriter::applyHotJournalThenWalRecovery()` for the ordered recovery edge where a copied WordPress SQLite database has both a hot rollback journal and a WAL sidecar.
+- Added `SQLiteVfsFileWriter::applyHotJournalThenWalRecovery()` for the ordered recovery edge where a copied Application SQLite database has both a hot rollback journal and a WAL sidecar.
 - The native VFS path restores the hot rollback-journal database image first, then runs WAL transaction-boundary recovery against that restored image, checkpoints the committed WAL prefix, truncates uncommitted WAL tail bytes, deletes the rollback journal, syncs database/WAL/directory state, and keeps the operation atomic through the existing file-writer rollback guard.
 - This is intentionally disjoint from the accepted standalone hot rollback-journal apply, rollback-journal commit/super-journal commit, WAL checksum-boundary apply, WAL savepoint byte truncation, checkpoint transaction, sync-plan/apply, and locked writer clusters.
 
@@ -16,7 +16,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-wal-hot-journal-recovery.php
+$ php lanes/libsqlite/examples/application-wal-hot-journal-recovery.php
 {
     "status": "applied",
     "rollback_reason": "hot_journal_recovered",

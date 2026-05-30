@@ -2,16 +2,16 @@
 
 Status: focused PHP behavior growth for current and next WAL readers around a RESTART/TRUNCATE checkpoint.
 
-This slice adds `SQLiteWalReaderRestartCheckpointPlan`, a bounded native PHP planner that composes existing WAL, SHM read-mark, and restart checkpoint primitives into copied WordPress database diagnostics. It reports the current reader snapshot, next reader snapshot, pinned read-mark transition, checkpoint action, page source/frame indexes, changed pages, and the WAL/database operations needed for the next reader.
+This slice adds `SQLiteWalReaderRestartCheckpointPlan`, a bounded native PHP planner that composes existing WAL, SHM read-mark, and restart checkpoint primitives into copied Application database diagnostics. It reports the current reader snapshot, next reader snapshot, pinned read-mark transition, checkpoint action, page source/frame indexes, changed pages, and the WAL/database operations needed for the next reader.
 
 Verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteWalReaderRestartCheckpointPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderRestartCheckpointCurrentNext43Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-reader-restart-checkpoint-current-next43.php
+php -l lanes/libsqlite/examples/application-wal-reader-restart-checkpoint-current-next43.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderRestartCheckpointCurrentNext43Test.php
-php lanes/libsqlite/examples/wordpress-wal-reader-restart-checkpoint-current-next43.php --self-test
+php lanes/libsqlite/examples/application-wal-reader-restart-checkpoint-current-next43.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

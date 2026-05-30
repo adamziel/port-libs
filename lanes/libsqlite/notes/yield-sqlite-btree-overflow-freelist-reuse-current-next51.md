@@ -24,10 +24,10 @@ PASS overflow freelist reuse current next51 validates replacement count
 1 test files, 69 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-overflow-freelist-reuse-current-next51.php
+$ php lanes/libsqlite/examples/application-overflow-freelist-reuse-current-next51.php
 ```
 
 The smoke reports copied `wp_options` transient table and option-name index

@@ -10,9 +10,9 @@
 
 ## Verification
 
-- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php && php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostSelectionTest.php && php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-selection.php` passed.
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php && php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostSelectionTest.php && php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-selection.php` passed.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostSelectionTest.php` passed: `1 test files, 9 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-selection.php --self-test` passed.
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-selection.php --self-test` passed.
 - `git diff --check -- lanes/libsqlite` passed.
 
 ## Dependency Closure

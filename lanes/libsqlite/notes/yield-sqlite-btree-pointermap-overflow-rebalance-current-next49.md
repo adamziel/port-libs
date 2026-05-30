@@ -20,7 +20,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-pointermap-overflow-rebalance-current-next49.php
+php lanes/libsqlite/examples/application-btree-pointermap-overflow-rebalance-current-next49.php
 freedOverflowPages: [8, 104, 107, 205]
 updatedPointerMapPages: [2, 105]
 freedPointerMapEntries: all free-page, parent_page_number 0

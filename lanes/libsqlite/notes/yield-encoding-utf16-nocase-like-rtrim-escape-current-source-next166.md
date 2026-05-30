@@ -7,13 +7,13 @@
 - Extends the accepted next163 RHS-pattern behavior with UTF-16 ESCAPE operand
   decode, ASCII-space-only RTRIM, single-character validation, byte-only
   reprepare diagnostics, and semantic current-source invalidation.
-- WordPress smoke:
-  `lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-escape-current-source-next166.php`.
+- Application smoke:
+  `lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-escape-current-source-next166.php`.
 
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext166Test.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-escape-current-source-next166.php --self-test`
+- Example smoke: `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-escape-current-source-next166.php --self-test`
 - PHP lint and `git diff --check -- lanes/libsqlite` required before handoff.
 
 ## Non-Overlap

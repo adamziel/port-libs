@@ -20,7 +20,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowAutoVacuumPoint
 # 109 PASS lines
 # 2 test files, 734 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-append-current-next68.php
+php lanes/libsqlite/examples/application-btree-pointermap-vacuum-append-current-next68.php
 # reports vacuum final page 207, appended overflow pages 209-211, recreated
 # pointer-map page 208, and correct overflow parent ownership.
 ```

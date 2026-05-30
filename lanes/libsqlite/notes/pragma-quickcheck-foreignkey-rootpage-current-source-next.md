@@ -1,7 +1,7 @@
 # pragma-quickcheck-foreignkey-rootpage-current-source-next
 
 Adds `SQLitePragmaQuickcheckForeignKeyRootpageCurrentSourceNext`, a bounded
-current-source composer for WordPress import preflights that must page
+current-source composer for Application import preflights that must page
 expression-index metadata, shallow `PRAGMA quick_check` rootpage blockers, and
 `PRAGMA foreign_key_check` rootpage/pointer-map rows behind one stable cursor.
 
@@ -27,10 +27,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaQuickcheckForeignKeyRo
 Result: `1 test files, 80 assertions, 0 failures` with 70 focused PASS lines.
 
 ```sh
-php lanes/libsqlite/examples/wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next.php --self-test
+php lanes/libsqlite/examples/application-pragma-quickcheck-foreignkey-rootpage-current-source-next.php --self-test
 ```
 
-Result: `wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next self-test passed`.
+Result: `application-pragma-quickcheck-foreignkey-rootpage-current-source-next self-test passed`.
 
 Non-overlap:
 

@@ -11,8 +11,8 @@ until every current materialized recursive view-trigger UPSERT row is covered by
 the expected handoff token, projection hashes, rowid-provenance receipts, and
 ordered acknowledgements.
 
-WordPress path:
-`wordpress-trigger-recursive-view-upsert-current-source-next256.php` models a
+Application path:
+`application-trigger-recursive-view-upsert-current-source-next256.php` models a
 copied `wp_options` recursive import view where current child rows must finish
 their view-trigger handoff before a later import source can publish `home` and
 `next_plugin`.
@@ -22,9 +22,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext256Plan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext256Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next256.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next256.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext256Test.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next256.php
+php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next256.php
 git diff --check -- lanes/libsqlite
 ```
 

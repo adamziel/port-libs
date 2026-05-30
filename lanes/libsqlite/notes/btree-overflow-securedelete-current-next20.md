@@ -12,9 +12,9 @@ Focused verification:
 - Result: `1 test files, 52 assertions, 0 failures`
 - PASS-line delta for lane status: `+52`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-overflow-securedelete-current-next20.php`
+- `php lanes/libsqlite/examples/application-overflow-securedelete-current-next20.php`
 - The smoke reports copied `wp_options` table/index overflow chains released
   from current next-page pointers, secure-delete-cleared freelist leaves,
   freelist allocation order, and free-page pointer-map types without ext/sqlite.

@@ -99,7 +99,7 @@ $rangeCases = [
 
 foreach ($rangeCases as $name => [$collation, $lower, $upper, $filters, $expected]) {
     $tests['malformed text current next70 range ' . $name] = static function (TestRunner $t) use ($rows, $rowids, $collation, $lower, $upper, $filters, $expected): void {
-        $matched = SQLiteMalformedTextCurrentNextCursor::wordpressOptionNameRange($rows, $lower, $upper, $collation, $filters);
+        $matched = SQLiteMalformedTextCurrentNextCursor::optionRowNameRange($rows, $lower, $upper, $collation, $filters);
         $t->same($expected, $rowids($matched));
     };
 }
@@ -146,12 +146,12 @@ $tests['malformed text current next70 rejects invalid payload'] = static functio
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteMalformedTextCurrentNextCursor([['key' => 'plugin', 'rowid' => 1, 'payload' => 'bad']]));
 };
 
-$tests['malformed text current next70 rejects missing wordpress option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedTextCurrentNextCursor::wordpressOptionNameRange([['option_id' => 1]], 'a', 'z'));
+$tests['malformed text current next70 rejects missing application option name'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedTextCurrentNextCursor::optionRowNameRange([['option_id' => 1]], 'a', 'z'));
 };
 
-$tests['malformed text current next70 exposes payload names for wordpress diagnostics'] = static function (TestRunner $t) use ($rows, $payloadNames): void {
-    $matched = SQLiteMalformedTextCurrentNextCursor::wordpressOptionNameRange($rows, "plugin_\xc3", "plugin_\xc4", 'NOCASE', ['autoload' => 'yes']);
+$tests['malformed text current next70 exposes payload names for application diagnostics'] = static function (TestRunner $t) use ($rows, $payloadNames): void {
+    $matched = SQLiteMalformedTextCurrentNextCursor::optionRowNameRange($rows, "plugin_\xc3", "plugin_\xc4", 'NOCASE', ['autoload' => 'yes']);
     $t->same(["plugin_\xc3", "plugin_\xc3 ", "plugin_\xc3A", 'plugin_é'], $payloadNames($matched));
 };
 

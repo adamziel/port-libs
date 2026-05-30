@@ -7,7 +7,7 @@ Consolidated the B-tree vacuum pointer-map freeblock tail-range callers that sti
 ## Change
 
 - Updated focused tests for ranges `1007-1134` to call `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult(...)`.
-- Updated matching WordPress examples for ranges `1007-1134` to call the same canonical entrypoint.
+- Updated matching Application examples for ranges `1007-1134` to call the same canonical entrypoint.
 - Left behavior assertions intact: statuses, current-source rows, token checks, dependency closure, and non-overlap assertions still verify each slice number.
 
 ## Dependency Closure
@@ -20,5 +20,5 @@ Run after edits:
 
 - `php -l` on changed PHP files.
 - Focused `php tools/run-tests.php` for changed B-tree vacuum range tests.
-- Changed WordPress examples with `--self-test`.
+- Changed Application examples with `--self-test`.
 - `git diff --check -- lanes/libsqlite`.

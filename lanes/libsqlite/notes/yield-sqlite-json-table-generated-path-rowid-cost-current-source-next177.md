@@ -13,15 +13,15 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidXFilterProgramPlanTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-xfilter-program.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-xfilter-program.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidXFilterProgramPlanTest.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-xfilter-program.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-xfilter-program self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-xfilter-program.php --self-test`
+  - `application-json-table-generated-path-rowid-xfilter-program self-test passed`
 
-WordPress path:
+Application path:
 
-- `examples/wordpress-json-table-generated-path-rowid-xfilter-program.php` models copied `wp_options.active_plugins` diagnostics where a generated JSON path and rowid aliases can stay on the pinned current `json_tree()` source, while changed next-source JSON forces an empty/reset xFilter program instead of stale row reuse.
+- `examples/application-json-table-generated-path-rowid-xfilter-program.php` models copied `wp_options.active_plugins` diagnostics where a generated JSON path and rowid aliases can stay on the pinned current `json_tree()` source, while changed next-source JSON forces an empty/reset xFilter program instead of stale row reuse.
 
 Non-overlap:
 

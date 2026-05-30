@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for UTF-16 RTRIM/NOCASE LIKE current-source 
 
 This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`. It composes the accepted UTF-16 prepared `ESCAPE` decode and RTRIM/NOCASE LIKE residual scan with `ORDER BY rtrim(option_name) COLLATE NOCASE, rowid LIMIT/OFFSET` page-window fencing. A copied `wp_options` import can only reuse the current-source page token when source, schema cookie, pattern, escape, offset/limit, page rowids, and tail key still match.
 
-WordPress smoke: `wordpress-utf16-nocase-like-rtrim-current-source-next218.php` covers a copied `wp_options` UTF-16 option-name scan where a new `PLUGIN_CACHE_AARDVARK` row changes the matched rowset while the current page remains stable.
+Application smoke: `application-utf16-nocase-like-rtrim-current-source-next218.php` covers a copied `wp_options` UTF-16 option-name scan where a new `PLUGIN_CACHE_AARDVARK` row changes the matched rowset while the current page remains stable.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext218Test.php`
   - `1 test files, 83 assertions, 0 failures`
   - `75` PASS lines
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next218.php --self-test`
-  - `wordpress-utf16-nocase-like-rtrim-current-source-next218 self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next218.php --self-test`
+  - `application-utf16-nocase-like-rtrim-current-source-next218 self-test passed`
 
 Expected dashboard movement: `phpPass +75`, from `104546` to `104621`. Mapped upstream coverage remains `623 / 1589`; this is focused current-source PHP behavior over already mapped UTF-16, NOCASE, RTRIM, LIKE, and yield-cursor inventory.
 

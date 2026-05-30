@@ -10,8 +10,8 @@ recursive view UPSERT row has a sealed conflict action (`insert`,
 `insert-recursive`, `do-update`, or `do-nothing`) for the current view and
 trigger source.
 
-WordPress path:
-`wordpress-trigger-recursive-view-upsert-current-source-next237.php` models a
+Application path:
+`application-trigger-recursive-view-upsert-current-source-next237.php` models a
 copied `wp_options` import view where current recursive child UPSERT actions
 publish before staged `home` and `next_plugin` rows can become visible.
 
@@ -19,13 +19,13 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext237Test.php`
   - Result: `1 test files, 96 assertions, 0 failures` with 96 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next237.php`
-  - Result: `wordpress-trigger-recursive-view-upsert-current-source-next237 self-test passed`.
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next237.php`
+  - Result: `application-trigger-recursive-view-upsert-current-source-next237 self-test passed`.
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext237Plan.php`
   - Result: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext237Test.php`
   - Result: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next237.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next237.php`
   - Result: no syntax errors.
 - `git diff --check -- lanes/libsqlite`
   - Result: passed.

@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined after-current closure' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-closure-after-current.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-current-source-closure-after-current.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-closure-after-current', $result['status']);
         $t->same([

@@ -178,7 +178,7 @@ $cases195 = [
     'dependency includes source_resume' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-source_resume', $released195()['dependencies_source_resume'], true), true],
     'dependency includes drain receipts' => [static fn (): mixed => in_array('sqlite-returning-current-source-drain-receipts', $released195()['dependencies_source_resume'], true), true],
     'dependency includes resume token' => [static fn (): mixed => in_array('sqlite-view-trigger-next-source-resume-token', $released195()['dependencies_source_resume'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-source_resume', $released195()['dependencies_source_resume'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-source_resume', $released195()['dependencies_source_resume'], true), true],
     'non overlap names next191' => [static fn (): mixed => str_contains($released195()['non_overlap_source_resume'], 'next191 fingerprint'), true],
     'non recursive current count' => [static fn (): mixed => $nonRecursive195()['current_source_receipt_row_count_source_resume'], 2],
     'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive195()['visible_returning_payloads_source_resume'], 'option_name'), ['plugin_seed', 'siteurl', 'rewrite_rules', 'home']],

@@ -4,7 +4,7 @@
 
 Adds `SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Plan` for the
 SQLite rule that default `LIKE` ASCII-folding is independent of a `COLLATE
-BINARY` expression. A copied WordPress `wp_options.option_name COLLATE BINARY
+BINARY` expression. A copied Application `wp_options.option_name COLLATE BINARY
 LIKE 'Plugin%'` scan cannot safely reuse a BINARY prefix cursor unless
 `case_sensitive_like` is enabled, because lowercase and uppercase plugin option
 names still satisfy the residual `LIKE`.
@@ -13,8 +13,8 @@ names still satisfy the residual `LIKE`.
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Test.php`
 - Result: `1 test files, 71 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-encoding-binary-like-current-source-next259.php --self-test`
-- Result: `wordpress-encoding-binary-like-current-source-next259 self-test passed`
+- Application smoke: `php lanes/libsqlite/examples/application-encoding-binary-like-current-source-next259.php --self-test`
+- Result: `application-encoding-binary-like-current-source-next259 self-test passed`
 - Expected `phpPass` movement: `+71` focused PASS lines, `137964 -> 138035`
 - Mapped upstream coverage: unchanged, no new manifest row claimed
 

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressSchemaBulkImportPlan;
+use PortLibs\LibSqlite\SQLiteSchemaBulkImportPlan;
 
 $dump = <<<'SQL'
--- WordPress schema copied from an import dump. Semicolons inside strings must not split.
+-- Application schema copied from an import dump. Semicolons inside strings must not split.
 CREATE TABLE wp_options (
   option_id INTEGER PRIMARY KEY AUTOINCREMENT,
   option_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -27,7 +27,7 @@ END;
 INSERT INTO wp_options(option_name, option_value) VALUES('siteurl','https://example.test');
 SQL;
 
-$plan = static fn (array $existing = [], array $options = []): array => SQLiteWordPressSchemaBulkImportPlan::plan(
+$plan = static fn (array $existing = [], array $options = []): array => SQLiteSchemaBulkImportPlan::plan(
     $dump,
     $existing,
     array_replace(['schema_version' => 12, 'data_version' => 4, 'next_rootpage' => 8], $options)
@@ -94,15 +94,15 @@ $cases = [
     'index dependency records create index columns' => static fn (): mixed => in_array('sqlite-create-index-columns', $byName($plan(), 'wp_options_autoload_name')['dependencies'], true),
     'plan dependency names bulk import' => static fn (): mixed => in_array('sqlite-schema-bulk-import', $plan()['dependencies'], true),
     'plan dependency names schema cookie' => static fn (): mixed => in_array('sqlite-schema-cookie-update', $plan()['dependencies'], true),
-    'quoted table name is normalized' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE "wp options" (id INTEGER);')['ordered_names'][0],
-    'bracket index name is normalized' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER); CREATE INDEX [idx options] ON wp_options(id);')['ordered_names'][1],
-    'backtick view name is normalized' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE VIEW `wp view` AS SELECT 1;')['ordered_names'][0],
-    'if not exists duplicate skips existing table' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);', ['wp_options' => []])['skipped'][0]['reason'],
-    'if not exists duplicate skipped count' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);', ['wp_options' => []])['skipped_count'],
-    'if not exists duplicate does not increment schema version' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);', ['wp_options' => []], ['schema_version' => 9])['schema_version_after'],
+    'quoted table name is normalized' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TABLE "wp options" (id INTEGER);')['ordered_names'][0],
+    'bracket index name is normalized' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER); CREATE INDEX [idx options] ON wp_options(id);')['ordered_names'][1],
+    'backtick view name is normalized' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE VIEW `wp view` AS SELECT 1;')['ordered_names'][0],
+    'if not exists duplicate skips existing table' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);', ['wp_options' => []])['skipped'][0]['reason'],
+    'if not exists duplicate skipped count' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);', ['wp_options' => []])['skipped_count'],
+    'if not exists duplicate does not increment schema version' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);', ['wp_options' => []], ['schema_version' => 9])['schema_version_after'],
     'honor if not exists can be disabled' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);', ['wp_options' => []], ['honor_if_not_exists' => false]);
+            SQLiteSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);', ['wp_options' => []], ['honor_if_not_exists' => false]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -110,7 +110,7 @@ $cases = [
     },
     'duplicate object in dump is rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER); CREATE TABLE wp_options(id INTEGER);');
+            SQLiteSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER); CREATE TABLE wp_options(id INTEGER);');
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -118,7 +118,7 @@ $cases = [
     },
     'existing object without if not exists is rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER);', ['wp_options' => []]);
+            SQLiteSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER);', ['wp_options' => []]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -126,7 +126,7 @@ $cases = [
     },
     'unterminated string is rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaBulkImportPlan::plan("CREATE TABLE wp_options(name TEXT DEFAULT 'bad);");
+            SQLiteSchemaBulkImportPlan::plan("CREATE TABLE wp_options(name TEXT DEFAULT 'bad);");
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -134,7 +134,7 @@ $cases = [
     },
     'unterminated block comment is rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaBulkImportPlan::plan('/* bad comment');
+            SQLiteSchemaBulkImportPlan::plan('/* bad comment');
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -142,7 +142,7 @@ $cases = [
     },
     'negative schema version is rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER);', [], ['schema_version' => -1]);
+            SQLiteSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER);', [], ['schema_version' => -1]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -150,25 +150,25 @@ $cases = [
     },
     'non integer data version is rejected' => static function (): mixed {
         try {
-            SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER);', [], ['data_version' => 'x']);
+            SQLiteSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER);', [], ['data_version' => 'x']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
         return 'missed';
     },
-    'rootpage lower than two is promoted' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER);', [], ['next_rootpage' => 0])['objects'][0]['rootpage'],
+    'rootpage lower than two is promoted' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER);', [], ['next_rootpage' => 0])['objects'][0]['rootpage'],
     'semicolon inside trigger string is preserved' => static fn (): mixed => str_contains($byName($plan(), 'wp_options_ai')['sql'], 'inserted; option'),
-    'line comment is ignored while splitting' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan("-- comment ;\nCREATE TABLE wp_options(id INTEGER);")['statement_count'],
-    'block comment is ignored while splitting' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan("/* comment ; */ CREATE TABLE wp_options(id INTEGER);")['statement_count'],
-    'table if not exists without duplicate applies' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);')['applied_count'],
-    'index if not exists without duplicate applies' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER); CREATE INDEX IF NOT EXISTS idx ON wp_options(id);')['applied_count'],
-    'trigger if not exists without duplicate applies' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE TRIGGER IF NOT EXISTS trg AFTER INSERT ON wp_options BEGIN SELECT 1; END;')['applied_count'],
-    'view if not exists without duplicate applies' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('CREATE VIEW IF NOT EXISTS v AS SELECT 1;')['applied_count'],
-    'unsupported only dump leaves data version stable' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('INSERT INTO wp_options VALUES (1);', [], ['data_version' => 7])['data_version_after'],
-    'unsupported only dump leaves schema version stable' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('INSERT INTO wp_options VALUES (1);', [], ['schema_version' => 7])['schema_version_after'],
-    'unsupported only dump records warning statement' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan('INSERT INTO wp_options VALUES (1);')['warnings'][0]['statement'],
-    'empty dump has zero statements' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan(" \n ")['statement_count'],
-    'empty dump has zero applied objects' => static fn (): mixed => SQLiteWordPressSchemaBulkImportPlan::plan(" \n ")['applied_count'],
+    'line comment is ignored while splitting' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan("-- comment ;\nCREATE TABLE wp_options(id INTEGER);")['statement_count'],
+    'block comment is ignored while splitting' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan("/* comment ; */ CREATE TABLE wp_options(id INTEGER);")['statement_count'],
+    'table if not exists without duplicate applies' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TABLE IF NOT EXISTS wp_options(id INTEGER);')['applied_count'],
+    'index if not exists without duplicate applies' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TABLE wp_options(id INTEGER); CREATE INDEX IF NOT EXISTS idx ON wp_options(id);')['applied_count'],
+    'trigger if not exists without duplicate applies' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE TRIGGER IF NOT EXISTS trg AFTER INSERT ON wp_options BEGIN SELECT 1; END;')['applied_count'],
+    'view if not exists without duplicate applies' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('CREATE VIEW IF NOT EXISTS v AS SELECT 1;')['applied_count'],
+    'unsupported only dump leaves data version stable' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('INSERT INTO wp_options VALUES (1);', [], ['data_version' => 7])['data_version_after'],
+    'unsupported only dump leaves schema version stable' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('INSERT INTO wp_options VALUES (1);', [], ['schema_version' => 7])['schema_version_after'],
+    'unsupported only dump records warning statement' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan('INSERT INTO wp_options VALUES (1);')['warnings'][0]['statement'],
+    'empty dump has zero statements' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan(" \n ")['statement_count'],
+    'empty dump has zero applied objects' => static fn (): mixed => SQLiteSchemaBulkImportPlan::plan(" \n ")['applied_count'],
 ];
 
 $expected = [
@@ -237,7 +237,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress schema bulk import current next33 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application schema bulk import current next33 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

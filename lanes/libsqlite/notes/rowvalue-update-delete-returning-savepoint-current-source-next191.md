@@ -12,8 +12,8 @@ coverage runs those flags through speculative UPDATE RETURNING rows, a DELETE
 RETURNING cleanup, `ROLLBACK TO` suppression, and retry from the restored
 current source.
 
-WordPress smoke:
-`wordpress-rowvalue-assignment-savepoint-current-source-next191.php --self-test`
+Application smoke:
+`application-rowvalue-assignment-savepoint-current-source-next191.php --self-test`
 models copied `wp_options` cleanup where row-value predicates populate import
 flag columns, attempted RETURNING rows are discarded by rollback, and retry
 starts from the savepoint image.
@@ -23,14 +23,14 @@ Verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext191Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-assignment-savepoint-current-source-next191.php
+php -l lanes/libsqlite/examples/application-rowvalue-assignment-savepoint-current-source-next191.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext191Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 53 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-assignment-savepoint-current-source-next191.php --self-test
-wordpress-rowvalue-assignment-savepoint-current-source-next191 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-assignment-savepoint-current-source-next191.php --self-test
+application-rowvalue-assignment-savepoint-current-source-next191 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +53` from the new focused test file,

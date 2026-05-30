@@ -4,13 +4,13 @@
 
 Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, an additive current-source page that layers over next244 and inspects `PRAGMA foreign_key_list` SET DEFAULT actions with `PRAGMA table_info` child-column defaults.
 
-The slice detects WordPress import schemas where `ON DELETE SET DEFAULT` or `ON UPDATE SET DEFAULT` would store `NULL` into a `NOT NULL` child key column because no explicit non-NULL default exists. Nullable child columns with implicit NULL defaults remain admissible, matching SQLite's FK NULL bypass behavior.
+The slice detects Application import schemas where `ON DELETE SET DEFAULT` or `ON UPDATE SET DEFAULT` would store `NULL` into a `NOT NULL` child key column because no explicit non-NULL default exists. Nullable child columns with implicit NULL defaults remain admissible, matching SQLite's FK NULL bypass behavior.
 
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - Result: `1 test files, 82 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-set-default-current-source-next247.php`
+- Application smoke: `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-set-default-current-source-next247.php`
 - Expected dashboard movement: `phpPass +82` after clean integration; mapped upstream coverage unchanged.
 
 ## Non-Overlap

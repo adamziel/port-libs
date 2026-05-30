@@ -2,7 +2,7 @@
 
 Status: focused PHP corpus growth for recursive `INSTEAD OF` view-trigger rows with statement `RETURNING` images.
 
-This slice adds `SQLiteRecursiveViewReturningPlan`, a bounded WordPress-shaped executor for copied `wp_options` active-view imports. It feeds view rows through the existing recursive savepoint UPSERT behavior, then returns only top-level statement rows from the view image while recursive trigger rows mutate the base table and child metadata.
+This slice adds `SQLiteRecursiveViewReturningPlan`, a bounded Application-shaped executor for copied `wp_options` active-view imports. It feeds view rows through the existing recursive savepoint UPSERT behavior, then returns only top-level statement rows from the view image while recursive trigger rows mutate the base table and child metadata.
 
 Focused behavior:
 
@@ -21,7 +21,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 58 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-next37.php
+php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-next37.php
 ```
 
 Dashboard delta:

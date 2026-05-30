@@ -17,10 +17,10 @@ Focused commands run from the isolated worktree:
 
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext201Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-savepoint-current-source-next201.php
+php lanes/libsqlite/examples/application-rowvalue-rollback-to-savepoint-current-source-next201.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext201Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-savepoint-current-source-next201.php
+php -l lanes/libsqlite/examples/application-rowvalue-rollback-to-savepoint-current-source-next201.php
 git diff --check -- lanes/libsqlite
 ```
 

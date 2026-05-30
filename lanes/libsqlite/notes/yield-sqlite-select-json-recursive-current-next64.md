@@ -23,10 +23,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 PASS-line delta: `+78` lane-local focused tests, updating `phpPass` from `23341` to `23419` in this isolated worktree.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-json-recursive-current-next64.php
+php lanes/libsqlite/examples/application-select-json-recursive-current-next64.php
 ```
 
 The smoke reports recursive `wp_options` route traversal rows and current/next JSON rule metadata without requiring `ext/sqlite`.

@@ -6,7 +6,7 @@
 - Added delete-on-close versus persistent temp-journal behavior: DELETEONCLOSE temp handles clear file-control and lock state on close, while non-delete temp lock files retain file-control state and release locks to `unlocked`.
 - Added memory temp-store handling so in-memory temp handles never persist file-control or lock side effects after close.
 - Added `SQLiteVfsTempLockFileControlPersistenceCurrentNext76Test.php` with 53 focused PASS cases and 53 assertions.
-- Added the WordPress smoke `wordpress-vfs-temp-lock-filecontrol-current-next76.php` for copied `wp_options` temp statement-journal xFileControl state and lock release across close boundaries without ext/sqlite.
+- Added the Application smoke `application-vfs-temp-lock-filecontrol-current-next76.php` for copied `wp_options` temp statement-journal xFileControl state and lock release across close boundaries without ext/sqlite.
 
 ## Verification
 
@@ -17,15 +17,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVfsTempLockFileControlPer
 php -l lanes/libsqlite/tests/SQLiteVfsTempLockFileControlPersistenceCurrentNext76Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteVfsTempLockFileControlPersistenceCurrentNext76Test.php
 
-php -l lanes/libsqlite/examples/wordpress-vfs-temp-lock-filecontrol-current-next76.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-vfs-temp-lock-filecontrol-current-next76.php
+php -l lanes/libsqlite/examples/application-vfs-temp-lock-filecontrol-current-next76.php
+No syntax errors detected in lanes/libsqlite/examples/application-vfs-temp-lock-filecontrol-current-next76.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsTempLockFileControlPersistenceCurrentNext76Test.php
 Focused test run: 1 selected test files (root lock skipped)
 53 PASS lines
 1 test files, 53 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-vfs-temp-lock-filecontrol-current-next76.php
+php lanes/libsqlite/examples/application-vfs-temp-lock-filecontrol-current-next76.php
 status closed, persistentControlCount 1, persistentLockCount 0, pendingDeleteCount 0
 ```
 

@@ -66,7 +66,7 @@ $statement = static function (
     ];
 };
 
-$plan = static fn (array $currentStatement, array $nextStatement, ?array $current = null, ?array $next = null): array => SQLiteLikeGlobCurrentSourceNextPlan::wordpressOptionNameStatement(
+$plan = static fn (array $currentStatement, array $nextStatement, ?array $current = null, ?array $next = null): array => SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $currentStatement,

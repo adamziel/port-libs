@@ -6,17 +6,17 @@ Status: focused behavior growth for `sqlplanner-stat4-expression-partial-current
 
 - Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded current-source planner for partial expression indexes where `lower(option_name) LIKE 'plugin\_%' ESCAPE '\'` can be admitted as a STAT4 prefix window.
 - The plan reparses stale prepared sources when schema or STAT4 generation changes, derives the prefix upper bound (`plugin_` to `plugin``), fences the current STAT4 sample window, applies the partial predicate proof, and blocks stale prepared rowids outside the current prefix row stream.
-- WordPress smoke: `wordpress-sqlplanner-stat4-expression-partial-current-source-next175.php` models a copied `wp_options` plugin-option scan after ANALYZE refresh.
+- Application smoke: `application-sqlplanner-stat4-expression-partial-current-source-next175.php` models a copied `wp_options` plugin-option scan after ANALYZE refresh.
 
 ## Evidence
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext175Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next175.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next175.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext175Test.php`
   - `1 test files, 67 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next175.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next175 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next175.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-current-source-next175 self-test passed`
 
 ## Dependency Closure
 

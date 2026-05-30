@@ -2,7 +2,7 @@
 
 This consolidation pass removes three remaining numbered attach-schema
 operation/dependency slugs from production code and migrates their direct
-tests, WordPress smokes, and notes to stable unsuffixed names.
+tests, Application smokes, and notes to stable unsuffixed names.
 
 Changed canonical surfaces:
 
@@ -17,8 +17,8 @@ Verification:
 
 - `php -l` for changed PHP files
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachTransactionCurrentTest.php lanes/libsqlite/tests/SQLiteAttachWalTempCacheCurrentTest.php lanes/libsqlite/tests/SQLiteAttachTempWalTriggerCacheCurrentSourceTest.php`
-- `php lanes/libsqlite/examples/wordpress-attach-detach-transaction-current.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-trigger-cache-current-source.php --self-test`
+- `php lanes/libsqlite/examples/application-attach-detach-transaction-current.php --self-test`
+- `php lanes/libsqlite/examples/application-attach-temp-wal-trigger-cache-current-source.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this is a naming

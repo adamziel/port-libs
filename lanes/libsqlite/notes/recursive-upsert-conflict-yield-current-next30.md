@@ -36,9 +36,9 @@ Lane status delta: `phpPass` `10028 -> 10085`, `phpFail` remains `0`.
 Mapped upstream denominator delta: none. This is a current-source focused
 behavior slice and does not claim a fresh upstream Tcl inventory unit.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-recursive-upsert-conflict-yield-current-next30.php`
+`lanes/libsqlite/examples/application-recursive-upsert-conflict-yield-current-next30.php`
 previews copied `wp_options` imports where an UPSERT conflict on `siteurl`
 recursively UPSERTs the current `home` row, yielding both statement and trigger
 rows without requiring `ext/sqlite`.

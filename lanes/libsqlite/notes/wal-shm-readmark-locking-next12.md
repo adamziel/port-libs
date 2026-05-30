@@ -6,9 +6,9 @@
 - Checkpoint planning treats a stale read mark as checkpoint-pinning only when the matching read-lock byte is held.
 - Abandoned marks without a read lock are reported as reusable with `read_mark_without_read_lock`, preventing stale SHM slots from blocking WAL checkpoint/reset progress.
 
-## WordPress smoke
+## Application smoke
 
-- Added `examples/wordpress-wal-shm-readmark-locking.php` for copied `/srv/www/wp-content/database/.ht.sqlite-shm` diagnostics.
+- Added `examples/application-wal-shm-readmark-locking.php` for copied `/srv/www/wp-content/database/.ht.sqlite-shm` diagnostics.
 - The smoke shows one live stale reader pinning frame 4, one abandoned stale mark at frame 6 becoming reusable, a latest-commit reader, and an invalid stale slot.
 
 ## Verification
@@ -20,7 +20,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 9747 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-shm-readmark-locking.php`
+- `php lanes/libsqlite/examples/application-wal-shm-readmark-locking.php`
   - exited 0 and reported `checkpointPinnedFrame: 4`, `resetBlocked: true`, `readLocks: [false,true,false,true,false]`, and `reusableSlots: [0,2,4]`.
 
 ## Dashboard delta

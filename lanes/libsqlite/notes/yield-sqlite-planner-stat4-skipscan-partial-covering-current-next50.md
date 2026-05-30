@@ -19,12 +19,12 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 73 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-planner-stat4-skipscan-partial-covering-current-next50.php
+$ php lanes/libsqlite/examples/application-planner-stat4-skipscan-partial-covering-current-next50.php
 {
-    "scenario": "wordpress-planner-stat4-skipscan-partial-covering-current-next50",
+    "scenario": "application-planner-stat4-skipscan-partial-covering-current-next50",
     "selectedIndex": "idx_blog_autoload_status_name_value_partial_stat4",
     "usesSkipScan": true,
     "skippedColumns": [

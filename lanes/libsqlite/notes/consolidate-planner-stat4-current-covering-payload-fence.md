@@ -4,14 +4,14 @@
 
 Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a current-source reuse fence for STAT4 partial expression indexes. After the accepted next247 boundary-peer validation admits a yielded row window, next251 verifies that every yielded rowid has a current `stat4ExpressionPayloads` covering image and that each requested covering column still matches the current table row.
 
-The WordPress path is copied `wp_options` planning with `lower(option_name)` partial expression indexes over autoloaded plugin settings. This catches stale covering payload reuse after an option value or timestamp changes without changing the expression key.
+The Application path is copied `wp_options` planning with `lower(option_name)` partial expression indexes over autoloaded plugin settings. This catches stale covering payload reuse after an option value or timestamp changes without changing the expression key.
 
 ## Evidence
 
 Local verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentCoveringPayloadFenceTest.php` => `1 test files, 86 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-covering-payload-fence.php` => ready status `stat4-expression-partial-current-source-next251-ready`, blocked status `requires-current-source-stat4-covering-payload-reprepare`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-covering-payload-fence.php` => ready status `stat4-expression-partial-current-source-next251-ready`, blocked status `requires-current-source-stat4-covering-payload-reprepare`
 - PHP lint for changed PHP files: passed for plan, test, and example files
 - `php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'` => `lane-status json ok`
 - `git diff --check -- lanes/libsqlite`: passed

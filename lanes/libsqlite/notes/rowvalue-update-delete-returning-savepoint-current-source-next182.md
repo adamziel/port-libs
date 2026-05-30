@@ -26,11 +26,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturnin
 1 test files, 66 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-rowvalue-release-inner-rollback-current-source-next182.php --self-test
-wordpress-rowvalue-release-inner-rollback-current-source-next182 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-release-inner-rollback-current-source-next182.php --self-test
+application-rowvalue-release-inner-rollback-current-source-next182 self-test passed
 ```
 
 Non-overlap: this avoids accepted next180 row-value `OR IGNORE` inner

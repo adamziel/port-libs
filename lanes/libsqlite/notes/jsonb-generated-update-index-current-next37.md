@@ -20,7 +20,7 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonbGeneratedUpdateIndexCurrentNext37Test.php`
   - Result: `1 test files, 138 assertions, 0 failures`
   - PASS-line delta: `+51`
-- `php lanes/libsqlite/examples/wordpress-jsonb-generated-update-index-current-next37.php`
+- `php lanes/libsqlite/examples/application-jsonb-generated-update-index-current-next37.php`
   - Result: emitted copied `wp_options` current delete entries for rowid `101`
     and next insert entries for rowids `101` and `102`.
 

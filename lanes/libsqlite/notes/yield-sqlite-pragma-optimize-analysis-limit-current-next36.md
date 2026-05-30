@@ -8,7 +8,7 @@
   masks, missing or stale `sqlite_stat1` rows, touched-table masks, forced
   analysis, temporary analysis-limit application, and restoration of the prior
   limit.
-- Added a WordPress smoke for copied `wp_options`, `wp_postmeta`, and `wp_posts`
+- Added a Application smoke for copied `wp_options`, `wp_postmeta`, and `wp_posts`
   preflight planning without requiring `ext/sqlite`.
 
 ## Verification
@@ -16,10 +16,10 @@
 Completed in lane worker before handoff:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaOptimizeAnalysisLimitCurrentNext36Test.php`: `1 test files, 50 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-pragma-optimize-analysis-limit-current-next36.php`: emitted main/aux WordPress optimize plans with restored analysis limits.
+- `php lanes/libsqlite/examples/application-pragma-optimize-analysis-limit-current-next36.php`: emitted main/aux Application optimize plans with restored analysis limits.
 - `php -l lanes/libsqlite/src/SQLitePragmaOptimizePlan.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLitePragmaOptimizeAnalysisLimitCurrentNext36Test.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-pragma-optimize-analysis-limit-current-next36.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/application-pragma-optimize-analysis-limit-current-next36.php`: no syntax errors.
 - `git diff --check -- lanes/libsqlite`: clean.
 
 ## Non-overlap

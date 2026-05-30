@@ -12,7 +12,7 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonbPatchIndexedGeneratedCurrentNext27Test.php`
   - Result: `1 test files, 53 assertions, 0 failures`
   - PASS-line delta: `+53`
-- `php lanes/libsqlite/examples/wordpress-jsonb-patch-indexed-generated-current-next27.php`
+- `php lanes/libsqlite/examples/application-jsonb-patch-indexed-generated-current-next27.php`
   - Result: emitted `chosenIndex: wp_options_patch_enabled_autoload`,
     `generatedColumn: plugin_enabled`, canonical patch JSON, and
     `jsonPath: $.plugin.enabled`.
@@ -20,7 +20,7 @@ Focused evidence:
   - Result: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteJsonbPatchIndexedGeneratedCurrentNext27Test.php`
   - Result: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-jsonb-patch-indexed-generated-current-next27.php`
+- `php -l lanes/libsqlite/examples/application-jsonb-patch-indexed-generated-current-next27.php`
   - Result: no syntax errors.
 - `git diff --check -- lanes/libsqlite`
   - Result: no whitespace errors.

@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for UTF-16 `rtrim(option_name) COLLATE NOCASE LIKE ?` scans when a current/next source changes `case_sensitive_like`.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next168.php` models copied `wp_options.option_name` rows where a default ASCII-NOCASE LIKE scan can use a NOCASE/RTRIM prefix range, but the next source toggles case-sensitive LIKE. The plan preserves the old candidate range only as recheck evidence, rejects cursor reuse, reports uppercase false positives, and requires binary LIKE scan/reprepare.
+Application path: `application-utf16-nocase-like-rtrim-current-source-next168.php` models copied `wp_options.option_name` rows where a default ASCII-NOCASE LIKE scan can use a NOCASE/RTRIM prefix range, but the next source toggles case-sensitive LIKE. The plan preserves the old candidate range only as recheck evidence, rejects cursor reuse, reports uppercase false positives, and requires binary LIKE scan/reprepare.
 
 Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next168.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next168.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next168.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next168.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +72` from the new focused test file (`84` raw assertions). Mapped upstream coverage remains unchanged; this is current-source behavior over already mapped UTF-16, NOCASE/RTRIM, LIKE, and current-source inventory rather than a fresh upstream manifest row.

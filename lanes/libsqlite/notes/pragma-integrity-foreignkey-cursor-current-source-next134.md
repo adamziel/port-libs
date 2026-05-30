@@ -1,7 +1,7 @@
 # pragma-integrity-foreignkey-cursor-current-source-next134
 
 This slice extends `PRAGMA foreign_key_check` current-source cursor behavior for
-quoted attached schema names that contain dots, including WordPress-style copied
+quoted attached schema names that contain dots, including Application-style copied
 archive/import schema names such as `wp.archive` and `wp.import.2026`.
 
 Behavior covered:
@@ -19,8 +19,8 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityForeignKeyCursorCurrentSourceNext134Test.php`
   - `1 test files, 86 assertions, 0 failures`
   - `52` PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-foreignkey-cursor-current-source-next134.php --self-test`
-  - `wordpress-pragma-integrity-foreignkey-cursor-current-source-next134 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-integrity-foreignkey-cursor-current-source-next134.php --self-test`
+  - `application-pragma-integrity-foreignkey-cursor-current-source-next134 self-test passed`
 
 Non-overlap:
 

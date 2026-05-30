@@ -12,10 +12,10 @@ The plan tags flattened RETURNING rows with the current view generation, trigger
   - `1 test files, 76 assertions, 0 failures`
   - 76 PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next182.php`
-  - `wordpress-trigger-recursive-view-returning-current-source-next182 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next182.php`
+  - `application-trigger-recursive-view-returning-current-source-next182 self-test passed`
 
 ## Non-Overlap
 

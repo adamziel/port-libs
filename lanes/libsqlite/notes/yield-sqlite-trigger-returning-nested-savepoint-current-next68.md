@@ -33,10 +33,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 60 assertions, 0 failures
 ```
 
-Local WordPress smoke:
+Local Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-trigger-returning-nested-savepoint-current-next68.php
+php lanes/libsqlite/examples/application-trigger-returning-nested-savepoint-current-next68.php
 ```
 
 Expected dashboard movement: `phpPass +60`, `phpFail` unchanged at `0`, mapped

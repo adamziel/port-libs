@@ -14,11 +14,11 @@ Verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePointerMapVacuumRebalanceCurrentNext73Test.php
 # 1 test files, 55 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-rebalance-current-next73.php
-# WordPress transient delete rebalance promoted trunk page: 3
-# WordPress transient delete rebalance appended leaf page: 5
-# WordPress transient delete pointer-map pages: 2
-# WordPress transient delete secure-cleared pages: 5
+php lanes/libsqlite/examples/application-btree-pointermap-vacuum-rebalance-current-next73.php
+# Application transient delete rebalance promoted trunk page: 3
+# Application transient delete rebalance appended leaf page: 5
+# Application transient delete pointer-map pages: 2
+# Application transient delete secure-cleared pages: 5
 ```
 
 Non-overlap: this avoids accepted page relocation, root collapse, overflow

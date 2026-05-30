@@ -1,6 +1,6 @@
 # WAL Hot-Journal Savepoint Checkpoint Current Source Next256
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded current-source admission guard for reopened WordPress readers after the accepted next252 post-truncate seal.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded current-source admission guard for reopened Application readers after the accepted next252 post-truncate seal.
 
 Behavior covered:
 
@@ -12,10 +12,10 @@ Behavior covered:
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext256Test.php` passed: `1 test files, 94 assertions, 0 failures` with 94 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next256.php` passes locally and emits admitted next256 status.
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next256.php` passes locally and emits admitted next256 status.
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext256Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next256.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next256.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

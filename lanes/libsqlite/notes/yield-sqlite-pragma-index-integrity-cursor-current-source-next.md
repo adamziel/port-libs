@@ -4,7 +4,7 @@
 
 - Added `SQLitePragmaIndexIntegrityCursorCurrentSourceNext` for a table-level current-source cursor over `PRAGMA index_list(table)`, each listed index's `PRAGMA index_xinfo(index)`, and sqlite_schema rootpage integrity rows.
 - This is distinct from accepted single-index `index_xinfo` rootpage checks and FK-combined current-source cursors: the source id now covers the table index-list SQL plus catalog/database/integrity source, so paged resumes are rejected after index catalog, database image, SQL, integrity mode, or offset drift.
-- WordPress path: copied `wp_options` preflight can page all option-table index metadata and rootpage blockers before resuming import/index analysis without ext/sqlite.
+- Application path: copied `wp_options` preflight can page all option-table index metadata and rootpage blockers before resuming import/index analysis without ext/sqlite.
 
 ## Focused Evidence
 
@@ -15,8 +15,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-index-integrity-cursor-current-source-next.php --self-test
-wordpress-pragma-index-integrity-cursor-current-source-next self-test passed
+php lanes/libsqlite/examples/application-pragma-index-integrity-cursor-current-source-next.php --self-test
+application-pragma-index-integrity-cursor-current-source-next self-test passed
 ```
 
 ## Non-Overlap

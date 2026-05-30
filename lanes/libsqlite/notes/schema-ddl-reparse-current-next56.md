@@ -8,7 +8,7 @@ Implemented:
 - Covers `CREATE TABLE`, `CREATE INDEX`, `DROP INDEX`, `DROP TABLE`, and `ALTER TABLE ... RENAME TO ...` for current sqlite_schema text.
 - Rebuilds a `SQLitePragmaSchemaCatalog` after DDL so table/index PRAGMA rows reflect the next schema image.
 - Advances the schema cookie once per changed DDL statement and reports stale prepared statement IDs that must be reprepared.
-- Added a WordPress smoke for copied `wp_options` imports that create a partial index plus an optionmeta table and invalidate a prepared import statement.
+- Added a Application smoke for copied `wp_options` imports that create a partial index plus an optionmeta table and invalidate a prepared import statement.
 
 Focused verification:
 

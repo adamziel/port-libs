@@ -69,7 +69,7 @@ Focused PASS-line delta: `+54`, moving lane-local `phpPass` from `12271` to `123
 
 ## Non-Overlap
 
-This avoids accepted release-runner parity ledger, current/next count record, guarded preflight, artifact hydration, accepted-HEAD provenance, and release-blocker closure wrappers by composing them into a next35 decision record with focused PHP PASS admission and active-runner suppression. It does not touch SQL, JSON table, WAL, B-tree, VFS writer/lock/sync, Unicode GLOB, rollback-journal, or WordPress runtime behavior clusters.
+This avoids accepted release-runner parity ledger, current/next count record, guarded preflight, artifact hydration, accepted-HEAD provenance, and release-blocker closure wrappers by composing them into a next35 decision record with focused PHP PASS admission and active-runner suppression. It does not touch SQL, JSON table, WAL, B-tree, VFS writer/lock/sync, Unicode GLOB, rollback-journal, or Application runtime behavior clusters.
 
 ## Dependency Closure
 

@@ -37,12 +37,12 @@ PASS jsonb generated check index current next54 propagates unique conflicts afte
 1 test files, 58 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-jsonb-generated-check-index-current-next54.php
+php lanes/libsqlite/examples/application-jsonb-generated-check-index-current-next54.php
 {
-    "scenario": "wordpress-jsonb-generated-check-index-current-next54",
+    "scenario": "application-jsonb-generated-check-index-current-next54",
     "changes": 2,
     "acceptedRowids": [
         101,
@@ -57,7 +57,7 @@ php lanes/libsqlite/examples/wordpress-jsonb-generated-check-index-current-next5
         "beta",
         "epsilon"
     ],
-    "wordpressUse": "Preflight copied wp_options JSONB setting imports so generated-column CHECK constraints reject bad current\/next rows before partial generated indexes are rewritten."
+    "applicationUse": "Preflight copied wp_options JSONB setting imports so generated-column CHECK constraints reject bad current\/next rows before partial generated indexes are rewritten."
 }
 ```
 

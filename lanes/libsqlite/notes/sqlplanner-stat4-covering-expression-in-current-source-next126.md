@@ -13,7 +13,7 @@ covering expression indexes used by `IN (...)` probes.
 - Adds guarded fallback coverage for non-covering plans, missing STAT4 samples,
   missing current-source samples, invalid sources, and malformed predicates.
 
-WordPress path: copied `wp_options` plugin setting lookups often probe a small
+Application path: copied `wp_options` plugin setting lookups often probe a small
 set of lower-cased option names. After `ANALYZE`, this lets the native PHP
 planner discard stale expression-index samples and continue reading option
 payloads from the current covering index cursor without ext/sqlite.
@@ -22,9 +22,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4CoveringExpressionInCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4CoveringExpressionInCurrentSourceNext126Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-stat4-covering-expression-in-current-source-next126.php`
+- `php -l lanes/libsqlite/examples/application-stat4-covering-expression-in-current-source-next126.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4CoveringExpressionInCurrentSourceNext126Test.php`
-- `php lanes/libsqlite/examples/wordpress-stat4-covering-expression-in-current-source-next126.php --self-test`
+- `php lanes/libsqlite/examples/application-stat4-covering-expression-in-current-source-next126.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Focused result: `1 test files, 66 assertions, 0 failures`.

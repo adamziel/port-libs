@@ -47,7 +47,7 @@ return [
         $t->same('siteurl', $planRows[0]['name']);
     },
 
-    'joins sqlite values source rows with copied wordpress option rows' => static function (TestRunner $t): void {
+    'joins sqlite values source rows with copied application option rows' => static function (TestRunner $t): void {
         $options = [
             ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 24],
             ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'bytes' => 24],

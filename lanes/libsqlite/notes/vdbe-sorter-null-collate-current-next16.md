@@ -4,7 +4,7 @@
 
 - Extends `SQLiteVdbeSortCompare` with explicit per-key `NULLS FIRST` / `NULLS LAST` placement that is not reversed by descending sort terms.
 - Adds `SQLiteVdbeSorterCursor` so callers can iterate sorted row-array output with SQLite-style `current()` and `next()` cursor steps.
-- Covers WordPress-shaped `wp_options` import ordering where `autoload COLLATE NOCASE`, numeric priorities, stable rowids, and NULL option metadata determine the next yielded row.
+- Covers Application-shaped `wp_options` import ordering where `autoload COLLATE NOCASE`, numeric priorities, stable rowids, and NULL option metadata determine the next yielded row.
 
 ## Focused Evidence
 
@@ -15,7 +15,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeSorterNullCollateCurrent
 The focused run passed locally with 35 PASS lines and 44 assertions.
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-sorter-null-collate-current-next.php
+php lanes/libsqlite/examples/application-vdbe-sorter-null-collate-current-next.php
 ```
 
 The smoke printed ordered option IDs `[4,3,6,8,2,1,7,5]`.

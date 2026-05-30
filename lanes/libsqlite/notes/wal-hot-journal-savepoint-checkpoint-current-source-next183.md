@@ -17,10 +17,10 @@ Blocked cases report explicit reasons for stale reader tokens, resurrected hot
 journals, file digest drift, missing directory sync, and failed/non-next180
 apply results.
 
-## WordPress smoke
+## Application smoke
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next183.php`
-models a copied WordPress plugin import that restarts after hot-journal and
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next183.php`
+models a copied Application plugin import that restarts after hot-journal and
 checkpoint resume. It verifies the post-apply file map and admits a fresh WAL
 reader token only after durable directory sync evidence.
 
@@ -29,14 +29,14 @@ reader token only after durable directory sync evidence.
 ```text
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next183.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next183.php
 No syntax errors detected
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 59 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next183.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next183.php
 status: wal-hot-journal-savepoint-checkpoint-current-source-next183
 hotJournalDeleted: true
 directorySyncVerified: true

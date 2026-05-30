@@ -23,8 +23,8 @@ restart/truncate path.
   - `1 test files, 65 assertions, 0 failures`
 - `php -l lanes/libsqlite/src/SQLiteWal.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalCheckpointRestartTruncateReaderCurrentSourceNext93Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-current-source-next93.php`
-- `php lanes/libsqlite/examples/wordpress-wal-checkpoint-current-source-next93.php`
+- `php -l lanes/libsqlite/examples/application-wal-checkpoint-current-source-next93.php`
+- `php lanes/libsqlite/examples/application-wal-checkpoint-current-source-next93.php`
   - reports `reader-pin-next-reader-blocks-restart-current-source-next93` with current, next, and final source arrays.
 - `git diff --check -- lanes/libsqlite`
 

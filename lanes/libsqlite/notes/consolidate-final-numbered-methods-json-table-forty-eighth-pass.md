@@ -6,7 +6,7 @@ Behavior:
 
 - Renamed `SQLiteJsonTablePlan::the prior numbered public method` to `SQLiteJsonTablePlan::currentSourceGeneratedOrderCostPlan()`.
 - Renamed the matching private generated-order cost helper methods by removing the numeric suffix.
-- Migrated the direct focused test and WordPress example to stable filenames and stable dependency/replan keys.
+- Migrated the direct focused test and Application example to stable filenames and stable dependency/replan keys.
 - Reuses accepted nested hidden-source cost and generated hidden constraint filtering, then orders only the filtered `json_tree()` rows by generated keys extracted from each row.
 - Reports ordered rowids/fullkeys, generated order keys, sorter requirement, sort penalty, effective cost, cost class, transitions, and `generatedOrderCostReplanReasons`.
 - Preserves the current reader until cursor reset while preparing a changed next generated-order-cost plan.
@@ -20,8 +20,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteJsonTablePlan.php
 $ php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedOrderCostCurrentSourcePlanTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteJsonTableGeneratedOrderCostCurrentSourcePlanTest.php
 
-$ php -l lanes/libsqlite/examples/wordpress-json-table-generated-order-cost-current-source-plan.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-json-table-generated-order-cost-current-source-plan.php
+$ php -l lanes/libsqlite/examples/application-json-table-generated-order-cost-current-source-plan.php
+No syntax errors detected in lanes/libsqlite/examples/application-json-table-generated-order-cost-current-source-plan.php
 
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedOrderCostCurrentSourcePlanTest.php
 Focused test run: 1 selected test files (root lock skipped)
@@ -30,7 +30,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-json-table-generated-order-cost-current-source-plan.php
+$ php lanes/libsqlite/examples/application-json-table-generated-order-cost-current-source-plan.php
 operation: json-table-generated-order-cost-current-source-plan
 currentOrderedRowids: [11]
 nextOrderedRowids: [16,11]

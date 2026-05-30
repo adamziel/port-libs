@@ -6,16 +6,16 @@ Behavior:
 - Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext171()`.
 - Composes the accepted next167 generated-path rowid xFilter layer into xNext-style current-source cursor metadata.
 - Records cursor opcode, pinned source identity, generated path, argv columns, seek rowids, yielded rowids, skipped post-LIMIT rowids, missing seek rowids, xColumn/xNext/xEof program steps, cost class, cursor fingerprint, and current/next replan reasons.
-- WordPress smoke models copied `wp_options` plugin-rule JSON where the current `json_tree()` cursor yields rowids `[6,5]` from a generated path while rowid `42` is retained as a missing seek, and the shifted next source prepares a fresh cursor.
+- Application smoke models copied `wp_options` plugin-rule JSON where the current `json_tree()` cursor yields rowids `[6,5]` from a generated path while rowid `42` is retained as a missing seek, and the shifted next source prepares a fresh cursor.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext171Test.php
-php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next171.php
+php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next171.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext171Test.php
-php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next171.php --self-test
+php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next171.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

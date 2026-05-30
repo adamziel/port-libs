@@ -1,7 +1,7 @@
 # PRAGMA Foreign-Key Integrity Current Next26
 
 This slice adds a bounded schema-current `PRAGMA foreign_key_check` integrity
-executor for WordPress import/staging diagnostics.
+executor for Application import/staging diagnostics.
 
 Behavior covered:
 
@@ -27,10 +27,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 53 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-foreign-key-integrity-current-next26.php
+$ php lanes/libsqlite/examples/application-pragma-foreign-key-integrity-current-next26.php
 {
     "scenario": "copied wp_options foreign-key integrity preflight",
     "current_target_schema": "temp",

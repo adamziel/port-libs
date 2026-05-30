@@ -11,8 +11,8 @@ recursive view-trigger UPSERT has acknowledged all current RETURNING rows
 against deterministic statement `changes()` and monotonic `total_changes()`
 style receipts.
 
-WordPress path:
-`wordpress-trigger-recursive-view-upsert-current-source-next251.php` models a
+Application path:
+`application-trigger-recursive-view-upsert-current-source-next251.php` models a
 copied `wp_options` recursive import view where current `siteurl` and plugin
 UPSERT rows spawn recursive child RETURNING rows, then a later import source
 must not publish until the current source change counters are complete.
@@ -22,9 +22,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext251Plan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext251Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next251.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next251.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext251Test.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next251.php
+php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next251.php
 git diff --check -- lanes/libsqlite
 ```
 

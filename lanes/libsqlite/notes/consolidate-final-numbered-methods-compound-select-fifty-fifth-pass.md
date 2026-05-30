@@ -16,7 +16,7 @@ Consolidated three remaining numbered helper families inside
 - `compareNext172()` and private `*Next172()` helpers are now
   `compareDistinctUnionSourceClassLimit()` and matching descriptive helpers.
 
-Direct tests and WordPress examples were renamed away from generated
+Direct tests and Application examples were renamed away from generated
 `CurrentSourceNextNN` filenames and updated to the descriptive scenario names.
 The touched source/tests/examples no longer contain `next169`, `next171`, or
 `next172` compound-select references.
@@ -25,12 +25,12 @@ The touched source/tests/examples no longer contain `next169`, `next171`, or
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l` for the three renamed compound-select test files
-- `php -l` for the three renamed compound-select WordPress examples
+- `php -l` for the three renamed compound-select Application examples
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitRecursiveOrderCommaLimitNtileTest.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitDistinctUnionWindowLimitOffsetTest.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitDistinctUnionSourceClassLimitTest.php`
   - Result: `3 test files, 736 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-recursive-order-comma-limit-ntile.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-distinct-union-window-limit-offset.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-distinct-union-source-class-limit.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-recursive-order-comma-limit-ntile.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-distinct-union-window-limit-offset.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-distinct-union-source-class-limit.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for UTF-16 RTRIM/NOCASE LIKE current-source scans with embedded NUL text and pattern bytes.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next210.php` models copied `wp_options.option_name` rows that contain an embedded NUL from a migration/import artifact. SQLite text comparison does not truncate at NUL, so `rtrim(option_name) COLLATE NOCASE LIKE 'plugin\0cache%'` keeps the NUL inside the prefix range and residual match.
+Application path: `application-utf16-nocase-like-rtrim-current-source-next210.php` models copied `wp_options.option_name` rows that contain an embedded NUL from a migration/import artifact. SQLite text comparison does not truncate at NUL, so `rtrim(option_name) COLLATE NOCASE LIKE 'plugin\0cache%'` keeps the NUL inside the prefix range and residual match.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext210Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next210.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next210.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext210Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next210.php --self-test`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next210.php --self-test`
 
 Expected dashboard movement: `phpPass +79`, from `102317` to `102396`. Mapped upstream coverage remains `622 / 1589`; this is current-source PHP behavior over already mapped UTF-16, NOCASE, LIKE, and RTRIM inventory rather than a fresh manifest-backed row.
 

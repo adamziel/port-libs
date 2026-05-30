@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined after-current handoff' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-admission-after-current.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-current-source-admission-after-current.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-admission-after-current', $result['status']);
         $t->same([

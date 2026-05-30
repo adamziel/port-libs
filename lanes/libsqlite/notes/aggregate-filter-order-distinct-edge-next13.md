@@ -12,7 +12,7 @@ Verification:
 
 - Focused test command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAggregateFilterOrderDistinctEdgeNext13Test.php`
 - Expected focused delta: 31 PASS lines from the new lane-scoped test file.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-aggregate-filter-order-distinct-edge.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-aggregate-filter-order-distinct-edge.php --self-test`
 
 Non-overlap:
 

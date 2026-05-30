@@ -3,7 +3,7 @@
 ## Behavior
 
 Adds `SQLitePragmaIndexQuickCheckForeignKeyCurrentSourceNext`, a current/next
-cursor for copied WordPress SQLite import repairs that combines:
+cursor for copied Application SQLite import repairs that combines:
 
 - `PRAGMA index_list(table)` and per-index `index_xinfo` / rootpage integrity rows.
 - table-scoped `PRAGMA quick_check(table)` rootpage blockers.
@@ -22,10 +22,10 @@ schema, catalog, SQL text, or offset changes.
 - Result: `1 test files, 74 assertions, 0 failures`
 - PASS-line delta for this lane patch: `+61`
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-pragma-index-quickcheck-foreignkey-current-source-next.php`
-- Result: `wordpress-pragma-index-quickcheck-foreignkey-current-source-next self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-quickcheck-foreignkey-current-source-next.php`
+- Result: `application-pragma-index-quickcheck-foreignkey-current-source-next self-test passed`
 
 ## Non-Overlap
 

@@ -9,7 +9,7 @@ Blocked finalizers retain the checkpoint reader leases and suppress the next wri
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next236.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next236.php --self-test`
 
 ## Non-Overlap
 

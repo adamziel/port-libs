@@ -15,7 +15,7 @@ semantics.
   restores the statement-start image, `FAIL` preserves prior statement rows,
   `IGNORE` skips the conflicting trigger row, and `REPLACE` updates the
   conflicting row.
-- Added `wordpress-recursive-trigger-conflict-rollback.php` for copied
+- Added `application-recursive-trigger-conflict-rollback.php` for copied
   `wp_options` plugin import diagnostics without requiring `ext/sqlite`.
 
 ## Verification
@@ -23,9 +23,9 @@ semantics.
 ```sh
 php -l lanes/libsqlite/src/SQLiteRecursiveTriggerConflictRollbackPlan.php
 php -l lanes/libsqlite/tests/SQLiteRecursiveTriggerConflictRollbackCorpusTest.php
-php -l lanes/libsqlite/examples/wordpress-recursive-trigger-conflict-rollback.php
+php -l lanes/libsqlite/examples/application-recursive-trigger-conflict-rollback.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRecursiveTriggerConflictRollbackCorpusTest.php
-php lanes/libsqlite/examples/wordpress-recursive-trigger-conflict-rollback.php
+php lanes/libsqlite/examples/application-recursive-trigger-conflict-rollback.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane json ok\n";'
 git diff --check -- lanes/libsqlite
 ```
@@ -52,4 +52,4 @@ conflicts with `OR ROLLBACK` transaction-image restoration versus `ABORT`,
 B-tree, JSON, SELECT SQL, Unicode GLOB, and suite-runner clusters.
 
 Dependency closure: no new shared support component is needed; the slice reuses
-lane-local row-array DML trigger modeling and copied WordPress option fixtures.
+lane-local row-array DML trigger modeling and copied Application option fixtures.

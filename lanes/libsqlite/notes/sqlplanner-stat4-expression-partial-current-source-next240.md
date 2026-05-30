@@ -13,8 +13,8 @@ used to admit the plan.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext240Test.php`
   - `1 test files, 64 assertions, 0 failures`
   - 64 focused PASS lines
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next240.php --self-test`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next240.php --self-test`
 
 ## Non-Overlap
 

@@ -24,10 +24,10 @@ Focused test run: 2 selected test files (root lock skipped)
 2 test files, 104 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-compound-recursive-materialize-current-next36.php
+php lanes/libsqlite/examples/application-select-compound-recursive-materialize-current-next36.php
 [
     "siteurl",
     "home",

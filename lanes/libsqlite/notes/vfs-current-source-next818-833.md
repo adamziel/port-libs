@@ -8,8 +8,8 @@ Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next818-833.php`
+- `php -l lanes/libsqlite/examples/application-vfs-current-source-next818-833.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-vfs-current-source-next802-817.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-vfs-current-source-next818-833.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-current-source-next802-817.php --self-test`
+- `php lanes/libsqlite/examples/application-vfs-current-source-next818-833.php --self-test`
 - `git diff --check`

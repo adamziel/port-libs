@@ -12,10 +12,10 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialSelectivityTest.php`
   - `1 test files, 78 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-selectivity.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-selectivity self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-selectivity.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-selectivity self-test passed`
 
-WordPress smoke: copied `wp_options` plugin scans reuse a current-source
+Application smoke: copied `wp_options` plugin scans reuse a current-source
 partial `lower(option_name)` expression index only when current STAT4
 cardinality and peer-count counters still cover the selected page.
 

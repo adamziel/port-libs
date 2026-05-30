@@ -10,8 +10,8 @@ yield no `RETURNING` rows and restore their source rows, while a later
 `OR REPLACE` row-value update deletes its conflicting current row before a
 follow-up `DELETE ... RETURNING` reads that replaced source.
 
-WordPress smoke:
-`wordpress-rowvalue-update-delete-returning-savepoint-current-source-next203.php`
+Application smoke:
+`application-rowvalue-update-delete-returning-savepoint-current-source-next203.php`
 models copied `wp_options` cleanup where duplicate `(blog_id, autoload)` pairs
 are first suppressed by `OR IGNORE`, then one orphaned option replaces a
 conflicting site option and the final delete observes that replacement.
@@ -21,9 +21,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next203.php
+php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next203.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next203.php
+php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next203.php
 git diff --check -- lanes/libsqlite
 ```
 

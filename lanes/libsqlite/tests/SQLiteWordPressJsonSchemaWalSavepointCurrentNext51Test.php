@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressJsonSchemaWalSavepointPlan;
+use PortLibs\LibSqlite\SQLiteJsonSchemaWalSavepointPlan;
 
 $schema = static fn (): array => [
     [
@@ -53,7 +53,7 @@ $steps = static fn (): array => [
     ],
 ];
 
-$plan = static fn (array $customSteps = null, array $options = []): array => SQLiteWordPressJsonSchemaWalSavepointPlan::plan(
+$plan = static fn (array $customSteps = null, array $options = []): array => SQLiteJsonSchemaWalSavepointPlan::plan(
     $schema(),
     $customSteps ?? $steps(),
     $options + ['schema_cookie' => 41, 'data_version' => 9, 'page_size' => 512],
@@ -93,7 +93,7 @@ $cases = [
     'commit plan contains applied schema pages' => static fn (): mixed => $plan()['commit']['committed_page_numbers'],
     'savepoint state tracks applied page images' => static fn (): mixed => $plan()['savepoint_state'][1]['page_numbers'],
     'database changed after applied schema edits' => static fn (): mixed => $plan()['database_changed'],
-    'dependency marker names schema WAL savepoint behavior' => static fn (): mixed => in_array('sqlite-wordpress-json-schema-wal-savepoint', $plan()['dependencies'], true),
+    'dependency marker names schema WAL savepoint behavior' => static fn (): mixed => in_array('sqlite-application-json-schema-wal-savepoint', $plan()['dependencies'], true),
     'ready status when all schema edits apply' => static fn (): mixed => $plan(array_slice($steps(), 0, 3))['status'],
     'ready final schema cookie advances by three' => static fn (): mixed => $plan(array_slice($steps(), 0, 3))['final_schema_cookie'],
     'ready final data version advances by three' => static fn (): mixed => $plan(array_slice($steps(), 0, 3))['final_data_version'],
@@ -126,7 +126,7 @@ $cases = [
     'trigger rootpage defaults to zero' => static fn (): mixed => $plan([$steps()[2]])['applied'][0]['schema_names'],
     'duplicate initial schema object is rejected' => static function () use ($schema, $steps): mixed {
         try {
-            SQLiteWordPressJsonSchemaWalSavepointPlan::plan(array_merge($schema(), [$schema()[0]]), $steps());
+            SQLiteJsonSchemaWalSavepointPlan::plan(array_merge($schema(), [$schema()[0]]), $steps());
         } catch (InvalidArgumentException $exception) {
             return str_contains($exception->getMessage(), 'Duplicate SQLite schema object');
         }
@@ -147,7 +147,7 @@ $cases = [
     ])['failed'][0]['error'],
     'bad page size is rejected' => static function () use ($schema, $steps): mixed {
         try {
-            SQLiteWordPressJsonSchemaWalSavepointPlan::plan($schema(), $steps(), ['page_size' => 500]);
+            SQLiteJsonSchemaWalSavepointPlan::plan($schema(), $steps(), ['page_size' => 500]);
         } catch (InvalidArgumentException $exception) {
             return str_contains($exception->getMessage(), 'page size');
         }
@@ -212,7 +212,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress json schema wal savepoint current next51 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application json schema wal savepoint current next51 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

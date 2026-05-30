@@ -4,7 +4,7 @@
 
 - Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, composing the accepted next167 STAT4 partial expression current-source planner with duplicate-key STAT4 sample fanout.
 - The slice models one `sqlite_stat4` sample key with `neq > 1`: a current partial `lower(option_name)` expression-index scan must expand all matching current rowids for that key, not only the sample rowid.
-- WordPress path: copied `wp_options` plugin-option scans after `ANALYZE` can keep the current covering partial expression index when duplicate plugin option names differ only by case, while stale prepared rowids remain blocked.
+- Application path: copied `wp_options` plugin-option scans after `ANALYZE` can keep the current covering partial expression index when duplicate plugin option names differ only by case, while stale prepared rowids remain blocked.
 
 ## Focused Evidence
 
@@ -12,10 +12,10 @@
 - Result: `1 test files, 61 assertions, 0 failures`
 - PASS lines: `61`
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next173.php --self-test`
-- Result: `wordpress-sqlplanner-stat4-expression-partial-current-source-next173 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next173.php --self-test`
+- Result: `application-sqlplanner-stat4-expression-partial-current-source-next173 self-test passed`
 
 ## Non-Overlap
 

@@ -11,8 +11,8 @@ rolled back to the still-open inner savepoint, and retry UPDATE/DELETE
 RETURNING statements read from the restored current source before releasing the
 inner and outer savepoints.
 
-WordPress smoke:
-`wordpress-rowvalue-rollback-to-current-source-next197.php` covers transient
+Application smoke:
+`application-rowvalue-rollback-to-current-source-next197.php` covers transient
 cleanup and option rewrite batches where an inner batch is rolled back, its
 RETURNING rows are suppressed from durable output, and the retry keeps the
 outer rewrite while restoring deleted transient rows and pre-inner option
@@ -33,13 +33,13 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueUpdateDeleteRetur
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext197Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext197Test.php
 
-php -l lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-current-source-next197.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-current-source-next197.php
+php -l lanes/libsqlite/examples/application-rowvalue-rollback-to-current-source-next197.php
+No syntax errors detected in lanes/libsqlite/examples/application-rowvalue-rollback-to-current-source-next197.php
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-current-source-next197.php --self-test
-wordpress-rowvalue-rollback-to-current-source-next197 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-rollback-to-current-source-next197.php --self-test
+application-rowvalue-rollback-to-current-source-next197 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `95013` to `95093` from 80 newly passing

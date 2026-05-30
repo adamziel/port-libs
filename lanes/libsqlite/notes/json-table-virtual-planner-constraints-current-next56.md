@@ -26,10 +26,10 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-virtual-planner-constraints-current-next56.php
+php lanes/libsqlite/examples/application-json-table-virtual-planner-constraints-current-next56.php
 ```
 
-This reports copied WordPress `wp_options` JSON diagnostics with `idxStr`, `filterArguments`, argv-ordered current/next columns, and residual operators without requiring `ext/sqlite`.
+This reports copied Application `wp_options` JSON diagnostics with `idxStr`, `filterArguments`, argv-ordered current/next columns, and residual operators without requiring `ext/sqlite`.
 
 ## Non-Overlap
 

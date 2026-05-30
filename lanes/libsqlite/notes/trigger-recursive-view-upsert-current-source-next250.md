@@ -10,8 +10,8 @@ held until every current recursive UPSERT RETURNING row has a stable rowid
 provenance receipt tied to the current source token, conflict key, rowid
 column, and next247 statement sequence receipt.
 
-WordPress path:
-`wordpress-trigger-recursive-view-upsert-current-source-next250.php` models a
+Application path:
+`application-trigger-recursive-view-upsert-current-source-next250.php` models a
 copied `wp_options` recursive import view where current rows spawn recursive
 child UPSERT RETURNING rows, then a staged next import must wait until current
 rowid provenance is acknowledged.
@@ -21,9 +21,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext250Plan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext250Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next250.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next250.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext250Test.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next250.php
+php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next250.php
 git diff --check -- lanes/libsqlite
 ```
 

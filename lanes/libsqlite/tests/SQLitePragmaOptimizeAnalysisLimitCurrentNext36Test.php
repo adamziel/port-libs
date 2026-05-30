@@ -192,16 +192,16 @@ foreach ($guardCases as $name => $callback) {
     };
 }
 
-$wordpressCases = [
+$applicationCases = [
     'autoload option update touch schedules wp_options analyze' => ['PRAGMA optimize', 0, 'wp_options', 'touched-table'],
     'postmeta stable stats stay skipped' => ['PRAGMA optimize', 0, 'wp_postmeta', 'up-to-date'],
     'missing posts stats schedule analyze' => ['PRAGMA optimize', 0, 'wp_posts', 'missing-stat1'],
     'aux copied options schema schedules attached analyze' => ['PRAGMA aux.optimize', 0, 'wp_options', 'touched-table'],
-    'wordpress preflight bounded limit is restored' => ['PRAGMA optimize', 128, 'restoredAnalysisLimit', 128],
+    'application preflight bounded limit is restored' => ['PRAGMA optimize', 128, 'restoredAnalysisLimit', 128],
 ];
 
-foreach ($wordpressCases as $name => [$sql, $limit, $field, $expected]) {
-    $tests['pragma optimize wordpress ' . $name] = static function (TestRunner $t) use ($tables, $sql, $limit, $field, $expected): void {
+foreach ($applicationCases as $name => [$sql, $limit, $field, $expected]) {
+    $tests['pragma optimize application ' . $name] = static function (TestRunner $t) use ($tables, $sql, $limit, $field, $expected): void {
         $result = (new SQLitePragmaOptimizePlan(['main' => $limit, 'aux' => $limit]))->execute($sql, $tables);
         if ($field === 'restoredAnalysisLimit') {
             $t->same($expected, $result[$field]);

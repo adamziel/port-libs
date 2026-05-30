@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'next249 chunked yield candidate' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-chunked-yield-resume-window.php';
+        $result = require $examplesDir . '/application-rowvalue-chunked-yield-resume-window.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next249', $result['status']);
         $t->same(2, $result['yieldChunks']);
@@ -15,7 +15,7 @@ $cases = [
     },
     'next250 exclude ties candidate' => static function (TestRunner $t) use ($examplesDir): void {
         ob_start();
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next250.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-current-source-next250.php';
         $output = ob_get_clean();
         $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
 
@@ -25,7 +25,7 @@ $cases = [
         $t->same([8, 9], $decoded['replayed']);
     },
     'next251 source handoff candidate' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next251.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-current-source-next251.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next251', $result['status']);
         $t->same('current-source-drained-next-source-digest-ready-next251', $result['handoffState']);
@@ -33,7 +33,7 @@ $cases = [
         $t->true(str_contains($result['dependencyClosure'], 'no new support component needed'));
     },
     'next252 high water fence candidate' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next252.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-current-source-next252.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next252', $result['status']);
         $t->same(4, $result['nextSourceFirstOrdinal']);

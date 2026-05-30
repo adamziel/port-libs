@@ -6,7 +6,7 @@
   SELECT helper family in
   `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan` from numbered
   private helpers into descriptive `*MaxSumIntersectLimit()` helpers.
-- Renamed the direct focused test and WordPress smoke to descriptive
+- Renamed the direct focused test and Application smoke to descriptive
   max-sum-intersect LIMIT paths.
 - Preserved the scenario coverage: recursive queue `LIMIT ... OFFSET`,
   `max()`/`sum()` window arms, `UNION ALL`, `INTERSECT`, `EXCEPT`, final
@@ -17,9 +17,9 @@
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitMaxSumIntersectLimitTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-max-sum-intersect-limit.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-max-sum-intersect-limit.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitMaxSumIntersectLimitTest.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-max-sum-intersect-limit.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-max-sum-intersect-limit.php --self-test`
 
 ## Non-Overlap
 

@@ -12,7 +12,7 @@ next source fenced even when its rows are already prepared.
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext176Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next176.php --self-test`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next176.php --self-test`
 
 Expected dashboard movement: `phpPass +62` from the new focused test file.
 Mapped upstream coverage is unchanged; this is current-source PHP behavior over

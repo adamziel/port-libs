@@ -119,7 +119,7 @@ $cases254 = [
     'optional next receipts records reason' => [static fn (): mixed => $plan254($missingNextReceipt254(), null, null, false)['admission_barrier_next254']['blocked_reasons'], ['next-source-receipts-not-required-next254']],
     'optional next receipts admits missing row' => [static fn (): mixed => $plan254($missingNextReceipt254(), null, null, false)['admission_barrier_next254']['admitted_row_count'], 8],
     'dependency include row receipt' => [static fn (): mixed => in_array('sqlite-returning-window-row-receipt-admission-next254', $plan254()['dependencies_next254'], true), true],
-    'dependency include wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-current-source-next254', $plan254()['dependencies_next254'], true), true],
+    'dependency include application' => [static fn (): mixed => in_array('application-rowvalue-returning-window-current-source-next254', $plan254()['dependencies_next254'], true), true],
     'dependency closure no new support' => [static fn (): mixed => str_contains($plan254()['dependency_closure_next254'], 'no new support component needed'), true],
     'non overlap mentions next251' => [static fn (): mixed => str_contains($plan254()['non_overlap_next254'], 'next251'), true],
     'non overlap mentions next248' => [static fn (): mixed => str_contains($plan254()['non_overlap_next254'], 'next248'), true],

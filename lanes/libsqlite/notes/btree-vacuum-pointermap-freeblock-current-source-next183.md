@@ -10,17 +10,17 @@ pages remain fenced from publication.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext183Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next183.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next183.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext183Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next183.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next183.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:
 
 - Does not repeat next180 apply ordering, next177 batch construction, overflow
   freelist release, root collapse, page relocation, bulk overflow freeblock
-  materialization, or the accepted next180 WordPress smoke.
+  materialization, or the accepted next180 Application smoke.
 - Adds only the current-source commit-receipt layer for the existing B-tree
   vacuum pointer-map/freeblock publication path.
 

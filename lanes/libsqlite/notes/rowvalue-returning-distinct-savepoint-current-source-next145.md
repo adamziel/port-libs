@@ -23,10 +23,10 @@ Focused evidence:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueReturningDistinctSavepointCurrentSourceNextTest.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-distinct-savepoint-current-source.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-returning-distinct-savepoint-current-source.php --self-test
 ```
 
 Result:
@@ -34,7 +34,7 @@ Result:
 ```text
 1 test files, 54 assertions, 0 failures
 54 PASS lines
-wordpress-rowvalue-returning-distinct-savepoint-current-source self-test passed
+application-rowvalue-returning-distinct-savepoint-current-source self-test passed
 ```
 
 Dashboard delta: update `phpPass` by the verified focused PASS-line delta
@@ -51,4 +51,4 @@ savepoint-current-source UPDATE/DELETE RETURNING executor.
 
 Dependency closure: no new support component is needed. The slice reuses the
 lane-local UPDATE/DELETE RETURNING executor, row-value predicate parser,
-savepoint current-source wrapper, and WordPress row-array smoke path.
+savepoint current-source wrapper, and Application row-array smoke path.

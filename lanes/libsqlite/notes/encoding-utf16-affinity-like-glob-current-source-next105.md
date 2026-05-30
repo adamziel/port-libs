@@ -12,8 +12,8 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingUtf16AffinityLikeGlobCurrentSourceNext105Test.php`
 - Result: `1 test files, 65 assertions, 0 failures` with 65 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-utf16-affinity-glob-current-source-next105.php --self-test`
-- Result: `wordpress-utf16-affinity-glob-current-source-next105 self-test passed`.
+- `php lanes/libsqlite/examples/application-utf16-affinity-glob-current-source-next105.php --self-test`
+- Result: `application-utf16-affinity-glob-current-source-next105 self-test passed`.
 
 Non-overlap: avoids accepted Unicode GLOB range handling, malformed UTF-16
 record guards, UTF-16 source-switch cursors, dynamic LIKE affinity, collation

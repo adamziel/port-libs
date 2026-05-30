@@ -15,7 +15,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-vdbe-sort-affinity.php
+php lanes/libsqlite/examples/application-vdbe-sort-affinity.php
 orderedOptionIds: [4, 3, 1, 5, 2]
 ```
 

@@ -15,7 +15,7 @@ next-source rows become visible according to the savepoint release count.
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext169Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next169.php`
+- Application smoke: `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next169.php`
 - PHP lint: `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext169Plan.php`
 - Whitespace: `git diff --check -- lanes/libsqlite`
 

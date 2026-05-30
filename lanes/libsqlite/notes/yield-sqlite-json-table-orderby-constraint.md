@@ -15,7 +15,7 @@
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableOrderByConstraintTest.php`
 - Result: `1 test files, 58 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-orderby-constraint.php`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-orderby-constraint.php`
 
 ## Non-Overlap
 
@@ -27,5 +27,5 @@ constraint consumption rule on top of current-source planning.
 ## Dependency Closure
 
 No new support component is needed. The slice reuses the existing native PHP
-JSON table planner, JSON tree/every row materializer, and WordPress example
+JSON table planner, JSON tree/every row materializer, and Application example
 smoke path.

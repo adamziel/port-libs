@@ -26,10 +26,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 77 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-integrity-rootpage-current-next33.php
+$ php lanes/libsqlite/examples/application-pragma-integrity-rootpage-current-next33.php
 {
     "scenario": "copied wp_options PRAGMA integrity_check rootpage current metadata",
     "valid": {

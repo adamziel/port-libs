@@ -122,7 +122,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('admit_durable_current_source_handoff_next246', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next243', $plan()['dependencies'], true), true],
     'dependency next246' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next246', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-current-source', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-current-source', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat reader snapshot matching'), true],
     'path mismatch blocked' => [static fn (): mixed => $blockedPlan(['path' => '/tmp/wrong.sqlite'])['blocked_write_reasons'], ['vfs_write_path_mismatch', 'checkpoint_database_page_write_missing']],

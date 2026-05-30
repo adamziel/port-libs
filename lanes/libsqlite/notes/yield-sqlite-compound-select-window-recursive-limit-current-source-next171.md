@@ -12,9 +12,9 @@
 - Result: `1 test files, 201 assertions, 0 failures`
 - PASS-line delta: `+62` focused PASS cases in the new lane test file.
 
-## WordPress Smoke
+## Application Smoke
 
-- Added `lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next171.php`.
+- Added `lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next171.php`.
 - The smoke models copied `wp_options` rows where recursive option labels and autoload table rows overlap, requiring window values to be computed before distinct `UNION` and final pagination.
 
 ## Dependency Closure

@@ -18,10 +18,10 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Test.php
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```
-php lanes/libsqlite/examples/wordpress-rowvalue-rollback-transaction-current-source-next178.php
+php lanes/libsqlite/examples/application-rowvalue-rollback-transaction-current-source-next178.php
 ```
 
 Expected dashboard delta: `phpPass` increases by 61 focused PASS lines. Mapped

@@ -1,6 +1,6 @@
 # compound-select-recursive-order-limit-current-source-next146
 
-Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE priority queue uses `ORDER BY priority DESC, name LIMIT 5` before a final compound `ORDER BY priority DESC, name LIMIT 6 OFFSET 1` chooses the current/next WordPress option boundary.
+Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE priority queue uses `ORDER BY priority DESC, name LIMIT 5` before a final compound `ORDER BY priority DESC, name LIMIT 6 OFFSET 1` chooses the current/next Application option boundary.
 
 Behavior covered:
 
@@ -15,9 +15,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundRecursiveOrderLimitCurrentSourceNext146Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-recursive-order-limit-current-source-next146.php
+php -l lanes/libsqlite/examples/application-compound-recursive-order-limit-current-source-next146.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundRecursiveOrderLimitCurrentSourceNext146Test.php
-php lanes/libsqlite/examples/wordpress-compound-recursive-order-limit-current-source-next146.php --self-test
+php lanes/libsqlite/examples/application-compound-recursive-order-limit-current-source-next146.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

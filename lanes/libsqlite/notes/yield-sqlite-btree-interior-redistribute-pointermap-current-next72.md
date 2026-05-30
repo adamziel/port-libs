@@ -11,7 +11,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeInteriorRedistributePointerMapCurrentNext72Test.php`
 - Result: `1 test files, 66 assertions, 0 failures`
 - New focused PASS-line delta: `+66`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-interior-redistribute-current-next72.php`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-interior-redistribute-current-next72.php`
 - PHP lint: changed PHP files pass `php -l`
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 

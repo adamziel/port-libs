@@ -11,10 +11,10 @@ Non-overlap:
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteNocaseRtrimGlobAffinityCurrentSourceNext142Test.php`
-- `php lanes/libsqlite/examples/wordpress-nocase-rtrim-glob-affinity-current-source-next142.php`
+- `php lanes/libsqlite/examples/application-nocase-rtrim-glob-affinity-current-source-next142.php`
 - `php -l lanes/libsqlite/src/SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteNocaseRtrimGlobAffinityCurrentSourceNext142Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-nocase-rtrim-glob-affinity-current-source-next142.php`
+- `php -l lanes/libsqlite/examples/application-nocase-rtrim-glob-affinity-current-source-next142.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this reuses native UTF text decoding, affinity comparison, BINARY/NOCASE/RTRIM collation keys, and existing bytewise GLOB residual matching.

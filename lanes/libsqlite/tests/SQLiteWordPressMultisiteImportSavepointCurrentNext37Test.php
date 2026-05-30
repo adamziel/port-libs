@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressMultisiteImportSavepointPlan;
+use PortLibs\LibSqlite\SQLiteMultisiteImportSavepointPlan;
 
 $sites = static fn (): array => [
     [
@@ -45,7 +45,7 @@ $globalBatches = static fn (): array => [
     ]],
 ];
 
-$plan = static fn (array $siteRows = null, array $options = []): array => SQLiteWordPressMultisiteImportSavepointPlan::plan(
+$plan = static fn (array $siteRows = null, array $options = []): array => SQLiteMultisiteImportSavepointPlan::plan(
     $siteRows ?? $sites(),
     $options + [
         'database_path' => '/tmp/wp-multisite-import.sqlite',
@@ -91,8 +91,8 @@ $cases = [
     'global released rows are stored separately' => [static fn (): mixed => array_column($plan()['released_rows_by_table']['wp_sitemeta'], 'option_name'), ['site_admins', 'registration']],
     'dirty pages are namespaced by blog id' => [static fn (): mixed => $plan()['dirty_pages'], [2, 100002, 100003, 200002]],
     'journal bytes count multisite page namespace' => [static fn (): mixed => $plan()['journal_bytes'], 4156],
-    'dependency includes multisite import' => [static fn (): mixed => in_array('sqlite-wordpress-multisite-import-savepoint-current', $plan()['dependencies'], true), true],
-    'dependency includes bulk import savepoint' => [static fn (): mixed => in_array('sqlite-wordpress-bulk-import-savepoint-current', $plan()['dependencies'], true), true],
+    'dependency includes multisite import' => [static fn (): mixed => in_array('sqlite-application-multisite-import-savepoint-current', $plan()['dependencies'], true), true],
+    'dependency includes bulk import savepoint' => [static fn (): mixed => in_array('sqlite-application-bulk-import-savepoint-current', $plan()['dependencies'], true), true],
     'dependency includes savepoint rollback' => [static fn (): mixed => in_array('sqlite-savepoint-current-rollback', $plan()['dependencies'], true), true],
     'persist journal option is preserved' => [static fn (): mixed => $plan(null, ['journal_mode' => 'persist'])['journal_mode'], 'persist'],
     'normal sync option is preserved' => [static fn (): mixed => $plan(null, ['sync_mode' => 'normal'])['sync_mode'], 'normal'],
@@ -112,7 +112,7 @@ $cases = [
         array_replace($sites()[0], ['batches' => [['name' => 'bad-name', 'rows' => []]]]),
         $sites()[1],
     ], ['continue_on_site_error' => false]), InvalidArgumentException::class],
-    'empty site list rejected' => [static fn (): mixed => SQLiteWordPressMultisiteImportSavepointPlan::plan([]), InvalidArgumentException::class],
+    'empty site list rejected' => [static fn (): mixed => SQLiteMultisiteImportSavepointPlan::plan([]), InvalidArgumentException::class],
     'duplicate blog id rejected' => [static fn (): mixed => $plan([$sites()[0], $sites()[0]]), InvalidArgumentException::class],
     'zero blog id rejected' => [static fn (): mixed => $plan([['blog_id' => 0, 'current_rows' => [], 'batches' => []]]), InvalidArgumentException::class],
     'string blog id is accepted' => [static fn (): mixed => $plan([['blog_id' => '3', 'current_rows' => [['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'x', 'autoload' => 'yes']], 'batches' => [['rows' => [['option_name' => 'blogname', 'option_value' => 'Third', 'autoload' => 'yes']]]]]], ['global_batches' => []])['sites'][0]['table'], 'wp_3_options'],
@@ -127,7 +127,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wordpress multisite import savepoint current next37 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application multisite import savepoint current next37 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

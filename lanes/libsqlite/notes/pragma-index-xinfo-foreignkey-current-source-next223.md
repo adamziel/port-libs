@@ -2,7 +2,7 @@
 
 This slice adds current/next PRAGMA evidence for `PRAGMA foreign_key_list`
 `match` column behavior. SQLite records `MATCH name` in the catalog, but its
-native enforcement still uses the built-in match semantics; copied WordPress
+native enforcement still uses the built-in match semantics; copied Application
 import preflights should flag custom names such as `MATCH FULL` before treating
 them as alternate FK enforcement.
 
@@ -15,16 +15,16 @@ Behavior:
   names as `custom_match_name`.
 - Current/next source IDs include match summaries, so resume cursors reject
   stale pages when copied schema reparses remove or change custom match names.
-- WordPress smoke coverage models a copied `wp_postmeta_import` schema that
+- Application smoke coverage models a copied `wp_postmeta_import` schema that
   removes `MATCH FULL` before admitting a parent-key repair.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next223.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next223.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next223.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next223.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

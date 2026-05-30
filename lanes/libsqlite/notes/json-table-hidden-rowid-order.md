@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for JSON table hidden rowid ORDER BY current
 
 This slice adds `SQLiteJsonTablePlan::currentSourceHiddenRowidOrder()`. It composes the accepted hidden-rowid current-source planner with ORDER BY profiling so a prepared `json_tree()` scan can distinguish stable hidden rowid tie-break order from source JSON changes that alter generated order keys, sorted rowids, and reprepare reasons.
 
-WordPress path: `wordpress-json-table-hidden-rowid-order.php` models copied `wp_options` plugin rule JSON where `ORDER BY atom DESC, rowid` keeps equal priority leaves in hidden rowid order while the next source inserts a new rule with the same priority.
+Application path: `application-json-table-hidden-rowid-order.php` models copied `wp_options` plugin rule JSON where `ORDER BY atom DESC, rowid` keeps equal priority leaves in hidden rowid order while the next source inserts a new rule with the same priority.
 
 Verification:
 
@@ -13,8 +13,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenRowidOrderTes
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 59 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-json-table-hidden-rowid-order.php --self-test
-wordpress-json-table-hidden-rowid-order self-test passed
+php lanes/libsqlite/examples/application-json-table-hidden-rowid-order.php --self-test
+application-json-table-hidden-rowid-order self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `56681` to `56740` for the 59 verified PASS lines. Mapped upstream coverage is unchanged because this is current-source PHP behavior over already mapped JSON table hidden rowid and ORDER BY planner surfaces, not a newly hydrated upstream inventory row.

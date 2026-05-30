@@ -2,13 +2,13 @@
 
 Status: focused PHP corpus growth for WAL checkpoint busy-reader current/next visibility.
 
-This slice adds `SQLiteWal::checkpointBusyReaderCurrentNext()` for copied WordPress database imports. It composes a reader-blocked FULL/RESTART checkpoint with two explicit visibility views: the current reader remains pinned to its original WAL end frame, while the next reader opens against the partially checkpointed database image and the preserved WAL tail. This covers the upstream WAL rule that busy checkpoints may copy safe frames but must not reset or truncate WAL content needed by active readers.
+This slice adds `SQLiteWal::checkpointBusyReaderCurrentNext()` for copied Application database imports. It composes a reader-blocked FULL/RESTART checkpoint with two explicit visibility views: the current reader remains pinned to its original WAL end frame, while the next reader opens against the partially checkpointed database image and the preserved WAL tail. This covers the upstream WAL rule that busy checkpoints may copy safe frames but must not reset or truncate WAL content needed by active readers.
 
 Files changed:
 
 - `lanes/libsqlite/src/SQLiteWal.php`
 - `lanes/libsqlite/tests/SQLiteWalCheckpointBusyReaderCurrentNext29Test.php`
-- `lanes/libsqlite/examples/wordpress-wal-checkpoint-busy-reader-current-next29.php`
+- `lanes/libsqlite/examples/application-wal-checkpoint-busy-reader-current-next29.php`
 - `lanes/libsqlite/lane-status.json`
 - `lanes/libsqlite/notes/wal-checkpoint-busy-reader-current-next29.md`
 
@@ -16,9 +16,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWal.php` -> no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteWalCheckpointBusyReaderCurrentNext29Test.php` -> no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-busy-reader-current-next29.php` -> no syntax errors.
+- `php -l lanes/libsqlite/examples/application-wal-checkpoint-busy-reader-current-next29.php` -> no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointBusyReaderCurrentNext29Test.php` -> `1 test files, 54 assertions, 0 failures` with 54 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-wal-checkpoint-busy-reader-current-next29.php --self-test` -> self-test passed and printed busy checkpoint current/next reader evidence.
+- `php lanes/libsqlite/examples/application-wal-checkpoint-busy-reader-current-next29.php --self-test` -> self-test passed and printed busy checkpoint current/next reader evidence.
 - `git diff --check -- lanes/libsqlite` -> clean.
 
 Dashboard delta:

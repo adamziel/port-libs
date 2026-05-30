@@ -9,7 +9,7 @@ Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, extending 
 - current-row window replay tickets from next243;
 - current and next final labels before next-source exposure.
 
-This keeps a yielded WordPress `wp_options` next-source candidate held until the current compound SELECT source has acknowledged recursive queue, spillover, and window lineage state.
+This keeps a yielded Application `wp_options` next-source candidate held until the current compound SELECT source has acknowledged recursive queue, spillover, and window lineage state.
 
 ## Evidence
 
@@ -18,9 +18,9 @@ This keeps a yielded WordPress `wp_options` next-source candidate held until the
 - PASS lines: `80`
 - Expected `phpPass`: `125265 -> 125345`
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next246.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next246.php --self-test`
 
 ## Non-Overlap
 

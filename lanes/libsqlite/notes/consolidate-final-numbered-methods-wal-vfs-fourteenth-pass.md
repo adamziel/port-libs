@@ -9,7 +9,7 @@ clusters for the VFS current-source published-reuse sequence in
 - `next594-609` helpers now use `PrePublishedReuseSnapshotFence` names.
 
 The public slice routing, tests, behavioral strings, and dependency labels are
-preserved so the existing direct VFS tests and WordPress examples keep the same
+preserved so the existing direct VFS tests and Application examples keep the same
 scenario coverage. No production numbered class, file, compatibility shim, or
 lazy loader was added.
 

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a pinned-reader current-source WAL/VFS apply path for a WordPress-style import crash:
+Adds a pinned-reader current-source WAL/VFS apply path for a Application-style import crash:
 
 - recover the hot rollback journal first;
 - roll back the active WAL savepoint to its retained prefix;
@@ -27,13 +27,13 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 56 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next163.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next163.php
 ```
 
-Expected output includes `status: applied-pinned-reader`, `walAction: preserve_wal`, `walFrames: 2`, journal removal, retained WordPress option page visibility, and discarded savepoint draft exclusion.
+Expected output includes `status: applied-pinned-reader`, `walAction: preserve_wal`, `walFrames: 2`, journal removal, retained Application option page visibility, and discarded savepoint draft exclusion.
 
 ## Dependency Closure
 

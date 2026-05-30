@@ -34,12 +34,12 @@ Result:
 82 PASS lines
 ```
 
-## WordPress smoke
+## Application smoke
 
 Example:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-rebalance-pointermap-current-source-next88.php
+php lanes/libsqlite/examples/application-btree-rebalance-pointermap-current-source-next88.php
 ```
 
 The smoke reports a copied `wp_options` `option_name` index deletion where

@@ -5,15 +5,15 @@
 - Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext210Plan`.
 - Builds on accepted next209 writer-source latch rows and materializes the next writer apply queue.
 - Verifies pointer-map current-source pages are applied before payload/freeblock pages, writer tokens remain chained, current-source epochs are ready, and truncated tail pages 109/110 remain fenced.
-- WordPress smoke models copied `wp_options` transient deletion where obsolete overflow pages are vacuumed and the next writer must not reuse payload pages before pointer-map state is visible.
+- Application smoke models copied `wp_options` transient deletion where obsolete overflow pages are vacuumed and the next writer must not reuse payload pages before pointer-map state is visible.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext210Test.php`
 - Result: `1 test files, 1139 assertions, 0 failures`
 - PASS-line delta: `149`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next210.php`
-- Result: `wordpress-btree-vacuum-pointermap-freeblock-current-source-next210 self-test passed`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next210.php`
+- Result: `application-btree-vacuum-pointermap-freeblock-current-source-next210 self-test passed`
 
 ## Non-overlap
 

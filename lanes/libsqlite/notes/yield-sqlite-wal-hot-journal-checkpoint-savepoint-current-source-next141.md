@@ -5,7 +5,7 @@
 This slice adds `SQLiteWalHotJournalCheckpointSavepointCurrentSourceNextPlan`
 for the current-source WAL path where:
 
-- a copied WordPress database image first recovers a hot rollback journal;
+- a copied Application database image first recovers a hot rollback journal;
 - WAL transaction recovery keeps only the committed prefix;
 - `ROLLBACK TO` an inner savepoint truncates that prefix to the current reader
   source;
@@ -30,10 +30,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 85 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-checkpoint-savepoint-current-source-next141.php
+php lanes/libsqlite/examples/application-wal-hot-journal-checkpoint-savepoint-current-source-next141.php
 ```
 
 The smoke returns JSON showing the current reader remains pinned to the

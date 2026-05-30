@@ -3,7 +3,7 @@
 This consolidation pass keeps
 `SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan` as the canonical
 class and renames its numbered production entry/helper methods to stable
-predicate-fence names. The direct test and WordPress smoke now use stable file
+predicate-fence names. The direct test and Application smoke now use stable file
 names and call `materializeCurrentPredicateFence()`.
 
 The planner behavior still reuses accepted expression skip-scan materialization, then records
@@ -20,10 +20,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerPartialExpressionSkip
 1 test files, 63 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-planner-partial-expression-skipscan-current-source-predicate-fence.php
+php lanes/libsqlite/examples/application-planner-partial-expression-skipscan-current-source-predicate-fence.php
 ```
 
 Non-overlap: avoids accepted next129 expression-key materialization, next132

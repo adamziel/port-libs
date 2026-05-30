@@ -28,11 +28,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 67 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162.php --self-test
+application-pragma-index-xinfo-foreignkey-implicit-parent-current-source-next162 self-test passed
 ```
 
 PASS-line delta: +61 focused PASS lines.

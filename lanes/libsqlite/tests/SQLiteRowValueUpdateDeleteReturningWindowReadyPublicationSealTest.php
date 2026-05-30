@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'ready publication handoff seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-ready-publication-seal.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-ready-publication-seal.php';
 
         $expectedStatuses = [];
         for ($next = 990; $next <= 1005; $next++) {

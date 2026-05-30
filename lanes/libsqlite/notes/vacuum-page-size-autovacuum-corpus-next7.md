@@ -24,13 +24,13 @@ The corpus covers:
 - round-trip parsing through `SQLiteDatabase` and `SQLitePragmaSnapshot`;
 - invalid page-size and auto-vacuum inputs.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vacuum-page-size-autovacuum.php
+php lanes/libsqlite/examples/application-vacuum-page-size-autovacuum.php
 ```
 
-The smoke previews a copied WordPress database VACUUM that rewrites a 1024-byte
+The smoke previews a copied Application database VACUUM that rewrites a 1024-byte
 page image to 4096-byte pages and enables incremental auto-vacuum without
 requiring `ext-sqlite`.
 

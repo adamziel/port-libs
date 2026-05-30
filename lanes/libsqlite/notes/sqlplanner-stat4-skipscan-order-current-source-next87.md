@@ -14,8 +14,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteStat4SkipScanOrderCurrentSou
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 43 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-planner-stat4-skipscan-order-current-source-next87.php --self-test
-wordpress-planner-stat4-skipscan-order-current-source-next87 self-test passed
+php lanes/libsqlite/examples/application-planner-stat4-skipscan-order-current-source-next87.php --self-test
+application-planner-stat4-skipscan-order-current-source-next87 self-test passed
 ```
 
 Dependency closure: no new support component is needed. This reuses the native

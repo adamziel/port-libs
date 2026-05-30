@@ -7,8 +7,8 @@ Behavior:
 - The planner composes the accepted generated-path rowid cost profile into xFilter/yield metadata: admission decision, yield mode, ordered rowid tape, argv program, omitted/residual columns, estimated rows/cost, program fingerprint, and current/next replan reasons.
 - The current source remains pinned only when the generated path and rowid seek produce a concrete yield tape; shifted next-source rows prepare a fresh JSON table yield plan.
 
-WordPress path:
-- `examples/wordpress-json-table-generated-path-rowid-cost-current-source-next169.php --self-test` models copied `wp_options` plugin-rule JSON where a generated path plus `_rowid_` point constraint can yield from the current `json_tree()` cursor while the next copied source reparses.
+Application path:
+- `examples/application-json-table-generated-path-rowid-cost-current-source-next169.php --self-test` models copied `wp_options` plugin-rule JSON where a generated path plus `_rowid_` point constraint can yield from the current `json_tree()` cursor while the next copied source reparses.
 
 Verification:
 

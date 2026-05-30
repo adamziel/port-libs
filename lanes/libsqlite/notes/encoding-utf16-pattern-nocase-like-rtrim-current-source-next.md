@@ -2,18 +2,18 @@
 
 Status: focused PHP behavior growth for UTF-16 encoded LIKE pattern and ESCAPE values with NOCASE residual matching and RTRIM index-range keys.
 
-WordPress path: `wordpress-utf16-pattern-nocase-like-rtrim-current-source-next.php` models a copied `wp_options.option_name` prefix scan where the prepared LIKE pattern and ESCAPE value move from UTF-16LE bytes in the current source to UTF-16BE bytes in the next source. The scan keeps SQLite's two-stage behavior: the RTRIM index key admits space-padded candidates, while the NOCASE LIKE residual is evaluated against the untrimmed decoded text.
+Application path: `application-utf16-pattern-nocase-like-rtrim-current-source-next.php` models a copied `wp_options.option_name` prefix scan where the prepared LIKE pattern and ESCAPE value move from UTF-16LE bytes in the current source to UTF-16BE bytes in the next source. The scan keeps SQLite's two-stage behavior: the RTRIM index key admits space-padded candidates, while the NOCASE LIKE residual is evaluated against the untrimmed decoded text.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-pattern-nocase-like-rtrim-current-source-next.php`
+- `php -l lanes/libsqlite/examples/application-utf16-pattern-nocase-like-rtrim-current-source-next.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextTest.php`
   - `1 test files, 85 assertions, 0 failures`
   - `76` PASS lines
-- `php lanes/libsqlite/examples/wordpress-utf16-pattern-nocase-like-rtrim-current-source-next.php --self-test`
-  - `wordpress-utf16-pattern-nocase-like-rtrim-current-source-next self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-pattern-nocase-like-rtrim-current-source-next.php --self-test`
+  - `application-utf16-pattern-nocase-like-rtrim-current-source-next self-test passed`
 
 Expected dashboard movement: `phpPass +76`, from `70146` to `70222`. Mapped upstream coverage remains `608 / 1589`; this is current-source PHP behavior over already mapped encoding, collation, LIKE, and current-source inventory rather than a fresh upstream manifest row.
 

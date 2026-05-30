@@ -4,7 +4,7 @@ This slice adds a bounded current-source proof for SQLite row-value
 `BETWEEN`/`NOT BETWEEN` predicates across `DELETE` then `UPDATE` statements
 inside a savepoint.
 
-The covered WordPress path is an import cleanup batch over copied
+The covered Application path is an import cleanup batch over copied
 `wp_options` rows:
 
 - a `DELETE ... RETURNING` removes the first transient row selected by a
@@ -18,7 +18,7 @@ The covered WordPress path is an import cleanup batch over copied
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-between-cleanup.php`
+- `php lanes/libsqlite/examples/application-rowvalue-delete-update-savepoint-between-cleanup.php`
 
 Non-overlap:
 

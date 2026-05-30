@@ -1,8 +1,8 @@
-# WordPress Multisite JSON Import Current Next39
+# Application Multisite JSON Import Current Next39
 
 ## Behavior
 
-- Extends `SQLiteWordPressJsonImportSavepointPlan` from single-site `option_name`
+- Extends `SQLiteJsonImportSavepointPlan` from single-site `option_name`
   lookup to multisite `blog_id:option_name` lookup when current rows include
   `blog_id`.
 - Preserves duplicate `option_name` values across different blogs while still
@@ -16,14 +16,14 @@
 ## Focused Evidence
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressMultisiteJsonImportCurrentNext39Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteMultisiteJsonImportCurrentNext39Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 55 assertions, 0 failures
 ```
 
 Expected dashboard movement for this isolated lane patch: `phpPass` `14044 ->
 14099` by the verified 55 new focused PASS lines. `benchmarkDenominator.mapped`
-is unchanged because this is a WordPress import behavior slice, not a newly
+is unchanged because this is a Application import behavior slice, not a newly
 mapped upstream SQLite inventory unit.
 
 ## Non-Overlap

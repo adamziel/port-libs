@@ -16,9 +16,9 @@ Focused verification:
 
 ```text
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228231Test.php
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next228-231.php --self-test
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next228-231.php --self-test
 ```
 
 No new source component is required. This note documents the cross-slice
-WordPress import smoke only; the individual next228, next229, next230, and
+Application import smoke only; the individual next228, next229, next230, and
 next231 notes remain the detailed behavior handoffs.

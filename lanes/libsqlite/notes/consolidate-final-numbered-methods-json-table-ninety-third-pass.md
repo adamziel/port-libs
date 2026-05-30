@@ -20,7 +20,7 @@ aliases that affected JSON-table domain tests still assert:
 - `sqlite-json-table-rowid-hidden-constraint-current-source-next99`
 - `sqlite-json-table-generated-hidden-rowid-cost-current-source-next142`
 
-The direct `next219` generated-path rowid limit-admission test and WordPress
+The direct `next219` generated-path rowid limit-admission test and Application
 smoke were migrated to the existing canonical
 `currentSourceGeneratedPathRowidCurrentSourceLimitAdmission()` entry point so
 their expected `next219` observable keys remain produced by the canonical
@@ -30,7 +30,7 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext219Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next219.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next219.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenRowidPlannerTest.php`
   - `1 test files, 55 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext219Test.php lanes/libsqlite/tests/SQLiteJsonTableHiddenRowidPlannerTest.php`
@@ -39,9 +39,9 @@ Verification:
   - `6 test files, 369 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTable*Test.php`
   - `305 test files, 20187 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next219.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next219 self-test passed`
-- `php lanes/libsqlite/examples/wordpress-json-table-hidden-rowid-planner.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next219.php --self-test`
+  - `application-json-table-generated-path-rowid-cost-current-source-next219 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-hidden-rowid-planner.php --self-test`
   - exited 0 with expected JSON payload
 - `git diff --check -- lanes/libsqlite`
 

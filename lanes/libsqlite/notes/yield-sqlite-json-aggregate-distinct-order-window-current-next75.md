@@ -22,11 +22,11 @@ Focused test run: 1 selected test files (root lock skipped)
 40 PASS lines
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-aggregate-distinct-order-window-current-next75.php --self-test
-wordpress-json-aggregate-distinct-order-window-current-next75 self-test passed
+php lanes/libsqlite/examples/application-json-aggregate-distinct-order-window-current-next75.php --self-test
+application-json-aggregate-distinct-order-window-current-next75 self-test passed
 ```
 
 ## Dependency Closure

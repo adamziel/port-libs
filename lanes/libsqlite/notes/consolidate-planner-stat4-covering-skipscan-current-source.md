@@ -11,10 +11,10 @@ signature has changed. The selected current plan emits a covering cursor tape
 with `ReprepareIfStat4FenceStale`, `SeekScan`, `Stat4SampleGate`, and covering
 `Column` reads.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-covering-skipscan-current-source.php --self-test`
-  - `wordpress-planner-stat4-covering-skipscan-current-source self-test passed`
+- `php lanes/libsqlite/examples/application-planner-stat4-covering-skipscan-current-source.php --self-test`
+  - `application-planner-stat4-covering-skipscan-current-source self-test passed`
 
 Focused verification:
 

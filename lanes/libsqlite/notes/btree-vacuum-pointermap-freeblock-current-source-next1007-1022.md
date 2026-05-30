@@ -5,6 +5,6 @@ Extends the consolidated `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`
 Focused coverage:
 
 - `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistHandoffBatchOneTest.php`
-- `wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff-batch-one.php`
+- `application-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff-batch-one.php`
 
 The range preserves pointer-map/freeblock handoff ordering, freelist token continuity, current-source page parity, trunk-before-leaf receipt publication, and tail page exclusion over the same auto-vacuum fixture used by next991-1006.

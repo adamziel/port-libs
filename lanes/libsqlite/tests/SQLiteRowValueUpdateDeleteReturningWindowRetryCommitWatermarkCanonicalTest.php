@@ -110,7 +110,7 @@ $casesWatermark = [
     'retry deletes timeout' => [static fn (): mixed => in_array(4, array_column($planWatermark()['next_source_tables']['wp_options'], 'option_id'), true), false],
     'retry updates plugin batch' => [static fn (): mixed => $planWatermark()['retry_commit_rows'][0]['option_id'], 9],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-window-retry-commit-watermark', $planWatermark()['dependencies'], true), true],
-    'wordpress marker' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-retry-commit-watermark', $planWatermark()['dependencies'], true), true],
+    'application marker' => [static fn (): mixed => in_array('application-rowvalue-returning-window-retry-commit-watermark', $planWatermark()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($planWatermark()['dependency_closure'], 'no new support component needed'), true],
     'non overlap next253' => [static fn (): mixed => str_contains($planWatermark()['non_overlap'], 'next253'), true],
     'non overlap next248' => [static fn (): mixed => str_contains($planWatermark()['non_overlap'], 'next248'), true],

@@ -2,17 +2,17 @@
 
 Status: focused PHP behavior growth for UTF-16 RTRIM/NOCASE LIKE current-source scans when the prepared `ESCAPE` binding changes before a next-source cursor reuse.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next200.php` models copied `wp_options.option_name` prefix scans where a plugin import changes the escape character from `!` to `~`. The same SQL pattern text can move the prefix range from literal `plugin_` keys to literal `plugin!` keys, so the cursor must reprepare before reusing the old range or residual rowset.
+Application path: `application-utf16-nocase-like-rtrim-current-source-next200.php` models copied `wp_options.option_name` prefix scans where a plugin import changes the escape character from `!` to `~`. The same SQL pattern text can move the prefix range from literal `plugin_` keys to literal `plugin!` keys, so the cursor must reprepare before reusing the old range or residual rowset.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next200.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next200.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Test.php`
   - `1 test files, 76 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next200.php --self-test`
-  - `wordpress-utf16-nocase-like-rtrim-current-source-next200 self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next200.php --self-test`
+  - `application-utf16-nocase-like-rtrim-current-source-next200 self-test passed`
 
 Expected dashboard movement: `phpPass +76`, from `95731` to `95807`. Mapped upstream coverage remains `619 / 1589`; this is current-source PHP behavior over already mapped UTF-16, RTRIM, NOCASE, LIKE, and ESCAPE inventory rather than a fresh manifest-backed row.
 

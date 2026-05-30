@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteVfsFileWriter::applyWalHotJournalStatementCurrentSourceNext117()` for the VFS application edge where a copied WordPress SQLite database has current database bytes, a hot rollback journal, and a WAL sidecar whose tail belongs to a failed statement subjournal. The writer hydrates the current source files from the VFS root, reuses the existing hot-journal/WAL statement current-source planner, and applies the resulting database, journal deletion, and WAL-prefix truncation operations atomically through native PHP file handles.
+Adds `SQLiteVfsFileWriter::applyWalHotJournalStatementCurrentSourceNext117()` for the VFS application edge where a copied Application SQLite database has current database bytes, a hot rollback journal, and a WAL sidecar whose tail belongs to a failed statement subjournal. The writer hydrates the current source files from the VFS root, reuses the existing hot-journal/WAL statement current-source planner, and applies the resulting database, journal deletion, and WAL-prefix truncation operations atomically through native PHP file handles.
 
 This is intentionally not a duplicate of accepted hot rollback admission, WAL byte truncation, rollback-journal commit, VFS writer, or savepoint rollback wrappers. The new behavior is the combined current-source file-handle application of hot rollback plus statement-journal rollback over a WAL sidecar.
 
@@ -12,9 +12,9 @@ This is intentionally not a duplicate of accepted hot rollback admission, WAL by
 
 Result: `1 test files, 61 assertions, 0 failures` with 48 PASS lines.
 
-`php lanes/libsqlite/examples/wordpress-wal-statement-hot-rollback-current-source-next117.php --self-test`
+`php lanes/libsqlite/examples/application-wal-statement-hot-rollback-current-source-next117.php --self-test`
 
-Result: `wordpress WAL statement hot rollback current-source next117 self-test passed`.
+Result: `application WAL statement hot rollback current-source next117 self-test passed`.
 
 ## Dependency Closure
 

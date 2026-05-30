@@ -20,9 +20,9 @@ Focused behavior:
 - Validates malformed STAT4 sample lists, row counts, column maps, missing
   sample columns, and invalid sample literal values.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-planner-stat4-partial-covering-order-current-next38.php`
+- `examples/application-planner-stat4-partial-covering-order-current-next38.php`
   reports a copied `wp_options` autoload/plugin `option_name` scan choosing a
   partial covering index with `ORDER BY option_name, option_id DESC`, where
   STAT4 samples reduce the fallback estimate from 240 rows to 24 rows.
@@ -36,8 +36,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteCoveringIndexPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialCoveringOrderCurrentNext38Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePlannerStat4PartialCoveringOrderCurrentNext38Test.php
 
-php -l lanes/libsqlite/examples/wordpress-planner-stat4-partial-covering-order-current-next38.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-planner-stat4-partial-covering-order-current-next38.php
+php -l lanes/libsqlite/examples/application-planner-stat4-partial-covering-order-current-next38.php
+No syntax errors detected in lanes/libsqlite/examples/application-planner-stat4-partial-covering-order-current-next38.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialCoveringOrderCurrentNext38Test.php
 Focused test run: 1 selected test files (root lock skipped)

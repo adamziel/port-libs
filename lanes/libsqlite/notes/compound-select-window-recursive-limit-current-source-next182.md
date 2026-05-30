@@ -4,7 +4,7 @@ This patch adds a focused current-source wrapper for compound SELECT behavior
 where a recursive CTE arm remains syntactically present but is exhausted by
 `LIMIT 0`. The table arms still evaluate window functions before `UNION ALL`
 combination, and the final `ORDER BY ... LIMIT ... OFFSET` moves the
-WordPress current/next boundary when plugin/theme options are added.
+Application current/next boundary when plugin/theme options are added.
 
 Behavior covered:
 
@@ -19,9 +19,9 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext182Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next182.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next182.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext182Test.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next182.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next182.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +63` from the new focused test file.

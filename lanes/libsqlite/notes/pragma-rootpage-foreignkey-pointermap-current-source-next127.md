@@ -1,7 +1,7 @@
 # pragma-rootpage-foreignkey-pointermap-current-source-next127
 
 This slice tightens `SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext`
-for attached-schema WordPress copy/import diagnostics. The helper now resolves
+for attached-schema Application copy/import diagnostics. The helper now resolves
 child and parent rootpage analysis rows by the catalog rootpage first, falling
 back to table name only when a rootpage row is unavailable. That prevents a
 duplicate `wp_options` or `wp_option_names` table name in an attached archive
@@ -15,7 +15,7 @@ Verification:
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 61 assertions, 0 failures`
   - `54` PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-rootpage-foreignkey-pointermap-current-source-next127.php`
+- `php lanes/libsqlite/examples/application-pragma-rootpage-foreignkey-pointermap-current-source-next127.php`
   - printed `main_child_rootpage_status: ok` for rootpage `4` and
     `archive_child_rootpage_status: pointer_map` for rootpage `7`.
 

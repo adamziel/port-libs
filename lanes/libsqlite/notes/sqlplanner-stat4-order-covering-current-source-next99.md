@@ -1,7 +1,7 @@
 # SQL Planner STAT4 Order Covering Current Source Next99
 
 This slice adds `SQLiteStat4OrderCoveringCurrentSourceNextPlan`, a bounded
-native planner materializer for a copied WordPress `wp_options` query after an
+native planner materializer for a copied Application `wp_options` query after an
 `ANALYZE` refresh changes schema-cookie/STAT4/index signatures.
 
 Behavior covered:
@@ -22,10 +22,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 77 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-stat4-order-covering-current-source-next99.php
+php lanes/libsqlite/examples/application-stat4-order-covering-current-source-next99.php
 ```
 
 Non-overlap: this does not repeat batch94's STAT4 order-covering

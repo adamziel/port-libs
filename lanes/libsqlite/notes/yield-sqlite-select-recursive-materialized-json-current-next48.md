@@ -24,11 +24,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 60 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-select-recursive-materialized-json-current-next48.php --self-test
-wordpress-select-recursive-materialized-json-current-next48 self-test passed
+$ php lanes/libsqlite/examples/application-select-recursive-materialized-json-current-next48.php --self-test
+application-select-recursive-materialized-json-current-next48 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` `17373 -> 17433` from 60 newly verified
@@ -45,4 +45,4 @@ wiring, JSON visible/hidden constraint pushdown, SELECT SQL subqueries,
 GROUP BY/HAVING, expression ORDER BY, VFS/WAL/B-tree/encoding clusters, and the
 batch23 derived materialization surface. The new surface is the intersection of
 recursive SELECT queue materialization with JSON table current/next scans for
-reachable WordPress JSON import rows.
+reachable Application JSON import rows.

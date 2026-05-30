@@ -108,7 +108,7 @@ foreach ($matchCases as $name => [$pattern, $encoding, $collation, $expectedRowi
     };
 }
 
-$tests['utf16 glob current next78 matched rows preserve wordpress payload and encoding metadata'] = static function (TestRunner $t) use ($cursor): void {
+$tests['utf16 glob current next78 matched rows preserve application payload and encoding metadata'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('plugin_😀*', 2, 'BINARY')->matchedRows();
     $t->same('plugin_😀_cache', $rows[0]['payload']['option_name']);
     $t->same('yes', $rows[0]['payload']['autoload']);

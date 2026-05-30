@@ -44,7 +44,7 @@ $plan242 = static fn (
     string $nextSource = 'main.wp_options@242',
     int $currentCookie = 241,
     int $nextCookie = 242,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan(
     $current ?? $current242,
     $next ?? $nextTwoFourTwo,
     $pattern,
@@ -160,8 +160,8 @@ $tests['encoding collation affinity like current source nextTwoFourTwo escaped u
         ['option_id' => 1, 'option_value' => "plugin\0cache_suffix"],
         ['option_id' => 2, 'option_value' => "plugin\0cacheXsuffix"],
     ];
-    $escaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
-    $wild = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan($rows, $rows, "plugin\0cache_%", null, false, 'same', 'same', 1, 1);
+    $escaped = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
+    $wild = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache_%", null, false, 'same', 'same', 1, 1);
     $t->same([1], $escaped['currentMatchedRowids']);
     $t->same([2, 1], $wild['currentMatchedRowids']);
 };
@@ -171,7 +171,7 @@ $tests['encoding collation affinity like current source nextTwoFourTwo percent a
         ['option_id' => 1, 'option_value' => "plugin\0cache_"],
         ['option_id' => 2, 'option_value' => "plugin\0cache"],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentMatchedRowids']);
 };
 
@@ -181,7 +181,7 @@ $tests['encoding collation affinity like current source nextTwoFourTwo numeric b
         ['option_id' => 2, 'option_value' => true],
         ['option_id' => 3, 'option_value' => 'plugin_cache_suffix'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
     $t->same([], $plan['currentMatchedRowids']);
     $t->same(['31', '3130', '706c7567696e5f63616368655f737566666978'], array_values($plan['currentTextsHex']));
 };
@@ -192,21 +192,21 @@ $tests['encoding collation affinity like current source nextTwoFourTwo blob and 
         ['option_id' => 2, 'option_value' => null],
         ['option_id' => 3, 'option_value' => "plugin\0cache_blob"],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($rows, $rows, "plugin\0cache!_%", '!', false, 'same', 'same', 1, 1);
     $t->same([3], $plan['currentMatchedRowids']);
     $t->same([1, 2], $plan['currentUnknownRowids']);
 };
 
 $tests['encoding collation affinity like current source nextTwoFourTwo rejects multi character escape'] = static function (TestRunner $t) use ($current242, $nextTwoFourTwo): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan($current242, $nextTwoFourTwo, "plugin\0cache!!_%", '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan($current242, $nextTwoFourTwo, "plugin\0cache!!_%", '!!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourTwo rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFourTwo): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan([['option_id' => 1]], $nextTwoFourTwo));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan([['option_id' => 1]], $nextTwoFourTwo));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourTwo rejects non scalar option value'] = static function (TestRunner $t) use ($nextTwoFourTwo): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan([['option_id' => 1, 'option_value' => ['plugin']]], $nextTwoFourTwo));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationEmbeddedNulLikePlan([['option_id' => 1, 'option_value' => ['plugin']]], $nextTwoFourTwo));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourTwo note fields stay explicit'] = static function (TestRunner $t) use ($plan242): void {

@@ -18,9 +18,9 @@
 - Result: `5 test files, 10144 assertions, 0 failures`
 - This directly covers the five files named in the rejected sqlplan71 rework note.
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-expression-range-cost-current-next74.php`
+- `php lanes/libsqlite/examples/application-expression-range-cost-current-next74.php`
 - Covers copied `wp_options` `lower(option_name) >= 'plugin_' AND lower(option_name) < 'theme_'` scans with `autoload = 'yes'`, STAT4 bounded current/next evidence, covering metadata, and stable legacy-plan separation.
 
 ## Non-Overlap

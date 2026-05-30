@@ -28,7 +28,7 @@ $walFrames = [
 
 $makeStack = static function (): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wordpress-import');
+    $stack->beginTransaction('application-import');
     $stack->recordWalFrameWrite(1, 1, true);
     $stack->savepoint('plugin-options');
     $stack->recordWalFrameWrite(2, 2);

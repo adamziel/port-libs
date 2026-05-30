@@ -18,11 +18,11 @@ Focused test run: 1 selected test files (root lock skipped)
 48 PASS lines
 ```
 
-## WordPress Smoke
+## Application Smoke
 
 ```text
-php lanes/libsqlite/examples/wordpress-vfs-open-lock-filecontrol-current-source-next99.php --self-test
-wordpress-vfs-open-lock-filecontrol-current-source-next99 self-test passed
+php lanes/libsqlite/examples/application-vfs-open-lock-filecontrol-current-source-next99.php --self-test
+application-vfs-open-lock-filecontrol-current-source-next99 self-test passed
 ```
 
 The smoke models copied `wp_options` database handles where one writer changes persistent VFS file-control state and a sibling reader detects its stale current-source snapshot through `data_version` before reopening.

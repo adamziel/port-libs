@@ -146,7 +146,7 @@ $cases = [
     'restart durable wal header only' => [static fn (): mixed => $restart()['current_durable']['wal_bytes_length'], 32],
     'restart durable database length' => [static fn (): mixed => strlen($restart()['current_durable']['database_bytes']), 2048],
     'restart dependency marker' => [static fn (): mixed => in_array('sqlite-wal-savepoint-commit-current-next72', $restart()['dependencies'], true), true],
-    'restart wordpress dependency marker' => [static fn (): mixed => in_array('wordpress-import-savepoint-commit-current-next72', $restart()['dependencies'], true), true],
+    'restart application dependency marker' => [static fn (): mixed => in_array('application-import-savepoint-commit-current-next72', $restart()['dependencies'], true), true],
     'truncate wal action' => [static fn (): mixed => $truncate()['wal_action'], 'truncate_wal'],
     'truncate durable wal empty' => [static fn (): mixed => $truncate()['current_durable']['wal_bytes_length'], 0],
     'truncate next reader frame' => [static fn (): mixed => $truncate()['next_reader_end_frame'], 0],

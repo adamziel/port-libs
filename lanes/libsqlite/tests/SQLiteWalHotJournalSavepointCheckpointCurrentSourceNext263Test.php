@@ -89,7 +89,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('seal_retry_read_receipts_after_reader_cache_fence_next263', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next262', $plan()['dependencies'], true), true],
     'dependency next263' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next263', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-retry-reader-receipts-current-source', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-retry-reader-receipts-current-source', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next260 checkpoint admission'), true],
     'blocked status' => [static fn (): mixed => $blocked(['cursor_closed' => false])['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next263'],

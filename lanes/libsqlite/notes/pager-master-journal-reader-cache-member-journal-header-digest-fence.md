@@ -8,8 +8,8 @@ Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a current-sourc
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMemberJournalHeaderDigestFenceTest.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-member-journal-header-digest-fence.php --self-test`
-  - WordPress smoke passed
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-member-journal-header-digest-fence.php --self-test`
+  - Application smoke passed
 
 ## Non-Overlap
 

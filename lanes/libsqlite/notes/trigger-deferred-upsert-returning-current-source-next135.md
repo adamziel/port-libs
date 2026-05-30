@@ -10,11 +10,11 @@ This slice adds `SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan`. It 
 - transaction rollback restores the pre-statement current source and clears inserted/updated row visibility;
 - a held failed transaction can keep the statement image visible for diagnostics, matching SQLite's failed-COMMIT transaction boundary.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-trigger-deferred-upsert-returning-current-source-next135.php --self-test
-wordpress-trigger-deferred-upsert-returning-current-source-next135 self-test passed
+php lanes/libsqlite/examples/application-trigger-deferred-upsert-returning-current-source-next135.php --self-test
+application-trigger-deferred-upsert-returning-current-source-next135 self-test passed
 ```
 
 Focused verification:

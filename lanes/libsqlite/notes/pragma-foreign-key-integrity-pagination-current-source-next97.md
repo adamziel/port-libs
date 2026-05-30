@@ -23,8 +23,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyIntegrityPaginationCurrentSourceNext97Test.php`
   - `1 test files, 45 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-fk-integrity-pagination-current-source-next97.php --self-test`
-  - `wordpress-pragma-fk-integrity-pagination-current-source-next97 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-fk-integrity-pagination-current-source-next97.php --self-test`
+  - `application-pragma-fk-integrity-pagination-current-source-next97 self-test passed`
 
 Non-overlap:
 

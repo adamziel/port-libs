@@ -32,10 +32,10 @@ Focused test run: 2 selected test files (root lock skipped)
 2 test files, 122 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-check-not-null-default-constraints.php
+php lanes/libsqlite/examples/application-check-not-null-default-constraints.php
 ```
 
 The smoke reports copied `wp_options` schema metadata preserving default

@@ -12,9 +12,9 @@ Focused verification:
 - `Focused test run: 1 selected test files (root lock skipped)`
 - `1 test files, 54 assertions, 0 failures`
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-btree-allocation-pointermap-current-next29.php`
+- `php lanes/libsqlite/examples/application-btree-allocation-pointermap-current-next29.php`
 - Reports copied `wp_options` allocation reusing freelist leaves `[6,8]`,
   leaving `[4,7]` on the freelist, and preserving `PRAGMA integrity_check` as
   `ok` without ext/sqlite.

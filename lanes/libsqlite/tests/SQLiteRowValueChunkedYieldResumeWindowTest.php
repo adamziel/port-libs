@@ -94,7 +94,7 @@ $cases249 = [
     'retry preserves rolled back feed delete' => [static fn (): mixed => in_array(3, array_column($plan249()['current_source_tables']['wp_options'], 'option_id'), true), true],
     'retry preserves suppressed orphan delete' => [static fn (): mixed => in_array(8, array_column($plan249()['current_source_tables']['wp_options'], 'option_id'), true), true],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-window-chunked-yield-next249', $plan249()['dependencies_next249'], true), true],
-    'wordpress dependency marker' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-window-resume-next249', $plan249()['dependencies_next249'], true), true],
+    'application dependency marker' => [static fn (): mixed => in_array('application-rowvalue-returning-window-resume-next249', $plan249()['dependencies_next249'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan249()['dependency_closure_next249'], 'no new support component needed'), true],
     'non overlap mentions next245' => [static fn (): mixed => str_contains($plan249()['non_overlap_next249'], 'next245'), true],
     'non overlap mentions next236' => [static fn (): mixed => str_contains($plan249()['non_overlap_next249'], 'next236'), true],

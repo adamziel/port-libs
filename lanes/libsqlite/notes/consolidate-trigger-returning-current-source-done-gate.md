@@ -7,7 +7,7 @@ Micro-slice: `consolidate-final-numbered-methods-trigger-returning-ninth-pass`
 
 - Renamed the production entry point `executeNext194()` to `executeCurrentSourceDoneGate()`.
 - Renamed its direct private helper methods from `*Next194` names to stable descriptive current-source done-gate helpers.
-- Updated the direct focused test and WordPress smoke caller.
+- Updated the direct focused test and Application smoke caller.
 - Preserved existing result payload keys, dependency strings, and status strings so behavior and assertions remain unchanged while production method names stop carrying the worker-number suffix.
 
 ## Verification
@@ -16,12 +16,12 @@ Micro-slice: `consolidate-final-numbered-methods-trigger-returning-ninth-pass`
   - `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceDoneGateTest.php`
   - `No syntax errors detected`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-done-gate.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-done-gate.php`
   - `No syntax errors detected`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceDoneGateTest.php`
   - `1 test files, 86 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-done-gate.php --self-test`
-  - `wordpress-trigger-recursive-view-returning-current-source-done-gate self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-done-gate.php --self-test`
+  - `application-trigger-recursive-view-returning-current-source-done-gate self-test passed`
 
 ## Dependency Closure
 

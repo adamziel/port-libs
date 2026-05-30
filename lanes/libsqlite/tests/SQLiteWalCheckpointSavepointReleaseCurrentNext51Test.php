@@ -124,7 +124,7 @@ $cases = [
     'restart release and next images match' => [static fn (): mixed => $restartReleased()['release_to_next_images_match'], true],
     'restart yield count' => [static fn (): mixed => $restartReleased()['yield_count'], 12],
     'restart dependency release checkpoint marker' => [static fn (): mixed => in_array('sqlite-wal-savepoint-release-checkpoint-current-next', $restartReleased()['dependencies'], true), true],
-    'restart dependency wordpress marker' => [static fn (): mixed => in_array('wordpress-import-release-savepoint-current-next', $restartReleased()['dependencies'], true), true],
+    'restart dependency application marker' => [static fn (): mixed => in_array('application-import-release-savepoint-current-next', $restartReleased()['dependencies'], true), true],
     'restart dependency checkpoint marker' => [static fn (): mixed => in_array('sqlite-wal-checkpoint', $restartReleased()['dependencies'], true), true],
     'truncate status ready' => [static fn (): mixed => $truncateReleased()['status'], 'ready'],
     'truncate action truncates wal' => [static fn (): mixed => $truncateReleased()['wal_action'], 'truncate_wal'],

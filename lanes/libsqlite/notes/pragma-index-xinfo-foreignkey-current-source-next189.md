@@ -9,7 +9,7 @@ Behavior:
   - partial UNIQUE indexes surfaced by `PRAGMA index_list(...).partial = 1`;
   - expression UNIQUE indexes surfaced by `PRAGMA index_xinfo(...)` key rows with expression columns.
 - Decorates missing parent-key rows with the rejected index name and rejection reason, and reports current/next deltas when a full column UNIQUE index replaces the unusable parent candidates.
-- Adds a WordPress term/meta import smoke showing partial/expression parent indexes rejected before a repaired `wp_terms(slug COLLATE NOCASE)` UNIQUE index is admitted.
+- Adds a Application term/meta import smoke showing partial/expression parent indexes rejected before a repaired `wp_terms(slug COLLATE NOCASE)` UNIQUE index is admitted.
 
 Focused verification:
 

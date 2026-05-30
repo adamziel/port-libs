@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan` for WordPress-style
+- Added `SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan` for Application-style
   `wp_options.option_name` LIKE prefix scans over current/next copied sources
   stored as UTF-16LE/UTF-16BE bytes.
 - Valid UTF-16 rows are decoded, checked against accepted LIKE range bounds,
@@ -28,12 +28,12 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The focused run emitted 51 PASS lines for malformed UTF-16 odd-byte,
 trailing-high-surrogate, unpaired-high-surrogate, unpaired-low-surrogate,
-case-sensitive LIKE, current/next source invalidation, and WordPress option
+case-sensitive LIKE, current/next source invalidation, and Application option
 row diagnostics.
 
-## WordPress Smoke
+## Application Smoke
 
-Added `examples/wordpress-malformed-utf16-like-range-current-source-next93.php`
+Added `examples/application-malformed-utf16-like-range-current-source-next93.php`
 to show copied `wp_options` rows where malformed UTF-16 option names are
 omitted from LIKE prefix matches while valid current/next rows remain
 countable.

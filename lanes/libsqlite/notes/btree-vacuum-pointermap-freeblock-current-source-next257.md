@@ -6,9 +6,9 @@
 - Builds on accepted `next253` grouped vacuum apply rows and records the narrower current-source advance fence after each pointer-map/freeblock group is durable.
 - Verifies advanced pages match apply pages, pointer-map pages open their groups before reusable freeblock pages advance, leaf receipts are committed, source epochs move monotonically, and tail pages 109/110 remain fenced out of the next current source.
 
-## WordPress Smoke
+## Application Smoke
 
-- `examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next257.php`
+- `examples/application-btree-vacuum-pointermap-freeblock-current-source-next257.php`
 - Scenario: copied `wp_options` transient cleanup deletes an overflow-backed row, vacuums obsolete overflow pages, and only advances the next current-source reader/writer after pointer-map and freeblock apply groups are fenced.
 
 ## Verification

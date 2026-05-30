@@ -18,7 +18,7 @@ and `raise()` messages are preserved.
   - +56 focused PASS lines for the new lane-scoped current-source test file.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAlterTableRenameColumnCurrentNext15Test.php lanes/libsqlite/tests/SQLiteAlterTableRenameTriggerViewCorpusTest.php`
   - Regression bundle: `2 test files, 162 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-view-rename-column-current-next28.php`
+- `php lanes/libsqlite/examples/application-trigger-view-rename-column-current-next28.php`
   - Emits copied `wp_options` view/trigger SQL for `option_name -> option_key`
     while preserving implicit output aliases, CTE names, table aliases, and
     `raise()` messages that still intentionally spell `option_name`.

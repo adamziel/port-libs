@@ -9,7 +9,7 @@ and an append case that skips an auto-vacuum pointer-map page.
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreepagePointerMapCurrentNext25Test.php` => `1 test files, 60 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-btree-freepage-pointermap-current-next25.php` => allocated pages `[3,104,5,107,206,106]`, updated pointer-map pages `[2,105]`, and allocated pointer-map entries rewritten to `btree-page` parent `11`
+- `php lanes/libsqlite/examples/application-btree-freepage-pointermap-current-next25.php` => allocated pages `[3,104,5,107,206,106]`, updated pointer-map pages `[2,105]`, and allocated pointer-map entries rewritten to `btree-page` parent `11`
 
 Non-overlap: avoids accepted B-tree overflow freelist release, bulk overflow
 freeblocks, table/index page moves, root collapse, index-interior merge, and

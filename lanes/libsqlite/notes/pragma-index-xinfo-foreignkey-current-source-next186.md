@@ -15,11 +15,11 @@ Behavior covered:
   cursor paging, table-valued `pragma_index_xinfo(...)`, and malformed-input
   guards.
 
-WordPress relevance:
+Application relevance:
 
 - The smoke models taxonomy/post relationship imports where child-key indexes
   exist but were created without the `NOCASE` / `RTRIM` collations declared by
-  the copied WordPress columns. The helper now identifies those as repairable
+  the copied Application columns. The helper now identifies those as repairable
   PRAGMA admission blockers instead of treating every child index prefix as
   equivalent.
 
@@ -29,8 +29,8 @@ Verification:
   - `1 test files, 76 assertions, 0 failures`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next186.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next186.php --self-test`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next186.php`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next186.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure:

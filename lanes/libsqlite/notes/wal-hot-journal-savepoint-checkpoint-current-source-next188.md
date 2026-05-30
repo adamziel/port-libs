@@ -8,7 +8,7 @@ Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded ad
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Test.php`
 - Result: `1 test files, 60 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next188.php`
+- Application smoke: `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next188.php`
 
 ## Non-Overlap
 

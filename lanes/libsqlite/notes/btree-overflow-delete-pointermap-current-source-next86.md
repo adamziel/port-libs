@@ -24,7 +24,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowDeletePointerMa
 # Focused test run: 1 selected test files (root lock skipped)
 # 1 test files, 58 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-btree-overflow-delete-pointermap-current-source-next86.php
+php lanes/libsqlite/examples/application-btree-overflow-delete-pointermap-current-source-next86.php
 # released_overflow_pages: [6,8]
 # pointer_map_transition_pages: [6,8]
 # after_next_pointer_map_types: ["free-page","free-page"]

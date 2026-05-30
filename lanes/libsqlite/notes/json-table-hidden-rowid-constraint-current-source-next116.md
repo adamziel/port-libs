@@ -13,12 +13,12 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteSelectSql.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableHiddenRowidConstraintCurrentSourceNext116Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-hidden-rowid-constraint-current-source-next116.php`
+- `php -l lanes/libsqlite/examples/application-json-table-hidden-rowid-constraint-current-source-next116.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableHiddenRowidConstraintCurrentSourceNext116Test.php`
   - `1 test files, 30 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-hidden-rowid-constraint-current-source-next116.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-hidden-rowid-constraint-current-source-next116.php --self-test`
 
-WordPress relevance: copied `wp_options` JSON arrays can select a stable
+Application relevance: copied `wp_options` JSON arrays can select a stable
 plugin/settings row by JSON table rowid alias while preserving SQLite-style
 `rowid` / `_rowid_` / `oid` aliases without requiring `ext/sqlite`.
 

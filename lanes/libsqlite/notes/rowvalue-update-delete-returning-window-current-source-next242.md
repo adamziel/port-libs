@@ -2,7 +2,7 @@
 
 - Added `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext242Plan`, extending the existing row-value UPDATE/DELETE RETURNING savepoint/window path with lag/lead receipts, ROWS frame receipts, GROUPS peer-frame receipts, and a current-source release seal after rollback/retry.
 - Added focused coverage in `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext242Test.php`: `68` PASS assertions over row-value subquery predicates, retry UPDATE/DELETE selected rows, retry lag/lead windows, ROWS and GROUPS frame ids/sums, suppressed attempt rows, yield rows, source-generation seals, final current-source membership, custom savepoint behavior, dependency notes, non-overlap notes, and malformed inputs.
-- Added `wordpress-rowvalue-returning-window-current-source-next242.php` smoke for copied `wp_options` import batches that rollback a row-value UPDATE/DELETE RETURNING attempt and retry from the savepoint image while proving suppressed attempt rows stay out of the released current source.
+- Added `application-rowvalue-returning-window-current-source-next242.php` smoke for copied `wp_options` import batches that rollback a row-value UPDATE/DELETE RETURNING attempt and retry from the savepoint image while proving suppressed attempt rows stay out of the released current source.
 
 Verification:
 
@@ -13,7 +13,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next242.php
+php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next242.php
 exit 0
 ```
 

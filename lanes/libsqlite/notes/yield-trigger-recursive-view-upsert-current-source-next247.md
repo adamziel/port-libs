@@ -10,8 +10,8 @@ sequence admission. The next source remains held until the current recursive
 view-trigger UPSERT has acknowledged all current RETURNING rows against the
 current statement sequence and the next source advertises a future sequence.
 
-WordPress path:
-`wordpress-trigger-recursive-view-upsert-current-source-next247.php` models a
+Application path:
+`application-trigger-recursive-view-upsert-current-source-next247.php` models a
 copied `wp_options` recursive import view where current `siteurl` and plugin
 UPSERT rows spawn recursive child RETURNING rows, then a later import source
 must not publish until the current source sequence is complete.
@@ -21,9 +21,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext247Plan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext247Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next247.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next247.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext247Test.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next247.php
+php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next247.php
 git diff --check -- lanes/libsqlite
 ```
 

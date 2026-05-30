@@ -9,8 +9,8 @@ selection, RETURNING expressions, and UPDATE assignment expressions, including
 inclusive bounds, expression bounds, SQL NULL unknown handling, and rollback-to
 savepoint suppression before retry.
 
-WordPress smoke:
-`wordpress-rowvalue-between-savepoint-current-source-next198.php` models a
+Application smoke:
+`application-rowvalue-between-savepoint-current-source-next198.php` models a
 copied `wp_options` import that marks current byte-range rows, deletes only
 out-of-range transient rows, rolls back attempted RETURNING rows, and retries
 from the original current source while keeping NULL-sized rows.
@@ -20,9 +20,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext198Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-between-savepoint-current-source-next198.php
+php -l lanes/libsqlite/examples/application-rowvalue-between-savepoint-current-source-next198.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext198Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-between-savepoint-current-source-next198.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-between-savepoint-current-source-next198.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

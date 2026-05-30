@@ -10,8 +10,8 @@ existing `PRAGMA integrity_check` parser guard.
   exclusion, null-SQL non-autoindex exclusion, malformed root pages, pointer-map
   type/parent mismatches, invalid roots, and guardrails for offsets/limits and
   unsupported PRAGMA SQL.
-- Added `wordpress-pragma-integrity-autoindex-yield.php` to smoke copied
-  WordPress autoindex integrity preflight without ext/sqlite.
+- Added `application-pragma-integrity-autoindex-yield.php` to smoke copied
+  Application autoindex integrity preflight without ext/sqlite.
 
 Verification:
 

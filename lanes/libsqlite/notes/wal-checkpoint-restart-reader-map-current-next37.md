@@ -2,16 +2,16 @@
 
 Status: focused PHP corpus growth for WAL checkpoint RESTART/TRUNCATE reader-map visibility.
 
-This slice adds `SQLiteWal::restartReadMarkReaderMapTransition()` for copied WordPress database imports. It composes the existing SHM read-mark restart transition with page-image visibility maps so a current reader pinned by read marks keeps its old WAL snapshot while the next reader maps pages from either the preserved WAL, checkpointed database image, restarted WAL header, or truncated WAL state.
+This slice adds `SQLiteWal::restartReadMarkReaderMapTransition()` for copied Application database imports. It composes the existing SHM read-mark restart transition with page-image visibility maps so a current reader pinned by read marks keeps its old WAL snapshot while the next reader maps pages from either the preserved WAL, checkpointed database image, restarted WAL header, or truncated WAL state.
 
 Verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteWalCheckpointRestartReaderMapCurrentNext37Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-restart-reader-map-current-next37.php
+php -l lanes/libsqlite/examples/application-wal-checkpoint-restart-reader-map-current-next37.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointRestartReaderMapCurrentNext37Test.php
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-restart-reader-map-current-next37.php
+php lanes/libsqlite/examples/application-wal-checkpoint-restart-reader-map-current-next37.php
 git diff --check -- lanes/libsqlite
 ```
 

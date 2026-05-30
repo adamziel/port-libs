@@ -7,15 +7,15 @@ PRAGMA page wrapper that keeps accepted `index_xinfo` and foreign-key parent
 admission behavior from next182, then adds explicit rows for SQLite's
 `foreign_key_check` NULL-child-key exemption. A child row with any NULL child
 key column is recorded as `foreign_key_null_child_key` with `status:
-not_checked`, so copied WordPress option imports can distinguish real parent
+not_checked`, so copied Application option imports can distinguish real parent
 violations from rows SQLite omits from `PRAGMA foreign_key_check`.
 
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 67 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next185.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next185 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next185.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next185 self-test passed`
 
 ## Non-Overlap
 

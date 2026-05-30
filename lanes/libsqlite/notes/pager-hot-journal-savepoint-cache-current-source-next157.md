@@ -4,16 +4,16 @@ Status: focused PHP behavior growth for `pager-hot-journal-savepoint-cache-curre
 
 This slice adds `SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan`. It models the pager edge where hot rollback-journal recovery has already advanced the current source token, but a cached page can still carry the recovered token while holding stale bytes. Before an active savepoint captures before-images, the plan fences cache entries by recovered current-source image digest, invalidates stale same-token pages, captures savepoint before-images from recovered pages, rolls back the failed savepoint write, and captures retry before-images from the restored recovered source.
 
-WordPress smoke: `wordpress-pager-hot-journal-savepoint-cache-current-source-next157.php` covers a copied `wp_options` import where stale same-token cache images for `active_plugins` and plugin settings are rejected before retrying the savepoint.
+Application smoke: `application-pager-hot-journal-savepoint-cache-current-source-next157.php` covers a copied `wp_options` import where stale same-token cache images for `active_plugins` and plugin settings are rejected before retrying the savepoint.
 
 Verification:
 
 ```text
 php -l lanes/libsqlite/src/SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext157Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-hot-journal-savepoint-cache-current-source-next157.php
+php -l lanes/libsqlite/examples/application-pager-hot-journal-savepoint-cache-current-source-next157.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext157Test.php
-php lanes/libsqlite/examples/wordpress-pager-hot-journal-savepoint-cache-current-source-next157.php
+php lanes/libsqlite/examples/application-pager-hot-journal-savepoint-cache-current-source-next157.php
 git diff --check -- lanes/libsqlite
 ```
 

@@ -4,15 +4,15 @@
 
 - Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext251Plan`.
 - Composes accepted `next248` seal rows and admits the next current-source cursor only after seal tokens match, pointer-map visibility is present, freeblock receipts are published, payload cursor advance is safe, and fenced tail pages remain excluded.
-- The WordPress smoke models copied `wp_options` transient cleanup where obsolete overflow pages are vacuumed and reusable payload pages must not become the next write source until pointer-map/freeblock state is sealed.
+- The Application smoke models copied `wp_options` transient cleanup where obsolete overflow pages are vacuumed and reusable payload pages must not become the next write source until pointer-map/freeblock state is sealed.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext251Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next251.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next251.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext251Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext251Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next251.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next251.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap

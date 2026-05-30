@@ -9,7 +9,7 @@ characters, UTF-16 option-name bytes are decoded before NOCASE prefix range
 comparison, and the residual LIKE check still rejects rows whose decoded text
 lost the literal `%` between current and next sources.
 
-This is WordPress-relevant for copied `wp_options` scans where import filters
+This is Application-relevant for copied `wp_options` scans where import filters
 bind escaped literal option-name probes from user data and the database may
 contain mixed UTF-8, UTF-16LE, and UTF-16BE text records.
 
@@ -18,7 +18,7 @@ contain mixed UTF-8, UTF-16LE, and UTF-16BE text records.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Test.php`
   - `1 test files, 93 assertions, 0 failures`
   - `81` PASS lines
-- `php lanes/libsqlite/examples/wordpress-nonascii-escape-like-current-source-next248.php`
+- `php lanes/libsqlite/examples/application-nonascii-escape-like-current-source-next248.php`
   - emitted `encoding-collation-affinity-like-current-source-next248`
 - PHP lint for changed PHP files
 - `git diff --check -- lanes/libsqlite`

@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for released inner savepoint row-value
 `UPDATE`/`DELETE ... RETURNING` streams.
 
 This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext174Plan`.
-It models a copied WordPress `wp_options` import batch where an inner savepoint
+It models a copied Application `wp_options` import batch where an inner savepoint
 runs row-value `UPDATE OR REPLACE` plus `DELETE ... RETURNING`, releases those
 effects into the outer savepoint, then `ROLLBACK TO` the outer savepoint
 discards both the outer and released-inner RETURNING streams before retrying
@@ -19,15 +19,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueUpdateDeleteRetur
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext174Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext174Test.php
 
-php -l lanes/libsqlite/examples/wordpress-rowvalue-released-inner-rollback-current-source-next174.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-released-inner-rollback-current-source-next174.php
+php -l lanes/libsqlite/examples/application-rowvalue-released-inner-rollback-current-source-next174.php
+No syntax errors detected in lanes/libsqlite/examples/application-rowvalue-released-inner-rollback-current-source-next174.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext174Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 59 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-released-inner-rollback-current-source-next174.php
-wordpress-rowvalue-released-inner-rollback-current-source-next174 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-released-inner-rollback-current-source-next174.php
+application-rowvalue-released-inner-rollback-current-source-next174 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +59 after clean integration. Mapped

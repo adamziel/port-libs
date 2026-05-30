@@ -15,12 +15,12 @@ but the journal body/page playback belongs to a different recovered source.
   - no syntax errors
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext202Test.php`
   - no syntax errors
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next202.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next202.php`
   - no syntax errors
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext202Test.php`
   - `1 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next202.php`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next202 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next202.php`
+  - `application-pager-master-journal-reader-cache-current-source-next202 self-test passed`
 
 Expected dashboard delta: `phpPass` moves from `97068` to `97129` from 61
 new focused PASS lines. Mapped upstream coverage remains `619 / 1589`; this is

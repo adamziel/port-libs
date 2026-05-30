@@ -4,7 +4,7 @@
 
 Adds `SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan`, a bounded
 current-source B-tree plan for the delete/vacuum/replacement path where copied
-WordPress option rows have obsolete overflow chains at the database tail.
+Application option rows have obsolete overflow chains at the database tail.
 
 The plan records the original overflow chain rows, runs the accepted freelist
 vacuum pointer-map plan, and then verifies that replacement overflow allocation:
@@ -27,13 +27,13 @@ Result:
 
 PASS-line delta: `+69` focused PASS lines in the new lane-scoped test file.
 
-WordPress smoke:
+Application smoke:
 
-`php lanes/libsqlite/examples/wordpress-btree-freelist-vacuum-overflow-current-source-next143.php --self-test`
+`php lanes/libsqlite/examples/application-btree-freelist-vacuum-overflow-current-source-next143.php --self-test`
 
 Result:
 
-`wordpress-btree-freelist-vacuum-overflow-current-source-next143 self-test passed`
+`application-btree-freelist-vacuum-overflow-current-source-next143 self-test passed`
 
 ## Non-overlap
 

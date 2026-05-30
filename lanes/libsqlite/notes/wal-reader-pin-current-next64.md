@@ -34,9 +34,9 @@ Focused test run: 1 selected test files (root lock skipped)
 Dashboard delta for this lane patch: `phpPass` `23341 -> 23405` (`+64` focused
 PASS lines). Mapped upstream denominator remains unchanged at `463 / 1589`.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-wal-reader-pin-current-next64.php` emits a
+`lanes/libsqlite/examples/application-wal-reader-pin-current-next64.php` emits a
 copied `wp_options` WAL read-mark handoff summary showing the current reader
 frame, next reader frame/slot, released read marks, retry WAL action, and source
 columns.

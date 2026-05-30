@@ -103,7 +103,7 @@ $cases = [
     'operation admit' => [static fn (): mixed => in_array('admit_reopened_readers_current_source_next256', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next252', $plan()['dependencies'], true), true],
     'dependency next256' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next256', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-reader-reopen-after-wal-checkpoint-seal', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-reader-reopen-after-wal-checkpoint-seal', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat WAL sidecar truncation'), true],
     'first row accepted' => [static fn (): mixed => $plan()['reader_rows'][0]['accepted'], true],

@@ -8,7 +8,7 @@ Behavior covered:
 
 - Cached table and index lookups record hits/misses without changing SQLite
   temp/main/attached search order.
-- ATTACH invalidates cached misses so newly attached WordPress tables and
+- ATTACH invalidates cached misses so newly attached Application tables and
   indexes become visible immediately.
 - DETACH invalidates cached attached winners so unqualified lookup either
   falls through to the next attached database or returns no row.
@@ -32,8 +32,8 @@ Focused test run: 2 selected test files (root lock skipped)
 85 PASS lines
 2 test files, 222 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-attach-schema-cache-invalidation-current-next34.php
-WordPress smoke reported cached miss before ATTACH, attached `network`
+$ php lanes/libsqlite/examples/application-attach-schema-cache-invalidation-current-next34.php
+Application smoke reported cached miss before ATTACH, attached `network`
 `wp_sitemeta` at root page 12 after ATTACH, and no stale row after DETACH.
 ```
 
@@ -44,8 +44,8 @@ $ php -l lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php
 $ php -l lanes/libsqlite/tests/SQLiteAttachSchemaCacheInvalidationCurrentNext34Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteAttachSchemaCacheInvalidationCurrentNext34Test.php
-$ php -l lanes/libsqlite/examples/wordpress-attach-schema-cache-invalidation-current-next34.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-attach-schema-cache-invalidation-current-next34.php
+$ php -l lanes/libsqlite/examples/application-attach-schema-cache-invalidation-current-next34.php
+No syntax errors detected in lanes/libsqlite/examples/application-attach-schema-cache-invalidation-current-next34.php
 ```
 
 Dashboard delta:

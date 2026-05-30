@@ -12,10 +12,10 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeNotNullBranchHandoffFenceTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheVdbeOpcodeBranchHandoffFenceTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheStatementAffinityComparisonBranchFenceTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheStatementTransactionBranchFenceTest.php`
   - Result: `4 test files, 68 assertions, 0 failures`.
 - Example self-tests:
-  - `lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-notnull-branch-handoff-fence.php --self-test`
-  - `lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-vdbe-opcode-branch-handoff-fence.php --self-test`
-  - `lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-statement-affinity-comparison-branch-fence.php --self-test`
-  - `lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-statement-transaction-branch-fence.php --self-test`
+  - `lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-notnull-branch-handoff-fence.php --self-test`
+  - `lanes/libsqlite/examples/application-pager-master-journal-reader-cache-vdbe-opcode-branch-handoff-fence.php --self-test`
+  - `lanes/libsqlite/examples/application-pager-master-journal-reader-cache-statement-affinity-comparison-branch-fence.php --self-test`
+  - `lanes/libsqlite/examples/application-pager-master-journal-reader-cache-statement-transaction-branch-fence.php --self-test`
   - Result: all exited `0`.
 
 Root harness: not run - isolated micro-slice.

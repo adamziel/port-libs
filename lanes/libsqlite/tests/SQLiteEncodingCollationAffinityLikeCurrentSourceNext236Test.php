@@ -48,7 +48,7 @@ $plan236 = static fn (
     string $nextSource = 'main.wp_options@236',
     int $currentCookie = 235,
     int $nextCookie = 236,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameEscapedLikePlan(
     $current ?? $current236,
     $next ?? $nextTwoThreeSix,
     $pattern,
@@ -162,7 +162,7 @@ $tests['encoding collation affinity like current source nextTwoThreeSix multibyt
         ['option_id' => 1, 'option_name' => 'wp_%_timeout'],
         ['option_id' => 2, 'option_name' => 'wp_cache_timeout'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($rows, $rows, 'wpé_é%é_timeout', 'é', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameEscapedLikePlan($rows, $rows, 'wpé_é%é_timeout', 'é', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentRowids']);
     $t->same('c3a9', $plan['escapeHex']);
 };
@@ -190,7 +190,7 @@ $tests['encoding collation affinity like current source nextTwoThreeSix numeric 
         ['option_id' => 2, 'option_name' => 405],
         ['option_id' => 3, 'option_name' => true],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($rows, $rows, '40_', null, false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameEscapedLikePlan($rows, $rows, '40_', null, false, 'same', 'same', 1, 1);
     $t->same([1, 2], $plan['currentRowids']);
 };
 
@@ -199,20 +199,20 @@ $tests['encoding collation affinity like current source nextTwoThreeSix blob and
         ['option_id' => 1, 'option_name' => new SQLiteBlobValue('wp_%_timeout')],
         ['option_id' => 2, 'option_name' => null],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($rows, $rows, 'wp!_!%!_timeout%', '!', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameEscapedLikePlan($rows, $rows, 'wp!_!%!_timeout%', '!', false, 'same', 'same', 1, 1);
     $t->same([], $plan['currentRowids']);
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSix rejects missing option name'] = static function (TestRunner $t) use ($nextTwoThreeSix): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan([['option_id' => 1]], $nextTwoThreeSix, 'wp!_!%', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameEscapedLikePlan([['option_id' => 1]], $nextTwoThreeSix, 'wp!_!%', '!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSix rejects non scalar option name'] = static function (TestRunner $t) use ($nextTwoThreeSix): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $nextTwoThreeSix, 'wp!_!%', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameEscapedLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $nextTwoThreeSix, 'wp!_!%', '!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeSix rejects multi character escape'] = static function (TestRunner $t) use ($current236, $nextTwoThreeSix): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($current236, $nextTwoThreeSix, 'wp!_!%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameEscapedLikePlan($current236, $nextTwoThreeSix, 'wp!_!%', '!!'));
 };
 
 return $tests;

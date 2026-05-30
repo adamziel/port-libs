@@ -16,10 +16,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockCurren
 # 1 test files, 57 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-overflow-freeblock-current-next72.php
+php lanes/libsqlite/examples/application-btree-overflow-freeblock-current-next72.php
 ```
 
 The smoke reports a copied `wp_options` transient delete where obsolete

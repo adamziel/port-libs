@@ -7,7 +7,7 @@ Status: focused PHP corpus growth for WAL recovery after `ROLLBACK TO` savepoint
 - Added `SQLiteWalSavepointRecoveryPlan::currentNextAfterRollbackTo()` to compose existing savepoint WAL prefix truncation with existing WAL transaction recovery/current-next reader visibility.
 - The plan reports the current WAL prefix after savepoint rollback, the next-open recovery boundary, retained/discarded frame counts, checkpoint database availability, reader page sources, and dependency tags.
 - Added `SQLiteWalSavepointRecoveryCurrentNext30Test.php` with focused PASS cases for outer and nested savepoint rollback prefixes, current/next reader visibility, omitted discarded plugin frames, checkpoint page counts, and invalid input guards.
-- Added `wordpress-wal-savepoint-recovery-current-next30.php` to smoke a failed copied `wp_options` plugin settings import where the current reader and next open recovery see only the retained committed WAL prefix.
+- Added `application-wal-savepoint-recovery-current-next30.php` to smoke a failed copied `wp_options` plugin settings import where the current reader and next open recovery see only the retained committed WAL prefix.
 
 ## Verification
 
@@ -15,8 +15,8 @@ Status: focused PHP corpus growth for WAL recovery after `ROLLBACK TO` savepoint
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointRecoveryCurrentNext30Test.php
 php -l lanes/libsqlite/src/SQLiteWalSavepointRecoveryPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalSavepointRecoveryCurrentNext30Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-savepoint-recovery-current-next30.php
-php lanes/libsqlite/examples/wordpress-wal-savepoint-recovery-current-next30.php --self-test
+php -l lanes/libsqlite/examples/application-wal-savepoint-recovery-current-next30.php
+php lanes/libsqlite/examples/application-wal-savepoint-recovery-current-next30.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

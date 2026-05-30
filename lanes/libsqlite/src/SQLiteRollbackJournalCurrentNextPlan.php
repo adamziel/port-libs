@@ -47,7 +47,7 @@ final class SQLiteRollbackJournalCurrentNextPlan
             'visibility' => self::visibilityStages($databaseBytes, $nextBytes, $dirtyPages, $commit['operations'], $pageSize),
             'dependencies' => array_values(array_unique(array_merge(
                 $commit['dependencies'],
-                ['sqlite-rollback-journal-current-next-reader-boundary', 'wordpress-import-rollback-journal-current-next']
+                ['sqlite-rollback-journal-current-next-reader-boundary', 'application-import-rollback-journal-current-next']
             ))),
         ];
     }

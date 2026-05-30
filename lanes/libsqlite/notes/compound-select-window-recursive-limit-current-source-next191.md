@@ -6,17 +6,17 @@ Behavior covered:
 
 - `WITH RECURSIVE` queue `ORDER BY 3 DESC LIMIT 5 OFFSET 1` skips the anchor row before the recursive arm is visible to the compound SELECT.
 - `nth_value(label, 2)`, `ntile(3)`, and `lead(..., 2, ...)` are evaluated inside their compound arms before `UNION` duplicate elimination.
-- Tail `ORDER BY peer, id LIMIT 6 OFFSET 2` is applied only after recursive and WordPress `wp_options` rows are combined.
-- A next-source `plugin_alpha`/`theme_mods` autoload pair moves the WordPress import boundary and changes the final value-offset peers without changing recursive queue diagnostics.
+- Tail `ORDER BY peer, id LIMIT 6 OFFSET 2` is applied only after recursive and Application `wp_options` rows are combined.
+- A next-source `plugin_alpha`/`theme_mods` autoload pair moves the Application import boundary and changes the final value-offset peers without changing recursive queue diagnostics.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext191Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next191.php
+php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next191.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext191Test.php
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next191.php --self-test
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next191.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -9,7 +9,7 @@ methods:
 - `materializeStat4SampleRangeWindowFence()`
 - `materializeStat4SamplePartialPredicateFence()`
 
-Direct STAT4 tests and WordPress examples were renamed to descriptive filenames
+Direct STAT4 tests and Application examples were renamed to descriptive filenames
 and migrated to the canonical method names. Existing status keys, dependency
 strings, proof fields, and detail text were preserved so accepted evidence that
 asserts those observable values remains stable.
@@ -22,7 +22,7 @@ Verification:
   - `4 test files, 280 assertions, 0 failures`
 - `php tools/run-tests.php $(find lanes/libsqlite/tests -maxdepth 1 -name 'SQLitePlannerStat4ExpressionPartial*Test.php' | sort)`
   - `133 test files, 7547 assertions, 0 failures`
-- renamed WordPress examples with `--self-test`
+- renamed Application examples with `--self-test`
 
 Dependency closure: no new support component needed; this is consolidation-only
 and reuses the existing STAT4 expression partial planner implementation.

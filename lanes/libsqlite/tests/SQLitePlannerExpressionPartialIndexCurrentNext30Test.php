@@ -276,7 +276,7 @@ $cases = [
         [['column' => 'option_name', 'direction' => 'ASC']],
         false,
     ],
-    'expression partial reports covering columns for needed WordPress fields' => [
+    'expression partial reports covering columns for needed Application fields' => [
         $range($expr('lower', 'option_name'), '>=', 'plugin_cache'),
         'idx_lower_plugin_or_theme_expr_partial',
         'range->=',

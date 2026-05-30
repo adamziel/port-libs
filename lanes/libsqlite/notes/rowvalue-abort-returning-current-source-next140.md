@@ -1,7 +1,7 @@
 # rowvalue-abort-returning-current-source-next140
 
 Status: focused PHP behavior growth for row-value `UPDATE ... RETURNING`
-conflict handling over a copied WordPress `wp_options` savepoint.
+conflict handling over a copied Application `wp_options` savepoint.
 
 This slice adds `SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan`.
 It models SQLite `OR ABORT` behavior for row-value UPDATE RETURNING batches:
@@ -9,8 +9,8 @@ the failing statement is backed out to the statement image, earlier successful
 statements and RETURNING streams remain visible, and the savepoint transaction
 stays active unless the conflict action is `OR ROLLBACK`.
 
-WordPress path:
-`wordpress-rowvalue-abort-returning-current-source-next140.php` stages copied
+Application path:
+`application-rowvalue-abort-returning-current-source-next140.php` stages copied
 multisite `wp_options` rows, then hits a later unique `(blog_id, option_name)`
 collision. The smoke verifies that staged rows remain current while the
 aborted statement restores its attempted rows.
@@ -22,8 +22,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueAbortReturningSavepo
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 58 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-abort-returning-current-source-next140.php --self-test
-wordpress-rowvalue-abort-returning-current-source-next140 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-abort-returning-current-source-next140.php --self-test
+application-rowvalue-abort-returning-current-source-next140 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `60841` to `60899` for the 58 verified

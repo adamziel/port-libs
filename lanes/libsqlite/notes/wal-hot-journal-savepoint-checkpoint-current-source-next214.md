@@ -11,14 +11,14 @@ Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded mo
 - database, WAL-header, and directory sync receipts are present;
 - the WAL salt rotates before hot-journal deletion.
 
-This models the WordPress import path where a copied SQLite database must not delete a hot journal or reset the WAL while current readers still pin the recovered source.
+This models the Application import path where a copied SQLite database must not delete a hot journal or reset the WAL while current readers still pin the recovered source.
 
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext214Test.php`
   - `1 test files, 76 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next214.php`
-  - `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next214 self-test passed`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next214.php`
+  - `application-wal-hot-journal-savepoint-checkpoint-current-source-next214 self-test passed`
 
 Expected lane-local pass movement: `phpPass 103870 -> 103946` (`+76` focused PASS lines). Root harness was not run for this isolated micro-slice.
 

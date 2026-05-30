@@ -10,7 +10,7 @@ RETURNING streams are also attempted, and `ROLLBACK TO` restores the savepoint
 image. The retry DELETE/UPDATE statements then read the restored current
 source, while all pre-rollback RETURNING streams are tracked as non-durable.
 
-WordPress smoke: `wordpress-rowvalue-yield-savepoint-current-source-next172.php --self-test`
+Application smoke: `application-rowvalue-yield-savepoint-current-source-next172.php --self-test`
 models plugin-option promotion plus transient cleanup after retry.
 
 Verification:
@@ -18,9 +18,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext172Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext172Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-yield-savepoint-current-source-next172.php
+php -l lanes/libsqlite/examples/application-rowvalue-yield-savepoint-current-source-next172.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext172Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-yield-savepoint-current-source-next172.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-yield-savepoint-current-source-next172.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -10,7 +10,7 @@ The production entrypoints and private helpers for the former `156`, `157`, and
 - `materializeCurrentSourceCoveringReprepare`
 - `materializeCurrentSourceRangeFence`
 
-The three direct focused tests and WordPress examples were renamed to
+The three direct focused tests and Application examples were renamed to
 non-numbered paths and migrated to the stable production calls. Their direct
 assertion labels, fixture names, dependency labels, and returned status keys
 were also moved off the touched numbered labels so this family no longer needs
@@ -22,13 +22,13 @@ Verification:
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceDeferredLookupTest.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceCoveringReprepareTest.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceRangeFenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-deferred-lookup.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-covering-reprepare.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-range-fence.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-deferred-lookup.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-covering-reprepare.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-range-fence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceDeferredLookupTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceCoveringReprepareTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceRangeFenceTest.php` -> `3 test files, 194 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-deferred-lookup.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-covering-reprepare.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-range-fence.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-deferred-lookup.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-covering-reprepare.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-range-fence.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this is a production

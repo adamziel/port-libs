@@ -10,7 +10,7 @@ current master-journal source; stale source pages, pinned pages, clean pages,
 and old-epoch pages are rejected before the existing savepoint current-source
 spill planner sees them.
 
-WordPress smoke: `wordpress-pager-cache-spill-savepoint-master-current-source-next141.php`
+Application smoke: `application-pager-cache-spill-savepoint-master-current-source-next141.php`
 covers a copied `wp_options` import where recovered `active_plugins` and plugin
 setting pages may spill to WAL under the savepoint, while a stale transient
 cache page from an older master-journal source is rejected.

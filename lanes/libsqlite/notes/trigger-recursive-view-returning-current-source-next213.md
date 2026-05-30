@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for recursive `INSTEAD OF` view-trigger `RET
 
 This slice adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext213Plan`, an additive current-source payload seal after accepted next212 yield receipts. The next-source view/trigger `RETURNING` stream is published only when the already-drained current-source payload seals match the actual current rows in order. Missing, unexpected, or out-of-order seals keep attempted next-source rows held while current-source rows remain visible.
 
-WordPress path: copied `wp_options` imports through a recursive view trigger can now prove that the current autoload option `RETURNING` payload was sealed before a plugin migration exposes the next view/trigger source.
+Application path: copied `wp_options` imports through a recursive view trigger can now prove that the current autoload option `RETURNING` payload was sealed before a plugin migration exposes the next view/trigger source.
 
 Verification:
 
@@ -14,11 +14,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 78 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next213.php
-wordpress-trigger-recursive-view-returning-current-source-next213 self-test passed
+php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next213.php
+application-trigger-recursive-view-returning-current-source-next213 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +78` from the focused test file (`103870 -> 103948`). `benchmarkDenominator.mapped` remains `623 / 1589`; this is additional current-source PHP behavior over already mapped trigger/view/RETURNING surfaces, not a new hydrated upstream inventory row.

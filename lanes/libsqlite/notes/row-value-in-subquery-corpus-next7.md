@@ -22,10 +22,10 @@ Dashboard delta:
 - `phpPass`: `2017 -> 2067` (`+50` verified PASS lines).
 - `benchmarkDenominator.mapped`: unchanged; this is PHP corpus coverage, not a newly mapped upstream inventory unit.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-row-value-in-subquery.php
+php lanes/libsqlite/examples/application-row-value-in-subquery.php
 ```
 
 Dependency closure:

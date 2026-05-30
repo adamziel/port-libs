@@ -10,7 +10,7 @@ Stable production entry points now replace the numbered method names:
 - `compareLagLastValueFence()`
 - `compareAggregateWindowFence()`
 
-Direct tests and WordPress examples were migrated to those stable entry points.
+Direct tests and Application examples were migrated to those stable entry points.
 No compatibility shims or numbered production helper names were added.
 
 Verification:
@@ -19,14 +19,14 @@ Verification:
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext224Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext225Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext226Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next224.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next225.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next226.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next224.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next225.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next226.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext224Test.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext225Test.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext226Test.php`
   - `3 test files, 1218 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next224.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next225.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next226.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next224.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next225.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next226.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this is a production-name

@@ -8,7 +8,7 @@ Behavior added:
 
 - Added `SQLiteDmlTriggerConflictPlan`, a bounded row-array executor for INSERT-trigger side-table conflict behavior.
 - Covers statement-level conflict policy inheritance into trigger body DML, trigger-local `IGNORE` / `REPLACE` / `FAIL`, `BEFORE` and `AFTER` trigger timing, `NEW.column` substitution, and malformed trigger guardrails.
-- Added `wordpress-dml-trigger-conflict-corpus.php` for copied `wp_options` import-audit rows where outer `INSERT OR REPLACE` controls trigger side-table conflicts without `ext/sqlite`.
+- Added `application-dml-trigger-conflict-corpus.php` for copied `wp_options` import-audit rows where outer `INSERT OR REPLACE` controls trigger side-table conflicts without `ext/sqlite`.
 
 Focused evidence:
 

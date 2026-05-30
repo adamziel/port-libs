@@ -9,9 +9,9 @@ Focused evidence:
 ```
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext193Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext193Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-fail-stream-savepoint-current-source-next193.php
+php -l lanes/libsqlite/examples/application-rowvalue-fail-stream-savepoint-current-source-next193.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext193Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-fail-stream-savepoint-current-source-next193.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-fail-stream-savepoint-current-source-next193.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

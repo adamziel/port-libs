@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-cu
 
 This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It models a PASSIVE checkpoint after hot-journal recovery, savepoint rollback, and next209 writer admission. A current reader pin limits checkpoint progress to that reader's end frame, preserves WAL bytes, and forbids restart/truncate-style reset while stale readers are reopened against the current source.
 
-WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next212.php` covers a copied `wp_options` import where a recovered hot journal and plugin savepoint rollback are followed by a PASSIVE checkpoint while a current options reader is still open.
+Application smoke: `application-wal-hot-journal-savepoint-checkpoint-current-source-next212.php` covers a copied `wp_options` import where a recovered hot journal and plugin savepoint rollback are followed by a PASSIVE checkpoint while a current options reader is still open.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Test.php`
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next212.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next212.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next212.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next212.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard delta: `phpPass` moves from `101605` to `101673` from 68 newly passing focused PASS lines. Mapped upstream coverage remains `622 / 1589`; this is focused WAL current-source behavior over existing hot-journal/checkpoint/savepoint inventory rather than a fresh manifest row.

@@ -6,12 +6,12 @@ This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. I
 
 Blocked statements expire before the next step when they use a stale source token/generation/schema cookie/database digest, refer to an unadmitted handle, miss root-page coverage, retain a hot journal, keep a savepoint open, hold a dirty cache image, or lack schema/read-lock receipts.
 
-WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next233.php` covers copied `wp_options` SELECT reuse after a hot-journal savepoint checkpoint publication. It proves schema, table, and option-name index statements can reuse the current source only after their root-page digests and receipts match the checkpointed source.
+Application smoke: `application-wal-hot-journal-savepoint-checkpoint-current-source-next233.php` covers copied `wp_options` SELECT reuse after a hot-journal savepoint checkpoint publication. It proves schema, table, and option-name index statements can reuse the current source only after their root-page digests and receipts match the checkpointed source.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next233.php --self-test`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next233.php --self-test`
 - PHP lint and `git diff --check -- lanes/libsqlite` are part of the handoff verification.
 
 Expected dashboard delta: `phpPass` +67 from the focused PASS lines in `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Test.php`. Mapped upstream coverage is unchanged; this is additional current-source PHP behavior over existing WAL/hot-journal/checkpoint inventory rather than a fresh manifest row.

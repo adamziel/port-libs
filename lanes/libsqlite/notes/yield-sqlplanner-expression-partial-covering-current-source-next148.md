@@ -9,7 +9,7 @@ returns payload columns without a deferred table seek.
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteExpressionPartialCoveringCurrentSourceNext148Test.php`
-- `php lanes/libsqlite/examples/wordpress-expression-partial-covering-current-source-next148.php --self-test`
+- `php lanes/libsqlite/examples/application-expression-partial-covering-current-source-next148.php --self-test`
 
 Dependency closure: no new support component is needed. The patch reuses
 lane-local expression metadata, partial predicate implication, current-source

@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext171Plan`. It models the pager reader-cache boundary after master-journal recovery where the cache ticket must include the current master-journal digest, recovery sequence, and read-lock generation. Clean matching pages can be retained, stale clean pages can be refreshed from the current source, but dirty cache rows, stale recovery/read-lock tickets, stale master digests, source/generation mismatches, and pinned mismatched pages are forced to reopen before the next reader can serve data.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next171.php` models a copied `wp_options` import where the schema page survives the recovery boundary, the options root page refreshes, and stale `active_plugins` / `rewrite_rules` readers opened before master-journal recovery are reopened against the current source.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next171.php` models a copied `wp_options` import where the schema page survives the recovery boundary, the options root page refreshes, and stale `active_plugins` / `rewrite_rules` readers opened before master-journal recovery are reopened against the current source.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext171Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext171Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next171.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next171.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext171Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next171.php`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next171.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard delta: `phpPass` moves from `77680` to `77786` from 106 newly passing focused PASS lines. Mapped upstream coverage remains `612 / 1589`; this is focused pager reader-cache current-source behavior over existing master-journal inventory rather than a fresh manifest row.

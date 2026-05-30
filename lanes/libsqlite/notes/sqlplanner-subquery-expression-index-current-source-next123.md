@@ -1,7 +1,7 @@
 # sqlplanner-subquery-expression-index-current-source-next123
 
 This slice adds a bounded current-source planner plan for `IN (SELECT ...)`
-keys that already represent expression-index terms, for example WordPress
+keys that already represent expression-index terms, for example Application
 option imports that probe `lower(option_name)` through a staged subquery.
 
 Behavior covered:
@@ -20,7 +20,7 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerSubqueryExpressionIndexCurrentSourceNext123Test.php`
   - `1 test files, 63 assertions, 0 failures`
   - 63 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-subquery-expression-index-current-source-next123.php`
+- `php lanes/libsqlite/examples/application-subquery-expression-index-current-source-next123.php`
   - status `subquery-expression-index-current-source-ready`
   - selected source `current`
   - index `idx_wp_options_lower_active_name`
@@ -30,7 +30,7 @@ Verification:
   - no syntax errors
 - `php -l lanes/libsqlite/tests/SQLitePlannerSubqueryExpressionIndexCurrentSourceNext123Test.php`
   - no syntax errors
-- `php -l lanes/libsqlite/examples/wordpress-subquery-expression-index-current-source-next123.php`
+- `php -l lanes/libsqlite/examples/application-subquery-expression-index-current-source-next123.php`
   - no syntax errors
 - `git diff --check -- lanes/libsqlite`
   - clean

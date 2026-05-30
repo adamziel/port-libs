@@ -4,7 +4,7 @@
 
 - Added `SQLiteFreelistFreePlan::existingTrunkPageNumbers()` and optional summary evidence for freed pages that merge into an existing non-full freelist trunk instead of promoting a new trunk.
 - Added focused coverage for copied `wp_options` table and `option_name` index overflow chains followed by current next-page pointers, secure-delete clearing, auto-vacuum pointer-map free-page rewrites across pointer-map pages 2 and 105, and rejection of current trunk / pointer-map page release.
-- Added a WordPress smoke showing obsolete overflow pages appended to existing freelist trunk page 8 with no new trunk promotion.
+- Added a Application smoke showing obsolete overflow pages appended to existing freelist trunk page 8 with no new trunk promotion.
 
 ## Focused Evidence
 
@@ -16,7 +16,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-btree-pointermap-freelist-merge.php
+$ php lanes/libsqlite/examples/application-btree-pointermap-freelist-merge.php
 releasedOverflowPages: [20, 22, 106, 107, 21]
 existingFreelistTrunks: [8]
 newFreelistTrunks: []

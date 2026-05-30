@@ -8,12 +8,12 @@ Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext189Plan`, a current-so
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext189Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext189Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next189.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next189.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext189Test.php`
   - `1 test files, 61 assertions, 0 failures`
   - 61 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next189.php`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next189 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next189.php`
+  - `application-pager-master-journal-reader-cache-current-source-next189 self-test passed`
 
 ## Non-overlap
 

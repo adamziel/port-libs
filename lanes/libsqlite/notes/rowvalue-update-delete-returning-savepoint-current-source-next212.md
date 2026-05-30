@@ -6,8 +6,8 @@ subquery source is evaluated from the current row-array tables passed into the
 UPDATE/DELETE RETURNING executor, so savepoint rollback and retry statements
 see the correct current-source image.
 
-WordPress smoke:
-`wordpress-rowvalue-subquery-savepoint-current-source-next212.php` models a
+Application smoke:
+`application-rowvalue-subquery-savepoint-current-source-next212.php` models a
 copied `wp_options` migration where `wp_optionmeta` rows select the tuple set
 for option updates and network cleanup deletes. A failed batch rolls back to
 the savepoint image, then retry UPDATE/DELETE RETURNING reads the original
@@ -19,9 +19,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-subquery-savepoint-current-source-next212.php
+php -l lanes/libsqlite/examples/application-rowvalue-subquery-savepoint-current-source-next212.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-subquery-savepoint-current-source-next212.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-subquery-savepoint-current-source-next212.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -7,8 +7,8 @@ rewrite receipts for page 105, confirms readback/current-source tokens, keeps
 tail pages 109/110 excluded, and requires pointer-map publication before any
 payload page is published.
 
-WordPress smoke:
-`wordpress-btree-vacuum-pointermap-freeblock-current-source-next226.php` models
+Application smoke:
+`application-btree-vacuum-pointermap-freeblock-current-source-next226.php` models
 deleting an overflow-backed copied `wp_options` transient and publishing only
 the safe pointer-map/freeblock pages after readback verification.
 

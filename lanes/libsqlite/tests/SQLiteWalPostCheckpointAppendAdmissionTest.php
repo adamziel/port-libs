@@ -123,7 +123,7 @@ $cases = [
     'append digest length' => [static fn (): mixed => strlen($plan()['append_digest']), 64],
     'dependency post-checkpoint append admission' => [static fn (): mixed => in_array('sqlite-wal-post-checkpoint-append-admission', $plan()['dependencies'], true), true],
     'dependency fence' => [static fn (): mixed => in_array('sqlite-post-checkpoint-wal-append-generation-fence', $plan()['dependencies'], true), true],
-    'dependency wordpress append' => [static fn (): mixed => in_array('wordpress-import-post-checkpoint-wal-append-after-hot-journal', $plan()['dependencies'], true), true],
+    'dependency application append' => [static fn (): mixed => in_array('application-import-post-checkpoint-wal-append-after-hot-journal', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next208 reader-slot reuse'), true],
     'blocked status' => [static fn (): mixed => $blocked()['status'], 'wal-hot-journal-savepoint-checkpoint-post-checkpoint-append-admission-blocked'],

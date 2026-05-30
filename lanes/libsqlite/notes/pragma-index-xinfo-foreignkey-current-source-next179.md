@@ -1,7 +1,7 @@
 # pragma-index-xinfo-foreignkey-current-source-next179
 
 This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a
-current-source PRAGMA helper for copied WordPress schema diagnostics where
+current-source PRAGMA helper for copied Application schema diagnostics where
 foreign-key constraint names are single-quoted in `sqlite_schema` DDL.
 
 Behavior covered:
@@ -19,16 +19,16 @@ Verification:
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next179.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next179.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next179.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next179.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 75 assertions, 0 failures`
   - 67 focused PASS lines.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next179.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next179 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next179.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next179 self-test passed`
 
 Non-overlap:
 

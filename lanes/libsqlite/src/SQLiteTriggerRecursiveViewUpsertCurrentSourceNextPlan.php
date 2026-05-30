@@ -140,7 +140,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-upsert-current-source-next232',
                 'sqlite-instead-of-view-upsert-recursive-trigger',
                 'sqlite-current-upsert-conflict-seal',
-                'wordpress-recursive-view-upsert-current-source-next232',
+                'application-recursive-view-upsert-current-source-next232',
             ],
             'non_overlap_next232' => 'adds UPSERT conflict seals over recursive INSTEAD OF view trigger current-source yields; avoids accepted recursive view RETURNING next157-next229, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -435,7 +435,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next233' => array_values(array_unique(array_merge($base['dependencies_next229'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next233',
                 'sqlite-current-view-upsert-source-seal',
-                'wordpress-recursive-view-upsert-current-source-next233',
+                'application-recursive-view-upsert-current-source-next233',
             ]))),
             'non_overlap_next233' => 'adds current view UPSERT conflict-target/update-column source seals after next229 generation seals; avoids accepted recursive view RETURNING cursor, epoch, source, snapshot, and generation handoffs, row-value RETURNING savepoints, DML RETURNING conflicts, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -825,7 +825,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next234' => array_values(array_unique(array_merge($base['dependencies_source_close'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next234',
                 'sqlite-instead-of-view-trigger-current-source-upsert-receipts',
-                'wordpress-recursive-view-upsert-current-source-next234',
+                'application-recursive-view-upsert-current-source-next234',
             ]))),
             'non_overlap_next234' => 'adds recursive INSTEAD OF view UPSERT conflict-key receipt admission after accepted source_close cursor-close handoff; avoids accepted next230-source_close recursive view RETURNING close/epoch surfaces, trigger RETURNING conflicts, row-value savepoints, schema reparse, WAL/VFS, JSON, planner, encoding, and B-tree clusters',
         ];
@@ -1130,7 +1130,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-upsert-current-source-next235',
                 'sqlite-current-recursive-view-upsert-yield-ticket',
                 'sqlite-current-upsert-conflict-seal',
-                'wordpress-recursive-view-upsert-yield-ticket-next235',
+                'application-recursive-view-upsert-yield-ticket-next235',
             ],
             'non_overlap_next235' => 'adds current-source yield-ticket fencing after accepted next232 conflict seals; avoids recursive view RETURNING, trigger/FK, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -1424,7 +1424,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next236' => array_values(array_unique(array_merge($base['dependencies_next233'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next236',
                 'sqlite-current-view-upsert-row-image-receipts',
-                'wordpress-recursive-view-upsert-current-source-next236',
+                'application-recursive-view-upsert-current-source-next236',
             ]))),
             'non_overlap_next236' => 'adds current recursive view UPSERT row-image receipts after accepted next233 conflict-target/update-column seals; avoids next233 UPSERT source seal, recursive view RETURNING generation/source handoffs, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -1765,7 +1765,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next237' => array_values(array_unique(array_merge($base['dependencies_next234'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next237',
                 'sqlite-instead-of-view-trigger-current-source-upsert-action-seals',
-                'wordpress-recursive-view-upsert-current-source-next237',
+                'application-recursive-view-upsert-current-source-next237',
             ]))),
             'non_overlap_next237' => 'adds recursive INSTEAD OF view UPSERT conflict-action seals after accepted next234 conflict-key receipt admission; avoids next234 receipt duplication, trigger RETURNING conflicts, row-value savepoints, schema reparse, WAL/VFS, JSON, planner, encoding, and B-tree clusters',
         ];
@@ -2122,7 +2122,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-upsert-current-source-next238',
                 'sqlite-current-recursive-view-upsert-resume-receipt',
                 'sqlite-current-recursive-view-upsert-yield-ticket',
-                'wordpress-recursive-view-upsert-resume-receipt-next238',
+                'application-recursive-view-upsert-resume-receipt-next238',
             ],
             'non_overlap_next238' => 'adds current-source resume receipt fencing after next235 yield tickets; avoids accepted next232 conflict seals, next235 yield tickets, recursive view RETURNING, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -2410,7 +2410,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next239' => array_values(array_unique(array_merge($base['dependencies_source_close'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next239',
                 'sqlite-upsert-current-source-target-receipts',
-                'wordpress-recursive-view-upsert-current-source-next239',
+                'application-recursive-view-upsert-current-source-next239',
             ]))),
             'non_overlap_next239' => 'adds current-source UPSERT target receipt admission after source_close cursor close; avoids accepted recursive view RETURNING next203-source_close surfaces, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -2735,7 +2735,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next240' => array_values(array_unique(array_merge($base['dependencies_source_close'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next240',
                 'sqlite-instead-of-view-upsert-conflict-source',
-                'wordpress-recursive-view-upsert-current-source-next240',
+                'application-recursive-view-upsert-current-source-next240',
             ]))),
             'non_overlap_next240' => 'adds current-source UPSERT conflict-key admission after accepted source_close cursor-close handoff; avoids accepted trigger recursive view RETURNING next157-source_close cursor/ticket/close surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -3141,7 +3141,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next241' => array_values(array_unique(array_merge($base['dependencies_next237'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next241',
                 'sqlite-instead-of-view-trigger-current-source-upsert-close-seals',
-                'wordpress-recursive-view-upsert-current-source-next241',
+                'application-recursive-view-upsert-current-source-next241',
             ]))),
             'non_overlap_next241' => 'adds current-source close seals after accepted next237 recursive view UPSERT action receipts; avoids next237 action receipt duplication, recursive view RETURNING, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -3454,7 +3454,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next242' => array_values(array_unique(array_merge($base['dependencies_next239'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next242',
                 'sqlite-instead-of-view-upsert-current-statement-epoch',
-                'wordpress-recursive-view-upsert-current-source-next242',
+                'application-recursive-view-upsert-current-source-next242',
             ]))),
             'non_overlap_next242' => 'adds current-source statement-epoch fencing after accepted next239 UPSERT target receipts; avoids accepted next238/next239 recursive-view UPSERT yield and target receipt behavior, recursive view RETURNING, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -3749,7 +3749,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next243' => array_values(array_unique(array_merge($base['dependencies_next240'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next243',
                 'sqlite-instead-of-view-upsert-current-source-cookie-fence',
-                'wordpress-recursive-view-upsert-current-source-next243',
+                'application-recursive-view-upsert-current-source-next243',
             ]))),
             'non_overlap_next243' => 'adds current view/trigger source-cookie fencing after accepted next240 UPSERT conflict receipts; avoids accepted next240 receipt admission, trigger RETURNING, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -3982,7 +3982,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next244' => array_values(array_unique(array_merge($base['dependencies_next241'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next244',
                 'sqlite-instead-of-view-trigger-upsert-statement-commit-watermark',
-                'wordpress-recursive-view-upsert-current-source-next244',
+                'application-recursive-view-upsert-current-source-next244',
             ]))),
             'non_overlap_next244' => 'adds statement-level UPSERT commit watermark admission after accepted next241 current-source close seals; avoids next241 close-seal duplication, recursive view RETURNING cursor/ticket/generation surfaces, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -4318,7 +4318,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next245' => array_values(array_unique(array_merge($base['dependencies_next241'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next245',
                 'sqlite-instead-of-view-trigger-current-source-upsert-conflict-target-receipts',
-                'wordpress-recursive-view-upsert-current-source-next245',
+                'application-recursive-view-upsert-current-source-next245',
             ]))),
             'non_overlap_next245' => 'adds current-source UPSERT conflict-target and excluded-row receipt admission after accepted next241 close seals; avoids next241 close-seal duplication, recursive view RETURNING, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -4700,7 +4700,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next246' => array_values(array_unique(array_merge($base['dependencies_next243'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next246',
                 'sqlite-instead-of-view-upsert-conflict-image-receipts',
-                'wordpress-recursive-view-upsert-current-source-next246',
+                'application-recursive-view-upsert-current-source-next246',
             ]))),
             'non_overlap_next246' => 'adds current-source UPSERT old/excluded conflict-image receipt fencing after accepted next243 source-cookie fencing; avoids accepted next240 conflict-key receipts, next242 statement epoch, next243 cookie fence, recursive view RETURNING, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -5113,7 +5113,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next247' => array_values(array_unique(array_merge($base['dependencies_next244'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next247',
                 'sqlite-instead-of-view-trigger-upsert-statement-source-sequence',
-                'wordpress-recursive-view-upsert-current-source-next247',
+                'application-recursive-view-upsert-current-source-next247',
             ]))),
             'non_overlap_next247' => 'adds statement-source sequence fencing after accepted next244 commit watermark receipts; avoids next244 commit receipt/watermark duplication, next242 statement epoch fencing, next239 target receipts, trigger RETURNING cursor/ticket/generation surfaces, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -5429,7 +5429,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next248' => array_values(array_unique(array_merge($base['dependencies_next245'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next248',
                 'sqlite-instead-of-view-trigger-current-source-upsert-where-receipts',
-                'wordpress-recursive-view-upsert-current-source-next248',
+                'application-recursive-view-upsert-current-source-next248',
             ]))),
             'non_overlap_next248' => 'adds current-source UPSERT DO UPDATE WHERE guard receipt admission after accepted next245 conflict-target receipts; avoids next245 target/excluded-column duplication, recursive view RETURNING, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -5801,7 +5801,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next249' => array_values(array_unique(array_merge($base['dependencies_next246'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next249',
                 'sqlite-instead-of-view-upsert-do-update-assignment-receipts',
-                'wordpress-recursive-view-upsert-current-source-next249',
+                'application-recursive-view-upsert-current-source-next249',
             ]))),
             'non_overlap_next249' => 'adds current-source UPSERT DO UPDATE assignment receipt fencing after accepted next246 conflict-image fencing; avoids accepted next240 conflict-key receipts, next242 statement epoch, next243 cookie fence, next246 old/excluded conflict images, recursive view RETURNING, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -6137,7 +6137,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next250' => array_values(array_unique(array_merge($base['dependencies_next247'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next250',
                 'sqlite-instead-of-view-trigger-upsert-rowid-provenance',
-                'wordpress-recursive-view-upsert-current-source-next250',
+                'application-recursive-view-upsert-current-source-next250',
             ]))),
             'non_overlap_next250' => 'adds current-source UPSERT rowid-provenance receipt fencing after accepted next247 statement sequence fencing; avoids next246 conflict images, next247 sequence receipts, commit watermark/source-cookie surfaces, trigger RETURNING, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -6493,7 +6493,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next251' => array_values(array_unique(array_merge($base['dependencies_next247'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next251',
                 'sqlite-instead-of-view-trigger-upsert-change-counter-fence',
-                'wordpress-recursive-view-upsert-current-source-next251',
+                'application-recursive-view-upsert-current-source-next251',
             ]))),
             'non_overlap_next251' => 'adds current-source change-counter receipts after accepted next247 statement sequence fencing; avoids next247 sequence receipts, next244 commit watermarks, next239 target receipts, recursive view RETURNING cursor/ticket/generation surfaces, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -6795,7 +6795,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next252' => array_values(array_unique(array_merge($base['dependencies_next249'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next252',
                 'sqlite-instead-of-view-upsert-do-update-where-receipts',
-                'wordpress-recursive-view-upsert-current-source-next252',
+                'application-recursive-view-upsert-current-source-next252',
             ]))),
             'non_overlap_next252' => 'adds current-source UPSERT DO UPDATE WHERE predicate decision receipts after accepted next249 assignment receipts; avoids next249 assignment receipt fencing, next246 conflict images, recursive view RETURNING, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -7122,7 +7122,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next253' => array_values(array_unique(array_merge($base['dependencies_next250'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next253',
                 'sqlite-instead-of-view-trigger-upsert-materialization-receipts',
-                'wordpress-recursive-view-upsert-current-source-next253',
+                'application-recursive-view-upsert-current-source-next253',
             ]))),
             'non_overlap_next253' => 'adds current-source recursive view UPSERT materialized RETURNING receipt fencing after accepted next250 rowid provenance; avoids next247 statement sequence, next246 conflict images, next250 rowid receipts, recursive view RETURNING-only clusters, WAL/VFS, JSON table, planner, encoding, B-tree, and suite evidence clusters',
         ];
@@ -7465,7 +7465,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next254' => array_values(array_unique(array_merge($base['dependencies_next250'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next254',
                 'sqlite-instead-of-view-trigger-current-mapping-receipts',
-                'wordpress-recursive-view-upsert-current-source-next254',
+                'application-recursive-view-upsert-current-source-next254',
             ]))),
             'non_overlap_next254' => 'adds current view-column mapping and source-token receipt fencing after accepted next250 rowid provenance; avoids next250 rowid receipts, next247 sequence receipts, next244 commit watermarks, trigger RETURNING cursor/ticket/generation surfaces, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -7857,7 +7857,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next255' => array_values(array_unique(array_merge($base['dependencies_next252'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next255',
                 'sqlite-instead-of-view-upsert-returning-cursor-drain',
-                'wordpress-recursive-view-upsert-current-source-next255',
+                'application-recursive-view-upsert-current-source-next255',
             ]))),
             'non_overlap_next255' => 'adds current-source UPSERT RETURNING cursor drain receipts after accepted next252 DO UPDATE WHERE decisions; avoids next251 change counters, next252 predicate receipts, recursive view RETURNING ticket/generation surfaces, row-value RETURNING, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -8223,7 +8223,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'dependencies_next256' => array_values(array_unique(array_merge($base['dependencies_next253'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next256',
                 'sqlite-instead-of-view-trigger-upsert-current-source-handoff',
-                'wordpress-recursive-view-upsert-current-source-next256',
+                'application-recursive-view-upsert-current-source-next256',
             ]))),
             'non_overlap_next256' => 'adds ordered batch-level current-source handoff receipts after accepted next253 recursive view UPSERT materialization; avoids next253 materialized projection receipts, next250 rowid provenance, next247 statement sequence, recursive view RETURNING-only, row-value/window RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite evidence clusters',
         ];

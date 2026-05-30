@@ -9,9 +9,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLitePagerSavepointStatementJournalCurrentNext66Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-savepoint-statement-current-next66.php
+php -l lanes/libsqlite/examples/application-pager-savepoint-statement-current-next66.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointStatementJournalCurrentNext66Test.php
-php lanes/libsqlite/examples/wordpress-pager-savepoint-statement-current-next66.php --self-test
+php lanes/libsqlite/examples/application-pager-savepoint-statement-current-next66.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 
@@ -19,7 +19,7 @@ Focused output:
 
 ```text
 1 test files, 60 assertions, 0 failures
-wordpress-pager-savepoint-statement-current-next66 self-test passed
+application-pager-savepoint-statement-current-next66 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +60, from 24610 to 24670. `benchmarkDenominator.mapped` is unchanged because this is focused native pager behavior coverage, not a newly mapped upstream inventory unit.

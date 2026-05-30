@@ -41,7 +41,7 @@ $walBytes = $buildWal([
 $wal = static fn (): SQLiteWal => SQLiteWal::parse($walBytes, $pageSize, true);
 $savepoints = static function (): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wordpress-import');
+    $stack->beginTransaction('application-import');
     $stack->recordWalFrameWrite(1, 1);
     $stack->recordWalFrameWrite(2, 2, true);
     $stack->savepoint('plugin-settings');

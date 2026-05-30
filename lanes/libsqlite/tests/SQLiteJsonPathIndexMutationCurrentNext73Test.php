@@ -141,7 +141,7 @@ $tests['json path index mutation current next73 reports payload path metadata'] 
     $t->same(['payload', '$.plugin.rank'], [$plan['index_updates'][0]['path'] === '$.plugin.rank' ? 'payload' : 'unexpected', $plan['index_updates'][0]['path']]);
 };
 
-$tests['json path index mutation current next73 keeps wordpress option names intact'] = static function (TestRunner $t) use ($planFor): void {
+$tests['json path index mutation current next73 keeps application option names intact'] = static function (TestRunner $t) use ($planFor): void {
     $plan = $planFor([['rowid' => 2, 'column' => 'payload', 'mutations' => [['function' => 'json_set', 'path' => '$.plugin.rank', 'value' => 44]]]]);
     $t->same('plugin_beta', $plan['after'][1]['option_name']);
 };

@@ -9,6 +9,6 @@ Focused behavior:
 - Preserves the covering cursor path, so `DeferredSeek` and table rowid lookup stay elided after the current-source recheck.
 - Records current-source fence signatures for predicate, row stream, and covering payload.
 
-WordPress relevance: copied `wp_options` import/cleanup queries often probe plugin option names through `lower(option_name)` while projecting `option_value` and metadata. This diagnostic keeps those point lookups current after ANALYZE without requiring ext/sqlite.
+Application relevance: copied `wp_options` import/cleanup queries often probe plugin option names through `lower(option_name)` while projecting `option_value` and metadata. This diagnostic keeps those point lookups current after ANALYZE without requiring ext/sqlite.
 
 Non-overlap: this avoids accepted STAT4 expression IN next126, expression range next128, expression skip-scan next137, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, and PRAGMA clusters. No new support component is needed.

@@ -11,7 +11,7 @@ final class SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNamePlan(
+    public static function optionRowNamePlan(
         array $currentRows,
         array $nextRows,
         string $patternBytes,

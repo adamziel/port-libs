@@ -20,9 +20,9 @@ Focused verification:
 php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
 php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php
 php -l lanes/libsqlite/tests/SQLiteJsonAggregateDistinctObjectWindowCurrentNext81Test.php
-php -l lanes/libsqlite/examples/wordpress-json-aggregate-distinct-object-window-current-next81.php
+php -l lanes/libsqlite/examples/application-json-aggregate-distinct-object-window-current-next81.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateDistinctObjectWindowCurrentNext81Test.php
-php lanes/libsqlite/examples/wordpress-json-aggregate-distinct-object-window-current-next81.php --self-test
+php lanes/libsqlite/examples/application-json-aggregate-distinct-object-window-current-next81.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

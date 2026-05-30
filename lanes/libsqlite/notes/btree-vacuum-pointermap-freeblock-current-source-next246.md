@@ -4,9 +4,9 @@
 
 Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext246Plan`, a vacuum reuse-cursor publication layer over the accepted next242 current-source handoff. The slice verifies that reusable freeblock pages are not allocated into the next source until current-source tokens match, pointer-map generations are current, duplicate pointer-map page generations are visible, leaf freeblock receipts remain current, the freelist trunk lease is stable, and fenced tail pages remain excluded.
 
-## WordPress Scenario
+## Application Scenario
 
-`examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next246.php` models deletion of an overflow-backed copied `wp_options` transient before vacuum reuse. The smoke reports the reuse cursor pages, pointer-map barrier pages, allocated freeblock pages, duplicate pointer-map generation page, and the guards needed before a copied WordPress database image can reuse the pages.
+`examples/application-btree-vacuum-pointermap-freeblock-current-source-next246.php` models deletion of an overflow-backed copied `wp_options` transient before vacuum reuse. The smoke reports the reuse cursor pages, pointer-map barrier pages, allocated freeblock pages, duplicate pointer-map generation page, and the guards needed before a copied Application database image can reuse the pages.
 
 ## Evidence
 

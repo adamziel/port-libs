@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for nested row-value `UPDATE` / `DELETE ... RETURNING` savepoints.
 
-This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext166Plan`. It models a WordPress `wp_options` import cleanup where an inner savepoint performs row-value `UPDATE RETURNING` and `DELETE RETURNING`, then `RELEASE`s into an outer savepoint. A later outer rollback discards the already released inner `RETURNING` stream together with the outer attempted stream, restores the outer savepoint image, and retries from the original current source before release.
+This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext166Plan`. It models a Application `wp_options` import cleanup where an inner savepoint performs row-value `UPDATE RETURNING` and `DELETE RETURNING`, then `RELEASE`s into an outer savepoint. A later outer rollback discards the already released inner `RETURNING` stream together with the outer attempted stream, restores the outer savepoint image, and retries from the original current source before release.
 
-WordPress smoke: `wordpress-rowvalue-nested-savepoint-current-source-next166.php` previews copied option rows where transient cleanup and option promotion from the inner release are undone by the outer rollback, then the retry yields rows from the restored table image.
+Application smoke: `application-rowvalue-nested-savepoint-current-source-next166.php` previews copied option rows where transient cleanup and option promotion from the inner release are undone by the outer rollback, then the retry yields rows from the restored table image.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext166Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext166Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-current-source-next166.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-nested-savepoint-current-source-next166.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext166Test.php`
   - `1 test files, 73 assertions, 0 failures`
   - 73 `PASS rowvalue update delete returning savepoint current source next166 ...` lines

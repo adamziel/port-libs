@@ -4,13 +4,13 @@
 
 - Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext170()` on top of the accepted next166 generated-path rowid yield planner.
 - The new profile records an xFilter/current-source cursor view: `idxNum`, `idxStr`, argv columns/values, omitted and residual columns, cursor mode, pinned rowid/path tape, cursor rows, estimates, cost class, and replan reasons.
-- WordPress smoke: copied `wp_options` plugin-rule JSON diagnostics can keep a generated-path plus rowid point lookup pinned to the current `json_tree()` source until xFilter reset, while a changed generated path prepares a fresh virtual-table filter.
+- Application smoke: copied `wp_options` plugin-rule JSON diagnostics can keep a generated-path plus rowid point lookup pinned to the current `json_tree()` source until xFilter reset, while a changed generated path prepares a fresh virtual-table filter.
 
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext170Test.php`
 - Result: `1 test files, 57 assertions, 0 failures`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next170.php`
+- Example smoke: `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next170.php`
 
 ## Non-Overlap
 

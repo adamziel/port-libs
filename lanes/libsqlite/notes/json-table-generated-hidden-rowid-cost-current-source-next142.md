@@ -4,7 +4,7 @@ Added `SQLiteJsonTablePlan::currentSourceGeneratedHiddenRowidCostNext142()` for 
 
 The slice composes the accepted generated hidden-cost planner from next136 with rowid alias residuals. It records rowid constraint signatures, generated-vs-rowid matched counts, intersected rowids/fullkeys, a generated rowid tape, effective cost, cost class, current/next transitions, and replan reasons.
 
-WordPress relevance: copied `wp_options` plugin settings can preview a generated `priority`/`enabled` filter while keeping a hidden rowid point seek pinned to the current JSON source, even when a next import adds sibling rules.
+Application relevance: copied `wp_options` plugin settings can preview a generated `priority`/`enabled` filter while keeping a hidden rowid point seek pinned to the current JSON source, even when a next import adds sibling rules.
 
 Verification:
 

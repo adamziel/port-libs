@@ -12,7 +12,7 @@ source/resume receipt, validates acknowledged receipts, rejects stale current
 source or next-resume tokens, and keeps attempted next-source rows hidden until
 the current source is fully drained.
 
-WordPress path: `wordpress-trigger-recursive-view-returning-source-resume.php`
+Application path: `application-trigger-recursive-view-returning-source-resume.php`
 covers copied `wp_options` import rows flowing through a recursive view trigger.
 The current import source must drain before the next copied source can resume
 and emit `RETURNING` rows.
@@ -21,10 +21,10 @@ Focused verification:
 
 ```bash
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSourceResumeTest.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-source-resume.php
+php lanes/libsqlite/examples/application-trigger-recursive-view-returning-source-resume.php
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSourceResumeTest.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-source-resume.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-source-resume.php
 git diff --check -- lanes/libsqlite
 ```
 

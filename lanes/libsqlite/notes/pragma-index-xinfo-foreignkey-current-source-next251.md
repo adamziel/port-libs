@@ -19,8 +19,8 @@ repair is a normal child index on the exact FK child columns.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `51 PASS lines`
   - `1 test files, 58 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next251.php`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next251 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next251.php`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next251 self-test passed`
 
 ## Non-Overlap
 

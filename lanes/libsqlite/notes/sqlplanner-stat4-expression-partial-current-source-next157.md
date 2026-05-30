@@ -10,7 +10,7 @@ Behavior:
   indexes that use STAT4 samples and covering current-source rows.
 - Fences prepared/current/next sources by schema cookie, STAT4 generation,
   index signature, row stream signature, and STAT4 signature.
-- Materializes current-source rows for a WordPress-shaped
+- Materializes current-source rows for a Application-shaped
   `lower(option_name)` partial index over copied `wp_options` rows while
   preserving case in the covering payload.
 - Rejects a next source when schema/stat4/index/row/sample signatures drift
@@ -29,16 +29,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 59 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next157.php
+php lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-next157.php
 ```
 
 Expected output:
 
 ```text
-wordpress planner stat4 expression partial current-source next157: idx_wp_options_lower_name_autoload_stat4_partial_next157 rows=4 rowids=2,7,5,8 names=plugin_beta,PLUGIN_BETA,plugin_stable,plugin_stable
+application planner stat4 expression partial current-source next157: idx_wp_options_lower_name_autoload_stat4_partial_next157 rows=4 rowids=2,7,5,8 names=plugin_beta,PLUGIN_BETA,plugin_stable,plugin_stable
 ```
 
 Non-overlap:

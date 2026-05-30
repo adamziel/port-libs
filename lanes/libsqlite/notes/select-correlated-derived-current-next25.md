@@ -17,10 +17,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 54 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-correlated-derived-current-next25.php
+php lanes/libsqlite/examples/application-select-correlated-derived-current-next25.php
 [
     {
         "option_name": "siteurl"
@@ -40,7 +40,7 @@ is unchanged at `461 / 1589` because this is a fresh focused PHP behavior
 cluster, not a newly mapped upstream inventory unit.
 
 Non-overlap: this does not repeat accepted batch23 standalone derived-table
-materialization for WordPress import staging, accepted SELECT EXISTS/IN
+materialization for Application import staging, accepted SELECT EXISTS/IN
 subquery execution, JSON table cursor/source/constraint work, expression
 ORDER BY, grouped SELECT text, VFS/WAL/B-tree storage clusters, or suite
 countability evidence. The narrower behavior is current-row visibility and

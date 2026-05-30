@@ -8,9 +8,9 @@ the right source token, epoch, schema cookie, and root-page admission from the
 next182 path is still forced to reprepare/reopen when its observed WAL checkpoint
 sequence or WAL salt belongs to an older or next generation.
 
-## WordPress path
+## Application path
 
-The smoke models a copied WordPress import that recovers a hot rollback journal,
+The smoke models a copied Application import that recovers a hot rollback journal,
 rolls back a plugin savepoint, and then decides whether cached `wp_options` and
 `wp_usermeta` prepared readers may remain open. Only readers that observed the
 current WAL checkpoint sequence and salt are retained.
@@ -34,7 +34,7 @@ Focused verification run in this lane:
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext185Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next185.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next185.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext185Test.php`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next185.php`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next185.php`
 - `git diff --check -- lanes/libsqlite`

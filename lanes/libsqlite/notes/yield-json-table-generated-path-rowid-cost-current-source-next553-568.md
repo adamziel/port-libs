@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for `json-table-generated-path-rowid-cost-cu
 
 Behavior: extends `SQLiteJsonTablePlan` generated-path rowid cost current-source aliases from next553 through next568 as a direct follow-on to the merged next537-552 preparation fence. The slice keeps current-source `json_tree()` generated-path rowid point-cost admission stable when xCurrent/xRowid alias, fingerprint, and order observations agree, and keeps changed copied source rows on the next-reader reprepare path.
 
-WordPress path: `wordpress-json-table-generated-path-rowid-cost-current-source-next553-568.php` models copied `wp_options` generated JSON rule scans that reuse the current rowid point cost for the active row while detecting a changed next source path/generation.
+Application path: `application-json-table-generated-path-rowid-cost-current-source-next553-568.php` models copied `wp_options` generated JSON rule scans that reuse the current rowid point cost for the active row while detecting a changed next source path/generation.
 
 Validation:
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext537552Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext553568Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next553-568.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next553-568.php`
 - `php tools/run-tests.php SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext537552Test SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext553568Test`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next553-568.php --self-test`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next553-568.php --self-test`
 
 Dependency closure: no new support component needed; this composes the existing generated-path rowid yield guard and cost-selection alias machinery.
 

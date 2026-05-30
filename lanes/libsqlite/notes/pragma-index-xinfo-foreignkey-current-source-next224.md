@@ -13,15 +13,15 @@ New behavior:
 - flags parent UNIQUE indexes whose key columns match but whose collations do
   not match SQLite's foreign-key parent-key requirement;
 - reports current/next blocker counts, source summaries, pagination, and
-  repair deltas for copied WordPress multisite option import schemas.
+  repair deltas for copied Application multisite option import schemas.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next224.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next224.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next224.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next224.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this does not repeat accepted next217 parent-key prefix/suffix

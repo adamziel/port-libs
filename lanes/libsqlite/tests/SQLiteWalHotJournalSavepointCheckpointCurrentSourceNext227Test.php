@@ -139,7 +139,7 @@ $cases = [
     'operation includes seal' => [static fn (): mixed => in_array('seal_hot_journal_delete_receipt_current_source_next227', $plan()['operation_names'], true), true],
     'operation includes publish' => [static fn (): mixed => in_array('publish_checkpoint_next_source_receipt_next227', $plan()['operation_names'], true), true],
     'dependency includes next227' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next227', $plan()['dependencies'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-checkpoint-publish-receipts', $plan()['dependencies'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-import-hot-journal-checkpoint-publish-receipts', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next211'), true],
     'guard names count' => [static fn (): mixed => count($plan()['guard_names']), 6],

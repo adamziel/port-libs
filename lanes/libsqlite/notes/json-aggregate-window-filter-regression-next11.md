@@ -21,11 +21,11 @@ New focused PASS-line delta:
 - `SQLiteJsonAggregateWindowRegressionNext11Test.php`: 50 new PASS cases.
 - Existing `SQLiteJsonAggregateWindowEdgeCorpusTest.php`: expectations updated for corrected upstream-style FILTER/window result shape; no `phpPass` credit claimed for those existing cases.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-aggregate-window-filter-regression.php --self-test
-wordpress-json-aggregate-window-filter-regression self-test passed
+php lanes/libsqlite/examples/application-json-aggregate-window-filter-regression.php --self-test
+application-json-aggregate-window-filter-regression self-test passed
 ```
 
 Non-overlap:

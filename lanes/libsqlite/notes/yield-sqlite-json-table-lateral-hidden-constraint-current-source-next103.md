@@ -4,7 +4,7 @@ Slice: `json-table-lateral-hidden-constraint-current-source-next103`
 
 ## Behavior
 
-Adds `SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103()`, a keyed current/next planner for lateral `json_each()` / `json_tree()` hidden `json`/`root` constraints. The planner pairs current and next host rows by a stable host key column instead of by array ordinal, so a reordered WordPress options source does not look like a changed JSON source tape.
+Adds `SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103()`, a keyed current/next planner for lateral `json_each()` / `json_tree()` hidden `json`/`root` constraints. The planner pairs current and next host rows by a stable host key column instead of by array ordinal, so a reordered Application options source does not look like a changed JSON source tape.
 
 Covered behavior:
 
@@ -25,10 +25,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 62 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-lateral-hidden-constraint-current-source-next103.php --self-test
+php lanes/libsqlite/examples/application-json-table-lateral-hidden-constraint-current-source-next103.php --self-test
 ```
 
 Syntax:
@@ -36,7 +36,7 @@ Syntax:
 ```text
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableLateralHiddenConstraintCurrentSourceNext103Test.php
-php -l lanes/libsqlite/examples/wordpress-json-table-lateral-hidden-constraint-current-source-next103.php
+php -l lanes/libsqlite/examples/application-json-table-lateral-hidden-constraint-current-source-next103.php
 ```
 
 ## Non-Overlap

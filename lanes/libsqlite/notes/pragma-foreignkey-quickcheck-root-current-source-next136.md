@@ -9,10 +9,10 @@ keeps separate current and next source hashes, validates stale cursors against
 the combined source, paginates current rows before next rows, and reports
 repair deltas plus `next_state` blockers.
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-$ php lanes/libsqlite/examples/wordpress-pragma-foreignkey-quickcheck-root-current-source-next136.php
+$ php lanes/libsqlite/examples/application-pragma-foreignkey-quickcheck-root-current-source-next136.php
 {
     "scenario": "copied wp_options PRAGMA quick_check root and foreign_key_check current/next repair",
     "status": "ok",

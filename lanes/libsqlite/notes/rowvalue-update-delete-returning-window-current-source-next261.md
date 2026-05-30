@@ -2,17 +2,17 @@
 
 Implemented `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext261Plan`, a current-source source-window watermark wrapper over accepted next254 row-value `UPDATE`/`DELETE ... RETURNING` window row receipt admission.
 
-The new behavior computes separate current and next source segment watermarks from admitted row tickets, source epochs, rowids, window frame tokens, running bytes, following bytes, and next254 admission tokens. Next-source retry rows remain held unless the current and next segment watermarks match, preventing copied WordPress option imports from publishing retry `RETURNING` window rows against a stale current-source window segment.
+The new behavior computes separate current and next source segment watermarks from admitted row tickets, source epochs, rowids, window frame tokens, running bytes, following bytes, and next254 admission tokens. Next-source retry rows remain held unless the current and next segment watermarks match, preventing copied Application option imports from publishing retry `RETURNING` window rows against a stale current-source window segment.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext261Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext261Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next261.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next261.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext261Test.php`
   - Result: `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next261.php --self-test`
-  - Result: `wordpress-rowvalue-returning-window-current-source-next261 self-test passed`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next261.php --self-test`
+  - Result: `application-rowvalue-returning-window-current-source-next261 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +57` from the new focused test file. Mapped upstream coverage is unchanged; this is current-source PHP behavior over already mapped row-value DML, RETURNING, savepoint retry, source handoff, row receipt, and window inventory.

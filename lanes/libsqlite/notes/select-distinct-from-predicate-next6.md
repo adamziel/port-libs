@@ -10,8 +10,8 @@
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectDistinctFromPredicateTest.php` passed: `1 test files, 48 assertions, 0 failures` with 48 PASS lines.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php lanes/libsqlite/tests/SQLiteSelectDistinctFromPredicateTest.php` passed: `2 test files, 9794 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-select-sql-distinct-from.php` passed and reported drifted copied `wp_options` rows `home` and `_site_transient_update_plugins`.
-- `php -l lanes/libsqlite/src/SQLiteSelectPredicate.php`, `php -l lanes/libsqlite/src/SQLiteSelectSql.php`, `php -l lanes/libsqlite/tests/SQLiteSelectDistinctFromPredicateTest.php`, and `php -l lanes/libsqlite/examples/wordpress-select-sql-distinct-from.php` passed.
+- `php lanes/libsqlite/examples/application-select-sql-distinct-from.php` passed and reported drifted copied `wp_options` rows `home` and `_site_transient_update_plugins`.
+- `php -l lanes/libsqlite/src/SQLiteSelectPredicate.php`, `php -l lanes/libsqlite/src/SQLiteSelectSql.php`, `php -l lanes/libsqlite/tests/SQLiteSelectDistinctFromPredicateTest.php`, and `php -l lanes/libsqlite/examples/application-select-sql-distinct-from.php` passed.
 - `jq empty lanes/libsqlite/lane-status.json lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` passed.
 - `git diff --check -- lanes/libsqlite` passed.
 

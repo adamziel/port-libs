@@ -11,9 +11,9 @@
 - Schema-qualified `PRAGMA network.optimize` remains isolated from main-schema
   current-source state.
 
-## WordPress Relevance
+## Application Relevance
 
-Copied WordPress SQLite databases can run optimize preflights for `wp_options`,
+Copied Application SQLite databases can run optimize preflights for `wp_options`,
 `wp_postmeta`, and network metadata tables without scheduling `ANALYZE` from an
 obsolete schema/stat snapshot after plugin migrations or multisite attachment
 changes.
@@ -23,7 +23,7 @@ changes.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaOptimizeAnalysisLimitCurrentNext36Test.php lanes/libsqlite/tests/SQLitePragmaOptimizeAnalysisSchemaCurrentSourceNext107Test.php`
   - `2 test files, 106 assertions, 0 failures`
   - New next107 focused file contributes `56` PASS lines.
-- `php lanes/libsqlite/examples/wordpress-pragma-optimize-current-source-next107.php`
+- `php lanes/libsqlite/examples/application-pragma-optimize-current-source-next107.php`
   - Emits main/network optimize plans with stale current-source rows skipped.
 
 ## Non-Overlap

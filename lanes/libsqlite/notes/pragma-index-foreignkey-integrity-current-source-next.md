@@ -1,6 +1,6 @@
 # pragma-index-foreignkey-integrity-current-source-next
 
-This slice adds a current-source pagination bridge for copied WordPress
+This slice adds a current-source pagination bridge for copied Application
 `wp_options` PRAGMA diagnostics: `index_list` / `index_xinfo` / index rootpage
 integrity rows are emitted in the same resumable cursor as foreign-key parent
 index admissions and `foreign_key_check` violations.
@@ -27,11 +27,11 @@ Focused test run: 1 selected test files (root lock skipped)
 
 PASS-line delta: `+74` focused PHP PASS lines.
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-$ php lanes/libsqlite/examples/wordpress-pragma-index-foreignkey-integrity-current-source-next.php --self-test
-wordpress-pragma-index-foreignkey-integrity-current-source-next self-test passed
+$ php lanes/libsqlite/examples/application-pragma-index-foreignkey-integrity-current-source-next.php --self-test
+application-pragma-index-foreignkey-integrity-current-source-next self-test passed
 ```
 
 Dependency closure: no new support component is needed. This reuses existing

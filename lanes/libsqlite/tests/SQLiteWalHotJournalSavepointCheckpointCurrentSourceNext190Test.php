@@ -126,7 +126,7 @@ $cases = [
     'blocked empty' => [static fn (): mixed => $plan()['blocked_reasons'], []],
     'dependency next187' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next187', $plan()['dependencies'], true), true],
     'dependency next190' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next190', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-retry-checkpoint-current-source-publication', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-retry-checkpoint-current-source-publication', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'bad fence status blocks' => [static fn (): mixed => $plan($badFenceStatus)['blocked_reasons'], ['next187_reader_token_fence_not_admitted']],

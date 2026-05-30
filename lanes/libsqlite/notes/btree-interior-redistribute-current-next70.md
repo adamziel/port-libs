@@ -14,10 +14,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeInteriorRedistributeCur
 
 Result: `1 test files, 51 assertions, 0 failures`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-interior-redistribute-current-next70.php
+php lanes/libsqlite/examples/application-btree-interior-redistribute-current-next70.php
 ```
 
 The smoke reports copied `wp_options` option-name index interior redistribution

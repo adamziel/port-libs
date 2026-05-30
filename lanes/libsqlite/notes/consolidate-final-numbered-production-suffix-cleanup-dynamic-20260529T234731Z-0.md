@@ -8,7 +8,7 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`: no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext201Test.php`: 1 test file, 81 assertions, 0 failures.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext*Test.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext*Test.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext*Test.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextTest.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextTest.php`: 65 test files, 4967 assertions, 0 failures.
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next201.php --self-test`: passed.
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next201.php --self-test`: passed.
 - `git diff --check -- lanes/libsqlite`: passed.
 
 Dependency closure:

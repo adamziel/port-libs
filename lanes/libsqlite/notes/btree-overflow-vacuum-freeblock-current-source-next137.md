@@ -4,7 +4,7 @@ This slice adds `SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan`.
 It composes an existing leaf freeblock coalesce plus overflow-vacuum truncation
 with the next overflow allocation. The covered current-source boundary is:
 
-- a copied WordPress `wp_options` leaf delete coalesces fragmented freeblocks;
+- a copied Application `wp_options` leaf delete coalesces fragmented freeblocks;
 - obsolete table/index overflow chains are released;
 - incremental vacuum truncates only the tail overflow chain and keeps lower
   released overflow pages as freelist pages;
@@ -16,9 +16,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-overflow-vacuum-freeblock-current-source-next137.php`
+- `php -l lanes/libsqlite/examples/application-btree-overflow-vacuum-freeblock-current-source-next137.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-vacuum-freeblock-current-source-next137.php --self-test`
+- `php lanes/libsqlite/examples/application-btree-overflow-vacuum-freeblock-current-source-next137.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Focused result: `1 test files, 197 assertions, 0 failures` with 62 PASS lines.

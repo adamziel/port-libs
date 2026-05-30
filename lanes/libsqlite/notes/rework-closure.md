@@ -16,17 +16,17 @@ Focused evidence:
 ```text
 php -l lanes/libsqlite/src/SQLiteOverflowVacuumTruncatePlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumCurrentNext16Test.php
-php -l lanes/libsqlite/examples/wordpress-overflow-vacuum-current-next.php
+php -l lanes/libsqlite/examples/application-overflow-vacuum-current-next.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumCurrentNext16Test.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 53 assertions, 0 failures
-php lanes/libsqlite/examples/wordpress-overflow-vacuum-current-next.php
+php lanes/libsqlite/examples/application-overflow-vacuum-current-next.php
 ```
 
 The focused run adds 50 new `TestRunner` PASS lines. `lane-status.json`
 therefore raises `phpPass` from 5433 to 5483 without changing mapped upstream
-coverage. The WordPress smoke reports copied `wp_options` transient table and
+coverage. The Application smoke reports copied `wp_options` transient table and
 `option_name` index overflow tails released into the freelist, then removed by
 the current vacuum truncation pass with final page count and updated pointer-map
 page evidence.
@@ -58,14 +58,14 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteOverflowPage.php
 php -l lanes/libsqlite/tests/SQLiteBTreeOverflowNextPointerTest.php
-php -l lanes/libsqlite/examples/wordpress-overflow-next-pointer-release.php
+php -l lanes/libsqlite/examples/application-overflow-next-pointer-release.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowNextPointerTest.php
-php lanes/libsqlite/examples/wordpress-overflow-next-pointer-release.php
+php lanes/libsqlite/examples/application-overflow-next-pointer-release.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
-The WordPress smoke reports a copied `wp_options` transient whose overflow
+The Application smoke reports a copied `wp_options` transient whose overflow
 chain uses non-contiguous pages `[11, 6, 14]`; the plan reuses the freed local
 cell slot for a smaller transient, releases the obsolete overflow pages through
 the freelist, secure-deletes overflow leaves, and rewrites auto-vacuum
@@ -90,24 +90,24 @@ up from the current focused baseline of 8861 assertions (`+48`). The new
 assertions cover multi-pointer-map-page application, pointer-map page skip
 math at page 105/106, applied-entry summaries, complete database byte
 materialization, base page-image preservation, copied `wp_options` readability
-after apply, and malformed apply guards. WordPress smoke:
-`examples/wordpress-autovacuum-pointer-map-apply.php`.
+after apply, and malformed apply guards. Application smoke:
+`examples/application-autovacuum-pointer-map-apply.php`.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteAutoVacuumPointerMapApplyPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-autovacuum-pointer-map-apply.php
+php -l lanes/libsqlite/examples/application-autovacuum-pointer-map-apply.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-autovacuum-pointer-map-apply.php
+php lanes/libsqlite/examples/application-autovacuum-pointer-map-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses the
 lane-local pointer-map planner, B-tree/page-image fixtures, SQLite database
-reader, and pure PHP WordPress option rows.
+reader, and pure PHP Application option rows.
 
 ## 2026-05-27 B-tree Overflow Cell Reuse Delete Apply
 
@@ -126,14 +126,14 @@ Focused verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeOverflowCellReuseDeleteApplyPlan.php
-php -l lanes/libsqlite/examples/wordpress-overflow-cell-reuse-delete-apply.php
+php -l lanes/libsqlite/examples/application-overflow-cell-reuse-delete-apply.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-overflow-cell-reuse-delete-apply.php
+php lanes/libsqlite/examples/application-overflow-cell-reuse-delete-apply.php
 git diff --check -- lanes/libsqlite
 ```
 
 The focused `SQLiteHeaderTest.php` run reached `8900` assertions with `0`
-failures. The WordPress smoke reports a copied `wp_options` transient
+failures. The Application smoke reports a copied `wp_options` transient
 replacement where the old overflow-backed cell slot is reused for a smaller
 local transient cell, obsolete overflow pages enter the freelist, secure-delete
 clears released overflow leaves, and auto-vacuum pointer-map entries become
@@ -157,9 +157,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeFreeblockFreelistRebalancePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-btree-freeblock-freelist-rebalance.php
+php -l lanes/libsqlite/examples/application-btree-freeblock-freelist-rebalance.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-btree-freeblock-freelist-rebalance.php
+php lanes/libsqlite/examples/application-btree-freeblock-freelist-rebalance.php
 git diff --check -- lanes/libsqlite
 ```
 
@@ -184,17 +184,17 @@ up from the current lane-status focused baseline of 8273 assertions (`+51`).
 The new assertions cover UNION duplicate removal, UNION ALL duplicate
 retention, INTERSECT, EXCEPT, chained compounds, ordinal final ORDER BY,
 comma-form compound LIMIT/OFFSET, CTE-fed compound arms, plan-shape evidence,
-and malformed compound guards. WordPress smoke:
-`examples/wordpress-select-sql-compound.php`.
+and malformed compound guards. Application smoke:
+`examples/application-select-sql-compound.php`.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-compound.php
+php -l lanes/libsqlite/examples/application-select-sql-compound.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-compound.php
+php lanes/libsqlite/examples/application-select-sql-compound.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -221,17 +221,17 @@ up from the accepted focused baseline of 7901 assertions (`+115`). The new
 assertions cover single CTEs, CTE column-list renaming, chained CTEs, grouped
 CTE inputs, CTE joins, JSON table CTE inputs, CTE use from an `IN` subquery,
 plan-shape evidence, hidden-order stripping through CTE bodies, and malformed
-CTE guards. WordPress smoke:
-`examples/wordpress-select-sql-cte.php`.
+CTE guards. Application smoke:
+`examples/application-select-sql-cte.php`.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-cte.php
+php -l lanes/libsqlite/examples/application-select-sql-cte.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-cte.php
+php lanes/libsqlite/examples/application-select-sql-cte.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -256,16 +256,16 @@ grouped aggregate rows, and JSON table rows.
 
 Focused assertion delta: `SQLiteHeaderTest.php` now passes at 7393 assertions,
 up from the current focused baseline of 7276 assertions (`+117`). The
-WordPress smoke is `examples/wordpress-select-sql-limit-comma.php`.
+Application smoke is `examples/application-select-sql-limit-comma.php`.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-limit-comma.php
+php -l lanes/libsqlite/examples/application-select-sql-limit-comma.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-limit-comma.php
+php lanes/libsqlite/examples/application-select-sql-limit-comma.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -287,16 +287,16 @@ and releases per-connection or whole-path lock state.
 
 Focused assertion delta: `SQLiteHeaderTest.php` now passes at 6875 assertions,
 up from the current lane-status focused baseline of 6793 assertions (`+82`).
-The WordPress smoke is `examples/wordpress-vfs-file-lock-apply.php`.
+The Application smoke is `examples/application-vfs-file-lock-apply.php`.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileLock.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-file-lock-apply.php
+php -l lanes/libsqlite/examples/application-vfs-file-lock-apply.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-file-lock-apply.php
+php lanes/libsqlite/examples/application-vfs-file-lock-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -318,22 +318,22 @@ and aggregate ORDER terms such as `sum(bytes)` / `count(*)` in grouped SELECT
 text. Expression sort keys are lowered into hidden projection columns so the
 accepted `SQLiteSelectQuery` and `SQLiteSelectResult` ordering path can reuse
 the same row-array comparator, and `SQLiteSelectSql::execute()` strips hidden
-sort keys before returning WordPress-facing rows.
+sort keys before returning Application-facing rows.
 
 Focused assertions added: 71. `SQLiteHeaderTest.php` now covers scalar
 expression ordering, literal expression ordering, hidden order-key plan shape,
 hidden-column stripping, aggregate expression ORDER BY over grouped rows, and
-malformed/unsupported expression guards. WordPress smoke:
-`examples/wordpress-select-sql-order-expression.php`.
+malformed/unsupported expression guards. Application smoke:
+`examples/application-select-sql-order-expression.php`.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-order-expression.php
+php -l lanes/libsqlite/examples/application-select-sql-order-expression.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-order-expression.php
+php lanes/libsqlite/examples/application-select-sql-order-expression.php
 git diff --check -- lanes/libsqlite
 ```
 
@@ -365,9 +365,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-grouped-preview.php
+php -l lanes/libsqlite/examples/application-select-sql-grouped-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-grouped-preview.php
+php lanes/libsqlite/examples/application-select-sql-grouped-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -393,7 +393,7 @@ assertions (`+133`). The new assertions cover copied wp_options rows grouped
 by `autoload` plus option kind, composite key coalescing, projected grouping
 columns, HAVING predicates over aggregate summary rows, aggregate
 ORDER BY/LIMIT, NULL grouping keys, scalar/CASE projection over grouped rows,
-raw summary output, strict validation guards, and WordPress smoke output.
+raw summary output, strict validation guards, and Application smoke output.
 
 Focused verification for this slice:
 
@@ -401,9 +401,9 @@ Focused verification for this slice:
 php -l lanes/libsqlite/src/SQLiteGroupedAggregate.php
 php -l lanes/libsqlite/src/SQLiteSelectQuery.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php
+php -l lanes/libsqlite/examples/application-select-grouped-aggregate-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php
+php lanes/libsqlite/examples/application-select-grouped-aggregate-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -427,7 +427,7 @@ up from the current accepted B-tree interior redistribution baseline of 5340 ass
 assertions cover aggregate ORDER BY/LIMIT/OFFSET, HAVING predicates over
 aggregate summary rows, projected summary columns, scalar `printf()` labels,
 CASE buckets, DISTINCT over projected aggregate rows, final ORDER BY, NULL-only
-aggregate groups, empty groups, strict validation guards, and copied WordPress
+aggregate groups, empty groups, strict validation guards, and copied Application
 option-summary smoke output.
 
 Focused verification for this slice:
@@ -435,9 +435,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectQuery.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php
+php -l lanes/libsqlite/examples/application-select-grouped-aggregate-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php
+php lanes/libsqlite/examples/application-select-grouped-aggregate-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -461,16 +461,16 @@ up from the accepted lane-status recorded 5149 baseline (`+50`). The new
 assertions cover scalar operands in comparison, `BETWEEN`, `IN`/`NOT IN`,
 `LIKE ESCAPE`, `GLOB`, `IS`/`IS NOT`, `IS NULL`, boolean composition, nested
 function arguments, typed literal operands, SQL NULL propagation, malformed
-expression guards, and copied WordPress option-name/value filtering.
+expression guards, and copied Application option-name/value filtering.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectPredicate.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-options-where-predicate-preview.php
+php -l lanes/libsqlite/examples/application-options-where-predicate-preview.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-options-where-predicate-preview.php
+php lanes/libsqlite/examples/application-options-where-predicate-preview.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -501,9 +501,9 @@ Focused verification for this slice:
 php -l lanes/libsqlite/src/SQLiteJsonEach.php
 php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-table-null-path.php
+php -l lanes/libsqlite/examples/application-json-table-null-path.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-table-null-path.php
+php lanes/libsqlite/examples/application-json-table-null-path.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -538,9 +538,9 @@ php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/src/SQLiteJsonInspection.php
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-table-subtype-handoff.php
+php -l lanes/libsqlite/examples/application-json-table-subtype-handoff.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-table-subtype-handoff.php
+php lanes/libsqlite/examples/application-json-table-subtype-handoff.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -562,16 +562,16 @@ Focused assertion delta: `SQLiteHeaderTest.php` now passes at 4721 assertions,
 up from the lane-status recorded 4629 baseline (`+92`). The new assertions
 cover selected-root `key`, `parent`, `path`, `root`, value, rowid projection,
 residual filtering, JSONB parity for `[#-2]`, and `json_each()` comparison
-behavior over copied WordPress settings payloads.
+behavior over copied Application settings payloads.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTree.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-table-reverse-root.php
+php -l lanes/libsqlite/examples/application-json-table-reverse-root.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-table-reverse-root.php
+php lanes/libsqlite/examples/application-json-table-reverse-root.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -599,7 +599,7 @@ Current accepted lane files already contain the requested rebased behavior:
 - `SQLiteJsonCanonical::jsonSqlFunction()` and `jsonSqlFunctionArguments()` cover case-insensitive `json`/`jsonb` dispatch, SQL NULL propagation, JSON5 text, text BLOB fallback, JSONB passthrough, and malformed input rejection.
 - `SQLiteJsonPretty::jsonPrettySqlFunction()` and `jsonPrettySqlFunctionArguments()` cover case-insensitive `json_pretty` dispatch, one-or-two argument SQL arity, scalar SQL coercion including booleans and whole REAL values, JSON subtype input, text/JSONB BLOB input, custom indentation, SQL NULL propagation, and invalid function-name rejection.
 - `SQLiteJsonExtract::extractSqlFunction()` and `extractJsonArgumentSqlFunction()` preserve the accepted `json_extract`/`jsonb_extract` SQL result typing and constructor-argument subtype propagation.
-- `examples/wordpress-json-canonical-option-preflight.php`, `examples/wordpress-json-pretty-option-review.php`, and `examples/wordpress-json-extract-subtype-option-diagnostics.php` retain the WordPress-visible smoke paths referenced by the stale rework markers.
+- `examples/application-json-canonical-option-preflight.php`, `examples/application-json-pretty-option-review.php`, and `examples/application-json-extract-subtype-option-diagnostics.php` retain the Application-visible smoke paths referenced by the stale rework markers.
 
 The only additive behavior in this closure patch is a focused assertion that
 direct `JSON_PRETTY` dispatch and argument-vector `json_pretty` dispatch remain
@@ -613,11 +613,11 @@ php -l lanes/libsqlite/src/SQLiteJsonPretty.php
 php -l lanes/libsqlite/src/SQLiteJsonCanonical.php
 php -l lanes/libsqlite/src/SQLiteJsonExtract.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
-php -l lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
-php -l lanes/libsqlite/examples/wordpress-json-extract-subtype-option-diagnostics.php
+php -l lanes/libsqlite/examples/application-json-pretty-option-review.php
+php -l lanes/libsqlite/examples/application-json-canonical-option-preflight.php
+php -l lanes/libsqlite/examples/application-json-extract-subtype-option-diagnostics.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+php lanes/libsqlite/examples/application-json-pretty-option-review.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -634,7 +634,7 @@ and adds one bounded guard to the already accepted `json_pretty()` SQL-dispatch
 cluster: when the first SQL argument is NULL, direct dispatch and
 argument-vector dispatch now have focused assertions proving that BLOB and JSON
 subtype indentation wrappers are ignored and the result remains SQL NULL. The
-WordPress option review smoke reports the same NULL-with-wrapper-indent paths.
+Application option review smoke reports the same NULL-with-wrapper-indent paths.
 
 No new upstream denominator is claimed. The rework remains additive on top of
 the accepted `json`/`jsonb`, `json_pretty`, and `json_extract`/`jsonb_extract`
@@ -646,9 +646,9 @@ Focused verification for this refresh:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonPretty.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+php -l lanes/libsqlite/examples/application-json-pretty-option-review.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+php lanes/libsqlite/examples/application-json-pretty-option-review.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -663,7 +663,7 @@ This isolated JSON table/window slice adds planner behavior for repeated hidden
 `json` and `root` constraints on `json_each`/`json_tree`: only the first usable
 hidden equality is consumed as the virtual-table argument vector, while later
 duplicate hidden constraints remain residual filters. That keeps composed
-WordPress query-builder predicates from silently retargeting expansion when a
+Application query-builder predicates from silently retargeting expansion when a
 second hidden `root` or `json` predicate conflicts with the selected argv.
 
 Focused assertion delta: `SQLiteHeaderTest.php` now passes at 3918 assertions,
@@ -678,9 +678,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-table-duplicate-hidden-constraints.php
+php -l lanes/libsqlite/examples/application-json-table-duplicate-hidden-constraints.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-json-table-duplicate-hidden-constraints.php
+php lanes/libsqlite/examples/application-json-table-duplicate-hidden-constraints.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -710,9 +710,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeLeafMergePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-btree-leaf-merge-plan.php
+php -l lanes/libsqlite/examples/application-btree-leaf-merge-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-btree-leaf-merge-plan.php
+php lanes/libsqlite/examples/application-btree-leaf-merge-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -742,9 +742,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeLeafMergeApplicationPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-btree-leaf-merge-apply.php
+php -l lanes/libsqlite/examples/application-btree-leaf-merge-apply.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-btree-leaf-merge-apply.php
+php lanes/libsqlite/examples/application-btree-leaf-merge-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -777,10 +777,10 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteShmIndex.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-shm-index-preflight.php
+php -l lanes/libsqlite/examples/application-shm-index-preflight.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["loads sqlite shm wal-index headers and checkpoint read marks"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-shm-index-preflight.php
+php lanes/libsqlite/examples/application-shm-index-preflight.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -815,10 +815,10 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-file-writer-apply.php
+php -l lanes/libsqlite/examples/application-vfs-file-writer-apply.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs wal checkpoint file writes to local handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-file-writer-apply.php
+php lanes/libsqlite/examples/application-vfs-file-writer-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -850,9 +850,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-table-window-ranking.php
+php -l lanes/libsqlite/examples/application-json-table-window-ranking.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["annotates sqlite json table rows with ordered window semantics"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-json-table-window-ranking.php
+php lanes/libsqlite/examples/application-json-table-window-ranking.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -875,9 +875,9 @@ Focused verification for this slice:
 php -l lanes/libsqlite/src/SQLiteBTreeInteriorMergePlan.php
 php -l lanes/libsqlite/src/SQLiteBTreeInteriorMergeApplicationPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-table-interior-merge-delete-rebalance.php
+php -l lanes/libsqlite/examples/application-table-interior-merge-delete-rebalance.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-table-interior-merge-delete-rebalance.php
+php lanes/libsqlite/examples/application-table-interior-merge-delete-rebalance.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -902,16 +902,16 @@ passing assertions for recovered database writes, final truncation, journal
 deletion, operation ordering, sync/directory-sync accounting, preserved
 reserved-lock and super-journal blockers, idempotent delete handling,
 read-only/immutable writer guards, malformed database-image guards, and the
-copied WordPress rollback VFS smoke. The lane status moves `phpPass` from 765
+copied Application rollback VFS smoke. The lane status moves `phpPass` from 765
 to 766 and mapped coverage from 427 to 428.
 
 Focused verification for this slice:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
-php -l lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php
+php -l lanes/libsqlite/examples/application-vfs-rollback-journal-apply.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs hot rollback journal recovery to local handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php
+php lanes/libsqlite/examples/application-vfs-rollback-journal-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -943,9 +943,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTableCursor.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-json-table-cursor.php
+php -l lanes/libsqlite/examples/application-json-table-cursor.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["opens sqlite json table virtual cursors over planned rows"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-json-table-cursor.php
+php lanes/libsqlite/examples/application-json-table-cursor.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -981,9 +981,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLitePagerCheckpointTransactionPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-transaction.php
+php -l lanes/libsqlite/examples/application-wal-checkpoint-transaction.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-wal-checkpoint-transaction.php
+php lanes/libsqlite/examples/application-wal-checkpoint-transaction.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1015,9 +1015,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-json-hidden-constraints.php
+php -l lanes/libsqlite/examples/application-select-sql-json-hidden-constraints.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["executes bounded sqlite select sql text through query plans"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
-php lanes/libsqlite/examples/wordpress-select-sql-json-hidden-constraints.php
+php lanes/libsqlite/examples/application-select-sql-json-hidden-constraints.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1049,9 +1049,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-expression-index-cost.php
+php -l lanes/libsqlite/examples/application-select-expression-index-cost.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-expression-index-cost.php
+php lanes/libsqlite/examples/application-select-expression-index-cost.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1078,7 +1078,7 @@ adding 92 assertions over the current accepted 7276 baseline. The new
 assertions cover operation ordering, payload routing by dirty page number,
 FULL/NORMAL/EXTRA/OFF sync modes, DELETE/TRUNCATE/PERSIST journal modes,
 actual local file bytes, sparse page offsets, dependency tags, read-only and
-immutable guards, malformed path/page/payload guards, and copied WordPress
+immutable guards, malformed path/page/payload guards, and copied Application
 database commit smoke behavior.
 
 Focused verification for this slice:
@@ -1087,9 +1087,9 @@ Focused verification for this slice:
 php -l lanes/libsqlite/src/SQLiteRollbackJournalCommitPlan.php
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-rollback-commit-apply.php
+php -l lanes/libsqlite/examples/application-vfs-rollback-commit-apply.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-rollback-commit-apply.php
+php lanes/libsqlite/examples/application-vfs-rollback-commit-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1117,7 +1117,7 @@ and 0 failures. The new assertions cover super-journal payloads, operation
 ordering, attached database page offsets, FULL/NORMAL/EXTRA/OFF sync modes,
 DELETE/TRUNCATE/PERSIST journal cleanup, actual local file bytes for two
 attached databases, dependency tags, read-only and malformed input guards, and
-copied WordPress multisite-style commit smoke behavior.
+copied Application multisite-style commit smoke behavior.
 
 Focused verification for this slice:
 
@@ -1125,10 +1125,10 @@ Focused verification for this slice:
 php -l lanes/libsqlite/src/SQLiteSuperJournalCommitPlan.php
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-super-journal-commit.php
+php -l lanes/libsqlite/examples/application-vfs-super-journal-commit.php
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite super-journal commits across attached database handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-super-journal-commit.php
+php lanes/libsqlite/examples/application-vfs-super-journal-commit.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1160,9 +1160,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsSyncPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-sync-plan.php
+php -l lanes/libsqlite/examples/application-vfs-sync-plan.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-sync-plan.php
+php lanes/libsqlite/examples/application-vfs-sync-plan.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1193,9 +1193,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-vfs-sync-apply.php
+php -l lanes/libsqlite/examples/application-vfs-sync-apply.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-vfs-sync-apply.php
+php lanes/libsqlite/examples/application-vfs-sync-apply.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1227,9 +1227,9 @@ php -l lanes/libsqlite/src/SQLiteSelectProjection.php
 php -l lanes/libsqlite/src/SQLiteSelectPredicate.php
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-scalar-operators.php
+php -l lanes/libsqlite/examples/application-select-sql-scalar-operators.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-scalar-operators.php
+php lanes/libsqlite/examples/application-select-sql-scalar-operators.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1263,16 +1263,16 @@ Focused verification for this slice:
 php -l lanes/libsqlite/src/SQLiteSelectQuery.php
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-json-dynamic-join.php
+php -l lanes/libsqlite/examples/application-select-sql-json-dynamic-join.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-json-dynamic-join.php
+php lanes/libsqlite/examples/application-select-sql-json-dynamic-join.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new shared support component is needed. This reuses the
 lane-local SELECT SQL parser, JSON table planner/cursor rows, scalar
-expression evaluator, join executor, and copied WordPress option fixtures.
+expression evaluator, join executor, and copied Application option fixtures.
 
 ## 2026-05-27 JSON Dynamic Malformed JSONB Joins
 
@@ -1296,9 +1296,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-select-sql-json-malformed-jsonb-join.php
+php -l lanes/libsqlite/examples/application-select-sql-json-malformed-jsonb-join.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-select-sql-json-malformed-jsonb-join.php
+php lanes/libsqlite/examples/application-select-sql-json-malformed-jsonb-join.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1328,9 +1328,9 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLitePagerJournalOpenPlan.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-pager-journal-open-closure.php
+php -l lanes/libsqlite/examples/application-pager-journal-open-closure.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-pager-journal-open-closure.php
+php lanes/libsqlite/examples/application-pager-journal-open-closure.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
@@ -1365,16 +1365,16 @@ Focused verification for this slice:
 ```sh
 php -l lanes/libsqlite/src/SQLiteConnectionCounters.php
 php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
-php -l lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php
+php -l lanes/libsqlite/examples/application-connection-counter-option-insert.php
 sqlite3 :memory: < lanes/libsqlite/fixtures/savepoint-counter-oracle.sql
 php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["preserves sqlite savepoint rollback counters like sqlite rollback to"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
-php lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php
+php lanes/libsqlite/examples/application-connection-counter-option-insert.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
 git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new shared support component is needed. This reuses the
-lane-local connection-counter helper and copied WordPress option counter smoke.
+lane-local connection-counter helper and copied Application option counter smoke.
 Follow-up should wire counter snapshots into broader pager/VDBE write
 execution without repeating this current-counter preservation behavior.

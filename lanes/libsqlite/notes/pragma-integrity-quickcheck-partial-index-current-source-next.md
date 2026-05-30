@@ -1,7 +1,7 @@
 # pragma-integrity-quickcheck-partial-index-current-source-next
 
 This slice adds bounded current-source `PRAGMA integrity_check` /
-`quick_check` coverage for partial-index membership over copied WordPress
+`quick_check` coverage for partial-index membership over copied Application
 `wp_options` rows.
 
 Behavior:
@@ -18,9 +18,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIntegrityPartialIndexCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIntegrityPartialIndexCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-integrity-partial-index-current-source-next.php`
+- `php -l lanes/libsqlite/examples/application-pragma-integrity-partial-index-current-source-next.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityPartialIndexCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-partial-index-current-source-next.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-integrity-partial-index-current-source-next.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The slice reuses the

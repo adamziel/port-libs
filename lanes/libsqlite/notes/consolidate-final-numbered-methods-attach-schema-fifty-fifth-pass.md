@@ -1,9 +1,9 @@
 # Attach/schema numbered dependency cleanup, fifty-fifth pass
 
-Consolidated the remaining numbered WordPress schema/JSON/WAL import dependency
+Consolidated the remaining numbered Application schema/JSON/WAL import dependency
 markers in production attach/schema-adjacent planners into stable unsuffixed
 dependency identifiers. Direct dependency assertions were migrated to the stable
-names, and the WordPress JSON import savepoint smoke scenario now reports the
+names, and the Application JSON import savepoint smoke scenario now reports the
 stable scenario id.
 
 Dependency closure: no new support component is needed; this slice only removes

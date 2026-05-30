@@ -7,16 +7,16 @@ Focused behavior:
 - Recursive CTE `LIMIT/OFFSET` rows are traced before compound arm execution.
 - `lag()` / `lead()` window values are preserved as part of the compound row signature.
 - `UNION` distinct output exposes a current/next yield tape with table-vs-recursive source labels and final-LIMIT admission flags.
-- Copied WordPress `wp_options` rows show plugin/theme option changes moving the admitted final boundary without changing recursive trace rows.
+- Copied Application `wp_options` rows show plugin/theme option changes moving the admitted final boundary without changing recursive trace rows.
 
 Verification evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext181Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next181.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next181.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext181Test.php`
 - Result: `1 test files, 248 assertions, 0 failures` with 61 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next181.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next181.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +61` from the new focused test file. `benchmarkDenominator.mapped` remains `614 / 1589`; this is current-source PHP behavior over already mapped recursive CTE, compound SELECT, window, and LIMIT inventory.

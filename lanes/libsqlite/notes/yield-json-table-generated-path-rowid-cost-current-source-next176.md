@@ -6,7 +6,7 @@ Behavior:
 
 - Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext176()`.
 - Carries accepted generated-path/rowid best-index state into an xFilter profile with argv tape, omit columns, seek program, pinned current-source rowids, output blocking, filter cost, and xFilter fingerprint.
-- Replans when xFilter admission, argv tape, rowset, cost, or fingerprint changes between current and next copied WordPress JSON sources.
+- Replans when xFilter admission, argv tape, rowset, cost, or fingerprint changes between current and next copied Application JSON sources.
 
 Focused evidence:
 
@@ -16,10 +16,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 61 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next176.php
+php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next176.php
 ```
 
 Dashboard expectation:

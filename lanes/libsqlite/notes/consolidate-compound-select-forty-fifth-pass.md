@@ -3,18 +3,18 @@
 ## Scope
 
 - Consolidated the direct compound SELECT expression-limit-boundary surface from `its former numbered entry point()` to `compareExpressionLimitBoundary()`.
-- Renamed the direct focused test and WordPress smoke away from the numbered `old numbered current-source filename` filenames.
+- Renamed the direct focused test and Application smoke away from the numbered `old numbered current-source filename` filenames.
 - Renamed adjacent private helper clusters in `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php` from the adjacent numbered spillover, admission, commit-fence, and replay-fence method names to descriptive helper names.
 
 ## Evidence
 
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitExpressionLimitBoundaryTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-expression-limit-boundary.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-expression-limit-boundary.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitExpressionLimitBoundaryTest.php`
   - `1 test files, 340 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-expression-limit-boundary.php --self-test`
-  - `wordpress-compound-select-window-recursive-limit-current-source-expression-limit-boundary self-test passed`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-expression-limit-boundary.php --self-test`
+  - `application-compound-select-window-recursive-limit-current-source-expression-limit-boundary self-test passed`
 
 ## Dependency Closure
 

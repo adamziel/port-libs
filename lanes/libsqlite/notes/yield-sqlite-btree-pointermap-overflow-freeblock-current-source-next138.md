@@ -10,7 +10,7 @@ and replacement overflow allocation. It then reports the transition from the
 current source chain into the rewritten replacement chain so page reuse cannot
 accidentally use post-free page images as the source of truth.
 
-The focused WordPress path models deleting and replacing a large `wp_options`
+The focused Application path models deleting and replacing a large `wp_options`
 autoload value whose current overflow chain is freed through a fragmented leaf
 page and immediately reused for the replacement value.
 
@@ -30,10 +30,10 @@ Focused test run: 1 selected test files (root lock skipped)
 PASS_LINES=89
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-pointermap-overflow-freeblock-current-source-next138.php
+php lanes/libsqlite/examples/application-btree-pointermap-overflow-freeblock-current-source-next138.php
 ```
 
 Expected key output:

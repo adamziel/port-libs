@@ -4,17 +4,17 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It composes the accepted next245 rootpage-map reader-cache fence with a narrower B-tree page-owner map fence after master-journal recovery. A cache page can cross into the next current source only when the recovered sqlite_schema rootpage map and page-owner map both match the current source; stale page ownership reopens readers even if the rootpage map token is otherwise current.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next248.php` models copied `wp_options` import behavior where the schema page remains reusable, while a stale `wp_options` page-owner ticket and a stale `active_plugins` rootpage reader reopen before plugin import resumes.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next248.php` models copied `wp_options` import behavior where the schema page remains reusable, while a stale `wp_options` page-owner ticket and a stale `active_plugins` rootpage reader reopen before plugin import resumes.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext248Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next248.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next248.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext248Test.php`
   - `1 test files, 74 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next248.php`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next248 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next248.php`
+  - `application-pager-master-journal-reader-cache-current-source-next248 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard delta: `phpPass` moves from `126252` to `126326` from 74 newly passing focused PASS lines. `benchmarkDenominator.mapped` remains `651 / 1589`; this is focused pager reader-cache current-source behavior over existing master-journal inventory rather than a fresh upstream manifest row.

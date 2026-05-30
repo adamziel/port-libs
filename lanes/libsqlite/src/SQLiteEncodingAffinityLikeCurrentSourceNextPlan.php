@@ -11,7 +11,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValuePlan(
+    public static function optionRowValuePlan(
         array $currentRows,
         array $nextRows,
         string $column,
@@ -39,7 +39,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
             ? SQLiteLikeCollationPlan::plan($pattern, $collation, $escape, $caseSensitiveLike)['range']
             : SQLiteDatabase::globPrefixRangeBounds($pattern);
 
-        $current = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::wordpressOptionValueScan(
+        $current = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan(
             $currentRows,
             $column,
             $pattern,
@@ -49,7 +49,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
             $caseSensitiveLike,
             $currentEncoding,
         );
-        $next = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::wordpressOptionValueScan(
+        $next = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan(
             $nextRows,
             $column,
             $pattern,
@@ -156,7 +156,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValueDynamicPatternPlan(
+    public static function optionRowValueDynamicPatternPlan(
         array $currentRows,
         array $nextRows,
         string $valueColumn,
@@ -170,7 +170,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
         int $currentSchemaCookie = 1,
         int $nextSchemaCookie = 1,
     ): array {
-        return self::wordpressOptionValueDynamicLikeGlobPlan(
+        return self::optionRowValueDynamicLikeGlobPlan(
             $currentRows,
             $nextRows,
             $valueColumn,
@@ -192,7 +192,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValueDynamicLikeGlobPlan(
+    public static function optionRowValueDynamicLikeGlobPlan(
         array $currentRows,
         array $nextRows,
         string $valueColumn,

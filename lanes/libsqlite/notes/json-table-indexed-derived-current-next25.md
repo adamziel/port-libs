@@ -5,11 +5,11 @@ derived SELECT, then indexed by composite derived output columns for
 current/next scans. The focused helper preserves typed lookup keys, SQL NULL
 lookups, derived row order within each composite key, and terminal no-next rows.
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-json-table-indexed-derived-current-next25.php --self-test
-wordpress-json-table-indexed-derived-current-next25 self-test passed
+php lanes/libsqlite/examples/application-json-table-indexed-derived-current-next25.php --self-test
+application-json-table-indexed-derived-current-next25 self-test passed
 ```
 
 Focused verification:

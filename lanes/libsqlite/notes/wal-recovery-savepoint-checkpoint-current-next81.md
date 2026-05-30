@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for the WAL savepoint rollback/release checkpoint boundary.
 
-This slice adds `SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext()`. It models a failed WordPress import batch where `ROLLBACK TO` keeps the savepoint active, `RELEASE` merges the cleared savepoint back into the outer transaction, and a RESTART/TRUNCATE checkpoint persists the retained WAL prefix. The current reader still resolves retained pages from WAL, while the next reader resolves the same images from the checkpointed database after the WAL reset/truncate.
+This slice adds `SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext()`. It models a failed Application import batch where `ROLLBACK TO` keeps the savepoint active, `RELEASE` merges the cleared savepoint back into the outer transaction, and a RESTART/TRUNCATE checkpoint persists the retained WAL prefix. The current reader still resolves retained pages from WAL, while the next reader resolves the same images from the checkpointed database after the WAL reset/truncate.
 
 Focused evidence:
 
@@ -12,11 +12,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 51 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-recovery-savepoint-checkpoint-current-next81.php --self-test
-wordpress wal recovery savepoint checkpoint current-next81 self-test passed
+php lanes/libsqlite/examples/application-wal-recovery-savepoint-checkpoint-current-next81.php --self-test
+application wal recovery savepoint checkpoint current-next81 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `29984` to `30035` for the 51 verified focused PASS lines. Mapped upstream coverage remains unchanged because this is an additional behavior-backed PHP slice over the existing WAL/savepoint/checkpoint inventory rather than a fresh upstream denominator row.

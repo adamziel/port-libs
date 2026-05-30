@@ -4,7 +4,7 @@ Slice: `trigger-returning-recursive-fk-current-source-next124`
 
 This adds a bounded current-source planner for recursive `DELETE ... RETURNING`
 behavior where an `AFTER DELETE` trigger follows a linked parent row and
-`ON DELETE CASCADE` removes copied WordPress metadata rows. The top-level
+`ON DELETE CASCADE` removes copied Application metadata rows. The top-level
 statement `RETURNING` rows are yielded from the current source, recursive
 trigger deletes remain diagnostic, FK child/grandchild cascades are applied in
 the attempted image, and `ROLLBACK TO` suppresses next-source visibility while
@@ -21,13 +21,13 @@ Dependency closure:
 
 - No new support component is required. The slice reuses lane-local row-array
   planning and adds the smallest trigger/FK current-source planner needed for
-  this WordPress import behavior.
+  this Application import behavior.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Test.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-returning-recursive-fk-current-source-next124.php`
+- `php lanes/libsqlite/examples/application-trigger-returning-recursive-fk-current-source-next124.php`
 - `php -l lanes/libsqlite/src/SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-returning-recursive-fk-current-source-next124.php`
+- `php -l lanes/libsqlite/examples/application-trigger-returning-recursive-fk-current-source-next124.php`
 - `git diff --check -- lanes/libsqlite`

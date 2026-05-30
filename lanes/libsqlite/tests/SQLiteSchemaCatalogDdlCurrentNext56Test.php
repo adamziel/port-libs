@@ -16,7 +16,7 @@ $baseRecords = static fn (): array => [
 ];
 
 $ddl = <<<'SQL'
--- WordPress import DDL after a migration plugin rewrites the options schema.
+-- Application import DDL after a migration plugin rewrites the options schema.
 DROP VIEW IF EXISTS wp_autoloaded_options;
 DROP INDEX wp_options_autoload;
 ALTER TABLE wp_options RENAME TO wp_options_archive;

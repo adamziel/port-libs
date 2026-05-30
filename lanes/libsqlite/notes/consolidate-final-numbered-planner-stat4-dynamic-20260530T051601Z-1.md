@@ -19,9 +19,9 @@ Verification:
   passed.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFirstContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffSecondContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffThirdContinuationTest.php`
   passed: 3 files / 117 assertions / 0 failures.
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-first-continuation.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-prepared-handoff-first-continuation.php --self-test`
   passed.
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-second-continuation.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-prepared-handoff-second-continuation.php --self-test`
   passed.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php`
   passed: 133 files / 7547 assertions / 0 failures.

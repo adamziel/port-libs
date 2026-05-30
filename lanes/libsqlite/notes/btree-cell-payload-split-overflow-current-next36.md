@@ -5,7 +5,7 @@ for materializing SQLite table-leaf and index-cell payload split metadata:
 local payload bytes, overflow payload bytes, first overflow page, current/next
 overflow page links, and per-page payload byte counts.
 
-The focused tests cover table and index payload thresholds, WordPress-sized
+The focused tests cover table and index payload thresholds, Application-sized
 `wp_options` table and `option_name` index records, generated multi-page
 current/next overflow chains, and invalid overflow-page metadata.
 
@@ -14,9 +14,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeCellPayloadSplitPlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeCellPayloadSplitOverflowCurrentNext36Test.php
-php -l lanes/libsqlite/examples/wordpress-btree-cell-payload-split-current-next36.php
+php -l lanes/libsqlite/examples/application-btree-cell-payload-split-current-next36.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeCellPayloadSplitOverflowCurrentNext36Test.php
-php lanes/libsqlite/examples/wordpress-btree-cell-payload-split-current-next36.php
+php lanes/libsqlite/examples/application-btree-cell-payload-split-current-next36.php
 git diff --check -- lanes/libsqlite
 ```
 

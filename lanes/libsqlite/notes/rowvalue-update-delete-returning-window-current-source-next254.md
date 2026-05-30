@@ -2,15 +2,15 @@
 
 Implemented `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Plan`, a current-source admission wrapper over accepted next251 row-value `UPDATE`/`DELETE ... RETURNING` window source handoff behavior.
 
-The new behavior requires a per-row receipt keyed to the handoff ticket, source epoch, RETURNING window frame token, rowid, running bytes, and following bytes before current/next rows are admitted for publication. Missing or stale receipts hold the current-source boundary, and copied WordPress option imports only expose retry rows after the window receipts match the next-source handoff.
+The new behavior requires a per-row receipt keyed to the handoff ticket, source epoch, RETURNING window frame token, rowid, running bytes, and following bytes before current/next rows are admitted for publication. Missing or stale receipts hold the current-source boundary, and copied Application option imports only expose retry rows after the window receipts match the next-source handoff.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueRowReceiptAdmissionWindowTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-row-receipt-admission-window.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-row-receipt-admission-window.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueRowReceiptAdmissionWindowTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-row-receipt-admission-window.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-row-receipt-admission-window.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +52` from the new focused test file. Mapped upstream coverage is unchanged; this is current-source PHP behavior over already mapped row-value DML, RETURNING, savepoint retry, source handoff, and window inventory.

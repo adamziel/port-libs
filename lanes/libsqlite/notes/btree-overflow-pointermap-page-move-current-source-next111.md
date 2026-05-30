@@ -11,7 +11,7 @@
 - Focused test command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Test.php`
 - Result: `1 test files, 180 assertions, 0 failures`
 - PASS-line delta for this lane patch: `+60`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-overflow-pointermap-page-move-current-source-next111.php`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-overflow-pointermap-page-move-current-source-next111.php`
 
 ## Dependency Closure
 

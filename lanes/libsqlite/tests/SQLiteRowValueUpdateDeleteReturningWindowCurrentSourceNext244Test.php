@@ -125,7 +125,7 @@ $cases244 = [
     'plan final row three restored' => [static fn (): mixed => in_array(3, array_column($plan244()['current_source_tables']['wp_options'], 'option_id'), true), true],
     'plan row counts' => [static fn (): mixed => $plan244()['row_counts'], ['wp_optionmeta' => 11, 'wp_options' => 8]],
     'plan changed tables' => [static fn (): mixed => $plan244()['changed_tables_after_retry'], ['wp_options']],
-    'plan dependencies' => [static fn (): mixed => $plan244()['dependencies'], ['sqlite-rowvalue-returning-window-transition-chain-next244', 'sqlite-rowvalue-returning-lag-lead-current-source-next244', 'wordpress-rowvalue-returning-window-current-source-next244']],
+    'plan dependencies' => [static fn (): mixed => $plan244()['dependencies'], ['sqlite-rowvalue-returning-window-transition-chain-next244', 'sqlite-rowvalue-returning-lag-lead-current-source-next244', 'application-rowvalue-returning-window-current-source-next244']],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan244()['dependency_closure_next244'], 'no new support component needed'), true],
     'plan non overlap' => [static fn (): mixed => str_contains($plan244()['non_overlap_next244'], 'lag/lead transition-chain windows'), true],
     'custom savepoint' => [static fn (): mixed => $customPlan244()['savepoint'], 'wp_custom_returning_window_next244'],

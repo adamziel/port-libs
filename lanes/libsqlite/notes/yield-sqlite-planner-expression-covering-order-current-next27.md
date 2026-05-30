@@ -23,7 +23,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-expression-covering-order.php
+php lanes/libsqlite/examples/application-select-expression-covering-order.php
 ```
 
 The smoke reports `idx_wp_options_lower_autoload_order` selected with

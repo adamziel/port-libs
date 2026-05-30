@@ -54,7 +54,7 @@ $plan = static fn (
     int $nextSchemaCookie = 100,
     ?array $current = null,
     ?array $next = null,
-): array => SQLiteUtf16GlobRangeCurrentSourceNextPlan::wordpressOptionNameGlobRange(
+): array => SQLiteUtf16GlobRangeCurrentSourceNextPlan::optionRowNameGlobRange(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,

@@ -11,7 +11,7 @@ final class SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameEmbeddedNulPlan(
+    public static function optionRowNameEmbeddedNulPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

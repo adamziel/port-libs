@@ -12,8 +12,8 @@ Validation:
 ```sh
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext201204Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next201-204.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next201-204.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext201204Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next201-204.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-current-source-next201-204.php --self-test
 git diff --check
 ```

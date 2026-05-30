@@ -41,10 +41,10 @@ Result:
 3 test files, 221 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-schema-trigger-view-current-next73.php
+php lanes/libsqlite/examples/application-schema-trigger-view-current-next73.php
 ```
 
 Result: schema version advanced `73 -> 77`, dropped the qualified old

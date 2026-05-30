@@ -4,7 +4,7 @@
 
 - Adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext177Plan` for nested savepoint current-source behavior where an outer row-value `UPDATE ... RETURNING` source is preserved, an inner savepoint yields speculative `UPDATE` / `DELETE` / `UPDATE OR REPLACE` `RETURNING` rows, `ROLLBACK TO` the inner savepoint suppresses those inner rows, and the inner batch retries from the preserved inner image before release.
 - This is intentionally narrower than accepted next174: next174 releases the inner savepoint into the outer source and then rolls back the outer source. This slice rolls back the inner savepoint itself and proves the outer source remains current for the retry.
-- WordPress smoke: `lanes/libsqlite/examples/wordpress-rowvalue-inner-rollback-current-source-next177.php` models copied `wp_options` import cleanup keeping outer option rewrites while discarding speculative inner transient cleanup and replacement rows.
+- Application smoke: `lanes/libsqlite/examples/application-rowvalue-inner-rollback-current-source-next177.php` models copied `wp_options` import cleanup keeping outer option rewrites while discarding speculative inner transient cleanup and replacement rows.
 
 ## Verification
 

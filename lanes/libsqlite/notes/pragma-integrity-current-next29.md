@@ -22,10 +22,10 @@ Verification from this worktree:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityCurrentNext29Test.php`: `1 test files, 53 assertions, 0 failures` with 53 PASS lines.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIntegrityQuickCheckCorpusTest.php lanes/libsqlite/tests/SQLitePragmaIntegrityDeepCurrentNext19Test.php lanes/libsqlite/tests/SQLitePragmaIntegrityCurrentNext29Test.php`: `3 test files, 118 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-pragma-integrity-quickcheck.php`: printed quick-check `ok`, limited header corruption, deep b-tree `ok`, and pointer-map/free-list mismatch rows for copied `wp_options`-style page images.
+- `php lanes/libsqlite/examples/application-pragma-integrity-quickcheck.php`: printed quick-check `ok`, limited header corruption, deep b-tree `ok`, and pointer-map/free-list mismatch rows for copied `wp_options`-style page images.
 - `php -l lanes/libsqlite/src/SQLitePragmaIntegrityCheck.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLitePragmaIntegrityCurrentNext29Test.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-pragma-integrity-quickcheck.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/application-pragma-integrity-quickcheck.php`: no syntax errors.
 - `git diff --check -- lanes/libsqlite`: no whitespace errors.
 
 Dashboard delta:

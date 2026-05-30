@@ -100,7 +100,7 @@ $cases236 = [
     'changed tables' => [static fn (): mixed => $plan236()['changed_tables_after_release'], ['wp_options']],
     'row counts' => [static fn (): mixed => $plan236()['row_counts']['wp_options'], 8],
     'dependency current row' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-window-current-row-next236', $plan236()['dependencies_next236'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-rowvalue-returning-current-row-window-next236', $plan236()['dependencies_next236'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-rowvalue-returning-current-row-window-next236', $plan236()['dependencies_next236'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan236()['dependency_closure_next236'], 'no new support component needed'), true],
     'non overlap mentions next233' => [static fn (): mixed => str_contains($plan236()['non_overlap_next236'], 'next233'), true],
     'non overlap mentions row value upsert' => [static fn (): mixed => str_contains($plan236()['non_overlap_next236'], 'row-value UPSERT'), true],

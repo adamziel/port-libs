@@ -6,7 +6,7 @@ Date: 2026-05-28T17:05:00Z
 
 Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext211Plan`, a replay-apply receipt layer on top of the accepted next209 latched writer-source rows. The plan converts each latched pointer-map or payload/freeblock source row into an ordered apply row, checks pointer-map barriers before payload application for every cursor, carries leaf freeblock receipts forward, chains apply tokens, and keeps vacuum-fenced tail pages out of the replay set.
 
-This targets the WordPress copied `wp_options` transient delete/vacuum path where a next writer must replay the current-source pages in an order that preserves auto-vacuum pointer-map correctness before reusing freeblock payload pages.
+This targets the Application copied `wp_options` transient delete/vacuum path where a next writer must replay the current-source pages in an order that preserves auto-vacuum pointer-map correctness before reusing freeblock payload pages.
 
 ## Focused Evidence
 
@@ -25,16 +25,16 @@ Focused test run: 1 selected test files (root lock skipped)
 
 The focused run produced 142 PASS lines for the new next211 test file.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next211.php
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next211.php
 ```
 
 Expected self-test line:
 
 ```text
-wordpress-btree-vacuum-pointermap-freeblock-current-source-next211 self-test passed
+application-btree-vacuum-pointermap-freeblock-current-source-next211 self-test passed
 ```
 
 ## Non-overlap

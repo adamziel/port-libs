@@ -10,7 +10,7 @@ current partial-index OR arm is implied by the query terms and every selected
 current-source row satisfies the grouped OR predicate before the STAT4 partial
 expression cursor is reused.
 
-WordPress smoke: `wordpress-sqlplanner-stat4-expression-partial-current-source-next209.php`
+Application smoke: `application-sqlplanner-stat4-expression-partial-current-source-next209.php`
 models copied multisite `wp_options` plugin diagnostics where the current
 partial expression index uses `(blog_id = 1 AND autoload = 'yes') OR
 autoload = 'critical'`. The smoke proves the multisite blog/autoload arm before
@@ -20,7 +20,7 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext209Test.php`
   - `1 test files, 65 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next209.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next209.php`
   - JSON output with `status: stat4-expression-partial-current-source-next209-ready`
 
 Dashboard delta: focused PHP PASS-line growth is `+65`. Mapped upstream

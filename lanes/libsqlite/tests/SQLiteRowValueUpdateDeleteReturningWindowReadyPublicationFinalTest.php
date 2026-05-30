@@ -7,7 +7,7 @@ $examplesDir = __DIR__ . '/../examples';
 $tests = [];
 
 $tests['rowvalue update delete returning window ready publication final consolidated range'] = static function (TestRunner $t) use ($examplesDir): void {
-    $result = require $examplesDir . '/wordpress-rowvalue-returning-window-ready-publication-final.php';
+    $result = require $examplesDir . '/application-rowvalue-returning-window-ready-publication-final.php';
 
     $expectedStatuses = [];
     $rangeStarts = [1006, 1022, 1038, 1054, 1070, 1102, 1118, 1134];
@@ -41,7 +41,7 @@ $tests['rowvalue update delete returning window ready publication final consolid
     }
     $t->same(64, strlen($result['finalSeal']));
     $t->same(true, $result['finalReady']);
-    $t->contains('without keeping numbered caller files', $result['wordpressUse']);
+    $t->contains('without keeping numbered caller files', $result['applicationUse']);
     $t->contains('no new support component needed', $result['dependencyClosure']);
 };
 

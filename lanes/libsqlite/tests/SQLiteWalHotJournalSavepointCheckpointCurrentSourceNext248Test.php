@@ -96,7 +96,7 @@ $cases = [
     'operation truncate' => [static fn (): mixed => in_array('truncate_checkpoint_wal_current_source_next248', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next245', $plan()['dependencies'], true), true],
     'dependency next248' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next248', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-reader-release-before-wal-truncate', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-reader-release-before-wal-truncate', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next245 reopened-reader admission'), true],
     'first row released' => [static fn (): mixed => $plan()['release_rows'][0]['released'], true],

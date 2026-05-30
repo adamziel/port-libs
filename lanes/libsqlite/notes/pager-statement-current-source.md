@@ -5,7 +5,7 @@
 Adds `SQLiteVfsFileWriter::applyMasterJournalStatementPageRecoveryFromCurrentSource()`.
 The VFS apply path now hydrates the master-journal bytes and attached database
 images from the current filesystem source before applying statement-journal
-page recovery. This prevents a caller from recovering a copied WordPress
+page recovery. This prevents a caller from recovering a copied Application
 database from stale supplied database bytes while still preserving outer
 rollback journals and the master journal for the surrounding transaction.
 
@@ -13,10 +13,10 @@ rollback journals and the master journal for the surrounding transaction.
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerStatementJournalRecoveryCurrentSourceTest.php`
   - `1 test files, 62 assertions, 0 failures`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-pager-statement-current-source.php`
+- Example smoke: `php lanes/libsqlite/examples/application-pager-statement-current-source.php`
 - Syntax: `php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php`,
   `php -l lanes/libsqlite/tests/SQLitePagerStatementJournalRecoveryCurrentSourceTest.php`,
-  and `php -l lanes/libsqlite/examples/wordpress-pager-statement-current-source.php`
+  and `php -l lanes/libsqlite/examples/application-pager-statement-current-source.php`
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap

@@ -9,7 +9,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteNocaseGlobAffinityCurrentSourceNext139Test.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-nocase-glob-affinity-current-source-next139.php --self-test`
+- Example smoke: `php lanes/libsqlite/examples/application-nocase-glob-affinity-current-source-next139.php --self-test`
 - PHP lint and `git diff --check -- lanes/libsqlite` were run before handoff.
 
 ## Non-overlap

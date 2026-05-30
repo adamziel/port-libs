@@ -10,9 +10,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLitePagerTransactionStatePlan.php
 php -l lanes/libsqlite/tests/SQLitePagerTransactionCurrentNext56Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-transaction-current-next56.php
+php -l lanes/libsqlite/examples/application-pager-transaction-current-next56.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerTransactionCurrentNext56Test.php
-php lanes/libsqlite/examples/wordpress-pager-transaction-current-next56.php --self-test
+php lanes/libsqlite/examples/application-pager-transaction-current-next56.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -3,7 +3,7 @@
 ## Behavior
 
 Adds `SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext()`
-for the savepoint path where an inner WordPress import savepoint is released into
+for the savepoint path where an inner Application import savepoint is released into
 its parent, then the parent is rolled back before a RESTART/TRUNCATE checkpoint.
 The method validates the caller-provided current WAL bytes against the parsed WAL
 source, reports current/retained/next WAL source metadata, and preserves reader
@@ -18,10 +18,10 @@ admission.
 
 - `php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalRestartTruncateSavepointCurrentSourceNext91Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-restart-truncate-savepoint-current-source-next91.php`
+- `php -l lanes/libsqlite/examples/application-wal-restart-truncate-savepoint-current-source-next91.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalRestartTruncateSavepointCurrentSourceNext91Test.php`
   - `1 test files, 72 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-restart-truncate-savepoint-current-source-next91.php`
+- `php lanes/libsqlite/examples/application-wal-restart-truncate-savepoint-current-source-next91.php`
   - reports `restart_wal`, `truncate_wal`, current-source frame validation,
     retained source frame count, and rolled-back released frames for copied
     `wp_options` import savepoints.

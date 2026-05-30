@@ -30,11 +30,11 @@ Focused test run: 2 selected test files (root lock skipped)
 New focused PASS lines: `+15` from
 `SQLiteAnalyzeStatPlannerCurrentNext75Test.php`.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-analyze-stat-planner-current-next75.php
-wordpress-analyze-stat-planner-current-next75
+php lanes/libsqlite/examples/application-analyze-stat-planner-current-next75.php
+application-analyze-stat-planner-current-next75
 index=wp_options_name
 matched=option_name
 operator=BETWEEN

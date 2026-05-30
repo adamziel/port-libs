@@ -14,7 +14,7 @@ the current-source boundary around a savepoint:
 - retry statements read the original savepoint image, then RELEASE publishes
   the retry window receipt as the next current source.
 
-WordPress path: `wordpress-rowvalue-returning-window-current-source-next233.php`
+Application path: `application-rowvalue-returning-window-current-source-next233.php`
 models copied `wp_options` plugin/import cleanup where transient deletions and
 queued option updates produce RETURNING streams that must be ranked for a
 batched importer without leaking rows from a rolled-back savepoint attempt.
@@ -23,8 +23,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext233Test.php`
   - `1 test files, 82 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next233.php --self-test`
-  - `wordpress-rowvalue-returning-window-current-source-next233 self-test passed`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next233.php --self-test`
+  - `application-rowvalue-returning-window-current-source-next233 self-test passed`
 
 Expected dashboard movement: `phpPass +82`, from `113830` to `113912`. Mapped
 upstream coverage remains `634 / 1589`; this is current-source PHP behavior over

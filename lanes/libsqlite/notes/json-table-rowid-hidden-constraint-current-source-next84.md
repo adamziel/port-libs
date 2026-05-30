@@ -16,11 +16,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 52 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-rowid-hidden-constraint-current-source-next84.php --self-test
-wordpress-json-table-rowid-hidden-constraint-current-source-next84 self-test passed
+php lanes/libsqlite/examples/application-json-table-rowid-hidden-constraint-current-source-next84.php --self-test
+application-json-table-rowid-hidden-constraint-current-source-next84 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` `31557 -> 31590` after clean integration of this lane patch. Mapped upstream coverage remains `465 / 1589`.

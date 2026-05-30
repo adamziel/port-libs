@@ -4,7 +4,7 @@
 
 - Adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext230Plan`, an additive current-source plan for nested savepoint behavior around row-value `UPDATE` and `DELETE ... RETURNING`.
 - Models an inner savepoint that is released before an outer `ROLLBACK TO`; the inner and after-release RETURNING rows are recorded as discarded, and retry statements read the restored outer savepoint image.
-- Covers WordPress copied `wp_options` / `wp_optionmeta` migration cleanup paths using row-value `IN (SELECT ...)`, `SELECT DISTINCT`, `ORDER BY`, and `LIMIT` subqueries.
+- Covers Application copied `wp_options` / `wp_optionmeta` migration cleanup paths using row-value `IN (SELECT ...)`, `SELECT DISTINCT`, `ORDER BY`, and `LIMIT` subqueries.
 
 ## Evidence
 
@@ -15,7 +15,7 @@
 - PASS-line delta:
   `+67` focused PASS cases for this isolated next230 slice.
 - Example smoke:
-  `php lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-current-source-next230.php`
+  `php lanes/libsqlite/examples/application-rowvalue-nested-savepoint-current-source-next230.php`
 
 ## Non-Overlap
 

@@ -10,7 +10,7 @@ satisfy a `FOREIGN KEY ... REFERENCES parent(column)` parent-key requirement.
 The new `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` page composes
 the accepted next229 exact parent-key arity page and appends
 `foreign_key_parent_expression_unique` rows. It reports current copied
-WordPress taxonomy-import schemas where only `lower(slug)` / `lower(slug),
+Application taxonomy-import schemas where only `lower(slug)` / `lower(slug),
 taxonomy` UNIQUE expression indexes exist, and verifies that a next source
 with plain `UNIQUE(slug)` / `UNIQUE(slug, taxonomy)` clears the blocker.
 
@@ -19,14 +19,14 @@ with plain `UNIQUE(slug)` / `UNIQUE(slug, taxonomy)` clears the blocker.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `62 PASS lines`
   - `1 test files, 81 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next231.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next231 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next231.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next231 self-test passed`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next231.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next231.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next231.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next231.php`
 - `git diff --check -- lanes/libsqlite`
   - passed with no output
 

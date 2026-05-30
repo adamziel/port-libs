@@ -15,7 +15,7 @@ Covered behavior:
 - immediate trigger/FK failure restores parent and child rows to the current
   savepoint image, resets statement changes to zero, and suppresses committed
   RETURNING rows;
-- attempted yield diagnostics retain prior row evidence for WordPress import
+- attempted yield diagnostics retain prior row evidence for Application import
   error reporting without treating those rows as committed results;
 - deferred FK violations remain visible and do not roll back the current
   savepoint before an outer constraint check.
@@ -37,7 +37,7 @@ Result:
 Example smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-upsert-returning-savepoint.php
+php lanes/libsqlite/examples/application-upsert-returning-savepoint.php
 ```
 
 ## Non-Overlap

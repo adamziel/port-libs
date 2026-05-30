@@ -12,12 +12,12 @@ Behavior:
 - Distinguishes virtual (`hidden = 2`) and stored (`hidden = 3`) generated
   child columns, carries not-null metadata, includes row summaries in the
   source hash, and rejects stale resume cursors after schema drift.
-- Verifies next-source repair when copied WordPress taxonomy import schemas
+- Verifies next-source repair when copied Application taxonomy import schemas
   replay generated FK child columns as ordinary visible columns.
 
-WordPress relevance:
+Application relevance:
 
-Copied WordPress taxonomy/meta staging schemas may derive normalized FK child
+Copied Application taxonomy/meta staging schemas may derive normalized FK child
 keys such as `slug_key AS (lower(raw_slug))`. A `table_info`-only diagnostic
 can lose those child columns even though `PRAGMA foreign_key_list` reports
 them. This slice keeps the FK child side countable through `table_xinfo`.
@@ -34,8 +34,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next249.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-current-source-next249 self-test passed
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next249.php --self-test
+application-pragma-index-xinfo-foreignkey-current-source-next249 self-test passed
 ```
 
 Expected dashboard movement:

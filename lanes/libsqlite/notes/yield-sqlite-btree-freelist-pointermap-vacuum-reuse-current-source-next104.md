@@ -18,11 +18,11 @@ This avoids accepted overflow freelist release, empty-leaf release, pointer-map 
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-freelist-vacuum-reuse-current-source-next104.php`
+- `php -l lanes/libsqlite/examples/application-btree-freelist-vacuum-reuse-current-source-next104.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Test.php`
   - `1 test files, 262 assertions, 0 failures`
   - 67 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-freelist-vacuum-reuse-current-source-next104.php`
+- `php lanes/libsqlite/examples/application-btree-freelist-vacuum-reuse-current-source-next104.php`
   - emits JSON with `allocatedPages` `[307, 306]` and `vacuumTruncatedPages` `[308, 309, 310]`
 
 ## Dependency Closure

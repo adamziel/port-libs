@@ -54,7 +54,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@171',
     int $currentCookie = 170,
     int $nextCookie = 171,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicateKeyReplayPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -145,7 +145,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenOne stable duplicate 
         $row(3, 'PLUGIN_CACHE', 'UTF-8'),
         $row(4, 'plugin_cache_extra', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicateKeyReplayPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -169,7 +169,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenOne unique keys can s
         $row(2, 'plugin_cache_beta', 'UTF-16BE'),
         $row(3, 'plugin_cache_gamma', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicateKeyReplayPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenOne malformed error t
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSevenOne rejects invalid token'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicateKeyReplayPlan(
         $currentRows,
         $nextRows,
         'plugin%',

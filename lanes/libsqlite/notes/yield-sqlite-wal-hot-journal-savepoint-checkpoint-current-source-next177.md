@@ -24,10 +24,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 50 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next177.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next177.php
 status: wal-hot-journal-savepoint-checkpoint-current-source-next177
 operationNames: write, truncate, sync, sync_directory
 payloadPaths: /srv/www/wp-content/database/wp-next177.sqlite

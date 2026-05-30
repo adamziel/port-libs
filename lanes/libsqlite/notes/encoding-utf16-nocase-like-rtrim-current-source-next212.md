@@ -9,18 +9,18 @@ Behavior:
 - Proves a fullwidth exclamation escape protects literal `_` and `%` characters while preserving the same candidate/matched rowsets as an ASCII-equivalent escape.
 - Keeps ASCII-only NOCASE and ASCII-space-only RTRIM diagnostics from accepted current-source behavior.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next212.php` models copied `wp_options.option_name` scans where migration SQL binds UTF-16 pattern bytes such as `plugin！_%` and `plugin！%%`. The scan must decode the non-ASCII escape before calculating the NOCASE/RTRIM prefix range so literal wildcard bytes are not treated as wildcards.
+Application path: `application-utf16-nocase-like-rtrim-current-source-next212.php` models copied `wp_options.option_name` scans where migration SQL binds UTF-16 pattern bytes such as `plugin！_%` and `plugin！%%`. The scan must decode the non-ASCII escape before calculating the NOCASE/RTRIM prefix range so literal wildcard bytes are not treated as wildcards.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Test.php`
   - `1 test files, 79 assertions, 0 failures`
   - `70` PASS lines.
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next212.php --self-test`
-  - `wordpress-utf16-nocase-like-rtrim-current-source-next212 self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next212.php --self-test`
+  - `application-utf16-nocase-like-rtrim-current-source-next212 self-test passed`
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next212.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next212.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +70`, from `101605` to `101675`. Mapped upstream coverage remains `622 / 1589`; this reuses existing encoding/collation/LIKE inventory rather than claiming a fresh manifest row.

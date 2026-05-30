@@ -13,14 +13,14 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLitePagerHotJournalSuperMasterRecoveryTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerHotJournalSuperMasterRecoveryTest.php
 
-php -l lanes/libsqlite/examples/wordpress-pager-hot-journal-super-master-recovery.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-hot-journal-super-master-recovery.php
+php -l lanes/libsqlite/examples/application-pager-hot-journal-super-master-recovery.php
+No syntax errors detected in lanes/libsqlite/examples/application-pager-hot-journal-super-master-recovery.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalSuperMasterRecoveryTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 52 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pager-hot-journal-super-master-recovery.php --self-test
+php lanes/libsqlite/examples/application-pager-hot-journal-super-master-recovery.php --self-test
 {
     "status": "applied",
     "recoveredDatabases": 2,

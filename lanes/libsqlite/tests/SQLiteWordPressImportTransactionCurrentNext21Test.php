@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWordPressImportTransactionPlan;
+use PortLibs\LibSqlite\SQLiteImportTransactionPlan;
 
 $currentRows = static fn (): array => [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
@@ -17,7 +17,7 @@ $stagedRows = static fn (): array => [
     ['option_id' => 65, 'option_name' => 'active_plugins', 'option_value' => 'a:1:{i:0;s:19:"plugin/plugin.php";}', 'autoload' => 'no'],
 ];
 
-$plan = static fn (array $options = []): array => SQLiteWordPressImportTransactionPlan::plan(
+$plan = static fn (array $options = []): array => SQLiteImportTransactionPlan::plan(
     $currentRows(),
     $stagedRows(),
     array_replace(['database_path' => '/tmp/wp-current-import.sqlite', 'page_size' => 1024], $options)
@@ -71,7 +71,7 @@ $cases = [
     'journal sync is full' => static fn (): mixed => $plan()['sync_sequence'][0]['flag_names'],
     'database sync is dataonly full' => static fn (): mixed => $plan()['sync_sequence'][1]['flag_names'],
     'directory sync is normal' => static fn (): mixed => $plan()['sync_sequence'][2]['flag_names'],
-    'dependency names current import' => static fn (): mixed => in_array('sqlite-wordpress-import-transaction-current', $plan()['dependencies'], true),
+    'dependency names current import' => static fn (): mixed => in_array('sqlite-application-import-transaction-current', $plan()['dependencies'], true),
     'delete missing removes absent options' => static fn (): mixed => count($plan(['delete_missing' => true])['deleted']),
     'delete missing includes home' => static fn (): mixed => $plan(['delete_missing' => true])['deleted'][0]['option_name'],
     'delete missing includes transient' => static fn (): mixed => $plan(['delete_missing' => true])['deleted'][1]['option_name'],
@@ -82,7 +82,7 @@ $cases = [
     'exclusive begin is accepted' => static fn (): mixed => $plan(['begin' => 'BEGIN EXCLUSIVE TRANSACTION'])['begin']['mode'],
     'conflicting update aborts by default' => static function () use ($currentRows): mixed {
         try {
-            SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+            SQLiteImportTransactionPlan::plan($currentRows(), [
                 ['option_id' => 1, 'option_name' => 'home', 'option_value' => 'dup', 'autoload' => 'yes'],
             ]);
         } catch (LogicException) {
@@ -91,49 +91,49 @@ $cases = [
         return 'missed';
     },
     'replace conflict deletes current name owner' => static function () use ($currentRows): mixed {
-        return SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+        return SQLiteImportTransactionPlan::plan($currentRows(), [
             ['option_id' => 1, 'option_name' => 'home', 'option_value' => 'dup', 'autoload' => 'yes'],
         ], ['replace_conflicts' => true])['deleted'][0]['option_id'];
     },
     'replace conflict records action' => static function () use ($currentRows): mixed {
-        return SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+        return SQLiteImportTransactionPlan::plan($currentRows(), [
             ['option_id' => 1, 'option_name' => 'home', 'option_value' => 'dup', 'autoload' => 'yes'],
         ], ['replace_conflicts' => true])['conflicts'][0]['action'];
     },
     'staged duplicate id uses last source row' => static function () use ($currentRows): mixed {
-        return SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+        return SQLiteImportTransactionPlan::plan($currentRows(), [
             ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'first', 'autoload' => 'yes'],
             ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'last', 'autoload' => 'yes'],
         ])['updated'][0]['after']['option_value'];
     },
     'staged name without id updates current row' => static function () use ($currentRows): mixed {
-        return SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+        return SQLiteImportTransactionPlan::plan($currentRows(), [
             ['option_name' => 'home', 'option_value' => 'https://new.example', 'autoload' => 'yes'],
         ])['updated'][0]['after']['option_id'];
     },
     'unchanged staged row is tracked' => static function () use ($currentRows): mixed {
-        return SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+        return SQLiteImportTransactionPlan::plan($currentRows(), [
             ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
         ])['unchanged'][0]['option_name'];
     },
     'unchanged staged row does not dirty pages' => static function () use ($currentRows): mixed {
-        return SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+        return SQLiteImportTransactionPlan::plan($currentRows(), [
             ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
         ])['dirty_pages'];
     },
     'new explicit rowid is inserted' => static function () use ($currentRows): mixed {
-        return SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+        return SQLiteImportTransactionPlan::plan($currentRows(), [
             ['option_id' => 200, 'option_name' => 'rewrite_rules', 'option_value' => 'rules', 'autoload' => 'no'],
         ])['inserted'][0]['option_id'];
     },
     'new explicit rowid dirties expected leaf' => static function () use ($currentRows): mixed {
-        return SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+        return SQLiteImportTransactionPlan::plan($currentRows(), [
             ['option_id' => 200, 'option_name' => 'rewrite_rules', 'option_value' => 'rules', 'autoload' => 'no'],
         ])['dirty_pages'];
     },
     'deferred begin is rejected' => static function () use ($currentRows, $stagedRows): mixed {
         try {
-            SQLiteWordPressImportTransactionPlan::plan($currentRows(), $stagedRows(), ['begin' => 'BEGIN DEFERRED']);
+            SQLiteImportTransactionPlan::plan($currentRows(), $stagedRows(), ['begin' => 'BEGIN DEFERRED']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -141,7 +141,7 @@ $cases = [
     },
     'relative database path is rejected' => static function () use ($currentRows, $stagedRows): mixed {
         try {
-            SQLiteWordPressImportTransactionPlan::plan($currentRows(), $stagedRows(), ['database_path' => 'relative.sqlite']);
+            SQLiteImportTransactionPlan::plan($currentRows(), $stagedRows(), ['database_path' => 'relative.sqlite']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -149,7 +149,7 @@ $cases = [
     },
     'invalid option name is rejected' => static function () use ($currentRows): mixed {
         try {
-            SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+            SQLiteImportTransactionPlan::plan($currentRows(), [
                 ['option_name' => '', 'option_value' => 'bad', 'autoload' => 'no'],
             ]);
         } catch (InvalidArgumentException) {
@@ -159,7 +159,7 @@ $cases = [
     },
     'invalid autoload is rejected' => static function () use ($currentRows): mixed {
         try {
-            SQLiteWordPressImportTransactionPlan::plan($currentRows(), [
+            SQLiteImportTransactionPlan::plan($currentRows(), [
                 ['option_name' => 'bad_autoload', 'option_value' => 'bad', 'autoload' => 'maybe'],
             ]);
         } catch (InvalidArgumentException) {
@@ -169,7 +169,7 @@ $cases = [
     },
     'duplicate current option names are rejected' => static function (): mixed {
         try {
-            SQLiteWordPressImportTransactionPlan::plan([
+            SQLiteImportTransactionPlan::plan([
                 ['option_id' => 1, 'option_name' => 'home', 'option_value' => 'a', 'autoload' => 'yes'],
                 ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'b', 'autoload' => 'yes'],
             ], []);
@@ -180,7 +180,7 @@ $cases = [
     },
     'duplicate current rowids are rejected' => static function (): mixed {
         try {
-            SQLiteWordPressImportTransactionPlan::plan([
+            SQLiteImportTransactionPlan::plan([
                 ['option_id' => 1, 'option_name' => 'home', 'option_value' => 'a', 'autoload' => 'yes'],
                 ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'b', 'autoload' => 'yes'],
             ], []);
@@ -252,7 +252,7 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite wordpress import transaction current next21 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application import transaction current next21 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

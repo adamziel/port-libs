@@ -19,8 +19,8 @@ No-FROM trigger diagnostics remain current-snapshot reads, preserving the accept
 - Adjacent regression check:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalViewTriggerRouteCurrentNext50Test.php lanes/libsqlite/tests/SQLiteAttachTempWalViewTriggerCurrentNext48Test.php lanes/libsqlite/tests/SQLiteAttachWalTempViewCacheCurrentNext51Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaTriggerCurrentNext52Test.php lanes/libsqlite/tests/SQLiteAttachWalTempViewCollationCurrentNext54Test.php lanes/libsqlite/tests/SQLiteAttachTempViewTriggerYieldCurrentNext38Test.php lanes/libsqlite/tests/SQLiteAttachWalTempViewTriggerCurrentNext81Test.php`
   - `7 test files, 548 assertions, 0 failures`
-- WordPress smoke:
-  - `php lanes/libsqlite/examples/wordpress-attach-wal-temp-view-trigger-current-next81.php`
+- Application smoke:
+  - `php lanes/libsqlite/examples/application-attach-wal-temp-view-trigger-current-next81.php`
   - Reports main WAL and temp bridge trigger routes where post-write SELECTs read `next` / `connection-local-next` with `readAfterWrite=true`.
 
 ## Non-overlap

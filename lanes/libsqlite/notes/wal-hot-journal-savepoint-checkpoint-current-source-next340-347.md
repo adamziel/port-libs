@@ -10,4 +10,4 @@ Focused coverage:
 
 - `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext340347Test.php` chains next340 through next347 from next339.
 - The same test blocks stale database digests, unreleased reader marks, unsynced WAL-index salt, and a missing next346 base for the next347 seal.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next347.php` provides a WordPress-shaped example for the final seal.
+- `application-wal-hot-journal-savepoint-checkpoint-current-source-next347.php` provides a Application-shaped example for the final seal.

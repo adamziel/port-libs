@@ -13,14 +13,14 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteSelectSql.php`
 - `php -l lanes/libsqlite/src/SQLiteSelectQuery.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonAggregateFilterWindowFrameCurrentSourceNext117Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-aggregate-filter-window-frame-current-source-next117.php`
+- `php -l lanes/libsqlite/examples/application-json-aggregate-filter-window-frame-current-source-next117.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateFilterWindowFrameCurrentSourceNext117Test.php`
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-filter-window-frame-current-source-next117.php`
+- `php lanes/libsqlite/examples/application-json-aggregate-filter-window-frame-current-source-next117.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The patch reuses the
 existing native PHP SELECT SQL parser, JSON aggregate/window executor, JSONB
-encoder, predicate filter, and WordPress smoke harness.
+encoder, predicate filter, and Application smoke harness.
 
 Non-overlap: avoids accepted JSON aggregate FILTER/ORDER/DISTINCT window
 coverage, JSON object aggregate/window coverage, JSON table

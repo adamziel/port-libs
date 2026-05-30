@@ -13,10 +13,10 @@ Behavior covered:
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowPointerMapFreepageTest.php`
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-pointermap-freepage.php`
+- `php lanes/libsqlite/examples/application-btree-overflow-pointermap-freepage.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeOverflowVacuumFreepagePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowPointerMapFreepageTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-overflow-pointermap-freepage.php`
+- `php -l lanes/libsqlite/examples/application-btree-overflow-pointermap-freepage.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

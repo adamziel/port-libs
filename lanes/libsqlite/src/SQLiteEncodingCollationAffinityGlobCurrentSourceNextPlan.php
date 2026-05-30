@@ -11,7 +11,7 @@ final class SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValueMalformedGlobPlan(
+    public static function optionRowValueMalformedGlobPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

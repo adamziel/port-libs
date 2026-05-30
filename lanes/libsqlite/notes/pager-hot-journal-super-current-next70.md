@@ -16,7 +16,7 @@ Behavior covered:
 - Partial super-journal lists recover listed databases while preserving
   unlisted journals/images.
 - Reserved-lock and invalid input gates prevent unsafe recovery.
-- WordPress smoke applies the recovery to copied `wp_options` /
+- Application smoke applies the recovery to copied `wp_options` /
   `wp_sitemeta`-style attached database images through native PHP file handles.
 
 Verification:
@@ -25,9 +25,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLitePagerHotJournalSuperCurrentNextPlan.php
 php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLitePagerHotJournalSuperCurrentNext70Test.php
-php -l lanes/libsqlite/examples/wordpress-hot-journal-super-current-next.php
+php -l lanes/libsqlite/examples/application-hot-journal-super-current-next.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalSuperCurrentNext70Test.php
-php lanes/libsqlite/examples/wordpress-hot-journal-super-current-next.php
+php lanes/libsqlite/examples/application-hot-journal-super-current-next.php
 git diff --check -- lanes/libsqlite
 ```
 

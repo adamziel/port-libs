@@ -50,7 +50,7 @@ $plan = static fn (
     string $encoding = 'UTF-16LE',
     string $currentRangeEncoding = 'UTF-16LE',
     string $nextRangeEncoding = 'UTF-16BE',
-): array => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan(
+): array => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::optionRowValuePlan(
     $currentRows,
     $nextRows,
     $bytes($pattern, $encoding),
@@ -143,7 +143,7 @@ $tests['utf16 glob literal bracket current source nextOneTwoTwo static glob pref
 };
 
 $tests['utf16 glob literal bracket current source nextOneTwoTwo stable same range encoding is reusable'] = static function (TestRunner $t) use ($currentRows, $bytes): void {
-    $stable = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan(
+    $stable = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::optionRowValuePlan(
         $currentRows,
         $currentRows,
         $bytes('plugin_[draft*', 'UTF-16LE'),

@@ -16,7 +16,7 @@ Non-overlap: this is not another bulk overflow freeblock or overflow-only freeli
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Test.php`
   - expected: `1 test files, 50 assertions, 0 failures`
   - PASS-line delta: `+50`
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-rebalance-freepage-current-source-next94.php`
+- `php lanes/libsqlite/examples/application-btree-overflow-rebalance-freepage-current-source-next94.php`
   - expected: self-test JSON with `step_type` `empty-leaf-free`, freed pages `[3,5,6,7]`, and pointer-map `free-page` entries.
 
 ## Dependency Closure

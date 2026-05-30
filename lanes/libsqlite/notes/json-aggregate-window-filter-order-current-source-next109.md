@@ -6,7 +6,7 @@ aggregate-local `ORDER BY ... NULLS FIRST/LAST` terms combined with `FILTER`.
 This slice extends parser-level JSON aggregate window execution so
 `json_group_array()`, `jsonb_group_array()`, and `json_group_object()` carry
 aggregate-local NULL placement metadata into the window frame comparator. It
-matches SQLite ordering-term behavior for WordPress option summaries where
+matches SQLite ordering-term behavior for Application option summaries where
 NULL priority metadata must sort explicitly before or after numeric scores
 while the window frame still advances over the current source row.
 
@@ -14,15 +14,15 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateWindowFilterOrderCurrentSourceNext109Test.php`
   -> `1 test files, 47 assertions, 0 failures` with 41 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-window-filter-order-current-source-next109.php --self-test`
-  -> `wordpress-json-aggregate-window-filter-order-current-source-next109 self-test passed`.
+- `php lanes/libsqlite/examples/application-json-aggregate-window-filter-order-current-source-next109.php --self-test`
+  -> `application-json-aggregate-window-filter-order-current-source-next109 self-test passed`.
 - `php -l lanes/libsqlite/src/SQLiteSelectSql.php`
   -> no syntax errors.
 - `php -l lanes/libsqlite/src/SQLiteSelectQuery.php`
   -> no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteJsonAggregateWindowFilterOrderCurrentSourceNext109Test.php`
   -> no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-json-aggregate-window-filter-order-current-source-next109.php`
+- `php -l lanes/libsqlite/examples/application-json-aggregate-window-filter-order-current-source-next109.php`
   -> no syntax errors.
 - `git diff --check -- lanes/libsqlite`
   -> passed.

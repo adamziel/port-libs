@@ -13,8 +13,8 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteDateTimeJulianUnixepochEdgeTest.php`
 - Result: `1 test files, 34 assertions, 0 failures` with 34 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-datetime-julian-unixepoch-edge.php --self-test`
-- Result: passed; copied WordPress cron rows normalize Julian day, Unix timestamp, and `auto` timestamp sources.
+- `php lanes/libsqlite/examples/application-datetime-julian-unixepoch-edge.php --self-test`
+- Result: passed; copied Application cron rows normalize Julian day, Unix timestamp, and `auto` timestamp sources.
 
 Dashboard delta:
 

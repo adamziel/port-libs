@@ -3,7 +3,7 @@
 This slice adds current/next PRAGMA evidence for SQLite foreign keys that omit
 the parent column list (`REFERENCES parent`). SQLite resolves those omitted
 parent columns to the parent table primary key, so the child key arity must
-match the parent primary-key arity before a copied WordPress schema repair is
+match the parent primary-key arity before a copied Application schema repair is
 admitted.
 
 Focused behavior:
@@ -20,10 +20,10 @@ Focused behavior:
 Verification evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next209.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next209.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next209.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next209.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

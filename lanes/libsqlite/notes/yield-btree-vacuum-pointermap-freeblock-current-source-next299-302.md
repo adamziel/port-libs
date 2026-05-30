@@ -13,10 +13,10 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext299302Test.php
-php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next299-302.php
+php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next299-302.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext299302Test.php
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next299-302.php
-git diff --check -- lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext299302Test.php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next299-302.php lanes/libsqlite/notes/yield-btree-vacuum-pointermap-freeblock-current-source-next299-302.md
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next299-302.php
+git diff --check -- lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext299302Test.php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next299-302.php lanes/libsqlite/notes/yield-btree-vacuum-pointermap-freeblock-current-source-next299-302.md
 ```
 
 Dependency closure: no new support component is needed. This reuses next261

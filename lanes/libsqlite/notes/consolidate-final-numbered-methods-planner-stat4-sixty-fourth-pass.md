@@ -19,7 +19,7 @@ Verification:
 
 - `php -l` on changed PHP files.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentPartialPredicateFenceTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentCoveringPayloadFenceTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentScanDirectionFenceTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentStat4PayloadFenceTest.php`
-- WordPress example self-tests for the four renamed examples.
+- Application example self-tests for the four renamed examples.
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this reuses the

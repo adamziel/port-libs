@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds bounded WAL reader/writer snapshot boundary planning for copied WordPress database imports:
+Adds bounded WAL reader/writer snapshot boundary planning for copied Application database imports:
 
 - captures the current reader snapshot at the pre-append WAL end frame;
 - appends committed and uncommitted writer transaction frames using the existing WAL checksum chain;
@@ -24,7 +24,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-reader-writer-snapshot.php
+php lanes/libsqlite/examples/application-wal-reader-writer-snapshot.php
 ```
 
 Smoke output reports `currentReaderEndFrame: 2`, `nextReaderEndFrame: 4`, current frame indexes `[1,2,null,null]`, next frame indexes `[1,3,4,null]`, `uncommittedTailVisible: false`, and `nextContainsActivePluginsUpdate: true`.

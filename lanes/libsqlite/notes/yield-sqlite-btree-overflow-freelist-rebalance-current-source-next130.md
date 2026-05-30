@@ -8,7 +8,7 @@ Behavior added:
 
 - Added `SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNextPlan` for the current-source B-tree case where obsolete overflow pages are released into an existing freelist, but a smaller replacement overflow chain consumes older freelist leaves first.
 - The plan records released overflow pages that remain deferred on the freelist with `FREE_PAGE` pointer-map entries, allocated pages reused from the pre-existing freelist, final freelist order, and page images needed for handoff/application.
-- Added WordPress smoke coverage for a copied `wp_options` transient shrink path where obsolete overflow pages must stay safely reusable rather than being immediately reallocated.
+- Added Application smoke coverage for a copied `wp_options` transient shrink path where obsolete overflow pages must stay safely reusable rather than being immediately reallocated.
 
 Focused evidence:
 
@@ -22,7 +22,7 @@ Focused test run: 1 selected test files (root lock skipped)
 The focused run emitted 73 `PASS` lines, all from the new lane-scoped test file.
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-overflow-freelist-rebalance-current-source-next130.php
+$ php lanes/libsqlite/examples/application-overflow-freelist-rebalance-current-source-next130.php
 {
     "releasedOverflowPages": [6, 7],
     "allocatedOverflowPages": [9],

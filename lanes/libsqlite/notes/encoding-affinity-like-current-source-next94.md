@@ -1,9 +1,9 @@
 # Encoding affinity LIKE current-source next94
 
-Status: focused PHP behavior growth for current/next WordPress option-value LIKE/GLOB scans after SQLite text-affinity coercion.
+Status: focused PHP behavior growth for current/next Application option-value LIKE/GLOB scans after SQLite text-affinity coercion.
 
 Behavior:
-- Added `SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValuePlan()` to compare current and next `wp_options` value scans using the existing UTF-16 LIKE/GLOB affinity cursor.
+- Added `SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan()` to compare current and next `wp_options` value scans using the existing UTF-16 LIKE/GLOB affinity cursor.
 - The plan reports matched rowset deltas plus retained-row changes in text-affinity output, original storage class, scan encoding, encoded bytes, schema/source identity, and invalidation reasons.
 - BLOB and SQL NULL values remain non-text operands for LIKE/GLOB scans, while integer, real, boolean, and text option values are coerced through SQLite-style text affinity before matching and UTF-16 byte encoding.
 - The focused test covers escaped LIKE literals, GLOB prefix ranges, Unicode character classes, emoji suffix changes, numeric/boolean text-affinity matches, source switches, malformed text guards, unsupported operator/encoding guards, and stable reusable cursors.
@@ -12,8 +12,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingAffinityLikeCurrentSourceNext94Test.php`
 - `php -l lanes/libsqlite/src/SQLiteEncodingAffinityLikeCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteEncodingAffinityLikeCurrentSourceNext94Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-option-value-affinity-like-current-next94.php`
-- `php lanes/libsqlite/examples/wordpress-option-value-affinity-like-current-next94.php --self-test`
+- `php -l lanes/libsqlite/examples/application-option-value-affinity-like-current-next94.php`
+- `php lanes/libsqlite/examples/application-option-value-affinity-like-current-next94.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement:

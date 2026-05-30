@@ -2,23 +2,23 @@
 
 Status: focused PHP corpus growth for WAL savepoint rollback followed by RESTART/TRUNCATE checkpoint and the next writer transaction.
 
-This slice adds `SQLiteWalAppendPlan::savepointRestartCheckpointCurrentNext()` for copied WordPress database imports. It composes the existing savepoint WAL byte-truncation primitive with durable RESTART/TRUNCATE checkpoint planning and WAL append transaction planning, then reports the current reader view of the retained WAL prefix versus the next reader view after the checkpoint database and appended WAL frames.
+This slice adds `SQLiteWalAppendPlan::savepointRestartCheckpointCurrentNext()` for copied Application database imports. It composes the existing savepoint WAL byte-truncation primitive with durable RESTART/TRUNCATE checkpoint planning and WAL append transaction planning, then reports the current reader view of the retained WAL prefix versus the next reader view after the checkpoint database and appended WAL frames.
 
 Focused verification:
 
 ```text
 php -l lanes/libsqlite/src/SQLiteWalAppendPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalRestartSavepointCheckpointCurrentNext49Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-restart-savepoint-checkpoint-current-next49.php
+php -l lanes/libsqlite/examples/application-wal-restart-savepoint-checkpoint-current-next49.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteWalAppendPlan.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteWalRestartSavepointCheckpointCurrentNext49Test.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-wal-restart-savepoint-checkpoint-current-next49.php
+No syntax errors detected in lanes/libsqlite/examples/application-wal-restart-savepoint-checkpoint-current-next49.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalRestartSavepointCheckpointCurrentNext49Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 71 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-wal-restart-savepoint-checkpoint-current-next49.php
+php lanes/libsqlite/examples/application-wal-restart-savepoint-checkpoint-current-next49.php
 {
     "status": "planned",
     "savepoint": "plugin_batch",

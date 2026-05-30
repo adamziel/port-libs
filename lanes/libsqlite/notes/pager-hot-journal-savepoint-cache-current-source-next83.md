@@ -6,7 +6,7 @@ Slice: `pager-hot-journal-savepoint-cache-current-source-next83`
 
 Adds `SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan`, a bounded pager recovery helper for the current-source boundary after hot rollback-journal recovery. When hot-journal recovery changes page images, stale pager-cache entries from the previous database/WAL source are invalidated before a savepoint captures before-images. Retry writes after `ROLLBACK TO` then capture from the recovered current source, or zero-fill for pages whose stale cache entry was discarded.
 
-The WordPress smoke models copied `wp_options` plugin-import pages where `active_plugins` and plugin settings are restored by a hot journal, stale WAL/database cache pages are discarded, and the retry import writes against the recovered page source.
+The Application smoke models copied `wp_options` plugin-import pages where `active_plugins` and plugin settings are restored by a hot journal, stale WAL/database cache pages are discarded, and the retry import writes against the recovered page source.
 
 ## Verification
 
@@ -23,13 +23,13 @@ No syntax errors detected in lanes/libsqlite/src/SQLitePagerHotJournalSavepointC
 php -l lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext83Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext83Test.php
 
-php -l lanes/libsqlite/examples/wordpress-hot-journal-savepoint-cache-current-source-next83.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-hot-journal-savepoint-cache-current-source-next83.php
+php -l lanes/libsqlite/examples/application-hot-journal-savepoint-cache-current-source-next83.php
+No syntax errors detected in lanes/libsqlite/examples/application-hot-journal-savepoint-cache-current-source-next83.php
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-hot-journal-savepoint-cache-current-source-next83.php --self-test
-wordpress-hot-journal-savepoint-cache-current-source-next83 self-test passed
+php lanes/libsqlite/examples/application-hot-journal-savepoint-cache-current-source-next83.php --self-test
+application-hot-journal-savepoint-cache-current-source-next83 self-test passed
 ```
 
 PASS delta: `+65` focused PASS lines. `lane-status.json` `phpPass` moves from `31014` to `31079`. Mapped upstream coverage is unchanged because this reuses already mapped pager hot-journal, pager cache current-source, and savepoint before-image primitives.

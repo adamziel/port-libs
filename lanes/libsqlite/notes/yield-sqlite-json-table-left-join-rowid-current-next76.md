@@ -6,7 +6,7 @@ Adds focused regression coverage for parser-level `json_each()` / `json_tree()`
 LEFT JOIN sources where the virtual table rowid aliases are used in join and
 post-join predicates.
 
-The covered WordPress-shaped path is copied `wp_options` plugin settings:
+The covered Application-shaped path is copied `wp_options` plugin settings:
 dynamic JSON roots from host columns, JSONB option values, SQL NULL option
 values, empty arrays, missing roots, and `json_tree()` object fields all
 preserve SQLite-style `rowid`, `_rowid_`, and `oid` behavior while unmatched
@@ -22,7 +22,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-left-join-rowid-current-next76.php
+php lanes/libsqlite/examples/application-json-table-left-join-rowid-current-next76.php
 [
     {
         "option_name": "plugin_empty_settings",

@@ -6,15 +6,15 @@ Status: focused PHP behavior growth for recursive `INSTEAD OF` view-trigger
 This slice consolidates the recursive view `RETURNING` admission entry point
 into `SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan` with stable
 descriptive method and helper names.
-It models copied WordPress `wp_options` rows inserted through an import view
+It models copied Application `wp_options` rows inserted through an import view
 whose `INSTEAD OF` trigger recursively inserts child option rows while
 `PRAGMA recursive_triggers` is enabled. The current view/trigger source drains
 its depth-first `RETURNING` rows first. A changed next view source is planned
 and its attempted recursive `RETURNING` rows are retained for reprepare
 diagnostics, but they are not exposed until the next source is admitted.
 
-WordPress path:
-`wordpress-trigger-recursive-view-returning-current-source-admission.php` covers a
+Application path:
+`application-trigger-recursive-view-returning-current-source-admission.php` covers a
 plugin import view where a current trigger recursively inserts
 `plugin_seed_child` rows while a pending plugin migration rewrites the next view
 to include an `origin` column and a different recursive suffix.
@@ -28,16 +28,16 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewRetur
 $ php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceAdmissionTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceAdmissionTest.php
 
-$ php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-admission.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-admission.php
+$ php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-admission.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-admission.php
 
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceAdmissionTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 74 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-admission.php --self-test
-wordpress-trigger-recursive-view-returning-current-source-admission self-test passed
+$ php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-admission.php --self-test
+application-trigger-recursive-view-returning-current-source-admission self-test passed
 ```
 
 Dashboard delta: no `phpPass` or mapped-coverage change; this is a

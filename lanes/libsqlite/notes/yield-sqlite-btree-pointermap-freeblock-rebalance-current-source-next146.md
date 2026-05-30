@@ -2,6 +2,6 @@
 
 - Behavior: adds `SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan`, which starts from a current-source table leaf delete result, applies the leaf freeblock rebalance/defragmentation, releases obsolete overflow pages to the freelist with FREE pointer-map entries, then allocates a replacement overflow chain whose reused pages receive fresh FIRST_OVERFLOW/OVERFLOW parent links.
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Test.php` -> `1 test files / 269 assertions / 0 failures` with 73 PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-pointermap-freeblock-rebalance-current-source-next146.php --self-test`.
+- Application smoke: `php lanes/libsqlite/examples/application-btree-pointermap-freeblock-rebalance-current-source-next146.php --self-test`.
 - Non-overlap: avoids accepted overflow pointer-map/freeblock next142, bulk overflow freeblocks, overflow freelist release, freelist trunk pointer-map reuse, page relocation, root collapse, index-interior merge, and freeblock coalesce-only behavior. This slice covers the missing rebalance-applied leaf image plus obsolete-overflow release plus replacement allocation pointer-map transition in one current-source flow.
 - Dependency closure: no new support component is needed; this reuses existing native PHP table leaf delete, freeblock rebalance apply, freelist release/allocation, overflow page encoding, and auto-vacuum pointer-map primitives.

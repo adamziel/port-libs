@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `pager-hot-journal-cache-savepoint-curre
 
 This slice adds `SQLitePagerHotJournalCacheSavepointCurrentSourceNextPlan`. It models the pager boundary after hot rollback-journal recovery where clean page-cache entries are retagged to the recovered current-source token, hot-journal pages replace stale cache images, dirty or stale savepoint cache entries are invalidated, `ROLLBACK TO` restores inner savepoint before-images, active savepoint cursors re-read against the recovered source, and the next statement subjournal captures before-images from that refreshed source.
 
-WordPress smoke: `wordpress-pager-hot-journal-cache-savepoint-current-source-next131.php` covers a copied `wp_options` plugin settings retry after hot-journal recovery. It proves stale active-plugin cache pages and dirty failed plugin writes cannot shadow recovered current-source images before retrying autoload updates.
+Application smoke: `application-pager-hot-journal-cache-savepoint-current-source-next131.php` covers a copied `wp_options` plugin settings retry after hot-journal recovery. It proves stale active-plugin cache pages and dirty failed plugin writes cannot shadow recovered current-source images before retrying autoload updates.
 
 Verification:
 
@@ -15,14 +15,14 @@ No syntax errors detected in lanes/libsqlite/src/SQLitePagerHotJournalCacheSavep
 php -l lanes/libsqlite/tests/SQLitePagerHotJournalCacheSavepointCurrentSourceNext131Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerHotJournalCacheSavepointCurrentSourceNext131Test.php
 
-php -l lanes/libsqlite/examples/wordpress-pager-hot-journal-cache-savepoint-current-source-next131.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-hot-journal-cache-savepoint-current-source-next131.php
+php -l lanes/libsqlite/examples/application-pager-hot-journal-cache-savepoint-current-source-next131.php
+No syntax errors detected in lanes/libsqlite/examples/application-pager-hot-journal-cache-savepoint-current-source-next131.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalCacheSavepointCurrentSourceNext131Test.php
 1 test files, 85 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pager-hot-journal-cache-savepoint-current-source-next131.php --self-test
-wordpress-pager-hot-journal-cache-savepoint-current-source-next131 self-test passed
+php lanes/libsqlite/examples/application-pager-hot-journal-cache-savepoint-current-source-next131.php --self-test
+application-pager-hot-journal-cache-savepoint-current-source-next131 self-test passed
 ```
 
 Dashboard delta: `phpPass` increases by 85 focused PASS lines from this isolated worktree's lane status. Mapped upstream coverage remains unchanged; this is fresh focused pager behavior over already mapped rollback-journal/savepoint primitives.

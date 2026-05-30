@@ -16,7 +16,7 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffBridgeMiddleTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffBridgeLateTest.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-bridge-middle.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-prepared-handoff-bridge-middle.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this is a production

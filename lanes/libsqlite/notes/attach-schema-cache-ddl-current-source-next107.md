@@ -6,9 +6,9 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php`
 - `php -l lanes/libsqlite/tests/SQLiteAttachSchemaCacheDdlCurrentSourceNext107Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-attach-schema-cache-ddl-current-source-next107.php`
+- `php -l lanes/libsqlite/examples/application-attach-schema-cache-ddl-current-source-next107.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachSchemaCacheDdlCurrentSourceNext107Test.php`
-- `php lanes/libsqlite/examples/wordpress-attach-schema-cache-ddl-current-source-next107.php --self-test`
+- `php lanes/libsqlite/examples/application-attach-schema-cache-ddl-current-source-next107.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: +4 focused libsqlite PASS lines after integration; this lane updates `phpPass` from 41873 to 41877 based on the focused PASS-line delta from the new test file.

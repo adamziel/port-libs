@@ -10,9 +10,9 @@
 ## Evidence
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next910-925.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next910-925.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext910925Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext894909Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext910925Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next894-909.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next910-925.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next894-909.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next910-925.php --self-test`
 - `git diff --check`

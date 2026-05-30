@@ -8,10 +8,10 @@ Adds `SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan` for the pager e
 
 - `php -l lanes/libsqlite/src/SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-savepoint-master-cache-spill-current-source-next144.php`
+- `php -l lanes/libsqlite/examples/application-pager-savepoint-master-cache-spill-current-source-next144.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Test.php`
   - `1 test files, 81 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-savepoint-master-cache-spill-current-source-next144.php`
+- `php lanes/libsqlite/examples/application-pager-savepoint-master-cache-spill-current-source-next144.php`
   - emits `pager-savepoint-master-cache-spill-current-source-next144` with spilled pages `[2,3]` and rollback restored flags `[true,true]`
 
 ## Non-Overlap

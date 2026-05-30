@@ -9,17 +9,17 @@
   - missing non-partial parent UNIQUE indexes.
 - Keeps the slice disjoint from accepted next228 DESC-sort compatibility, next229 exact-arity checks, next232 child action-prefix checks, and older parent collation/partial-index coverage.
 
-## WordPress smoke
+## Application smoke
 
-- `examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next234.php`
-- Scenario: copied WordPress import schemas must reject an expression-backed parent index such as `UNIQUE(site_id, lower(slug))` before trusting foreign-key parent-key repair diagnostics for `REFERENCES wp_slug_parent(site_id, slug)`.
+- `examples/application-pragma-index-xinfo-foreignkey-current-source-next234.php`
+- Scenario: copied Application import schemas must reject an expression-backed parent index such as `UNIQUE(site_id, lower(slug))` before trusting foreign-key parent-key repair diagnostics for `REFERENCES wp_slug_parent(site_id, slug)`.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 78 assertions, 0 failures`
   - `62` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next234.php`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next234.php`
   - self-test passes
 
 ## Dependency closure

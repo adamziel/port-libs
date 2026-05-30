@@ -2,14 +2,14 @@
 
 ## Behavior
 
-- Added `SQLiteEncodingAffinityLikeCurrentSourceNextPlan::wordpressOptionValueDynamicPatternPlan()`.
+- Added `SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan()`.
 - Covers SQLite `LIKE` execution where the left operand, right pattern operand, and optional `ESCAPE` operand come from row values and are coerced with SQLite text affinity before matching.
 - Records current/next invalidation for source name, schema cookie, scan encoding, storage class, value text, pattern text, escape text, encoded bytes, and matched rowset changes.
-- Keeps BLOB and SQL NULL operands out of matched rowsets, matching the existing lane assumption for SQLite LIKE over copied WordPress option values.
+- Keeps BLOB and SQL NULL operands out of matched rowsets, matching the existing lane assumption for SQLite LIKE over copied Application option values.
 
-## WordPress Smoke
+## Application Smoke
 
-- Added `examples/wordpress-encoding-affinity-dynamic-like-current-source-next99.php`.
+- Added `examples/application-encoding-affinity-dynamic-like-current-source-next99.php`.
 - The smoke models copied `wp_options` import diagnostics where plugin rows carry per-row LIKE patterns and escapes, including numeric/boolean coercion, literal wildcard escapes, and BLOB nonmatches without requiring `ext/sqlite`.
 
 ## Verification

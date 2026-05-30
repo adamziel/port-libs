@@ -17,9 +17,9 @@ Local verification on 2026-05-28:
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 72 assertions, 0 failures`
   - 61 focused PASS lines for the new next207 test cases.
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next207.php`
-  - `wordpress-utf16-nocase-like-rtrim-current-source-next207 self-test passed`
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php && php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext207Test.php && php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next207.php`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next207.php`
+  - `application-utf16-nocase-like-rtrim-current-source-next207 self-test passed`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php && php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext207Test.php && php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next207.php`
   - no syntax errors in all three changed PHP files.
 - `git diff --check -- lanes/libsqlite`
   - passed with no output.

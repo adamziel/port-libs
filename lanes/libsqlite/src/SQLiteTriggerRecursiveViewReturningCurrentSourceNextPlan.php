@@ -4022,7 +4022,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next174',
                 'sqlite-returning-current-source-duplicate-key-watermark',
-                'wordpress-recursive-view-returning-current-source-next174',
+                'application-recursive-view-returning-current-source-next174',
             ]))),
             'non_overlap' => 'extends accepted next170 source-drain/reprepare barrier with duplicate-key watermarking for staged next-source rows; does not repeat savepoint rollback, deferred FK, UPSERT, DELETE, or schema reparse trigger slices',
         ];
@@ -4517,7 +4517,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next177',
                 'sqlite-returning-current-source-resume-token-boundary',
-                'wordpress-recursive-view-returning-current-source-next177',
+                'application-recursive-view-returning-current-source-next177',
             ]))),
             'non_overlap' => 'adds resume-token current-source RETURNING admission over accepted recursive view trigger rows; avoids accepted next172 source pinning and next174 duplicate-key watermark behavior',
         ];
@@ -4724,7 +4724,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-returning-current-source-next178',
                 'sqlite-returning-current-source-snapshot-token-fence',
                 'sqlite-returning-view-schema-cookie-fence',
-                'wordpress-recursive-view-returning-current-source-next178',
+                'application-recursive-view-returning-current-source-next178',
             ],
             'dependency_closure_next178' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-savepoint-and-schema-cookie-model',
             'non_overlap_next178' => 'extends next175 savepoint fencing with current-source snapshot-token and view-schema-cookie RETURNING row publication; does not repeat duplicate-key watermarking, savepoint rollback/release, schema reparse, deferred FK, UPSERT, or WAL/VFS slices',
@@ -4899,7 +4899,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next180' => array_values(array_unique(array_merge($base['dependencies'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next180',
                 'sqlite-returning-current-source-snapshot-admission',
-                'wordpress-recursive-view-returning-current-source-next180',
+                'application-recursive-view-returning-current-source-next180',
             ]))),
             'non_overlap_next180' => 'adds current/next source-signature admission over accepted next177 resume tokens; avoids next172 source pinning, next174 watermarking, next175 savepoint release, and next177 cursor-token coverage',
         ];
@@ -5382,7 +5382,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-returning-current-source-next182',
                 'sqlite-returning-current-view-source-generation-fence',
                 'sqlite-returning-current-trigger-source-generation-fence',
-                'wordpress-recursive-view-returning-current-source-next182',
+                'application-recursive-view-returning-current-source-next182',
             ],
             'dependency_closure_next182' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-generation-and-trigger-cookie-model',
             'non_overlap_next182' => 'extends next178 snapshot/schema-cookie fencing with current view-source and trigger-source generation quarantine; does not repeat duplicate-key watermarking, savepoint release/rollback, schema reparse, deferred FK, UPSERT, WAL, VFS, or row-value RETURNING slices',
@@ -5579,7 +5579,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next183' => array_values(array_unique(array_merge($base['dependencies_next180'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next183',
                 'sqlite-returning-current-source-reset-invalidates-yielded-rows',
-                'wordpress-recursive-view-returning-current-source-next183',
+                'application-recursive-view-returning-current-source-next183',
             ]))),
             'non_overlap_next183' => 'adds rollback/reset-barrier visibility after next180 source snapshots; avoids accepted next177 resume tokens and next180 source-signature admission',
         ];
@@ -5774,7 +5774,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next184',
                 'sqlite-returning-current-source-handoff-ack',
-                'wordpress-recursive-view-returning-current-source-next184',
+                'application-recursive-view-returning-current-source-next184',
             ]))),
             'dependency_closure' => 'no new support component needed; reuses recursive view trigger RETURNING checkpoint and cursor metadata',
             'non_overlap' => 'adds current-source checkpoint acknowledgement handoff before next RETURNING exposure; avoids accepted next177 resume-token and next181 checkpoint visibility behavior',
@@ -6048,7 +6048,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-returning-current-source-next185',
                 'sqlite-returning-nested-recursive-depth-drain-fence',
                 'sqlite-returning-nested-recursive-epoch-fence',
-                'wordpress-recursive-view-returning-current-source-next185',
+                'application-recursive-view-returning-current-source-next185',
             ],
             'dependency_closure_next185' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-generation-and-nested-depth-drain-model',
             'non_overlap_next185' => 'extends next182 generation fencing with nested recursive RETURNING depth-drain epochs; does not repeat next178 snapshot/schema-cookie, next176 page acknowledgements, next181 checkpoints, row-value RETURNING, UPSERT, WAL, VFS, or schema-reparse slices',
@@ -6239,7 +6239,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next186' => array_values(array_unique(array_merge($base['dependencies_next183'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next186',
                 'sqlite-returning-post-reset-current-source-rebind',
-                'wordpress-recursive-view-returning-current-source-next186',
+                'application-recursive-view-returning-current-source-next186',
             ]))),
             'non_overlap_next186' => 'extends accepted next183 rollback/reset visibility by proving the following statement binds a fresh post-reset current source and discards stale yielded RETURNING rows; avoids next180 snapshot admission, next182 generation fencing, next183 rollback invalidation, DELETE RETURNING, UPSERT, row-value, WAL, VFS, and B-tree slices',
         ];
@@ -6544,7 +6544,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge($base['dependencies'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next187',
                 'sqlite-returning-current-source-drain-ticket',
-                'wordpress-recursive-view-returning-current-source-next187',
+                'application-recursive-view-returning-current-source-next187',
             ]))),
             'dependency_closure' => 'no new support component needed; reuses recursive view trigger RETURNING checkpoint handoff and adds current-source drain ticket validation',
             'non_overlap' => 'adds drain-ticket validation after accepted next184 checkpoint acknowledgement handoff; avoids next183 rollback reset and next184 checkpoint exposure behavior',
@@ -6768,7 +6768,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-returning-current-source-next188',
                 'sqlite-returning-current-source-row-watermark-fence',
                 'sqlite-returning-current-source-ordinal-contiguity',
-                'wordpress-recursive-view-returning-current-source-next188',
+                'application-recursive-view-returning-current-source-next188',
             ],
             'dependency_closure_next188' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-generation-and-nested-depth-drain-model',
             'non_overlap_next188' => 'adds row-ordinal current-source RETURNING watermark admission after next185 nested-depth drain; does not repeat next184 checkpoint acknowledgements, next182 generation fencing, row-value RETURNING, WAL, VFS, schema-reparse, or accepted trigger/FK cascade slices',
@@ -7047,7 +7047,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next189' => array_values(array_unique(array_merge($base['dependencies_next186'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next189',
                 'sqlite-returning-post-reset-row-ack-next-source-admission',
-                'wordpress-recursive-view-returning-current-source-next189',
+                'application-recursive-view-returning-current-source-next189',
             ]))),
             'non_overlap_next189' => 'extends accepted next186 post-reset current-source rebinding by requiring fresh rebound RETURNING row acknowledgements before queued next-source recursive view rows are visible; avoids next171/176 cursor/page acknowledgement, next183 rollback invalidation, next186 stale cursor rebinding, DELETE RETURNING, UPSERT, row-value, WAL, VFS, JSON, planner, and B-tree slices',
         ];
@@ -7426,7 +7426,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge($base['dependencies'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next190',
                 'sqlite-returning-current-source-resume-token',
-                'wordpress-recursive-view-returning-current-source-next190',
+                'application-recursive-view-returning-current-source-next190',
             ]))),
             'dependency_closure' => 'no new support component needed; reuses recursive view trigger RETURNING drain-ticket rows and adds current-source resume token validation',
             'non_overlap' => 'adds resume-source token and source-signature validation after accepted next187 drain-ticket exposure; avoids next184 checkpoint admission, next186 post-reset rebinding, next187 drain-ticket matching, row-value RETURNING, WAL, pager, B-tree, JSON, and encoding slices',
@@ -7686,7 +7686,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-returning-current-source-next191',
                 'sqlite-returning-current-source-row-fingerprint-fence',
                 'sqlite-returning-current-source-payload-order',
-                'wordpress-recursive-view-returning-current-source-next191',
+                'application-recursive-view-returning-current-source-next191',
             ],
             'dependency_closure_next191' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-row-watermark-and-payload-fingerprint-model',
             'non_overlap_next191' => 'adds payload/source fingerprint admission after next188 row-ordinal watermarks; does not repeat next188 ordinal fencing, next185 nested-depth drain, next184 checkpoint acknowledgements, row-value RETURNING, WAL, VFS, schema-reparse, or trigger/FK cascade slices',
@@ -7973,7 +7973,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next192' => array_values(array_unique(array_merge($base['dependencies_next189'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next192',
                 'sqlite-returning-next-cursor-close-following-current-source-admission',
-                'wordpress-recursive-view-returning-current-source-next192',
+                'application-recursive-view-returning-current-source-next192',
             ]))),
             'non_overlap_next192' => 'extends accepted next189 row-ack next-source admission with the later next-source cursor-close barrier before a following current-source generation; avoids next183 rollback invalidation, next186 post-reset rebind, next189 current-row acknowledgements, row-value, UPSERT, WAL, VFS, JSON, planner, and B-tree slices',
         ];
@@ -8309,7 +8309,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next193' => array_values(array_unique(array_merge($base['dependencies_next189'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next193',
                 'sqlite-returning-current-source-handoff-seal',
-                'wordpress-recursive-view-returning-current-source-next193',
+                'application-recursive-view-returning-current-source-next193',
             ]))),
             'non_overlap_next193' => 'extends accepted next189 row-ack next-source admission by sealing the admitted source with signature, row-count, handoff-token, and sequence-token checks before publication; avoids next181 checkpoint visibility, next186 rebind, next189 row acknowledgement, row-value RETURNING, UPSERT, deferred FK, schema reparse, WAL, VFS, JSON, planner, and B-tree slices',
         ];
@@ -8587,7 +8587,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_done_gate' => array_values(array_unique(array_merge($base['dependencies'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-done-gate',
                 'sqlite-returning-current-source-done-gate',
-                'wordpress-recursive-view-returning-current-source-done-gate',
+                'application-recursive-view-returning-current-source-done-gate',
             ]))),
             'dependency_closure_done_gate' => 'no new support component needed; reuses recursive view trigger RETURNING resume rows and adds current-source SQLITE_DONE/source-cookie gating',
             'non_overlap_done_gate' => 'extends accepted next190 resume-source validation with final current-source SQLITE_DONE, source-cookie, and step-epoch gating; avoids accepted next190 resume-token, next187 drain-ticket, next184 checkpoint admission, row-value RETURNING, WAL, pager, B-tree, JSON, PRAGMA, and encoding slices',
@@ -8851,7 +8851,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-returning-current-source-source_resume',
                 'sqlite-returning-current-source-drain-receipts',
                 'sqlite-view-trigger-next-source-resume-token',
-                'wordpress-recursive-view-returning-current-source-source_resume',
+                'application-recursive-view-returning-current-source-source_resume',
             ],
             'dependency_closure_source_resume' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-fingerprint-fence-and-adds-drain-receipt-resume-model',
             'non_overlap_source_resume' => 'adds current-source drain receipts before next-source resume after next191 fingerprint admission; avoids accepted next191 fingerprint fencing, next188 ordinal watermarks, savepoint rollback, row-value RETURNING, schema reparse, WAL/VFS, and trigger/FK cascade clusters',
@@ -9133,7 +9133,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next196' => array_values(array_unique(array_merge($base['dependencies_next192'], [
                 'sqlite-trigger-recursive-view-returning-following-child-drain',
                 'sqlite-returning-recursive-child-current-source-fence',
-                'wordpress-recursive-view-returning-following-child-drain',
+                'application-recursive-view-returning-following-child-drain',
             ]))),
             'non_overlap_next196' => 'extends accepted next192 cursor-close following-current admission with recursive child RETURNING current-source drain fencing; avoids next189 row-ack, next191 fingerprint, next192 cursor-close, row-value RETURNING, UPSERT, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
         ];
@@ -9478,7 +9478,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next200' => array_values(array_unique(array_merge($base['dependencies_done_gate'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next200',
                 'sqlite-returning-current-source-highwater-gate',
-                'wordpress-recursive-view-returning-current-source-next200',
+                'application-recursive-view-returning-current-source-next200',
             ]))),
             'dependency_closure_next200' => 'no new support component needed; reuses recursive view trigger RETURNING resume rows and adds current-source drain high-water gating',
             'non_overlap_next200' => 'extends accepted next194 done-gate SQLITE_DONE/source-cookie gate with current drain-count and high-water resume-token admission; avoids done-gate repeats, next187 drain tickets, row-value RETURNING, schema reparse, WAL, pager, B-tree, JSON, PRAGMA, and encoding slices',
@@ -9706,7 +9706,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_generationDepthFence' => array_values(array_unique(array_merge($base['dependencies_next196'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-generation-depth-fence',
                 'sqlite-returning-current-view-generation-depth-fence',
-                'wordpress-recursive-view-returning-current-source-generation-depth-fence',
+                'application-recursive-view-returning-current-source-generation-depth-fence',
             ]))),
             'dependency_closure_generationDepthFence' => 'no new support component needed; reuses following child drain and adds current view generation/depth acknowledgement fencing',
             'non_overlap_generationDepthFence' => 'adds current view generation and recursive depth acknowledgement fencing after accepted next196 child-ordinal drains; avoids source_resume receipt fences, following child drain, row-value RETURNING, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
@@ -10047,7 +10047,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next203' => array_values(array_unique(array_merge($base['dependencies_next196'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next203',
                 'sqlite-returning-current-source-generation-handoff',
-                'wordpress-recursive-view-returning-current-source-next203',
+                'application-recursive-view-returning-current-source-next203',
             ]))),
             'non_overlap_next203' => 'adds current-source generation handoff receipts after following child drain; avoids accepted following child drain, source_resume receipt fence, next191 fingerprint fencing, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -10370,7 +10370,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_source_sequence_fence' => array_values(array_unique(array_merge($base['dependencies_next203'], [
                 'sqlite-trigger-recursive-view-returning-current-source-source-sequence',
                 'sqlite-returning-current-source-sequence-fence',
-                'wordpress-recursive-view-returning-current-source-source-sequence',
+                'application-recursive-view-returning-current-source-source-sequence',
             ]))),
             'non_overlap_source_sequence_fence' => 'adds a source-sequence fence after next203 generation receipts; avoids accepted next203 generation handoff, following child drain, source_resume receipt fence, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -10674,7 +10674,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next206' => array_values(array_unique(array_merge($base['dependencies_next203'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next206',
                 'sqlite-returning-current-source-yield-watermark',
-                'wordpress-recursive-view-returning-current-source-next206',
+                'application-recursive-view-returning-current-source-next206',
             ]))),
             'non_overlap_next206' => 'adds current-source yield watermark admission after next203 generation receipts; avoids accepted next203 generation handoff, following child drain, source_resume receipt fences, next191 fingerprint fencing, row-value RETURNING, DML trigger conflicts, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -10967,7 +10967,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next207' => array_values(array_unique(array_merge($base['dependencies_next206'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next207',
                 'sqlite-returning-current-source-drain-fence',
-                'wordpress-recursive-view-returning-current-source-next207',
+                'application-recursive-view-returning-current-source-next207',
             ]))),
             'non_overlap_next207' => 'adds current RETURNING drain admission after next206 yield watermark; avoids accepted next206 watermark, source-sequence sequence, next203 generation handoff, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -11286,7 +11286,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next208' => array_values(array_unique(array_merge($base['dependencies_next206'], [
                 'sqlite-trigger-recursive-view-returning-current-source-next208',
                 'sqlite-returning-current-source-cursor-close-fence',
-                'wordpress-recursive-view-returning-current-source-next208',
+                'application-recursive-view-returning-current-source-next208',
             ]))),
             'non_overlap_next208' => 'adds current RETURNING cursor close fencing after next206 yield watermark; avoids accepted next206 watermark, next203 generation handoff, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
@@ -11536,7 +11536,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next209' => array_values(array_unique(array_merge($base['dependencies_next203'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next209',
                 'sqlite-returning-current-source-drain-watermark',
-                'wordpress-recursive-view-returning-current-source-next209',
+                'application-recursive-view-returning-current-source-next209',
             ]))),
             'non_overlap_next209' => 'adds current-source drain watermarks after next203 generation handoff; avoids accepted trigger recursive view RETURNING next172-next203 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -11889,7 +11889,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next210' => array_values(array_unique(array_merge($base['dependencies_next209'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next210',
                 'sqlite-returning-current-source-ordered-sequence-fence',
-                'wordpress-recursive-view-returning-current-source-next210',
+                'application-recursive-view-returning-current-source-next210',
             ]))),
             'non_overlap_next210' => 'adds ordered current-source-sequence fencing after next209 drain watermarks; avoids accepted next209 drain, next208 cursor close, next203 generation handoff, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -12205,7 +12205,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next211' => array_values(array_unique(array_merge($base['dependencies_next209'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next211',
                 'sqlite-returning-current-source-seal',
-                'wordpress-recursive-view-returning-current-source-next211',
+                'application-recursive-view-returning-current-source-next211',
             ]))),
             'non_overlap_next211' => 'adds current-source RETURNING source sealing after next209 drain watermarks; avoids next208 cursor-close fencing, next209 drain-watermark admission, next203 generation handoff, DML/row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -12522,7 +12522,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next212' => array_values(array_unique(array_merge($base['dependencies_next209'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next212',
                 'sqlite-returning-current-source-yield-receipt',
-                'wordpress-recursive-view-returning-current-source-next212',
+                'application-recursive-view-returning-current-source-next212',
             ]))),
             'non_overlap_next212' => 'adds ordered current-source trigger-yield receipts after next209 drain watermarks; avoids accepted trigger recursive view RETURNING next157-next209 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -12817,7 +12817,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next213' => array_values(array_unique(array_merge($base['dependencies_next212'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next213',
                 'sqlite-returning-current-source-payload-seal',
-                'wordpress-recursive-view-returning-current-source-next213',
+                'application-recursive-view-returning-current-source-next213',
             ]))),
             'non_overlap_next213' => 'adds current-source RETURNING payload seals after next212 yield receipts; avoids accepted trigger recursive view RETURNING next172-next212 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -13138,7 +13138,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next217' => array_values(array_unique(array_merge($base['dependencies_next212'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next217',
                 'sqlite-returning-current-source-provenance-fence',
-                'wordpress-recursive-view-returning-current-source-next217',
+                'application-recursive-view-returning-current-source-next217',
             ]))),
             'non_overlap_next217' => 'adds current-source RETURNING payload provenance after next212 yield receipts; avoids accepted next210 sequence, next211 source seal, next212 yield receipts, row-value RETURNING savepoints, DML RETURNING conflicts, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -13473,7 +13473,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next218' => array_values(array_unique(array_merge($base['dependencies_next212'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next218',
                 'sqlite-returning-current-source-epoch-handoff',
-                'wordpress-recursive-view-returning-current-source-next218',
+                'application-recursive-view-returning-current-source-next218',
             ]))),
             'non_overlap_next218' => 'adds current-source epoch handoff after next212 yield receipts; avoids accepted trigger recursive view RETURNING next157-next212 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -13784,7 +13784,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next219' => array_values(array_unique(array_merge($base['dependencies_next217'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next219',
                 'sqlite-returning-next-source-reset-following-current-fence',
-                'wordpress-recursive-view-returning-current-source-next219',
+                'application-recursive-view-returning-current-source-next219',
             ]))),
             'non_overlap_next219' => 'adds next-source RETURNING reset admission before a following current-source view trigger generation; avoids next217 provenance, next212 yield receipts, next210 sequence, next211 source seal, row-value RETURNING savepoints, DML RETURNING conflicts, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -14239,12 +14239,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next222' => array_values(array_unique(array_merge($base['dependencies_next218'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next222',
                 'sqlite-returning-current-source-ticket-handoff',
-                'wordpress-recursive-view-returning-current-source-next222',
+                'application-recursive-view-returning-current-source-next222',
             ]))),
             'dependencies_current_source_ticket' => array_values(array_unique(array_merge($base['dependencies_next218'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next222',
                 'sqlite-returning-current-source-ticket-handoff',
-                'wordpress-recursive-view-returning-current-source-next222',
+                'application-recursive-view-returning-current-source-next222',
             ]))),
             'non_overlap_next222' => 'adds current view/trigger source ticket admission after accepted next218 epoch handoff; avoids accepted trigger recursive view RETURNING next157-next218 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
             'non_overlap_current_source_ticket' => 'adds current view/trigger source ticket admission after accepted epoch handoff; avoids accepted trigger recursive view RETURNING source-ticket surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
@@ -14591,7 +14591,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_source_seal' => array_values(array_unique(array_merge($base['dependencies_next218'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-source_seal',
                 'sqlite-returning-current-source-seal',
-                'wordpress-recursive-view-returning-current-source-source_seal',
+                'application-recursive-view-returning-current-source-source_seal',
                 'sqlite-trigger-recursive-view-returning-current-source-next224',
             ]))),
             'non_overlap_source_seal' => 'adds current returning source/view/trigger source seals after next218 epoch receipts; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
@@ -14968,7 +14968,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_next226' => array_values(array_unique(array_merge($base['dependencies_next219'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next226',
                 'sqlite-returning-following-current-seal-subsequent-next-fence',
-                'wordpress-recursive-view-returning-current-source-next226',
+                'application-recursive-view-returning-current-source-next226',
             ]))),
             'non_overlap_next226' => 'adds following-current RETURNING seal admission before a subsequent next-source view trigger generation; avoids next219 next-source reset, next217 provenance, next212 yield receipts, next190 resume-source validation, row-value RETURNING savepoints, DML RETURNING conflicts, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -15380,7 +15380,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_snapshot_ack' => array_values(array_unique(array_merge($base['dependencies_source_seal'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-snapshot-ack',
                 'sqlite-returning-current-source-snapshot-ack',
-                'wordpress-recursive-view-returning-current-source-snapshot-ack',
+                'application-recursive-view-returning-current-source-snapshot-ack',
             ]))),
             'non_overlap_snapshot_ack' => 'adds current returning snapshot acknowledgements after accepted source_seal source seals; avoids accepted next222 ticket handoff, source_seal source seal, next208 cursor close, next212 yield receipts, next218 epoch receipts, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -15692,7 +15692,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies_generation_seal' => array_values(array_unique(array_merge($base['dependencies_source_seal'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-generation-seal',
                 'sqlite-returning-current-source-generation-seal',
-                'wordpress-recursive-view-returning-current-generation-seal',
+                'application-recursive-view-returning-current-generation-seal',
                 'sqlite-trigger-recursive-view-returning-current-source-next229',
             ]))),
             'non_overlap_generation_seal' => 'adds ordered current returning source/view/trigger generation seals after source_seal source seals; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, source_seal source seals, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
@@ -16087,7 +16087,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge($base['dependencies_next226'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-epoch',
                 'sqlite-returning-current-source-epoch-fence',
-                'wordpress-recursive-view-returning-current-source-epoch',
+                'application-recursive-view-returning-current-source-epoch',
             ]))),
             'non_overlap' => 'adds current-source epoch receipt admission after next226 following-current seal; avoids next226 seal, next222 source ticket, next219 reset, next212 yield receipts, row-value RETURNING savepoints, DML RETURNING conflicts, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
@@ -16398,7 +16398,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 [
                 'sqlite-trigger-recursive-view-returning-current-source-source_close',
                 'sqlite-returning-current-source-cursor-close-handoff',
-                'wordpress-recursive-view-returning-current-source-source_close',
+                'application-recursive-view-returning-current-source-source_close',
                 ],
             ))),
             'non_overlap_source_close' => 'adds current RETURNING cursor close admission after the accepted source-ticket handoff; avoids accepted trigger recursive view RETURNING ticket surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',

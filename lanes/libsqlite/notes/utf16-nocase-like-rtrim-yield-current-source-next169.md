@@ -19,11 +19,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentS
 1 test files, 96 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-yield-current-source-next169.php --self-test
-wordpress-utf16-nocase-like-rtrim-yield-current-source-next169 self-test passed
+php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-yield-current-source-next169.php --self-test
+application-utf16-nocase-like-rtrim-yield-current-source-next169 self-test passed
 ```
 
 ## Non-Overlap

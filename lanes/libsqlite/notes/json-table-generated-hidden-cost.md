@@ -11,8 +11,8 @@ This avoids accepted JSON table source/cursor/visible-constraint surfaces. It re
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedHiddenCostTest.php`
   - `1 test files, 64 assertions, 0 failures`
   - 64 PASS lines
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-hidden-cost.php`
-  - WordPress smoke passed with current rowids `[9]` and next rowids `[9, 13]`.
+- `php lanes/libsqlite/examples/application-json-table-generated-hidden-cost.php`
+  - Application smoke passed with current rowids `[9]` and next rowids `[9, 13]`.
 
 ## Non-overlap
 

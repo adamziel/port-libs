@@ -6,16 +6,16 @@ This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext230Plan`. I
 
 SQLite readers should not reuse recovered current-source cache entries when the cache entry or read ticket was produced under an older page-1 SQLite version-number stamp, even when recovered page bytes, master-journal membership, database token, header digest, page count, and change-counter/version-valid-for coherence already pass.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next230.php` covers a copied `wp_options` recovery where the `active_plugins` page bytes match the recovered source but the read ticket predates the writer stamp. The next read misses cache and reopens against the current master-journal recovered source.
+Application smoke: `application-pager-master-journal-reader-cache-current-source-next230.php` covers a copied `wp_options` recovery where the `active_plugins` page bytes match the recovered source but the read ticket predates the writer stamp. The next read misses cache and reopens against the current master-journal recovered source.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext230Plan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext230Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next230.php`
+- `php -l lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next230.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext230Test.php`
   - `1 test files, 64 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next230.php --self-test`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next230.php --self-test`
 
 Expected dashboard delta: `phpPass` moves from `112201` to `112265` from 64 newly passing focused PASS lines. Mapped upstream coverage remains `631 / 1589`; this is focused pager reader-cache current-source behavior over the existing master-journal inventory rather than a new upstream row.
 

@@ -7,7 +7,7 @@ readiness page onto the descriptive production entry point
 `foreignKeyRepairReadinessPage()`. The old numbered private helpers for the
 same page were renamed to stable descriptive helpers while preserving the
 existing operation strings, source modes, result keys, cursor behavior, and
-WordPress example output.
+Application example output.
 
 ## Evidence
 
@@ -15,20 +15,20 @@ Before edit:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153Test.php`
 - Result: `1 test files, 84 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next153.php --self-test`
-- Result: `wordpress-pragma-index-xinfo-foreignkey-current-source-next153 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next153.php --self-test`
+- Result: `application-pragma-index-xinfo-foreignkey-current-source-next153 self-test passed`
 
 After edit:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next153.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next153.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153Test.php`
 - Result: `1 test files, 84 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKey*.php`
 - Result: `170 test files, 14073 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next153.php --self-test`
-- Result: `wordpress-pragma-index-xinfo-foreignkey-current-source-next153 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next153.php --self-test`
+- Result: `application-pragma-index-xinfo-foreignkey-current-source-next153 self-test passed`
 
 ## Dependency Closure
 

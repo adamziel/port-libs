@@ -6,7 +6,7 @@ Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
 native PHP planner helper for stale prepared statements that must re-read
 current-source `sqlite_stat4` samples for a partial expression index.
 
-The slice models a WordPress `wp_options` plugin-option scan using
+The slice models a Application `wp_options` plugin-option scan using
 `lower(option_name)` with a partial predicate (`autoload = 'yes' OR blog_id = 0`).
 It refreshes schema/stat4/source fences, proves the query predicate implies one
 partial-index arm, filters current rows by expression range, and emits cursor
@@ -27,16 +27,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 63 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next172.php --self-test
+php lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-next172.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-planner-stat4-expression-partial-current-source-next172 self-test passed
+application-planner-stat4-expression-partial-current-source-next172 self-test passed
 ```
 
 ## Non-Overlap

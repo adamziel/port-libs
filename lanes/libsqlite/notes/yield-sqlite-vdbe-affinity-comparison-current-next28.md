@@ -26,9 +26,9 @@ Focused test run: 1 selected test files (root lock skipped)
 The focused file reports 56 PASS lines, moving `phpPass` from 9342 to 9398 for
 this isolated lane patch.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-vdbe-affinity-current-next.php` reports
+`lanes/libsqlite/examples/application-vdbe-affinity-current-next.php` reports
 copied `wp_options` adjacent boundary decisions over `autoload` and `priority`
 keys using NOCASE text affinity, numeric affinity, and explicit NULL placement.
 

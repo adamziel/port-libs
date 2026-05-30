@@ -26,10 +26,10 @@ Focused test run: 2 selected test files (root lock skipped)
 ...
 2 test files, 119 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-pragma-schema-version-data-current-next34.php
+$ php lanes/libsqlite/examples/application-pragma-schema-version-data-current-next34.php
 {
     "scenario": "copied wp_options pragma schema_version/data_version current next34",
-    "wordpressUse": "Distinguish same-connection import writes from another connection changing a copied SQLite database while preserving schema-cookie and file change-counter preflight rows.",
+    "applicationUse": "Distinguish same-connection import writes from another connection changing a copied SQLite database while preserving schema-cookie and file change-counter preflight rows.",
     "before": {
         "schema_version": 34,
         "data_version": 10

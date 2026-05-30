@@ -9,7 +9,7 @@ predates the master-journal recovery is reported as stale and, when refresh is
 enabled, is replaced with the recovered current source before retry WAL appends
 or checkpoint page writes are planned.
 
-The WordPress smoke models a copied `wp_options` database recovery where stale
+The Application smoke models a copied `wp_options` database recovery where stale
 root/transient cache pages are refreshed before retrying option-row WAL appends.
 
 ## Evidence
@@ -27,15 +27,15 @@ PHP lint:
 ```text
 php -l lanes/libsqlite/src/SQLitePagerMasterJournalWalCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerMasterJournalWalCacheCurrentSourceNext129Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-master-journal-wal-cache-current-source-next129.php
+php -l lanes/libsqlite/examples/application-pager-master-journal-wal-cache-current-source-next129.php
 No syntax errors detected
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-master-journal-wal-cache-current-source-next129.php --self-test
-wordpress-pager-master-journal-wal-cache-current-source-next129 self-test passed
+php lanes/libsqlite/examples/application-pager-master-journal-wal-cache-current-source-next129.php --self-test
+application-pager-master-journal-wal-cache-current-source-next129 self-test passed
 ```
 
 ## Non-Overlap

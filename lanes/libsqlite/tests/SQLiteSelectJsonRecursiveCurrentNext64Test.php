@@ -53,7 +53,7 @@ $tests = [
     'select json recursive current next64 materializes reachable rule attributes only' => static function (TestRunner $t) use ($plan): void {
         $t->same(81, count($plan()['rows']));
     },
-    'select json recursive current next64 excludes unreachable wordpress route' => static function (TestRunner $t) use ($plan): void {
+    'select json recursive current next64 excludes unreachable application route' => static function (TestRunner $t) use ($plan): void {
         $t->same(false, in_array('wp_route_unused', array_column($plan()['rows'], 'option_name'), true));
     },
     'select json recursive current next64 has one window row per materialized json row' => static function (TestRunner $t) use ($plan, $window): void {

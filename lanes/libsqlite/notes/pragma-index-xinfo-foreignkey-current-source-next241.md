@@ -6,7 +6,7 @@ accepted next238 PRAGMA/FK page. The new current-source behavior compares raw
 `REFERENCES parent` clauses with the derived parent primary-key resolution used
 by the catalog path.
 
-This covers WordPress import/copy DDL where shorthand foreign keys should be
+This covers Application import/copy DDL where shorthand foreign keys should be
 made explicit before schema repair or generated DDL emission:
 
 - inline shorthand `owner_id REFERENCES wp_posts` resolves to `wp_posts.ID`;
@@ -22,14 +22,14 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 77 assertions, 0 failures`
   - 60 focused `PASS` lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next241.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next241 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next241.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next241 self-test passed`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next241.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next241.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next241.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next241.php`
 - `git diff --check -- lanes/libsqlite`
   - clean
 

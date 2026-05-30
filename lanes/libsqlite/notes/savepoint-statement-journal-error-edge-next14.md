@@ -6,9 +6,9 @@ Added bounded statement-journal rollback state to `SQLiteSavepointStack` for a f
 
 This is distinct from accepted savepoint page-image rollback and WAL byte truncation: it models SQLite's statement subjournal edge for statement-abort errors inside a savepoint, where the statement is undone but the surrounding savepoint remains usable.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-savepoint-statement-journal-error.php` simulates a copied `wp_options` plugin import where a duplicate option insert fails inside `SAVEPOINT plugin-options`. The smoke reports restored statement table/index pages, discarded statement WAL frames, active savepoints, and cleared statement journals without requiring `ext/sqlite`.
+`lanes/libsqlite/examples/application-savepoint-statement-journal-error.php` simulates a copied `wp_options` plugin import where a duplicate option insert fails inside `SAVEPOINT plugin-options`. The smoke reports restored statement table/index pages, discarded statement WAL frames, active savepoints, and cleared statement journals without requiring `ext/sqlite`.
 
 ## Verification
 
@@ -35,14 +35,14 @@ php -l lanes/libsqlite/src/SQLiteSavepointStack.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteSavepointStack.php
 php -l lanes/libsqlite/tests/SQLiteSavepointStatementJournalErrorCorpusTest.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteSavepointStatementJournalErrorCorpusTest.php
-php -l lanes/libsqlite/examples/wordpress-savepoint-statement-journal-error.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-savepoint-statement-journal-error.php
+php -l lanes/libsqlite/examples/application-savepoint-statement-journal-error.php
+No syntax errors detected in lanes/libsqlite/examples/application-savepoint-statement-journal-error.php
 ```
 
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-savepoint-statement-journal-error.php
+php lanes/libsqlite/examples/application-savepoint-statement-journal-error.php
 "status": "statement_error_rolled_back"
 "active_savepoints": ["wp-import", "plugin-options"]
 "pending_wal_frames": [1, 2]

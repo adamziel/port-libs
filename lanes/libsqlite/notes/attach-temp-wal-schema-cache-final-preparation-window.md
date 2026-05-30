@@ -11,10 +11,10 @@ Validation:
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalHandoffWindowTest.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalPreparationWindowTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-handoff-window.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-preparation-window.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-final-handoff-window.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-final-preparation-window.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalHandoffWindowTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalPreparationWindowTest.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-handoff-window.php --self-test
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-preparation-window.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-final-handoff-window.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-final-preparation-window.php --self-test
 git diff --check
 ```

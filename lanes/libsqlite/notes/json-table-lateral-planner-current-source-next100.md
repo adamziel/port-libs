@@ -2,7 +2,7 @@
 
 Behavior: adds keyed current-source planning for lateral `json_each()` /
 `json_tree()` host rows. The planner now compares current and next JSON table
-sources by a stable host key, so a reordered WordPress `wp_options` scan keeps
+sources by a stable host key, so a reordered Application `wp_options` scan keeps
 the correct current JSON source pinned while changed, added, or removed host
 rows produce explicit next-source replan reasons.
 
@@ -12,9 +12,9 @@ Verification:
   - `1 test files, 63 assertions, 0 failures`
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableLateralPlannerCurrentSourceNext100Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-lateral-planner-current-source-next100.php`
-- `php lanes/libsqlite/examples/wordpress-json-table-lateral-planner-current-source-next100.php --self-test`
-  - `wordpress-json-table-lateral-planner-current-source-next100 self-test passed`
+- `php -l lanes/libsqlite/examples/application-json-table-lateral-planner-current-source-next100.php`
+- `php lanes/libsqlite/examples/application-json-table-lateral-planner-current-source-next100.php --self-test`
+  - `application-json-table-lateral-planner-current-source-next100 self-test passed`
 
 Status delta:
 
@@ -30,4 +30,4 @@ transition where host rows can reorder across current/next scans.
 
 Dependency closure: no new support component is needed. The slice reuses the
 lane-local JSON table planner, current-source planner, JSON1/JSONB readers,
-and WordPress row-array smoke harness.
+and Application row-array smoke harness.

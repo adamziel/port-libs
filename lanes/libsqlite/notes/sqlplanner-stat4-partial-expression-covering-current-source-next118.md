@@ -14,14 +14,14 @@ Focused verification:
 ```text
 php -l lanes/libsqlite/src/SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Test.php
-php -l lanes/libsqlite/examples/wordpress-stat4-partial-expression-covering-current-source-next118.php
+php -l lanes/libsqlite/examples/application-stat4-partial-expression-covering-current-source-next118.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 64 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-stat4-partial-expression-covering-current-source-next118.php
-wordpress stat4 partial expression covering current-source next118: source=current index=idx_wp_options_lower_plugin_covering_next118 rows=3 names=plugin_cache,Plugin_Forms,plugin_seo
+php lanes/libsqlite/examples/application-stat4-partial-expression-covering-current-source-next118.php
+application stat4 partial expression covering current-source next118: source=current index=idx_wp_options_lower_plugin_covering_next118 rows=3 names=plugin_cache,Plugin_Forms,plugin_seo
 ```
 
 Dashboard delta: `phpPass` +64 focused PASS lines (`45302 -> 45366`). Mapped upstream coverage remains `604 / 1589`; this patch does not claim a fresh upstream-runner inventory row.

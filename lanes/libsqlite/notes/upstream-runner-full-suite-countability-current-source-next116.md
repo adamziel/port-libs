@@ -7,5 +7,5 @@
   - `1 test files, 952 assertions, 0 failures`
   - `80` PASS lines.
 - Expected dashboard movement: `phpPass` `44622 -> 44702` from the new focused PASS lines. The helper models one admissible mapped/countability row (`604 -> 605`) for the clean integrator, but release/all parity remains unclaimed until a complete zero-error broad artifact is accepted through provenance gates.
-- Non-overlap: avoids accepted next104 upstream-runner gap burnup, next107 current-source repro countability, next108 suite evidence rebase, runner106/jsonvt104 queued rebase items, and all accepted SQL, JSON, WAL, VFS, B-tree, PRAGMA, planner, encoding, trigger/FK, and WordPress runtime behavior clusters.
+- Non-overlap: avoids accepted next104 upstream-runner gap burnup, next107 current-source repro countability, next108 suite evidence rebase, runner106/jsonvt104 queued rebase items, and all accepted SQL, JSON, WAL, VFS, B-tree, PRAGMA, planner, encoding, trigger/FK, and Application runtime behavior clusters.
 - Dependency closure: no new support component is needed; this composes lane-local artifact metadata, accepted source provenance, duplicate-runner gating, and focused TestRunner output only.

@@ -53,7 +53,7 @@ foreach ($dateTimeCases as $name => [$function, $arguments, $expected]) {
     };
 }
 
-$tests['upstream datetime julian unixepoch edge wordpress cron mixed source summary'] = static function (TestRunner $t): void {
+$tests['upstream datetime julian unixepoch edge application cron mixed source summary'] = static function (TestRunner $t): void {
     $events = [
         ['hook' => 'wp_version_check', 'scheduled' => '2460370.129253472', 'mode' => 'julianday'],
         ['hook' => 'wp_update_plugins', 'scheduled' => '1709219167.875', 'mode' => 'unixepoch'],

@@ -16,7 +16,7 @@ partial UNIQUE or expression UNIQUE handling. The new rows are
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next192.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next192.php --self-test`
 
 ## Dependency Closure
 

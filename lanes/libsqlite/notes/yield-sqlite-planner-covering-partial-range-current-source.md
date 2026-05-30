@@ -9,8 +9,8 @@ fences so a prepared `wp_options` partial covering index scan can reprepare to
 the current schema/stat4 source, keep the range cursor on the partial covering
 index, elide table lookup, and materialize current-source covered rows.
 
-WordPress path:
-`wordpress-planner-covering-partial-range-current-source.php` models a
+Application path:
+`application-planner-covering-partial-range-current-source.php` models a
 copied `wp_options` plugin import where a partial covering index over
 `blog_id, autoload, option_name, option_value, rowid` should satisfy
 `autoload = 'yes' AND option_name >= 'plugin_'` plus the query range
@@ -20,8 +20,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringPartialRangeCurrentSourcePlanTest.php`
   - `1 test files, 59 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-planner-covering-partial-range-current-source.php --self-test`
-  - `wordpress-planner-covering-partial-range-current-source self-test passed`
+- `php lanes/libsqlite/examples/application-planner-covering-partial-range-current-source.php --self-test`
+  - `application-planner-covering-partial-range-current-source self-test passed`
 
 PASS delta: `+59` focused assertions. `lane-status.json` `phpPass` moves from
 `54864` to `54923`. Mapped upstream coverage remains `606 / 1589`; this reuses

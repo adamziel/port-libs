@@ -70,7 +70,7 @@ $plan257 = static fn (
     string $nextSource = 'main.wp_options@257',
     int $currentCookie = 256,
     int $nextCookie = 257,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameNumericAffinityLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameNumericAffinityLikePlan(
     $current ?? $current257,
     $next ?? $nextTwoFiveSeven,
     $pattern,
@@ -184,7 +184,7 @@ $tests['encoding collation affinity like current source nextTwoFiveSeven invalid
 
 $tests['encoding collation affinity like current source nextTwoFiveSeven stable numeric cursor is reusable'] = static function (TestRunner $t) use ($numeric257, $text257): void {
     $rows = [$numeric257(1, 2024, 'integer'), $text257(2, '2024_cache', 1)];
-    $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameNumericAffinityLikePlan($rows, $rows, '2024%', null, 'stable', 'stable', 9, 9);
+    $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameNumericAffinityLikePlan($rows, $rows, '2024%', null, 'stable', 'stable', 9, 9);
 
     $t->same([1, 2], $result['currentMatchedRowids']);
     $t->same(false, $result['cursorInvalidated']);
@@ -194,7 +194,7 @@ $tests['encoding collation affinity like current source nextTwoFiveSeven stable 
 
 $tests['encoding collation affinity like current source nextTwoFiveSeven escaped underscore keeps numeric prefix'] = static function (TestRunner $t) use ($text257, $numeric257): void {
     $rows = [$text257(1, '2024_cache', 1), $text257(2, '2024-cache', 1), $numeric257(3, 2024, 'integer')];
-    $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameNumericAffinityLikePlan($rows, $rows, '2024!_%', '!', 'stable', 'stable', 9, 9);
+    $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameNumericAffinityLikePlan($rows, $rows, '2024!_%', '!', 'stable', 'stable', 9, 9);
 
     $t->same('2024_', $result['prefix']);
     $t->same([1], $result['currentMatchedRowids']);
@@ -203,7 +203,7 @@ $tests['encoding collation affinity like current source nextTwoFiveSeven escaped
 
 $tests['encoding collation affinity like current source nextTwoFiveSeven non ascii prefix disables nocase range'] = static function (TestRunner $t) use ($text257): void {
     $rows = [$text257(1, 'é2024', 2), $text257(2, 'É2024', 3)];
-    $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameNumericAffinityLikePlan($rows, $rows, 'é%', null, 'stable', 'stable', 9, 9);
+    $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameNumericAffinityLikePlan($rows, $rows, 'é%', null, 'stable', 'stable', 9, 9);
 
     $t->same(false, $result['indexUsable']);
     $t->same('nocase_like_prefix_must_be_ascii_for_range', $result['rejectedReason']);
@@ -212,7 +212,7 @@ $tests['encoding collation affinity like current source nextTwoFiveSeven non asc
 
 $tests['encoding collation affinity like current source nextTwoFiveSeven rejects missing storage'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameNumericAffinityLikePlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameNumericAffinityLikePlan($rows, $rows));
 };
 
 return $tests;

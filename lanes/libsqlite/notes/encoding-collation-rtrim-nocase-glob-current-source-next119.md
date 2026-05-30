@@ -1,13 +1,13 @@
 # encoding-collation-rtrim-nocase-glob-current-source-next119
 
-Status: focused PHP behavior growth for current/next GLOB range scans over copied WordPress option-name rows with BINARY, NOCASE, and RTRIM index collations.
+Status: focused PHP behavior growth for current/next GLOB range scans over copied Application option-name rows with BINARY, NOCASE, and RTRIM index collations.
 
 Behavior:
 
 - Added `SQLiteRtrimNocaseGlobCurrentSourceNext119Plan`.
 - Models SQLite-style GLOB prefix range candidates under BINARY/NOCASE/RTRIM index ordering while keeping the GLOB residual byte/case-sensitive.
 - Records current/next candidate rowsets, residual matches, false-positive rowids introduced by NOCASE/RTRIM traversal, malformed UTF-8 row visibility, and cursor invalidation reasons.
-- Adds a WordPress smoke for copied `wp_options.option_name` scans where `Plugin_*` and `PLUGIN_*` are NOCASE index candidates but not GLOB residual matches, and where RTRIM range traversal admits space-padded false positives for an exact GLOB probe.
+- Adds a Application smoke for copied `wp_options.option_name` scans where `Plugin_*` and `PLUGIN_*` are NOCASE index candidates but not GLOB residual matches, and where RTRIM range traversal admits space-padded false positives for an exact GLOB probe.
 
 Non-overlap:
 
@@ -22,8 +22,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRtrimNocaseGlobCurrentSourceNext119Test.php`
   - `1 test files, 59 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rtrim-nocase-glob-current-source-next119.php --self-test`
-  - `wordpress-rtrim-nocase-glob-current-source-next119 self-test passed`
+- `php lanes/libsqlite/examples/application-rtrim-nocase-glob-current-source-next119.php --self-test`
+  - `application-rtrim-nocase-glob-current-source-next119 self-test passed`
 
 Dashboard delta:
 

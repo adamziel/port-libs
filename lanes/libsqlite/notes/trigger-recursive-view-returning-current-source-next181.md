@@ -4,14 +4,14 @@ Status: focused PHP behavior growth for recursive `INSTEAD OF` view-trigger `RET
 
 This slice adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext181Plan`. It builds on the accepted next177 resume-token behavior without changing row production: current-source `RETURNING` pages become visible/durable checkpoints, while attempted next-source pages stay pending until the next view/trigger source is admitted with the expected reprepare token.
 
-WordPress path: `wordpress-trigger-recursive-view-returning-current-source-next181.php` models copied `wp_options` import rows flowing through a recursive view trigger. It proves a caller can resume after the last current-source checkpoint and keep plugin-created next-source rows blocked at the first next checkpoint.
+Application path: `application-trigger-recursive-view-returning-current-source-next181.php` models copied `wp_options` import rows flowing through a recursive view trigger. It proves a caller can resume after the last current-source checkpoint and keep plugin-created next-source rows blocked at the first next checkpoint.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext181Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext181Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next181.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next181.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next181.php`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next181.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext181Test.php`
 - `git diff --check -- lanes/libsqlite`
 

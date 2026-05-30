@@ -13,14 +13,14 @@ Evidence target:
   expression constraints, partial-predicate proof, non-covering table lookup,
   covering-index elision, STAT4 current/next sample pairs, and invalid-source
   guards.
-- The WordPress smoke exercises a copied `wp_options` plugin-option lookup where
+- The Application smoke exercises a copied `wp_options` plugin-option lookup where
   current ANALYZE/STAT4 data changes after the prepared source was built.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Test.php`
   passed: `1 test files, 64 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next154.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next154.php`
   passed and selected the current-source partial expression index with rowids
   `[2, 3]`.
 - PHP lint passed for the changed source, test, and example files.

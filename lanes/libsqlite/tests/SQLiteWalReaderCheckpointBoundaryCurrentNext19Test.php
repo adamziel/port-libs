@@ -42,7 +42,7 @@ $wal = SQLiteWal::parse($walBytes, $pageSize, true);
 
 $makeStack = static function () use ($page): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wordpress-import');
+    $stack->beginTransaction('application-import');
     $stack->recordPageImageWrite(1, $page('db-page-1-before'));
     $stack->recordWalFrameWrite(1, 1);
     $stack->recordPageImageWrite(2, $page('db-page-2-before'));

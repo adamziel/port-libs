@@ -1,12 +1,12 @@
-# WordPress Import Transaction Error Current/Next29
+# Application Import Transaction Error Current/Next29
 
-2026-05-27 isolated slice `yield-sqlite-wordpress-import-transaction-error-current-next29`.
+2026-05-27 isolated slice `yield-sqlite-application-import-transaction-error-current-next29`.
 
 ## Behavior
 
-Adds `SQLiteWordPressImportTransactionErrorYieldPlan`, a bounded row-yield model
+Adds `SQLiteImportTransactionErrorYieldPlan`, a bounded row-yield model
 for copied `wp_options` import transactions. The planner reports each staged row
-with current/next option-id state, records a WordPress-style `WP_Error` payload
+with current/next option-id state, records a Application-style `WP_Error` payload
 for statement failures, and either rolls the whole transaction back on first
 error or continues with statement-only errors when configured.
 
@@ -19,7 +19,7 @@ current/next row and error envelope before durable pager/VFS application.
 Focused test output:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressImportTransactionErrorCurrentNext29Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteImportTransactionErrorCurrentNext29Test.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 70 assertions, 0 failures
@@ -28,16 +28,16 @@ Focused test run: 1 selected test files (root lock skipped)
 Final verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWordPressImportTransactionErrorYieldPlan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteWordPressImportTransactionErrorYieldPlan.php
+php -l lanes/libsqlite/src/SQLiteImportTransactionErrorYieldPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteImportTransactionErrorYieldPlan.php
 
-php -l lanes/libsqlite/tests/SQLiteWordPressImportTransactionErrorCurrentNext29Test.php
-No syntax errors detected in lanes/libsqlite/tests/SQLiteWordPressImportTransactionErrorCurrentNext29Test.php
+php -l lanes/libsqlite/tests/SQLiteImportTransactionErrorCurrentNext29Test.php
+No syntax errors detected in lanes/libsqlite/tests/SQLiteImportTransactionErrorCurrentNext29Test.php
 
-php -l lanes/libsqlite/examples/wordpress-import-transaction-error-current-next29.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-import-transaction-error-current-next29.php
+php -l lanes/libsqlite/examples/application-import-transaction-error-current-next29.php
+No syntax errors detected in lanes/libsqlite/examples/application-import-transaction-error-current-next29.php
 
-php lanes/libsqlite/examples/wordpress-import-transaction-error-current-next29.php
+php lanes/libsqlite/examples/application-import-transaction-error-current-next29.php
 {
     "status": "rolled_back",
     "yieldedStatuses": [

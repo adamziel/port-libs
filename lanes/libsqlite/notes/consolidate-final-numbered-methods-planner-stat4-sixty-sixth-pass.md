@@ -10,7 +10,7 @@ use stable descriptive names:
 - `materializeCurrentOrSplitPartialExpression()`
 - `materializeCurrentPartialPredicateDeltaEquality()`
 
-The two direct focused tests, WordPress examples, and direct notes were renamed
+The two direct focused tests, Application examples, and direct notes were renamed
 away from the former worker-number suffixes and migrated to the stable
 production calls. Focused behavior is preserved.
 
@@ -19,11 +19,11 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentOrSplitPartialExpressionTest.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentPartialPredicateDeltaEqualityTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-or-split-partial-expression.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-or-split-partial-expression.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentOrSplitPartialExpressionTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentPartialPredicateDeltaEqualityTest.php` -> `2 test files, 126 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-or-split-partial-expression.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-or-split-partial-expression.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-partial-predicate-delta-equality.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this only renames a

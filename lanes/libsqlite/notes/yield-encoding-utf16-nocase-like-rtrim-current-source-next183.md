@@ -4,7 +4,7 @@
 
 - Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` for ASCII `NOCASE LIKE` prefix range reuse over mixed UTF-16 option-name bytes.
 - The slice is intentionally disjoint from accepted next180 non-ASCII prefix full-scan fallback. Next183 covers the range-usable path where `rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?` can use the ASCII prefix cursor, while residual RTRIM matching changes current/next row membership.
-- WordPress smoke: copied `wp_options` option-name cache rows switch UTF-16 encodings and trailing-space shape between current/next database images, so stale range cursors must be invalidated before import/query previews reuse them.
+- Application smoke: copied `wp_options` option-name cache rows switch UTF-16 encodings and trailing-space shape between current/next database images, so stale range cursors must be invalidated before import/query previews reuse them.
 
 ## Evidence
 

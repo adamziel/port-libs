@@ -9,9 +9,9 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentPartialPredicateFenceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-fence.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-partial-predicate-fence.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentPartialPredicateFenceTest.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-fence.php --self-test`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-partial-predicate-fence.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `+59` focused PASS lines in the new lane-scoped

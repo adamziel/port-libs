@@ -4,18 +4,18 @@ Status: focused PHP behavior growth for row-value `UPDATE` / `DELETE ... RETURNI
 
 This slice makes `SQLiteUpdateDeleteReturningSql` detect `WHERE`, `RETURNING`, `ORDER BY`, and `LIMIT` only at top-level SQL clause boundaries. String literals inside row-value assignments, row-value predicates, and `RETURNING` expressions can now contain clause-looking text such as `' WHERE literal'`, `' RETURNING literal'`, `' ORDER BY literal'`, and `' LIMIT literal'` without truncating the parsed statement.
 
-WordPress smoke: `wordpress-rowvalue-update-delete-returning-savepoint-current-source-next167.php` models a copied `wp_options` import batch where draft option values contain clause-looking text, the attempted `RETURNING` rows are discarded by `ROLLBACK TO`, and retry UPDATE/DELETE statements yield rows from the restored current source.
+Application smoke: `application-rowvalue-update-delete-returning-savepoint-current-source-next167.php` models a copied `wp_options` import batch where draft option values contain clause-looking text, the attempted `RETURNING` rows are discarded by `ROLLBACK TO`, and retry UPDATE/DELETE statements yield rows from the restored current source.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext167Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next167.php
+php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next167.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext167Test.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext158Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext167Test.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningConflictCurrentSourceNext130Test.php lanes/libsqlite/tests/SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next167.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next167.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

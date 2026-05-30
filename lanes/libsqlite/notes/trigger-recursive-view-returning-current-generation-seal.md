@@ -18,11 +18,11 @@ Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentReturningGenerationSealTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-generation-seal.php`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-generation-seal.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentReturningGenerationSealTest.php`
 - Result: `1 test files, 104 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-generation-seal.php`
-- Result: `wordpress-trigger-recursive-view-returning-current-generation-seal self-test passed`.
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-generation-seal.php`
+- Result: `application-trigger-recursive-view-returning-current-generation-seal self-test passed`.
 
 Expected dashboard movement: no `phpPass` or mapped-coverage movement; this
 renames an existing direct focused test/example and production result contract

@@ -154,7 +154,7 @@ $cases188 = [
     'dependency includes next188' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next188', $released188()['dependencies_next188'], true), true],
     'dependency includes watermark fence' => [static fn (): mixed => in_array('sqlite-returning-current-source-row-watermark-fence', $released188()['dependencies_next188'], true), true],
     'dependency includes ordinal contiguity' => [static fn (): mixed => in_array('sqlite-returning-current-source-ordinal-contiguity', $released188()['dependencies_next188'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-next188', $released188()['dependencies_next188'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-next188', $released188()['dependencies_next188'], true), true],
     'non overlap names checkpoint ack' => [static fn (): mixed => str_contains($released188()['non_overlap_next188'], 'next184 checkpoint'), true],
     'non recursive current count' => [static fn (): mixed => $nonRecursive188()['current_watermark_row_count_next188'], 2],
     'non recursive visible names' => [static fn (): mixed => array_column($nonRecursive188()['visible_returning_payloads_next188'], 'option_name'), ['plugin_seed', 'siteurl', 'rewrite_rules', 'home']],

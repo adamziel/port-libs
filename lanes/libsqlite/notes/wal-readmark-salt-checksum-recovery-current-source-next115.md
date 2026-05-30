@@ -18,11 +18,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 72 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-readmark-salt-checksum-recovery-current-source-next115.php --self-test
-wordpress-wal-readmark-salt-checksum-recovery-current-source-next115 self-test passed
+php lanes/libsqlite/examples/application-wal-readmark-salt-checksum-recovery-current-source-next115.php --self-test
+application-wal-readmark-salt-checksum-recovery-current-source-next115 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +72, from `43574` to `43646`, from the 72 independent PASS lines in the focused test. `benchmarkDenominator.mapped` is unchanged because this is current-source PHP behavior over already mapped WAL checksum/read-mark recovery inventory rather than a freshly hydrated upstream Tcl unit.

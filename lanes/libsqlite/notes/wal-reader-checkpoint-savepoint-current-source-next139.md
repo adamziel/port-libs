@@ -17,9 +17,9 @@ Verification:
 ```bash
 php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointSavepointCurrentSourceNext139Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-savepoint-current-source-next139.php
+php -l lanes/libsqlite/examples/application-wal-reader-checkpoint-savepoint-current-source-next139.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointSavepointCurrentSourceNext139Test.php
-php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-savepoint-current-source-next139.php
+php lanes/libsqlite/examples/application-wal-reader-checkpoint-savepoint-current-source-next139.php
 git diff --check -- lanes/libsqlite
 ```
 

@@ -11,12 +11,12 @@ php -l lanes/libsqlite/src/SQLiteTransactionSavepointTriggerRollbackCurrentSourc
 No syntax errors detected in lanes/libsqlite/src/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Test.php
-php -l lanes/libsqlite/examples/wordpress-transaction-savepoint-trigger-rollback-current-source-next106.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-transaction-savepoint-trigger-rollback-current-source-next106.php
+php -l lanes/libsqlite/examples/application-transaction-savepoint-trigger-rollback-current-source-next106.php
+No syntax errors detected in lanes/libsqlite/examples/application-transaction-savepoint-trigger-rollback-current-source-next106.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 59 assertions, 0 failures
-php lanes/libsqlite/examples/wordpress-transaction-savepoint-trigger-rollback-current-source-next106.php
+php lanes/libsqlite/examples/application-transaction-savepoint-trigger-rollback-current-source-next106.php
 status=rolled-back, savepoint_preserved=true, attempted_changes=3, changes=0
 git diff --check -- lanes/libsqlite
 passed with no output

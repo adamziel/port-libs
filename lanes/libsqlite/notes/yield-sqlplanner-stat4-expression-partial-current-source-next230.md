@@ -8,7 +8,7 @@ Adds a bounded current-source STAT4 partial expression-index gap-density proof f
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext230Test.php`
 - Result: `1 test files, 66 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next230.php`
+- Application smoke: `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next230.php`
 - Result: self-test exits `0` with `stat4-expression-partial-current-source-next230-ready`
 
 ## Dependency Closure

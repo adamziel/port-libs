@@ -25,10 +25,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiv
 The test file adds 73 focused PASS cases for the new mixed compound boundary,
 including generated current/next source rank shifts and stale cursor rejection.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next224.php
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next224.php
 ```
 
 ## Dependency Closure

@@ -5,7 +5,7 @@ current-source savepoint handling.
 
 This slice adds bounded row-value `IN (SELECT ...)` subquery support for
 `ORDER BY` plus `LIMIT`/`OFFSET` tuple streams in `SQLiteUpdateDeleteReturningSql`
-and covers a WordPress-style copied `wp_options` savepoint flow where:
+and covers a Application-style copied `wp_options` savepoint flow where:
 
 - an attempt phase updates/deletes rows selected by ordered metadata subqueries;
 - `ROLLBACK TO` restores the savepoint image and suppresses the attempt
@@ -15,8 +15,8 @@ and covers a WordPress-style copied `wp_options` savepoint flow where:
 - limited subqueries can exclude a NULL metadata tuple, avoiding stale
   `NOT IN` poisoning during cleanup.
 
-WordPress smoke:
-`wordpress-rowvalue-ordered-subquery-savepoint-retry.php`
+Application smoke:
+`application-rowvalue-ordered-subquery-savepoint-retry.php`
 models plugin/import metadata selecting only the highest-priority copied
 options rows for retry and network cleanup.
 
@@ -26,10 +26,10 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueOrderedSubquerySavepointRetryTest.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-ordered-subquery-savepoint-retry.php
+php -l lanes/libsqlite/examples/application-rowvalue-ordered-subquery-savepoint-retry.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueOrderedSubquerySavepointRetryTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-ordered-subquery-savepoint-retry.php
+php lanes/libsqlite/examples/application-rowvalue-ordered-subquery-savepoint-retry.php
 git diff --check -- lanes/libsqlite
 ```
 

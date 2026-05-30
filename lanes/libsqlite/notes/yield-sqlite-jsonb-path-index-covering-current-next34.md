@@ -22,8 +22,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-jsonb-path-index-covering-current-next34.php --self-test
-wordpress-jsonb-path-index-covering-current-next34 self-test passed
+php lanes/libsqlite/examples/application-jsonb-path-index-covering-current-next34.php --self-test
+application-jsonb-path-index-covering-current-next34 self-test passed
 ```
 
 ## Non-Overlap

@@ -8,8 +8,8 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext218Test.php`
 - Result: `1 test files, 82 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next218.php`
-- Result: `wordpress-trigger-recursive-view-returning-current-source-next218 self-test passed`.
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next218.php`
+- Result: `application-trigger-recursive-view-returning-current-source-next218 self-test passed`.
 
 Dependency closure: no new support component is needed; this reuses the existing native recursive view/trigger RETURNING current-source plans and adds only an epoch-handoff fence on their produced rows.
 

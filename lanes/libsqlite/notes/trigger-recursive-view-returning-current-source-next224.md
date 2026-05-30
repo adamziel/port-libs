@@ -8,8 +8,8 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext224Test.php`
 - Result: `1 test files, 94 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next224.php`
-- Result: `wordpress-trigger-recursive-view-returning-current-source-next224 self-test passed`.
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next224.php`
+- Result: `application-trigger-recursive-view-returning-current-source-next224 self-test passed`.
 
 Expected dashboard movement: `phpPass +94` from the new focused test file. Mapped coverage remains unchanged because this is current-source PHP behavior over already mapped trigger/view/RETURNING inventory rather than a newly hydrated upstream row.
 

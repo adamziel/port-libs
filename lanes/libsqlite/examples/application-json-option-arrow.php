@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLiteDatabase;
+use PortLibs\LibSqlite\SQLiteOptionRow;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$databasePath = $argv[1] ?? null;
+$jsonLabelOrPath = $argv[2] ?? null;
+$value = $argv[3] ?? null;
+$limit = isset($argv[4]) ? (int) $argv[4] : 100;
+if ($databasePath === null || $jsonLabelOrPath === null || $value === null) {
+    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/application-json-option-arrow.php path/to/application.sqlite json_label_or_path json_scalar [limit]\n");
+    fwrite(STDERR, "Requires an index shaped like CREATE INDEX ... ON wp_options(option_value ->> 'key') or json_extract(option_value, '$.key').\n");
+    exit(1);
+}
+
+$jsonPath = match (true) {
+    str_starts_with($jsonLabelOrPath, '$') => $jsonLabelOrPath,
+    str_starts_with($jsonLabelOrPath, '[') => '$' . $jsonLabelOrPath,
+    preg_match('/^\d+$/', $jsonLabelOrPath) === 1 => '$[' . (int) $jsonLabelOrPath . ']',
+    default => '$.' . $jsonLabelOrPath,
+};
+$lookupValue = match (strtolower($value)) {
+    'true' => true,
+    'false' => false,
+    'null' => null,
+    default => preg_match('/^[+-]?\d+$/', $value) === 1 ? (int) $value : $value,
+};
+
+$database = SQLiteDatabase::fromFile($databasePath);
+$indexRootPage = $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', $jsonPath, $lookupValue);
+$options = array_map(
+    static fn (SQLiteOptionRow $option): array => $option->toArray(),
+    $database->optionRowsByIndexedJsonOptionValue($jsonPath, $lookupValue, $limit),
+);
+
+echo json_encode([
+    'path' => $databasePath,
+    'jsonPath' => $jsonPath,
+    'lookupValue' => $lookupValue,
+    'wpOptionsJsonTextOperatorIndexRootPage' => $indexRootPage,
+    'limit' => $limit,
+    'options' => $options,
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

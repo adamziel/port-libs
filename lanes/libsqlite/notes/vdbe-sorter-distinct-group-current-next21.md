@@ -4,14 +4,14 @@
 
 - Added `SQLiteVdbeSorterDistinctGroupCursor` for the VDBE loop shape where a sorted row stream is consumed through current/next group boundaries.
 - Each group builds a fresh `SQLiteVdbeAggregateDistinctCursor`, so DISTINCT aggregate state resets per GROUP BY key while preserving filter, affinity, collation, NULL placement, and EOF behavior.
-- The WordPress smoke uses copied `wp_options`-style rows grouped by `autoload` and option kind.
+- The Application smoke uses copied `wp_options`-style rows grouped by `autoload` and option kind.
 
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeSorterDistinctGroupCurrentNext21Test.php`
   - `1 test files, 36 assertions, 0 failures`
   - 36 new focused PASS lines.
-- `php lanes/libsqlite/examples/wordpress-vdbe-sorter-distinct-group.php`
+- `php lanes/libsqlite/examples/application-vdbe-sorter-distinct-group.php`
   - Emits grouped copied `wp_options` DISTINCT summaries without requiring `ext/sqlite`.
 
 ## Status Delta

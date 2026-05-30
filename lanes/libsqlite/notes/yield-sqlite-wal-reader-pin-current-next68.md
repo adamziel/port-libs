@@ -26,10 +26,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 59 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-wal-reader-pin-current-next68.php
+php lanes/libsqlite/examples/application-wal-reader-pin-current-next68.php
 ```
 
 Expected result includes:

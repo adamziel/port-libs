@@ -26,12 +26,12 @@ PASS rejects invalid using and natural cross forms
 1 test files, 48 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-sql-join-using-natural-outer.php
+php lanes/libsqlite/examples/application-select-sql-join-using-natural-outer.php
 {
-    "scenario": "wordpress-select-sql-join-using-natural-outer",
+    "scenario": "application-select-sql-join-using-natural-outer",
     "rowCount": 5,
     "optionNames": [
         null,

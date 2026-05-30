@@ -80,7 +80,7 @@ $cases = [
     'digest length' => [static fn (): mixed => strlen($plan()['ticket_digest']), 64],
     'dependency next221' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next221', $plan()['dependencies'], true), true],
     'dependency next222' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next222', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-source-ticket', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-source-ticket', $plan()['dependencies'], true), true],
     'closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat sidecar deletion'), true],
     'blocked status' => [static fn (): mixed => $plan(null, $blockedTickets)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next222'],

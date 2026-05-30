@@ -2,18 +2,18 @@
 
 Status: focused PHP behavior growth for row-value `UPDATE OR IGNORE` plus `DELETE ... RETURNING` inside a savepoint.
 
-This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext165Plan`. It models a WordPress `wp_options` import savepoint where row-value `UPDATE OR IGNORE ... RETURNING` attempts duplicate `(blog_id, option_name)` keys, suppresses those rows from the `RETURNING` stream, restores each ignored row to its pre-update image, and continues later `DELETE ... RETURNING` plus `UPDATE ... RETURNING` statements from that current source. The savepoint is released normally because `OR IGNORE` is not a rollback conflict action.
+This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext165Plan`. It models a Application `wp_options` import savepoint where row-value `UPDATE OR IGNORE ... RETURNING` attempts duplicate `(blog_id, option_name)` keys, suppresses those rows from the `RETURNING` stream, restores each ignored row to its pre-update image, and continues later `DELETE ... RETURNING` plus `UPDATE ... RETURNING` statements from that current source. The savepoint is released normally because `OR IGNORE` is not a rollback conflict action.
 
-WordPress smoke: `wordpress-rowvalue-update-delete-returning-savepoint-current-source-next165.php` covers copied option staging where duplicate `siteurl` rewrites are ignored, transient cleanup still yields deleted rows, and the next row-value update sees the original ignored source row.
+Application smoke: `application-rowvalue-update-delete-returning-savepoint-current-source-next165.php` covers copied option staging where duplicate `siteurl` rewrites are ignored, transient cleanup still yields deleted rows, and the next row-value update sees the original ignored source row.
 
 Verification:
 
 ```text
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext165Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext165Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next165.php
+php -l lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next165.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext165Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next165.php
+php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next165.php
 git diff --check -- lanes/libsqlite
 ```
 

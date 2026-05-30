@@ -49,7 +49,7 @@ $plan = static function (
     int $currentCookie = 11,
     int $nextCookie = 11,
 ) use ($currentRows, $nextRows, $enc): array {
-    return SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::wordpressOptionNameResumeTokenPlan(
+    return SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::optionRowNameResumeTokenPlan(
         $current ?? $currentRows,
         $next ?? $nextRows,
         $enc('plugin\\_cache%', 2),
@@ -171,7 +171,7 @@ $tests['utf16 nocase like rtrim resume token current source nextOneSevenZero asc
 };
 
 $tests['utf16 nocase like rtrim resume token current source nextOneSevenZero malformed current token throws'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::wordpressOptionNameResumeTokenPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::optionRowNameResumeTokenPlan(
         $currentRows,
         $nextRows,
         $enc('plugin\\_cache%', 2),

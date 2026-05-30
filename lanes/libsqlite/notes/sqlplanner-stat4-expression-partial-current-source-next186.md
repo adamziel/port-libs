@@ -12,20 +12,20 @@ Behavior covered:
 - preserves zero-limit and exhausted-offset empty rowsets as ready plans;
 - records limit/projection fence signatures and cursor opcodes for the windowed row stream.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next186.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next186 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next186.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-current-source-next186 self-test passed`
 
 Focused verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext186Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next186.php`
+- `php -l lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next186.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext186Test.php`
   - `1 test files, 53 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next186.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next186 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next186.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-current-source-next186 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The slice reuses lane-local STAT4 expression partial equality probes, partial predicate proof, current-source fences, and covering payload materialization.

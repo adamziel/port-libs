@@ -16,15 +16,15 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteBTreeRootCollapsePlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeRootCollapsePointerMapCurrentNext15Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteBTreeRootCollapsePointerMapCurrentNext15Test.php
 
-php -l lanes/libsqlite/examples/wordpress-btree-root-collapse-pointer-map-current-next15.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-btree-root-collapse-pointer-map-current-next15.php
+php -l lanes/libsqlite/examples/application-btree-root-collapse-pointer-map-current-next15.php
+No syntax errors detected in lanes/libsqlite/examples/application-btree-root-collapse-pointer-map-current-next15.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeRootCollapsePointerMapCurrentNext15Test.php
 Focused test run: 1 selected test files (root lock skipped)
 49 PASS lines
 1 test files, 49 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-btree-root-collapse-pointer-map-current-next15.php
+php lanes/libsqlite/examples/application-btree-root-collapse-pointer-map-current-next15.php
 Reported `updated_pointer_map_page_numbers` `[2,105]`, obsolete child page 4
 as `free-page`, adopted grandchild page 106 as `btree-page` parent 3, and the
 surviving copied `siteurl` / `home` wp_options rows.

@@ -14,7 +14,7 @@ expression text, and expression cursor-column signature.
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerPartialExpressionSkipScanCurrentSourceNext129Test.php`
   passed with `1 test files, 64 assertions, 0 failures`.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-planner-partial-expression-skipscan-current-source-next129.php`
+- Application smoke: `php lanes/libsqlite/examples/application-planner-partial-expression-skipscan-current-source-next129.php`
   passed and emitted a current-source reprepare summary with rowids
   `[2,3,7,11]`.
 - Syntax checks and `git diff --check -- lanes/libsqlite` were run for this

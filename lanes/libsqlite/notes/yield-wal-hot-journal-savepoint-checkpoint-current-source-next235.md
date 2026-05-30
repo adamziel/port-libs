@@ -1,19 +1,19 @@
 # WAL hot-journal savepoint checkpoint current-source next235
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a durable publication receipt fence after accepted next232 reader-slot admission. It admits reopened WordPress readers only when database, WAL, hot-journal delete, and directory fsync receipts all match the same source token, writer generation, schema cookie, WAL salt, checkpoint pages, and lock receipt.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a durable publication receipt fence after accepted next232 reader-slot admission. It admits reopened Application readers only when database, WAL, hot-journal delete, and directory fsync receipts all match the same source token, writer generation, schema cookie, WAL salt, checkpoint pages, and lock receipt.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next235.php` models copied `wp_options` readers staying on the current source only after the checkpoint database image, restarted WAL sidecar, deleted hot journal, and containing directory are durably published.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next235.php` models copied `wp_options` readers staying on the current source only after the checkpoint database image, restarted WAL sidecar, deleted hot journal, and containing directory are durably published.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next235.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next235.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next235.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next235.php
 git diff --check -- lanes/libsqlite
 ```
 

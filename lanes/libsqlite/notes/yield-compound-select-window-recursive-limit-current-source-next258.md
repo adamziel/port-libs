@@ -4,7 +4,7 @@ Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, a bounded 
 
 The new behavior extends accepted next254 receipt gating: after compound/window/recursive receipts are known, next-source rows are still held until the current page's final admitted row and recursive queue digest are acknowledged. This prevents a stale current-source cursor from resuming across the final compound LIMIT boundary and exposing next-source plugin option rows early.
 
-WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next258.php` models copied `wp_options` preview queries where `plugin_prime` stays a next-source candidate until the current-source high-water row `seed:2:3:4` is acknowledged.
+Application path: `application-compound-select-window-recursive-limit-current-source-next258.php` models copied `wp_options` preview queries where `plugin_prime` stays a next-source candidate until the current-source high-water row `seed:2:3:4` is acknowledged.
 
 Verification:
 
@@ -15,9 +15,9 @@ Verification:
   - `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext258Test.php`
   - `No syntax errors detected`
-- `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next258.php`
+- `php -l lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next258.php`
   - `No syntax errors detected`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next258.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next258.php`
   - emitted `compound-select-window-recursive-limit-current-source-next258-ready` with high-water `seed:2:3:4`, next candidate `plugin_prime`, and `4` required acknowledgements
 - `git diff --check -- lanes/libsqlite`
   - passed with no output

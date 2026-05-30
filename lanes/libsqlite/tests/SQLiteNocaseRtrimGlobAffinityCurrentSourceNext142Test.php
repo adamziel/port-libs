@@ -61,7 +61,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@142',
     int $currentCookie = 141,
     int $nextCookie = 142,
-): array => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan(
+): array => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -168,7 +168,7 @@ foreach ($cases as $name => [$pattern, $affinity, $collation, $path, $expected])
 
 $tests['nocase rtrim glob affinity current source next142 stable binary rows reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_alpha', 'UTF-8'), $row(2, 'plugin_beta', 'UTF-16LE')];
-    $plan = SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan($rows, $rows, 'plugin_*', 'TEXT', 'BINARY', 'stable', 'stable', 7, 7);
+    $plan = SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan($rows, $rows, 'plugin_*', 'TEXT', 'BINARY', 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentRowids']);
     $t->same([], $plan['invalidationReasons']);
     $t->same(true, $plan['cursorReusable']);
@@ -176,30 +176,30 @@ $tests['nocase rtrim glob affinity current source next142 stable binary rows reu
 
 $tests['nocase rtrim glob affinity current source next142 stable nocase records fallback'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_alpha', 'UTF-8'), $row(2, 'Plugin_Beta', 'UTF-16LE')];
-    $plan = SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan($rows, $rows, 'plugin_*', 'TEXT', 'NOCASE', 'stable', 'stable', 7, 7);
+    $plan = SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan($rows, $rows, 'plugin_*', 'TEXT', 'NOCASE', 'stable', 'stable', 7, 7);
     $t->same([1], $plan['currentRowids']);
     $t->same(['glob-range-requires-binary-collation'], $plan['invalidationReasons']);
     $t->same(false, $plan['cursorReusable']);
 };
 
 $tests['nocase rtrim glob affinity current source next142 rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $currentRows, 'plugin_*', 'TEXT', 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan($currentRows, $currentRows, 'plugin_*', 'TEXT', 'UNICODE'));
 };
 
 $tests['nocase rtrim glob affinity current source next142 rejects missing option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan([['option_name_bytes' => 'plugin', 'text_encoding' => 1]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_name_bytes' => 'plugin', 'text_encoding' => 1]], [], 'plugin_*'));
 };
 
 $tests['nocase rtrim glob affinity current source next142 rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'text_encoding' => 1]], [], 'plugin_*'));
 };
 
 $tests['nocase rtrim glob affinity current source next142 rejects missing encoding'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'plugin']], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name_bytes' => 'plugin']], [], 'plugin_*'));
 };
 
 $tests['nocase rtrim glob affinity current source next142 records unsupported encoding as malformed row'] = static function (TestRunner $t): void {
-    $plan = SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], [], 'plugin_*');
+    $plan = SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], [], 'plugin_*');
     $t->same([1], $plan['currentMalformedRowids']);
     $t->same('SQLite NOCASE/RTRIM GLOB current-source next142 encoding must be UTF-8, UTF-16LE, or UTF-16BE', $plan['currentErrors'][1]);
 };

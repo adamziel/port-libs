@@ -11,7 +11,7 @@ and Unicode ranges.
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRtrimGlobNocaseAffinityCurrentSourceNext149Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-rtrim-glob-nocase-affinity-current-source-next149.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-rtrim-glob-nocase-affinity-current-source-next149.php --self-test`
 - Syntax checks: changed PHP files with `php -l`
 - Whitespace: `git diff --check -- lanes/libsqlite`
 

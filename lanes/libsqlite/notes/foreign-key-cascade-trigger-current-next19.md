@@ -10,10 +10,10 @@ It covers BEFORE/AFTER child trigger ordering, trigger audit rows reading OLD
 child values, trigger rewrites/deletes of grandchild rows before FK cascade
 work, stable row ordering, multiple parent deletes, and malformed input guards.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-foreign-key-cascade-trigger-current-next19.php
+php lanes/libsqlite/examples/application-foreign-key-cascade-trigger-current-next19.php
 ```
 
 Focused verification:

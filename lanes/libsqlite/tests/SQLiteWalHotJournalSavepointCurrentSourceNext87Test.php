@@ -65,7 +65,7 @@ $wal = SQLiteWal::parse($walBytes, $pageSize, true);
 
 $makeStack = static function (): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wordpress_import');
+    $stack->beginTransaction('application_import');
     $stack->recordWalFrameWrite(1, 1);
     $stack->recordWalFrameWrite(2, 2, true);
     $stack->savepoint('plugin_batch');

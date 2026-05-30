@@ -162,7 +162,7 @@ $cases = [
     'base stale pages' => [static fn (): mixed => $plan()['base_plan']['stale_publish_blocked_page_numbers'], [3, 4]],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next169', $plan()['dependencies'], true), true],
     'dependency resume' => [static fn (): mixed => in_array('sqlite-wal-checkpoint-partial-publish-resume', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-hot-journal-savepoint-crash-resume', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-hot-journal-savepoint-crash-resume', $plan()['dependencies'], true), true],
     'dependency closure text' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap text' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'extends next165'), true],
     'blocked status' => [static fn (): mixed => $plan([], 'restart', null, true)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next169'],

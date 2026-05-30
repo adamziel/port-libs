@@ -395,7 +395,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             $nextDurable['dependencies'],
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next159',
-                                'wordpress-import-hot-journal-savepoint-checkpoint-current-source',
+                                'application-import-hot-journal-savepoint-checkpoint-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses hot-journal current-source recovery, WAL reader snapshots, savepoint page images, and durable checkpoint helpers',
@@ -1119,7 +1119,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                                 'sqlite-rollback-journal-hot-recovery',
                                 'sqlite-savepoint-wal-prefix-truncation',
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next162',
-                                'wordpress-import-current-source-checkpoint-admission',
+                                'application-import-current-source-checkpoint-admission',
                             ]
                         ))),
                     ];
@@ -1584,7 +1584,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next165',
                                 'sqlite-wal-checkpoint-publish-sequence',
-                                'wordpress-import-current-source-checkpoint-publish',
+                                'application-import-current-source-checkpoint-publish',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses native PHP hot-journal recovery, WAL savepoint truncation, durable checkpoint, and VFS write-plan payload primitives',
@@ -2389,7 +2389,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
                             'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next169',
                             'sqlite-wal-checkpoint-partial-publish-resume',
-                            'wordpress-import-hot-journal-savepoint-crash-resume',
+                            'application-import-hot-journal-savepoint-crash-resume',
                         ]))),
                         'dependency_closure' => 'no new support component needed; reuses native PHP hot-journal recovery, WAL savepoint truncation, checkpoint payloads, and VFS publish operation metadata',
                         'non_overlap' => 'extends next165 publish payload ordering with crash-resume admission fences; avoids accepted WAL byte truncation, VFS writer/apply, rollback-journal commit, checkpoint transaction, and reader-token admission surfaces',
@@ -3390,7 +3390,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
                             'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next174',
                             'sqlite-wal-hot-journal-checkpoint-file-resume',
-                            'wordpress-import-hot-journal-savepoint-file-replay',
+                            'application-import-hot-journal-savepoint-file-replay',
                         ]))),
                         'dependency_closure' => 'no new support component needed; reuses native PHP WAL, hot-journal recovery, savepoint rollback, checkpoint payload, and VFS file-state primitives',
                         'non_overlap' => 'extends next169 crash-resume with concrete file-state replay admission; avoids duplicating WAL byte truncation, VFS writer/sync/lock, rollback-journal commit/apply, checkpoint transaction, and reader-token cache surfaces',
@@ -4258,7 +4258,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next178',
                                 'sqlite-wal-hot-journal-post-apply-receipt',
-                                'wordpress-import-hot-journal-checkpoint-reopen-receipt',
+                                'application-import-hot-journal-checkpoint-reopen-receipt',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses native WAL checkpoint payloads, hot-journal deletion state, and VFS writer operation receipts',
@@ -4420,7 +4420,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next179',
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next178',
-                                'wordpress-import-hot-journal-checkpoint-reopen-current-source',
+                                'application-import-hot-journal-checkpoint-reopen-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next178 post-apply receipt digests and reopened database/WAL page images',
@@ -4867,7 +4867,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next181',
                                 'sqlite-wal-post-apply-reopen-validated',
-                                'wordpress-import-hot-journal-checkpoint-reopen-wal-frames',
+                                'application-import-hot-journal-checkpoint-reopen-wal-frames',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses native WAL checksum parsing plus next178 post-apply receipt payloads',
@@ -5642,7 +5642,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next184',
                                 'sqlite-wal-reader-mark-source-separation-after-reopen',
-                                'wordpress-import-retry-wal-salt-checkpoint-fence',
+                                'application-import-retry-wal-salt-checkpoint-fence',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses native WAL checksum parsing and next181 reopen admission evidence',
@@ -6381,7 +6381,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next187',
                                 'sqlite-hot-journal-reader-token-retirement-before-wal-retry',
-                                'wordpress-wal-import-retry-reader-token-fence',
+                                'application-wal-import-retry-reader-token-fence',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; composes accepted post-apply current-source and reopened WAL source evidence',
@@ -7009,7 +7009,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next190',
                                 'sqlite-retry-checkpoint-publication-current-file-map',
-                                'wordpress-import-retry-checkpoint-current-source-publication',
+                                'application-import-retry-checkpoint-current-source-publication',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses accepted WAL parser/checksum validation plus next187 reader-token fencing',
@@ -7184,7 +7184,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next191',
                                 'sqlite-wal-hot-journal-savepoint-page-cache-admission',
-                                'wordpress-import-page-cache-current-source-fence',
+                                'application-import-page-cache-current-source-fence',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; composes next188 current-source counters with bounded page-cache metadata',
@@ -7755,7 +7755,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next193',
                                 'sqlite-wal-retry-reader-mark-publication-after-hot-journal',
-                                'wordpress-wal-import-retry-reader-mark-publication',
+                                'application-wal-import-retry-reader-mark-publication',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; composes next187 retry-source admission with lane-local reader-mark slot metadata',
@@ -8001,7 +8001,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next194',
                                 'sqlite-reopened-reader-generation-seal',
-                                'wordpress-import-retry-checkpoint-reader-exposure',
+                                'application-import-retry-checkpoint-reader-exposure',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next190 retry checkpoint publication evidence plus directory-sync and checkpoint-lock receipts',
@@ -8192,7 +8192,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next195',
                                 'sqlite-wal-hot-journal-reader-retry-current-source',
-                                'wordpress-import-reader-reopen-after-hot-journal-checkpoint',
+                                'application-import-reader-reopen-after-hot-journal-checkpoint',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses lane-local WAL checkpoint tokens, hot-journal generation markers, and reader retry metadata',
@@ -8750,7 +8750,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next200',
                                 'sqlite-hot-journal-savepoint-checkpoint-durable-reader-admission',
-                                'wordpress-import-retry-checkpoint-durable-reader-admission',
+                                'application-import-retry-checkpoint-durable-reader-admission',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next194 reader-generation sealing plus existing WAL, checkpoint, directory-sync, and savepoint-release receipts',
@@ -9009,7 +9009,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next202',
                                 'sqlite-wal-checkpoint-file-receipt-admission',
-                                'wordpress-import-hot-journal-savepoint-checkpoint-handle-reopen',
+                                'application-import-hot-journal-savepoint-checkpoint-handle-reopen',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses accepted WAL sidecar publication plus lane-local file receipt, lock receipt, sync receipt, and handle cache metadata',
@@ -9437,7 +9437,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next205',
                                 'sqlite-wal-hot-journal-reader-page-image-current-source',
-                                'wordpress-import-reader-cache-reopen-after-hot-journal-checkpoint',
+                                'application-import-reader-cache-reopen-after-hot-journal-checkpoint',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses checkpoint current-source tokens, WAL frame bounds, page-image digests, and reader cache metadata',
@@ -9677,7 +9677,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'dependencies' => array_values(array_unique(array_merge($leasePlan['dependencies'] ?? [], [
                             'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next206',
                             'sqlite-reopened-statement-generation-fence',
-                            'wordpress-current-source-prepared-statement-reprepare',
+                            'application-current-source-prepared-statement-reprepare',
                         ]))),
                         'dependency_closure' => 'no new support component needed; reuses next203 WAL sidecar and checkpoint page digests to fence reopened prepared statements and page-cache consumers',
                         'non_overlap' => 'next206 admits or quarantines reopened statement consumers after next203 page-cache lease fencing; it does not repeat WAL byte truncation, VFS savepoint rollback, rollback-journal commit/apply, checkpoint transaction planning, WAL sidecar file writing, or next203 lease digest checks',
@@ -9943,7 +9943,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'dependencies' => array_values(array_unique(array_merge($consumerPlan['dependencies'] ?? [], [
                             'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next207',
                             'sqlite-wal-write-cursor-generation-fence',
-                            'wordpress-import-write-cursor-reprepare',
+                            'application-import-write-cursor-reprepare',
                         ]))),
                         'dependency_closure' => 'no new support component needed; reuses next206 checkpoint generation, page digests, and existing WAL/VFS lock evidence to fence write cursor admission',
                         'non_overlap' => 'next207 validates write-cursor commit admission after next206 statement reprepare; it does not repeat WAL byte truncation, rollback-journal apply/commit, VFS savepoint rollback, checkpoint transaction planning, WAL sidecar lease checks, or next206 prepared-statement generation quarantine',
@@ -10222,7 +10222,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'dependencies' => array_values(array_unique(array_merge($consumerPlan['dependencies'] ?? [], [
                             'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next208',
                             'sqlite-checkpoint-reader-slot-current-source-map',
-                            'wordpress-import-reader-slot-reopen-after-checkpoint',
+                            'application-import-reader-slot-reopen-after-checkpoint',
                         ]))),
                         'dependency_closure' => 'no new support component needed; reuses next206 current-source statement fencing plus checkpoint page digests to decide reader-slot reuse after checkpoint publication',
                         'non_overlap' => 'next208 maps post-checkpoint reader-slot reuse from next206 admitted consumers; it does not repeat next206 prepared-statement quarantine, next203 page-cache lease checks, WAL byte truncation, WAL sidecar writes, rollback-journal commit/apply, checkpoint transaction planning, or VFS savepoint rollback',
@@ -10547,7 +10547,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next209',
                                 'sqlite-post-checkpoint-writer-generation-fence',
-                                'wordpress-import-post-checkpoint-writer-reopen',
+                                'application-import-post-checkpoint-writer-reopen',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next206 statement-consumer fences, WAL/database digests, and lane-local writer handle metadata',
@@ -10829,7 +10829,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-post-checkpoint-append-admission',
                                 'sqlite-post-checkpoint-wal-append-generation-fence',
-                                'wordpress-import-post-checkpoint-wal-append-after-hot-journal',
+                                'application-import-post-checkpoint-wal-append-after-hot-journal',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next209 writer-generation fences, WAL/database digests, and append-frame metadata',
@@ -11139,7 +11139,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next211',
                                 'sqlite-wal-current-source-reader-acknowledgement-fence',
-                                'wordpress-import-checkpoint-reader-reopen-fence',
+                                'application-import-checkpoint-reader-reopen-fence',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next205 reader page digests, current-source tokens, checkpoint cookies, and reopen fences',
@@ -11376,7 +11376,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next212',
                                 'sqlite-passive-checkpoint-current-reader-pin-after-hot-journal',
-                                'wordpress-import-passive-checkpoint-preserves-wal-for-current-reader',
+                                'application-import-passive-checkpoint-preserves-wal-for-current-reader',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next209 writer generation metadata, current-source digests, and reader end-frame pins',
@@ -11663,7 +11663,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next213',
                                 'sqlite-restart-checkpoint-reader-reopen-receipts-after-hot-journal',
-                                'wordpress-import-restart-checkpoint-reopens-stale-readers',
+                                'application-import-restart-checkpoint-reopens-stale-readers',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint source digests, reader pin names, and lane-local reopen receipts',
@@ -11927,7 +11927,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next217',
                                 'sqlite-wal-reader-durable-receipt-fence',
-                                'wordpress-import-hot-journal-checkpoint-reopen-receipts',
+                                'application-import-hot-journal-checkpoint-reopen-receipts',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next211 reader acknowledgement rows, hot-journal delete receipts, WAL sync receipts, and directory sync receipts',
@@ -12196,7 +12196,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next218',
                                 'sqlite-wal-restart-truncate-after-hot-journal-savepoint-fence',
-                                'wordpress-import-checkpoint-reset-waits-for-current-source-reopen',
+                                'application-import-checkpoint-reset-waits-for-current-source-reopen',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next212 checkpoint frame accounting, current-source reader reopen lists, and writer generation digests',
@@ -12437,7 +12437,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next219',
                                 'sqlite-savepoint-scope-finalization-before-wal-current-source',
-                                'wordpress-import-hot-journal-savepoint-finalization',
+                                'application-import-hot-journal-savepoint-finalization',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next211 reader acknowledgements plus savepoint scope generation, journal delete receipts, and checkpoint cookies',
@@ -12712,7 +12712,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next221',
                                 'sqlite-wal-sidecar-retirement-current-source-barrier',
-                                'wordpress-import-hot-journal-checkpoint-sidecar-retirement',
+                                'application-import-hot-journal-checkpoint-sidecar-retirement',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next217 durable reader receipts, WAL checkpoint metadata, VFS sidecar paths, and directory sync receipts',
@@ -12927,7 +12927,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next220',
                                 'sqlite-checkpoint-next-source-reader-reopen',
-                                'wordpress-import-hot-journal-reader-cache-reopen',
+                                'application-import-hot-journal-reader-cache-reopen',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next219 source publication, checkpoint/schema cookies, and reader reopen receipts',
@@ -13167,7 +13167,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next223',
                                 'sqlite-checkpoint-reset-publication-receipts',
-                                'wordpress-import-checkpoint-current-source-publication',
+                                'application-import-checkpoint-current-source-publication',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next218 reset admission, current-source digests, writer generation receipts, and reader-cache reopen fences',
@@ -13363,7 +13363,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next222',
                                 'sqlite-checkpoint-current-source-ticket-seal',
-                                'wordpress-import-hot-journal-source-ticket',
+                                'application-import-hot-journal-source-ticket',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next221 sidecar-retirement token, checkpoint cookie, and ticket receipt metadata',
@@ -13601,7 +13601,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next224',
                                 'sqlite-wal-reset-publication-sidecar-receipts',
-                                'wordpress-import-checkpoint-reset-reader-reopen-publication',
+                                'application-import-checkpoint-reset-reader-reopen-publication',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next218 reset admission, sidecar receipt metadata, and reader reopen invalidation receipts',
@@ -13897,7 +13897,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next225',
                                 'sqlite-database-header-current-source-after-wal-checkpoint',
-                                'wordpress-import-checkpoint-header-receipts',
+                                'application-import-checkpoint-header-receipts',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next219 savepoint-scope publication, checkpoint cookies, WAL-index header metadata, and native database header write receipts',
@@ -14114,7 +14114,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next226',
                                 'sqlite-wal-reset-file-state-reopen-fence',
-                                'wordpress-import-wal-reset-file-state-reopen',
+                                'application-import-wal-reset-file-state-reopen',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next218 restart/truncate admission, file-state digests, hot-journal absence checks, and durable reset receipts',
@@ -14389,7 +14389,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next227',
                                 'sqlite-hot-journal-savepoint-publish-receipt-seal',
-                                'wordpress-import-hot-journal-checkpoint-publish-receipts',
+                                'application-import-hot-journal-checkpoint-publish-receipts',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next219 finalized savepoint scopes plus per-scope hot-journal delete receipts and page digest seals',
@@ -14751,7 +14751,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next228',
                                 'sqlite-durable-checkpoint-source-barriers',
-                                'wordpress-import-reopened-reader-durable-source',
+                                'application-import-reopened-reader-durable-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next224 reset publication metadata, VFS sync receipts, SHM lock epochs, and savepoint release receipts',
@@ -15067,7 +15067,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next229',
                                 'sqlite-wal-checkpoint-reopened-handle-current-source',
-                                'wordpress-import-hot-journal-savepoint-checkpoint-reopen',
+                                'application-import-hot-journal-savepoint-checkpoint-reopen',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next224 publication receipts and reopened handle/page digest metadata',
@@ -15322,7 +15322,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next230',
                                 'sqlite-wal-reopened-reader-next-source-ticket-fence',
-                                'wordpress-import-hot-journal-checkpoint-reader-reopen',
+                                'application-import-hot-journal-checkpoint-reader-reopen',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next227 publish receipts and adds a bounded reopened-reader ticket fence',
@@ -15663,7 +15663,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next231',
                                 'sqlite-wal-index-reopen-readmark-fence',
-                                'wordpress-import-wal-index-reopen-current-source',
+                                'application-import-wal-index-reopen-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next227 publish receipts plus WAL-index salt/checksum/readmark metadata already modeled in lane-local WAL primitives',
@@ -16062,7 +16062,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next232',
                                 'sqlite-wal-reopened-reader-slot-current-source',
-                                'wordpress-import-hot-journal-checkpoint-reader-slots',
+                                'application-import-hot-journal-checkpoint-reader-slots',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next229 handle publication, reader-slot generation metadata, schema-cookie, WAL-salt, and page coverage receipts',
@@ -16318,7 +16318,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next233',
                                 'sqlite-wal-checkpoint-prepared-statement-current-source',
-                                'wordpress-import-checkpoint-statement-reuse-after-hot-journal',
+                                'application-import-checkpoint-statement-reuse-after-hot-journal',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next229 reopened handle admission plus statement source-token, schema-cookie, and root-page digest metadata',
@@ -16617,7 +16617,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next234',
                                 'sqlite-wal-durable-handoff-sync-receipts',
-                                'wordpress-import-durable-wal-current-source-handoff',
+                                'application-import-durable-wal-current-source-handoff',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next231 WAL-index reopen receipts plus lane-local VFS sync/file-handle receipt metadata',
@@ -16991,7 +16991,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next235',
                                 'sqlite-wal-durable-publication-receipts',
-                                'wordpress-import-hot-journal-checkpoint-durable-current-source',
+                                'application-import-hot-journal-checkpoint-durable-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next232 reader-slot admission plus native VFS file, journal-delete, WAL reset, and directory-sync receipts',
@@ -17415,7 +17415,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next236',
                                 'sqlite-wal-checkpoint-statement-finalizer-handoff',
-                                'wordpress-import-checkpoint-finalizer-before-next-writer',
+                                'application-import-checkpoint-finalizer-before-next-writer',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next233 statement admission, current-source metadata, reader lease receipts, and WAL hook/autocheckpoint fences',
@@ -17696,7 +17696,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next237',
                                 'sqlite-wal-sidecar-boundary-current-source',
-                                'wordpress-import-wal-sidecar-boundary-after-hot-journal',
+                                'application-import-wal-sidecar-boundary-after-hot-journal',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next234 durable handoff receipts plus native PHP WAL sidecar length, checksum, salt, and reader-pin metadata',
@@ -17982,7 +17982,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next238',
                                 'sqlite-wal-post-publication-writer-generation-fence',
-                                'wordpress-import-reopened-readers-before-next-writer',
+                                'application-import-reopened-readers-before-next-writer',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next235 durable publication, reader reopen receipts, WAL read-mark zero, shared-lock, and hot-journal absence evidence',
@@ -18352,7 +18352,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next239',
                                 'sqlite-wal-atomic-commit-barrier',
-                                'wordpress-import-atomic-current-source-switch',
+                                'application-import-atomic-current-source-switch',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next236 finalizer admission plus existing native VFS fsync, lock, WAL reset, hot-journal delete, and directory commit receipts',
@@ -18728,7 +18728,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next240',
                                 'sqlite-wal-index-autocheckpoint-baseline-after-hot-journal',
-                                'wordpress-import-next-writer-autocheckpoint-after-hot-journal',
+                                'application-import-next-writer-autocheckpoint-after-hot-journal',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next236 finalizer release, WAL-index salt/mxFrame metadata, checkpoint-frame receipts, and page-cache digests',
@@ -19109,7 +19109,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next241',
                                 'sqlite-wal-post-publication-writer-commit-fence',
-                                'wordpress-import-committed-wal-writer-before-next-reader',
+                                'application-import-committed-wal-writer-before-next-reader',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next238 writer admission plus native WAL frame sync, commit marker, lock-release, and directory fsync receipts',
@@ -19507,7 +19507,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next242',
                                 'sqlite-wal-post-checkpoint-writer-commit-generation',
-                                'wordpress-import-post-checkpoint-writer-current-source',
+                                'application-import-post-checkpoint-writer-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next238 writer admission, WAL frame receipts, database backfill receipts, directory sync receipts, and reader generation receipts',
@@ -19854,7 +19854,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         [
                             'name' => 'all_dirty_pages_observed_by_reopened_readers',
                             'matched' => $missingDirtyPages === [],
-                            'reason' => 'WordPress import readers must observe every dirty page promoted by the checkpoint baseline',
+                            'reason' => 'Application import readers must observe every dirty page promoted by the checkpoint baseline',
                         ],
                         [
                             'name' => 'all_reader_snapshots_match_checkpoint_baseline',
@@ -19919,7 +19919,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next243',
                                 'sqlite-wal-reopened-reader-snapshot-baseline',
-                                'wordpress-import-reader-snapshot-after-autocheckpoint',
+                                'application-import-reader-snapshot-after-autocheckpoint',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next240 autocheckpoint baseline receipts plus native PHP WAL-index salt, page-cache digest, reader readmark, hot-journal, and savepoint-depth metadata',
@@ -20284,7 +20284,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next244',
                                 'sqlite-wal-checkpoint-durable-current-source-seal',
-                                'wordpress-import-hot-journal-savepoint-checkpoint-durable-seal',
+                                'application-import-hot-journal-savepoint-checkpoint-durable-seal',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next240 WAL-index baseline metadata, VFS durable receipt evidence, reader acknowledgements, and page-cache digests',
@@ -20659,7 +20659,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next245',
                                 'sqlite-wal-reopened-reader-cache-current-source',
-                                'wordpress-import-reopened-reader-after-checkpoint-commit',
+                                'application-import-reopened-reader-after-checkpoint-commit',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next242 committed writer receipts with native PHP reopened-reader snapshot, page-cache, WAL salt, and hot-journal/savepoint fence metadata',
@@ -21100,7 +21100,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next246',
                                 'sqlite-vfs-durable-checkpoint-handoff',
-                                'wordpress-import-hot-journal-checkpoint-current-source',
+                                'application-import-hot-journal-checkpoint-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses native PHP VFS write receipts, sync targets, WAL commit-frame metadata, hot-journal delete receipts, and next243 reader snapshot admission',
@@ -21459,7 +21459,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         [
                             'name' => 'all_reader_snapshots_fenced',
                             'matched' => $missingReaders === [],
-                            'reason' => 'every reopened WordPress import reader must be fenced before the cleanup is sealed',
+                            'reason' => 'every reopened Application import reader must be fenced before the cleanup is sealed',
                         ],
                         [
                             'name' => 'all_dirty_pages_cleaned',
@@ -21542,7 +21542,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next247',
                                 'sqlite-wal-post-checkpoint-hot-journal-cleanup-receipts',
-                                'wordpress-import-hot-journal-cleanup-after-reopened-readers',
+                                'application-import-hot-journal-cleanup-after-reopened-readers',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next243 reopened-reader baseline plus native PHP cleanup receipts for hot-journal unlink, WAL sync, directory sync, savepoint release, and reader fences',
@@ -21954,7 +21954,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next248',
                                 'sqlite-wal-reopened-reader-release-current-source',
-                                'wordpress-import-reader-release-before-wal-truncate',
+                                'application-import-reader-release-before-wal-truncate',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next245 reopened-reader admission metadata with native PHP release receipts, page-cache coverage, WAL frame, lock, hot-journal, and savepoint fences',
@@ -22406,7 +22406,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next249',
                                 'sqlite-wal-reopen-current-source-after-durable-handoff',
-                                'wordpress-import-reopen-after-hot-journal-checkpoint',
+                                'application-import-reopen-after-hot-journal-checkpoint',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next246 durable handoff metadata, reopened file digests, WAL commit-frame inventory, clean page-cache inventory, and reader epoch rows',
@@ -22760,7 +22760,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next250',
                                 'sqlite-pager-cache-invalidation-after-hot-journal-checkpoint',
-                                'wordpress-import-checkpoint-current-source-cache-fence',
+                                'application-import-checkpoint-current-source-cache-fence',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next247 cleanup admission plus native PHP pager cache, readmark, schema-cookie, and WAL-index refresh receipts',
@@ -23192,7 +23192,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next251',
                                 'sqlite-wal-reset-after-durable-checkpoint-handoff',
-                                'wordpress-import-hot-journal-checkpoint-wal-reset',
+                                'application-import-hot-journal-checkpoint-wal-reset',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next246 durable handoff metadata with native PHP reader-release, WAL salt/header, truncate, sync, and exclusive-lock receipts',
@@ -23539,7 +23539,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         ['name' => 'next248_truncation_admitted', 'matched' => true, 'reason' => 'all reopened readers released before this seal phase'],
                         ['name' => 'seal_receipt_names_unique', 'matched' => $duplicateNames === [], 'reason' => 'each post-truncate receipt must be attributable once'],
                         ['name' => 'required_seal_kinds_present', 'matched' => $missingKinds === [], 'reason' => 'WAL truncate, SHM reset, read-mark reset, journal unlink, and directory sync receipts are required'],
-                        ['name' => 'released_readers_sealed', 'matched' => $missingReaders === [], 'reason' => 'every released WordPress reader must be included in the seal receipts'],
+                        ['name' => 'released_readers_sealed', 'matched' => $missingReaders === [], 'reason' => 'every released Application reader must be included in the seal receipts'],
                         ['name' => 'checkpoint_pages_sealed', 'matched' => $missingPages === [], 'reason' => 'every checkpoint-covered page must be represented in the sealed source'],
                         ['name' => 'seal_order_is_durable', 'matched' => $orderSafe, 'reason' => 'WAL truncate and SHM/read-mark resets must precede journal unlink and directory sync'],
                         ['name' => 'all_seal_receipts_current', 'matched' => $blockedRows === [], 'reason' => 'post-truncate receipts must match paths, generations, digest, pages, readers, and durable flags'],
@@ -23602,7 +23602,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next252',
                                 'sqlite-wal-post-truncate-source-seal-current-source',
-                                'wordpress-import-current-source-after-wal-truncate',
+                                'application-import-current-source-after-wal-truncate',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next248 truncation admission with native PHP receipt checks for WAL truncation, SHM/read-mark reset, hot-journal unlink, directory sync, released reader coverage, and checkpoint page coverage',
@@ -24055,7 +24055,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next253',
                                 'sqlite-wal-next-source-handoff-after-checkpoint',
-                                'wordpress-import-hot-journal-savepoint-checkpoint-retry-source',
+                                'application-import-hot-journal-savepoint-checkpoint-retry-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next249 reopened current-source metadata, VFS write/sync receipts, WAL digest inventory, reader acknowledgements, hot-journal fences, and savepoint release receipts',
@@ -24481,7 +24481,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next254',
                                 'sqlite-checkpoint-current-source-lease-admission',
-                                'wordpress-import-current-source-statement-lease-fence',
+                                'application-import-current-source-statement-lease-fence',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next250 cache-fence receipts plus native PHP checkpoint source tokens, reader names, root-page leases, and WAL commit-frame inventory',
@@ -24862,7 +24862,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next255',
                                 'sqlite-wal-restarted-reader-current-source-admission',
-                                'wordpress-import-restarted-wal-reader-admission',
+                                'application-import-restarted-wal-reader-admission',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next251 WAL reset metadata with native PHP reader reopen receipts, salt/read-mark checks, empty-WAL fences, and clean page-cache digests',
@@ -25156,7 +25156,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     $guardRows = [
                         ['name' => 'next252_source_sealed', 'matched' => true, 'reason' => 'WAL truncate, SHM reset, read-mark reset, journal unlink, and directory sync already reached durable seal'],
                         ['name' => 'reader_receipt_names_unique', 'matched' => $duplicateNames === [], 'reason' => 'each reopened reader receipt must be attributable once'],
-                        ['name' => 'sealed_readers_reopened', 'matched' => $missingReaders === [], 'reason' => 'each WordPress reader released during checkpoint seal must reopen on the new source generation'],
+                        ['name' => 'sealed_readers_reopened', 'matched' => $missingReaders === [], 'reason' => 'each Application reader released during checkpoint seal must reopen on the new source generation'],
                         ['name' => 'sealed_pages_visible', 'matched' => $missingPages === [], 'reason' => 'each checkpoint-covered page must be visible from at least one reopened reader receipt'],
                         ['name' => 'readmark_layout_safe', 'matched' => $readmarkLayoutSafe, 'reason' => 'readmark slots must be non-zero, unique per reader, and pinned to the restarted generation'],
                         ['name' => 'all_reader_receipts_current', 'matched' => $blockedRows === [], 'reason' => 'reader receipts must match paths, token, generation, digest, checkpoint sequence, savepoint depth, hot-journal state, and sync flags'],
@@ -25215,7 +25215,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next256',
                                 'sqlite-wal-reopened-reader-current-source-admission',
-                                'wordpress-import-reader-reopen-after-wal-checkpoint-seal',
+                                'application-import-reader-reopen-after-wal-checkpoint-seal',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next252 post-truncate seal metadata and native PHP receipt validation for reopened readers, database header counters, read-mark slots, hot-journal absence, WAL/SHM sync state, and savepoint closure',
@@ -25640,7 +25640,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next257',
                                 'sqlite-wal-checkpoint-source-retirement-after-retry-admission',
-                                'wordpress-import-hot-journal-savepoint-checkpoint-source-retirement',
+                                'application-import-hot-journal-savepoint-checkpoint-source-retirement',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next253 next-source admission metadata, reader retirement receipts, WAL retention receipts, hot-journal deletion, savepoint close, and page-cache seal evidence',
@@ -26053,7 +26053,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next258',
                                 'sqlite-wal-post-restart-writer-reader-fence',
-                                'wordpress-import-wal-post-restart-writer-admission',
+                                'application-import-wal-post-restart-writer-admission',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next255 restarted-reader admission with native PHP writer receipts for salt transition, first-frame sequencing, read-mark fences, lock state, clean savepoint scope, and durable sync',
@@ -26487,7 +26487,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next259',
                                 'sqlite-wal-post-truncate-writer-generation-admission',
-                                'wordpress-import-wal-checkpoint-writer-generation',
+                                'application-import-wal-checkpoint-writer-generation',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next252 post-truncate seal metadata with native PHP WAL-header, SHM, readmark, schema-cookie, hot-journal absence, and writer-lock receipt checks',
@@ -26863,7 +26863,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next260',
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-source-ordering',
-                                'wordpress-import-hot-journal-savepoint-checkpoint-current-source',
+                                'application-import-hot-journal-savepoint-checkpoint-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses lane-local rollback-journal receipt, savepoint WAL prefix, checkpoint durability, and reader-token evidence',
@@ -27365,7 +27365,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next261',
                                 'sqlite-wal-current-source-publication-after-post-restart-writer',
-                                'wordpress-import-wal-current-source-seal',
+                                'application-import-wal-current-source-seal',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next258 writer admission metadata with native PHP database/WAL/SHM/read-mark/savepoint/sync publication receipts',
@@ -27734,7 +27734,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'blocked_guard_names' => $blockedGuards,
                         'reader_cache_admitted' => $admitted,
                         'cache_action' => $admitted ? 'reuse_current_source_page_cache_for_retry_readers' : 'evict_or_reload_reader_page_cache_before_retry',
-                        'retry_action' => $admitted ? 'retry_wordpress_import_readers_on_generation_' . $commitGeneration : 'pin_retry_readers_to_reopen_current_source',
+                        'retry_action' => $admitted ? 'retry_application_import_readers_on_generation_' . $commitGeneration : 'pin_retry_readers_to_reopen_current_source',
                         'journal_action' => $admitted ? 'hot_journal_remains_retired_for_retry_readers' : 'retain_hot_journal_recovery_fence_for_retry_readers',
                         'fence_digest' => hash('sha256', json_encode([$sourceToken, $commitGeneration, $checkpointFrame, $cacheRows, $retryRows, $blockedGuards], JSON_THROW_ON_ERROR)),
                         'operation_names' => array_values(array_unique(array_merge(
@@ -27746,7 +27746,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next262',
                                 'sqlite-reader-cache-current-source-fence-after-hot-journal-checkpoint',
-                                'wordpress-import-retry-reader-cache-current-source',
+                                'application-import-retry-reader-cache-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses admitted next260 current-source metadata with lane-local reader cache and retry-read epoch receipts',
@@ -28083,7 +28083,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next263',
                                 'sqlite-retry-reader-close-receipts-after-hot-journal-checkpoint',
-                                'wordpress-import-retry-reader-receipts-current-source',
+                                'application-import-retry-reader-receipts-current-source',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; next263 reuses admitted next262 reader-cache fences and adds lane-local retry read close receipts',
@@ -30580,7 +30580,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 [
                     'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next201',
                     'sqlite-hot-journal-savepoint-checkpoint-current-source-publication',
-                    'wordpress-import-retry-current-source-reader-cache-rebase',
+                    'application-import-retry-current-source-reader-cache-rebase',
                 ]
             ))),
             'dependency_closure' => 'no new support component needed; reuses next200 durable reader admission plus existing WAL/checkpoint/source digest receipts',
@@ -30972,7 +30972,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 [
                     'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release',
                     'sqlite-restart-checkpoint-current-source-reader-release',
-                    'wordpress-import-restart-checkpoint-deletes-hot-journal-after-wal-reset',
+                    'application-import-restart-checkpoint-deletes-hot-journal-after-wal-reset',
                 ]
             ))),
             'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint current-source metadata, WAL salt digests, and lane-local VFS sync/delete receipts',
@@ -31234,7 +31234,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 [
                     'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-reader-reopen',
                     'sqlite-restart-checkpoint-reader-reopen-after-hot-journal',
-                    'wordpress-import-restart-checkpoint-reset-after-reader-reopen',
+                    'application-import-restart-checkpoint-reset-after-reader-reopen',
                 ]
             ))),
             'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint reader-pin metadata and current-source digest fences',
@@ -31527,7 +31527,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 [
                     'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-reader-drain',
                     'sqlite-restart-truncate-after-hot-journal-reader-drain',
-                    'wordpress-import-checkpoint-reset-after-reader-drain',
+                    'application-import-checkpoint-reset-after-reader-drain',
                 ]
             ))),
             'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint pins, writer generation digests, and reader reopen metadata',

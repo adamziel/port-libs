@@ -10,10 +10,10 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueReturningFailSavepoi
 # 1 test files, 52 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-fail-savepoint-current-source-next132.php
+php lanes/libsqlite/examples/application-rowvalue-returning-fail-savepoint-current-source-next132.php
 # emits a JSON summary for a copied wp_options import savepoint where row 8 yields RETURNING before row 7 hits a multisite unique-key conflict.
 ```
 

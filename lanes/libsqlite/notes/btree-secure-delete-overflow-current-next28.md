@@ -16,10 +16,10 @@ Focused test run: 1 selected test files (root lock skipped)
 41 PASS lines, 41 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-secure-delete-overflow-current-next28.php
+php lanes/libsqlite/examples/application-secure-delete-overflow-current-next28.php
 ```
 
 ## Dependency Closure

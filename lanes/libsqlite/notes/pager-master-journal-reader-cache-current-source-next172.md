@@ -12,7 +12,7 @@ Behavior covered:
 Verification:
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext172Test.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next172.php`
+- Example smoke: `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next172.php`
 
 Dependency closure: no new support component is required. The slice reuses bounded PHP planner arrays and existing master-journal path conventions.
 

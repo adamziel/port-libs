@@ -18,7 +18,7 @@ Focused verification:
 - Result: `1 test files, 58 assertions, 0 failures`, with 46 PASS lines.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateOrderDistinctCurrentSourceNext86Test.php lanes/libsqlite/tests/SQLiteJsonAggregateDistinctOrderWindowCurrentSourceNext90Test.php lanes/libsqlite/tests/SQLiteJsonAggregateFilterOrderCurrentNext73Test.php`
 - Result: `3 test files, 159 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-distinct-filter-order-current-source-next94.php`
+- `php lanes/libsqlite/examples/application-json-aggregate-distinct-filter-order-current-source-next94.php`
 - Result: copied `wp_options` grouped summaries matched the expected
   multi-term current-source aggregate order.
 
@@ -35,4 +35,4 @@ suite evidence.
 
 Dependency closure: no new support component is needed. The implementation
 reuses `SQLiteSelectSql`, `SQLiteGroupedAggregate`, the existing JSON/JSONB
-aggregate constructors, and lane-local WordPress copied `wp_options` fixtures.
+aggregate constructors, and lane-local Application copied `wp_options` fixtures.

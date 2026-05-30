@@ -16,14 +16,14 @@ Changed behavior:
   `jsonb_group_array()`, and `json_group_object()` with text `ORDER BY`
   windows, `FILTER`, aggregate `ORDER BY`, default frames, explicit unbounded
   frames, and peer-only current-row frames.
-- Added `wordpress-json-aggregate-text-range-window.php` smoke for copied
+- Added `application-json-aggregate-text-range-window.php` smoke for copied
   `wp_options` text-bucket summaries.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateTextRangeWindowCurrentTest.php`
   - `1 test files, 30 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-aggregate-text-range-window.php --self-test`
+- `php lanes/libsqlite/examples/application-json-aggregate-text-range-window.php --self-test`
   - passed
 - `php -l` changed PHP files
   - passed

@@ -206,7 +206,7 @@ $casesSourceSequence = [
     'dependency includes source-sequence' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-source-sequence', $releasedSourceSequence()['dependencies_source_sequence_fence'], true), true],
     'dependency includes sequence fence' => [static fn (): mixed => in_array('sqlite-returning-current-source-sequence-fence', $releasedSourceSequence()['dependencies_source_sequence_fence'], true), true],
     'dependency includes next203' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next203', $releasedSourceSequence()['dependencies_source_sequence_fence'], true), true],
-    'dependency includes wordpress' => [static fn (): mixed => in_array('wordpress-recursive-view-returning-current-source-source-sequence', $releasedSourceSequence()['dependencies_source_sequence_fence'], true), true],
+    'dependency includes application' => [static fn (): mixed => in_array('application-recursive-view-returning-current-source-source-sequence', $releasedSourceSequence()['dependencies_source_sequence_fence'], true), true],
     'non overlap mentions next203' => [static fn (): mixed => str_contains($releasedSourceSequence()['non_overlap_source_sequence_fence'], 'next203 generation'), true],
     'bad current source token rejected' => [static fn (): mixed => $planSourceSequence(['current_source_sequence_fence_token_source_sequence_fence' => 'bad token']), InvalidArgumentException::class],
     'bad expected current source token rejected' => [static fn (): mixed => $planSourceSequence(['expected_current_source_sequence_fence_token_source_sequence_fence' => 'bad token']), InvalidArgumentException::class],

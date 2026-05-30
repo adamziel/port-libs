@@ -20,9 +20,9 @@
 - Expected dashboard movement from this clean worktree: `phpPass` +26
   (`4362` to `4388` in lane status). Mapped upstream denominator unchanged.
 
-## WordPress Smoke
+## Application Smoke
 
-- `lanes/libsqlite/examples/wordpress-compound-materialized-cte.php` previews
+- `lanes/libsqlite/examples/application-compound-materialized-cte.php` previews
   copied `wp_options` rows flowing through a materialized CTE and compound
   `UNION` arms without requiring `ext/sqlite`.
 

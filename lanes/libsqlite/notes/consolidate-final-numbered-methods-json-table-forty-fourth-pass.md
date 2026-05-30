@@ -7,7 +7,7 @@
 ## Consolidation
 
 Renamed four numbered production entry methods to stable descriptive names and
-migrated their direct focused tests and WordPress examples:
+migrated their direct focused tests and Application examples:
 
 - `currentSourceGeneratedPathRowidCostCurrentSourceNext200` ->
   `currentSourceGeneratedPathRowidXFilterArguments`
@@ -25,9 +25,9 @@ scenarios without reclassifying behavior coverage.
 ## Verification
 
 - `php -l` on `SQLiteJsonTablePlan.php`, the four changed focused tests, and the
-  four changed WordPress examples: pass.
+  four changed Application examples: pass.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext200Test.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext202Test.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext211Test.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext213Test.php`: `4 test files, 237 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next200.php --self-test` through `next202`, `next211`, and `next213`: pass.
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next200.php --self-test` through `next202`, `next211`, and `next213`: pass.
 - `git diff --check -- lanes/libsqlite`: pass.
 
 ## Dependency Closure

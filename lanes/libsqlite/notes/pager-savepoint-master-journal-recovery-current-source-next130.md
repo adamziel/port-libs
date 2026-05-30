@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `pager-savepoint-master-journal-recovery
 
 This slice adds `SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan`. It models an already-open savepoint after a crash where pager recovery must discard stale cached master-journal membership, re-read the current master-journal member list, restore current pages for all current member databases, capture savepoint before-images from that recovered source, and make `ROLLBACK TO` feed the next retry write from the recovered current source rather than dirty savepoint pages.
 
-WordPress smoke: `wordpress-pager-savepoint-master-journal-recovery-current-source-next130.php` covers a copied `wp_options` plugin import touching a main database and an attached stats/audit database. It proves a stale detached cached master-journal member is ignored, the current attached journal is recovered, failed savepoint writes roll back to recovered pages, and retry writes are based on that rollback source.
+Application smoke: `application-pager-savepoint-master-journal-recovery-current-source-next130.php` covers a copied `wp_options` plugin import touching a main database and an attached stats/audit database. It proves a stale detached cached master-journal member is ignored, the current attached journal is recovered, failed savepoint writes roll back to recovered pages, and retry writes are based on that rollback source.
 
 Verification:
 
@@ -22,13 +22,13 @@ No syntax errors detected in lanes/libsqlite/src/SQLitePagerSavepointMasterJourn
 php -l lanes/libsqlite/tests/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Test.php
 
-php -l lanes/libsqlite/examples/wordpress-pager-savepoint-master-journal-recovery-current-source-next130.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-savepoint-master-journal-recovery-current-source-next130.php
+php -l lanes/libsqlite/examples/application-pager-savepoint-master-journal-recovery-current-source-next130.php
+No syntax errors detected in lanes/libsqlite/examples/application-pager-savepoint-master-journal-recovery-current-source-next130.php
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-savepoint-master-journal-recovery-current-source-next130.php --self-test
-wordpress-pager-savepoint-master-journal-recovery-current-source-next130 self-test passed
+php lanes/libsqlite/examples/application-pager-savepoint-master-journal-recovery-current-source-next130.php --self-test
+application-pager-savepoint-master-journal-recovery-current-source-next130 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `54071` to `54164` from 93 newly passing focused PASS lines. Mapped upstream coverage remains `606 / 1589`; this is fresh focused PHP pager behavior over already mapped master-journal/savepoint primitives rather than a new manifest-backed upstream inventory unit.

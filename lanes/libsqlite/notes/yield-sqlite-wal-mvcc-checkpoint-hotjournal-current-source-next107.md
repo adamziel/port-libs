@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan`, a bounded current-source WAL/pager plan for a copied WordPress SQLite database that has both:
+Adds `SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan`, a bounded current-source WAL/pager plan for a copied Application SQLite database that has both:
 
 - a hot rollback journal from a crashed rollback-mode transaction; and
 - a WAL sidecar with committed frames plus an uncommitted tail.
@@ -26,10 +26,10 @@ Focused test run: 1 selected test files (root lock skipped)
 
 Expected focused `phpPass` delta: `+65` (`41873 -> 41938`) when integrated.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-wal-mvcc-hotjournal-checkpoint-current-source-next107.php --self-test
+php lanes/libsqlite/examples/application-wal-mvcc-hotjournal-checkpoint-current-source-next107.php --self-test
 ```
 
 The smoke reports copied `wp_options` import recovery where a pinned current reader sees committed WAL frames, hot-journal recovery precedes checkpointing, and the next reader uses the checkpointed database image.

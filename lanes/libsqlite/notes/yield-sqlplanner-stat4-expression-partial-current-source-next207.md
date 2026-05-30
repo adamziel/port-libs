@@ -14,9 +14,9 @@ Focused command:
 
 Expected focused growth: 64 TestRunner PASS lines in a new lane-scoped test file.
 
-WordPress smoke:
+Application smoke:
 
-`php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next207.php`
+`php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next207.php`
 
 ## Non-overlap
 

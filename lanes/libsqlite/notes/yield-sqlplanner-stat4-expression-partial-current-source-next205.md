@@ -13,7 +13,7 @@ the current partial expression-index scan.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext205Test.php`
   - `1 test files, 56 assertions, 0 failures`
   - `56` focused PASS lines
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next205.php`
+- Application smoke: `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next205.php`
 
 ## Non-Overlap
 

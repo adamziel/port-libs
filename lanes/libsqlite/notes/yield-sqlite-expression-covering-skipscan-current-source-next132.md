@@ -21,16 +21,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 51 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-expression-covering-skipscan-current-source-next132.php --self-test
+php lanes/libsqlite/examples/application-expression-covering-skipscan-current-source-next132.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-expression-covering-skipscan-current-source-next132 self-test passed
+application-expression-covering-skipscan-current-source-next132 self-test passed
 ```
 
 ## Dependency Closure

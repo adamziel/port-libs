@@ -2,7 +2,7 @@
 
 Status: consolidation replay for ATTACH/temp/WAL schema-cookie current-source validation.
 
-This surface composes the accepted WAL/temp schema-cookie source planner with schema root-page signatures so copied WordPress imports can distinguish:
+This surface composes the accepted WAL/temp schema-cookie source planner with schema root-page signatures so copied Application imports can distinguish:
 
 - WAL page-1 checkpoint movement where the numeric schema cookie and root signature are unchanged, so prepared statements can be reused.
 - Temp rollback-journal or attached WAL schema changes where the numeric cookie is unchanged but root pages or table presence changed, so statements expire with `SQLITE_SCHEMA`.
@@ -15,8 +15,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCookieRoo
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 65 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cookie-root-signature.php --self-test
-wordpress-attach-temp-wal-schema-cookie-root-signature self-test passed
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cookie-root-signature.php --self-test
+application-attach-temp-wal-schema-cookie-root-signature self-test passed
 ```
 
 PASS delta: no new assertion-count claim; this consolidation preserves the existing direct coverage while removing numbered operation/test/example names. `lane-status.json` is intentionally unchanged. Mapped upstream coverage is unchanged because this is an attach/schema-cookie current-source composition over already mapped primitives.

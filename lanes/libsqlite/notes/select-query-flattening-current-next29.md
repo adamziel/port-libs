@@ -14,17 +14,17 @@ Focused behavior:
 - Materialization blockers for inner DISTINCT, GROUP/HAVING/aggregate, LIMIT,
   compound SELECT, order-sensitive inner ORDER BY, window projections, outer
   DISTINCT, outer aggregate/GROUP BY, and outer JOIN sources.
-- WordPress smoke covers copied `wp_options` style autoload filtering where
+- Application smoke covers copied `wp_options` style autoload filtering where
   `autoload = 'yes'` can be merged with an outer option-id range before native
   execution.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectQueryFlatteningCurrentNext29Test.php`
-- `php lanes/libsqlite/examples/wordpress-select-query-flattening-current-next29.php`
+- `php lanes/libsqlite/examples/application-select-query-flattening-current-next29.php`
 - `php -l lanes/libsqlite/src/SQLiteSelectFlatteningPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteSelectQueryFlatteningCurrentNext29Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-select-query-flattening-current-next29.php`
+- `php -l lanes/libsqlite/examples/application-select-query-flattening-current-next29.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this does not repeat accepted derived-table materialization,

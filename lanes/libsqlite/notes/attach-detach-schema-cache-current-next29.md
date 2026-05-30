@@ -13,7 +13,7 @@ ATTACH/DETACH lifecycle changes:
 - ATTACH/DETACH SQL results expose `schema_generation` and
   `cache_invalidated` diagnostics while preserving the existing
   database-list/open-plan behavior.
-- The WordPress smoke demonstrates invalidating a copied wp_sitemeta metadata
+- The Application smoke demonstrates invalidating a copied wp_sitemeta metadata
   plan after DETACH so import code can reprepare stale schema PRAGMAs without
   ext/sqlite.
 
@@ -26,8 +26,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php
 $ php -l lanes/libsqlite/tests/SQLiteAttachDetachSchemaCacheCurrentNext29Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteAttachDetachSchemaCacheCurrentNext29Test.php
 
-$ php -l lanes/libsqlite/examples/wordpress-attach-detach-schema-cache.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-attach-detach-schema-cache.php
+$ php -l lanes/libsqlite/examples/application-attach-detach-schema-cache.php
+No syntax errors detected in lanes/libsqlite/examples/application-attach-detach-schema-cache.php
 
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachSchemaCacheCurrentNext29Test.php
 Focused test run: 1 selected test files (root lock skipped)
@@ -38,7 +38,7 @@ $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentN
 Focused test run: 2 selected test files (root lock skipped)
 2 test files, 146 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-attach-detach-schema-cache.php
+$ php lanes/libsqlite/examples/application-attach-detach-schema-cache.php
 Outputs attachGeneration 1, attachInvalidatedSchemas ["site"],
 sitePlanCurrentAfterDetach false, detachedSchemas ["site"], and an empty
 wpSitemeta fallback rowset after DETACH.

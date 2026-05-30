@@ -2,7 +2,7 @@
 
 Behavior slice: adds `SQLiteJsonTablePlan::currentSourceRowidHiddenGeneratedNext149()` for the current-source planner boundary where a rowid-constrained `json_tree()` cursor also exposes generated hidden output columns. The plan reuses accepted generated hidden rowid costing, then records matched rowids/fullkeys, generated output values, stable fingerprints, value-drift transitions, and current/next reader policies.
 
-WordPress path: `wordpress-json-table-rowid-hidden-generated-current-source-next149.php` models copied `wp_options` plugin settings where a prepared import preview pins a JSON table row by hidden rowid while generated slug/priority/enabled columns can change across the next source.
+Application path: `application-json-table-rowid-hidden-generated-current-source-next149.php` models copied `wp_options` plugin settings where a prepared import preview pins a JSON table row by hidden rowid while generated slug/priority/enabled columns can change across the next source.
 
 Focused verification:
 

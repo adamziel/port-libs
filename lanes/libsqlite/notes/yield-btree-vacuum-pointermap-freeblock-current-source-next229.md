@@ -17,7 +17,7 @@ Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, a focused follow-u
   - `144` PASS lines
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next229.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next229.php`
 
 ## Status Delta
 

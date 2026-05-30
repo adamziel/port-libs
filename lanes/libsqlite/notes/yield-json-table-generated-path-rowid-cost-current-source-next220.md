@@ -10,7 +10,7 @@
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext220Test.php`
 - Result: `1 test files, 56 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next220.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next220.php --self-test`
 - PHP lint: changed PHP files pass `php -l`
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 

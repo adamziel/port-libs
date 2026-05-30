@@ -13,10 +13,10 @@ expression payload stream. Stale `neq` rows or stale payload peers force a
 current-source reprepare instead of reusing a cursor that would split or skip
 duplicate `lower(option_name)` peers.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-peer-cardinality.php --self-test`
-- Output: `wordpress-sqlplanner-stat4-expression-partial-peer-cardinality self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-peer-cardinality.php --self-test`
+- Output: `application-sqlplanner-stat4-expression-partial-peer-cardinality self-test passed`
 
 Focused verification:
 

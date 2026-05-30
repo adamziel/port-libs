@@ -17,7 +17,7 @@ opened after releasing the pin sees the checkpointed database image.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Test.php`
 - Result: `1 test files, 62 assertions, 0 failures`
 - PASS-line delta: `+62`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-wal-checkpoint-reader-savepoint-current-source-next104.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-wal-checkpoint-reader-savepoint-current-source-next104.php --self-test`
 
 ## Non-overlap
 

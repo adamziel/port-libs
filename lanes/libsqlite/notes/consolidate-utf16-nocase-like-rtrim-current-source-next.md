@@ -13,10 +13,10 @@ references now call the canonical class.
 Variant entry methods with colliding old names were preserved with explicit
 canonical names:
 
-- `wordpressOptionNameSourceDeltaPlan`
-- `wordpressOptionNameGenerationPlan`
-- `wordpressOptionNameYieldReplayPlan`
-- `wordpressOptionNameNonAsciiFullScanPlan`
+- `optionRowNameSourceDeltaPlan`
+- `optionRowNameGenerationPlan`
+- `optionRowNameYieldReplayPlan`
+- `optionRowNameNonAsciiFullScanPlan`
 
 Verification:
 

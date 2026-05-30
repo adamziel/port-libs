@@ -4,12 +4,12 @@
 
 Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
 current-source STAT4 expression partial-index fence for `lower(option_name)`
-WordPress option predicates. The slice sits after the accepted current-source
+Application option predicates. The slice sits after the accepted current-source
 STAT4 grouped LIKE/OR fences and blocks reuse when the current expression
 payload rows, STAT4 sample payloads, or covering-column set no longer match the
 selected current source.
 
-The WordPress smoke demonstrates a copied `wp_options` autoload query using a
+The Application smoke demonstrates a copied `wp_options` autoload query using a
 partial expression index on `lower(option_name)` with STAT4 samples and current
 covering payload rows.
 

@@ -65,7 +65,7 @@ $pageCountCases = [
     '4k from 1k three pages stays one page image' => [1024, 3, 4096, 1],
     '8k from 512 five pages stays one page image' => [512, 5, 8192, 1],
     'same 2k page size preserves page count' => [2048, 4, 2048, 4],
-    '64k image compacts small wordpress copy' => [1024, 7, 65536, 1],
+    '64k image compacts small application copy' => [1024, 7, 65536, 1],
 ];
 
 foreach ($pageCountCases as $name => [$sourcePageSize, $sourcePageCount, $targetPageSize, $expectedPageCount]) {

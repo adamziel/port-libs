@@ -13,8 +13,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachWalTempTriggerCookieCacheTest.php`
 - Result: `1 test files, 65 assertions, 0 failures` with 65 PASS lines.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-attach-wal-temp-trigger-cookie-cache.php --self-test`
-- Result: `wordpress-attach-wal-temp-trigger-cookie-cache self-test passed`
+- Application smoke: `php lanes/libsqlite/examples/application-attach-wal-temp-trigger-cookie-cache.php --self-test`
+- Result: `application-attach-wal-temp-trigger-cookie-cache self-test passed`
 
 Dashboard delta:
 

@@ -13,7 +13,7 @@ every current STAT4 sample rowid re-evaluates against the current row image:
 - payload drift, autoload drift, NULL-name drift, and unsupported predicate
   operators force `requires-current-source-reprepare`.
 
-WordPress smoke: `wordpress-sqlplanner-stat4-expression-partial-current-source-next189.php`
+Application smoke: `application-sqlplanner-stat4-expression-partial-current-source-next189.php`
 models copied `wp_options` plugin-admin pagination after ANALYZE/source changes,
 where a stale prepared partial expression index must not reuse STAT4 samples
 whose current payload no longer belongs to the partial index.
@@ -22,8 +22,8 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext189Test.php`
   - `1 test files, 74 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next189.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next189 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next189.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-current-source-next189 self-test passed`
 
 Dashboard delta: `+74` focused libsqlite PASS lines from the new next189 test.
 Mapped upstream coverage remains unchanged; this composes already mapped STAT4,

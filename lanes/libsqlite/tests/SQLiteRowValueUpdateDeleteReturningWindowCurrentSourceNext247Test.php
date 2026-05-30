@@ -118,7 +118,7 @@ $cases247 = [
     'plan final row ten retry' => [static fn (): mixed => array_column($plan247()['current_source_tables']['wp_options'], 'option_value', 'option_id')[10], 'network:retry247'],
     'plan final row two deleted' => [static fn (): mixed => in_array(2, array_column($plan247()['current_source_tables']['wp_options'], 'option_id'), true), false],
     'plan final row three restored' => [static fn (): mixed => in_array(3, array_column($plan247()['current_source_tables']['wp_options'], 'option_id'), true), true],
-    'plan dependencies' => [static fn (): mixed => $plan247()['dependencies'], ['sqlite-rowvalue-returning-window-exclude-group-next247', 'sqlite-rowvalue-returning-transition-peer-groups-next247', 'wordpress-rowvalue-returning-window-current-source-next247']],
+    'plan dependencies' => [static fn (): mixed => $plan247()['dependencies'], ['sqlite-rowvalue-returning-window-exclude-group-next247', 'sqlite-rowvalue-returning-transition-peer-groups-next247', 'application-rowvalue-returning-window-current-source-next247']],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan247()['dependency_closure_next247'], 'no new support component needed'), true],
     'plan non overlap' => [static fn (): mixed => str_contains($plan247()['non_overlap_next247'], 'GROUPS EXCLUDE GROUP'), true],
     'custom savepoint' => [static fn (): mixed => $customPlan247()['savepoint'], 'wp_custom_returning_window_next247'],

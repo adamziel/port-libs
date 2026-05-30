@@ -11,7 +11,7 @@
 
 - Focused command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsUriShmLockFileControlCurrentSourceNext88Test.php`
 - Expected focused delta: 55 assertions / 0 failures from one new lane-scoped test file.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-vfs-uri-shm-lock-filecontrol-current-source-next88.php`
+- Application smoke: `php lanes/libsqlite/examples/application-vfs-uri-shm-lock-filecontrol-current-source-next88.php`
 
 ## Non-Overlap
 

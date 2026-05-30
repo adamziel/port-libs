@@ -2,17 +2,17 @@
 
 Status: focused PHP behavior growth for UTF-16 prepared `LIKE` pattern rebinding over `rtrim(option_name) COLLATE NOCASE` current-source scans.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next191.php` models copied `wp_options.option_name` rows where a prepared statement is rebound from UTF-16LE `plugin!_%` to UTF-16BE `plugin!_cache%`. The old broad escaped-wildcard prefix cursor admits `plugin_config` and `plugin_other`; the next source must reprepare because the decoded pattern narrows the prefix range and residual membership, while byte-order-only rebinds can retain residual semantics.
+Application path: `application-utf16-nocase-like-rtrim-current-source-next191.php` models copied `wp_options.option_name` rows where a prepared statement is rebound from UTF-16LE `plugin!_%` to UTF-16BE `plugin!_cache%`. The old broad escaped-wildcard prefix cursor admits `plugin_config` and `plugin_other`; the next source must reprepare because the decoded pattern narrows the prefix range and residual membership, while byte-order-only rebinds can retain residual semantics.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext191Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next191.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next191.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext191Test.php`
   - `1 test files, 81 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next191.php --self-test`
-  - `wordpress-utf16-nocase-like-rtrim-current-source-next191 self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next191.php --self-test`
+  - `application-utf16-nocase-like-rtrim-current-source-next191 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +81`, from `91519` to `91600`. Mapped upstream coverage remains `617 / 1589`; this is current-source PHP behavior over already mapped UTF-16, NOCASE/RTRIM, LIKE, and current-source inventory rather than a fresh upstream manifest row.

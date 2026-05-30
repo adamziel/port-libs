@@ -380,7 +380,7 @@ $tests['vfs filecontrol transaction filecontrol sequence constructor accepts ini
     $t->same(6, $snapshot['controls']['commit_phase_two_count']);
 };
 
-$tests['vfs filecontrol transaction filecontrol sequence wordpress rollback journal import summary'] = static function (TestRunner $t) use ($makeState): void {
+$tests['vfs filecontrol transaction filecontrol sequence application rollback journal import summary'] = static function (TestRunner $t) use ($makeState): void {
     $sequence = $makeState(['size_limit' => 8388608])->transactionFileControlSequence([
         ['op' => 'write_hint', 'value' => 16384],
         ['op' => 'begin_atomic_write'],

@@ -10,7 +10,7 @@
 
 - Focused test command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext178Test.php`
 - Expected focused delta: 67 PASS lines in one new lane test file.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next178.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next178.php --self-test`
 
 ## Dependency Closure
 

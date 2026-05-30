@@ -14,8 +14,8 @@ Verification:
   - `1 test files, 74 assertions, 0 failures`
 - `php tools/run-tests.php $(find lanes/libsqlite/tests -maxdepth 1 -name 'SQLiteUtf16*Nocase*Rtrim*Test.php' -print | sort)`
   - `65 test files, 4967 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next219.php --self-test`
-  - `wordpress-utf16-nocase-like-rtrim-current-source-next219 self-test passed`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next219.php --self-test`
+  - `application-utf16-nocase-like-rtrim-current-source-next219 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - passed
 

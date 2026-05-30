@@ -20,11 +20,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 72 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-rowvalue-delete-savepoint-current-source-next183.php --self-test
-wordpress-rowvalue-delete-savepoint-current-source-next183 self-test passed
+php lanes/libsqlite/examples/application-rowvalue-delete-savepoint-current-source-next183.php --self-test
+application-rowvalue-delete-savepoint-current-source-next183 self-test passed
 ```
 
 Expected dashboard delta: `phpPass` moves from `86003` to `86075` from 72

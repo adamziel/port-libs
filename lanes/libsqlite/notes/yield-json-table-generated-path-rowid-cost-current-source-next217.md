@@ -8,7 +8,7 @@
   argv ordering, omitted/residual constraints, idxNum/idxStr, rowid range
   bounds, order consumption, covering-cursor state, estimated rows/cost, and
   stale-source reprepare reasons.
-- WordPress path: copied `wp_options` JSON diagnostics can reuse a
+- Application path: copied `wp_options` JSON diagnostics can reuse a
   generated-path `json_tree` rowid range cursor only when the generated-path
   argv, rowid-range argv, rowid order, and current-source xCurrent materialized
   row all remain stable.

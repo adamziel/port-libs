@@ -13,9 +13,9 @@ Validation targets:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext311314Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next311-314.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next311-314.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext307310Test.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext311314Test.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next311-314.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next311-314.php --self-test`
 - `git diff --check`
 
 Non-overlap: this keeps next307-310 generic SET NULL/SET DEFAULT relationship blockers intact and only layers action-column-specific current-source diagnostics. It does not touch upstream-suite countability rows, progress files, lane status, pager, JSON, B-tree, WAL, VFS, planner, or unrelated PRAGMA surfaces.

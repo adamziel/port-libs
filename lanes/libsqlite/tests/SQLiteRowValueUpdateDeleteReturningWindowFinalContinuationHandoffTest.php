@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'stable final continuation handoff seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-final-continuation-handoff.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-final-continuation-handoff.php';
 
         $expectedStatuses = [];
         for ($next = 958; $next <= 1181; $next++) {

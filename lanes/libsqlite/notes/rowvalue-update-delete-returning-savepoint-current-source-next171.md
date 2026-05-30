@@ -7,7 +7,7 @@ row-value `UPDATE` / `DELETE ... RETURNING` `WHERE` clauses can evaluate
 top-level `OR` groups while preserving existing `AND` precedence and `BETWEEN`
 handling.
 
-The covered WordPress import shape is a copied `wp_options` cleanup savepoint:
+The covered Application import shape is a copied `wp_options` cleanup savepoint:
 
 - `UPDATE ... SET (status, option_value, bytes) = (...)` selects rows via
   `(blog_id, option_name) IN (...) OR row-value BETWEEN ... AND ... AND autoload = 'no'`.
@@ -30,16 +30,16 @@ Result:
 1 test files, 41 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-update-delete-returning-savepoint-current-source-next171.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-update-delete-returning-savepoint-current-source-next171.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-rowvalue-update-delete-returning-savepoint-current-source-next171 self-test passed
+application-rowvalue-update-delete-returning-savepoint-current-source-next171 self-test passed
 ```
 
 ## Non-Overlap

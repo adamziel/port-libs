@@ -1,8 +1,8 @@
-# WordPress JSON Import Savepoint Current Next48
+# Application JSON Import Savepoint Current Next48
 
 ## Behavior
 
-This slice extends `SQLiteWordPressJsonImportSavepointPlan` for copied
+This slice extends `SQLiteJsonImportSavepointPlan` for copied
 `wp_options` JSON imports where a mutation explicitly inserts a missing option
 row inside the active savepoint:
 
@@ -19,7 +19,7 @@ row inside the active savepoint:
 Command:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressJsonImportSavepointCurrentNext48Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonImportSavepointCurrentNext48Test.php
 ```
 
 Result:
@@ -32,15 +32,15 @@ Focused test run: 1 selected test files (root lock skipped)
 Regression:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressJsonImportSavepointCurrentNext31Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonImportSavepointCurrentNext31Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 64 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-import-savepoint-insert-current-next48.php
+php lanes/libsqlite/examples/application-json-import-savepoint-insert-current-next48.php
 ```
 
 The smoke reports `partial_rollback`, inserted `plugin_catalog` and

@@ -3,7 +3,7 @@
 - Slice: `wal-hot-journal-savepoint-checkpoint-current-source-next152`
 - Behavior: recover a hot rollback journal first, use that recovered database image as the current source, roll back a WAL savepoint to its retained frame prefix, then checkpoint that retained current WAL prefix.
 - New focused test: `lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext152Test.php`
-- WordPress smoke: `lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next152.php`
+- Application smoke: `lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next152.php`
 
 Focused evidence:
 
@@ -15,8 +15,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next152.php
-wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next152 self-test passed
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next152.php
+application-wal-hot-journal-savepoint-checkpoint-current-source-next152 self-test passed
 ```
 
 Status delta:

@@ -65,7 +65,7 @@ $wal = SQLiteWal::parse($walBytes, $pageSize, true);
 
 $makeStack = static function (): SQLiteSavepointStack {
     $savepoints = new SQLiteSavepointStack();
-    $savepoints->beginTransaction('wordpress-import-vfs-apply');
+    $savepoints->beginTransaction('application-import-vfs-apply');
     $savepoints->recordWalFrameWrite(1, 1, false);
     $savepoints->recordWalFrameWrite(2, 2, true);
     $savepoints->savepoint('plugin_batch_vfs-apply');

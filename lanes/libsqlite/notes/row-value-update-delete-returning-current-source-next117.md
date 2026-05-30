@@ -28,10 +28,10 @@ Result: `3 test files, 135 assertions, 0 failures`.
 New focused PASS-line delta: `+30` from
 `SQLiteUpdateDeleteRowValueReturningCurrentSourceNext117Test.php`.
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-row-value-returning-current-source-next117.php --self-test
+php lanes/libsqlite/examples/application-row-value-returning-current-source-next117.php --self-test
 ```
 
 Dependency closure: no new support component is needed. This reuses the native

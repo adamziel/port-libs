@@ -4,7 +4,7 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a current-source reader admission layer for the hot-journal + savepoint rollback + WAL checkpoint path. It composes the accepted next161 cache-token checkpoint plan, then decides whether reader handles may stay on the checkpoint current-source token or must reopen against the next WAL generation.
 
-This covers a WordPress plugin/options import case where hot-journal recovery restores clean pages, `ROLLBACK TO` restores failed savepoint before-images, a checkpoint current-source token is published, and stale/dirty/pinned/read-ahead readers are fenced before the retry writes continue.
+This covers a Application plugin/options import case where hot-journal recovery restores clean pages, `ROLLBACK TO` restores failed savepoint before-images, a checkpoint current-source token is published, and stale/dirty/pinned/read-ahead readers are fenced before the retry writes continue.
 
 ## Evidence
 

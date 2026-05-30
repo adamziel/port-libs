@@ -9,7 +9,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-btree-overflow-freeblock-vacuum-current-source-next122.php`
+- Application smoke: `php lanes/libsqlite/examples/application-btree-overflow-freeblock-vacuum-current-source-next122.php`
 - Syntax checks: changed PHP files are linted.
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 

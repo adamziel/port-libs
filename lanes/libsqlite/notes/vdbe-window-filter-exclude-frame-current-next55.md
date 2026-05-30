@@ -10,10 +10,10 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowFilterExcludeFrameCurrentNext55Test.php`
   -> `1 test files, 64 assertions, 0 failures` with 64 PASS lines.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-vdbe-window-filter-exclude-frame-current-next55.php --self-test`
-  -> `wordpress-vdbe-window-filter-exclude-frame-current-next55 self-test passed`.
+- `php lanes/libsqlite/examples/application-vdbe-window-filter-exclude-frame-current-next55.php --self-test`
+  -> `application-vdbe-window-filter-exclude-frame-current-next55 self-test passed`.
 
 Non-overlap: this avoids accepted parser-level SELECT SQL window frame work,
 GROUP BY/HAVING text, expression ORDER BY, JSON table source/cursor/constraint

@@ -12,17 +12,17 @@ constraint, deferral timing, parent-key, and current-source pagination logic,
 then adds only parent-table column `COLLATE` parsing, `PRAGMA index_xinfo`
 collation comparison, mismatch counts, cursor invalidation, and row decoration.
 
-WordPress use: copied `wp_options` imports can block resume when a generated
+Application use: copied `wp_options` imports can block resume when a generated
 or migration-created lookup index has the correct parent key columns but was
 created without the parent column collation.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next182.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next182.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next182.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next182.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The implementation

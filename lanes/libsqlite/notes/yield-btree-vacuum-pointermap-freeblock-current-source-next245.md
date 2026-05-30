@@ -4,9 +4,9 @@
 
 Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext245Plan`, a source-cursor admission layer over the accepted next242 current-source freeblock rows. The slice verifies that reusable freeblock pages are admitted only after a pointer-map epoch is open, current-source tokens match, leaf freeblock receipts remain visible, the trunk candidate is preserved, fenced tail pages stay excluded, and cursor links are continuous.
 
-## WordPress Scenario
+## Application Scenario
 
-`examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next245.php` models deletion of an overflow-backed copied `wp_options` transient before vacuum/reuse. The smoke reports admitted pages, pointer-map barriers, reusable freeblock pages, cursor epochs, and cursor-link guards needed before current-source pages are reusable.
+`examples/application-btree-vacuum-pointermap-freeblock-current-source-next245.php` models deletion of an overflow-backed copied `wp_options` transient before vacuum/reuse. The smoke reports admitted pages, pointer-map barriers, reusable freeblock pages, cursor epochs, and cursor-link guards needed before current-source pages are reusable.
 
 ## Evidence
 

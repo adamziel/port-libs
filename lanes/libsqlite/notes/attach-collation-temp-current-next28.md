@@ -2,18 +2,18 @@
 
 Status: focused PHP corpus growth for ATTACH/temp/current-source collation availability.
 
-This slice adds `SQLiteAttachCollationTempCurrentPlan` for copied WordPress schemas after `ATTACH`. It resolves the current table using SQLite search order (`temp`, `main`, then attached databases), inspects only the indexes owned by that current schema, extracts each indexed term's `COLLATE` clause, and reports which indexes are usable or blocked by missing connection-registered collations.
+This slice adds `SQLiteAttachCollationTempCurrentPlan` for copied Application schemas after `ATTACH`. It resolves the current table using SQLite search order (`temp`, `main`, then attached databases), inspects only the indexes owned by that current schema, extracts each indexed term's `COLLATE` clause, and reports which indexes are usable or blocked by missing connection-registered collations.
 
-WordPress relevance: copied `wp_options` imports often use temp staging tables while an attached site/archive database is open. The smoke shows temp `wp_options` shadowing main, an attached `wp_sitemeta` index requiring `wp_slug`, and the same current-source index becoming usable after the required custom collation is registered.
+Application relevance: copied `wp_options` imports often use temp staging tables while an attached site/archive database is open. The smoke shows temp `wp_options` shadowing main, an attached `wp_sitemeta` index requiring `wp_slug`, and the same current-source index becoming usable after the required custom collation is registered.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteAttachCollationTempCurrentPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachCollationTempCurrentNext28Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-collation-temp-current-next28.php
+php -l lanes/libsqlite/examples/application-attach-collation-temp-current-next28.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachCollationTempCurrentNext28Test.php
-php lanes/libsqlite/examples/wordpress-attach-collation-temp-current-next28.php --self-test
+php lanes/libsqlite/examples/application-attach-collation-temp-current-next28.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

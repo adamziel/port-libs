@@ -5,7 +5,7 @@ Status: focused PHP behavior growth for WAL multi-transaction current/next visib
 What changed:
 - Added `SQLiteWalMultiTransactionClusterPlan`, a bounded native PHP planner that groups committed WAL frames into transaction clusters, materializes per-cluster before/after page visibility, reports superseded frames inside a transaction, and compares current reader visibility with the next checkpointed database image.
 - Added `SQLiteWalMultiTransactionClusterCurrentNext24Test.php` with 60 independent PASS cases over three committed WAL transactions, a valid uncommitted tail, database growth, future-page handling inside earlier clusters, pinned readers, empty WAL behavior, and validation errors.
-- Added `wordpress-wal-multi-transaction-cluster.php` to smoke copied `wp_options` WAL repair diagnostics without requiring ext/sqlite.
+- Added `application-wal-multi-transaction-cluster.php` to smoke copied `wp_options` WAL repair diagnostics without requiring ext/sqlite.
 
 Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalMultiTransactionClusterCurrentNext24Test.php`

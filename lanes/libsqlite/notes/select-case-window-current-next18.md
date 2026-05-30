@@ -19,15 +19,15 @@ php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/src/SQLiteSelectExpression.php
 php -l lanes/libsqlite/src/SQLiteSelectPredicate.php
 php -l lanes/libsqlite/tests/SQLiteSelectCaseWindowCurrentNext18Test.php
-php -l lanes/libsqlite/examples/wordpress-select-case-window-current-next18.php
+php -l lanes/libsqlite/examples/application-select-case-window-current-next18.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteSelectCaseWindowCurrentNext18Test.php
-php lanes/libsqlite/examples/wordpress-select-case-window-current-next18.php
+php lanes/libsqlite/examples/application-select-case-window-current-next18.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane json ok\n";'
 git diff --check -- lanes/libsqlite
 ```
 
 Result: focused `SQLiteSelectCaseWindowCurrentNext18Test.php` passed with
-1 test file, 40 assertions, 0 failures. The WordPress smoke reported copied
+1 test file, 40 assertions, 0 failures. The Application smoke reported copied
 `wp_options` rows bucketed through parser-level CASE expressions and ranked by
 native window execution without requiring ext/sqlite.
 

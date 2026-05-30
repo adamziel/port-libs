@@ -28,16 +28,16 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 58 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-or-split-partial-expression.php --self-test
+php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-or-split-partial-expression.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-sqlplanner-stat4-expression-partial-current-or-split-partial-expression self-test passed
+application-sqlplanner-stat4-expression-partial-current-or-split-partial-expression self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +58, from `72234` to `72292` in this

@@ -14,9 +14,9 @@ Behavior:
 - Includes the missing-child summaries in source hashing, pagination, and
   stale resume-cursor validation.
 
-WordPress relevance:
+Application relevance:
 
-Copied WordPress taxonomy import DDL can reference staging columns that were
+Copied Application taxonomy import DDL can reference staging columns that were
 not copied into the replay schema. A `foreign_key_list` row still names those
 columns, so the import preflight needs a table_xinfo-backed blocker before
 schema repair continues.
@@ -33,8 +33,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next252.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-current-source-next252 self-test passed
+php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next252.php --self-test
+application-pragma-index-xinfo-foreignkey-current-source-next252 self-test passed
 ```
 
 Expected dashboard movement:

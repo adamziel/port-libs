@@ -7,7 +7,7 @@ This slice fixes parser/executor handling for row-value predicates and
 RETURNING expressions that are wrapped in an extra full-expression parenthesis
 layer, such as `WHERE (((blog_id, option_name) = (1, 'siteurl')))` and
 `RETURNING (((blog_id, option_name) IS NOT DISTINCT FROM (...))) AS stable`.
-SQLite accepts these forms, and WordPress migration/import SQL generators often
+SQLite accepts these forms, and Application migration/import SQL generators often
 add parenthesized predicate groups when composing retryable cleanup statements.
 
 Implementation:
@@ -18,7 +18,7 @@ Implementation:
 - `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext202Plan` models
   a savepoint attempt whose parenthesized UPDATE/DELETE RETURNING stream is
   rolled back, then retried from the original savepoint image.
-- `wordpress-rowvalue-parenthesized-savepoint-current-source-next202.php`
+- `application-rowvalue-parenthesized-savepoint-current-source-next202.php`
   covers copied `wp_options` cleanup SQL with parenthesized row-value equality,
   `IN (VALUES ...)`, `IS`, `IS NOT DISTINCT FROM`, and `NOT IN` expressions.
 
@@ -28,9 +28,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext202Plan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext202Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-parenthesized-savepoint-current-source-next202.php
+php -l lanes/libsqlite/examples/application-rowvalue-parenthesized-savepoint-current-source-next202.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext202Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-parenthesized-savepoint-current-source-next202.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-parenthesized-savepoint-current-source-next202.php --self-test
 ```
 
 Focused result: `1 test files, 62 assertions, 0 failures` with 62 PASS lines.

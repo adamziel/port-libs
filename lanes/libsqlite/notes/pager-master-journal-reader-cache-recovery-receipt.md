@@ -16,7 +16,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-recovery-receipt.php
+php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-recovery-receipt.php
 {
     "status": "pager-master-journal-reader-cache-current-source-next254",
     "invalidated_cache_page_numbers": [

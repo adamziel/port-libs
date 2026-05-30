@@ -18,14 +18,14 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundCorrelatedAggregateCurrentSourceNext124Test.php`
   - `1 test files, 59 assertions, 0 failures`
   - `28` PASS lines
-- `php lanes/libsqlite/examples/wordpress-compound-correlated-aggregate-current-source-next124.php --self-test`
-  - `wordpress-compound-correlated-aggregate-current-source-next124 self-test passed`
+- `php lanes/libsqlite/examples/application-compound-correlated-aggregate-current-source-next124.php --self-test`
+  - `application-compound-correlated-aggregate-current-source-next124 self-test passed`
 
 Dependency closure:
 
 - No new support component is needed. This reuses the existing bounded native
   PHP SELECT parser/executor, grouped aggregate, compound SELECT, and
-  WordPress row-array fixtures.
+  Application row-array fixtures.
 
 Non-overlap:
 

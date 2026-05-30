@@ -7,7 +7,7 @@
 
 ## Behavior
 
-Added `SQLiteCastLikeGlobAffinityCurrentSourceNextPlan` for copied WordPress option-value scans that need SQLite-style text affinity after `CAST(...)` before evaluating LIKE/GLOB. The plan records prefix range usability, candidate rowids, residual rejections, cast storage/text/byte changes, rowset changes, and cursor invalidation reasons.
+Added `SQLiteCastLikeGlobAffinityCurrentSourceNextPlan` for copied Application option-value scans that need SQLite-style text affinity after `CAST(...)` before evaluating LIKE/GLOB. The plan records prefix range usability, candidate rowids, residual rejections, cast storage/text/byte changes, rowset changes, and cursor invalidation reasons.
 
 The slice covers:
 
@@ -23,10 +23,10 @@ The slice covers:
   - `1 test files, 84 assertions, 0 failures`
   - `84` PASS lines.
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-cast-like-glob-affinity-current-source-next133.php --self-test`
-  - `wordpress-cast-like-glob-affinity-current-source-next133 self-test passed`
+- `php lanes/libsqlite/examples/application-cast-like-glob-affinity-current-source-next133.php --self-test`
+  - `application-cast-like-glob-affinity-current-source-next133 self-test passed`
 
 ## Dependency Closure
 

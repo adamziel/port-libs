@@ -12,7 +12,7 @@ Behavior covered:
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext178Test.php` -> `1 test files, 591 assertions, 0 failures` with 91 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next178.php --self-test` -> self-test passed.
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next178.php --self-test` -> self-test passed.
 
 Dashboard delta: expected `phpPass` movement is `83183 -> 83274` after clean integration. Mapped upstream coverage remains conservative at `613 / 1589`.
 

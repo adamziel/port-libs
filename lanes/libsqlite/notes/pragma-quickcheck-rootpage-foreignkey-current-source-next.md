@@ -10,7 +10,7 @@ next database images, catalogs, schema rowsets, normalized FK SQL, normalized
 quick_check SQL, and quick_check table scope, so stale resumes fail after
 rootpage, FK, schema, catalog, or target-scope drift.
 
-WordPress path: copied `wp_options` import preflight can page one combined
+Application path: copied `wp_options` import preflight can page one combined
 stream and only resume when quick_check rootpage blockers and FK rootpage
 blockers still describe the same current/next database images.
 
@@ -20,13 +20,13 @@ Verification:
   - `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Test.php`
   - `No syntax errors detected`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-quickcheck-rootpage-foreignkey-current-source-next.php`
+- `php -l lanes/libsqlite/examples/application-pragma-quickcheck-rootpage-foreignkey-current-source-next.php`
   - `No syntax errors detected`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Test.php`
   - `1 test files, 79 assertions, 0 failures`
   - 60 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-quickcheck-rootpage-foreignkey-current-source-next.php --self-test`
-  - `wordpress-pragma-quickcheck-rootpage-foreignkey-current-source-next self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-quickcheck-rootpage-foreignkey-current-source-next.php --self-test`
+  - `application-pragma-quickcheck-rootpage-foreignkey-current-source-next self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - passed
 

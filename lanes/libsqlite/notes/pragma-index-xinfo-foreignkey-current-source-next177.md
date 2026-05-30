@@ -16,7 +16,7 @@ through DDL, not through `PRAGMA foreign_key_list` rows:
   current/next summaries, counts, row decoration, pagination, and stale cursor
   rejection.
 
-This lets copied WordPress `wp_options` import diagnostics keep
+This lets copied Application `wp_options` import diagnostics keep
 `PRAGMA index_xinfo` and `foreign_key_check` pages tied to stable FK names and
 clause origins when schema DDL changes between current and next sources.
 
@@ -34,11 +34,11 @@ The focused run emitted 73 PASS lines. `lane-status.json` `phpPass` moves from
 PHP behavior over already mapped PRAGMA `index_xinfo`, `foreign_key_list`, and
 `foreign_key_check` inventory rather than a fresh manifest row.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next177.php --self-test
-wordpress-pragma-index-xinfo-foreignkey-current-source-next177 self-test passed
+$ php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next177.php --self-test
+application-pragma-index-xinfo-foreignkey-current-source-next177 self-test passed
 ```
 
 Non-overlap: this avoids accepted next156/159/161/164/165/166/167/169/170/171/

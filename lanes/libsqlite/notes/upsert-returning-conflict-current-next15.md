@@ -72,9 +72,9 @@ PASS upsert returning conflict current projection still validates returning rows
 - `phpPass`: `4362 -> 4409` from 47 newly passing focused PHP cases.
 - `benchmarkDenominator.mapped`: unchanged; this is focused native PHP behavior coverage, not a newly hydrated upstream inventory unit.
 
-## WordPress Smoke
+## Application Smoke
 
-`wordpress-upsert-returning-conflict-current.php` previews copied `wp_options` UPSERT RETURNING rows while rejecting a `DO UPDATE` result that would collide with another current UNIQUE option column.
+`application-upsert-returning-conflict-current.php` previews copied `wp_options` UPSERT RETURNING rows while rejecting a `DO UPDATE` result that would collide with another current UNIQUE option column.
 
 ## Non-Overlap
 

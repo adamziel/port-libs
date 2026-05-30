@@ -16,7 +16,7 @@ names, and explicit result aliases.
   - Red-first before the implementation fix: `1 test files, 64 assertions, 1 failures`
   - After fix: `1 test files, 64 assertions, 0 failures`
   - +64 focused PASS lines for the new lane-scoped current-source test file.
-- `php lanes/libsqlite/examples/wordpress-alter-rename-column-current-next15.php`
+- `php lanes/libsqlite/examples/application-alter-rename-column-current-next15.php`
   - Emits copied `wp_options` view, trigger, and expression-index SQL for
     `option_name -> option_key`, preserving explicit `AS option_name` output
     aliases and string literals while rewriting source references.

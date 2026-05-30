@@ -8,7 +8,7 @@ reports schema/stat4/index-signature changes, partial range lower/upper deltas,
 stale-range admission risk, STAT4 matched sample deltas, selected root page,
 and current-source detail.
 
-WordPress path: `wordpress-stat4-partial-range-current-source-next.php`
+Application path: `application-stat4-partial-range-current-source-next.php`
 models copied `wp_options` plugin-option imports where a prepared partial
 `option_name >= 'plugin_'` STAT4 index is replaced by a current
 `option_name >= 'plugin_cache' AND option_name < 'plugin_seo'` index after
@@ -21,12 +21,12 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialRangeCurr
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 53 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-stat4-partial-range-current-source-next.php --self-test
-wordpress-stat4-partial-range-current-source-next self-test passed
+php lanes/libsqlite/examples/application-stat4-partial-range-current-source-next.php --self-test
+application-stat4-partial-range-current-source-next self-test passed
 
 php -l lanes/libsqlite/src/SQLitePlannerStat4PartialRangeCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialRangeCurrentSourceNextTest.php
-php -l lanes/libsqlite/examples/wordpress-stat4-partial-range-current-source-next.php
+php -l lanes/libsqlite/examples/application-stat4-partial-range-current-source-next.php
 No syntax errors detected in all changed PHP files.
 ```
 

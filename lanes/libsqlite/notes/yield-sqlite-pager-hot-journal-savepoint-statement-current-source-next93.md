@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a bounded pager recovery composition for WordPress-style imports where a
+Adds a bounded pager recovery composition for Application-style imports where a
 hot rollback journal is recovered first, the valid WAL prefix remains the
 current reader source, and a failed statement inside a savepoint is rolled back
 from statement-subjournal preimages before opening a retry statement journal.
@@ -17,9 +17,9 @@ the wrong page image.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalStatementCurrentSourceNext93Test.php`
 - First run: `1 test files, 62 assertions, 0 failures`
 
-## WordPress smoke
+## Application smoke
 
-- `php lanes/libsqlite/examples/wordpress-hot-journal-savepoint-statement-current-source-next93.php --self-test`
+- `php lanes/libsqlite/examples/application-hot-journal-savepoint-statement-current-source-next93.php --self-test`
 
 ## Non-overlap
 

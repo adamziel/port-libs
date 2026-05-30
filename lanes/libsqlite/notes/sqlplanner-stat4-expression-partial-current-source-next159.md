@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for a STAT4 expression partial-index current
 
 This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded native PHP planner for stale prepared statements that can still use the current source of a non-skip-scan partial expression index. It records current-source rowids, STAT4 yield pairs, covering payload rows, table-lookup rows for non-covered columns, current/next source admission, and reprepare fences for schema-cookie, STAT4 generation, index signature, rowset, and cursor program changes.
 
-WordPress path: `wordpress-planner-stat4-expression-partial-current-source-next159.php` models copied `wp_options` plugin option scans over `lower(option_name)` where the current source adds plugin rows and updated STAT4 samples while the prepared statement must yield from the stale source to the current source.
+Application path: `application-planner-stat4-expression-partial-current-source-next159.php` models copied `wp_options` plugin option scans over `lower(option_name)` where the current source adds plugin rows and updated STAT4 samples while the prepared statement must yield from the stale source to the current source.
 
 Focused verification:
 
@@ -14,10 +14,10 @@ Focused verification:
   - `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext159Test.php`
   - `No syntax errors detected`
-- `php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next159.php`
+- `php -l lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-next159.php`
   - `No syntax errors detected`
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next159.php --self-test`
-  - `wordpress-planner-stat4-expression-partial-current-source-next159 self-test passed`
+- `php lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-next159.php --self-test`
+  - `application-planner-stat4-expression-partial-current-source-next159 self-test passed`
 - `git diff --check -- lanes/libsqlite`
   - passed
 

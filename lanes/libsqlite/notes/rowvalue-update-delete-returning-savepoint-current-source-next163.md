@@ -10,8 +10,8 @@ restores the savepoint image and discards those streams, and the retry executes
 the same row-value range predicates against the restored current source before
 release.
 
-WordPress smoke:
-`wordpress-rowvalue-between-returning-savepoint-current-source-next163.php`
+Application smoke:
+`application-rowvalue-between-returning-savepoint-current-source-next163.php`
 covers plugin option retry cleanup using row-value `BETWEEN` in RETURNING
 projections and DELETE cleanup over transient option-name ranges.
 

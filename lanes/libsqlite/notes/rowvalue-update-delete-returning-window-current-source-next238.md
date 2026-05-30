@@ -10,9 +10,9 @@ This slice adds `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Pl
 - overlapping pairs are classified as replayed after rollback;
 - retry-only rows are classified as restart-only;
 - attempt-only rows are classified as discarded-only;
-- source and pair digests let a WordPress import smoke verify that stale attempt RETURNING rows cannot be yielded after rollback.
+- source and pair digests let a Application import smoke verify that stale attempt RETURNING rows cannot be yielded after rollback.
 
-WordPress smoke: `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next238.php --self-test`
+Application smoke: `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next238.php --self-test`
 
 Focused verification:
 

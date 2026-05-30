@@ -6,14 +6,14 @@
 - The current source can report index rootpage and FK rootpage blockers while the next source proves the copied database repair clears them.
 - Cursor resume is bound to current and next database bytes, attached schema catalog snapshots, row schemas, index-list SQL, FK SQL, integrity SQL, and offset.
 
-## WordPress path
+## Application path
 
 Copied `wp_options` imports commonly rebuild option-name/autoload indexes while also validating FK-like staging rows before handoff. The example keeps that handoff blocked until the repaired next image has stable `PRAGMA index_list(wp_options)` metadata, no index rootpage errors, and no FK rootpage pointer-map blockers.
 
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexListForeignKeyRootpageCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-list-foreignkey-rootpage-current-source-next.php`
+- `php lanes/libsqlite/examples/application-pragma-index-list-foreignkey-rootpage-current-source-next.php`
 
 ## Non-overlap
 

@@ -14,11 +14,11 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteWindowFrameExcludeFilterCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLiteWindowFrameExcludeFilterCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-window-frame-exclude-filter-current-source-next.php`
+- `php -l lanes/libsqlite/examples/application-window-frame-exclude-filter-current-source-next.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowFrameExcludeFilterCurrentSourceNextTest.php`
   -> `1 test files, 55 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-window-frame-exclude-filter-current-source-next.php --self-test`
-  -> `wordpress-window-frame-exclude-filter-current-source-next self-test passed`
+- `php lanes/libsqlite/examples/application-window-frame-exclude-filter-current-source-next.php --self-test`
+  -> `application-window-frame-exclude-filter-current-source-next self-test passed`
 
 Non-overlap: avoids accepted parser-level SELECT window text, named-window
 subqueries, JSON aggregate/window, VDBE GROUPS EXCLUDE/FILTER cursor basics,

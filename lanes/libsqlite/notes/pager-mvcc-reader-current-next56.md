@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for pager MVCC reader snapshots across a con
 
 This slice adds `SQLiteWalAppendPlan::mvccReaderCurrentNext()`. It accepts an explicit current reader end frame, appends committed and uncommitted writer frames, and reports current-reader versus next-reader page visibility. The current reader remains pinned to its original WAL read mark while the next reader advances to the latest committed append. Uncommitted writer tail frames remain invisible to both readers.
 
-WordPress relevance: copied `wp_options` imports can append `active_plugins` and transient-cache pages while an existing reader remains pinned to the pre-import option view; the next reader sees the committed import without exposing draft plugin frames.
+Application relevance: copied `wp_options` imports can append `active_plugins` and transient-cache pages while an existing reader remains pinned to the pre-import option view; the next reader sees the committed import without exposing draft plugin frames.
 
 Verification:
 
@@ -18,8 +18,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```text
 php -l lanes/libsqlite/src/SQLiteWalAppendPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerMvccReaderCurrentNext56Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-mvcc-reader-current-next56.php
-php lanes/libsqlite/examples/wordpress-pager-mvcc-reader-current-next56.php --self-test
+php -l lanes/libsqlite/examples/application-pager-mvcc-reader-current-next56.php
+php lanes/libsqlite/examples/application-pager-mvcc-reader-current-next56.php --self-test
 ```
 
 Dashboard delta: `phpPass` should increase by 65, from 20008 to 20073, for the new focused PASS lines in `SQLitePagerMvccReaderCurrentNext56Test.php`.

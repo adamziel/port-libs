@@ -17,8 +17,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonAggregateOrderWindowCurr
 # 1 test files, 41 assertions, 0 failures
 # 15 PASS lines
 
-php lanes/libsqlite/examples/wordpress-json-aggregate-order-window-current-source-next88.php --self-test
-# wordpress-json-aggregate-order-window-current-source-next88 self-test passed
+php lanes/libsqlite/examples/application-json-aggregate-order-window-current-source-next88.php --self-test
+# application-json-aggregate-order-window-current-source-next88 self-test passed
 ```
 
 Non-overlap: avoids accepted JSON object aggregate/window coverage, JSON

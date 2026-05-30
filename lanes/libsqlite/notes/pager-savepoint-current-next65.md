@@ -20,9 +20,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLitePagerSavepointCurrentNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerSavepointCurrentNext65Test.php
-php -l lanes/libsqlite/examples/wordpress-pager-savepoint-current-next65.php
+php -l lanes/libsqlite/examples/application-pager-savepoint-current-next65.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointCurrentNext65Test.php
-php lanes/libsqlite/examples/wordpress-pager-savepoint-current-next65.php
+php lanes/libsqlite/examples/application-pager-savepoint-current-next65.php
 git diff --check -- lanes/libsqlite
 ```
 

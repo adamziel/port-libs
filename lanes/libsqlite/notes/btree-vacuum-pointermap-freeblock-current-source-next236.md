@@ -16,12 +16,12 @@ The slice models a copied `wp_options` transient delete with obsolete overflow p
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext236Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext236Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next236.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next236.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext236Test.php`
   - `1 test files, 1332 assertions, 0 failures`
   - `132` PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next236.php`
-  - `wordpress-btree-vacuum-pointermap-freeblock-current-source-next236 self-test passed`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next236.php`
+  - `application-btree-vacuum-pointermap-freeblock-current-source-next236 self-test passed`
 
 ## Non-overlap
 

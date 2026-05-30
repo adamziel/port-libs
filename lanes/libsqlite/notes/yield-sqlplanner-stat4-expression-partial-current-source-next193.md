@@ -15,8 +15,8 @@ source:
 - missing current rows, unsupported rowid operators, invalid integer literals,
   and stale sample rowids force `requires-current-source-rowid-reprepare`.
 
-WordPress smoke:
-`wordpress-sqlplanner-stat4-expression-partial-current-source-next193.php`
+Application smoke:
+`application-sqlplanner-stat4-expression-partial-current-source-next193.php`
 models copied `wp_options` plugin-admin pagination after ANALYZE/source changes,
 where a stale prepared partial expression index must not reuse STAT4 samples
 unless current `rowid` alias constraints still hold.
@@ -25,8 +25,8 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext193Test.php`
   - `1 test files, 65 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next193.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next193 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next193.php --self-test`
+  - `application-sqlplanner-stat4-expression-partial-current-source-next193 self-test passed`
 
 Dashboard delta: `+65` focused libsqlite PASS lines from the new next193 test.
 Mapped upstream coverage remains unchanged; this composes already mapped STAT4,

@@ -8,16 +8,16 @@ Consolidates the attach/TEMP/WAL schema-cache source-handoff coverage onto
 - a committed `main` schema-cookie advance removes a table while an active
   current-source reader finishes its snapshot before reset;
 - `ALTER INDEX RENAME` in TEMP expires a prepared `INDEXED BY` read plan;
-- `DETACH` of an attached WordPress archive schema moves qualified writers to
+- `DETACH` of an attached Application archive schema moves qualified writers to
   `__detached__` and blocks stale retry before reprepare.
 
 Focused checks:
 
 ```text
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheSourceHandoffTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-source-handoff.php
+php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-source-handoff.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheSourceHandoffTest.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-source-handoff.php --self-test
+php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-source-handoff.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

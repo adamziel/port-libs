@@ -15,14 +15,14 @@ Covered semantics:
 - comma-form `LIMIT offset,count`
 - old-row DELETE RETURNING output and new-row UPDATE RETURNING output
 - source-order mutation output after ORDER/LIMIT row selection
-- simple WordPress-shaped predicates and assignment expressions
+- simple Application-shaped predicates and assignment expressions
 - malformed SQL guard paths
 
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpdateDeleteReturningSqlTest.php`
   - `1 test files, 53 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-update-delete-returning-order-limit-sql.php`
+- `php lanes/libsqlite/examples/application-update-delete-returning-order-limit-sql.php`
   - passed and emitted copied `wp_options` delete/update RETURNING diagnostics
 
 `phpPass` increases by the verified focused PASS-line delta: `3796 -> 3849`

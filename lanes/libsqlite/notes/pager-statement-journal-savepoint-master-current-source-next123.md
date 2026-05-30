@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `pager-statement-journal-savepoint-maste
 
 This slice adds `SQLitePagerStatementJournalSavepointMasterCurrentSourceNextPlan`. It models the pager boundary where master-journal recovery first establishes the current database source, a failed statement inside an active savepoint writes dirty pages, statement-journal rollback restores only that statement's before-images, and the next statement journal captures retry before-images from the recovered statement-rollback source.
 
-WordPress smoke: `wordpress-pager-statement-savepoint-master-current-source-next123.php` covers a copied `wp_options` plugin import retry after master-journal recovery restores the root/autoload pages and the failed `active_plugins` statement rolls back inside the still-open savepoint.
+Application smoke: `application-pager-statement-savepoint-master-current-source-next123.php` covers a copied `wp_options` plugin import retry after master-journal recovery restores the root/autoload pages and the failed `active_plugins` statement rolls back inside the still-open savepoint.
 
 Verification:
 
@@ -15,16 +15,16 @@ No syntax errors detected in lanes/libsqlite/src/SQLitePagerStatementJournalSave
 php -l lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Test.php
 
-php -l lanes/libsqlite/examples/wordpress-pager-statement-savepoint-master-current-source-next123.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-statement-savepoint-master-current-source-next123.php
+php -l lanes/libsqlite/examples/application-pager-statement-savepoint-master-current-source-next123.php
+No syntax errors detected in lanes/libsqlite/examples/application-pager-statement-savepoint-master-current-source-next123.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Test.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 91 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pager-statement-savepoint-master-current-source-next123.php --self-test
-wordpress-pager-statement-savepoint-master-current-source-next123 self-test passed
+php lanes/libsqlite/examples/application-pager-statement-savepoint-master-current-source-next123.php --self-test
+application-pager-statement-savepoint-master-current-source-next123 self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `47656` to `47747` from 91 newly passing focused PASS lines. Mapped upstream coverage remains `605 / 1589`; this is fresh focused PHP pager behavior over already mapped journal/savepoint primitives rather than a new upstream inventory unit.

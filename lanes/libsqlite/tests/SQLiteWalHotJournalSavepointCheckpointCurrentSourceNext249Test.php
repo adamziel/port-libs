@@ -111,7 +111,7 @@ $cases = [
     'operation added' => [static fn (): mixed => in_array('admit_reopened_current_source_next249', $plan()['operation_names'], true), true],
     'dependency inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next246', $plan()['dependencies'], true), true],
     'dependency next249' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next249', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-reopen-after-hot-journal-checkpoint', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-reopen-after-hot-journal-checkpoint', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat VFS receipt ordering'), true],
     'database mismatch reason' => [static fn (): mixed => $blocked(['database_digest' => $hash('stale database')])['blocked_reasons'], ['reopened_database_digest_mismatch']],

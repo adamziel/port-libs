@@ -110,7 +110,7 @@ foreach ($circleCases as $name => [$callback, $expected]) {
     };
 }
 
-$tests['rtree geometry filters copied wordpress event rectangles'] = static function (TestRunner $t) use ($rect): void {
+$tests['rtree geometry filters copied application event rectangles'] = static function (TestRunner $t) use ($rect): void {
     $rows = [
         ['id' => 'site-health', 'rectangle' => $rect(-74.01, -73.99, 40.70, 40.72)],
         ['id' => 'plugin-meetup', 'rectangle' => $rect(-73.98, -73.95, 40.72, 40.75)],

@@ -169,7 +169,7 @@ $cases = [
     'checkpoint digest length' => [static fn (): mixed => strlen($plan()['checkpoint_digest']), 64],
     'dependency next212' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next212', $plan()['dependencies'], true), true],
     'dependency passive checkpoint' => [static fn (): mixed => in_array('sqlite-passive-checkpoint-current-reader-pin-after-hot-journal', $plan()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-passive-checkpoint-preserves-wal-for-current-reader', $plan()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-passive-checkpoint-preserves-wal-for-current-reader', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next209 writer fences'), true],
     'complete checkpoint status' => [static fn (): mixed => $complete()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next212'],

@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'combined after-current current-source handoff audit seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-after-current-handoff-audit.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-after-current-handoff-audit.php';
 
         $t->same('rowvalue-update-delete-returning-window-after-current-handoff-audit', $result['status']);
         $t->same([

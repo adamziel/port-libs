@@ -12,7 +12,7 @@ bounded current-source handoff fence for compound SELECT text that combines:
 
 The new current-page-handoff layer requires exact acknowledgement tokens for every row in
 the current limited page before exposing the next-source cursor. That catches a
-WordPress import preview edge where a newly staged autoloaded option changes the
+Application import preview edge where a newly staged autoloaded option changes the
 next-source dense-rank page while the current page is still being drained.
 
 ## Evidence
@@ -20,7 +20,7 @@ next-source dense-rank page while the current page is still being drained.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentPageHandoffTest.php`
   - `1 test files, 412 assertions, 0 failures`
   - `74` PASS lines
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-page-handoff.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-page-handoff.php`
   - JSON self-test payload emitted with a 3-row acknowledgement fence
 
 ## Non-Overlap

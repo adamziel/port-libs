@@ -7,4 +7,4 @@ This slice extends the consolidated `SQLiteRowValueUpdateDeleteReturningWindowCu
 - `next768` captures throughput preflight counters.
 - `next769`, `next773`, `next777`, and `next781` seal each four-step block as ready.
 
-The matching WordPress example uses copied `wp_options` rows and row-value UPDATE/DELETE RETURNING statements only; it does not add parser, executor, WAL/VFS, planner, B-tree, PRAGMA, trigger, or coordination-file coverage.
+The matching Application example uses copied `wp_options` rows and row-value UPDATE/DELETE RETURNING statements only; it does not add parser, executor, WAL/VFS, planner, B-tree, PRAGMA, trigger, or coordination-file coverage.

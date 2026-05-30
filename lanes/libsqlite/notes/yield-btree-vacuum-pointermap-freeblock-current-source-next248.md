@@ -4,9 +4,9 @@
 
 Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext248Plan`, a publication-seal layer over the accepted next235 checkpoint rows. The slice verifies that current-source freeblock publication only happens after pointer-map visibility, checkpoint tokens match, payload reuse waits for freeblock publication, reusable pages match checkpoint replay, and vacuum tail pages remain fenced.
 
-## WordPress Scenario
+## Application Scenario
 
-`examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next248.php` models deletion of an overflow-backed copied `wp_options` transient before vacuum/reuse. The smoke reports sealed pages, final pointer-map pages, freeblock-publication pages, reusable payload pages, and tail-fence guards needed before a later writer can consume the current-source freeblock stream.
+`examples/application-btree-vacuum-pointermap-freeblock-current-source-next248.php` models deletion of an overflow-backed copied `wp_options` transient before vacuum/reuse. The smoke reports sealed pages, final pointer-map pages, freeblock-publication pages, reusable payload pages, and tail-fence guards needed before a later writer can consume the current-source freeblock stream.
 
 ## Evidence
 
@@ -28,8 +28,8 @@ The focused run emitted 131 PASS lines.
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next248.php
-wordpress-btree-vacuum-pointermap-freeblock-current-source-next248 self-test passed
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next248.php
+application-btree-vacuum-pointermap-freeblock-current-source-next248 self-test passed
 ```
 
 ## Non-overlap

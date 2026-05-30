@@ -1,7 +1,7 @@
-# WordPress Schema JSON WAL Import Current Next41
+# Application Schema JSON WAL Import Current Next41
 
-This slice adds `SQLiteWordPressSchemaJsonWalImportPlan`, a bounded current/next
-orchestration layer for copied WordPress imports that need schema objects and
+This slice adds `SQLiteSchemaJsonWalImportPlan`, a bounded current/next
+orchestration layer for copied Application imports that need schema objects and
 JSON `wp_options` mutations represented as one WAL-yielding transaction.
 
 Focused behavior:
@@ -10,7 +10,7 @@ Focused behavior:
 - Emits committed schema and JSON WAL frame metadata while keeping failed JSON
   statement frames out of the committed WAL sequence.
 - Reports yielded schema/json events, schema/data cookie deltas, dirty pages,
-  checkpoint admission, and durable commit ordering for WordPress import
+  checkpoint admission, and durable commit ordering for Application import
   diagnostics.
 
 Non-overlap:
@@ -23,11 +23,11 @@ Non-overlap:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressSchemaJsonWalImportCurrentNext41Test.php`
-- `php lanes/libsqlite/examples/wordpress-schema-json-wal-import-current-next41.php`
-- `php -l lanes/libsqlite/src/SQLiteWordPressSchemaJsonWalImportPlan.php`
-- `php -l lanes/libsqlite/tests/SQLiteWordPressSchemaJsonWalImportCurrentNext41Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-schema-json-wal-import-current-next41.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaJsonWalImportCurrentNext41Test.php`
+- `php lanes/libsqlite/examples/application-schema-json-wal-import-current-next41.php`
+- `php -l lanes/libsqlite/src/SQLiteSchemaJsonWalImportPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteSchemaJsonWalImportCurrentNext41Test.php`
+- `php -l lanes/libsqlite/examples/application-schema-json-wal-import-current-next41.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure:

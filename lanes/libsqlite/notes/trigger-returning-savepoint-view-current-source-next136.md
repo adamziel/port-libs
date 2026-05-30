@@ -8,7 +8,7 @@ It reuses the native view-trigger/savepoint executor and records which
 current-source `RETURNING` rows are admitted or suppressed when the current
 phase rolls back to its savepoint before the next source is run. The next
 source is explicitly tagged as reading from the saved current image, so copied
-WordPress import diagnostics can distinguish suppressed current rows from
+Application import diagnostics can distinguish suppressed current rows from
 admitted next-source rows.
 
 Verification:
@@ -16,8 +16,8 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningSavepointViewCurrentSourceNext136Test.php`
 - `php -l lanes/libsqlite/src/SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerReturningSavepointViewCurrentSourceNext136Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-returning-savepoint-view-current-source-next136.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-returning-savepoint-view-current-source-next136.php --self-test`
+- `php -l lanes/libsqlite/examples/application-trigger-returning-savepoint-view-current-source-next136.php`
+- `php lanes/libsqlite/examples/application-trigger-returning-savepoint-view-current-source-next136.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: +65 focused PASS lines after integration, with

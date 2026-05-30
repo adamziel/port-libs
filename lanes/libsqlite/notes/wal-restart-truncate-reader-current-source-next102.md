@@ -17,8 +17,8 @@ Additional verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteWalRestartTruncateReaderCurrentSourceNext102Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-restart-truncate-reader-current-source-next102.php
-php lanes/libsqlite/examples/wordpress-wal-restart-truncate-reader-current-source-next102.php --self-test
+php -l lanes/libsqlite/examples/application-wal-restart-truncate-reader-current-source-next102.php
+php lanes/libsqlite/examples/application-wal-restart-truncate-reader-current-source-next102.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

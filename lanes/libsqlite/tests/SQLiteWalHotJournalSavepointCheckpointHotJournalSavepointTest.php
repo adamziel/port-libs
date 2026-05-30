@@ -151,7 +151,7 @@ $cases = [
     'operation recover' => [static fn (): mixed => in_array('recover_hot_journal_before_savepoint_checkpoint_next162', $restart()['operation_reasons'], true), true],
     'operation stale reject' => [static fn (): mixed => in_array('reject_stale_dirty_database_checkpoint_source_next162', $restart()['operation_reasons'], true), true],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next162', $restart()['dependencies'], true), true],
-    'dependency wordpress marker' => [static fn (): mixed => in_array('wordpress-import-current-source-checkpoint-admission', $restart()['dependencies'], true), true],
+    'dependency application marker' => [static fn (): mixed => in_array('application-import-current-source-checkpoint-admission', $restart()['dependencies'], true), true],
     'truncate wal action' => [static fn (): mixed => $truncate()['released_checkpoint_wal_action'], 'truncate_wal'],
     'truncate released wal length' => [static fn (): mixed => $truncate()['released_checkpoint_wal_bytes_length'], 0],
     'base reader retained sources' => [static fn (): mixed => $baseReader()['retained_sources'], ['database', 'database', 'database', 'database']],

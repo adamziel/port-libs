@@ -11,8 +11,8 @@ view/trigger source is published only when the next209 drain is visible, the
 current source seal matches, the expected current row count matches, and the
 current watermarks remain unique.
 
-WordPress path:
-`wordpress-trigger-recursive-view-returning-current-source-next211.php` models a
+Application path:
+`application-trigger-recursive-view-returning-current-source-next211.php` models a
 copied `wp_options` recursive view import where current trigger-generated
 `RETURNING` rows must remain tied to the current view/trigger source before the
 next import source can publish `home` / `next_plugin` rows.
@@ -22,9 +22,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext211Plan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext211Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next211.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next211.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext211Test.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next211.php --self-test
+php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next211.php --self-test
 ```
 
 Focused result: `1 test files, 75 assertions, 0 failures`.
@@ -43,4 +43,4 @@ the current view/trigger source before publishing next-source rows.
 
 Dependency closure: no new support component is needed. The slice reuses
 lane-local recursive view `RETURNING` generation, current-source drain
-watermarks, and WordPress copied `wp_options` view-trigger fixtures.
+watermarks, and Application copied `wp_options` view-trigger fixtures.

@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteWordPressImportJsonSchemaSavepointPlan;
+use PortLibs\LibSqlite\SQLiteImportJsonSchemaSavepointPlan;
 
 $currentRows = static fn (): array => [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -14,7 +14,7 @@ $currentRows = static fn (): array => [
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
-$plan = static fn (array $imports, array $options = []) => SQLiteWordPressImportJsonSchemaSavepointPlan::plan(
+$plan = static fn (array $imports, array $options = []) => SQLiteImportJsonSchemaSavepointPlan::plan(
     $currentRows(),
     $imports,
     $options + ['database_path' => '/tmp/wp-import-json-schema-savepoint.sqlite', 'page_size' => 1024],
@@ -112,7 +112,7 @@ $tests = [
         $blob = new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
             ['option_name' => 'jsonb_schema_settings', 'option_value' => '{"mode":"jsonb"}'],
         ]]));
-        $result = SQLiteWordPressImportJsonSchemaSavepointPlan::plan($currentRows(), [
+        $result = SQLiteImportJsonSchemaSavepointPlan::plan($currentRows(), [
             ['name' => 'jsonb_schema', 'json' => $blob, 'path' => '$.rows'],
         ]);
 
@@ -122,7 +122,7 @@ $tests = [
     },
     'accepts JSON subtype schema import sources' => static function (TestRunner $t) use ($currentRows): void {
         $subtype = new SQLiteJsonSubtypeValue('{"rows":[{"option_name":"subtype_schema_settings","option_value":"{\"mode\":\"subtype\"}"}]}');
-        $result = SQLiteWordPressImportJsonSchemaSavepointPlan::plan($currentRows(), [
+        $result = SQLiteImportJsonSchemaSavepointPlan::plan($currentRows(), [
             ['name' => 'subtype_schema', 'json' => $subtype, 'path' => '$.rows'],
         ]);
 
@@ -145,7 +145,7 @@ $tests = [
         ]));
     },
     'rejects empty import lists' => static function (TestRunner $t) use ($currentRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressImportJsonSchemaSavepointPlan::plan($currentRows(), []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteImportJsonSchemaSavepointPlan::plan($currentRows(), []));
     },
 ];
 
@@ -210,7 +210,7 @@ foreach ([
 foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5] as $optionId => $pageNumber) {
     $tests["explicit schema option {$optionId} maps to WAL page {$pageNumber}"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $optionId, $pageNumber): void {
         $rows = $currentRows();
-        $result = SQLiteWordPressImportJsonSchemaSavepointPlan::plan($rows, [
+        $result = SQLiteImportJsonSchemaSavepointPlan::plan($rows, [
             ['name' => 'explicit_' . $optionId, 'json' => $jsonRows([
                 ['option_id' => $optionId, 'option_name' => 'explicit_' . $optionId . '_settings', 'option_value' => '{"id":' . $optionId . '}'],
             ]), 'path' => '$.rows'],
@@ -246,7 +246,7 @@ $tests['dependency marker names schema savepoint import'] = static function (Tes
         ]), 'path' => '$.rows'],
     ]);
 
-    $t->same(true, in_array('sqlite-wordpress-import-json-schema-savepoint', $result['dependencies'], true));
+    $t->same(true, in_array('sqlite-application-import-json-schema-savepoint', $result['dependencies'], true));
     $t->same(true, $result['wal']['schema_savepoint_import']);
 };
 

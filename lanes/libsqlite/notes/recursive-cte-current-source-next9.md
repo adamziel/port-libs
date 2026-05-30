@@ -37,7 +37,7 @@ Result:
 Smoke command:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-recursive-cte-current-source.php
+php lanes/libsqlite/examples/application-select-recursive-cte-current-source.php
 ```
 
 Result: copied `wp_options` rows are filtered through a recursive generated id

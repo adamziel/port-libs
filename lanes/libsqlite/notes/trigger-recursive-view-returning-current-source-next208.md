@@ -9,8 +9,8 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext208Test.php`
 - Result: `1 test files, 74 assertions, 0 failures` with 74 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next208.php`
-- Result: `wordpress-trigger-recursive-view-returning-current-source-next208 self-test passed`.
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next208.php`
+- Result: `application-trigger-recursive-view-returning-current-source-next208 self-test passed`.
 
 Dependency closure: no new support component needed; this reuses next206
 current-source yield watermark state and adds a bounded cursor-close admission

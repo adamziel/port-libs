@@ -26,11 +26,11 @@ Focused test run: 4 selected test files (root lock skipped)
 
 Expected dashboard movement after clean integration: `phpPass` +65, from 40110 to 40175. No mapped upstream denominator change is claimed.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-foreign-key-integrity-pointermap-current-source-next104.php --self-test
-wordpress-pragma-foreign-key-integrity-pointermap-current-source-next104 self-test passed
+php lanes/libsqlite/examples/application-pragma-foreign-key-integrity-pointermap-current-source-next104.php --self-test
+application-pragma-foreign-key-integrity-pointermap-current-source-next104 self-test passed
 ```
 
 Syntax and whitespace evidence:
@@ -38,7 +38,7 @@ Syntax and whitespace evidence:
 ```text
 php -l lanes/libsqlite/src/SQLitePragmaForeignKeyIntegrityPointerMapCurrentSourceYield.php
 php -l lanes/libsqlite/tests/SQLitePragmaForeignKeyIntegrityPointerMapCurrentSourceNext104Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-foreign-key-integrity-pointermap-current-source-next104.php
+php -l lanes/libsqlite/examples/application-pragma-foreign-key-integrity-pointermap-current-source-next104.php
 php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'
 git diff --check -- lanes/libsqlite
 ```

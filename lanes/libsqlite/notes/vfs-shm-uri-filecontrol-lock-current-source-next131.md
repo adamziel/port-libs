@@ -19,11 +19,11 @@ This slice extends the current VFS URI/SHM/file-control current-source planner w
   - `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLiteVfsShmUriFileControlLockCurrentSourceNext131Test.php`
   - `No syntax errors detected`
-- `php -l lanes/libsqlite/examples/wordpress-vfs-shm-uri-lock-range-current-source-next131.php`
+- `php -l lanes/libsqlite/examples/application-vfs-shm-uri-lock-range-current-source-next131.php`
   - `No syntax errors detected`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmUriFileControlLockCurrentSourceNext131Test.php`
   - `1 test files, 62 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-vfs-shm-uri-lock-range-current-source-next131.php`
+- `php lanes/libsqlite/examples/application-vfs-shm-uri-lock-range-current-source-next131.php`
   - Prints JSON with `blockedStatus: busy`, `blockedLocks: ["read2"]`, `exclusiveAfterUnlock: ok`, `staleDataVersion: true`, and `finalLockCount: 3`.
 
 ## Non-Overlap

@@ -8,11 +8,11 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCookieSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCookieBracketQuotedTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cookie-bracket-quoted.php`
+- `php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cookie-bracket-quoted.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCookieBracketQuotedTest.php`
   - `1 test files, 54 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cookie-bracket-quoted.php --self-test`
-  - `wordpress-attach-temp-wal-schema-cookie-bracket-quoted self-test passed`
+- `php lanes/libsqlite/examples/application-attach-temp-wal-schema-cookie-bracket-quoted.php --self-test`
+  - `application-attach-temp-wal-schema-cookie-bracket-quoted self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta:

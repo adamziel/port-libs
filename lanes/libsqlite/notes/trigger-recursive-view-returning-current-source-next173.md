@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for recursive view `RETURNING` current-sourc
 
 This slice adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext173Plan`, a wrapper over the accepted next167 recursive view RETURNING plan. It models the narrower current-source boundary where a prepared next view source remains fenced until the current-source RETURNING cursor has exhausted every page and the resume source signature still matches the current view/trigger source.
 
-WordPress smoke: `wordpress-trigger-recursive-view-returning-current-source-next173.php` covers copied `wp_options` import behavior where the first current RETURNING page is drained, recursive current rows are still pending, and the next import view source remains blocked even though next-source rows have already been prepared.
+Application smoke: `application-trigger-recursive-view-returning-current-source-next173.php` covers copied `wp_options` import behavior where the first current RETURNING page is drained, recursive current rows are still pending, and the next import view source remains blocked even though next-source rows have already been prepared.
 
 Verification:
 
@@ -12,9 +12,9 @@ Verification:
   - `1 test files, 54 assertions, 0 failures`
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext173Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext173Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next173.php`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next173.php --self-test`
-  - `wordpress-trigger-recursive-view-returning-current-source-next173 self-test passed`
+- `php -l lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next173.php`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next173.php --self-test`
+  - `application-trigger-recursive-view-returning-current-source-next173 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard delta:

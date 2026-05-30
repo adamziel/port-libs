@@ -4,7 +4,7 @@
 
 - Added `SQLiteAttachTempViewCollationPlan`, a bounded native PHP planner for collation metadata that flows through attached/temp view triggers.
 - Covered temp schema shadowing, attached schema pinning, INSTEAD OF view targets, body INSERT/UPDATE/DELETE targets, and trigger-body SELECT expressions.
-- Added a WordPress smoke for copied `wp_options` / `wp_option_audit` views and triggers without requiring `ext/sqlite`.
+- Added a Application smoke for copied `wp_options` / `wp_option_audit` views and triggers without requiring `ext/sqlite`.
 
 ## Focused evidence
 

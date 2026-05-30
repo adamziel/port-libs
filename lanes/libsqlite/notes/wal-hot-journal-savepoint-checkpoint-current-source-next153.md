@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds a bounded current-source WAL/pager behavior for a WordPress copied
+Adds a bounded current-source WAL/pager behavior for a Application copied
 `wp_options` import:
 
 - recover hot rollback-journal pages before WAL checkpoint planning;
@@ -20,8 +20,8 @@ current-reader checkpoint boundary.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Test.php`
   - `1 test files, 60 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next153.php --self-test`
-  - `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next153 self-test passed`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next153.php --self-test`
+  - `application-wal-hot-journal-savepoint-checkpoint-current-source-next153 self-test passed`
 
 ## Dependency Closure
 

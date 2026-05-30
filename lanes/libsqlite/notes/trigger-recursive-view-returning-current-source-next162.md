@@ -11,7 +11,7 @@
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext162Test.php`
   - `1 test files, 62 assertions, 0 failures`
   - `62` PASS lines
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next162.php`
+- Application smoke: `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next162.php`
 - Syntax/diff checks: php-lint for changed PHP files and `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +62`, from `72664` to `72726`. Mapped upstream coverage remains `609 / 1589`; this extends focused PHP trigger/current-source coverage without claiming a fresh upstream manifest row.

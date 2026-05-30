@@ -9,7 +9,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitUnionIntersectExceptWindowLimitTest.php`
 - Result: `1 test files, 343 assertions, 0 failures` with 62 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-union-intersect-except-window.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-union-intersect-except-window.php`
 - Result: JSON self-test payload emitted with `plugin_prime` in `nextOnlyRows`.
 
 Implementation note: `avg()` is now admitted through the existing native

@@ -1,6 +1,6 @@
 ## encoding-collation-affinity-glob-current-source-next239
 
-Slice: malformed UTF-8 byte `GLOB` bracket/range comparison after text affinity for copied WordPress `wp_options.option_value` rows.
+Slice: malformed UTF-8 byte `GLOB` bracket/range comparison after text affinity for copied Application `wp_options.option_value` rows.
 
 Behavior:
 
@@ -13,12 +13,12 @@ Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteEncodingCollationAffinityGlobCurrentSourceNext239Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-encoding-collation-affinity-glob-current-source-next239.php`
+- `php -l lanes/libsqlite/examples/application-encoding-collation-affinity-glob-current-source-next239.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityGlobCurrentSourceNext239Test.php`
   - `1 test files, 70 assertions, 0 failures`
   - 61 focused `PASS` lines
-- `php lanes/libsqlite/examples/wordpress-encoding-collation-affinity-glob-current-source-next239.php --self-test`
-  - `wordpress-encoding-collation-affinity-glob-current-source-next239 self-test passed`
+- `php lanes/libsqlite/examples/application-encoding-collation-affinity-glob-current-source-next239.php --self-test`
+  - `application-encoding-collation-affinity-glob-current-source-next239 self-test passed`
 
 Non-overlap:
 

@@ -6,13 +6,13 @@ This slice tightens `SQLitePagerStatementRecoveryPlan` and `SQLiteVfsFileWriter:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerStatementRecoveryPlan.php && php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php && php -l lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentSourceTest.php && php -l lanes/libsqlite/examples/wordpress-pager-master-journal-statement-recovery-current-source.php`
+- `php -l lanes/libsqlite/src/SQLitePagerStatementRecoveryPlan.php && php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php && php -l lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentSourceTest.php && php -l lanes/libsqlite/examples/application-pager-master-journal-statement-recovery-current-source.php`
   - all changed PHP files reported no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentSourceTest.php`
   - `1 test files, 54 assertions, 0 failures`
   - `39` PASS lines.
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-statement-recovery-current-source.php --self-test`
-  - `wordpress-pager-master-journal-statement-recovery-current-source self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-statement-recovery-current-source.php --self-test`
+  - `application-pager-master-journal-statement-recovery-current-source self-test passed`
 
 Dashboard delta: `phpPass` moves from `45302` to `45341` by the verified `39` new PASS lines. Mapped upstream coverage remains `604 / 1589`; this is focused PHP behavior over already mapped pager/master-journal statement recovery primitives.
 

@@ -4,17 +4,17 @@ Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-cu
 
 This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It models the WAL checkpoint boundary after next212 PASSIVE checkpoint progress was stopped by current readers: active readers must close/release their pins, stale readers must reopen on the post-hot-journal source, and only then may a RESTART or TRUNCATE checkpoint advance from the previously checkpointed frame to the requested frame.
 
-WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next216.php` models a copied `wp_options` import where the options import reader and cron reader drain, a stale plugin-settings reader reopens, and the copied database can truncate the retained WAL after the hot-journal/checkpoint recovery path.
+Application smoke: `application-wal-hot-journal-savepoint-checkpoint-current-source-next216.php` models a copied `wp_options` import where the options import reader and cron reader drain, a stale plugin-settings reader reopens, and the copied database can truncate the retained WAL after the hot-journal/checkpoint recovery path.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next216.php`
+- `php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next216.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Test.php`
   - `1 test files, 80 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next216.php --self-test`
-  - `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next216 self-test passed`
+- `php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next216.php --self-test`
+  - `application-wal-hot-journal-savepoint-checkpoint-current-source-next216 self-test passed`
 
 Expected dashboard movement: `phpPass` +80 from the 80 independent focused PASS lines in `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Test.php`. Mapped upstream coverage remains unchanged; this is focused WAL/pager current-source behavior over existing hot-journal/checkpoint inventory rather than a new manifest-backed upstream row.
 

@@ -6,16 +6,16 @@ Status: focused PHP behavior growth for WAL savepoint rollback followed by a dra
 
 - Adds `SQLiteWalSavepointCheckpointPlan::readerRestartCurrentNextAfterRollbackTo()`.
 - The planner truncates the WAL to the retained savepoint prefix, checkpoints that retained prefix with no reader pin, and reports the current retained-WAL reader view versus the next reader view after the WAL is restarted or truncated.
-- Adds a WordPress smoke showing a copied `wp_options` import savepoint that discards plugin frames while preserving retained `active_plugins` and autoload index pages through the checkpoint database image.
+- Adds a Application smoke showing a copied `wp_options` import savepoint that discards plugin frames while preserving retained `active_plugins` and autoload index pages through the checkpoint database image.
 
 ## Verification
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalSavepointReaderRestartCurrentNext50Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-savepoint-reader-restart-current-next50.php
+php -l lanes/libsqlite/examples/application-wal-savepoint-reader-restart-current-next50.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointReaderRestartCurrentNext50Test.php
-php lanes/libsqlite/examples/wordpress-wal-savepoint-reader-restart-current-next50.php
+php lanes/libsqlite/examples/application-wal-savepoint-reader-restart-current-next50.php
 git diff --check -- lanes/libsqlite
 ```
 

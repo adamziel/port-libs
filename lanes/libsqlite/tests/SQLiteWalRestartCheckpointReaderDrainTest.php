@@ -160,7 +160,7 @@ $cases = [
     'dependency next212 inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next212', $restart()['dependencies'], true), true],
     'dependency readerDrain' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-reader-drain', $restart()['dependencies'], true), true],
     'dependency drain' => [static fn (): mixed => in_array('sqlite-restart-truncate-after-hot-journal-reader-drain', $restart()['dependencies'], true), true],
-    'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-checkpoint-reset-after-reader-drain', $restart()['dependencies'], true), true],
+    'dependency application' => [static fn (): mixed => in_array('application-import-checkpoint-reset-after-reader-drain', $restart()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($restart()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($restart()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'truncate mode' => [static fn (): mixed => $truncate()['mode'], 'TRUNCATE'],

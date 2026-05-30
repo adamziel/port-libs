@@ -9,7 +9,7 @@ The behavior is intentionally narrower than overflow release, page relocation, r
 ## Verification
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext206Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next206.php`
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next206.php`
 - PHP lint on changed PHP files
 - `git diff --check -- lanes/libsqlite`
 

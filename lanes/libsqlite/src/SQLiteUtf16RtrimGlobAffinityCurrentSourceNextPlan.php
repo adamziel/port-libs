@@ -11,7 +11,7 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameValuePlan(
+    public static function optionRowNameValuePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

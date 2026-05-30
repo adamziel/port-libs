@@ -12,8 +12,8 @@
 
 - Direct focused test:
   `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext167Test.php`
-- Direct WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next167.php --self-test`
+- Direct Application smoke:
+  `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next167.php --self-test`
 - Affected domain family:
   `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*.php`
 - Syntax:

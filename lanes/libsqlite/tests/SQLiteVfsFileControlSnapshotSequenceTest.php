@@ -396,7 +396,7 @@ $tests['vfs filecontrol filecontrol snapshot sequence snapshot includes new cont
     $t->same(false, $snapshot['controls']['has_moved']);
 };
 
-$tests['vfs filecontrol filecontrol snapshot sequence wordpress import sequence summary'] = static function (TestRunner $t) use ($makeState): void {
+$tests['vfs filecontrol filecontrol snapshot sequence application import sequence summary'] = static function (TestRunner $t) use ($makeState): void {
     $state = $makeState(['size_limit' => 1048576, 'data_version' => 12]);
     $sequence = $state->fileControlSnapshotSequence([
         ['op' => 'name_hint', 'value' => 'wp-options-bulk-import'],
@@ -415,7 +415,7 @@ $tests['vfs filecontrol filecontrol snapshot sequence wordpress import sequence 
     $t->same('.journal', substr($sequence['pairs'][5]['result']['value'], -8));
 };
 
-$tests['vfs filecontrol filecontrol snapshot sequence wordpress readonly archive sequence'] = static function (TestRunner $t): void {
+$tests['vfs filecontrol filecontrol snapshot sequence application readonly archive sequence'] = static function (TestRunner $t): void {
     $state = SQLiteVfsFileControlState::fromCapabilityPlan(SQLiteVfsCapabilityPlan::forFilename('file:/srv/www/wp-content/database/archive.sqlite?mode=ro&immutable=1', true, false));
     $sequence = $state->fileControlSnapshotSequence([
         ['op' => 'size_limit', 'value' => 1048576],

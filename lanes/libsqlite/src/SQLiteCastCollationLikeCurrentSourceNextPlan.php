@@ -11,7 +11,7 @@ final class SQLiteCastCollationLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionValueCastScan(
+    public static function optionRowValueCastScan(
         array $currentRows,
         array $nextRows,
         string $castTarget,

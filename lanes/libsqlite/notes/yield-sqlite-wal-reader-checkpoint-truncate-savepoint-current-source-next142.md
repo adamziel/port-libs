@@ -7,7 +7,7 @@ Adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointTruncateSavepointCurrent
 - a current-source reader is pinned in SHM on frames that a savepoint rollback will discard;
 - the writer rolls back to the retained WAL prefix and attempts a TRUNCATE checkpoint;
 - the active reader keeps the original WAL source and blocks the truncate reset;
-- once the reader releases, TRUNCATE removes the old WAL sidecar and the next WordPress retry write starts at frame 1 of a fresh WAL generation.
+- once the reader releases, TRUNCATE removes the old WAL sidecar and the next Application retry write starts at frame 1 of a fresh WAL generation.
 
 This targets `wal-reader-checkpoint-truncate-savepoint-current-source-next142`.
 
@@ -15,12 +15,12 @@ This targets `wal-reader-checkpoint-truncate-savepoint-current-source-next142`.
 
 - `php -l lanes/libsqlite/src/SQLiteWalSavepointCheckpointPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointTruncateSavepointCurrentSourceNext142Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-truncate-savepoint-current-source-next142.php`
+- `php -l lanes/libsqlite/examples/application-wal-reader-checkpoint-truncate-savepoint-current-source-next142.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointTruncateSavepointCurrentSourceNext142Test.php`
   - `1 test files, 77 assertions, 0 failures`
   - `77` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-truncate-savepoint-current-source-next142.php`
-  - `wordpress-wal-reader-checkpoint-truncate-savepoint-current-source-next142 self-test passed`
+- `php lanes/libsqlite/examples/application-wal-reader-checkpoint-truncate-savepoint-current-source-next142.php`
+  - `application-wal-reader-checkpoint-truncate-savepoint-current-source-next142 self-test passed`
 
 ## Non-Overlap
 

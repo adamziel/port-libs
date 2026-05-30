@@ -47,7 +47,7 @@ $plan255 = static fn (
     string $nextSource = 'main.wp_options@255',
     int $currentCookie = 254,
     int $nextCookie = 255,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan(
     $current ?? $current255,
     $next ?? $nextTwoFiveFive,
     $pattern,
@@ -170,15 +170,15 @@ $tests['encoding collation affinity like current source nextTwoFiveFive null and
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveFive rejects missing option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan([['option_id' => 1]], [], '*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan([['option_id' => 1]], [], '*'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveFive rejects malformed utf8 scalar'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan([['option_id' => 1, 'option_name' => "plugin_\xc3"]], [], '*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan([['option_id' => 1, 'option_name' => "plugin_\xc3"]], [], '*'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFiveFive rejects bad byte row'] = static function (TestRunner $t) use ($enc255): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationGlobClassFallbackPlan([
         ['option_id' => 1, 'option_name_bytes' => $enc255('plugin', 1), 'text_encoding' => 4],
     ], [], '*'));
 };

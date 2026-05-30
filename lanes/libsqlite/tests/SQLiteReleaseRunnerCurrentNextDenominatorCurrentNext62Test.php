@@ -31,7 +31,7 @@ function libsqlite_release_denominator62_candidate(int $case): array
 
 $currentHead62 = '77217644481cc13ece794019a17d140500682bab';
 $focusedPath62 = 'lanes/libsqlite/tests/SQLiteReleaseRunnerCurrentNextDenominatorCurrentNext62Test.php';
-$nonOverlap62 = 'current-next62 suite denominator decision avoids queued attach/temp WAL schema cache, B-tree overflow/freelist/pointer-map/vacuum, JSONB delete/cascade/check, planner covering/stat/OR/JSON, PRAGMA integrity/FK/root, SELECT recursive JSON/materialization, trigger/FK/UPSERT/RETURNING, VDBE window, WAL checkpoint/restart/reader snapshot/savepoint release, WordPress JSON/schema/import WAL savepoint, and accepted current-next54 denominator burnup surfaces';
+$nonOverlap62 = 'current-next62 suite denominator decision avoids queued attach/temp WAL schema cache, B-tree overflow/freelist/pointer-map/vacuum, JSONB delete/cascade/check, planner covering/stat/OR/JSON, PRAGMA integrity/FK/root, SELECT recursive JSON/materialization, trigger/FK/UPSERT/RETURNING, VDBE window, WAL checkpoint/restart/reader snapshot/savepoint release, Application JSON/schema/import WAL savepoint, and accepted current-next54 denominator burnup surfaces';
 
 $tests = [];
 
@@ -49,7 +49,7 @@ for ($i = 1; $i <= 62; $i++) {
                 'trigger-fk-upsert-returning',
                 'vdbe-window-filter-range-group-value',
                 'wal-checkpoint-restart-reader-snapshot-savepoint-release',
-                'wordpress-json-schema-import-wal-savepoint',
+                'application-json-schema-import-wal-savepoint',
             ],
             $currentHead62,
             463,

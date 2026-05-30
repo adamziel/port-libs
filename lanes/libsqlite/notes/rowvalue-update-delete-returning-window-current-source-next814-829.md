@@ -7,13 +7,13 @@ This slice extends the consolidated `SQLiteRowValueUpdateDeleteReturningWindowCu
 - `next816` captures throughput preflight counters.
 - `next817`, `next821`, `next825`, and `next829` seal each four-step block as ready.
 
-The matching WordPress example uses copied `wp_options` rows and row-value UPDATE/DELETE RETURNING statements only; it does not add parser, executor, WAL/VFS, planner, B-tree, PRAGMA, trigger, or coordination-file coverage.
+The matching Application example uses copied `wp_options` rows and row-value UPDATE/DELETE RETURNING statements only; it does not add parser, executor, WAL/VFS, planner, B-tree, PRAGMA, trigger, or coordination-file coverage.
 
 Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next814-829.php`
+- `php -l lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next814-829.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext814829Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext798813Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext814829Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next814-829.php --self-test`
+- `php lanes/libsqlite/examples/application-rowvalue-returning-window-current-source-next814-829.php --self-test`
 - `git diff --check`

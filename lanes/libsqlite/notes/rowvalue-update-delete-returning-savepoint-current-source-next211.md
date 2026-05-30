@@ -15,8 +15,8 @@ and focused coverage for copied `wp_options` repair rows:
 - subsequent UPDATE/DELETE RETURNING statements read from the post-ignore
   current source before the savepoint is released.
 
-WordPress smoke:
-`lanes/libsqlite/examples/wordpress-rowvalue-or-ignore-savepoint-current-source-next211.php`
+Application smoke:
+`lanes/libsqlite/examples/application-rowvalue-or-ignore-savepoint-current-source-next211.php`
 models copied `wp_options` repair and transient cleanup through the same
 OR IGNORE current-source path.
 

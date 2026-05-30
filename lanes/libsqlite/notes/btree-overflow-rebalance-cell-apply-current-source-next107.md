@@ -9,10 +9,10 @@ the updated leaf/freelist/pointer-map page images into a post-apply
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Test.php`
-- `php lanes/libsqlite/examples/wordpress-overflow-rebalance-cell-apply-current-source-next107.php`
+- `php lanes/libsqlite/examples/application-overflow-rebalance-cell-apply-current-source-next107.php`
 - `php -l lanes/libsqlite/src/SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-overflow-rebalance-cell-apply-current-source-next107.php`
+- `php -l lanes/libsqlite/examples/application-overflow-rebalance-cell-apply-current-source-next107.php`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this does not repeat accepted overflow freelist release, bulk

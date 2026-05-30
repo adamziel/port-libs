@@ -15,10 +15,10 @@ Behavior slice: `json-table-generated-path-rowid-cost-current-source-next224`
   - `1 test files, 60 assertions, 0 failures`
   - 60 `PASS` lines
 
-## WordPress smoke
+## Application smoke
 
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next224.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next224 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next224.php --self-test`
+  - `application-json-table-generated-path-rowid-cost-current-source-next224 self-test passed`
 
 ## Non-overlap
 

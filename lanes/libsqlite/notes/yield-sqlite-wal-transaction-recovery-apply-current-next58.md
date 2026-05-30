@@ -4,7 +4,7 @@
 
 Adds `SQLiteVfsFileWriter::applyWalTransactionRecoveryBoundary()` for the WAL recovery path that must stop at the last committed frame. This differs from checksum-boundary recovery: valid but uncommitted frames after the last commit are discarded from the durable WAL sidecar, while committed frames are checkpointed into the database image.
 
-The slice covers copied WordPress `wp_options` import recovery cases where a process dies after writing a committed WAL transaction and then leaves later draft frames. The next opener should see the committed option update, not the draft `active_plugins` or autoload-index tail.
+The slice covers copied Application `wp_options` import recovery cases where a process dies after writing a committed WAL transaction and then leaves later draft frames. The next opener should see the committed option update, not the draft `active_plugins` or autoload-index tail.
 
 ## Focused evidence
 
@@ -23,15 +23,15 @@ Focused test run: 1 selected test files (root lock skipped)
 
 New focused PASS lines: 70.
 
-## WordPress smoke
+## Application smoke
 
 Command:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-wal-transaction-recovery-apply-current-next58.php --self-test
+php lanes/libsqlite/examples/application-wal-transaction-recovery-apply-current-next58.php --self-test
 ```
 
-Expected behavior: applies the committed WAL prefix to a copied WordPress database file, truncates the WAL to 1104 bytes, and removes later uncommitted sidecar frames.
+Expected behavior: applies the committed WAL prefix to a copied Application database file, truncates the WAL to 1104 bytes, and removes later uncommitted sidecar frames.
 
 ## Non-overlap
 

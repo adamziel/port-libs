@@ -19,7 +19,7 @@ Added files:
 
 - `src/SQLiteViewTriggerNameResolution.php`
 - `tests/SQLiteViewTriggerNameResolutionTest.php`
-- `examples/wordpress-view-trigger-name-resolution.php`
+- `examples/application-view-trigger-name-resolution.php`
 
 Focused verification:
 
@@ -30,10 +30,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 56 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-view-trigger-name-resolution.php
+$ php lanes/libsqlite/examples/application-view-trigger-name-resolution.php
 ```
 
 Status delta:

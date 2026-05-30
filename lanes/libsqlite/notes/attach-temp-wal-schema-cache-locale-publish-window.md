@@ -10,7 +10,7 @@ Consolidation:
 Validation:
 
 - `php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheLocalePublishWindowTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-locale-publish-window.php`
+- `php -l lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-locale-publish-window.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheLocalePublishWindowTest.php`
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-locale-publish-window.php --self-test`
+- `php lanes/libsqlite/examples/application-attach-temp-wal-schema-cache-locale-publish-window.php --self-test`
 - `git diff --check -- lanes/libsqlite`

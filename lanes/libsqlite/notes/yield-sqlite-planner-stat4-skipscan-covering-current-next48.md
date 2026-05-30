@@ -26,8 +26,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-planner-stat4-skipscan-covering-current-next48.php --self-test
-wordpress-planner-stat4-skipscan-covering-current-next48 self-test passed
+php lanes/libsqlite/examples/application-planner-stat4-skipscan-covering-current-next48.php --self-test
+application-planner-stat4-skipscan-covering-current-next48 self-test passed
 ```
 
 Non-overlap: this does not repeat batch37 expression-covering STAT4 estimates,

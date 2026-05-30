@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'next263 peer checkpoint candidate' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-peer-checkpoint-admission.php';
+        $result = require $examplesDir . '/application-rowvalue-peer-checkpoint-admission.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next263', $result['status']);
         $t->same(4, $result['checkpointCount']);
@@ -14,7 +14,7 @@ $cases = [
         $t->true(str_contains($result['dependencyClosure'], 'no new support component needed'));
     },
     'next264 final receipt candidate' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-final-receipt-admission.php';
+        $result = require $examplesDir . '/application-rowvalue-final-receipt-admission.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next264', $result['status']);
         $t->same(8, $result['finalReceiptCount']);
@@ -23,12 +23,12 @@ $cases = [
         $t->true(str_contains($result['dependencyClosure'], 'no new support component needed'));
     },
     'combined after-current handoff' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-after-current-segment-peer.php';
+        $result = require $examplesDir . '/application-rowvalue-returning-window-after-current-segment-peer.php';
 
         $t->same('rowvalue-update-delete-returning-window-after-current-segment-peer', $result['status']);
         $t->same([
             'rowvalue-update-delete-returning-window-current-source-next261',
-            'wordpress-rowvalue-returning-window-peer-group-admission self-test passed',
+            'application-rowvalue-returning-window-peer-group-admission self-test passed',
             'rowvalue-update-delete-returning-window-current-source-next263',
             'rowvalue-update-delete-returning-window-current-source-next264',
         ], $result['candidateStatuses']);

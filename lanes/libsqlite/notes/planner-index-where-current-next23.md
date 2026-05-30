@@ -9,7 +9,7 @@ using `<`, `<=`, `>`, `>=`, `BETWEEN`, reversed constant comparisons, and
 constraint implies the partial predicate. AND/OR partial predicates remain
 composed through the existing `SQLiteIndexPredicate` tree.
 
-The WordPress path is copied `wp_options` option-name planning for partial
+The Application path is copied `wp_options` option-name planning for partial
 covering indexes such as:
 
 ```sql
@@ -28,8 +28,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-planner-index-where-current-next23.php --self-test
-wordpress-planner-index-where-current-next23 self-test passed
+php lanes/libsqlite/examples/application-planner-index-where-current-next23.php --self-test
+application-planner-index-where-current-next23 self-test passed
 ```
 
 ## Delta

@@ -6,16 +6,16 @@ Status: focused PHP behavior growth for explicit SQL `ESCAPE NULL` in SQLite
 The new plan distinguishes omitted `ESCAPE` from explicit SQL `NULL` escape.
 Omitted escape runs normal LIKE matching, while `ESCAPE NULL` makes the
 predicate UNKNOWN and keeps matched rowsets empty until the next source binds a
-real one-character escape. This matters for copied WordPress `wp_options`
+real one-character escape. This matters for copied Application `wp_options`
 imports that rebind a prepared option-value scan during a source refresh.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-encoding-collation-affinity-like-current-source-next254.php`
+- `php -l lanes/libsqlite/examples/application-encoding-collation-affinity-like-current-source-next254.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Test.php`
-- `php lanes/libsqlite/examples/wordpress-encoding-collation-affinity-like-current-source-next254.php --self-test`
+- `php lanes/libsqlite/examples/application-encoding-collation-affinity-like-current-source-next254.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: focused PHP PASS growth only. Mapped upstream

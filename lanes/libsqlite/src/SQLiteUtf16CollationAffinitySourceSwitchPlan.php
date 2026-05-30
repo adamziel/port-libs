@@ -38,7 +38,7 @@ final class SQLiteUtf16CollationAffinitySourceSwitchPlan
      *   dependencies:list<string>
      * }
      */
-    public static function wordpressOptionValueSourceSwitch(
+    public static function optionRowValueSourceSwitch(
         array $currentRows,
         array $nextRows,
         mixed $probe,
@@ -48,14 +48,14 @@ final class SQLiteUtf16CollationAffinitySourceSwitchPlan
         string $currentSource = 'current',
         string $nextSource = 'next',
     ): array {
-        $currentMatches = SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek(
+        $currentMatches = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek(
             $currentRows,
             $probe,
             $leftAffinity,
             $rightAffinity,
             $collation,
         );
-        $nextMatches = SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek(
+        $nextMatches = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek(
             $nextRows,
             $probe,
             $leftAffinity,
@@ -169,7 +169,7 @@ final class SQLiteUtf16CollationAffinitySourceSwitchPlan
      */
     private static function normalizedRows(array $rows, string $leftAffinity, string $rightAffinity, string $collation, mixed $probe): array
     {
-        $remaining = SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek($rows, $probe, $leftAffinity, $rightAffinity, $collation);
+        $remaining = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek($rows, $probe, $leftAffinity, $rightAffinity, $collation);
         $byRowid = [];
         foreach ($remaining as $row) {
             $byRowid[$row['rowid']] = [

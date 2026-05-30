@@ -5123,7 +5123,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 [
                     'compound-tail-window-limit-current-source-tail-window-limit-boundary',
                     'recursive-offset-window-arm-before-union-distinct-tail-window-limit-boundary',
-                    'wordpress-option-boundary-replans-final-limit-tail-window-limit-boundary',
+                    'application-option-boundary-replans-final-limit-tail-window-limit-boundary',
                 ],
             )));
             $base['dependency_closure'] = 'no new support component needed; tail-window-limit-boundary reuses native SELECT SQL recursive CTE LIMIT/OFFSET, window lag/lead, compound UNION ALL/UNION, ORDER BY, and final LIMIT/OFFSET execution';
@@ -5799,7 +5799,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-tail-comma-limit-current-source-next186',
                     'window-rank-dense-rank-before-distinct-union-next186',
                     'recursive-offset-source-boundary-next186',
-                    'wordpress-autoload-option-rank-replans-limit-window-next186',
+                    'application-autoload-option-rank-replans-limit-window-next186',
                 ],
             )));
             $base['dependencies'] = [
@@ -6769,7 +6769,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-window-recursive-limit-current-source-source-token-fence',
                     'recursive-limit-current-source-token-source-token-fence',
                     'window-before-compound-limit-source-boundary-source-token-fence',
-                    'wordpress-option-preview-stale-cursor-fence-source-token-fence',
+                    'application-option-preview-stale-cursor-fence-source-token-fence',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-compound-window-recursive-limit-source-token-fence',
@@ -7062,7 +7062,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'recursive-limit-expression-current-source-expression-limit-boundary',
                     'compound-tail-limit-expression-current-source-expression-limit-boundary',
                     'window-values-before-compound-limit-expression-expression-limit-boundary',
-                    'wordpress-option-source-boundary-shifts-expression-limit-expression-limit-boundary',
+                    'application-option-source-boundary-shifts-expression-limit-expression-limit-boundary',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-limit-expression-expression-limit-boundary',
@@ -7835,7 +7835,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-window-distribution-current-source-recursiveCurrentGap',
                     'recursive-queue-order-limit-current-source-recursiveCurrentGap',
                     'percent-rank-cume-dist-before-compound-limit-recursiveCurrentGap',
-                    'wordpress-option-preview-stale-cursor-fence-recursiveCurrentGap',
+                    'application-option-preview-stale-cursor-fence-recursiveCurrentGap',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-recursiveCurrentGap',
@@ -8266,7 +8266,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-intersect-except-window-recursive-limit-recursiveCursorGate',
                     'window-values-before-compound-membership-recursiveCursorGate',
                     'recursive-limit-current-source-token-recursiveCursorGate',
-                    'wordpress-option-preview-stale-membership-fence-recursiveCursorGate',
+                    'application-option-preview-stale-membership-fence-recursiveCursorGate',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-compound-intersect-except-recursiveCursorGate',
@@ -8872,7 +8872,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-ntile-first-value-current-source-ntileFirstValueUnionDistinct',
                     'recursive-order-limit-offset-before-frame-windows-ntileFirstValueUnionDistinct',
                     'union-distinct-after-window-frame-ntileFirstValueUnionDistinct',
-                    'wordpress-option-preview-stale-cursor-fence-ntileFirstValueUnionDistinct',
+                    'application-option-preview-stale-cursor-fence-ntileFirstValueUnionDistinct',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-ntileFirstValueUnionDistinct',
@@ -9252,7 +9252,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-distinct-except-window-recursive-limit-rankLastValueUnionExcept',
                     'recursive-order-limit-offset-before-window-rankLastValueUnionExcept',
                     'rank-last-value-before-compound-distinct-rankLastValueUnionExcept',
-                    'wordpress-option-preview-distinct-except-boundary-rankLastValueUnionExcept',
+                    'application-option-preview-distinct-except-boundary-rankLastValueUnionExcept',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-order-limit-offset-rankLastValueUnionExcept',
@@ -9570,7 +9570,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-ntile-first-value-current-source-ntileFirstValueCursorReplay',
                     'recursive-order-limit-offset-before-frame-windows-ntileFirstValueCursorReplay',
                     'union-distinct-after-window-frame-ntileFirstValueCursorReplay',
-                    'wordpress-option-preview-stale-cursor-fence-ntileFirstValueCursorReplay',
+                    'application-option-preview-stale-cursor-fence-ntileFirstValueCursorReplay',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-ntileFirstValueCursorReplay',
@@ -9966,7 +9966,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-lag-last-value-current-source-lagLastValueExcept',
                     'recursive-order-limit-offset-before-offset-windows-lagLastValueExcept',
                     'except-after-window-output-lagLastValueExcept',
-                    'wordpress-option-preview-stale-cursor-fence-lagLastValueExcept',
+                    'application-option-preview-stale-cursor-fence-lagLastValueExcept',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-lagLastValueExcept',
@@ -10349,7 +10349,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-rank-dense-rank-current-source-rankDenseRankIntersect',
                     'recursive-order-limit-offset-before-ranking-windows-rankDenseRankIntersect',
                     'intersect-after-window-output-rankDenseRankIntersect',
-                    'wordpress-option-preview-stale-cursor-fence-rankDenseRankIntersect',
+                    'application-option-preview-stale-cursor-fence-rankDenseRankIntersect',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-rankDenseRankIntersect',
@@ -10735,7 +10735,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-lead-nth-value-current-source-lead-nth-value-intersect-limit',
                     'recursive-ordered-limit-before-intersect-windows-lead-nth-value-intersect-limit',
                     'intersect-after-window-output-lead-nth-value-intersect-limit',
-                    'wordpress-option-preview-stale-cursor-fence-lead-nth-value-intersect-limit',
+                    'application-option-preview-stale-cursor-fence-lead-nth-value-intersect-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-lead-nth-value-intersect-limit',
@@ -11137,7 +11137,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-except-before-intersect-current-source-next207',
                     'recursive-ordered-limit-except-fence-next207',
                     'window-output-membership-after-except-next207',
-                    'wordpress-option-preview-stale-cursor-fence-next207',
+                    'application-option-preview-stale-cursor-fence-next207',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next207',
@@ -11538,7 +11538,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-rank-dense-rank-current-source-next208',
                     'recursive-ordered-limit-before-ranking-windows-next208',
                     'except-after-ranking-window-output-next208',
-                    'wordpress-option-preview-stale-cursor-fence-next208',
+                    'application-option-preview-stale-cursor-fence-next208',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next208',
@@ -11928,7 +11928,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-sum-count-window-current-source-next209',
                     'recursive-ordered-limit-before-aggregate-windows-next209',
                     'except-and-union-after-window-output-next209',
-                    'wordpress-option-preview-stale-cursor-fence-next209',
+                    'application-option-preview-stale-cursor-fence-next209',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next209',
@@ -12297,7 +12297,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-row-number-last-value-current-source-next210',
                     'recursive-ordered-limit-before-value-windows-next210',
                     'intersect-before-except-window-output-next210',
-                    'wordpress-option-preview-stale-cursor-fence-next210',
+                    'application-option-preview-stale-cursor-fence-next210',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next210',
@@ -12687,7 +12687,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'recursive-limit-offset-before-filter-window-next211',
                     'except-removes-filtered-window-row-next211',
                     'union-distinct-after-filter-window-next211',
-                    'wordpress-option-preview-stale-filter-cursor-next211',
+                    'application-option-preview-stale-filter-cursor-next211',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-window-filter-next211',
@@ -13090,7 +13090,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-group-concat-row-number-current-source-next212',
                     'recursive-ordered-limit-before-string-window-next212',
                     'except-after-window-output-next212',
-                    'wordpress-option-preview-stale-cursor-fence-next212',
+                    'application-option-preview-stale-cursor-fence-next212',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next212',
@@ -13458,7 +13458,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-min-max-window-current-source-next213',
                     'recursive-ordered-limit-before-extrema-window-next213',
                     'intersect-after-window-output-next213',
-                    'wordpress-option-preview-stale-cursor-fence-next213',
+                    'application-option-preview-stale-cursor-fence-next213',
                 ],
                 'dependencies' => [
                     'sqlite-window-min-max-frame-values-next213',
@@ -13791,7 +13791,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-rank-dense-rank-current-source-next217',
                     'recursive-queue-exhausted-before-intersect-next217',
                     'intersect-window-membership-before-final-limit-next217',
-                    'wordpress-option-preview-stale-cursor-fence-next217',
+                    'application-option-preview-stale-cursor-fence-next217',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next217',
@@ -14156,7 +14156,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-all-intersect-window-current-source-next218',
                     'recursive-limit-offset-before-intersect-window-next218',
                     'window-rank-shift-changes-final-limit-page-next218',
-                    'wordpress-option-preview-stale-cursor-fence-next218',
+                    'application-option-preview-stale-cursor-fence-next218',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-limit-offset-next218',
@@ -14508,7 +14508,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-percent-rank-cume-dist-current-source-next219',
                     'recursive-ordered-limit-before-percent-window-next219',
                     'except-after-window-output-next219',
-                    'wordpress-option-preview-stale-cursor-fence-next219',
+                    'application-option-preview-stale-cursor-fence-next219',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next219',
@@ -14853,7 +14853,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-max-sum-current-source-max-sum-intersect-limit',
                     'recursive-queue-exhausted-before-intersect-max-sum-intersect-limit',
                     'intersect-window-membership-before-final-limit-max-sum-intersect-limit',
-                    'wordpress-option-preview-stale-cursor-fence-max-sum-intersect-limit',
+                    'application-option-preview-stale-cursor-fence-max-sum-intersect-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-max-sum-intersect-limit',
@@ -15218,7 +15218,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-all-intersect-except-window-current-source-next224',
                     'recursive-limit-offset-before-intersect-except-window-next224',
                     'window-rank-shift-changes-except-final-limit-page-next224',
-                    'wordpress-option-preview-stale-cursor-fence-next224',
+                    'application-option-preview-stale-cursor-fence-next224',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-limit-offset-next224',
@@ -15557,7 +15557,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-lag-last-value-current-source-next225',
                     'recursive-ordered-limit-before-value-windows-next225',
                     'intersect-before-except-window-output-next225',
-                    'wordpress-option-preview-stale-cursor-fence-next225',
+                    'application-option-preview-stale-cursor-fence-next225',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next225',
@@ -15944,7 +15944,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-sum-count-intersect-current-source-next226',
                     'recursive-ordered-limit-before-aggregate-window-next226',
                     'except-intersect-after-window-output-next226',
-                    'wordpress-option-preview-stale-cursor-fence-next226',
+                    'application-option-preview-stale-cursor-fence-next226',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next226',
@@ -16457,7 +16457,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-distinct-except-dense-rank-current-source-union-except-dense-rank-limit',
                     'recursive-limit-offset-before-union-except-window-union-except-dense-rank-limit',
                     'dense-rank-shift-changes-except-final-limit-page-union-except-dense-rank-limit',
-                    'wordpress-option-preview-stale-cursor-fence-union-except-dense-rank-limit',
+                    'application-option-preview-stale-cursor-fence-union-except-dense-rank-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-limit-offset-union-except-dense-rank-limit',
@@ -16791,7 +16791,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-avg-first-value-union-distinct-current-source-union-intersect-except-window-limit',
                     'recursive-ordered-limit-before-avg-window-union-intersect-except-window-limit',
                     'intersect-except-after-window-output-union-intersect-except-window-limit',
-                    'wordpress-option-preview-stale-cursor-fence-union-intersect-except-window-limit',
+                    'application-option-preview-stale-cursor-fence-union-intersect-except-window-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-union-intersect-except-window-limit',
@@ -17491,7 +17491,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-multi-anchor-recursive-row-number-first-value-final-page-window-limit',
                     'recursive-anchor-wp-options-limit-before-window-final-page-window-limit',
                     'intersect-except-after-anchor-shift-window-output-final-page-window-limit',
-                    'wordpress-option-preview-stale-cursor-fence-final-page-window-limit',
+                    'application-option-preview-stale-cursor-fence-final-page-window-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-multi-anchor-queue-limit-final-page-window-limit',
@@ -18257,7 +18257,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-all-intersect-except-rank-current-source-dequeue',
                     'recursive-limit-offset-dequeue-before-window-compound-current-source',
                     'next-source-row-number-shift-held-by-current-dequeue-acks',
-                    'wordpress-option-preview-stale-dequeue-cursor-fence',
+                    'application-option-preview-stale-dequeue-cursor-fence',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-limit-offset-current-source-dequeue',
@@ -20028,7 +20028,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'compound-window-recursive-next-source-promotion-snapshot';
             $base['replanReasons'][] = 'next-source-held-until-current-replay-and-delta-snapshot';
             $base['dependencies'][] = 'sqlite-compound-window-recursive-next-source-promotion-snapshot';
-            $base['dependency_closure'] = 'no new support component needed; next-source-promotion reuses accepted compound SELECT recursive LIMIT/OFFSET, window replay tickets, and final-page spillover fences, then adds a next-source promotion snapshot for changed WordPress option rows';
+            $base['dependency_closure'] = 'no new support component needed; next-source-promotion reuses accepted compound SELECT recursive LIMIT/OFFSET, window replay tickets, and final-page spillover fences, then adds a next-source promotion snapshot for changed Application option rows';
             $base['non_overlap'] = 'next-source-promotion extends accepted next243 replay-ticket behavior by binding the next-source row delta to a promotion snapshot after current replay is acknowledged; it avoids accepted next242 commit fences, next243 replay tickets alone, batch212 next242/next243 behavior, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, row-value, encoding, and suite evidence clusters';
 
             return $base;

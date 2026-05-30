@@ -6,8 +6,8 @@
   ATTACH/DETACH statements that snapshots current and next name resolution.
 - Covers table, index, trigger, schema-table alias, schema PRAGMA, and trigger
   yield probes before and after each transition.
-- WordPress smoke:
-  `lanes/libsqlite/examples/wordpress-attach-temp-schema-resolution-current-next32.php`
+- Application smoke:
+  `lanes/libsqlite/examples/application-attach-temp-schema-resolution-current-next32.php`
   shows copied `wp_options` TEMP shadowing while an attached site database is
   added and then detached.
 
@@ -21,9 +21,9 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-attach-temp-schema-resolution-current-next32.php
+$ php lanes/libsqlite/examples/application-attach-temp-schema-resolution-current-next32.php
 {
-    "scenario": "wordpress attach temp schema resolution current next32",
+    "scenario": "application attach temp schema resolution current next32",
     "steps": [
         {
             "label": "attach-site",

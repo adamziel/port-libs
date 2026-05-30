@@ -11,9 +11,9 @@ Focused verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteVdbeAggregateOrderCursor.php
 php -l lanes/libsqlite/tests/SQLiteVdbeAggregateOrderCurrentNext23Test.php
-php -l lanes/libsqlite/examples/wordpress-vdbe-aggregate-order-current-next.php
+php -l lanes/libsqlite/examples/application-vdbe-aggregate-order-current-next.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeAggregateOrderCurrentNext23Test.php
-php lanes/libsqlite/examples/wordpress-vdbe-aggregate-order-current-next.php --self-test
+php lanes/libsqlite/examples/application-vdbe-aggregate-order-current-next.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

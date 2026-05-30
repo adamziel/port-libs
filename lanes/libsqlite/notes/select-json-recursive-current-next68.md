@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for recursive SELECT current/next JSON table materialization.
 
-This slice adds `SQLiteSelectRecursiveJsonMaterialization::recursiveJsonCurrentNextFrontier()`. The helper exposes each recursive CTE current row, the next queued row, accepted next rows, skipped duplicate rows, and the JSON table rows attached to each boundary. It is intended for WordPress menu/plugin option imports where recursive `json_each()` traversal feeds materialized `json_tree()` rows and a caller must distinguish the current recursive source from the next queued source.
+This slice adds `SQLiteSelectRecursiveJsonMaterialization::recursiveJsonCurrentNextFrontier()`. The helper exposes each recursive CTE current row, the next queued row, accepted next rows, skipped duplicate rows, and the JSON table rows attached to each boundary. It is intended for Application menu/plugin option imports where recursive `json_each()` traversal feeds materialized `json_tree()` rows and a caller must distinguish the current recursive source from the next queued source.
 
 Focused verification:
 
@@ -12,11 +12,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 86 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-json-recursive-current-next68.php --self-test
-wordpress-select-json-recursive-current-next68 self-test passed
+php lanes/libsqlite/examples/application-select-json-recursive-current-next68.php --self-test
+application-select-json-recursive-current-next68 self-test passed
 ```
 
 Dashboard delta:

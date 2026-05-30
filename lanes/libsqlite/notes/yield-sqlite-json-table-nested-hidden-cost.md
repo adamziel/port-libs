@@ -18,10 +18,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 51 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-table-nested-hidden-cost.php
+php lanes/libsqlite/examples/application-json-table-nested-hidden-cost.php
 ```
 
 Dependency closure: no new support component is needed. This reuses native PHP

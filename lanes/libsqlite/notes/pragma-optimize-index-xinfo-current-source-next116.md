@@ -1,7 +1,7 @@
 # pragma-optimize-index-xinfo-current-source-next116
 
 This slice adds a source-fresh row stream that joins `PRAGMA index_xinfo`
-metadata to `PRAGMA optimize` table decisions. It lets copied WordPress
+metadata to `PRAGMA optimize` table decisions. It lets copied Application
 database tooling page through index metadata while carrying the optimize
 decision (`analyze`, `skip`, or `unseen`), reason, generated `ANALYZE` SQL,
 and current-source token for the owning table.
@@ -14,7 +14,7 @@ Focused coverage:
   owner tables;
 - current-source pagination and stale cursor rejection when index metadata or
   cursor offset changes;
-- WordPress smoke for copied `wp_options` / `wp_postmeta` index repair import
+- Application smoke for copied `wp_options` / `wp_postmeta` index repair import
   metadata.
 
 Dependency closure: no new support component is needed. This reuses the

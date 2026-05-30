@@ -21,11 +21,11 @@ Behavior covered:
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyListCurrentNext18Test.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-foreign-key-list-current-next18.php`
+- `php lanes/libsqlite/examples/application-pragma-foreign-key-list-current-next18.php`
 - `php -l lanes/libsqlite/src/SQLitePragmaSchemaCatalog.php`
 - `php -l lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaForeignKeyListCurrentNext18Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-foreign-key-list-current-next18.php`
+- `php -l lanes/libsqlite/examples/application-pragma-foreign-key-list-current-next18.php`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed. The implementation

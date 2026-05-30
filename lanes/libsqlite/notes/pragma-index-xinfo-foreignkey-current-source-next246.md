@@ -10,7 +10,7 @@ Behavior:
 - joins `PRAGMA foreign_key_list` parent columns to `table_xinfo` hidden codes;
 - distinguishes virtual (`hidden = 2`) and stored (`hidden = 3`) generated
   parent columns;
-- records current copied WordPress taxonomy schemas where a generated UNIQUE
+- records current copied Application taxonomy schemas where a generated UNIQUE
   parent key can be falsely treated as missing by table_info-only diagnostics;
 - verifies next-source repair when the parent key is replayed as visible
   columns;
@@ -22,14 +22,14 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 55 assertions, 0 failures`
   - `55` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next246.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next246 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next246.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next246 self-test passed`
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next246.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next246.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next246.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next246.php`
 - `git diff --check -- lanes/libsqlite`
   - passed with no output
 

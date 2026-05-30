@@ -18,11 +18,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiv
 # 1 test files, 340 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next190.php --self-test
-# wordpress-compound-select-window-recursive-limit-current-source-next190 self-test passed
+php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next190.php --self-test
+# application-compound-select-window-recursive-limit-current-source-next190 self-test passed
 ```
 
 Dependency closure: no new support component needed. The slice reuses native

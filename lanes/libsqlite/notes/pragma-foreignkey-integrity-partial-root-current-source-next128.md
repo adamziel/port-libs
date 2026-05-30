@@ -23,8 +23,8 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyIntegrityPar
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaForeignKeyRootIntegrityCurrentSourceNext117Test.php lanes/libsqlite/tests/SQLitePragmaForeignKeyRootIntegrityCurrentSourceNext120Test.php
 # 2 test files, 192 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pragma-foreignkey-integrity-partial-root-current-source-next128.php --self-test
-# wordpress-pragma-foreignkey-integrity-partial-root-current-source-next128 self-test passed
+php lanes/libsqlite/examples/application-pragma-foreignkey-integrity-partial-root-current-source-next128.php --self-test
+# application-pragma-foreignkey-integrity-partial-root-current-source-next128 self-test passed
 ```
 
 New focused PASS-line delta: `+66` from

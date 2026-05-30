@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for UTF-16 RTRIM/NOCASE LIKE current-source scans when a prepared cursor yields a descending `ORDER BY rtrim(option_name) COLLATE NOCASE DESC, rowid DESC LIMIT/OFFSET` page.
 
-WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next223.php` models copied `wp_options.option_name` prefix scans where a plugin import inserts a higher descending key between yield points. The old current-source page token is no longer reusable because rows before the DESC LIMIT window and the page rowset changed after residual LIKE matching.
+Application path: `application-utf16-nocase-like-rtrim-current-source-next223.php` models copied `wp_options.option_name` prefix scans where a plugin import inserts a higher descending key between yield points. The old current-source page token is no longer reusable because rows before the DESC LIMIT window and the page rowset changed after residual LIKE matching.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext223Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next223.php`
+- `php -l lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next223.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext223Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next223.php`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next223.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: focused `phpPass +75` from the new test file. Mapped upstream coverage remains `624 / 1589`; this is current-source PHP behavior over already mapped UTF-16, RTRIM, NOCASE, LIKE, and yield cursor inventory rather than a fresh manifest-backed upstream row.

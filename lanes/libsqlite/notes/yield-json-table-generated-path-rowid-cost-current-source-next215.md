@@ -4,17 +4,17 @@
 
 Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext215()` as a layer after the accepted generated-path rowid `xCurrent` next212 profile. The new profile records the rowid yielded from the pinned current source, the next rowid to resume at, EOF-after-yield state, reprepare/materialize/empty-yield opcodes, cost class, transition tape, and next215 replan reasons.
 
-This covers a WordPress-style copied `wp_options` JSON diagnostics path where a generated-path `json_tree()` cursor can emit rowid `7`, preserve resume rowid `8`, and force a reprepare when the next source changes generation/path fingerprints.
+This covers a Application-style copied `wp_options` JSON diagnostics path where a generated-path `json_tree()` cursor can emit rowid `7`, preserve resume rowid `8`, and force a reprepare when the next source changes generation/path fingerprints.
 
 ## Evidence
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext215Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next215.php`
+- `php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next215.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext215Test.php`
   - `1 test files, 59 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next215.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next215 self-test passed`
+- `php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next215.php --self-test`
+  - `application-json-table-generated-path-rowid-cost-current-source-next215 self-test passed`
 
 ## Non-Overlap
 

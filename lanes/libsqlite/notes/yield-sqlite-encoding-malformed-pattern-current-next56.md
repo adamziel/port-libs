@@ -16,8 +16,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-malformed-text-like-glob-current-next56.php --self-test
-wordpress-malformed-text-like-glob-current-next56 self-test passed
+php lanes/libsqlite/examples/application-malformed-text-like-glob-current-next56.php --self-test
+application-malformed-text-like-glob-current-next56 self-test passed
 ```
 
 ## Dashboard Delta

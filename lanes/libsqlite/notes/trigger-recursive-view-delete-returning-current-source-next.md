@@ -2,18 +2,18 @@
 
 Status: focused PHP behavior growth for recursive `INSTEAD OF DELETE` view triggers with `RETURNING` at the current/next source boundary.
 
-This slice adds `SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan`. It models a WordPress copied-options cleanup view where a recursive delete drains current-source `RETURNING` rows, can roll back to the savepoint after a trigger blocker, can release the current delete set while holding the next view source, and can admit the next view source later with its own trigger-source cookie.
+This slice adds `SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan`. It models a Application copied-options cleanup view where a recursive delete drains current-source `RETURNING` rows, can roll back to the savepoint after a trigger blocker, can release the current delete set while holding the next view source, and can admit the next view source later with its own trigger-source cookie.
 
-WordPress path: `wordpress-trigger-recursive-view-delete-returning-current-source-next.php` covers plugin option cleanup through a recursive view delete over `wp_options`-style parent/child rows.
+Application path: `application-trigger-recursive-view-delete-returning-current-source-next.php` covers plugin option cleanup through a recursive view delete over `wp_options`-style parent/child rows.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextTest.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-delete-returning-current-source-next.php
+php -l lanes/libsqlite/examples/application-trigger-recursive-view-delete-returning-current-source-next.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextTest.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-delete-returning-current-source-next.php --self-test
+php lanes/libsqlite/examples/application-trigger-recursive-view-delete-returning-current-source-next.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

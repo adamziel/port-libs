@@ -1,19 +1,19 @@
 # WAL hot-journal savepoint checkpoint current-source next226
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-reset file-state verifier for the WAL hot-journal/savepoint/checkpoint chain. It consumes the accepted next218 restart/truncate admission shape and requires matching database bytes, matching reset WAL bytes, absent hot journal, and durable reset receipts before reopening the WordPress current source.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-reset file-state verifier for the WAL hot-journal/savepoint/checkpoint chain. It consumes the accepted next218 restart/truncate admission shape and requires matching database bytes, matching reset WAL bytes, absent hot journal, and durable reset receipts before reopening the Application current source.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next226.php` models a copied `wp_options` import that can reopen readers only after the checkpoint reset files and sync receipts agree.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next226.php` models a copied `wp_options` import that can reopen readers only after the checkpoint reset files and sync receipts agree.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next226.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next226.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next226.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next226.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

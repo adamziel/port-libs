@@ -17,10 +17,10 @@ Behavior:
   STAT4 anchor, STAT4 counters become non-monotonic, or the inherited partial
   OR proof is not satisfied.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-selectivity-fence.php --self-test`
-- Output: `wordpress-sqlplanner-stat4-expression-partial-current-source-next208 self-test passed`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-selectivity-fence.php --self-test`
+- Output: `application-sqlplanner-stat4-expression-partial-current-source-next208 self-test passed`
 
 Focused verification:
 

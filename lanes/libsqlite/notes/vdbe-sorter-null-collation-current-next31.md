@@ -5,14 +5,14 @@
 - Added `SQLiteVdbeSorterYieldCursor` for the VDBE sorter loop shape where sorted rows are consumed through current/next or data/next calls.
 - The cursor reuses `SQLiteVdbeSortCompare::sortedRowTrace()` so each yielded row carries the sorted record, original input sequence, previous sequence, raw comparator result, stable-tie marker, and deciding comparison step.
 - Focused coverage exercises mixed `NOCASE`, `RTRIM`, numeric affinity, explicit `NULLS FIRST` / `NULLS LAST`, descending priority order, stable duplicate records, EOF behavior, and invalid input guards.
-- The WordPress smoke uses copied `wp_options`-style autoload and option-name rows to show sorter diagnostics without requiring `ext/sqlite`.
+- The Application smoke uses copied `wp_options`-style autoload and option-name rows to show sorter diagnostics without requiring `ext/sqlite`.
 
 ## Evidence
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeSorterNullCollationCurrentNext31Test.php`
   - `1 test files, 103 assertions, 0 failures`
   - 87 new focused PASS lines.
-- `php lanes/libsqlite/examples/wordpress-vdbe-sorter-null-collation-current-next.php`
+- `php lanes/libsqlite/examples/application-vdbe-sorter-null-collation-current-next.php`
   - Emits sorted rowids and per-row current/next comparison summaries.
 
 ## Status Delta

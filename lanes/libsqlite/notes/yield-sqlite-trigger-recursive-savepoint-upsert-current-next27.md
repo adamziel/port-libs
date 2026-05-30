@@ -17,7 +17,7 @@ Covered behavior:
 - immediate FK violations and trigger `RAISE(ROLLBACK)` restore the parent and
   child row arrays to the current savepoint image while preserving attempted row
   evidence and rollback diagnostics;
-- recursive triggers can be disabled for top-level-only WordPress import
+- recursive triggers can be disabled for top-level-only Application import
   preflight behavior.
 
 ## Verification
@@ -37,7 +37,7 @@ Result:
 Example smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-recursive-savepoint-upsert.php
+php lanes/libsqlite/examples/application-recursive-savepoint-upsert.php
 ```
 
 ## Non-Overlap

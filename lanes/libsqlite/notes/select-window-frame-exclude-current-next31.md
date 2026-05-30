@@ -6,7 +6,7 @@
 
 - Adds focused parser/executor coverage for SQLite aggregate window frames using `ROWS`, `RANGE`, and `GROUPS` with `BETWEEN CURRENT ROW AND N FOLLOWING EXCLUDE CURRENT ROW`.
 - Covers `count(*)`, `count(expr)`, `sum()`, and `group_concat()` over copied `wp_options` rowsets, including peer groups, partitions, filtered source rows, final `LIMIT`/`OFFSET`, direct query-plan execution, and malformed framed ranking guards.
-- Adds a WordPress smoke showing following-row option-byte previews and peer-group option-name summaries without requiring `ext/sqlite`.
+- Adds a Application smoke showing following-row option-byte previews and peer-group option-name summaries without requiring `ext/sqlite`.
 
 ## Verification
 
@@ -21,7 +21,7 @@ Verified focused movement: 64 new PASS lines in a new lane-scoped test file.
 Example smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-select-window-frame-exclude-current-next31.php
+php lanes/libsqlite/examples/application-select-window-frame-exclude-current-next31.php
 ```
 
 ## Non-overlap

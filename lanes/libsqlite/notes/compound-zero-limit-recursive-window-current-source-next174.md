@@ -1,6 +1,6 @@
 # compound-zero-limit-recursive-window-current-source-next174
 
-Status: focused PHP behavior growth for parser-level compound SELECT output where recursive CTE rows and WordPress option rows are windowed and combined, but a final compound `LIMIT 0` suppresses all visible rows.
+Status: focused PHP behavior growth for parser-level compound SELECT output where recursive CTE rows and Application option rows are windowed and combined, but a final compound `LIMIT 0` suppresses all visible rows.
 
 Behavior covered:
 
@@ -14,9 +14,9 @@ Focused verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-zero-limit-recursive-window-current-source-next174.php
+php -l lanes/libsqlite/examples/application-compound-zero-limit-recursive-window-current-source-next174.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Test.php
-php lanes/libsqlite/examples/wordpress-compound-zero-limit-recursive-window-current-source-next174.php --self-test
+php lanes/libsqlite/examples/application-compound-zero-limit-recursive-window-current-source-next174.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

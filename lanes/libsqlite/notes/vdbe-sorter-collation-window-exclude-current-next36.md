@@ -9,9 +9,9 @@
 - Empty excluded frames are valid and report null summary bounds with zero frame rows.
 - Focused coverage includes ROWS frames, numeric RANGE frames, descending order, NOCASE sorter peers, partition boundaries, SQL filter truthiness, NULL aggregate input handling, and unsupported EXCLUDE-mode guards.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-vdbe-sorter-window-exclude-current-next36.php` reports copied `wp_options` rows ordered with NOCASE sorter collation and partitioned by site/autoload, then aggregated over current/next frames where the current row is excluded before FILTER and aggregate stepping. This is useful for local import diagnostics that need neighbor summaries without counting the option row currently being reviewed.
+`lanes/libsqlite/examples/application-vdbe-sorter-window-exclude-current-next36.php` reports copied `wp_options` rows ordered with NOCASE sorter collation and partitioned by site/autoload, then aggregated over current/next frames where the current row is excluded before FILTER and aggregate stepping. This is useful for local import diagnostics that need neighbor summaries without counting the option row currently being reviewed.
 
 ## Verification
 
@@ -22,8 +22,8 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVdbeWindowAggregateCursor
 php -l lanes/libsqlite/tests/SQLiteVdbeSorterCollationWindowExcludeCurrentNext36Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteVdbeSorterCollationWindowExcludeCurrentNext36Test.php
 
-php -l lanes/libsqlite/examples/wordpress-vdbe-sorter-window-exclude-current-next36.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-vdbe-sorter-window-exclude-current-next36.php
+php -l lanes/libsqlite/examples/application-vdbe-sorter-window-exclude-current-next36.php
+No syntax errors detected in lanes/libsqlite/examples/application-vdbe-sorter-window-exclude-current-next36.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeSorterCollationWindowExcludeCurrentNext36Test.php
 Focused test run: 1 selected test files (root lock skipped)

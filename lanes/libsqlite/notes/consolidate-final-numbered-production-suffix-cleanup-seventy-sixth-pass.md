@@ -7,18 +7,18 @@ Changed surfaces:
 - The numbered public materializer is now `materializeCoveringRangeOrderCurrentSource()`.
 - Private production helpers in that class no longer carry worker-number suffixes.
 - `SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan` now calls the stable entry point.
-- The direct focused test and WordPress example were renamed away from numbered current-source filenames.
+- The direct focused test and Application example were renamed away from numbered current-source filenames.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/src/SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerCoveringRangeOrderCurrentSourceTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-planner-covering-range-order-current-source.php`
+- `php -l lanes/libsqlite/examples/application-planner-covering-range-order-current-source.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringRangeOrderCurrentSourceTest.php`
   - `1 test files, 77 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-planner-covering-range-order-current-source.php --self-test`
-  - `wordpress-planner-covering-range-order-current-source self-test passed`
+- `php lanes/libsqlite/examples/application-planner-covering-range-order-current-source.php --self-test`
+  - `application-planner-covering-range-order-current-source self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this is a suffix consolidation over existing planner and CREATE INDEX parsing behavior.

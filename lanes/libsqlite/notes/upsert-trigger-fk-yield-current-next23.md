@@ -15,7 +15,7 @@ Covered behavior:
 - BEFORE UPDATE triggers rekeying child rows before the parent row changes;
 - AFTER INSERT/UPDATE triggers inserting or repairing child rows;
 - immediate FK rejection versus deferred transient/final violation evidence;
-- WordPress smoke for option import diagnostics without `ext/sqlite`.
+- Application smoke for option import diagnostics without `ext/sqlite`.
 
 ## Evidence
 

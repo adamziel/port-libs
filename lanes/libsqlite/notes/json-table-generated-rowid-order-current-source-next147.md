@@ -6,12 +6,12 @@ Behavior: adds `SQLiteJsonTablePlan::currentSourceGeneratedRowidOrderNext147()`.
 It composes the accepted generated-hidden rowid cost planner with generated
 ORDER BY terms, then reports ordered rowids, generated sort keys, sort
 penalties, current/next transitions, and reprepare reasons for rowid-scoped
-`json_tree()` scans over copied WordPress option JSON.
+`json_tree()` scans over copied Application option JSON.
 
 Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedRowidOrderCurrentSourceNext147Test.php`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-rowid-order-current-source-next147.php`
+- `php lanes/libsqlite/examples/application-json-table-generated-rowid-order-current-source-next147.php`
 
 Dependency closure: no new support component is needed. This reuses the
 lane-local JSON table planner, generated hidden constraint evaluation, rowid

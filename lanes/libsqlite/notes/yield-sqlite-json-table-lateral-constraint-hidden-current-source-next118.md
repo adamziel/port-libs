@@ -18,13 +18,13 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 64 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-json-table-lateral-constraint-hidden-current-source-next118.php --self-test
-wordpress-json-table-lateral-constraint-hidden-current-source-next118 self-test passed
+$ php lanes/libsqlite/examples/application-json-table-lateral-constraint-hidden-current-source-next118.php --self-test
+application-json-table-lateral-constraint-hidden-current-source-next118 self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +64 from the new focused PASS lines
 (`45302 -> 45366`). Mapped upstream coverage remains `604 / 1589`; this is
-native focused PHP coverage and a WordPress smoke, not a fresh upstream
+native focused PHP coverage and a Application smoke, not a fresh upstream
 testfixture claim.
 
 Non-overlap: avoids accepted JSON table hidden-constraint extraction,

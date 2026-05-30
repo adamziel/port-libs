@@ -30,7 +30,7 @@ final class SQLiteUtf16GlobRangeCurrentSourceNextPlan
      *   dependencies:list<string>
      * }
      */
-    public static function wordpressOptionNameGlobRange(
+    public static function optionRowNameGlobRange(
         array $currentRows,
         array $nextRows,
         string $pattern,

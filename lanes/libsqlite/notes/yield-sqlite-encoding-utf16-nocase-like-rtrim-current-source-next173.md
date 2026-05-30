@@ -14,8 +14,8 @@
 
 - Focused test:
   `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext173Test.php`
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next173.php`
+- Application smoke:
+  `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next173.php`
 - PHP lint and `git diff --check -- lanes/libsqlite` were run before handoff.
 
 ## Non-Overlap

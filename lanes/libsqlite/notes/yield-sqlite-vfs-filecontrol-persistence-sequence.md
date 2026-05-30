@@ -6,16 +6,16 @@ Adds a bounded VFS xFileControl persistence model for close/reopen boundaries.
 The slice distinguishes database-persistent file controls (`persist_wal`,
 `reserve_bytes`, and powersafe-overwrite state) from per-handle controls such as
 `mmap_size`, `chunk_size`, `name_hint`, `write_hint`, `overwrite`, and sync
-counters. Reopening a copied WordPress database handle reloads only the
+counters. Reopening a copied Application database handle reloads only the
 persistent controls and clears transient handle hints.
 
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsFileControlPersistenceSequenceTest.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-vfs-filecontrol-persistence-sequence.php`
+- Example smoke: `php lanes/libsqlite/examples/application-vfs-filecontrol-persistence-sequence.php`
 - Syntax: `php -l lanes/libsqlite/src/SQLiteVfsFileControlPersistencePlan.php`,
   `php -l lanes/libsqlite/tests/SQLiteVfsFileControlPersistenceSequenceTest.php`,
-  and `php -l lanes/libsqlite/examples/wordpress-vfs-filecontrol-persistence-sequence.php`
+  and `php -l lanes/libsqlite/examples/application-vfs-filecontrol-persistence-sequence.php`
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap

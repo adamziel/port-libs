@@ -11,7 +11,7 @@ savepoint flow: the first attempt yields RETURNING rows, `ROLLBACK TO` restores
 the savepoint image, and the retry reads from that restored image before
 RELEASE.
 
-WordPress path: `wordpress-rowvalue-compound-subquery-savepoint-current-source.php`
+Application path: `application-rowvalue-compound-subquery-savepoint-current-source.php`
 models copied multisite `wp_options` rows where migration metadata is merged
 from primary and secondary batches, cleanup candidates are protected with
 `EXCEPT`, and retry rows are gated with `INTERSECT` before RETURNING rows are
@@ -23,9 +23,9 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCompoundSubqueryTest.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-compound-subquery-savepoint-current-source.php
+php -l lanes/libsqlite/examples/application-rowvalue-compound-subquery-savepoint-current-source.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCompoundSubqueryTest.php
-php lanes/libsqlite/examples/wordpress-rowvalue-compound-subquery-savepoint-current-source.php --self-test
+php lanes/libsqlite/examples/application-rowvalue-compound-subquery-savepoint-current-source.php --self-test
 ```
 
 Focused result: `1 test files, 68 assertions, 0 failures`.

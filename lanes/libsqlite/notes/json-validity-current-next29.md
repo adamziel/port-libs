@@ -16,7 +16,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-json-validity-current-next29.php
+php lanes/libsqlite/examples/application-json-validity-current-next29.php
 [
     {
         "option_name": "plugin_json5_settings",

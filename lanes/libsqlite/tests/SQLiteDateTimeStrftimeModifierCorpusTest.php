@@ -34,7 +34,7 @@ $strftimeCases = [
     'date composite' => ['%F', '2024-02-29 15:06:07.890', '2024-02-29'],
     'unix seconds keeps integer part' => ['%s', '2024-02-29 15:06:07.890', '1709219167'],
     'literal percent' => ['%%', '2024-02-29 15:06:07.890', '%'],
-    'full wordpress timestamp label' => ['%F %T.%f %p week=%W iso=%G-W%V-%u', '2024-02-29 15:06:07.890', '2024-02-29 15:06:07.07.890 PM week=09 iso=2024-W09-4'],
+    'full application timestamp label' => ['%F %T.%f %p week=%W iso=%G-W%V-%u', '2024-02-29 15:06:07.890', '2024-02-29 15:06:07.07.890 PM week=09 iso=2024-W09-4'],
     'new year monday week starts at one' => ['%Y-%W-%U-%V', '2024-01-01 00:00:00', '2024-01-00-01'],
     'new year before sunday week zero' => ['%Y-%W-%U-%V', '2022-01-01 00:00:00', '2022-00-00-52'],
     'leap year end week numbers' => ['%Y-%j-%W-%U-%V', '2024-12-31 23:59:59', '2024-366-53-52-01'],
@@ -108,7 +108,7 @@ $tests['upstream strftime modifier corpus too few arguments remains guarded'] = 
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%F']));
 };
 
-$tests['upstream strftime modifier corpus wordpress cron bucket summary'] = static function (TestRunner $t): void {
+$tests['upstream strftime modifier corpus application cron bucket summary'] = static function (TestRunner $t): void {
     $summary = [
         'bucket' => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%G-W%V-%u', '2024-12-31 23:59:59']),
         'stamp' => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%FT%TZ', 1709219167, 'unixepoch']),
@@ -117,11 +117,11 @@ $tests['upstream strftime modifier corpus wordpress cron bucket summary'] = stat
     $t->same(['bucket' => '2025-W01-2', 'stamp' => '2024-02-29T15:06:07Z', 'fraction' => '07.890'], $summary);
 };
 
-$tests['upstream strftime modifier corpus wordpress monthly archive key'] = static function (TestRunner $t): void {
+$tests['upstream strftime modifier corpus application monthly archive key'] = static function (TestRunner $t): void {
     $t->same('2024/02/day-060', SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%Y/%m/day-%j', '2024-02-29 15:06:07.890']));
 };
 
-$tests['upstream strftime modifier corpus wordpress twelve hour audit label'] = static function (TestRunner $t): void {
+$tests['upstream strftime modifier corpus application twelve hour audit label'] = static function (TestRunner $t): void {
     $t->same('03:06:07 PM', SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%I:%M:%S %p', '2024-02-29 15:06:07.890']));
 };
 

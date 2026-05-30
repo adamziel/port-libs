@@ -9,7 +9,7 @@ RETURNING generation handoff, binding the current view source, trigger source,
 conflict target, and update-column set before attempted next-source rows can
 be published.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next233.php`
+Application path: `application-trigger-recursive-view-upsert-current-source-next233.php`
 models a copied `wp_options` import view where recursive trigger-generated
 UPSERT rows must be sealed against the current view/trigger source before a
 plugin migration's next source can expose `home` and `next_plugin` rows.
@@ -18,8 +18,8 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext233Test.php`
 - Result: `1 test files, 88 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next233.php`
-- Result: `wordpress-trigger-recursive-view-upsert-current-source-next233 self-test passed`
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next233.php`
+- Result: `application-trigger-recursive-view-upsert-current-source-next233 self-test passed`
 
 Dashboard delta: `phpPass +88` from the new focused test file. Mapped coverage
 is unchanged; this is current-source PHP behavior over already mapped

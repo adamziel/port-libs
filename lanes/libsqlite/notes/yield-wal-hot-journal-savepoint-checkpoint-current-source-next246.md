@@ -2,18 +2,18 @@
 
 Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which validates the durable VFS handoff after the accepted next243 reopened-reader snapshot admission. The plan admits the current source only when database dirty-page writes, WAL commit-frame markers, database/WAL/directory sync receipts, exclusive-lock state, replayable savepoint state, and hot-journal deletion happen in the safe order.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next246.php` models a copied WordPress import promoting a hot-journal savepoint checkpoint after schema, `wp_options`, and autoload-index page writes reach durable storage.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next246.php` models a copied Application import promoting a hot-journal savepoint checkpoint after schema, `wp_options`, and autoload-index page writes reach durable storage.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next246.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next246.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next246.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next246.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

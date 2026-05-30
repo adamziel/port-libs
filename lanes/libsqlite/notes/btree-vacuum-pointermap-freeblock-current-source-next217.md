@@ -7,16 +7,16 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext217Test.php`
 - Result: `1 test files, 892 assertions, 0 failures` with 122 PASS lines.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next217.php`
-- Result: emits `wordpress-btree-vacuum-pointermap-freeblock-current-source-next217 self-test passed`.
+- `php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next217.php`
+- Result: emits `application-btree-vacuum-pointermap-freeblock-current-source-next217 self-test passed`.
 
 Syntax and diff checks:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext217Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next217.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next217.php`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: focused `phpPass +122` from the new current-source B-tree test. Mapped upstream coverage remains unchanged; this is current-source PHP behavior over already mapped B-tree vacuum, pointer-map, freeblock, and overflow inventory.

@@ -18,7 +18,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-restart-checkpoint-reader-reopen-current-source-next215.php
+php lanes/libsqlite/examples/application-wal-restart-checkpoint-reader-reopen-current-source-next215.php
 {
     "status": "wal-hot-journal-savepoint-checkpoint-current-source-next215",
     "wal_action": "reset_wal_header_after_restart_checkpoint",

@@ -13,7 +13,7 @@ Evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableLateralRowidHiddenCurrentSourceNext93Test.php`
   - `1 test files, 40 assertions, 0 failures`
   - 40 PASS lines
-- `php lanes/libsqlite/examples/wordpress-json-table-lateral-rowid-hidden-current-source-next93.php`
+- `php lanes/libsqlite/examples/application-json-table-lateral-rowid-hidden-current-source-next93.php`
   - reports selected copied `wp_options` rules `cache`, `forms`, and `null`
   - reports hidden planner column `id` from `j.rowid = o.target_rowid`
 

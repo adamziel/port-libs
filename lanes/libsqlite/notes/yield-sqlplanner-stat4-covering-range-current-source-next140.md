@@ -7,7 +7,7 @@ Adds a lane-local current-source STAT4 covering range next-cursor plan for stale
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4CoveringRangeCurrentSourceNext140Test.php`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-planner-stat4-covering-range-current-source-next140.php --self-test`
+- Application smoke: `php lanes/libsqlite/examples/application-planner-stat4-covering-range-current-source-next140.php --self-test`
 - Syntax checks: changed PHP files lint clean
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 

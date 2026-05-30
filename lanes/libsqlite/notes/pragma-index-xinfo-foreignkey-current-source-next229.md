@@ -13,15 +13,15 @@ New behavior:
   columns are only the left prefix of a wider UNIQUE index;
 - treats exact UNIQUE indexes and exact parent primary keys as admissible;
 - reports current/next blocker counts, source summaries, pagination, and
-  repair deltas for copied WordPress taxonomy import schemas.
+  repair deltas for copied Application taxonomy import schemas.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next229.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next229.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next229.php --self-test`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next229.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap: this does not repeat accepted next224 parent-key collation

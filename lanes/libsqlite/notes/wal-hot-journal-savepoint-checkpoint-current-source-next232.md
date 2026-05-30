@@ -22,10 +22,10 @@ reset publication, reopened handle page-digest coverage, WAL byte truncation,
 VFS savepoint rollback, rollback-journal commit/apply, checkpoint transaction
 planning, or VFS file writing.
 
-## WordPress smoke
+## Application smoke
 
-`examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next232.php`
-models a copied WordPress import reopening schema, `wp_options`, and autoload
+`examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next232.php`
+models a copied Application import reopening schema, `wp_options`, and autoload
 index reader slots after hot-journal recovery and savepoint checkpoint
 publication.
 
@@ -46,13 +46,13 @@ Result:
 Example smoke command:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next232.php
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next232.php
 ```
 
 Result:
 
 ```text
-wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next232 self-test passed
+application-wal-hot-journal-savepoint-checkpoint-current-source-next232 self-test passed
 ```
 
 ## Dependency closure

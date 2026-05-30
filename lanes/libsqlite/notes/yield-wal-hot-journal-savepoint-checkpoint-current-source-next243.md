@@ -1,19 +1,19 @@
 # WAL hot-journal savepoint checkpoint current-source next243
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which validates reopened reader snapshot admission after the accepted next240 autocheckpoint baseline. The plan admits the current source only when reopened WordPress readers match the source token, commit generation, schema cookie, database digest, page-cache digest, WAL-index salt/mxFrame, checkpoint frame, commit frames, clean page-cache state, shared lock, and closed savepoint/hot-journal state.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which validates reopened reader snapshot admission after the accepted next240 autocheckpoint baseline. The plan admits the current source only when reopened Application readers match the source token, commit generation, schema cookie, database digest, page-cache digest, WAL-index salt/mxFrame, checkpoint frame, commit frames, clean page-cache state, shared lock, and closed savepoint/hot-journal state.
 
-WordPress smoke:
+Application smoke:
 
-- `examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next243.php` models schema, `wp_options`, and autoload-index readers reopening after a copied WordPress import checkpoint.
+- `examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next243.php` models schema, `wp_options`, and autoload-index readers reopening after a copied Application import checkpoint.
 
 Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next243.php
+php -l lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next243.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Test.php
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next243.php --self-test
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next243.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

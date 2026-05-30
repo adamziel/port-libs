@@ -123,7 +123,7 @@ $cases250 = [
     'plan final row ten retry' => [static fn (): mixed => array_column($plan250()['current_source_tables']['wp_options'], 'option_value', 'option_id')[10], 'network:retry250'],
     'plan final row two deleted' => [static fn (): mixed => in_array(2, array_column($plan250()['current_source_tables']['wp_options'], 'option_id'), true), false],
     'plan final row three restored' => [static fn (): mixed => in_array(3, array_column($plan250()['current_source_tables']['wp_options'], 'option_id'), true), true],
-    'plan dependencies' => [static fn (): mixed => $plan250()['dependencies'], ['sqlite-rowvalue-returning-window-exclude-ties-next250', 'sqlite-rowvalue-returning-current-row-preserved-next250', 'wordpress-rowvalue-returning-window-current-source-next250']],
+    'plan dependencies' => [static fn (): mixed => $plan250()['dependencies'], ['sqlite-rowvalue-returning-window-exclude-ties-next250', 'sqlite-rowvalue-returning-current-row-preserved-next250', 'application-rowvalue-returning-window-current-source-next250']],
     'plan dependency closure' => [static fn (): mixed => str_contains($plan250()['dependency_closure_next250'], 'no new support component needed'), true],
     'plan non overlap' => [static fn (): mixed => str_contains($plan250()['non_overlap_next250'], 'EXCLUDE TIES'), true],
     'custom savepoint' => [static fn (): mixed => $customPlan250()['savepoint'], 'wp_custom_returning_window_next250'],

@@ -7,7 +7,7 @@ Adds a current-source recursive dequeue acknowledgement fence for compound
 feeds `rank()` and `row_number()` window output through `UNION ALL`,
 `INTERSECT`, `EXCEPT`, final `ORDER BY`, and final `LIMIT/OFFSET`.
 
-The WordPress path is copied `wp_options` preview SQL. A next-source option row
+The Application path is copied `wp_options` preview SQL. A next-source option row
 can shift the final compound page, so the plan holds next-source exposure until
 the current recursive dequeue acknowledgements are sealed.
 
@@ -16,7 +16,7 @@ the current recursive dequeue acknowledgements are sealed.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext237Test.php`
   - `1 test files, 400 assertions, 0 failures`
   - `73` PASS lines
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next237.php`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next237.php`
   - emitted `compound-select-window-recursive-limit-current-source-next237-ready`
   - `requiredAckCount` `6`, `dequeueTokenLength` `64`, `nextExposure` `held-until-current-recursive-dequeue-acks`
 

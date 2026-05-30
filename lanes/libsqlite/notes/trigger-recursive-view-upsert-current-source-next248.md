@@ -11,7 +11,7 @@ token, guard-column list, per-current-row guard outcomes, and per-current-row
 where receipts match. Missing, unexpected, or out-of-order guard receipts keep
 next-source rows held while current rows remain visible.
 
-WordPress path: `wordpress-trigger-recursive-view-upsert-current-source-next248.php`
+Application path: `application-trigger-recursive-view-upsert-current-source-next248.php`
 models copied `wp_options` recursive import behavior where current rows from
 an `INSTEAD OF` view trigger must finish `ON CONFLICT(option_name) DO UPDATE
 ... WHERE excluded.option_value <> ''` guard admission before next-source rows
@@ -24,12 +24,12 @@ $ php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext24
 No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext248Plan.php
 $ php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext248Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext248Test.php
-$ php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next248.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next248.php
+$ php -l lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next248.php
+No syntax errors detected in lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next248.php
 $ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext248Test.php
 1 test files, 66 assertions, 0 failures
-$ php lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next248.php
-wordpress-trigger-recursive-view-upsert-current-source-next248 self-test passed
+$ php lanes/libsqlite/examples/application-trigger-recursive-view-upsert-current-source-next248.php
+application-trigger-recursive-view-upsert-current-source-next248 self-test passed
 ```
 
 Expected dashboard movement: `phpPass +66` from the new focused test file

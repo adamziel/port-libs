@@ -34,13 +34,13 @@ Dashboard delta:
   PRAGMA catalog behavior coverage and does not claim a new hydrated upstream
   Tcl inventory unit.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-catalog-rebase-current-next16.php
+$ php lanes/libsqlite/examples/application-pragma-catalog-rebase-current-next16.php
 ```
 
-The smoke reports copied WordPress schema introspection for attached database
+The smoke reports copied Application schema introspection for attached database
 order plus temp/main/attached `foreign_key_list` rows without requiring
 `ext/sqlite`.
 

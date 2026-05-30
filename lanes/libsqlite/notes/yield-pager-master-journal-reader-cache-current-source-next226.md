@@ -10,8 +10,8 @@ SQLite readers should not reuse recovered current-source cache entries when the 
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext226Test.php`
 - Result: `1 test files, 76 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next226.php --self-test`
-- Result: `wordpress-pager-master-journal-reader-cache-current-source-next226 self-test passed`
+- `php lanes/libsqlite/examples/application-pager-master-journal-reader-cache-current-source-next226.php --self-test`
+- Result: `application-pager-master-journal-reader-cache-current-source-next226 self-test passed`
 
 ## Non-Overlap
 

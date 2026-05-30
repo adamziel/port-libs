@@ -112,7 +112,7 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-rowvalue-returning-yield-before-rollback',
                 'sqlite-rowvalue-returning-suppressed-after-rollback-to-savepoint',
-                'wordpress-rowvalue-update-delete-returning-yield-savepoint-current-source',
+                'application-rowvalue-update-delete-returning-yield-savepoint-current-source',
             ],
             'non_overlap' => 'adds RETURNING-yield fencing across ROLLBACK TO for row-value UPDATE/DELETE retries; avoids accepted rollback-to-current-source, transaction OR ROLLBACK, OR IGNORE, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];

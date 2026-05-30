@@ -6,7 +6,7 @@
 - Builds on next212 current-source apply rows and emits per-page write receipts.
 - Confirms pointer-map write receipts precede payload write receipts for each vacuum cursor.
 - Carries leaf freeblock receipts and keeps fenced tail pages out of the write sequence.
-- Adds WordPress smoke coverage for deleting an overflow-backed copied `wp_options` transient before vacuum write application.
+- Adds Application smoke coverage for deleting an overflow-backed copied `wp_options` transient before vacuum write application.
 
 ## Non-overlap
 
@@ -25,11 +25,11 @@ Focused test run: 1 selected test files (root lock skipped)
 
 PASS-line delta: `+137` focused PASS lines.
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next218.php
-wordpress-btree-vacuum-pointermap-freeblock-current-source-next218 self-test passed
+php lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next218.php
+application-btree-vacuum-pointermap-freeblock-current-source-next218 self-test passed
 ```
 
 Dependency closure: no new support component needed; next218 reuses native B-tree page parsing, pointer-map metadata, next212 apply rows, and existing test fixtures.

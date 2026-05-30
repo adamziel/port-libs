@@ -8,9 +8,9 @@ Behavior:
 - Rejects stale prepared partial expression-index reuse unless the current source's partial-index WHERE predicate is implied by the query terms.
 - Rechecks selected current-source rows against the current partial predicate before admitting the covering STAT4 row stream.
 
-WordPress smoke:
+Application smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next195.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next195.php`
 - Expected: JSON summary with `stat4-expression-partial-current-source-next195-ready`.
 
 Focused verification:

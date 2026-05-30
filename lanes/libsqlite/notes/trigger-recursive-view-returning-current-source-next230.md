@@ -10,7 +10,7 @@ rows can publish. Current/following rows remain visible while subsequent next
 rows are held for missing, unexpected, reversed, stale epoch, or stale cursor
 receipts.
 
-WordPress path: `wordpress-trigger-recursive-view-returning-current-source-next230.php`
+Application path: `application-trigger-recursive-view-returning-current-source-next230.php`
 models a copied `wp_options` import view whose recursive trigger drains and
 seals current rows before a later plugin/source epoch may expose cron and
 widget option rows from the subsequent next source.
@@ -19,8 +19,8 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext230Test.php`
 - Result: `1 test files, 75 assertions, 0 failures` with 75 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next230.php`
-- Result: `wordpress-trigger-recursive-view-returning-current-source-next230 self-test passed`.
+- `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-current-source-next230.php`
+- Result: `application-trigger-recursive-view-returning-current-source-next230 self-test passed`.
 
 Dashboard delta: update `phpPass` by the focused PASS-line delta verified for
 this test file (`+75`, from `112201` to `112276`). `benchmarkDenominator.mapped`

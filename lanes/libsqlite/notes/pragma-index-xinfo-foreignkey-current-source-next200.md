@@ -19,7 +19,7 @@ Behavior covered:
 - preserves the accepted parent-key, action, deferral, collation, partial, and
   `foreign_key_check` behavior from the inherited current-source chain.
 
-WordPress relevance:
+Application relevance:
 
 - Copied `wp_options` import tables often add helper indexes after the fact.
   An index on `(locale, slug)` is visible in `PRAGMA index_xinfo`, but it is not
@@ -31,12 +31,12 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
 - `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next200.php`
+- `php -l lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next200.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 62 assertions, 0 failures`
   - `49` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next200.php --self-test`
-  - `wordpress-pragma-index-xinfo-foreignkey-current-source-next200 self-test passed`
+- `php lanes/libsqlite/examples/application-pragma-index-xinfo-foreignkey-current-source-next200.php --self-test`
+  - `application-pragma-index-xinfo-foreignkey-current-source-next200 self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

@@ -5,7 +5,7 @@
 - Added `SQLiteJsonTablePlan::currentSourcePathHiddenRowidCost()` for current-source to next-source JSON table planner handoff.
 - The new profile records composite path + hidden rowid alias lookup signatures, rowid-normalized cost, scan strategy, rowid/path tapes, and replan reasons.
 - Added focused PHP coverage in `SQLiteJsonTablePathHiddenRowidCostTest.php`: 56 PASS lines / 56 assertions / 0 failures.
-- Added WordPress smoke `wordpress-json-table-path-hidden-rowid-cost.php` for copied `wp_options` plugin-rule JSON diagnostics without `ext/sqlite`.
+- Added Application smoke `application-json-table-path-hidden-rowid-cost.php` for copied `wp_options` plugin-rule JSON diagnostics without `ext/sqlite`.
 
 ## Focused Evidence
 
@@ -17,8 +17,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-json-table-path-hidden-rowid-cost.php --self-test
-wordpress-json-table-path-hidden-rowid-cost self-test passed
+$ php lanes/libsqlite/examples/application-json-table-path-hidden-rowid-cost.php --self-test
+application-json-table-path-hidden-rowid-cost self-test passed
 ```
 
 ## Non-Overlap

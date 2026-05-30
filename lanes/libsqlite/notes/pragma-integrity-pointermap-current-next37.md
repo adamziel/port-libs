@@ -25,10 +25,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 45 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-pragma-integrity-pointermap-current-next37.php
+$ php lanes/libsqlite/examples/application-pragma-integrity-pointermap-current-next37.php
 ```
 
 The smoke reports copied `wp_options`-style auto-vacuum page images where

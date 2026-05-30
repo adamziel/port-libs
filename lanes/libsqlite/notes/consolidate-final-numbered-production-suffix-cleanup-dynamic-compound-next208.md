@@ -7,7 +7,7 @@ descriptive `RankDenseRankExceptLimit` helper names.
 
 Observable output is preserved: the public
 `compareRankDenseRankExceptLimit()` entry point, status string, dependency
-strings, replan reasons, non-overlap text, test file name, and WordPress example
+strings, replan reasons, non-overlap text, test file name, and Application example
 name still expose the accepted current-source next208 evidence keys.
 
 Verification:
@@ -15,7 +15,7 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext208Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext*.php`
-- `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next208.php --self-test`
+- `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next208.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this is production helper

@@ -74,7 +74,7 @@ $plan147 = static fn (
     array $nextStatement,
     ?array $currentRows = null,
     ?array $nextRows = null,
-): array => SQLiteLikeGlobCurrentSourceNextPlan::wordpressOptionNameStatement(
+): array => SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement(
     $currentRows ?? $currentRows147,
     $nextRows ?? $nextRows147,
     $currentStatement,

@@ -24,7 +24,7 @@ $admission = [
     'dependencies' => [
         'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next200',
         'sqlite-hot-journal-savepoint-checkpoint-durable-reader-admission',
-        'wordpress-import-retry-checkpoint-durable-reader-admission',
+        'application-import-retry-checkpoint-durable-reader-admission',
     ],
 ];
 $checkpointDigest = hash('sha256', 'next201 checkpoint database bytes after hot journal recovery');
@@ -141,7 +141,7 @@ $cases = [
     'row blocked empty' => [static fn (): mixed => $plan()['published_rows'][0]['blocked_reasons'], []],
     'dependency next200' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next200', $plan()['dependencies'], true), true],
     'dependency next201' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next201', $plan()['dependencies'], true), true],
-    'wordpress dependency' => [static fn (): mixed => in_array('wordpress-import-retry-current-source-reader-cache-rebase', $plan()['dependencies'], true), true],
+    'application dependency' => [static fn (): mixed => in_array('application-import-retry-current-source-reader-cache-rebase', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat WAL byte truncation'), true],
     'blocked admission status' => [static fn (): mixed => $plan($blockedAdmission)['blocked_reasons'], ['next200_durable_reader_admission_required']],

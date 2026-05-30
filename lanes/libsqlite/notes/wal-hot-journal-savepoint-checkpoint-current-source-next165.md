@@ -15,11 +15,11 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 81 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next165.php
-wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next165 self-test passed
+php lanes/libsqlite/examples/application-wal-hot-journal-savepoint-checkpoint-current-source-next165.php
+application-wal-hot-journal-savepoint-checkpoint-current-source-next165 self-test passed
 ```
 
 ## Non-Overlap

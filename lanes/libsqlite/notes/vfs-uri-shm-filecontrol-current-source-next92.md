@@ -24,11 +24,11 @@ Focused test run: 2 selected test files (root lock skipped)
 2 test files, 122 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-vfs-uri-shm-filecontrol-current-source-next92.php --self-test
-wordpress-vfs-uri-shm-filecontrol-current-source-next92 self-test passed
+php lanes/libsqlite/examples/application-vfs-uri-shm-filecontrol-current-source-next92.php --self-test
+application-vfs-uri-shm-filecontrol-current-source-next92 self-test passed
 ```
 
 Non-overlap:

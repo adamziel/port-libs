@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
+use PortLibs\LibSqlite\SQLiteLikeGlobCurrentSourceNextPlan;
+
+require_once __DIR__ . '/../src/SQLiteDatabase.php';
+require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
+require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
+require_once __DIR__ . '/../src/SQLiteLikeGlobCurrentSourceNextPlan.php';
+
+$encodingNumber = static fn (string $encoding): int => match ($encoding) {
+    'UTF-8' => 1,
+    'UTF-16LE' => 2,
+    'UTF-16BE' => 3,
+    default => throw new InvalidArgumentException('bad fixture encoding'),
+};
+
+$row = static function (int $id, string $name, string $encoding) use ($encodingNumber): array {
+    return [
+        'option_id' => $id,
+        'option_name' => $name,
+        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'text_encoding' => $encodingNumber($encoding),
+    ];
+};
+
+$currentRows = [
+    $row(1, 'plugin_%_cache', 'UTF-8'),
+    $row(2, 'Plugin_Z_cache', 'UTF-16LE'),
+    $row(3, 'plugin_abc_cache', 'UTF-16BE'),
+    $row(4, 'plugin_%_cache_extra', 'UTF-16LE'),
+];
+
+$nextRows = [
+    $row(1, 'plugin_%_cache', 'UTF-16LE'),
+    $row(2, 'Plugin_Z_cache', 'UTF-16BE'),
+    $row(3, 'plugin_abc_cache', 'UTF-16BE'),
+    $row(4, 'plugin_%_cache_v2', 'UTF-8'),
+    $row(5, 'plugin_%_cache_new', 'UTF-16BE'),
+];
+
+$like = [
+    'source' => 'main.wp_options@schema147',
+    'operator' => 'LIKE',
+    'pattern' => 'plugin!_!%!_cache%',
+    'collation' => 'NOCASE',
+    'escape' => '!',
+];
+$glob = [
+    'source' => 'main.wp_options@schema147',
+    'operator' => 'GLOB',
+    'pattern' => 'plugin_[A-z]*_cache*',
+    'collation' => 'NOCASE',
+];
+
+$likePlan = SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement($currentRows, $nextRows, $like, $like);
+$globPlan = SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement($currentRows, $nextRows, $glob, $glob);
+
+$summary = [
+    'scenario' => 'application-like-escape-glob-candidates-current-source-next147',
+    'likeCandidateRowids' => $likePlan['current']['candidateRowids'],
+    'likeMatchedRowids' => $likePlan['current']['rowids'],
+    'likeEnteredRowids' => $likePlan['enteredRowids'],
+    'likeCandidateChangedBytes' => $likePlan['candidateChangedBytesRowids'],
+    'globCandidateRowids' => $globPlan['current']['candidateRowids'],
+    'globMatchedRowids' => $globPlan['current']['rowids'],
+    'globFalsePositiveRowids' => $globPlan['current']['falsePositiveRowids'],
+    'globCandidateChangedEncodings' => $globPlan['candidateChangedEncodingRowids'],
+    'dependencies' => $likePlan['dependencies'],
+    'applicationUse' => 'Copied wp_options option_name LIKE ESCAPE and GLOB probes can keep index-range candidate rows separate from residual matches so source-cookie, encoding, and byte changes still reprepare stale cursors.',
+];
+
+if (in_array('--self-test', $argv, true)) {
+    assert($summary['likeCandidateRowids'] === [1, 4]);
+    assert($summary['likeMatchedRowids'] === [1, 4]);
+    assert($summary['likeEnteredRowids'] === [5]);
+    assert($summary['likeCandidateChangedBytes'] === [1, 4]);
+    assert($summary['globCandidateRowids'] === [1, 4, 3, 2]);
+    assert($summary['globMatchedRowids'] === [3]);
+    assert($summary['globFalsePositiveRowids'] === [1, 4, 2]);
+    assert($summary['globCandidateChangedEncodings'] === [1, 2, 4]);
+    assert($summary['dependencies'][3] === 'sqlite-like-glob-range-candidates');
+    echo "application-like-escape-glob-candidates-current-source-next147 self-test passed\n";
+    return;
+}
+
+echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

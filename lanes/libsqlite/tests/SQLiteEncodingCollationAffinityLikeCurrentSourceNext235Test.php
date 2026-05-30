@@ -49,7 +49,7 @@ $plan235 = static fn (
     string $nextSource = 'main.wp_options@235',
     int $currentCookie = 234,
     int $nextCookie = 235,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueNotLikePlan(
     $current ?? $current235,
     $next ?? $nextTwoThreeFive,
     $pattern,
@@ -171,7 +171,7 @@ $tests['encoding collation affinity like current source nextTwoThreeFive unknown
         ['option_id' => 2, 'option_value' => null],
         ['option_id' => 3, 'option_value' => 'other'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan($rows, $rows, "plugin!_\xe2%", '!', false, true, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueNotLikePlan($rows, $rows, "plugin!_\xe2%", '!', false, true, 'same', 'same', 1, 1);
     $t->same([3], $plan['currentResultRowids']);
     $t->same([1, 2], $plan['currentUnknownRowids']);
 };
@@ -183,7 +183,7 @@ $tests['encoding collation affinity like current source nextTwoThreeFive numeric
         ['option_id' => 3, 'option_value' => true],
         ['option_id' => 4, 'option_value' => false],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan($rows, $rows, '12%', null, false, true, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueNotLikePlan($rows, $rows, '12%', null, false, true, 'same', 'same', 1, 1);
     $t->same([4, 3], $plan['currentResultRowids']);
     $t->same([2, 1], $plan['currentLikeRowids']);
 };
@@ -195,21 +195,21 @@ $tests['encoding collation affinity like current source nextTwoThreeFive undersc
         ['option_id' => 3, 'option_value' => "legacy_\xe2\x82\xac_tail"],
         ['option_id' => 4, 'option_value' => 'legacy_ascii_tail'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan($rows, $rows, "legacy!___tail", '!', false, true, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueNotLikePlan($rows, $rows, "legacy!___tail", '!', false, true, 'same', 'same', 1, 1);
     $t->same([4, 2], $plan['currentResultRowids']);
     $t->same([1, 3], $plan['currentLikeRowids']);
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeFive rejects multi character escape'] = static function (TestRunner $t) use ($current235, $nextTwoThreeFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan($current235, $nextTwoThreeFive, "plugin!_\xe2%", '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueNotLikePlan($current235, $nextTwoThreeFive, "plugin!_\xe2%", '!!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeFive rejects missing option value'] = static function (TestRunner $t) use ($nextTwoThreeFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan([['option_id' => 1]], $nextTwoThreeFive, "plugin!_\xe2%", '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueNotLikePlan([['option_id' => 1]], $nextTwoThreeFive, "plugin!_\xe2%", '!'));
 };
 
 $tests['encoding collation affinity like current source nextTwoThreeFive rejects non scalar value'] = static function (TestRunner $t) use ($nextTwoThreeFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan([['option_id' => 1, 'option_value' => ['x']]], $nextTwoThreeFive, "plugin!_\xe2%", '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowValueNotLikePlan([['option_id' => 1, 'option_value' => ['x']]], $nextTwoThreeFive, "plugin!_\xe2%", '!'));
 };
 
 return $tests;

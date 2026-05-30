@@ -1,6 +1,6 @@
 # UTF-16 NOCASE LIKE RTRIM current-source next211
 
-This slice adds focused coverage for refreshing a WordPress `wp_options`
+This slice adds focused coverage for refreshing a Application `wp_options`
 `rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?` cursor when the current
 source changes under mixed UTF-8, UTF-16LE, and UTF-16BE row storage. The plan
 decodes option-name bytes, applies ASCII-space `RTRIM` before ASCII-only
@@ -11,7 +11,7 @@ invalidate it.
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext211Test.php`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next211.php`
+- `php lanes/libsqlite/examples/application-utf16-nocase-like-rtrim-current-source-next211.php`
 - PHP lint on the changed PHP files
 - `git diff --check -- lanes/libsqlite`
 

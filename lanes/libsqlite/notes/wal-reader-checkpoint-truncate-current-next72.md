@@ -9,9 +9,9 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointTruncateCurrentNext72Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-truncate-current-next72.php
+php -l lanes/libsqlite/examples/application-wal-reader-checkpoint-truncate-current-next72.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointTruncateCurrentNext72Test.php
-php lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-truncate-current-next72.php --self-test
+php lanes/libsqlite/examples/application-wal-reader-checkpoint-truncate-current-next72.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

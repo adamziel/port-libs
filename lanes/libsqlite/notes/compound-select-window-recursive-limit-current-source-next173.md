@@ -15,8 +15,8 @@
 
 - Focused command:
   `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext173Test.php`
-- WordPress smoke:
-  `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next173.php`
+- Application smoke:
+  `php lanes/libsqlite/examples/application-compound-select-window-recursive-limit-current-source-next173.php`
 - Dependency closure: no new support component is needed; this reuses existing
   lane-local SELECT SQL, recursive CTE, compound, derived table, window, and
   LIMIT/OFFSET helpers.

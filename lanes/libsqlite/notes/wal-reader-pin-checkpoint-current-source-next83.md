@@ -22,9 +22,9 @@ but a next reader still pins the WAL.
   - `1 test files, 59 assertions, 0 failures`
   - 59 PASS lines
 
-## WordPress Smoke
+## Application Smoke
 
-- `php lanes/libsqlite/examples/wordpress-wal-reader-pin-checkpoint-current-source-next83.php --self-test`
+- `php lanes/libsqlite/examples/application-wal-reader-pin-checkpoint-current-source-next83.php --self-test`
   - Confirms copied `wp_options` WAL restart checkpoint source selection:
     current readers use preserved WAL pages, the next reader sources
     checkpointed pages from the database image while reset is blocked, and

@@ -13,10 +13,10 @@ Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialRelevantRowChurnTest.php`
-- `php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-relevant-row-churn.php`
+- `php -l lanes/libsqlite/examples/application-planner-stat4-expression-partial-relevant-row-churn.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialRelevantRowChurnTest.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*.php`
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-relevant-row-churn.php --self-test`
+- `php lanes/libsqlite/examples/application-planner-stat4-expression-partial-relevant-row-churn.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component is needed; this is a source-only

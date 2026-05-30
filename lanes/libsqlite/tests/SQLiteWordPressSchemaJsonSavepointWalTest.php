@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteWordPressSchemaJsonSavepointWalPlan;
+use PortLibs\LibSqlite\SQLiteSchemaJsonSavepointWalPlan;
 
 $currentRows = static fn (): array => [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -14,14 +14,14 @@ $currentRows = static fn (): array => [
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
-$plan = static fn (array $imports, array $options = []) => SQLiteWordPressSchemaJsonSavepointWalPlan::plan(
+$plan = static fn (array $imports, array $options = []) => SQLiteSchemaJsonSavepointWalPlan::plan(
     $currentRows(),
     $imports,
     $options + ['database_path' => '/tmp/wp-schema-json-savepoint.sqlite', 'page_size' => 1024],
 );
 
 $tests = [
-    'releases schema-valid WordPress JSON rows into the current WAL frame' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'releases schema-valid Application JSON rows into the current WAL frame' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'theme_schema', 'json' => $jsonRows([
                 ['option_name' => 'theme_mods_modern', 'option_value' => '{"palette":["blue"]}', 'autoload' => 'no'],
@@ -76,7 +76,7 @@ $tests = [
         $blob = new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
             ['option_name' => 'jsonb_settings', 'option_value' => '{"mode":"fast"}', 'autoload' => 'no'],
         ]]));
-        $result = SQLiteWordPressSchemaJsonSavepointWalPlan::plan($currentRows(), [
+        $result = SQLiteSchemaJsonSavepointWalPlan::plan($currentRows(), [
             ['name' => 'jsonb_schema', 'json' => $blob, 'path' => '$.rows'],
         ], ['database_path' => '/tmp/wp-schema-jsonb.sqlite']);
 
@@ -86,7 +86,7 @@ $tests = [
     },
     'accepts JSON subtype schema import payloads' => static function (TestRunner $t) use ($currentRows): void {
         $subtype = new SQLiteJsonSubtypeValue('{"rows":[{"option_name":"subtype_settings","option_value":"{\"mode\":\"json\"}","autoload":"no"}]}');
-        $result = SQLiteWordPressSchemaJsonSavepointWalPlan::plan($currentRows(), [
+        $result = SQLiteSchemaJsonSavepointWalPlan::plan($currentRows(), [
             ['name' => 'subtype_schema', 'json' => $subtype, 'path' => '$.rows'],
         ], ['database_path' => '/tmp/wp-schema-subtype.sqlite']);
 
@@ -109,7 +109,7 @@ $tests = [
         ]));
     },
     'rejects empty import lists' => static function (TestRunner $t) use ($currentRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressSchemaJsonSavepointWalPlan::plan($currentRows(), []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaJsonSavepointWalPlan::plan($currentRows(), []));
     },
 ];
 
@@ -176,7 +176,7 @@ foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5, 256 => 5] as
     $tests["schema update for option {$optionId} maps to WAL page {$pageNumber}"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $optionId, $pageNumber): void {
         $rows = $currentRows();
         $rows[] = ['option_id' => $optionId, 'option_name' => 'plugin_' . $optionId . '_settings', 'option_value' => '{"old":true}', 'autoload' => 'no'];
-        $result = SQLiteWordPressSchemaJsonSavepointWalPlan::plan($rows, [
+        $result = SQLiteSchemaJsonSavepointWalPlan::plan($rows, [
             ['name' => 'update_' . $optionId, 'json' => $jsonRows([
                 ['option_id' => $optionId, 'option_name' => 'plugin_' . $optionId . '_settings', 'option_value' => '{"new":true}', 'autoload' => 'no'],
             ]), 'path' => '$.rows'],
@@ -225,7 +225,7 @@ $tests['schema dependencies use canonical names'] = static function (TestRunner 
         ]), 'path' => '$.rows'],
     ]);
 
-    $t->same(true, in_array('sqlite-wordpress-schema-json-savepoint-wal', $result['dependencies'], true));
+    $t->same(true, in_array('sqlite-application-schema-json-savepoint-wal', $result['dependencies'], true));
 };
 
 return $tests;

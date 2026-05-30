@@ -5,9 +5,9 @@
 ## Behavior
 
 - Added focused coverage for auto-vacuum table-root page splits in copied `wp_options` images.
-- The tests rebuild the current/next database image after `planWordPressOptionReplace()` splits a root leaf into an interior root plus two table-leaf children.
+- The tests rebuild the current/next database image after `planOptionRowReplace()` splits a root leaf into an interior root plus two table-leaf children.
 - The assertions verify the root remains a `root-page` pointer-map entry, both split children become `btree-page` entries owned by the current root page, rowid order is preserved, and replacement payload/autoload state survives.
-- Added a WordPress smoke example that prints the split root, child page numbers, and pointer-map entries without requiring `ext/sqlite`.
+- Added a Application smoke example that prints the split root, child page numbers, and pointer-map entries without requiring `ext/sqlite`.
 
 ## Verification
 
@@ -23,9 +23,9 @@ PASS preserves split pointer-map current/next pages for variant 48
 
 1 test files, 1450 assertions, 0 failures
 
-$ php lanes/libsqlite/examples/wordpress-btree-page-split-pointermap-current-next34.php
+$ php lanes/libsqlite/examples/application-btree-page-split-pointermap-current-next34.php
 {
-    "scenario": "wordpress-btree-page-split-pointermap-current-next34",
+    "scenario": "application-btree-page-split-pointermap-current-next34",
     "root": {
         "page": 3,
         "pageType": "table-interior",

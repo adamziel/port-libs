@@ -27,10 +27,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 69 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pragma-foreign-key-index-integrity-current-next71.php
+php lanes/libsqlite/examples/application-pragma-foreign-key-index-integrity-current-next71.php
 ```
 
 The smoke reports copied `wp_options` parent-key integrity for option-name and

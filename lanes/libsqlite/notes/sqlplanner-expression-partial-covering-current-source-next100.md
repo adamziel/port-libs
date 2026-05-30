@@ -11,10 +11,10 @@ Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerExpressionPartialCoveringCurrentSourceNext100Test.php`
   - `1 test files, 55 assertions, 0 failures`
   - 55 focused PASS lines.
-- `php lanes/libsqlite/examples/wordpress-planner-expression-partial-covering-current-source-next100.php --self-test`
-  - `wordpress-planner-expression-partial-covering-current-source-next100 self-test passed`
+- `php lanes/libsqlite/examples/application-planner-expression-partial-covering-current-source-next100.php --self-test`
+  - `application-planner-expression-partial-covering-current-source-next100 self-test passed`
 
-WordPress relevance: copied `wp_options` plugin scans can keep the same schema
+Application relevance: copied `wp_options` plugin scans can keep the same schema
 cookie and STAT4 generation across import planning while the selected partial
 covering index root/stat4 payload changes. The smoke proves the native PHP
 planner switches to current source and avoids stale covering-index estimates.

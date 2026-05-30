@@ -9,7 +9,7 @@
 ## Evidence
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSourceGenerationBarrierTest.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-source-generation-barrier.php`
+- Example smoke: `php lanes/libsqlite/examples/application-trigger-recursive-view-returning-source-generation-barrier.php`
 - Syntax/diff checks: php-lint for changed PHP files and `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

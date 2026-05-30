@@ -14,9 +14,9 @@ Behavior slice: `json-table-generated-path-rowid-cost-current-source-next202`
 ```sh
 php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
 php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext202Test.php
-php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next202.php
+php -l lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next202.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext202Test.php
-php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next202.php --self-test
+php lanes/libsqlite/examples/application-json-table-generated-path-rowid-cost-current-source-next202.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 
@@ -26,10 +26,10 @@ Focused result:
 1 test files, 63 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-wordpress-json-table-generated-path-rowid-cost-current-source-next202 self-test passed
+application-json-table-generated-path-rowid-cost-current-source-next202 self-test passed
 ```
 
 ## Non-Overlap

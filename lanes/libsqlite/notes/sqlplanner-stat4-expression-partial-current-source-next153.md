@@ -14,7 +14,7 @@ Verification:
 
 - Before: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext153Test.php` failed because the focused path did not exist.
 - After: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext153Test.php` -> `1 test files, 29 assertions, 0 failures`.
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-sample-fence.php --self-test`.
+- Application smoke: `php lanes/libsqlite/examples/application-planner-stat4-expression-partial-current-source-sample-fence.php --self-test`.
 
 Dependency closure: no new support component needed; this reuses lane-local
 expression-index STAT4 range planning, partial predicate proof, current-source

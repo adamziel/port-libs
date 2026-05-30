@@ -13,7 +13,7 @@ info rows or batch24 runtime function/module/collation metadata:
 - `SQLitePragmaRowCursor` current/next iteration over both rowsets.
 
 The table-list rows expose bounded SQLite-shaped `schema`, `name`, `type`,
-`ncol`, `wr`, and `strict` metadata for WordPress import preflights, including
+`ncol`, `wr`, and `strict` metadata for Application import preflights, including
 generated-column counts, WITHOUT ROWID flags, STRICT flags, views, quoted table
 names, duplicate `wp_options` tables across temp/main/attached schemas, and
 empty filtered rowsets.
@@ -40,8 +40,8 @@ Additional checks:
 php -l lanes/libsqlite/src/SQLitePragmaSchemaCatalog.php
 php -l lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php
 php -l lanes/libsqlite/tests/SQLitePragmaDatabaseTableListCurrentNext28Test.php
-php -l lanes/libsqlite/examples/wordpress-pragma-database-table-list-current-next28.php
-php lanes/libsqlite/examples/wordpress-pragma-database-table-list-current-next28.php
+php -l lanes/libsqlite/examples/application-pragma-database-table-list-current-next28.php
+php lanes/libsqlite/examples/application-pragma-database-table-list-current-next28.php
 git diff --check -- lanes/libsqlite
 ```
 

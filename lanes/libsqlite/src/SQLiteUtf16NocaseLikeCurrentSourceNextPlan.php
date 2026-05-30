@@ -6,14 +6,14 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteUtf16NocaseLikeCurrentSourceNextPlan
 {
-    public static function wordpressOptionNameLikePlan(mixed ...$args): array
+    public static function optionRowNameLikePlan(mixed ...$args): array
     {
-        return SQLiteUtf16NocaseLikeRangeBytesPlan::wordpressOptionNameLikePlan(...$args);
+        return SQLiteUtf16NocaseLikeRangeBytesPlan::optionRowNameLikePlan(...$args);
     }
 
-    public static function wordpressOptionNameResidualPlan(mixed ...$args): array
+    public static function optionRowNameResidualPlan(mixed ...$args): array
     {
-        return SQLiteUtf16NocaseLikeResidualPlan::wordpressOptionNameLikePlan(...$args);
+        return SQLiteUtf16NocaseLikeResidualPlan::optionRowNameLikePlan(...$args);
     }
 
 }
@@ -25,7 +25,7 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameLikePlan(
+    public static function optionRowNameLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -44,7 +44,7 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
         $nextEncoding = self::normalizeUtf16Encoding($nextDatabaseEncoding);
         $rangePlan = SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, $caseSensitiveLike);
 
-        $currentScan = SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan(
+        $currentScan = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
             self::assertUtf16Rows($currentRows, 'current'),
             $pattern,
             'LIKE',
@@ -52,7 +52,7 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
             $escape,
             $caseSensitiveLike,
         );
-        $nextScan = SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan(
+        $nextScan = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
             self::assertUtf16Rows($nextRows, 'next'),
             $pattern,
             'LIKE',
@@ -283,7 +283,7 @@ final class SQLiteUtf16NocaseLikeResidualPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function wordpressOptionNameLikePlan(
+    public static function optionRowNameLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

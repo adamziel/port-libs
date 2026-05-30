@@ -8,7 +8,7 @@ accepted inclusive `BETWEEN` admission for `lower(option_name)` partial indexes,
 then materializes the reverse covering cursor shape: `SeekLE`, `IdxGE`, and
 `Prev` over current-source STAT4 boundaries.
 
-WordPress path: copied plugin option scans can keep a descending
+Application path: copied plugin option scans can keep a descending
 `lower(option_name)` partial expression index after ANALYZE/source churn without
 falling back to a stale ascending prepared cursor.
 
@@ -16,7 +16,7 @@ falling back to a stale ascending prepared cursor.
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext180Test.php`
   - `1 test files, 59 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next180.php`
+- `php lanes/libsqlite/examples/application-sqlplanner-stat4-expression-partial-current-source-next180.php`
   - emits JSON with `status` =
     `stat4-expression-partial-current-source-next180-ready` and descending
     `matchedRowids` `[60, 30, 20, 10]`

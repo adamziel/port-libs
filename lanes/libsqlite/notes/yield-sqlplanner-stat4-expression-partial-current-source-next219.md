@@ -12,9 +12,9 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext219Test.php`
 - Result: `1 test files, 72 assertions, 0 failures`
 
-## WordPress Smoke
+## Application Smoke
 
-- `wordpress-sqlplanner-stat4-expression-partial-current-source-next219.php` models copied `wp_options` plugin scans that yield a current-source STAT4 partial `lower(option_name)` cursor only after duplicate `plugin_forms` peers are fenced, so import previews resume at the next peer rowid instead of skipping or duplicating options.
+- `application-sqlplanner-stat4-expression-partial-current-source-next219.php` models copied `wp_options` plugin scans that yield a current-source STAT4 partial `lower(option_name)` cursor only after duplicate `plugin_forms` peers are fenced, so import previews resume at the next peer rowid instead of skipping or duplicating options.
 
 ## Non-overlap
 

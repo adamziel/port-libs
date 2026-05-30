@@ -12,9 +12,9 @@ Adds `SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan`, a current-sour
 
 This is intentionally narrower than accepted next113/115/116 B-tree work: it does not repeat freelist trunk pointer-map reuse, overflow freeblock diagnostics, or table-only overflow freepage application. The new coverage adds index-leaf current-source overflow derivation and combined leaf-plus-overflow freelist application after rebalance.
 
-## WordPress smoke
+## Application smoke
 
-`examples/wordpress-btree-freelist-overflow-rebalance-current-source-next120.php` models a copied `wp_options` cleanup where oversized transient option rows and matching index records are deleted without ext/sqlite. The smoke proves both table and index leaf pages plus their current-source overflow chains become freelist-owned and pointer-map entries become `free-page`.
+`examples/application-btree-freelist-overflow-rebalance-current-source-next120.php` models a copied `wp_options` cleanup where oversized transient option rows and matching index records are deleted without ext/sqlite. The smoke proves both table and index leaf pages plus their current-source overflow chains become freelist-owned and pointer-map entries become `free-page`.
 
 ## Verification
 

@@ -17,10 +17,10 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 122 assertions, 0 failures
 ```
 
-WordPress smoke:
+Application smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-select-expression-partial-is-not-null.php
+php lanes/libsqlite/examples/application-select-expression-partial-is-not-null.php
 ```
 
 Dashboard delta: `phpPass` increases by the verified focused PASS-line delta,

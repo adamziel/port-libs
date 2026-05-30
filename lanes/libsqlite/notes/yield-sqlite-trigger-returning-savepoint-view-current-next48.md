@@ -4,7 +4,7 @@
 
 - Added `SQLiteViewTriggerReturningSavepointPlan` for bounded `INSTEAD OF` view-trigger execution under a current savepoint.
 - The planner composes existing attached-schema trigger-yield resolution with savepoint page/WAL rollback diagnostics and SQLite-style `RETURNING` current-row images.
-- Added a WordPress smoke for copied `wp_options` view insert behavior.
+- Added a Application smoke for copied `wp_options` view insert behavior.
 - Updated `lane-status.json` `phpPass` from `17373` to `17436` for the 63 newly verified focused PASS lines.
 
 ## Verification
@@ -17,7 +17,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-$ php lanes/libsqlite/examples/wordpress-view-trigger-returning-savepoint.php
+$ php lanes/libsqlite/examples/application-view-trigger-returning-savepoint.php
 {
     "returning": [
         {
@@ -42,7 +42,7 @@ $ php lanes/libsqlite/examples/wordpress-view-trigger-returning-savepoint.php
 
 ## Non-overlap
 
-This does not repeat standalone attached temp view trigger yielding, trigger/FK `RETURNING`, recursive savepoint trigger rollback, savepoint page-image rollback, VFS savepoint rollback apply, or parser-level JSON/SELECT source work. The new surface is the composition of `INSTEAD OF` view-trigger side effects, current-row `RETURNING`, and current-savepoint rollback restoration for WordPress-style option imports.
+This does not repeat standalone attached temp view trigger yielding, trigger/FK `RETURNING`, recursive savepoint trigger rollback, savepoint page-image rollback, VFS savepoint rollback apply, or parser-level JSON/SELECT source work. The new surface is the composition of `INSTEAD OF` view-trigger side effects, current-row `RETURNING`, and current-savepoint rollback restoration for Application-style option imports.
 
 ## Dependency closure
 

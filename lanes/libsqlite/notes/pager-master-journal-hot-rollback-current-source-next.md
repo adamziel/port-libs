@@ -2,7 +2,7 @@ Status: focused PHP behavior growth for pager master-journal hot rollback curren
 
 This slice adds `SQLitePagerMasterJournalHotRollbackCurrentSourceNextPlan` and `SQLiteVfsFileWriter::applyMasterJournalHotRollbackFromCurrentSource()`. The planner models the opener boundary where a surviving master/super-journal and attached rollback journals must be read from the current VFS source, while stale pre-open database or journal candidate bytes are ignored. Named current-source rollback journals restore attached database images, truncate dirty tails, delete the current journals, and delete the master journal only after every named journal is cleared.
 
-The WordPress smoke models copied `wp_options` and multisite option databases after an interrupted plugin/network import. It proves current file-handle bytes, not stale pager snapshot bytes, decide the recovered `active_plugins`/`upload_path` rows.
+The Application smoke models copied `wp_options` and multisite option databases after an interrupted plugin/network import. It proves current file-handle bytes, not stale pager snapshot bytes, decide the recovered `active_plugins`/`upload_path` rows.
 
 Verification:
 
@@ -16,14 +16,14 @@ No syntax errors detected in lanes/libsqlite/src/SQLiteVfsFileWriter.php
 php -l lanes/libsqlite/tests/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Test.php
 
-php -l lanes/libsqlite/examples/wordpress-pager-master-journal-hot-rollback-current-source-current-source.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-pager-master-journal-hot-rollback-current-source-current-source.php
+php -l lanes/libsqlite/examples/application-pager-master-journal-hot-rollback-current-source-current-source.php
+No syntax errors detected in lanes/libsqlite/examples/application-pager-master-journal-hot-rollback-current-source-current-source.php
 
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Test.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 69 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-pager-master-journal-hot-rollback-current-source-current-source.php --self-test
+php lanes/libsqlite/examples/application-pager-master-journal-hot-rollback-current-source-current-source.php --self-test
 {
     "status": "applied",
     "recoveredDatabases": 2,

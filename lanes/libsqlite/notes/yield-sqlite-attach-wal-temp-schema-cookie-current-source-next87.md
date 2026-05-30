@@ -4,7 +4,7 @@
 
 - Added `SQLiteAttachWalTempSchemaCookieSourcePlan` for current/next schema-cookie attribution across `main`, `temp`, and attached schemas.
 - The slice covers committed WAL page-1 cookies, ignored uncommitted WAL page-1 tails, temp rollback-journal schema-cookie changes, attached WAL schema-cookie stability, and prepared statement reuse/reprepare decisions.
-- WordPress smoke: copied `wp_options` and temp import staging statements report which schema-cookie source expires active readers, write statements, and qualified attached-schema readers.
+- Application smoke: copied `wp_options` and temp import staging statements report which schema-cookie source expires active readers, write statements, and qualified attached-schema readers.
 
 ## Focused Evidence
 

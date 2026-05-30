@@ -2,16 +2,16 @@
 
 Status: focused PHP corpus growth for WAL checksum/salt recovery after a WAL restart.
 
-This slice adds `SQLiteWal::checksumSaltRecoveryCurrentNext()`. It composes existing WAL checksum and transaction recovery primitives across the current WAL and the next WAL after a restart. The planner reports salt rotation, committed current/next reader visibility, stale old-salt tail discard, checkpoint database use, and dependency markers for copied WordPress `wp_options` WAL recovery.
+This slice adds `SQLiteWal::checksumSaltRecoveryCurrentNext()`. It composes existing WAL checksum and transaction recovery primitives across the current WAL and the next WAL after a restart. The planner reports salt rotation, committed current/next reader visibility, stale old-salt tail discard, checkpoint database use, and dependency markers for copied Application `wp_options` WAL recovery.
 
 Focused verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteWal.php
 php -l lanes/libsqlite/tests/SQLiteWalChecksumSaltRecoveryCurrentNext70Test.php
-php -l lanes/libsqlite/examples/wordpress-wal-checksum-salt-recovery-current-next70.php
+php -l lanes/libsqlite/examples/application-wal-checksum-salt-recovery-current-next70.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalChecksumSaltRecoveryCurrentNext70Test.php
-php lanes/libsqlite/examples/wordpress-wal-checksum-salt-recovery-current-next70.php --self-test
+php lanes/libsqlite/examples/application-wal-checksum-salt-recovery-current-next70.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

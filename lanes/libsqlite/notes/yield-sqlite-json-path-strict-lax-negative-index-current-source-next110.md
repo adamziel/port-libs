@@ -15,9 +15,9 @@ diagnostics for the SQLite JSON path grammar boundary:
   abort policy for malformed path input, rowid-level result signatures, missing
   path rows, and malformed JSON source rows.
 
-WordPress smoke:
+Application smoke:
 
-- `lanes/libsqlite/examples/wordpress-json-path-strict-lax-negative-index-current-source-next110.php`
+- `lanes/libsqlite/examples/application-json-path-strict-lax-negative-index-current-source-next110.php`
   reports accepted `[#-N]` option-setting paths, rejected strict/lax/`[-N]`
   path forms, and current/next last-plugin slugs for copied `wp_options` rows.
 
@@ -38,7 +38,7 @@ adding a fresh manifest-backed row.
 Non-overlap: avoids accepted batch106 JSONB malformed path/operator diagnostics
 by not changing JSONB malformed-source operator lazy evaluation. This slice is
 the SQLite path grammar boundary for strict/lax prefixes and `[-N]` negative
-indexes, plus current/next source diagnostics over copied WordPress option
+indexes, plus current/next source diagnostics over copied Application option
 rows.
 
 Dependency closure: no new support component is needed. The slice reuses

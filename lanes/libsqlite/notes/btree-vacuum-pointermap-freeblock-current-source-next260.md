@@ -13,15 +13,15 @@ The plan reports:
 - reader-source epoch preservation;
 - freeblock receipt visibility and tail-page reader fencing.
 
-## WordPress Smoke
+## Application Smoke
 
-`lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next260.php` models deleting an overflow-backed copied `_transient_next260` row from `wp_options`. It verifies that pointer-map pages `2` and `105` are snapshot-visible before reusable pages `3`, `106`, `107`, and `108`, and that obsolete tail pages `109` and `110` stay hidden from readers.
+`lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next260.php` models deleting an overflow-backed copied `_transient_next260` row from `wp_options`. It verifies that pointer-map pages `2` and `105` are snapshot-visible before reusable pages `3`, `106`, `107`, and `108`, and that obsolete tail pages `109` and `110` stay hidden from readers.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext260Plan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext260Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next260.php`
+- `php -l lanes/libsqlite/examples/application-btree-vacuum-pointermap-freeblock-current-source-next260.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext260Test.php`
   - `1 test files, 1409 assertions, 0 failures`
   - `149` PASS lines

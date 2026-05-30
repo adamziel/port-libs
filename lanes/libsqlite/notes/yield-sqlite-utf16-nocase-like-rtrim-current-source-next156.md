@@ -12,9 +12,9 @@
   - `73 PASS lines`
   - `1 test files, 79 assertions, 0 failures`
 
-## WordPress Smoke
+## Application Smoke
 
-- Added `examples/wordpress-utf16-nocase-like-rtrim-current-source-next156.php` to show copied WordPress option-name rows moving between UTF-16 encodings while preserving RTRIM candidates and NOCASE LIKE matches.
+- Added `examples/application-utf16-nocase-like-rtrim-current-source-next156.php` to show copied Application option-name rows moving between UTF-16 encodings while preserving RTRIM candidates and NOCASE LIKE matches.
 
 ## Non-Overlap
 
