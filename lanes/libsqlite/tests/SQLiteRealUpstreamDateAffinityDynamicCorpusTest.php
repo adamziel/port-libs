@@ -105,6 +105,18 @@ foreach ($dateTimeCases as $name => [$function, $arguments, $expected]) {
     };
 }
 
+// Source truth: SQLite upstream test/date.test date-2.2c-0..999.
+// The Tcl corpus formats one thousand millisecond unixepoch values and expects
+// strftime('%H:%M:%f', value, 'unixepoch') to preserve the fractional second.
+for ($millisecond = 0; $millisecond < 1000; $millisecond++) {
+    $value = sprintf('1237962480.%03d', $millisecond);
+    $expected = sprintf('06:28:00.%03d', $millisecond);
+
+    $tests['real upstream corpus date affinity dynamic date.test date-2.2c-' . $millisecond . ' strftime fractional unixepoch'] = static function (TestRunner $t) use ($value, $expected): void {
+        $t->same($expected, SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%H:%M:%f', $value, 'unixepoch']));
+    };
+}
+
 $strftimeCases = [
     'date.test date-3.23 twelve hour lowercase am' => ['%I%P', '2023-08-09 11:59:59', '11am'],
     'date.test date-3.24 twelve hour uppercase pm' => ['%I%p', '2023-08-09 12:00:00', '12PM'],

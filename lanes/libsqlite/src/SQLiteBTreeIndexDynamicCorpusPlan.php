@@ -1056,6 +1056,180 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,storage:string,index_name:string,expression:string,predicate:string,result_rows:list<array<int,mixed>>,detail:string,uses_index:bool,collation:string,order:string,mutation_column:string|null,recomputes_index:bool,expected_refcount:int|null}>
+     */
+    public static function indexExpressionDynamicCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite upstream index expression corpus requires at least one case');
+        }
+
+        $rowidRows = [
+            1 => ['In_the_beginning_was_the_Word', 1, 1],
+            2 => ['and_the_Word_was_with_God', 1, 2],
+            3 => ['and_the_Word_was_God', 1, 3],
+            4 => ['The_same_was_in_the_beginning_with_God', 2, 1],
+            5 => ['All_things_were_made_by_him', 3, 1],
+            6 => ['and_without_him_was_not_any_thing_made_that_was_made', 3, 2],
+        ];
+        $sectionTemplates = [
+            [
+                'source' => 'indexexpr1.test indexexpr1-110 and 120',
+                'section' => 'indexexpr1-110',
+                'index' => 't1a1',
+                'expression' => 'substr(a,1,12)',
+                'predicate' => "substr(a,1,12)=='and_the_Word'",
+                'rows' => [[1, 2, '|'], [1, 3, '|']],
+                'detail' => 'SEARCH t1 USING INDEX t1a1 (<expr>=?)',
+                'uses' => true,
+                'collation' => 'binary',
+                'order' => 'b,c',
+            ],
+            [
+                'source' => 'indexexpr1.test indexexpr1-130 and 230',
+                'section' => 'indexexpr1-130',
+                'index' => 't1ba',
+                'expression' => 'b,substr(a,2,3),c',
+                'predicate' => "b=1 AND substr(a,2,3)='nd_'",
+                'rows' => [[2], [3]],
+                'detail' => 'SEARCH t1 USING COVERING INDEX t1ba (b=? AND <expr>=?)',
+                'uses' => true,
+                'collation' => 'binary',
+                'order' => 'c',
+            ],
+            [
+                'source' => 'indexexpr1.test indexexpr1-141 and 241',
+                'section' => 'indexexpr1-141',
+                'index' => 't1abx',
+                'expression' => 'substr(a,b,3)',
+                'predicate' => "substr(a,b,3)<='and'",
+                'rows' => [[1], [2], [3]],
+                'detail' => 'SEARCH t1 USING COVERING INDEX t1abx (<expr><?)',
+                'uses' => true,
+                'collation' => 'binary',
+                'order' => '+rowid',
+            ],
+            [
+                'source' => 'indexexpr1.test indexexpr1-150 and 250',
+                'section' => 'indexexpr1-150',
+                'index' => 't1abx',
+                'expression' => 'substr(a,b,3)',
+                'predicate' => "substr(a,b,3) IN ('and','l_t','xyz')",
+                'rows' => [[2], [3], [5]],
+                'detail' => 'SEARCH t1 USING COVERING INDEX t1abx (<expr>=?)',
+                'uses' => true,
+                'collation' => 'binary',
+                'order' => '+rowid',
+            ],
+            [
+                'source' => 'indexexpr1.test indexexpr1-160 and 260',
+                'section' => 'indexexpr1-160',
+                'index' => 't1a2',
+                'expression' => 'SUBSTR(a, 27, 3)',
+                'predicate' => "substr(a,27,3)=='ord' AND d>=29",
+                'rows' => [[1, 1, 1]],
+                'detail' => 'SEARCH t1 USING INDEX t1a2 (<expr>=?)',
+                'uses' => true,
+                'collation' => 'binary',
+                'order' => 'rowid',
+            ],
+            [
+                'source' => 'indexexpr1.test indexexpr1-170 and 171',
+                'section' => 'indexexpr1-170',
+                'index' => 't1alen',
+                'expression' => 'length(a)',
+                'predicate' => 'ORDER BY length(a)',
+                'rows' => [[20], [25], [27], [29], [38], [52]],
+                'detail' => 'SCAN t1 USING COVERING INDEX t1alen',
+                'uses' => true,
+                'collation' => 'binary',
+                'order' => 'length(a)',
+            ],
+            [
+                'source' => 'indexexpr2.test indexexpr2-3.4.5 and 3.4.6',
+                'section' => 'indexexpr2-3.4.5',
+                'index' => 'i4',
+                'expression' => 'Substr(a,-2) COLLATE nocase',
+                'predicate' => 'ORDER BY Substr(a,-2) COLLATE nocase',
+                'rows' => [['.ABC1', 1], ['.abc2', 2], ['.ABC3', 3], ['.abc4', 4]],
+                'detail' => 'SCAN t4 USING INDEX i4',
+                'uses' => true,
+                'collation' => 'nocase',
+                'order' => 'Substr(a,-2) COLLATE nocase',
+            ],
+            [
+                'source' => 'indexexpr2.test indexexpr2-4.110 through 4.130',
+                'section' => 'indexexpr2-4.120',
+                'index' => 't1abc',
+                'expression' => 'refcnt(a+b+c)',
+                'predicate' => 'UPDATE t1 SET b=b+1',
+                'rows' => [[1, 3, 3, 4, 5, 6]],
+                'detail' => 'expression index entry removed and reinserted',
+                'uses' => true,
+                'collation' => 'binary',
+                'order' => 'rowid',
+                'mutation' => 'b',
+                'recomputes' => true,
+                'refcount' => 2,
+            ],
+            [
+                'source' => 'indexexpr2.test indexexpr2-4.110 through 4.130',
+                'section' => 'indexexpr2-4.130',
+                'index' => 't1abc',
+                'expression' => 'refcnt(a+b+c)',
+                'predicate' => 'UPDATE t1 SET d=d+1',
+                'rows' => [[1, 2, 3, 5, 5, 6]],
+                'detail' => 'expression index not touched when indexed columns are unchanged',
+                'uses' => false,
+                'collation' => 'binary',
+                'order' => 'rowid',
+                'mutation' => 'd',
+                'recomputes' => false,
+                'refcount' => 0,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $sectionTemplates[($case - 1) % count($sectionTemplates)];
+            $withoutRowid = $case % 2 === 0 && str_starts_with($template['section'], 'indexexpr1-');
+            $storage = $withoutRowid ? 'without-rowid' : 'rowid';
+            $section = $template['section'];
+            if ($withoutRowid) {
+                $section = str_replace(['-110', '-120', '-130', '-141', '-150', '-160'], ['-210', '-220', '-230', '-241', '-250', '-260'], $section);
+            }
+
+            $resultRows = $template['rows'];
+            if ($withoutRowid && $template['order'] === '+rowid') {
+                $resultRows = array_map(static fn (array $row): array => [$row[0]], $resultRows);
+            }
+            if ($template['expression'] === 'length(a)' && $case % 3 === 0) {
+                $resultRows = array_reverse($resultRows);
+            }
+
+            $rows[] = [
+                'source' => $template['source'],
+                'case' => $case,
+                'upstream_section' => $section,
+                'storage' => $storage,
+                'index_name' => $template['index'],
+                'expression' => $template['expression'],
+                'predicate' => $template['predicate'],
+                'result_rows' => $resultRows,
+                'detail' => $template['detail'],
+                'uses_index' => $template['uses'],
+                'collation' => $template['collation'],
+                'order' => $template['expression'] === 'length(a)' && $case % 3 === 0 ? 'length(a) DESC' : $template['order'],
+                'mutation_column' => $template['mutation'] ?? null,
+                'recomputes_index' => $template['recomputes'] ?? false,
+                'expected_refcount' => $template['refcount'] ?? null,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

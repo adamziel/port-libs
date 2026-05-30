@@ -701,6 +701,143 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $incoming
+     * @param list<string> $parentColumns
+     * @param list<string> $childColumns
+     * @return array<string,mixed>
+     */
+    public static function selfReferentialForeignKeyInsert(
+        array $rows,
+        array $incoming,
+        array $parentColumns,
+        array $childColumns,
+        ?string $integerPrimaryKey = null
+    ): array {
+        if ($parentColumns === [] || count($parentColumns) !== count($childColumns)) {
+            throw new \InvalidArgumentException('SQLite fkey3 self-referential FK column mapping is invalid');
+        }
+
+        foreach ($parentColumns as $column) {
+            self::identifier($column, 'parent column');
+        }
+        foreach ($childColumns as $column) {
+            self::identifier($column, 'child column');
+        }
+
+        $rows = array_values($rows);
+        $candidate = $incoming;
+        if ($integerPrimaryKey !== null) {
+            $integerPrimaryKey = self::identifier($integerPrimaryKey, 'integer primary key');
+            if (($candidate[$integerPrimaryKey] ?? null) === null) {
+                $max = 0;
+                foreach ($rows as $row) {
+                    $value = $row[$integerPrimaryKey] ?? null;
+                    if (is_int($value) && $value > $max) {
+                        $max = $value;
+                    }
+                }
+                $candidate[$integerPrimaryKey] = $max + 1;
+            }
+        }
+
+        $attemptedRows = [...$rows, $candidate];
+        $childKey = [];
+        foreach ($childColumns as $column) {
+            $childKey[] = $candidate[$column] ?? null;
+        }
+
+        $satisfiedByNullChild = in_array(null, $childKey, true);
+        $matchedParent = false;
+        if (!$satisfiedByNullChild) {
+            foreach ($attemptedRows as $row) {
+                $matches = true;
+                foreach ($parentColumns as $index => $column) {
+                    if (($row[$column] ?? null) !== $childKey[$index]) {
+                        $matches = false;
+                        break;
+                    }
+                }
+                if ($matches) {
+                    $matchedParent = true;
+                    break;
+                }
+            }
+        }
+
+        $valid = $satisfiedByNullChild || $matchedParent;
+        $committedRows = $valid ? $attemptedRows : $rows;
+
+        return [
+            'source' => 'fkey3.test fkey3-3.1.1..3.6.5',
+            'operation' => 'self-referential-foreign-key-insert',
+            'status' => $valid ? 'commit-ok' : 'constraint-failed',
+            'parent_columns' => $parentColumns,
+            'child_columns' => $childColumns,
+            'child_key' => $childKey,
+            'assigned_integer_primary_key' => $integerPrimaryKey === null ? null : $candidate[$integerPrimaryKey],
+            'matched_parent_after_insert' => $matchedParent,
+            'null_child_key_satisfied' => $satisfiedByNullChild,
+            'attempted_rows' => self::sortRows($attemptedRows),
+            'committed_rows' => self::sortRows($committedRows),
+            'violation_count' => $valid ? 0 : 1,
+            'error' => $valid ? null : 'FOREIGN KEY constraint failed',
+            'dependencies' => [
+                'sqlite-fkey3-self-referential-row-matches-itself-after-insert',
+                'sqlite-fkey3-integer-primary-key-null-is-assigned-before-fk-check',
+                'sqlite-fkey3-composite-parent-key-order-follows-fk-declaration',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array<string,mixed> $incoming
+     * @return array<string,mixed>
+     */
+    public static function deferredAutocommitForeignKeyFailure(array $parents, array $children, array $incoming, int $attempts = 2): array
+    {
+        if ($attempts < 1) {
+            throw new \InvalidArgumentException('SQLite fkey4 deferred autocommit attempts must be positive');
+        }
+
+        $committedChildren = array_values($children);
+        $attemptResults = [];
+        $parentKeys = array_values(array_map(static fn (array $row): mixed => $row['a'] ?? null, $parents));
+
+        for ($i = 1; $i <= $attempts; ++$i) {
+            $childKey = $incoming['c'] ?? null;
+            $valid = $childKey === null || in_array($childKey, $parentKeys, true);
+            if ($valid) {
+                $committedChildren[] = $incoming;
+            }
+            $attemptResults[] = [
+                'attempt' => $i,
+                'status' => $valid ? 'commit-ok' : 'constraint-failed',
+                'error' => $valid ? null : 'FOREIGN KEY constraint failed',
+                'transaction_left_open' => false,
+                'child_count_after_attempt' => count($committedChildren),
+            ];
+        }
+
+        return [
+            'source' => 'fkey4.test fkey4-1.1..1.4',
+            'operation' => 'deferred-autocommit-foreign-key-failure',
+            'status' => 'commit-ok',
+            'attempt_count' => $attempts,
+            'attempts' => $attemptResults,
+            'children' => self::sortRows($committedChildren),
+            'child_count' => count($committedChildren),
+            'statement_transaction_retained' => false,
+            'dependencies' => [
+                'sqlite-fkey4-deferred-autocommit-violation-rolls-back-statement',
+                'sqlite-fkey4-reprepared-statement-fails-independently',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int}> $leftRows
      * @param list<array{c:int,d:int}> $rightRows
      * @param list<array{op:string,where?:callable(array<string,mixed>):bool,row?:array{a:int,b:int,c:int,d:int}}>
