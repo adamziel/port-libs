@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 21:05:38 UTC",
-    "sourceCommit": "3b81687dceaf2cba1068d4e76eddeff0559074e2",
-    "sourceCommitShort": "3b81687dceaf",
+    "generated": "2026-05-30 21:09:45 UTC",
+    "sourceCommit": "86030f3d387c0d2eaccd5bc10bbb55e86ebfd1f2",
+    "sourceCommitShort": "86030f3d387c",
     "sourceBranch": "main",
-    "dashboardCommit": "3b81687dceaf2cba1068d4e76eddeff0559074e2",
-    "dashboardCommitShort": "3b81687dceaf",
+    "dashboardCommit": "86030f3d387c0d2eaccd5bc10bbb55e86ebfd1f2",
+    "dashboardCommitShort": "86030f3d387c",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "718526 pass / 0 fail",
+            "php": "732655 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted source commit 3b81687dceaf2cba10...",
-            "currentWork": "Published source 3b81687d with an eighth rapid current-base libsqlite sweep. Public upstr...",
+            "audit": "Accepted source commit 86030f3d387c0d2eac...",
+            "currentWork": "Published source 86030f3d with a ninth rapid current-base libsqlite sweep. Public upstrea...",
             "nextTarget": "Continue integrating high-yield current-base real-corpus handoffs with apply-check, focus...",
             "blocker": "Selected focused corpus and PDO gates pass for the accepted snapshots.",
-            "commit": "3b81687"
+            "commit": "86030f3"
         },
         {
             "library": "LightningCSS",
