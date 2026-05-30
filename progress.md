@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:03 UTC):
+  Latest accepted libsqlite source is `14be09444`
+  (`libsqlite: add accelerated real corpus batch`). This follow-up accepts 13
+  more compatible ready handoffs on top of dashboard/source `f66597de`,
+  covering SELECT core expansion, date4 strftime parity, PRAGMA data_version,
+  VFS atomic journal admission, pager/WAL dynamic corpus, trigger/FK OR
+  REPLACE and savepoint behavior, expression affinity hex/text behavior,
+  B-tree/index NUMERIC affinity and autoindex/reserved-name behavior, JSON102
+  and JSONB behavior, and source-neutral CAST/LIKE/GLOB default cleanup.
+  Focused verification passed `17 files / 42530 assertions / 0 failures /
+  15911 PASS lines`; the accepted-base comparison over existing selected files
+  passed `13 files / 22880 assertions / 0 failures / 9845 PASS lines`, so the
+  honest selected PASS-line delta is `+6066`. Public libsqlite should move to
+  `229590 pass / 0 fail`; mapped coverage remains `1189 / 1589`. Together with
+  the preceding `+3967` bulk corpus batch, this supervision cycle delivered
+  `+10033` accepted PASS lines. The practical 10k/hour path is now explicit:
+  keep 10-11 workers alive, but publish every 10-15 minutes, assemble batches
+  near or above `2500` honest PASS lines, and treat sub-100 PASS handoffs as
+  fillers only when they ride with a larger clean current-base batch.
+
 - 2026-05-30 supervisor continuation (integration sample 17:58 UTC):
   Latest accepted libsqlite source is `dfa4a2935`
   (`libsqlite: add bulk corpus throughput batch`). The batch accepts 13
