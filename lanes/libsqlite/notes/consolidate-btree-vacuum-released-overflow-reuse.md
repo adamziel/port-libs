@@ -2,7 +2,7 @@
 
 This slice removes the remaining numbered B-tree vacuum released-overflow-reuse
 test/example surface for the old current-source worker slice and keeps the
-scenario on the canonical `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`
+scenario on the canonical `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`
 entrypoint:
 
 - renamed the focused test and WordPress smoke to descriptive released-overflow-reuse filenames;
@@ -14,7 +14,7 @@ entrypoint:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockReleasedOverflowReuseTest.php && php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-released-overflow-reuse.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockReleasedOverflowReuseTest.php && php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-released-overflow-reuse.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockReleasedOverflowReuseTest.php`
 - `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-released-overflow-reuse.php --self-test`
 - `git diff --check -- lanes/libsqlite`

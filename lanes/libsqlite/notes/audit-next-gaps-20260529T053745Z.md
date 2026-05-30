@@ -11,7 +11,7 @@ Scope: audit note only; no implementation or coordination-file changes.
 - Lane size is now consolidation-risky: `find lanes/libsqlite/src -name '*.php' | wc -l` => `859`, `find lanes/libsqlite/tests -name '*.php' | wc -l` => `2711`.
 - Variant-plan density is high: `find lanes/libsqlite/src -name '*Plan.php' | wc -l` => `630`; `find lanes/libsqlite/src -name '*Current*Next*Plan.php' | wc -l` => `443`; `find lanes/libsqlite/tests -name '*Current*Next*Test.php' | wc -l` => `2586`.
 - Several mega-files now dominate behavior and review surface:
-  - `lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`: `29840` lines.
+  - `lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`: `29840` lines.
   - `lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`: `28794` lines.
   - `lanes/libsqlite/src/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php`: `7634` lines.
   - `lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`: `10680` lines.
@@ -21,7 +21,7 @@ Scope: audit note only; no implementation or coordination-file changes.
 ## Highest-yield functional gaps
 
 1. **Replace source-next variant accretion with stable primitives.**
-   Evidence: WAL, B-tree, pager, row-value/window, and encoding/collation work is concentrated in giant `*CurrentSourceNextPlan.php` files with many numbered entry points, for example `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`, `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`, and repeated examples requiring/calling the same plan class. This is useful audit evidence, but it is not yet a maintainable SQLite primitive surface.
+   Evidence: WAL, B-tree, pager, row-value/window, and encoding/collation work is concentrated in giant `*CurrentSourceNextPlan.php` files with many numbered entry points, for example `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`, `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`, and repeated examples requiring/calling the same plan class. This is useful audit evidence, but it is not yet a maintainable SQLite primitive surface.
    Next slice: extract one stable primitive boundary from the densest cluster, starting with either B-tree freeblock/pointer-map mutation or WAL checkpoint/savepoint reader handoff. Keep the existing current-source tests as regression tests, but make them call the stable primitive through thin adapters.
    Suggested focused tests: the latest nearby `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext*Test.php` group or `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext*Test.php` group, plus the matching `examples/wordpress-btree-vacuum-pointermap-freeblock-*.php` or `examples/wordpress-wal-hot-journal-savepoint-checkpoint-*.php`.
 
@@ -47,7 +47,7 @@ Scope: audit note only; no implementation or coordination-file changes.
 
 ## Duplicate/consolidation risk ranking
 
-1. **Critical:** `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php` and `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php` are too large to review safely as functional primitives. Extract stable service classes before adding more numbered methods.
+1. **Critical:** `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php` and `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php` are too large to review safely as functional primitives. Extract stable service classes before adding more numbered methods.
 2. **High:** Numeric/affinity/comparison semantics are fragmented across SELECT, PRAGMA/FK, VDBE window, b-tree/index page, planner/stat4, LIKE/GLOB cursors, and row-value/update paths. Centralize before more planner and index behavior is built on inconsistent ordering.
 3. **High:** Runner/evidence admission work is extensive, but many manifest rows explicitly do not claim fresh upstream execution. The next upstream-denominator slice should classify uncovered families and choose an implementation target, not add another admission ledger row.
 4. **Medium:** `SQLiteHeaderTest.php` and `SQLiteUpstreamSuiteEvidence.php` are now audit liabilities by size. Split new coverage into focused files and avoid adding unrelated assertions to those files.

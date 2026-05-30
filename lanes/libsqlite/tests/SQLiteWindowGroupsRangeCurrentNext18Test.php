@@ -80,8 +80,31 @@ $tests['upstream corpus window groups range current next18 rejects frame without
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };
 
+$tests['upstream corpus window groups range current next18 reports sql frame without order'] = static function (TestRunner $t) use ($options): void {
+    try {
+        SQLiteSelectSql::execute('SELECT sum(bytes) OVER (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]);
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY', $exception->getMessage());
+        return;
+    }
+
+    throw new RuntimeException('Expected SQL GROUPS frame without ORDER BY to be rejected');
+};
+
 $tests['upstream corpus window groups range current next18 plan rejects frame without order'] = static function (TestRunner $t) use ($options): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::plan('SELECT sum(bytes) OVER (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
+};
+
+$tests['upstream corpus window groups range current next18 rejects named groups frame without order'] = static function (TestRunner $t) use ($options): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER framed FROM wp_options WINDOW framed AS (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING)', ['wp_options' => $options]));
+};
+
+$tests['upstream corpus window groups range current next18 rejects named range frame without order'] = static function (TestRunner $t) use ($options): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::plan('SELECT sum(bytes) OVER framed FROM wp_options WINDOW framed AS (RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING)', ['wp_options' => $options]));
+};
+
+$tests['upstream corpus window groups range current next18 rows frame without order remains valid'] = static function (TestRunner $t) use ($options): void {
+    $t->same([20, 30, 50, 60, 70, 40], array_column(SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_sum FROM wp_options ORDER BY option_id', ['wp_options' => $options]), 'window_sum'));
 };
 
 $tests['upstream corpus window groups range current next18 rejects json frame without order'] = static function (TestRunner $t) use ($options): void {
@@ -107,6 +130,26 @@ $tests['upstream corpus window groups range current next18 direct query rejects 
             'alias' => 'window_sum',
         ]],
     ]));
+};
+
+$tests['upstream corpus window groups range current next18 reports direct frame without order'] = static function (TestRunner $t) use ($options): void {
+    try {
+        SQLiteSelectQuery::execute([
+            'from' => $options,
+            'select' => [[
+                'type' => 'window',
+                'function' => 'sum',
+                'arguments' => [['type' => 'column', 'name' => 'bytes']],
+                'frame' => ['unit' => 'GROUPS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+                'alias' => 'window_sum',
+            ]],
+        ]);
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite SELECT query RANGE/GROUPS window frame needs ORDER BY', $exception->getMessage());
+        return;
+    }
+
+    throw new RuntimeException('Expected direct GROUPS frame without ORDER BY to be rejected');
 };
 
 $tests['upstream corpus window groups range current next18 direct query rejects json object range frame without order'] = static function (TestRunner $t) use ($options): void {

@@ -4,7 +4,7 @@ Consolidated the final B-tree vacuum pointer-map/freeblock batch callers away
 from synthetic `tableLeafFromDeleteResultNextNNN()` method names. The touched
 test and WordPress smoke now use the stable
 `tableLeafFreelistSpliceFromDeleteResult($sliceNumber, ...)` canonical entry
-point on `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
+point on `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`.
 
 Verification:
 

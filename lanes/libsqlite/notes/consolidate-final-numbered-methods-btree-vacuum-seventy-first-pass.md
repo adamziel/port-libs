@@ -1,7 +1,7 @@
 # B-tree Vacuum Numbered Method Cleanup Seventy-First Pass
 
 Consolidated the B-tree vacuum pointer-map/freeblock freeblock-handoff surface in
-`SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
+`SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`.
 
 - Replaced the remaining numbered production action/status/token/dependency
   vocabulary with stable `freeblock-handoff` names.
@@ -12,7 +12,7 @@ Consolidated the B-tree vacuum pointer-map/freeblock freeblock-handoff surface i
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-freeblock-handoff.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffTest.php` -> `1 test files, 691 assertions, 0 failures`

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for post-checkpoint current-source reader validation.
 
-This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`. It builds on the accepted next189 checkpoint rows and admits the next reader only after checkpoint tokens still match, page hashes replay, pointer-map pages precede payload pages, the leaf freeblock page is validated, and fenced tail pages remain excluded.
+This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`. It builds on the accepted next189 checkpoint rows and admits the next reader only after checkpoint tokens still match, page hashes replay, pointer-map pages precede payload pages, the leaf freeblock page is validated, and fenced tail pages remain excluded.
 
 WordPress smoke: `wordpress-btree-vacuum-pointermap-freeblock-current-source-next192.php` models deleting an overflow-backed copied `wp_options` transient, vacuuming obsolete overflow tail pages, and admitting the next reader for the committed header, pointer-map, leaf freeblock, and replacement overflow pages.
 

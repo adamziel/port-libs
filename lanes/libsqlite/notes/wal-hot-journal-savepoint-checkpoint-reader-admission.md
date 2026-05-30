@@ -1,4 +1,4 @@
-# WAL Hot-Journal Savepoint Checkpoint Current Source Next164
+# WAL Hot-Journal Savepoint Checkpoint Reader Admission
 
 ## Behavior
 
@@ -11,7 +11,7 @@ This covers a WordPress plugin/options import case where hot-journal recovery re
 Focused test:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext164Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointReaderAdmissionTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 53 assertions, 0 failures
 ```

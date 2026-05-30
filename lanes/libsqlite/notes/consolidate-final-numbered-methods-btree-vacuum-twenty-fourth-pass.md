@@ -4,7 +4,7 @@ Scope:
 - Migrated the remaining direct WordPress B-tree vacuum example callers for
   `tableLeafFromDeleteResultNext154()` through `tableLeafFromDeleteResultNext216()`
   to the existing stable descriptive production entrypoints on
-  `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
+  `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`.
 - Left the focused tests on their already-consolidated canonical methods and
   verified the examples still exercise the same numbered scenarios without
   requiring numbered production method names.

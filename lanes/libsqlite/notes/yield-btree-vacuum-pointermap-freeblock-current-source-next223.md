@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
+- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`.
 - Builds on next218 per-page write receipts and publishes current-source source receipts for those pages.
 - Confirms pointer-map source receipts are visible before payload source receipts for each vacuum cursor.
 - Carries secure-delete freeblock receipts and keeps fenced vacuum tail pages out of the source publication set.

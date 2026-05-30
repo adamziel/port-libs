@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Consolidates the B-tree vacuum pointer-map freeblock source-cursor surface into `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafSourceCursorFromDeleteResult()`, which consumes the accepted freelist-link rows and validates the current-source cursor that a later writer would use to reuse those pages. The slice checks source links, duplicate pointer-map replay, pointer-map visibility before payload reuse, retained freeblock receipts, and tail-page exclusion.
+Consolidates the B-tree vacuum pointer-map freeblock source-cursor surface into `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan::tableLeafSourceCursorFromDeleteResult()`, which consumes the accepted freelist-link rows and validates the current-source cursor that a later writer would use to reuse those pages. The slice checks source links, duplicate pointer-map replay, pointer-map visibility before payload reuse, retained freeblock receipts, and tail-page exclusion.
 
 ## Evidence
 

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, a downstream current-source apply-order plan for the accepted next177 replay batches. The plan builds deterministic write sequences where pointer-map dependency pages are emitted before page-image writes, and it rejects any fenced/truncated tail page that leaks into the apply sequence.
+Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, a downstream current-source apply-order plan for the accepted next177 replay batches. The plan builds deterministic write sequences where pointer-map dependency pages are emitted before page-image writes, and it rejects any fenced/truncated tail page that leaks into the apply sequence.
 
 The WordPress smoke models a `wp_options` transient delete with overflow pages 106-110, a vacuum truncation fence on pages 109-110, and readable apply pages `[1, 3, 105, 106, 107, 108]`.
 
@@ -21,7 +21,7 @@ PASS-line delta: `+90`.
 Syntax checks:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php
+php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext180Test.php
 php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next180.php
 ```

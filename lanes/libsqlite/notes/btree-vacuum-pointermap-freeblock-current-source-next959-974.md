@@ -1,6 +1,6 @@
 # SQLite b-tree vacuum pointer-map freeblock current-source next959-974
 
-Extends the consolidated `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` current-source handoff coverage from next958 through next974. The slice reuses the existing freelist splice/current-source helper instead of introducing numbered duplicate classes.
+Extends the consolidated `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan` current-source handoff coverage from next958 through next974. The slice reuses the existing freelist splice/current-source helper instead of introducing numbered duplicate classes.
 
 Focused coverage:
 

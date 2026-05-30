@@ -1,10 +1,10 @@
 # B-tree Vacuum Pointer-map Freeblock Current Source Next155
 
-This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, covering the next-use boundary after a delete releases overflow pages and incremental vacuum truncates the tail. The surviving released overflow page remains a freelist trunk, is allocated as a new B-tree page, and its auto-vacuum pointer-map entry transitions from `first-overflow-page` to `free-page` to `btree-page`.
+This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, covering the next-use boundary after a delete releases overflow pages and incremental vacuum truncates the tail. The surviving released overflow page remains a freelist trunk, is allocated as a new B-tree page, and its auto-vacuum pointer-map entry transitions from `first-overflow-page` to `free-page` to `btree-page`.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next155.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Test.php`

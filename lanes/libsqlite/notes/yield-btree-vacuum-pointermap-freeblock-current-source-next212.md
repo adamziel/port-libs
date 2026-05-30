@@ -4,7 +4,7 @@ Date: 2026-05-28T16:56:00Z
 
 ## Behavior
 
-Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, a current-source page-apply admission layer on top of next209 writer-source latch rows. The plan turns the latched pointer-map/freeblock source rows into ordered apply rows, requires pointer-map apply rows before payload apply rows for each cursor, carries leaf freeblock receipts, and keeps truncated tail pages fenced from the apply set.
+Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, a current-source page-apply admission layer on top of next209 writer-source latch rows. The plan turns the latched pointer-map/freeblock source rows into ordered apply rows, requires pointer-map apply rows before payload apply rows for each cursor, carries leaf freeblock receipts, and keeps truncated tail pages fenced from the apply set.
 
 This is intended for the WordPress copied `wp_options` delete/vacuum path where an overflow-backed transient is deleted, tail overflow pages are truncated, and the writer must apply only the latched current-source pointer-map/freeblock pages before reuse.
 

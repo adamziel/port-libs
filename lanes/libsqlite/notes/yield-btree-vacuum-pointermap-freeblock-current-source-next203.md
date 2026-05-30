@@ -2,13 +2,13 @@
 
 ## Scope
 
-- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` as a current-source next-writer cursor admission layer after the existing next196 source-next handoff.
+- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan` as a current-source next-writer cursor admission layer after the existing next196 source-next handoff.
 - The cursor admits only pages whose pointer-map dependency pages and payload pages are carried from the current source, keeps the secure-delete leaf freeblock receipt ready for the next writer, and blocks fenced truncated tail pages from the cursor.
 - WordPress smoke covers deleting an overflow-backed copied `wp_options` transient and verifying that the next writer cursor sees pointer-map pages `2`/`105`, payload pages `3`/`106`/`107`/`108`, and no truncated tail pages.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext203Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next203.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext203Test.php`

@@ -2,7 +2,7 @@
 
 Migrated the B-tree vacuum pointer-map/freeblock current-source direct `895-910`
 test and WordPress smoke away from removed generated method dispatch. Coverage now
-uses the stable `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceHandoffFromDeleteResult()`
+uses the stable `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan::tableLeafCurrentSourceHandoffFromDeleteResult()`
 entry point, and the direct test/example filenames are unsuffixed.
 
 Validation:

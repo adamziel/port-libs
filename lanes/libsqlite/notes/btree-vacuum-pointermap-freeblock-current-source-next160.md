@@ -1,6 +1,6 @@
 # B-tree vacuum pointer-map freeblock current-source next160
 
-- Behavior: adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, which composes the current-source delete/vacuum/freeblock replacement path and verifies a multi-page replacement overflow chain allocated from surviving post-vacuum free pages.
+- Behavior: adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, which composes the current-source delete/vacuum/freeblock replacement path and verifies a multi-page replacement overflow chain allocated from surviving post-vacuum free pages.
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext160Test.php`
   - `1 test files, 406 assertions, 0 failures`
   - `70` PASS lines

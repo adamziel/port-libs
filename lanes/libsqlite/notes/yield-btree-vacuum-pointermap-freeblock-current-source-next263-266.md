@@ -8,7 +8,7 @@
 
 ## Verification
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext263Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext264266Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next263.php`
@@ -16,7 +16,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext263Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext264266Test.php`
 - `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next263.php`
 - `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next264-266.php`
-- `git diff --check -- lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext263Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext264266Test.php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next263.php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next264-266.php lanes/libsqlite/notes/yield-btree-vacuum-pointermap-freeblock-current-source-next263-266.md`
+- `git diff --check -- lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext263Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext264266Test.php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next263.php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next264-266.php lanes/libsqlite/notes/yield-btree-vacuum-pointermap-freeblock-current-source-next263-266.md`
 
 ## Dependency Closure
 

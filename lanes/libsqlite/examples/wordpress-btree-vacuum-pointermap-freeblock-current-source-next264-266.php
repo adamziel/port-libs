@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -41,7 +41,7 @@ $putPointerMapEntry = static function (array &$pages, int $pageNumber, int $type
     );
 };
 
-$makePlan = static function (int $sliceNumber) use ($firstPage, $putPointerMapEntry): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
+$makePlan = static function (int $sliceNumber) use ($firstPage, $putPointerMapEntry): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan {
     $pages = array_fill(1, 110, str_repeat("\0", 512));
     $pages[1] = $firstPage(110);
     $pages[2] = str_repeat("\0", 512);
@@ -68,7 +68,7 @@ $makePlan = static function (int $sliceNumber) use ($firstPage, $putPointerMapEn
 
     $database = SQLiteDatabase::fromBytes(implode('', $pages));
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFreelistSpliceFromDeleteResult(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan::tableLeafFreelistSpliceFromDeleteResult(
         $sliceNumber,
         $database,
         3,

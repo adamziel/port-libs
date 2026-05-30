@@ -1,6 +1,6 @@
 ## B-tree Vacuum Current-Source Handoff Consolidation
 
-Scope: `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` current-source handoff summary/token/action labels and its direct B-tree tests/example.
+Scope: `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan` current-source handoff summary/token/action labels and its direct B-tree tests/example.
 
 Changes:
 - Renamed the production handoff contract from numbered handoff labels to stable `current-source-handoff` labels.
@@ -9,7 +9,7 @@ Changes:
 - Updated B-tree downstream direct consumers in the next245 and next246 focused tests to read `current_source_handoff_token`.
 
 Verification:
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceHandoffVisibilityTest.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext245Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext246Test.php`

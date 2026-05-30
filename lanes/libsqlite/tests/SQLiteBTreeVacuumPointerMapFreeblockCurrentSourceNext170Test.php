@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -73,11 +73,11 @@ $plan170 = static function (
     int $maxTruncatedPages = 2,
     ?string $payload = null,
     bool $secureDelete = true,
-) use ($database170): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
+) use ($database170): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan {
     $database = $database170();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: $secureDelete);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFreelistCursorFromDeleteResult(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan::tableLeafFreelistCursorFromDeleteResult(
         $database,
         3,
         [

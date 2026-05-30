@@ -100,7 +100,7 @@ $readers = [
     ['name' => 'wp-closed-reader', 'source_id' => $currentToken['id'], 'epoch' => $currentToken['epoch'], 'closed' => true],
 ];
 
-$plan = static fn (?array $readerRows = null, ?array $cacheRows = null, string $mode = 'restart', int $readerEndFrame = 4): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next164Plan(
+$plan = static fn (?array $readerRows = null, ?array $cacheRows = null, string $mode = 'restart', int $readerEndFrame = 4): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerCacheCheckpointAdmissionPlan(
     $databasePath,
     $databaseBytes,
     $pageSize,

@@ -1,6 +1,6 @@
 ## B-tree Vacuum Pointer-Map Freeblock Current Source Next217
 
-This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, a page-write materialization layer over next212 current-source apply rows. It rewrites pointer-map pages before payload pages, carries the leaf freeblock receipt into the table leaf write, admits replacement overflow payload pages only below the fenced tail, and preserves token chaining for repeated pointer-map page writes.
+This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`, a page-write materialization layer over next212 current-source apply rows. It rewrites pointer-map pages before payload pages, carries the leaf freeblock receipt into the table leaf write, admits replacement overflow payload pages only below the fenced tail, and preserves token chaining for repeated pointer-map page writes.
 
 Focused evidence:
 
@@ -14,7 +14,7 @@ WordPress smoke:
 
 Syntax and diff checks:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext217Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next217.php`
 - `git diff --check -- lanes/libsqlite`

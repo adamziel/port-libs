@@ -2,7 +2,7 @@
 
 Consolidated the B-tree vacuum pointer-map/freeblock current-source publication
 and receipt-publication surfaces in
-`SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
+`SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`.
 
 - Replaced former numbered production status/action/token/state vocabulary with
   stable descriptive publication and receipt-publication names.
@@ -13,7 +13,7 @@ and receipt-publication surfaces in
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationTest.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptPublicationTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-publication.php`

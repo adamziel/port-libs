@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -74,11 +74,11 @@ $database154 = static function (bool $mismatchedCurrentNext = false) use ($makeF
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan154 = static function (int $maxTruncatedPages = 4, bool $mismatchedCurrentNext = false) use ($database154): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
+$plan154 = static function (int $maxTruncatedPages = 4, bool $mismatchedCurrentNext = false) use ($database154): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan {
     $database = $database154($mismatchedCurrentNext);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafOverflowChainAuditFromDeleteResult(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan::tableLeafOverflowChainAuditFromDeleteResult(
         $database,
         3,
         [

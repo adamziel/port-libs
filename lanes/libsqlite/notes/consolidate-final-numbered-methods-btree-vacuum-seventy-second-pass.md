@@ -2,7 +2,7 @@
 
 Consolidated the final B-tree vacuum pointer-map/freeblock replay callers that still referenced removed numbered tail entry points.
 
-- Replaced the direct numbered tail callers with the canonical `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult()` entry point.
+- Replaced the direct numbered tail callers with the canonical `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult()` entry point.
 - Renamed the direct test/example files to stable descriptive names.
 - Preserved the sixteen replay scenarios as data-driven freelist handoff cases.
 

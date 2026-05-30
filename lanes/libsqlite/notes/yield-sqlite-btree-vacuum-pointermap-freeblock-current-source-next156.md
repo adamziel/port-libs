@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` for a copied `wp_options` delete/rewrite path that:
+Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan` for a copied `wp_options` delete/rewrite path that:
 
 - materializes the deleted table leaf page and released overflow chain through the existing pointer-map vacuum/freeblock plan,
 - allocates replacement overflow bytes only from pages that survived vacuum as materialized freelist pages,
@@ -18,7 +18,7 @@ This deliberately avoids the accepted table/index page relocation, root collapse
   - `74` PASS lines
 - `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next156.php --self-test`
   - `wordpress-btree-vacuum-pointermap-freeblock-current-source-next156 self-test passed`
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext156Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next156.php`
 - `git diff --check -- lanes/libsqlite`

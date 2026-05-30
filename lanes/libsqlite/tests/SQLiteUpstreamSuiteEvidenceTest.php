@@ -3893,7 +3893,8 @@ MD);
             '1 test files, 96 assertions, 0 failures',
         ]);
 
-        $record = $evidence->upstreamVeryquickShardCurrentSourceNext296(
+        $record = $evidence->upstreamVeryquickShardCurrentSourceEvidence(
+            296,
             [
                 [
                     'unit' => 'suite-upstream-veryquick-shard-current-source-next296',
@@ -4470,7 +4471,8 @@ MD);
         ]);
         $processSnapshot = '421 1 S 00:04 0.0 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 4 --stop-on-error all';
 
-        $record = $evidence->upstreamVeryquickShardCurrentSourceNext296(
+        $record = $evidence->upstreamVeryquickShardCurrentSourceEvidence(
+            296,
             [
                 [
                     'unit' => 'stale-suite-upstream-veryquick-shard-current-source-next296',

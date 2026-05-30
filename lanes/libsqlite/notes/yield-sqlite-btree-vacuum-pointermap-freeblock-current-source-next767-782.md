@@ -1,7 +1,7 @@
 # SQLite b-tree vacuum pointer-map freeblock current-source next767-782
 
 Prepared next767-782 as the direct follow-on to integrated next751-766 by extending the canonical
-`SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` current-source variant.
+`SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan` current-source variant.
 
 - Reuses `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant`.
 - No new numbered source class was added; the new slice-numbered factory methods delegate to the shared current-source variant.
@@ -10,7 +10,7 @@ Prepared next767-782 as the direct follow-on to integrated next751-766 by extend
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext767782Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext767782Test.php`
 - `git diff --check`

@@ -1,7 +1,7 @@
 2026-05-29 - consolidate final B-tree vacuum numbered methods
 
 Scope:
-- Consolidated the final `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` production freelist handoff coverage into `tableLeafCurrentSourceFreelistHandoffFromDeleteResult()`.
+- Consolidated the final `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan` production freelist handoff coverage into `tableLeafCurrentSourceFreelistHandoffFromDeleteResult()`.
 - Migrated the direct focused test and WordPress example for the final freelist handoff range to stable descriptive filenames.
 
 Verification:
@@ -17,7 +17,7 @@ Dependency closure:
 2026-05-29 - sixth pass
 
 Scope:
-- Consolidated `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` production entrypoints `tableLeafFromDeleteResultNext331()` through `tableLeafFromDeleteResultNext414()` into the stable canonical `tableLeafFreelistSpliceFromDeleteResult()` dispatcher.
+- Consolidated `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan` production entrypoints `tableLeafFromDeleteResultNext331()` through `tableLeafFromDeleteResultNext414()` into the stable canonical `tableLeafFreelistSpliceFromDeleteResult()` dispatcher.
 - Migrated the direct focused tests and WordPress examples for ranges 331-334, 335-342, 343-350, 351-358, 359-366, 367-374, 375-382, 383-390, 391-398, and 399-414 to the stable method.
 
 Verification:

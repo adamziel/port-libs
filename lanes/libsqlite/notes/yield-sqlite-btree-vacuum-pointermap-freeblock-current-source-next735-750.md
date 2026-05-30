@@ -1,7 +1,7 @@
 # SQLite b-tree vacuum pointer-map freeblock current-source next735-750
 
 Prepared next735-750 as the direct follow-on to integrated next719-734 by extending the canonical
-`SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` current-source variant.
+`SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan` current-source variant.
 
 - Reuses `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant`.
 - No new numbered source class was added because the local pattern already supports slice-numbered factory methods over the shared current-source variant.

@@ -77,7 +77,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::reader
 $currentToken = $bootstrap['current_source_token'];
 $nextToken = $bootstrap['next_source_token'];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next164Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerCacheCheckpointAdmissionPlan(
     $databasePath,
     $databaseBytes,
     $pageSize,

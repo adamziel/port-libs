@@ -11,7 +11,7 @@ surface names while preserving the existing assertions and smoke coverage.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l` for the 5 renamed focused tests and 5 renamed WordPress examples
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockWriterCursorTest.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockSealedWriterAdmissionTest.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockWriterSourceLatchTest.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitTest.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitReceiptTest.php`
   - `5 test files, 4451 assertions, 0 failures`

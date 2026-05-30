@@ -10,7 +10,7 @@ renamed to remove the numbered production suffix from this touched segment.
 
 Verification:
 
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-publication-seal.php && php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockPublicationSealTest.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext230Test.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFinalHandoffTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-publication-seal.php && php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockPublicationSealTest.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext230Test.php && php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFinalHandoffTest.php`
   - passed; no syntax errors detected
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockPublicationSealTest.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext230Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFinalHandoffTest.php`
   - passed; `3 test files, 3869 assertions, 0 failures`

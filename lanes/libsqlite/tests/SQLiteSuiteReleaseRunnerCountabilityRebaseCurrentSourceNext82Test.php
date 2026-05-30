@@ -83,7 +83,7 @@ function libsqlite_suite_count82_record(
     ?int $expected = 82,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_count82_evidence()->suiteReleaseRunnerCountabilityRebaseCurrentSourceNext82(
+    return libsqlite_suite_count82_evidence()->suiteReleaseRunnerCurrentSourceCountabilityRebase(
         $rows,
         465,
         31014,

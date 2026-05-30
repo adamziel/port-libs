@@ -79,7 +79,7 @@ function libsqlite_suite_evidence103_record(
         $head,
         'lanes/libsqlite/tests/SQLiteSuiteEvidenceCurrentNext103Test.php',
         $output ?? libsqlite_suite_evidence103_output(),
-        'current-next103 suite evidence follows integrated current-next77/current-next78/current-next79/current-next80/current-next81/current-next82/current-next83/current-next84/current-next85/current-next86/current-next87/current-next88/current-next89/current-next90/current-next91/current-next92/current-next102 and avoids release/all parity claims',
+        'current-next103 suite evidence follows integrated current-next77/current-next78/current-next79/current-next80/current-next81/current-next82/current-next83/current-next84/current-next85/current-next86/current-next87/current-next88/current-next89/current-next90/current-next91/current-next92/current-next93/current-next94/current-next95/current-next96/current-next97/current-next98/current-next99/current-next100/current-next101/current-next102 and avoids release/all parity claims',
         $expected,
         $snapshot
     );
@@ -101,6 +101,17 @@ return [
         $t->same(false, $record['counts_suite_evidence_current_next102']);
         $t->same(true, $record['counts_suite_evidence_current_next103']);
         $t->same(false, $record['counts_release_parity']);
+    },
+    'current next103 preserves dependency closure flags for prior accepted slices' => static function (TestRunner $t): void {
+        $record = libsqlite_suite_evidence103_record(libsqlite_suite_evidence103_rows(case: 9));
+
+        foreach (range(77, 102) as $previousNext) {
+            $key = 'counts_suite_evidence_current_next' . $previousNext;
+            $t->same(false, $record[$key], $key . ' remains preserved rather than advanced');
+        }
+        $t->same(true, $record['counts_suite_evidence_current_next103']);
+        $t->contains('current-next93', $record['non_overlap_note']);
+        $t->contains('current-next101', $record['non_overlap_note']);
     },
     'current next103 records tiers scripts and test delta' => static function (TestRunner $t): void {
         $record = libsqlite_suite_evidence103_record(libsqlite_suite_evidence103_rows(case: 7));

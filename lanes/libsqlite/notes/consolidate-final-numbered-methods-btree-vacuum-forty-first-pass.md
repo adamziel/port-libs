@@ -1,6 +1,6 @@
 # B-tree Vacuum Numbered Method Consolidation Forty-First Pass
 
-This pass consolidates the final `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`
+This pass consolidates the final `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan`
 freelist handoff range tests/examples into stable descriptive files:
 
 - `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistHandoffTest.php`
@@ -12,7 +12,7 @@ No numbered production class, file, or helper was added.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistHandoffTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistHandoffTest.php`
