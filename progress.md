@@ -49,7 +49,7 @@
 ## Current Coordination Snapshot
 
 - 2026-05-30 supervisor continuation (integration sample 19:56 UTC):
-  Latest accepted libsqlite source is `d9e68c4d3`
+  Latest accepted libsqlite source is `c3f5a2bb7`
   (`libsqlite: add high yield current base corpus batch`). This batch replays
   20 current-base handoffs from `4fa72fa71` after excluding stale
   status/dashboard hunks. Accepted coverage adds real
