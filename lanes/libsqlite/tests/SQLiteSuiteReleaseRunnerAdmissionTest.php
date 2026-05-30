@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_suite_admission72_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_suite_admission_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_suite_admission72_output(int $passLines = 72, int $assertions = 216, int $failures = 0): string
+function libsqlite_suite_admission_output(int $passLines = 72, int $assertions = 216, int $failures = 0): string
 {
     $lines = ['Focused test run: 1 selected test files (root lock skipped)'];
     for ($i = 1; $i <= $passLines; $i++) {
@@ -23,7 +23,7 @@ function libsqlite_suite_admission72_output(int $passLines = 72, int $assertions
 /**
  * @return list<array<string, mixed>>
  */
-function libsqlite_suite_admission72_rows(int $case = 1, string $currentHead = 'c1b3825e121841b3669ec7027e8adbacaebb6283', string $nextHead = 'suite-release-runner-admission-current-next72'): array
+function libsqlite_suite_admission_rows(int $case = 1, string $currentHead = 'c1b3825e121841b3669ec7027e8adbacaebb6283', string $nextHead = 'suite-release-runner-admission'): array
 {
     $script = sprintf('current-next72-admission-%02d.test', $case);
 
@@ -35,7 +35,7 @@ function libsqlite_suite_admission72_rows(int $case = 1, string $currentHead = '
             'next_head' => $nextHead,
             'current_status' => 'missing',
             'next_status' => 'admitted',
-            'artifact_path' => 'lanes/libsqlite/notes/suite-release-runner-admission-current-next72.md',
+            'artifact_path' => 'lanes/libsqlite/notes/suite-release-runner-admission.md',
             'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error ' . $script,
             'scripts' => [$script],
             'tests' => 900 + $case,
@@ -67,22 +67,22 @@ function libsqlite_suite_admission72_rows(int $case = 1, string $currentHead = '
  * @param array<int|string, array<string, mixed>> $rows
  * @return array<string, mixed>
  */
-function libsqlite_suite_admission72_record(
+function libsqlite_suite_admission_record(
     array $rows,
     string $currentHead = 'c1b3825e121841b3669ec7027e8adbacaebb6283',
-    string $nextHead = 'suite-release-runner-admission-current-next72',
+    string $nextHead = 'suite-release-runner-admission',
     string $output = null,
     ?int $expected = 72,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_admission72_evidence()->suiteReleaseRunnerAdmissionCurrentNext72(
+    return libsqlite_suite_admission_evidence()->suiteReleaseRunnerAdmission(
         $rows,
         464,
         26631,
         $currentHead,
         $nextHead,
-        'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionCurrentNext72Test.php',
-        $output ?? libsqlite_suite_admission72_output(),
+        'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionTest.php',
+        $output ?? libsqlite_suite_admission_output(),
         'current-next72 release-runner admission avoids accepted current-next68/69 suite denominator freshness, release/all parity ledgers, batch68/69 behavior clusters, and queued ATTACH/JSON/pager/select/VFS/WAL handoffs',
         $expected,
         $snapshot
@@ -93,7 +93,7 @@ $tests = [];
 
 foreach (range(1, 72) as $case) {
     $tests[sprintf('current next72 admits release runner artifact case %02d', $case)] = static function (TestRunner $t) use ($case): void {
-        $record = libsqlite_suite_admission72_record(libsqlite_suite_admission72_rows($case));
+        $record = libsqlite_suite_admission_record(libsqlite_suite_admission_rows($case));
 
         $t->same('current-next72-release-runner-admitted', $record['status']);
         $t->same(true, $record['countable']);
@@ -110,7 +110,7 @@ foreach (range(1, 72) as $case) {
 }
 
 $tests['current next72 records categories scripts and test delta'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_admission72_record(libsqlite_suite_admission72_rows(3));
+    $record = libsqlite_suite_admission_record(libsqlite_suite_admission_rows(3));
 
     $t->same(2, $record['category_count']);
     $t->same(['accepted-head-provenance' => 1, 'release-runner-admission' => 1], $record['categories']);
@@ -121,11 +121,11 @@ $tests['current next72 records categories scripts and test delta'] = static func
 };
 
 $tests['current next72 preserves already countable artifact rows'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[0]['current_status'] = 'countable';
     $rows[0]['current_tests'] = 901;
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('current-next72-release-runner-preserved', $record['status']);
     $t->same(0, $record['mapped_delta']);
@@ -135,9 +135,9 @@ $tests['current next72 preserves already countable artifact rows'] = static func
 };
 
 $tests['current next72 blocks stale current head'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows(currentHead: '0000000000000000000000000000000000000000');
+    $rows = libsqlite_suite_admission_rows(currentHead: '0000000000000000000000000000000000000000');
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->same(0, $record['mapped_delta']);
@@ -146,80 +146,80 @@ $tests['current next72 blocks stale current head'] = static function (TestRunner
 };
 
 $tests['current next72 blocks stale next head'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows(nextHead: 'stale-next-head');
+    $rows = libsqlite_suite_admission_rows(nextHead: 'stale-next-head');
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('next-head-mismatch', $record['blockers'][0]['evidence']);
 };
 
 $tests['current next72 blocks non lane local artifact path'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[0]['artifact_path'] = '/tmp/release-runner.log';
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('artifact-path-not-lane-local', $record['blockers'][0]['evidence']);
 };
 
 $tests['current next72 blocks missing runner command'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[0]['runner_command'] = './testfixture current-next72-admission-01.test';
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('runner-command-missing', $record['blockers'][0]['evidence']);
 };
 
 $tests['current next72 blocks non zero artifact errors'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[0]['errors'] = 1;
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('artifact-errors-not-zero', $record['blockers'][0]['evidence']);
 };
 
 $tests['current next72 blocks missing test count'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[0]['tests'] = 0;
     $rows[0]['next_tests'] = 0;
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('artifact-tests-missing', $record['blockers'][0]['evidence']);
 };
 
 $tests['current next72 blocks missing scripts'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[0]['scripts'] = ['not-a-test.txt'];
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('countable-artifact-missing-test-scripts', $record['blockers'][0]['evidence']);
 };
 
 $tests['current next72 blocks missing evidence'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[0]['evidence'] = '';
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('countable-artifact-missing-evidence', $record['blockers'][0]['evidence']);
 };
 
 $tests['current next72 blocks release parity claims'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[0]['counts_release_parity'] = true;
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->same(false, $record['counts_release_parity']);
@@ -227,21 +227,21 @@ $tests['current next72 blocks release parity claims'] = static function (TestRun
 };
 
 $tests['current next72 blocks duplicate artifact units'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[] = $rows[0];
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('duplicate-release-runner-unit', implode('; ', array_column($record['blockers'], 'evidence')));
 };
 
 $tests['current next72 blocks artifact regressions'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_admission72_rows();
+    $rows = libsqlite_suite_admission_rows();
     $rows[1]['next_status'] = 'missing';
     $rows[1]['next_tests'] = 10;
 
-    $record = libsqlite_suite_admission72_record($rows);
+    $record = libsqlite_suite_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->same(['suite-release-runner-current-next72-accepted-anchor'], $record['regressed_units']);
@@ -249,8 +249,8 @@ $tests['current next72 blocks artifact regressions'] = static function (TestRunn
 };
 
 $tests['current next72 blocks active broad runner snapshots'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_admission72_record(
-        libsqlite_suite_admission72_rows(),
+    $record = libsqlite_suite_admission_record(
+        libsqlite_suite_admission_rows(),
         snapshot: '321 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 4 all'
     );
 
@@ -261,9 +261,9 @@ $tests['current next72 blocks active broad runner snapshots'] = static function 
 };
 
 $tests['current next72 blocks pass line inflation'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_admission72_record(
-        libsqlite_suite_admission72_rows(),
-        output: libsqlite_suite_admission72_output(passLines: 12, assertions: 216),
+    $record = libsqlite_suite_admission_record(
+        libsqlite_suite_admission_rows(),
+        output: libsqlite_suite_admission_output(passLines: 12, assertions: 216),
         expected: 72
     );
 
@@ -273,8 +273,8 @@ $tests['current next72 blocks pass line inflation'] = static function (TestRunne
 };
 
 $tests['current next72 blocks unfocused TestRunner output'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_admission72_record(
-        libsqlite_suite_admission72_rows(),
+    $record = libsqlite_suite_admission_record(
+        libsqlite_suite_admission_rows(),
         output: "PASS current next72 unfocused\n1 test files, 1 assertions, 0 failures\n",
         expected: 1
     );
@@ -285,15 +285,15 @@ $tests['current next72 blocks unfocused TestRunner output'] = static function (T
 };
 
 $tests['current next72 rejects invalid setup'] = static function (TestRunner $t): void {
-    $evidence = libsqlite_suite_admission72_evidence();
+    $evidence = libsqlite_suite_admission_evidence();
 
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerAdmissionCurrentNext72([], 464, 26631, 'c1b3825e121841b3669ec7027e8adbacaebb6283', 'next', 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionCurrentNext72Test.php', libsqlite_suite_admission72_output(), 'non-overlap', 72));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerAdmissionCurrentNext72(libsqlite_suite_admission72_rows(), -1, 26631, 'c1b3825e121841b3669ec7027e8adbacaebb6283', 'next', 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionCurrentNext72Test.php', libsqlite_suite_admission72_output(), 'non-overlap', 72));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerAdmissionCurrentNext72(libsqlite_suite_admission72_rows(), 464, 26631, '', 'next', 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionCurrentNext72Test.php', libsqlite_suite_admission72_output(), 'non-overlap', 72));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerAdmission([], 464, 26631, 'c1b3825e121841b3669ec7027e8adbacaebb6283', 'next', 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionTest.php', libsqlite_suite_admission_output(), 'non-overlap', 72));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerAdmission(libsqlite_suite_admission_rows(), -1, 26631, 'c1b3825e121841b3669ec7027e8adbacaebb6283', 'next', 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionTest.php', libsqlite_suite_admission_output(), 'non-overlap', 72));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerAdmission(libsqlite_suite_admission_rows(), 464, 26631, '', 'next', 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionTest.php', libsqlite_suite_admission_output(), 'non-overlap', 72));
 };
 
 $tests['current next72 records dependency closure and next gate'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_admission72_record(libsqlite_suite_admission72_rows());
+    $record = libsqlite_suite_admission_record(libsqlite_suite_admission_rows());
 
     $t->contains('current-next72 release-runner admission', $record['dependency_closure']);
     $t->contains('release/all parity remains gated', $record['next_gate']);

@@ -51,7 +51,7 @@ function libsqlite_suite_count75_rows(
             'repository_head' => $head,
             'current_countable' => true,
             'next_countable' => true,
-            'artifact_path' => 'lanes/libsqlite/notes/suite-release-runner-admission-current-next72.md',
+            'artifact_path' => 'lanes/libsqlite/notes/suite-release-runner-admission.md',
             'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error release',
             'scripts' => ['pager.test', 'wal.test'],
             'exit' => 0,

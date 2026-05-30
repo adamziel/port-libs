@@ -1,8 +1,8 @@
-# SQLite suite release-runner admission current-next72
+# SQLite suite release-runner admission
 
 ## Behavior
 
-`SQLiteUpstreamSuiteEvidence::suiteReleaseRunnerAdmissionCurrentNext72()` admits a bounded release-runner artifact only when all countability gates are clean:
+`SQLiteUpstreamSuiteEvidence::suiteReleaseRunnerAdmission()` admits a bounded release-runner artifact only when all countability gates are clean:
 
 - current artifact head matches the accepted base `c1b3825e121841b3669ec7027e8adbacaebb6283`
 - next artifact head matches the named current-next72 admission slice
@@ -21,7 +21,7 @@ This is a release-runner/countability blocker-removal slice, not a runtime SQL/J
 Command:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionCurrentNext72Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionTest.php
 ```
 
 Result:

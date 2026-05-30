@@ -19710,7 +19710,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function suiteReleaseRunnerAdmissionCurrentNext72(
+    public function suiteReleaseRunnerAdmission(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -20925,7 +20925,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function suiteReleaseRunnerAdmissionCurrentNext74(
+    public function suiteReleaseRunnerRebaseAdmission(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -20971,7 +20971,7 @@ final class SQLiteUpstreamSuiteEvidence
             $rebasedRows[$label] = $row;
         }
 
-        $record = $this->suiteReleaseRunnerAdmissionCurrentNext72(
+        $record = $this->suiteReleaseRunnerAdmission(
             $rebasedRows,
             $currentMapped,
             $currentPhpPass,
@@ -21110,7 +21110,7 @@ final class SQLiteUpstreamSuiteEvidence
             $rebasedRows[$label] = $row;
         }
 
-        $record = $this->suiteReleaseRunnerAdmissionCurrentNext72(
+        $record = $this->suiteReleaseRunnerAdmission(
             $rebasedRows,
             $currentMapped,
             $currentPhpPass,

@@ -1,8 +1,8 @@
-# SQLite suite release-runner admission current-next74
+# SQLite suite release-runner rebase admission
 
 ## Behavior
 
-`SQLiteUpstreamSuiteEvidence::suiteReleaseRunnerAdmissionCurrentNext74()` rebases release-runner artifact admission onto the launcher-printed Base accepted HEAD:
+`SQLiteUpstreamSuiteEvidence::suiteReleaseRunnerRebaseAdmission()` rebases release-runner artifact admission onto the launcher-printed Base accepted HEAD:
 
 - authoritative base: `23caf4af795588a2d84150ed1585e33865ff2b76`
 - shared dashboard/status source hashes are preserved as provenance only and cannot replace the launcher base
@@ -21,7 +21,7 @@ This removes a current-source rebase/countability blocker for suite admission. I
 Command:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerAdmissionCurrentNext74Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerRebaseAdmissionTest.php
 ```
 
 Result:
