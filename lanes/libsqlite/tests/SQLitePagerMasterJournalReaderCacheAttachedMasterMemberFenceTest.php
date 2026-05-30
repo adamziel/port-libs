@@ -58,7 +58,7 @@ $plan = static function (
     ?string $path = null,
     ?string $masterJournalPath = null,
 ) use ($databasePath, $masterPath, $masterBytes, $pageSize, $states, $pages, $cache, $reads, $sourceId): array {
-    return SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext169(
+    return SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planReaderCacheAttachedMasterMemberFence(
         $path ?? $databasePath,
         $masterJournalPath ?? $masterPath,
         $bytes ?? $masterBytes,

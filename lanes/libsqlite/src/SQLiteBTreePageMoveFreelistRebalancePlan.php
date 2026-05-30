@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan
+final class SQLiteBTreePageMoveFreelistRebalancePlan
 {
     /**
      * @param array<int, string> $pageImages

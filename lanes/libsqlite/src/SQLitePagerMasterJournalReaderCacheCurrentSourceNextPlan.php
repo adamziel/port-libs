@@ -3244,7 +3244,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext166(string $databasePath,
+    public static function planReaderCacheNextSourceFence(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         int $pageSize,
@@ -3934,7 +3934,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext168(string $databasePath,
+    public static function planReaderCacheSourceDigestFence(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         string $databaseBytes,
@@ -4134,7 +4134,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext169(string $databasePath,
+    public static function planReaderCacheAttachedMasterMemberFence(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         int $pageSize,
@@ -4530,7 +4530,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext170(string $databasePath,
+    public static function planReaderCacheRollbackJournalSourceFence(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         string $currentRollbackJournalBytes,

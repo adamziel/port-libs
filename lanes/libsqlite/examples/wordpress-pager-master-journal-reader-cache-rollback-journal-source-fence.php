@@ -52,7 +52,7 @@ $journalDigest = hash('sha256', implode('|', [
 ]));
 $sourceId = 'wp-next170-before-rollback-source';
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext170(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planReaderCacheRollbackJournalSourceFence(
     $databasePath,
     $masterPath,
     $masterBytes,

@@ -1,8 +1,8 @@
-# B-tree Page Move Freelist Rebalance Current Source Next85
+# B-tree Page Move Freelist Rebalance
 
 ## Scope
 
-- Added `SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan`.
+- Added `SQLiteBTreePageMoveFreelistRebalancePlan`.
 - The planner deletes an overflow-backed index cell, applies index leaf rebalance,
   releases obsolete overflow pages into the freelist, then moves the last index
   leaf into the newly available freelist slot in one current-source database
@@ -13,7 +13,7 @@
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNext85Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreePageMoveFreelistRebalanceTest.php`
 - Result: `1 test files, 170 assertions, 0 failures`
 - PASS lines: 66
 
@@ -33,4 +33,4 @@ B-tree, overflow, freelist, pointer-map, and auto-vacuum page-move primitives.
 
 Continue B-tree work on remaining delete/rebalance materialization that is not
 covered by accepted page relocation, overflow release, index-interior merge,
-or this current-source page-move-after-freelist behavior.
+or this page-move-after-freelist behavior.

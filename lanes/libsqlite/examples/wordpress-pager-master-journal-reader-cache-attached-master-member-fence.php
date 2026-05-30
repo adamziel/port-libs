@@ -13,7 +13,7 @@ $metaJournal = '/srv/wp-content/database/wp-next169-site-meta.sqlite-journal';
 $pluginJournal = '/srv/wp-content/database/wp-next169-plugin.sqlite-journal';
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext169(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planReaderCacheAttachedMasterMemberFence(
     $database,
     $database . '-mj',
     $mainJournal . "\n" . $metaJournal . "\n" . $pluginJournal . "\n",

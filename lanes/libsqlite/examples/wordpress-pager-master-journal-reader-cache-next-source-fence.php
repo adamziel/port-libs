@@ -25,7 +25,7 @@ $nextPages = [
     3 => $currentPages[3],
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext166(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planReaderCacheNextSourceFence(
     $database,
     $master,
     $masterBytes,

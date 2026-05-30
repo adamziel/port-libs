@@ -73,7 +73,7 @@ $plan = static fn (
     ?int $nextGenerationArg = null,
     ?int $currentSchemaArg = null,
     ?int $nextSchemaArg = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext166(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planReaderCacheNextSourceFence(
     $db ?? $database,
     $mj ?? $master,
     $masterBytesArg ?? $masterBytes,

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
-use PortLibs\LibSqlite\SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteBTreePageMoveFreelistRebalancePlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -81,24 +81,24 @@ $fixture = static function (bool $secureDelete = true) use ($makeFirstPage, $put
     $pages[2] = str_repeat("\0", 512);
     $pages[11] = SQLiteFreelistTrunkPage::assemble(null, [], 512);
 
-    $deletedValues = ['no', '_transient_current_source_next85', str_repeat('deleted-index-overflow-next85:', 60), 10];
+    $deletedValues = ['no', '_transient_current_source_canonical', str_repeat('deleted-index-overflow-canonical:', 60), 10];
     $deletedPayload = SQLiteRecord::encode($deletedValues);
     $deleted = SQLiteIndexCell::encodeWithOverflowPages($deletedPayload, 7, 512);
     $leftLeaf = SQLiteIndexLeafPage::assemble([
         $deleted['cell'],
-        SQLiteIndexCell::encode(SQLiteRecord::encode(['no', '_transient_keep_next85', 20])),
+        SQLiteIndexCell::encode(SQLiteRecord::encode(['no', '_transient_keep_canonical', 20])),
     ]);
     $rightLeaf = SQLiteIndexLeafPage::assemble([
-        SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_beta_next85', 40])),
-        SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_gamma_next85', 50])),
-        SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_omega_next85', 60])),
+        SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_beta_canonical', 40])),
+        SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_gamma_canonical', 50])),
+        SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_omega_canonical', 60])),
     ]);
     $movedLeaf = SQLiteIndexLeafPage::assemble([
-        SQLiteIndexCell::encode(SQLiteRecord::encode(['z', 'tail_moved_next85', 900])),
+        SQLiteIndexCell::encode(SQLiteRecord::encode(['z', 'tail_moved_canonical', 900])),
     ]);
     $parent = SQLiteIndexInteriorPage::assemble([
-        SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_alpha_next85', 30]), leftChildPage: 4),
-        SQLiteIndexCell::encode(SQLiteRecord::encode(['z', 'tail_divider_next85', 800]), leftChildPage: 5),
+        SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_alpha_canonical', 30]), leftChildPage: 4),
+        SQLiteIndexCell::encode(SQLiteRecord::encode(['z', 'tail_divider_canonical', 800]), leftChildPage: 5),
     ], 12);
 
     $pages[3] = $parent;
@@ -125,7 +125,7 @@ $fixture = static function (bool $secureDelete = true) use ($makeFirstPage, $put
     }
 
     $database = SQLiteDatabase::fromBytes(implode('', $pages));
-    $plan = SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan::deleteRebalanceFreeAndMoveLastIndexLeaf(
+    $plan = SQLiteBTreePageMoveFreelistRebalancePlan::deleteRebalanceFreeAndMoveLastIndexLeaf(
         $database,
         3,
         4,
@@ -198,7 +198,7 @@ $cases = [
 ];
 
 $expected = [
-    'plan class' => SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan::class,
+    'plan class' => SQLiteBTreePageMoveFreelistRebalancePlan::class,
     'action label' => 'btree-page-move-freelist-rebalance-current-source-next85',
     'obsolete overflow pages' => [7, 8, 9, 10],
     'freed pages before move' => [7, 8, 9, 10],
@@ -216,20 +216,20 @@ $expected = [
     'page move allocation' => [7],
     'page move parent update' => ['kind' => 'right-most', 'page' => 3, 'before' => 12, 'after' => 7],
     'left records after all apply' => [
-        ['no', '_transient_keep_next85', 20],
-        ['yes', 'autoload_alpha_next85', 30],
+        ['no', '_transient_keep_canonical', 20],
+        ['yes', 'autoload_alpha_canonical', 30],
     ],
     'right records after all apply' => [
-        ['yes', 'autoload_gamma_next85', 50],
-        ['yes', 'autoload_omega_next85', 60],
+        ['yes', 'autoload_gamma_canonical', 50],
+        ['yes', 'autoload_omega_canonical', 60],
     ],
     'moved leaf records at target' => [
-        ['z', 'tail_moved_next85', 900],
+        ['z', 'tail_moved_canonical', 900],
     ],
     'parent rightmost after move' => 7,
     'parent cells after move' => [
-        ['leftChild' => 4, 'values' => ['yes', 'autoload_beta_next85', 40]],
-        ['leftChild' => 5, 'values' => ['z', 'tail_divider_next85', 800]],
+        ['leftChild' => 4, 'values' => ['yes', 'autoload_beta_canonical', 40]],
+        ['leftChild' => 5, 'values' => ['z', 'tail_divider_canonical', 800]],
     ],
     'freelist pages after move' => [11, 10, 8, 9],
     'freelist allocation order after move' => [10, 9, 8, 11],
@@ -238,18 +238,18 @@ $expected = [
     'pointer map freed page 8' => 'free-page',
     'pointer map freed page 9' => 'free-page',
     'pointer map moved old source absent by count' => true,
-    'deleted key carried' => '_transient_current_source_next85',
+    'deleted key carried' => '_transient_current_source_canonical',
 ];
 
 $tests = [];
 foreach ($cases as $name => $case) {
-    $tests['btree page move freelist rebalance current source next85 ' . $name] = static function (TestRunner $t) use ($fixture, $case, $expected, $name): void {
+    $tests['btree page move freelist rebalance ' . $name] = static function (TestRunner $t) use ($fixture, $case, $expected, $name): void {
         $t->same($expected[$name], $case($fixture()));
     };
 }
 
 for ($index = 0; $index < 34; $index++) {
-    $tests['btree page move freelist rebalance current source next85 generated invariant ' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($fixture, $index): void {
+    $tests['btree page move freelist rebalance generated invariant ' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($fixture, $index): void {
         [, $plan] = $fixture((bool) ($index % 2));
         $summary = $plan->toArray();
 
@@ -260,7 +260,7 @@ for ($index = 0; $index < 34; $index++) {
     };
 }
 
-$tests['btree page move freelist rebalance current source next85 can skip secure-delete clearing'] = static function (TestRunner $t) use ($fixture): void {
+$tests['btree page move freelist rebalance can skip secure-delete clearing'] = static function (TestRunner $t) use ($fixture): void {
     [, $plan] = $fixture(false);
 
     $t->same([], $plan->rebalanceFreelistPlan->freePlan->clearedPageNumbers);
@@ -268,10 +268,10 @@ $tests['btree page move freelist rebalance current source next85 can skip secure
     $t->same(7, $plan->pageMovePlan->targetPageNumber);
 };
 
-$tests['btree page move freelist rebalance current source next85 rejects non-last source'] = static function (TestRunner $t) use ($fixture): void {
+$tests['btree page move freelist rebalance rejects non-last source'] = static function (TestRunner $t) use ($fixture): void {
     [$database, , $deletedValues] = $fixture();
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan::deleteRebalanceFreeAndMoveLastIndexLeaf(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMoveFreelistRebalancePlan::deleteRebalanceFreeAndMoveLastIndexLeaf(
         $database,
         3,
         4,

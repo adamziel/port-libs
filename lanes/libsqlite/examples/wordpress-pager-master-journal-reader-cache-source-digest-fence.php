@@ -54,7 +54,7 @@ $entry = static fn (string $label, string $image, int $pageNumber, array $extra 
     'source_generation' => $generation,
 ], $extra);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext168(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planReaderCacheSourceDigestFence(
     $databasePath,
     $masterPath,
     $masterBytes,
