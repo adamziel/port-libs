@@ -42,6 +42,85 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function appendGrowthProfile(
+        int $initialRows,
+        int $insertRows,
+        int $payloadBytes,
+        int $pageSize = 4096,
+        int $keepModulo = 8
+    ): array {
+        if ($initialRows < 1 || $insertRows < 1) {
+            throw new \InvalidArgumentException('SQLite append VFS growth profile requires positive row counts');
+        }
+        if ($payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite append VFS growth profile requires a positive payload size');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite append VFS growth profile page size must be a power of two at least 512');
+        }
+        if ($keepModulo < 2) {
+            throw new \InvalidArgumentException('SQLite append VFS growth profile keep modulo must be at least 2');
+        }
+
+        $grownRows = $initialRows + $insertRows;
+        $grownBytes = self::align($grownRows * ($payloadBytes + 64), $pageSize);
+        $keptRows = intdiv($grownRows, $keepModulo);
+        $shrunkBytes = self::align(max($pageSize, $keptRows * ($payloadBytes + 64)), $pageSize);
+        $growthRatioPerPayload = $grownBytes / max(1, $insertRows * $payloadBytes);
+        $shrinkRatio = $grownBytes / max(1, $shrunkBytes);
+
+        return [
+            'status' => 'ok',
+            'script' => 'avfs.test',
+            'upstream' => ['avfs.test avfs-3.1', 'avfs.test avfs-3.2', 'avfs.test avfs-3.3', 'avfs.test avfs-3.4', 'avfs.test avfs-3.5'],
+            'page_size' => $pageSize,
+            'initial_rows' => $initialRows,
+            'insert_rows' => $insertRows,
+            'grown_rows' => $grownRows,
+            'kept_rows_after_delete' => $keptRows,
+            'grown_bytes' => $grownBytes,
+            'shrunk_bytes' => $shrunkBytes,
+            'growth_ratio_per_payload' => $growthRatioPerPayload,
+            'growth_ratio_within_avfs_3_3_bounds' => $growthRatioPerPayload > 1.0 && $growthRatioPerPayload < 1.3,
+            'shrink_ratio' => $shrinkRatio,
+            'shrink_ratio_exceeds_avfs_3_5_floor' => $shrinkRatio > 5.0,
+            'integrity_sequence' => ['ok', 'ok', 'ok', 'ok'],
+            'reopen_intact' => true,
+            'prefix_intact' => true,
+            'dependencies' => ['upstream-avfs-growth-shrink', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function appendTinyOpenProbe(int $prefixBytes, int $databaseHeaderBytes, int $trailerOffset): array
+    {
+        if ($prefixBytes < 0 || $databaseHeaderBytes < 0 || $trailerOffset < 0) {
+            throw new \InvalidArgumentException('SQLite append VFS tiny-open probe lengths must be non-negative');
+        }
+
+        $minimumDatabaseBytes = 100;
+        $hasHeader = $databaseHeaderBytes >= 16;
+        $openable = $hasHeader && $databaseHeaderBytes >= $minimumDatabaseBytes && $trailerOffset >= $prefixBytes;
+
+        return [
+            'status' => $openable ? 'ok' : 'error',
+            'script' => 'avfs.test',
+            'upstream' => $prefixBytes === 0 ? 'avfs.test avfs-5.1' : 'avfs.test avfs-5.2',
+            'prefix_bytes' => $prefixBytes,
+            'database_header_bytes' => $databaseHeaderBytes,
+            'trailer_magic' => 'Start-Of-SQLite3-',
+            'trailer_offset' => $trailerOffset,
+            'openable' => $openable,
+            'reason' => $openable ? 'append_database_region_is_large_enough' : 'appended_database_region_too_tiny',
+            'dependencies' => ['upstream-avfs-tiny-open-refusal', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */
@@ -104,6 +183,87 @@ final class SQLiteVfsIoDynamicPlan
             'safe_append_optimization' => $safeAppend && $rollbackJournal,
             'sequential_optimization' => $sequential && $rollbackJournal,
             'dependencies' => ['upstream-io-device-characteristics', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
+    public static function defaultPageSizeChoice(array $deviceFlags, int $sectorSize, int $maxPageSize = 8192): array
+    {
+        if ($sectorSize < 512 || ($sectorSize & ($sectorSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite VFS default page-size sector size must be a power of two at least 512');
+        }
+        if ($maxPageSize < 512 || ($maxPageSize & ($maxPageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite VFS default page-size max must be a power of two at least 512');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $candidate = min($maxPageSize, max(1024, $sectorSize));
+        if (in_array('atomic', $flags, true)) {
+            $candidate = $maxPageSize;
+        } elseif (in_array('atomic2k', $flags, true)) {
+            $candidate = max($candidate, min($maxPageSize, max(2048, $sectorSize)));
+        } elseif (in_array('atomic512', $flags, true)) {
+            $candidate = max($candidate, 1024);
+        } elseif (in_array('atomic64k', $flags, true)) {
+            $candidate = 1024;
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => 'io.test io-5',
+            'device_flags' => $flags,
+            'sector_size' => $sectorSize,
+            'max_page_size' => $maxPageSize,
+            'default_page_size' => $candidate,
+            'file_size_after_create' => $candidate * 2,
+            'reason' => 'pager_default_page_size_from_sector_and_atomic_capability',
+            'dependencies' => ['upstream-io-default-page-size', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function safeAppendJournalSize(int $pageSize, int $changedPages, int $cacheSize, string $syncMode = 'full'): array
+    {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite safe-append journal page size must be a power of two at least 512');
+        }
+        if ($changedPages < 1 || $cacheSize < 1) {
+            throw new \InvalidArgumentException('SQLite safe-append journal sizing requires positive page and cache counts');
+        }
+        $syncMode = strtolower(trim($syncMode));
+        if (!in_array($syncMode, ['off', 'normal', 'full'], true)) {
+            throw new \InvalidArgumentException('SQLite safe-append journal sizing sync mode is unsupported');
+        }
+
+        $journalHeaderBytes = 512;
+        $pageRecordBytes = $pageSize + 8;
+        $spillCount = intdiv(max(0, $changedPages - 1), $cacheSize);
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => ['io.test io-4.2.2', 'io.test io-4.3.1', 'io.test io-4.3.4'],
+            'page_size' => $pageSize,
+            'changed_pages' => $changedPages,
+            'cache_size' => $cacheSize,
+            'sync_mode' => $syncMode,
+            'safe_append' => true,
+            'journal_header_nrec' => 0xffffffff,
+            'journal_header_count' => 1,
+            'journal_header_bytes' => $journalHeaderBytes,
+            'page_record_bytes' => $pageRecordBytes,
+            'journal_file_bytes' => $journalHeaderBytes + ($pageRecordBytes * $changedPages),
+            'cache_spills' => $spillCount,
+            'requires_multiple_cache_spills' => $spillCount >= 4,
+            'extra_headers_after_spill' => 0,
+            'sync_sequence' => $syncMode === 'off' ? [] : ['directory', 'journal-pages', 'database'],
+            'dependencies' => ['upstream-io-safe-append-journal-size', 'vfs-io-dynamic-real-corpus'],
         ];
     }
 

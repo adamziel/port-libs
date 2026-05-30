@@ -698,10 +698,15 @@ final class SQLitePragmaSchemaCatalog
     private static function tablePrimaryKeyColumns(string $list): array
     {
         $columns = [];
+        $ordinal = 1;
         foreach (self::splitTopLevel($list, ',') as $part) {
             $identifier = self::readIdentifier(trim($part), 0);
             if ($identifier !== null) {
-                $columns[strtolower($identifier['identifier'])] = count($columns) + 1;
+                $normalized = strtolower($identifier['identifier']);
+                if (!isset($columns[$normalized])) {
+                    $columns[$normalized] = $ordinal;
+                }
+                $ordinal++;
             }
         }
 
@@ -1009,7 +1014,7 @@ final class SQLitePragmaSchemaCatalog
             if ($upper === '' || in_array($upper, ['PRIMARY', 'NOT', 'NULL', 'UNIQUE', 'CHECK', 'DEFAULT', 'COLLATE', 'REFERENCES', 'GENERATED', 'AS'], true)) {
                 break;
             }
-            $words[] = trim($word);
+            $words[] = strtoupper(self::unquoteIdentifier(trim($word)));
         }
 
         return implode(' ', $words);
@@ -1025,7 +1030,15 @@ final class SQLitePragmaSchemaCatalog
 
         $end = self::defaultValueEnd($value);
 
-        return trim(substr($value, 0, $end));
+        $default = trim(substr($value, 0, $end));
+        if (str_starts_with($default, '(') && str_ends_with($default, ')')) {
+            $close = self::matchingParen($default, 0);
+            if ($close === strlen($default) - 1) {
+                return trim(substr($default, 1, -1));
+            }
+        }
+
+        return $default;
     }
 
     private static function defaultValueEnd(string $value): int

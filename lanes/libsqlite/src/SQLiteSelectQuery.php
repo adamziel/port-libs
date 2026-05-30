@@ -92,31 +92,54 @@ final class SQLiteSelectQuery
     private static function applyWindowExpressions(array $rows, array $select): array
     {
         foreach ($select as $index => $expression) {
-            if (($expression['type'] ?? null) !== 'window') {
-                continue;
-            }
+            [$rows, $select[$index]] = self::materializeWindowExpression($rows, $expression, '__window' . $index);
+        }
 
-            $column = '__window' . $index;
+        return [$rows, $select];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $expression
+     * @return array{0:list<array<string,mixed>>,1:array<string,mixed>}
+     */
+    private static function materializeWindowExpression(array $rows, array $expression, string $columnPrefix): array
+    {
+        if (($expression['type'] ?? null) === 'window') {
             $values = self::windowValues($rows, $expression);
             if (count($values) !== count($rows)) {
                 throw new \InvalidArgumentException('SQLite SELECT query window result row count mismatch');
             }
             foreach ($rows as $rowIndex => $row) {
-                $row[$column] = $values[$rowIndex];
+                $row[$columnPrefix] = $values[$rowIndex];
                 $rows[$rowIndex] = $row;
             }
 
-            $replacement = [
+            return [$rows, [
                 'type' => 'column',
-                'name' => $column,
+                'name' => $columnPrefix,
                 'alias' => isset($expression['alias']) && is_string($expression['alias']) && $expression['alias'] !== ''
                     ? $expression['alias']
-                    : 'expr' . ($index + 1),
-            ];
-            $select[$index] = $replacement;
+                    : ($expression['alias'] ?? 'expr' . ((int) preg_replace('/\D+/', '', $columnPrefix) + 1)),
+            ]];
         }
 
-        return [$rows, $select];
+        foreach (['left', 'right', 'operand', 'predicate'] as $key) {
+            if (isset($expression[$key]) && is_array($expression[$key])) {
+                [$rows, $expression[$key]] = self::materializeWindowExpression($rows, $expression[$key], $columnPrefix . '_' . $key);
+            }
+        }
+        foreach (['arguments', 'values'] as $key) {
+            if (isset($expression[$key]) && is_array($expression[$key]) && array_is_list($expression[$key])) {
+                foreach ($expression[$key] as $childIndex => $child) {
+                    if (is_array($child)) {
+                        [$rows, $expression[$key][$childIndex]] = self::materializeWindowExpression($rows, $child, $columnPrefix . '_' . $key . $childIndex);
+                    }
+                }
+            }
+        }
+
+        return [$rows, $expression];
     }
 
     /**
@@ -276,7 +299,23 @@ final class SQLiteSelectQuery
                 ? null
                 : array_map(static fn (array $row): bool => SQLiteSelectPredicate::filter([$row], $filter) !== [], $orderedRows);
 
-            return SQLiteWindowFunction::aggregateFrameValues(
+            $separator = $function === 'group_concat' && isset($arguments[1])
+                ? (string) SQLiteSelectExpression::evaluate($orderedRows[0] ?? [], $arguments[1])
+                : ',';
+
+            return isset($frame['startBoundary'], $frame['endBoundary'])
+                ? SQLiteWindowFunction::aggregateFrameBetweenValues(
+                    $function,
+                    $values,
+                    $peerKeys,
+                    $frame['unit'],
+                    (string) $frame['startBoundary'],
+                    (string) $frame['endBoundary'],
+                    $frame['exclude'],
+                    $filterValues,
+                    $separator,
+                )
+                : SQLiteWindowFunction::aggregateFrameValues(
                 $function,
                 $values,
                 $peerKeys,
@@ -285,6 +324,7 @@ final class SQLiteSelectQuery
                 $frame['following'],
                 $frame['exclude'],
                 $filterValues,
+                $separator,
             );
         }
         if ($filter !== null) {
@@ -793,12 +833,18 @@ final class SQLiteSelectQuery
             throw new \InvalidArgumentException('SQLite SELECT query window frame is malformed');
         }
 
-        return [
+        $frame = [
             'unit' => $value['unit'],
             'preceding' => $value['preceding'],
             'following' => $value['following'],
             'exclude' => $value['exclude'],
         ];
+        if (isset($value['startBoundary'], $value['endBoundary']) && is_string($value['startBoundary']) && is_string($value['endBoundary'])) {
+            $frame['startBoundary'] = $value['startBoundary'];
+            $frame['endBoundary'] = $value['endBoundary'];
+        }
+
+        return $frame;
     }
 
     /**

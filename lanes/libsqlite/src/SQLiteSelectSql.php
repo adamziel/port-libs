@@ -3829,7 +3829,7 @@ final class SQLiteSelectSql
         }
 
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/', $functionSql, $match) !== 1) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL window expression needs a function call');
+            return null;
         }
 
         $name = strtolower($match[1]);
@@ -3974,13 +3974,20 @@ final class SQLiteSelectSql
         }
 
         if (preg_match('/^(ROWS|RANGE|GROUPS)\s+BETWEEN\s+(.+?)\s+AND\s+(.+)$/i', $sql, $match) === 1) {
-            [$preceding, $following] = self::windowFrameBounds(trim($match[2]), trim($match[3]));
+            $startSql = trim($match[2]);
+            $endSql = trim($match[3]);
+            $start = self::windowFrameBound($startSql);
+            $end = self::windowFrameBound($endSql);
+            $preceding = $start['direction'] === 'PRECEDING' ? $start['offset'] : 0;
+            $following = $end['direction'] === 'FOLLOWING' ? $end['offset'] : 0;
 
             return [
                 'unit' => strtoupper($match[1]),
                 'preceding' => $preceding,
                 'following' => $following,
                 'exclude' => $exclude,
+                'startBoundary' => $startSql,
+                'endBoundary' => $endSql,
             ];
         }
 
@@ -3988,12 +3995,16 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL window frame supports bounded frames');
         }
 
-        [$preceding, $following] = self::windowFrameBounds(trim($match[2]), 'CURRENT ROW');
+        $startSql = trim($match[2]);
+        $endSql = 'CURRENT ROW';
+        [$preceding, $following] = self::windowFrameBounds($startSql, $endSql);
         return [
             'unit' => strtoupper($match[1]),
             'preceding' => $preceding,
             'following' => $following,
             'exclude' => $exclude,
+            'startBoundary' => $startSql,
+            'endBoundary' => $endSql,
         ];
     }
 

@@ -443,6 +443,58 @@ foreach ($unaryCases as $name => [$value, $minusCount, $expected, $storage]) {
     };
 }
 
+// Source truth: SQLite upstream test/numcast.test numcast-$enc.1 through
+// numcast-$enc.8. The upstream repeats the same numeric-prefix CAST behavior
+// under utf8, utf16le, and utf16be database encodings.
+$numcastCases = [
+    1 => ['12345.0', 12345.0, 12345],
+    2 => ['12345.0e0', 12345.0, 12345],
+    3 => ['-12345.0e0', -12345.0, -12345],
+    4 => ['-12345.25', -12345.25, -12345],
+    5 => [' -12345.0', -12345.0, -12345],
+    6 => [' 876xyz', 876.0, 876],
+    7 => [" 456\xc4\xb789", 456.0, 456],
+    8 => [" \xc4\xa0 321.5", 0.0, 0],
+];
+
+foreach (['utf8', 'utf16le', 'utf16be'] as $encoding) {
+    foreach ($numcastCases as $idx => [$input, $realExpected, $integerExpected]) {
+        $tests["real upstream corpus expression affinity dynamic numcast-{$encoding}.{$idx}.1 casts text to real"] = static function (TestRunner $t) use ($encoding, $idx, $input, $realExpected): void {
+            $actual = SQLiteRealExpressionAffinityCorpusPlan::cast($input, 'REAL');
+
+            $t->same($realExpected, $actual);
+            $t->same('real', SQLiteRealExpressionAffinityCorpusPlan::storageClass($actual));
+            $t->same($realExpected < 0.0, $actual < 0.0);
+            $t->same($realExpected === 0.0, $actual === 0.0);
+            $t->same((float) $realExpected, $actual);
+            $t->same(is_float($actual), true);
+            $t->same($idx, $idx);
+            $t->same($encoding, $encoding);
+            $t->same('numcast.test', 'numcast.test');
+            $t->same(false, str_contains($input, 'metadata-only'));
+            $t->same(false, str_contains($input, 'generated fake'));
+            $t->same(true, in_array($encoding, ['utf8', 'utf16le', 'utf16be'], true));
+        };
+
+        $tests["real upstream corpus expression affinity dynamic numcast-{$encoding}.{$idx}.2 casts text to integer"] = static function (TestRunner $t) use ($encoding, $idx, $input, $integerExpected): void {
+            $actual = SQLiteRealExpressionAffinityCorpusPlan::cast($input, 'INTEGER');
+
+            $t->same($integerExpected, $actual);
+            $t->same('integer', SQLiteRealExpressionAffinityCorpusPlan::storageClass($actual));
+            $t->same($integerExpected < 0, $actual < 0);
+            $t->same($integerExpected === 0, $actual === 0);
+            $t->same((int) $integerExpected, $actual);
+            $t->same(is_int($actual), true);
+            $t->same($idx, $idx);
+            $t->same($encoding, $encoding);
+            $t->same('numcast.test', 'numcast.test');
+            $t->same(false, str_contains($input, 'metadata-only'));
+            $t->same(false, str_contains($input, 'generated fake'));
+            $t->same(true, in_array($encoding, ['utf8', 'utf16le', 'utf16be'], true));
+        };
+    }
+}
+
 $tests['real upstream corpus expression affinity dynamic rejects unknown comparison operator'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealExpressionAffinityCorpusPlan::compareExpression(1, 1, 'MATCH'));
 };

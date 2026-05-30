@@ -331,6 +331,7 @@ final class SQLiteWindowFunction
         int|float $following,
         string $exclude = 'NO OTHERS',
         ?iterable $filters = null,
+        string $separator = ',',
     ): array {
         return self::aggregateFrameRows($values, $orderKeys, 'ROWS', $preceding, $following, $exclude, $filters);
     }
@@ -349,6 +350,7 @@ final class SQLiteWindowFunction
         int|float $following,
         string $exclude = 'NO OTHERS',
         ?iterable $filters = null,
+        string $separator = ',',
     ): array {
         if ($preceding < 0 || $following < 0) {
             throw new \InvalidArgumentException('SQLite window frame offsets must be non-negative');
@@ -436,6 +438,7 @@ final class SQLiteWindowFunction
         int|float $following,
         string $exclude = 'NO OTHERS',
         ?iterable $filters = null,
+        string $separator = ',',
     ): array {
         $function = strtolower($function);
         if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
@@ -492,7 +495,7 @@ final class SQLiteWindowFunction
                 'avg' => self::avgFrameValues($values),
                 'min' => self::minMaxFrameValues($values, true),
                 'max' => self::minMaxFrameValues($values, false),
-                'group_concat' => self::groupConcatFrameValues($values),
+                'group_concat' => self::groupConcatFrameValues($values, $separator),
             };
         }
 
@@ -514,6 +517,7 @@ final class SQLiteWindowFunction
         string $endBoundary,
         string $exclude = 'NO OTHERS',
         ?iterable $filters = null,
+        string $separator = ',',
     ): array {
         $function = strtolower($function);
         if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
@@ -540,14 +544,6 @@ final class SQLiteWindowFunction
         if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
             throw new \InvalidArgumentException('SQLite window frame unit is not supported');
         }
-        if ($unit === 'RANGE') {
-            foreach ($keys as $key) {
-                if (!is_int($key) && !is_float($key) && !is_bool($key)) {
-                    throw new \InvalidArgumentException('SQLite RANGE frame offsets require numeric ORDER BY keys');
-                }
-            }
-        }
-
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
         $result = [];
@@ -569,7 +565,7 @@ final class SQLiteWindowFunction
                 'avg' => self::avgFrameValues($frameValues),
                 'min' => self::minMaxFrameValues($frameValues, true),
                 'max' => self::minMaxFrameValues($frameValues, false),
-                'group_concat' => self::groupConcatFrameValues($frameValues),
+                'group_concat' => self::groupConcatFrameValues($frameValues, $separator),
             };
         }
 
@@ -743,6 +739,30 @@ final class SQLiteWindowFunction
         }
 
         if ($unit === 'RANGE') {
+            if (!is_int($orderKeys[$currentIndex]) && !is_float($orderKeys[$currentIndex]) && !is_bool($orderKeys[$currentIndex])) {
+                $groups = self::peerGroups($orderKeys);
+                $groupByIndex = [];
+                foreach ($groups as $groupIndex => $group) {
+                    foreach ($group as $rowIndex) {
+                        $groupByIndex[$rowIndex] = $groupIndex;
+                    }
+                }
+
+                $currentGroup = $groupByIndex[$currentIndex];
+                $startGroup = self::rowBoundaryIndex($currentGroup, count($groups), $start, true);
+                $endGroup = self::rowBoundaryIndex($currentGroup, count($groups), $end, false);
+                if ($startGroup > $endGroup) {
+                    return [];
+                }
+
+                $indexes = [];
+                for ($groupIndex = max(0, $startGroup); $groupIndex <= min(count($groups) - 1, $endGroup); $groupIndex++) {
+                    array_push($indexes, ...$groups[$groupIndex]);
+                }
+
+                return $indexes;
+            }
+
             $current = (float) $orderKeys[$currentIndex];
             $lower = self::rangeBoundaryValue($current, $start, true);
             $upper = self::rangeBoundaryValue($current, $end, false);
@@ -1086,7 +1106,7 @@ final class SQLiteWindowFunction
     /**
      * @param list<mixed> $values
      */
-    private static function groupConcatFrameValues(array $values): ?string
+    private static function groupConcatFrameValues(array $values, string $separator = ','): ?string
     {
         $text = [];
         foreach ($values as $value) {
@@ -1095,7 +1115,7 @@ final class SQLiteWindowFunction
             }
         }
 
-        return $text === [] ? null : implode(',', $text);
+        return $text === [] ? null : implode($separator, $text);
     }
 
     private static function sortRank(mixed $value): int

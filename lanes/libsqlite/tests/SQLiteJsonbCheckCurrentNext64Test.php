@@ -240,6 +240,47 @@ SQL;
     $t->same(7, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
 };
 
+$tests['jsonb check current next64 keeps production source-neutral defaults'] = static function (TestRunner $t) use ($jsonb64): void {
+    $source = file_get_contents(dirname(__DIR__) . '/src/SQLiteJsonbCheckCurrentNextPlan.php');
+    $t->true(is_string($source));
+    $forbidden = [
+        'w' . 'p_',
+        'w' . 'p_options',
+        'option' . '_id',
+        'option' . '_name',
+        'option' . '_value',
+        'auto' . 'load',
+        'blog' . '_id',
+        'Word' . 'Press',
+        'word' . 'press',
+    ];
+    $pattern = '/' . implode('|', array_map('preg_quote', $forbidden)) . '/';
+    $t->same(0, preg_match($pattern, (string) $source));
+
+    $schema = <<<'SQL'
+CREATE TABLE app_settings(
+  setting_id INTEGER PRIMARY KEY,
+  key_value BLOB,
+  CHECK(json_valid(key_value, 8)),
+  CHECK(json_extract(key_value, '$.rank') BETWEEN 1 AND 9)
+)
+SQL;
+    $plan = SQLiteJsonbCheckCurrentNextPlan::plan(
+        $schema,
+        [['setting_id' => 1, 'key_value' => $jsonb64(['rank' => 2])]],
+        [
+            ['op' => 'UPDATE', 'rowid' => 1, 'mutations' => [
+                ['function' => 'jsonb_set', 'path' => '$.rank', 'value' => 7],
+            ]],
+            ['op' => 'INSERT', 'row' => ['setting_id' => 2, 'key_value' => $jsonb64(['rank' => 12])]],
+        ],
+    );
+
+    $t->same([1], array_column($plan['accepted'], 'rowid'));
+    $t->same([2], array_column($plan['rejected'], 'rowid'));
+    $t->same(7, SQLiteJsonB::decode($plan['after'][0]['key_value']->bytes)['rank']);
+};
+
 $tests['jsonb check current next64 rejects invalid neutral rowid column option'] = static function (TestRunner $t) use ($schema64, $rows64, $changes64): void {
     $t->throws(
         InvalidArgumentException::class,

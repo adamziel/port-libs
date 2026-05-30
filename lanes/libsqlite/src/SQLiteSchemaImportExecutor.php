@@ -207,9 +207,14 @@ final class SQLiteSchemaImportExecutor
             }
             throw new \InvalidArgumentException("SQLite schema import index {$index['name']} already exists in {$schema}");
         }
-        if ($this->findRecord($schema, 'table', $table['name']) === null) {
+        if ($this->findRecord($schema, 'table', $index['name']) !== null) {
+            throw new \InvalidArgumentException("SQLite schema import table {$index['name']} already exists in {$schema}");
+        }
+        $tableRecord = $this->findRecord($schema, 'table', $table['name']);
+        if ($tableRecord === null) {
             throw new \InvalidArgumentException("SQLite schema import index target table {$table['name']} is missing in {$schema}");
         }
+        $this->validateIndexColumns($sql, $tableRecord);
 
         $rootPage = $this->allocateRootPage($schema);
         $this->records[$schema][] = new SQLiteSchemaRecord(
@@ -233,6 +238,138 @@ final class SQLiteSchemaImportExecutor
             'created' => true,
             'sql' => $sql,
         ];
+    }
+
+    private function validateIndexColumns(string $sql, SQLiteSchemaRecord $tableRecord): void
+    {
+        if ($tableRecord->sql === null) {
+            return;
+        }
+        $tableColumns = self::tableColumnNames($tableRecord->sql);
+        if ($tableColumns === []) {
+            return;
+        }
+        $open = strpos($sql, '(');
+        if ($open === false) {
+            throw new \InvalidArgumentException('SQLite schema import CREATE INDEX column list is malformed');
+        }
+        $close = self::matchingParen($sql, $open);
+        if ($close === null) {
+            throw new \InvalidArgumentException('SQLite schema import CREATE INDEX column list is malformed');
+        }
+
+        foreach (self::splitCommaTerms(substr($sql, $open + 1, $close - $open - 1)) as $term) {
+            $column = self::simpleIndexColumnName($term);
+            if ($column === null) {
+                continue;
+            }
+            if (!in_array(strtolower($column), $tableColumns, true)) {
+                throw new \InvalidArgumentException("SQLite schema import index column {$column} is missing from table {$tableRecord->name}");
+            }
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function tableColumnNames(string $createTableSql): array
+    {
+        $open = strpos($createTableSql, '(');
+        if ($open === false) {
+            return [];
+        }
+        $close = self::matchingParen($createTableSql, $open);
+        if ($close === null) {
+            return [];
+        }
+
+        $columns = [];
+        foreach (self::splitCommaTerms(substr($createTableSql, $open + 1, $close - $open - 1)) as $term) {
+            if (preg_match('/^\s*(constraint|primary|unique|check|foreign)\b/i', $term) === 1) {
+                continue;
+            }
+            $name = self::leadingIdentifier($term);
+            if ($name !== null) {
+                $columns[] = strtolower($name);
+            }
+        }
+
+        return $columns;
+    }
+
+    private static function simpleIndexColumnName(string $term): ?string
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return null;
+        }
+        $name = self::leadingIdentifier($term);
+        if ($name === null) {
+            return null;
+        }
+        $tail = trim(substr($term, self::leadingIdentifierLength($term)));
+        if ($tail === '') {
+            return $name;
+        }
+        if (preg_match('/^(?:collate\s+(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s*)?(?:(?:asc|desc)\s*)?$/i', $tail) === 1) {
+            return $name;
+        }
+
+        return null;
+    }
+
+    private static function leadingIdentifier(string $sql): ?string
+    {
+        $length = self::leadingIdentifierLength($sql);
+        if ($length === 0) {
+            return null;
+        }
+
+        return self::unquoteIdentifier(substr(trim($sql), 0, $length));
+    }
+
+    private static function leadingIdentifierLength(string $sql): int
+    {
+        $sql = ltrim($sql);
+        if ($sql === '') {
+            return 0;
+        }
+        $first = $sql[0];
+        if ($first === '"') {
+            $offset = 1;
+            while (($next = strpos($sql, '"', $offset)) !== false) {
+                if (($sql[$next + 1] ?? '') !== '"') {
+                    return $next + 1;
+                }
+                $offset = $next + 2;
+            }
+
+            return 0;
+        }
+        if ($first === '`') {
+            $next = strpos($sql, '`', 1);
+            return $next === false ? 0 : $next + 1;
+        }
+        if ($first === '[') {
+            $next = strpos($sql, ']', 1);
+            return $next === false ? 0 : $next + 1;
+        }
+        if ($first === "'") {
+            $offset = 1;
+            while (($next = strpos($sql, "'", $offset)) !== false) {
+                if (($sql[$next + 1] ?? '') !== "'") {
+                    return $next + 1;
+                }
+                $offset = $next + 2;
+            }
+
+            return 0;
+        }
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*/', $sql, $matches) === 1) {
+            return strlen($matches[0]);
+        }
+
+        return 0;
     }
 
     /**
@@ -317,7 +454,7 @@ final class SQLiteSchemaImportExecutor
         }
         $first = $identifier[0];
         $last = $identifier[strlen($identifier) - 1];
-        if (($first === '"' && $last === '"') || ($first === '`' && $last === '`')) {
+        if (($first === '"' && $last === '"') || ($first === '`' && $last === '`') || ($first === "'" && $last === "'")) {
             return str_replace($first . $first, $first, substr($identifier, 1, -1));
         }
         if ($first === '[' && $last === ']') {

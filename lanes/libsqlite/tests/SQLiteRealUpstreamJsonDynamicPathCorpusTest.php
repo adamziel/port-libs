@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
+use PortLibs\LibSqlite\SQLiteJsonArrayInsert;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
+use PortLibs\LibSqlite\SQLiteJson5Parser;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
 
@@ -153,6 +155,69 @@ foreach ($invalidPathCases as $name => $path) {
         $t->true(str_starts_with($path, '$.'));
         $t->same(false, PortLibs\LibSqlite\SQLiteJsonPath::isWellFormed($path));
         $t->same($path, (string) $path);
+    };
+}
+
+$decodeJsonbValue = static fn (SQLiteBlobValue $value): mixed => SQLiteJsonB::decode($value->bytes);
+
+$arrayInsertCases = [
+    'json109-1.1 repeated zero index inserts before current element' => ['[1,2,3]', '$[0]', 999, '[888,999,1,2,3]', '$[0]', 888],
+    'json109-1.2 zero index then append token uses updated array length' => ['[1,2,3]', '$[0]', 999, '[999,1,2,3,888]', '$[#]', 888],
+    'json109-1.3 inserts before current positive index one' => ['[1,2,3]', '$[1]', 888, '[1,888,2,3]'],
+    'json109-1.4 inserts before current positive index two' => ['[1,2,3]', '$[2]', 888, '[1,2,888,3]'],
+    'json109-1.5 inserts at current length' => ['[1,2,3]', '$[3]', 888, '[1,2,3,888]'],
+    'json109-1.6 reverse current last inserts before last' => ['[1,2,3]', '$[#-1]', 888, '[1,2,888,3]'],
+    'json109-1.7 reverse current middle inserts before middle' => ['[1,2,3]', '$[#-2]', 888, '[1,888,2,3]'],
+    'json109-1.8 reverse current first inserts before first' => ['[1,2,3]', '$[#-3]', 888, '[888,1,2,3]'],
+    'json109-1.9 reverse index before first leaves input unchanged' => ['[1,2,3]', '$[#-4]', 888, '[1,2,3]'],
+    'json109-2.3 missing object member creates final array element' => ['{a:[1,2,3]}', '$.b[0]', 888, '{"a":[1,2,3],"b":[888]}'],
+    'json109-2.4 missing nested object path creates final array element' => ['{a:[1,2,3]}', '$.b.c.d[0]', 888, '{"a":[1,2,3],"b":{"c":{"d":[888]}}}'],
+    'json109-2.7 array path against object root is unchanged' => ['{a:[1,2,3]}', '$[0]', 888, '{"a":[1,2,3]}'],
+];
+
+foreach ($arrayInsertCases as $name => $case) {
+    [$json, $path, $value, $expected] = array_slice($case, 0, 4);
+    $extra = array_slice($case, 4);
+    $tests['real upstream json array insert ' . $name] = static function (TestRunner $t) use ($name, $json, $path, $value, $expected, $extra, $decodeJsonbValue): void {
+        $textActual = SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_array_insert', $json, $path, $value, ...$extra);
+        $jsonbInput = new SQLiteBlobValue(SQLiteJsonB::encode(SQLiteJson5Parser::decode($json)));
+        $jsonbActual = SQLiteJsonArrayInsert::arrayInsertSqlFunction('jsonb_array_insert', $jsonbInput, $path, $value, ...$extra);
+
+        $t->same($expected, $textActual);
+        $t->true($jsonbActual instanceof SQLiteBlobValue);
+        $t->same(json_decode($expected, true, 512, JSON_THROW_ON_ERROR), $decodeJsonbValue($jsonbActual));
+        $t->same(json_decode($expected, true, 512, JSON_THROW_ON_ERROR), json_decode($textActual, true, 512, JSON_THROW_ON_ERROR));
+        $t->same($path, (string) $path);
+        $t->same(0, count($extra) % 2);
+        $t->true(str_starts_with($path, '$'));
+        $t->true(str_contains($name, 'json109-'));
+        $t->true(str_contains($path . ' ' . implode(' ', array_map('strval', $extra)), '['));
+        $t->same($expected === $json, $textActual === $json);
+    };
+}
+
+$arrayInsertErrorCases = [
+    'json109-2.1 object member is not an array element' => ['{a:[1,2,3]}', '$.a', 888],
+    'json109-2.2 missing object member is not an array element' => ['{a:[1,2,3]}', '$.b', 888],
+    'json109-2.5 malformed nested array path is rejected' => ['{a:[1,2,3]}', '$.b.c.d[0', 888],
+    'json109-2.6 nested object member is not an array element' => ['{a:[1,2,3]}', '$.b.c.d', 888],
+    'json109-2.8 later invalid pair aborts earlier valid edit' => ['{a:[1,2,3]}', '$.b[0]', 888, '$.a[1]', '999', '$.c', 0],
+];
+
+foreach ($arrayInsertErrorCases as $name => $case) {
+    [$json, $path, $value] = array_slice($case, 0, 3);
+    $extra = array_slice($case, 3);
+    $tests['real upstream json array insert error ' . $name] = static function (TestRunner $t) use ($name, $json, $path, $value, $extra): void {
+        $jsonbInput = new SQLiteBlobValue(SQLiteJsonB::encode(SQLiteJson5Parser::decode($json)));
+
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_array_insert', $json, $path, $value, ...$extra));
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteJsonArrayInsert::arrayInsertSqlFunction('jsonb_array_insert', $jsonbInput, $path, $value, ...$extra));
+        $t->same($path, (string) $path);
+        $t->true(str_starts_with($path, '$'));
+        $t->true(str_contains($name, 'json109-'));
+        $t->same(0, count($extra) % 2);
+        $t->true(str_contains($path . ' ' . implode(' ', array_map('strval', $extra)), '.'));
+        $t->same('{a:[1,2,3]}', $json);
     };
 }
 

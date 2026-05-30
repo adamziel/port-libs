@@ -51,6 +51,61 @@ $tests['real upstream corpus vfs io dynamic avfs rejects malformed layout inputs
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendDatabaseLayout(0, 512, -1));
 };
 
+$avfsGrowthCases = [];
+foreach ([1, 2, 4, 8, 16, 32] as $initialRows) {
+    foreach ([300, 360, 420, 480, 600] as $insertRows) {
+        $avfsGrowthCases[] = [$initialRows, $insertRows, 1500, 4096, 8];
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic avfs growth shrink integrity follows avfs 3'] = static function (TestRunner $t) use ($avfsGrowthCases): void {
+    foreach ($avfsGrowthCases as [$initialRows, $insertRows, $payloadBytes, $pageSize, $keepModulo]) {
+        $profile = SQLiteVfsIoDynamicPlan::appendGrowthProfile($initialRows, $insertRows, $payloadBytes, $pageSize, $keepModulo);
+
+        $t->same('ok', $profile['status']);
+        $t->same('avfs.test', $profile['script']);
+        $t->same($initialRows, $profile['initial_rows']);
+        $t->same($insertRows, $profile['insert_rows']);
+        $t->same($initialRows + $insertRows, $profile['grown_rows']);
+        $t->same(intdiv($initialRows + $insertRows, $keepModulo), $profile['kept_rows_after_delete']);
+        $t->same(0, $profile['grown_bytes'] % $pageSize);
+        $t->same(0, $profile['shrunk_bytes'] % $pageSize);
+        $t->same(true, $profile['growth_ratio_within_avfs_3_3_bounds']);
+        $t->same(true, $profile['shrink_ratio_exceeds_avfs_3_5_floor']);
+        $t->same(['ok', 'ok', 'ok', 'ok'], $profile['integrity_sequence']);
+        $t->same(true, $profile['reopen_intact']);
+        $t->same(true, $profile['prefix_intact']);
+        $t->same(true, in_array('avfs.test avfs-3.3', $profile['upstream'], true));
+        $t->same(true, in_array('avfs.test avfs-3.5', $profile['upstream'], true));
+        $t->same(true, in_array('upstream-avfs-growth-shrink', $profile['dependencies'], true));
+    }
+};
+
+$avfsTinyCases = [
+    'avfs-5.1 empty container fake header' => [0, 16, 0],
+    'avfs-5.2 text prefix fake header' => [18, 16, 18],
+    'avfs-5.2 aligned text prefix fake header' => [4096, 16, 4096],
+    'avfs-5.1 missing sqlite header' => [0, 15, 0],
+    'avfs-5.2 trailer before appendee' => [50, 16, 12],
+];
+
+$tests['real upstream corpus vfs io dynamic avfs tiny appended databases are refused'] = static function (TestRunner $t) use ($avfsTinyCases): void {
+    foreach ($avfsTinyCases as $name => [$prefixBytes, $headerBytes, $trailerOffset]) {
+        $probe = SQLiteVfsIoDynamicPlan::appendTinyOpenProbe($prefixBytes, $headerBytes, $trailerOffset);
+
+        $t->same('error', $probe['status']);
+        $t->same(false, $probe['openable']);
+        $t->same('appended_database_region_too_tiny', $probe['reason']);
+        $t->same($prefixBytes, $probe['prefix_bytes']);
+        $t->same($headerBytes, $probe['database_header_bytes']);
+        $t->same($trailerOffset, $probe['trailer_offset']);
+        $t->same('Start-Of-SQLite3-', $probe['trailer_magic']);
+        $t->same(true, str_starts_with($probe['upstream'], 'avfs.test avfs-5.'));
+        $t->same(true, in_array('upstream-avfs-tiny-open-refusal', $probe['dependencies'], true));
+        $t->same(true, str_contains($name, 'avfs-5.'));
+    }
+};
+
 $ioCases = [
     [['powersafe_overwrite'], 2, 'delete', 'full', 4, false, false, false],
     [['atomic'], 2, 'delete', 'full', 1, true, false, false],
@@ -93,6 +148,68 @@ $tests['real upstream corpus vfs io dynamic io rollback journal writes follow de
         $t->same($syncMode === 'off' ? [] : $plan['sync_sequence'], $plan['sync_sequence']);
         $t->same(true, is_array($plan['device_flags']));
         $t->same(true, in_array('vfs-io-dynamic-real-corpus', $plan['dependencies'], true));
+    }
+};
+
+$defaultPageSizeCases = [
+    [[], 512, 1024],
+    [[], 1024, 1024],
+    [[], 2048, 2048],
+    [[], 8192, 8192],
+    [[], 16384, 8192],
+    [['atomic'], 512, 8192],
+    [['atomic512'], 512, 1024],
+    [['atomic2K'], 512, 2048],
+    [['atomic2K'], 4096, 4096],
+    [['atomic2K', 'atomic'], 512, 8192],
+    [['atomic64K'], 512, 1024],
+];
+
+$tests['real upstream corpus vfs io dynamic default page size follows io 5 matrix'] = static function (TestRunner $t) use ($defaultPageSizeCases): void {
+    foreach ($defaultPageSizeCases as [$flags, $sectorSize, $expectedPageSize]) {
+        $choice = SQLiteVfsIoDynamicPlan::defaultPageSizeChoice($flags, $sectorSize);
+
+        $t->same('ok', $choice['status']);
+        $t->same('io.test', $choice['script']);
+        $t->same('io.test io-5', $choice['upstream']);
+        $t->same(array_map(static fn (string $flag): string => strtolower($flag), str_replace('K', 'k', $choice['device_flags'])), $choice['device_flags']);
+        $t->same($sectorSize, $choice['sector_size']);
+        $t->same(8192, $choice['max_page_size']);
+        $t->same($expectedPageSize, $choice['default_page_size']);
+        $t->same($expectedPageSize * 2, $choice['file_size_after_create']);
+        $t->same('pager_default_page_size_from_sector_and_atomic_capability', $choice['reason']);
+        $t->same(true, in_array('upstream-io-default-page-size', $choice['dependencies'], true));
+    }
+};
+
+$safeAppendJournalCases = [];
+foreach ([41, 45, 49, 53, 57, 61] as $changedPages) {
+    foreach ([8, 10, 12, 14] as $cacheSize) {
+        $safeAppendJournalCases[] = [1024, $changedPages, $cacheSize];
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic safe append journal header size follows io 4 3'] = static function (TestRunner $t) use ($safeAppendJournalCases): void {
+    foreach ($safeAppendJournalCases as [$pageSize, $changedPages, $cacheSize]) {
+        $plan = SQLiteVfsIoDynamicPlan::safeAppendJournalSize($pageSize, $changedPages, $cacheSize);
+
+        $t->same('ok', $plan['status']);
+        $t->same('io.test', $plan['script']);
+        $t->same(true, in_array('io.test io-4.3.4', $plan['upstream'], true));
+        $t->same($pageSize, $plan['page_size']);
+        $t->same($changedPages, $plan['changed_pages']);
+        $t->same($cacheSize, $plan['cache_size']);
+        $t->same(true, $plan['safe_append']);
+        $t->same(0xffffffff, $plan['journal_header_nrec']);
+        $t->same(1, $plan['journal_header_count']);
+        $t->same(512, $plan['journal_header_bytes']);
+        $t->same($pageSize + 8, $plan['page_record_bytes']);
+        $t->same(512 + (($pageSize + 8) * $changedPages), $plan['journal_file_bytes']);
+        $t->same(intdiv($changedPages - 1, $cacheSize), $plan['cache_spills']);
+        $t->same($plan['cache_spills'] >= 4, $plan['requires_multiple_cache_spills']);
+        $t->same(0, $plan['extra_headers_after_spill']);
+        $t->same(['directory', 'journal-pages', 'database'], $plan['sync_sequence']);
+        $t->same(true, in_array('upstream-io-safe-append-journal-size', $plan['dependencies'], true));
     }
 };
 
