@@ -42,11 +42,27 @@
 - Composer: unavailable on current PATH; prior bootstrap recorded 2.8.12.
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
-- Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 429G available after bounded cache/log/worktree cleanup; `/tmp` has about 14G available. Preserve dirty work and use bounded cleanup/refill only.
+- Memory: current sample reports 27 GiB total and about 23 GiB available.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 408G available after bounded cache/log/worktree cleanup; `/tmp` has about 14G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (throughput sample 16:50 UTC):
+  Latest published libsqlite source is `f78a8f36d` with dashboard commit
+  `a84cc0bc4`. Public libsqlite evidence is now `198691 pass / 0 fail`,
+  mapped coverage `958 / 1589`, and the recent accepted-test rate is back
+  above the requested floor: `188568 -> 198691` pass from 16:17:22 to
+  16:47:53 UTC, or about `+10123` in 30.5 minutes (`~19.9k/hour`). The
+  slower period was the earlier 15:39-16:17 window, which produced only
+  `+207` public pass lines while source-neutral cleanup and denominator
+  admission were being sorted. The live pool has 11 visible isolated libsqlite
+  Codex workers in tmux `main`, zero long sleepers, 15 cores, and ample memory
+  and disk. The bottleneck is therefore no longer worker idleness; it is fast
+  enough review/integration of the ready queue. Keep 10-15 minute integration
+  batches moving, require honest baseline-delta accounting, prefer current-base
+  handoffs with clear focused-test growth, and reject stale/status-only
+  artifacts unless they directly remove a suite admission blocker.
 
 - 2026-05-30 supervisor continuation (stricter no-WordPress declarations 14:00 UTC):
   Latest libsqlite source is integrated and pushed as `6131a7a49`
