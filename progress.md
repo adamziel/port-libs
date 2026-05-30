@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (side PDO sample 20:40 UTC):
+  Latest accepted libsqlite source is `84833275`
+  (`libsqlite: add SQLite PDO polyfill slice`). The side PDO worker handoff was
+  reviewed separately from upstream PASS-line throughput and accepted after it
+  applied cleanly to the fifth-sweep head. It adds `SQLitePDO extends PDO` and
+  `SQLitePDOStatement extends PDOStatement` for `sqlite::memory:` and
+  empty/non-existent `sqlite:/path` DSNs, without instantiating native
+  `pdo_sqlite` in production code. Supported first-slice APIs include
+  `query()`, `prepare()`, `exec()`, `lastInsertId()`, transactions,
+  `execute()`, `fetch()`, `fetchAll()`, `fetchColumn()`, `rowCount()`,
+  `bindValue()`, and `bindParam()` over a simple CREATE/INSERT/SELECT/UPDATE/
+  DELETE subset. Verification passed PHP lint for the three new PHP files,
+  `SQLitePdoPolyfillTest` (`1 file / 19 assertions / 0 failures`),
+  `SQLiteNoDomainSpecificApiTest`, and `git diff --check`. Public upstream
+  throughput stays `639362 pass / 0 fail`, mapped `1472 / 1589`, because this
+  is side API coverage rather than new corpus denominator movement.
+
 - 2026-05-30 supervisor continuation (integration sample 20:36 UTC):
   Latest accepted libsqlite source is `1678214d`
   (`libsqlite: add fifth rapid current corpus sweep`). This fifth rapid
