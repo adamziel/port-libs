@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 20:58 UTC):
+  Latest accepted libsqlite source is `69ff80a3`
+  (`libsqlite: add seventh rapid current corpus sweep`). This seventh rapid
+  current-base batch was replayed on dashboard head `f32e8deac`; seven real
+  upstream corpus handoffs were accepted: expression LIKE ESCAPE affinity,
+  UPSERT/RETURNING alias matrix, VFS IO dynamic coverage, pager/WAL dynamic
+  matrix refresh, trigger/FK recursive trigger coverage, window1 sales-lead
+  coverage, and B-tree index fault coverage. One JSON handoff was parked
+  because it only produced a no-delta blocker note. Focused verification
+  passed `8 files / 110370 assertions / 0 failures / 9410 PASS lines`; the
+  accepted-base comparison over existing selected tests passed `3 files /
+  117310 assertions / 0 failures / 4688 PASS lines`, so the honest selected
+  PASS-line delta is `+4722`. Public libsqlite should move to `688934 pass /
+  0 fail`; mapped coverage remains `1589 / 1589`. This preserves complete
+  mapped inventory coverage, but it still does not claim full SQLite
+  release/all runner parity. Gates also passed PHP lint for 9 changed/new PHP
+  files, `git diff --check -- lanes/libsqlite`, and
+  `SQLiteNoDomainSpecificApiTest`.
+
 - 2026-05-30 supervisor continuation (integration sample 20:48 UTC):
   Latest accepted libsqlite source is `f6ba0cde`
   (`libsqlite: add sixth rapid current corpus sweep`). This sixth rapid
