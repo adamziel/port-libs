@@ -43,10 +43,33 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 376G available after bounded cache/log/worktree cleanup; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 429G available after bounded cache/log/worktree cleanup; `/tmp` has about 14G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (integration sample 10:05 UTC):
+  Latest libsqlite source is integrated as `cbf533127`
+  (`libsqlite: consolidate current-source helper batch`). The batch accepts 11
+  current-base handoffs on top of `a9b08cf3f`: B-tree vacuum pointer-map/freeblock
+  stable production plan consolidation, WAL hot-journal savepoint checkpoint
+  reader-admission rename and after-current checkpoint stage cleanup, STAT4
+  prepared-handoff cleanup, upstream suite evidence current-next dynamic guards,
+  release runner countability next82, veryquick shard next366, and window
+  RANGE/GROUPS assertion cleanup. Verification passed PHP lint for 350 changed
+  PHP files, focused family gates for B-tree `167 files / 114425 assertions / 0
+  failures`, WAL `191 selected files / 11768 assertions / 0 failures`, STAT4
+  `134 files / 7590 assertions / 0 failures`, suite evidence `323 files /
+  374942 assertions / 0 failures`, window range `2 files / 113 assertions / 0
+  failures`, full libsqlite lane `3193 selected files / 758970 assertions / 0
+  failures / 188308 PASS lines`, `git diff --check`, and source guards
+  confirming no numbered `CurrentSourceNext`/`CurrentNext` production filenames
+  or classes remain. Public pass/fail should move to `188308 pass / 0 fail`;
+  mapped coverage remains `830 / 1589` until a fresh denominator-mapped SQLite
+  suite row is accepted. Disk cleanup removed one clean inactive generated
+  worktree and pruned stale worktree metadata while preserving dirty inactive
+  lane outputs and active integration state. The latest health check reports 10
+  visible libsqlite Codex workers and 0 long sleepers.
 
 - 2026-05-30 supervisor continuation (integration sample 09:40 UTC):
   Latest libsqlite source is integrated as `a9b08cf3f`
