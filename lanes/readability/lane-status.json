@@ -10,6 +10,6 @@
     "audit": "verified 2026-05-26 isolated micro-slice: syntax checks pass for changed PHP files; focused `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php` passes 154 tests / 1936 assertions / 0 failures with WordPress block URL canonicalization coverage for base-url, base-url-base-element, and base-url-base-element-relative; `php lanes/readability/examples/wordpress-base-url-canonicalization.php` reports resolved relative base link yes, root link yes, fragment link yes, and 5 resolved image references. Root harness not run - isolated micro-slice.",
     "currentWork": "The copied Mozilla base URL fixture family now has focused WordPress block evidence proving migration output preserves upstream-resolved anchor and image URLs across source URL, absolute base, and relative base boundaries.",
     "blocker": "No focused readability blocker. Root harness not run for this isolated micro-slice by contract.",
-    "latestCommit": "1287771ad7ebca9ff004b2ae9a9746efd9cf2100 (libsqlite: consolidate pager stat4 pragma wal suffix names)",
+    "latestCommit": "7ff960f462f7c20f9b28dd5b79ca6c281a78a427 (libsqlite: consolidate stat4 suffix names)",
     "nextTask": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted upstream oracle when an upstream cache is available in the worktree, or add focused WordPress evidence for another already-copied fixture with user-visible migration impact."
 }

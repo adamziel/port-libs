@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 02:51 UTC):
+  Latest libsqlite consolidation is integrated as `7ff960f46`
+  (`libsqlite: consolidate stat4 suffix names`). The batch accepts 4
+  current-base-compatible handoffs covering STAT4 descriptive suffix cleanup
+  for `CurrentSourceNext172`, `CurrentSourceNext194`, `CurrentSourceNext210`,
+  `CurrentSourceNext213`, and `CurrentSourceNext217`, plus direct
+  alias-preservation assertions for final prepared handoff metadata. Validation
+  passed PHP lint for 13 changed PHP files, 5 changed WordPress/self-test
+  examples, changed tests `7 files / 418 assertions / 0 failures`, the full
+  STAT4 expression partial family `133 files / 7547 assertions / 0 failures`,
+  and `git diff --check -- lanes/libsqlite`. Public pass/mapped counters remain
+  `154019 pass / 0 fail` and `830 / 1589` because this is consolidation-only.
+  The live pool remains in the requested 10-11 isolated libsqlite worker band
+  with 0 long sleepers; one older worker was actively running the JSON rowid
+  family and reported `237 files / 16298 assertions / 0 failures`.
+
 - 2026-05-30 supervisor continuation (shell samples 02:46 UTC):
   Latest libsqlite consolidation is integrated as `1287771ad`
   (`libsqlite: consolidate pager stat4 pragma wal suffix names`). The batch
