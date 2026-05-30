@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 02:57 UTC):
+  Latest libsqlite consolidation is integrated as `bee212fdc`
+  (`libsqlite: consolidate json pager wal upstream suffix names`). The batch
+  accepts 6 current-base-compatible handoffs covering JSON rowid entrypoint
+  cleanup, upstream-suite evidence cleanup, WAL hot-journal entrypoint cleanup,
+  STAT4 `CurrentSourceNext191` payload-expression cleanup, broad pager
+  reader-cache current-source cleanup, and pager master-recovery cleanup.
+  Validation passed PHP lint for 109 changed PHP files, 50 changed
+  WordPress/self-test examples, changed tests `54 files / 6133 assertions / 0
+  failures`, JSON rowid family `237 files / 16298 assertions / 0 failures`,
+  upstream-suite evidence family `5 files / 6828 assertions / 0 failures`, WAL
+  hot-journal family `2 files / 11757 assertions / 0 failures`, STAT4 family
+  `133 files / 7547 assertions / 0 failures`, pager reader-cache family `149
+  files / 9991 assertions / 0 failures`, and `git diff --check --
+  lanes/libsqlite`. Public pass/mapped counters remain `154019 pass / 0 fail`
+  and `830 / 1589` because this is consolidation-only. The live pool remains
+  in the requested 10-11 isolated libsqlite worker band with 0 long sleepers.
+
 - 2026-05-30 supervisor continuation (shell samples 02:51 UTC):
   Latest libsqlite consolidation is integrated as `7ff960f46`
   (`libsqlite: consolidate stat4 suffix names`). The batch accepts 4
