@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 19:00 UTC):
+  Latest accepted libsqlite source is `b638b418b`
+  (`libsqlite: add fresh corpus throughput batch`). This batch accepts 25
+  fresh/safe real-bulk handoffs on top of `49b5c4e4` after rejecting a larger
+  30-handoff candidate because older expression/PRAGMA extended extras
+  produced focused failures. Accepted coverage adds B-tree delete/index dynamic
+  coverage, date-affinity schema coverage, JSON1/JSONB high-yield coverage,
+  selectB/SELECT7/SELECT8 coverage, trigger/FK current/next coverage,
+  UPSERT/RETURNING yield coverage, VFS IO error coverage, window dynamic
+  coverage, bulk veryquick evidence, and runner/suite-denominator blocker
+  notes. Focused verification passed `21 files / 99997 assertions / 0 failures
+  / 11370 PASS lines`; the accepted-base comparison over existing selected
+  files passed `6 files / 11441 assertions / 0 failures / 2085 PASS lines`, so
+  the honest selected PASS-line delta is `+9285`. Public libsqlite should move
+  to `364889 pass / 0 fail`; mapped coverage remains `1472 / 1589`. The next
+  intake must quarantine the red expression/PRAGMA extended handoffs and
+  continue fresh current-base real/bulk/mapped-row scoring.
+
 - 2026-05-30 supervisor continuation (integration sample 18:56 UTC):
   Latest accepted libsqlite source is `4a90dd9c4`
   (`libsqlite: add high yield corpus coverage batch`). This batch accepts 19
