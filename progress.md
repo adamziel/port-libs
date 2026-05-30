@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 19:36 UTC):
+  Latest accepted libsqlite source is `2874a0b5b`
+  (`libsqlite: add followup upstream corpus batch`). This batch replays 10
+  one-behind behavior/evidence handoffs from base `de394d1a2` onto current
+  head `28f29f1b` after proving they still apply cleanly. Accepted coverage
+  adds UPSERT correlated DELETE RETURNING, date affinity extension, B-tree
+  expression index corpus, JSON501/JSON502 bulk, window4 generated frame
+  matrix, pager/WAL overwrite restart, trigger/FK self-reference, expression
+  NULL comparison, VFS WAL/SHM behavior, and veryquick shard evidence. Focused
+  verification passed `10 files / 123935 assertions / 0 failures / 57284 PASS
+  lines`; the accepted-base comparison passed `2 files / 25834 assertions / 0
+  failures / 25834 PASS lines`, so the honest selected PASS-line delta is
+  `+31450`. Public libsqlite should move to `461965 pass / 0 fail`; mapped
+  coverage remains `1472 / 1589`. A current source scan still finds 31 older
+  domain-shaped `lanes/libsqlite/src` PHP files, so the domain-neutral cleanup
+  blocker remains open even though no new domain-specific source additions were
+  accepted.
+
 - 2026-05-30 supervisor continuation (integration sample 19:31 UTC):
   Latest accepted libsqlite source is `22b491115`
   (`libsqlite: add current upstream corpus batch`). This current-base batch

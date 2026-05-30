@@ -1,7 +1,7 @@
 {
-    "generated": "2026-05-30 19:32:19 UTC",
-    "sourceCommit": "22b491115e9db87653a09bf49cae23ff63b5956b",
-    "sourceCommitShort": "22b491115e9d",
+    "generated": "2026-05-30 19:37:35 UTC",
+    "sourceCommit": "2874a0b5b1c470e64b455f0598de380312a4fc56",
+    "sourceCommitShort": "2874a0b5b1c4",
     "sourceBranch": "main",
     "dashboardCommit": "df4b88a34f0edc616ba8ef077dc8a5172d60f37e",
     "dashboardCommitShort": "df4b88a34f0e",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1472",
             "coverage": "1472 / 1589",
-            "php": "430515 pass / 0 fail",
+            "php": "461965 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted 9 current-base handoffs after fo...",
-            "currentWork": "Published source 22b491115 with a +41269 honest selected PASS-line libsqlite batch, bring...",
-            "nextTarget": "Keep 10-11 visible current-base libsqlite workers active, publish 10-15 minute green curr...",
-            "blocker": "The slowdown was integration cadence, not worker idleness: current-base w...",
-            "commit": "22b4911"
+            "audit": "Accepted 10 one-behind behavior/evidence...",
+            "currentWork": "Published source 2874a0b5b with a +31450 honest selected PASS-line libsqlite batch, bring...",
+            "nextTarget": "Keep 10-11 visible current-base libsqlite workers active, prefer latest-head real/bulk/ma...",
+            "blocker": "Current throughput is back above target, but libsqlite is still not compl...",
+            "commit": "2874a0b"
         },
         {
             "library": "LightningCSS",
