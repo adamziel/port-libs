@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 19:40 UTC):
+  Latest accepted libsqlite source is `131d2cbb4`
+  (`libsqlite: add focused current corpus batch`). This batch replays 10
+  current-corpus/source-neutral handoffs from base `28f29f1b` onto current
+  head `bc1638b6`. Accepted coverage adds UPSERT RETURNING expansion,
+  source-neutral CAST/LIKE/GLOB defaults, window2 frame boundaries, B-tree
+  autoindex affinity, PRAGMA schema second-thousand coverage, SELECT C alias
+  corpus, trigger/FK composite cascade, plus blocker/evidence notes for date,
+  pager, and VFS. Focused verification passed `9 files / 25594 assertions / 0
+  failures / 8090 PASS lines`; the accepted-base comparison passed `4 files /
+  253 assertions / 0 failures / 243 PASS lines`, so the honest selected
+  PASS-line delta is `+7847`. Public libsqlite should move to `469812 pass / 0
+  fail`; mapped coverage remains `1472 / 1589`. This smaller batch is accepted
+  because it is green, current enough, and includes source-neutral cleanup
+  without adding domain-shaped source text.
+
 - 2026-05-30 supervisor continuation (integration sample 19:36 UTC):
   Latest accepted libsqlite source is `2874a0b5b`
   (`libsqlite: add followup upstream corpus batch`). This batch replays 10
