@@ -166,6 +166,135 @@ final class SQLiteUpsertDoUpdateWherePlan
     /**
      * @param list<array<string,mixed>> $rows
      * @param list<array<string,mixed>> $incomingRows
+     * @param list<array{target?:list<string>|null,action?:string,assignments?:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,where?:callable(array<string,mixed>,array<string,mixed>):bool|null}> $conflictArms
+     * @param list<list<string>> $uniqueConstraints
+     * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,matched_arms:list<array{incoming:array<string,mixed>,target:list<string>|null,action:string}>,yield_trace:list<array<string,mixed>>,changes:int,dependencies:list<string>}
+     */
+    public static function executeConflictArmsWithYieldTrace(
+        array $rows,
+        array $incomingRows,
+        array $conflictArms,
+        array $uniqueConstraints,
+    ): array {
+        self::validateRows($rows, 'target');
+        self::validateRows($incomingRows, 'incoming');
+        $uniqueConstraints = self::normalizeUniqueConstraints($uniqueConstraints[0] ?? [], $uniqueConstraints);
+        $conflictArms = self::normalizeConflictArms($conflictArms);
+        self::validateConflictArmTargets($conflictArms, $uniqueConstraints);
+
+        $before = $rows;
+        $inserted = [];
+        $updated = [];
+        $skipped = [];
+        $returning = [];
+        $matchedArms = [];
+        $yieldTrace = [];
+        $changes = 0;
+
+        foreach ($incomingRows as $ordinal => $incoming) {
+            $yieldTrace[] = [
+                'ordinal' => $ordinal,
+                'event' => 'before-insert',
+                'incoming' => $incoming,
+                'returning' => null,
+            ];
+
+            $match = self::findMatchingConflictArm($rows, $incoming, $uniqueConstraints, $conflictArms);
+            if ($match === null) {
+                self::ensureNoUniqueConflict($rows, $incoming, $uniqueConstraints, null, 'insert');
+                $rows[] = $incoming;
+                $inserted[] = $incoming;
+                $returning[] = $incoming;
+                ++$changes;
+                $yieldTrace[] = [
+                    'ordinal' => $ordinal,
+                    'event' => 'insert-returning',
+                    'incoming' => $incoming,
+                    'row' => $incoming,
+                    'target' => null,
+                    'returning' => $incoming,
+                ];
+                continue;
+            }
+
+            $arm = $match['arm'];
+            $current = $rows[$match['index']];
+            $matchedArms[] = [
+                'incoming' => $incoming,
+                'target' => $arm['target'],
+                'action' => $arm['action'],
+            ];
+
+            if ($arm['action'] === 'nothing') {
+                $skipped[] = $incoming;
+                $yieldTrace[] = [
+                    'ordinal' => $ordinal,
+                    'event' => 'conflict-do-nothing',
+                    'incoming' => $incoming,
+                    'current' => $current,
+                    'target' => $arm['target'],
+                    'returning' => null,
+                ];
+                continue;
+            }
+            if ($arm['where'] !== null && !$arm['where']($current, $incoming)) {
+                $skipped[] = $incoming;
+                $yieldTrace[] = [
+                    'ordinal' => $ordinal,
+                    'event' => 'conflict-update-where-false',
+                    'incoming' => $incoming,
+                    'current' => $current,
+                    'target' => $arm['target'],
+                    'returning' => null,
+                ];
+                continue;
+            }
+
+            $updatedRow = $current;
+            foreach ($arm['assignments'] as $column => $assignment) {
+                $updatedRow[$column] = $assignment($current, $incoming);
+            }
+
+            $otherRows = $rows;
+            unset($otherRows[$match['index']]);
+            self::ensureNoUniqueConflict(array_values($otherRows), $updatedRow, $uniqueConstraints, null, 'update');
+
+            $rows[$match['index']] = $updatedRow;
+            $updated[] = $updatedRow;
+            $returning[] = $updatedRow;
+            ++$changes;
+            $yieldTrace[] = [
+                'ordinal' => $ordinal,
+                'event' => 'update-returning',
+                'incoming' => $incoming,
+                'old' => $current,
+                'row' => $updatedRow,
+                'target' => $arm['target'],
+                'returning' => $updatedRow,
+            ];
+        }
+
+        return [
+            'before' => $before,
+            'after' => array_values($rows),
+            'inserted_rows' => $inserted,
+            'updated_rows' => $updated,
+            'skipped_rows' => $skipped,
+            'returning_rows' => $returning,
+            'matched_arms' => $matchedArms,
+            'yield_trace' => $yieldTrace,
+            'changes' => $changes,
+            'dependencies' => [
+                'sqlite-upsert-conflict-arm-yield-trace',
+                'upsert5.test-1.1.100-through-1.6.505',
+                'returning1.test-17',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $incomingRows
      * @param list<string> $uniqueColumns
      * @param array<string,callable(array<string,mixed>,array<string,mixed>):mixed> $assignments
      * @param callable(array<string,mixed>,array<string,mixed>):bool|null $where

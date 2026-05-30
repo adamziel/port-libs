@@ -602,6 +602,130 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param array{rowid?:mixed,oid?:mixed,_rowid_?:mixed,x:mixed,w?:mixed,y?:mixed,z?:mixed} $row
+     * @return array<string,mixed>
+     */
+    public static function triggerRowidAliasResolutionPlan(array $row, string $event, bool $declaredRowidColumns, int $physicalRowid = 1): array
+    {
+        $event = strtolower(trim($event));
+        if (!in_array($event, ['insert', 'update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerD event is unsupported');
+        }
+        if ($physicalRowid < 1) {
+            throw new \InvalidArgumentException('SQLite triggerD physical rowid must be positive');
+        }
+
+        $old = $row;
+        $new = $row;
+        if ($event === 'insert' && !$declaredRowidColumns) {
+            $old = ['rowid' => -1, 'oid' => -1, '_rowid_' => -1, 'x' => $row['x'] ?? null];
+            $new = ['rowid' => $physicalRowid, 'oid' => $physicalRowid, '_rowid_' => $physicalRowid, 'x' => $row['x'] ?? null];
+        } elseif ($event === 'insert') {
+            $old = $new = [
+                'rowid' => $row['rowid'] ?? null,
+                'oid' => $row['oid'] ?? null,
+                '_rowid_' => $row['_rowid_'] ?? null,
+                'x' => $row['x'] ?? null,
+            ];
+        } elseif ($event === 'update') {
+            if ($declaredRowidColumns) {
+                $new['rowid'] = self::numericAdd($row['rowid'] ?? null, 1);
+            } else {
+                $old = [
+                    'rowid' => $physicalRowid,
+                    'oid' => $physicalRowid,
+                    '_rowid_' => $physicalRowid,
+                    'x' => $row['x'] ?? null,
+                ];
+                $new = $old;
+                $new['x'] = self::numericAdd($new['x'], 1);
+            }
+        } elseif (!$declaredRowidColumns) {
+            $old = $new = [
+                'rowid' => $physicalRowid,
+                'oid' => $physicalRowid,
+                '_rowid_' => $physicalRowid,
+                'x' => $row['x'] ?? null,
+            ];
+        }
+
+        $entries = [];
+        if ($event === 'insert') {
+            $entries[] = self::triggerDLogEntry('r1', $declaredRowidColumns ? $new : $old);
+            $entries[] = self::triggerDLogEntry('r2', $new);
+        } elseif ($event === 'update') {
+            $entries[] = self::triggerDLogEntry('r3.old', $old);
+            $entries[] = self::triggerDLogEntry('r3.new', $new);
+            $entries[] = self::triggerDLogEntry('r4.old', $old);
+            $entries[] = self::triggerDLogEntry('r4.new', $new);
+        } else {
+            $entries[] = self::triggerDLogEntry('r5', $old);
+            $entries[] = self::triggerDLogEntry('r6', $old);
+        }
+
+        return [
+            'source' => 'triggerD.test triggerD-1.1..2.4',
+            'operation' => 'trigger-rowid-alias-resolution',
+            'status' => 'commit-ok',
+            'event' => $event,
+            'declared_rowid_columns' => $declaredRowidColumns,
+            'physical_rowid' => $physicalRowid,
+            'log' => $entries,
+            'log_count' => count($entries),
+            'rowid_values' => array_values(array_column($entries, 'rowid')),
+            'oid_values' => array_values(array_column($entries, 'oid')),
+            '_rowid_values' => array_values(array_column($entries, '_rowid_')),
+            'x_values' => array_values(array_column($entries, 'x')),
+            'uses_declared_columns_before_physical_aliases' => $declaredRowidColumns,
+            'insert_before_trigger_sees_unassigned_rowid' => !$declaredRowidColumns && $event === 'insert',
+            'dependencies' => [
+                'sqlite-triggerD-declared-rowid-columns-shadow-physical-rowid',
+                'sqlite-triggerD-old-new-rowid-aliases-use-physical-rowid-when-not-declared',
+                'sqlite-triggerD-before-insert-rowid-alias-is-negative-one',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,placeholder:string,location:string}> $references
+     * @return array<string,mixed>
+     */
+    public static function triggerVariableReferencePlan(array $references, bool $fromWritableSchema = false): array
+    {
+        $normalized = [];
+        foreach ($references as $reference) {
+            $placeholder = (string) ($reference['placeholder'] ?? '');
+            if (!preg_match('/^(?:\?|[:@$][A-Za-z_][A-Za-z0-9_]*|\?[1-9][0-9]*|\$[1-9][0-9]*)$/', $placeholder)) {
+                throw new \InvalidArgumentException('SQLite triggerE variable placeholder is malformed');
+            }
+            $normalized[] = [
+                'column' => self::identifier((string) ($reference['column'] ?? ''), 'trigger variable column'),
+                'placeholder' => $placeholder,
+                'location' => self::identifier((string) ($reference['location'] ?? 'body'), 'trigger variable location'),
+                'runtime_value' => null,
+            ];
+        }
+
+        return [
+            'source' => 'triggerE.test triggerE-1.1..2.3',
+            'operation' => 'trigger-variable-reference-boundary',
+            'status' => $fromWritableSchema ? 'loaded-from-schema-null-coercion' : 'create-trigger-rejected',
+            'from_writable_schema' => $fromWritableSchema,
+            'error' => $fromWritableSchema ? null : 'trigger cannot use variables',
+            'references' => $normalized,
+            'reference_count' => count($normalized),
+            'runtime_values' => array_values(array_column($normalized, 'runtime_value')),
+            'coerces_to_null' => $fromWritableSchema,
+            'creation_rejected' => !$fromWritableSchema,
+            'dependencies' => [
+                'sqlite-triggerE-create-trigger-rejects-bound-variables',
+                'sqlite-triggerE-schema-loaded-trigger-variables-become-null',
+                'sqlite-triggerE-trigger-variable-null-comparisons-drive-body',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int}> $baseRows
      * @param list<array{a:int,b:int,c:int}> $statementRows
      * @return array<string,mixed>
@@ -3279,6 +3403,30 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'new_a' => $new['a'],
             'new_b' => $new['b'],
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array{trigger:string,rowid:mixed,oid:mixed,_rowid_:mixed,x:mixed}
+     */
+    private static function triggerDLogEntry(string $trigger, array $row): array
+    {
+        return [
+            'trigger' => $trigger,
+            'rowid' => $row['rowid'] ?? null,
+            'oid' => $row['oid'] ?? null,
+            '_rowid_' => $row['_rowid_'] ?? null,
+            'x' => $row['x'] ?? null,
+        ];
+    }
+
+    private static function numericAdd(mixed $value, int $delta): int|float
+    {
+        if (!is_int($value) && !is_float($value)) {
+            throw new \InvalidArgumentException('SQLite triggerD numeric field is required');
+        }
+
+        return $value + $delta;
     }
 
     /**
