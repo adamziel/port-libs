@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 21:24 UTC):
+  Latest accepted libsqlite source is `8ed4e4fc`
+  (`libsqlite: add twelfth rapid current corpus sweep`). This twelfth rapid
+  current-base batch was replayed on dashboard head `0c8f3edf`; fifteen
+  behavior-producing real upstream corpus handoffs were accepted: PRAGMA
+  schema/cache-spill/schema3 multi-client coverage, windowA RANGE/NULLS
+  coverage, pager/WAL2 snapshot coverage, SELECT6 and parenthesized join
+  coverage, date localtime failure coverage, JSON501/JSON502 dynamic bulk
+  coverage, expression affinity boolean/cast-target coverage, VFS walvfs
+  coverage, B-tree index4 coverage, trigger/FK statement-preservation
+  coverage, and UPSERT/RETURNING scope coverage. Three handoffs were rejected:
+  pager and SELECT apply conflicts plus one UPSERT no-delta blocker note.
+  Focused verification passed `16 files / 131151 assertions / 0 failures /
+  22097 PASS lines`; the accepted-base comparison over existing selected tests
+  passed `1 file / 3 assertions / 0 failures / 3 PASS lines`, so the honest
+  selected PASS-line delta is `+22094`. Public libsqlite should move to
+  `782971 pass / 0 fail`; mapped coverage remains `1589 / 1589`. This
+  preserves complete mapped inventory coverage, but it still does not claim
+  full SQLite release/all runner parity. Gates also passed PHP lint for 21
+  changed/new PHP files, `git diff --check -- lanes/libsqlite`, added-lines
+  source-neutral guards, and `SQLiteNoDomainSpecificApiTest`.
+
 - 2026-05-30 supervisor continuation (integration sample 21:19 UTC):
   Latest accepted libsqlite source is `969fb286`
   (`libsqlite: add eleventh rapid current corpus sweep`). This eleventh rapid
