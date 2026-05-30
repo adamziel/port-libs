@@ -18,7 +18,7 @@ $currentPages = [
     3 => $page('wp next162 plugin setting recovered by master journal'),
 ];
 
-$summary = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext162(
+$summary = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planCurrentMasterJournalSourceEpochFence(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n",

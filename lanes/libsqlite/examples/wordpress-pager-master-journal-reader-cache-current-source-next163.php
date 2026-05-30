@@ -24,7 +24,7 @@ $nextPages = [
     3 => $currentPages[3],
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext163(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planMasterJournalMemberDigestRefreshFence(
     $database,
     '/tmp/wp-content/database/.ht.sqlite-mj163',
     $database . "-journal\n/tmp/wp-content/database/old-cache.sqlite-journal\n",

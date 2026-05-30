@@ -62,7 +62,7 @@ $next['rows'][] = ['rowid' => 25, 'blog_id' => 2, 'autoload' => 'yes', 'option_n
 $next['rows'][] = ['rowid' => 26, 'blog_id' => 1, 'autoload' => 'no', 'option_name' => 'Plugin_Forms', 'option_value' => 'lazy-forms-new'];
 $next['rows'][] = ['rowid' => 27, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'siteurl', 'option_value' => 'https://next.example.test'];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext170(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeRelevantRowChurn(
     $prepared,
     $current,
     [
@@ -80,7 +80,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['next170Source']['admitted'] === true);
     assert($plan['next170Source']['currentRelevantRowids'] === [20, 21, 22, 23]);
     assert($plan['next170Source']['nextRelevantRowids'] === [20, 21, 22, 23]);
-    echo "wordpress-planner-stat4-expression-partial-current-source-next170 self-test passed\n";
+    echo "wordpress-planner-stat4-expression-partial-relevant-row-churn self-test passed\n";
 
     return;
 }

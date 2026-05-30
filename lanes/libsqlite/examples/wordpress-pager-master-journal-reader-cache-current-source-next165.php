@@ -20,7 +20,7 @@ $pages = [
     3 => $page('wp next165 autoload index current after master recovery'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext165(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planPinnedReaderCacheMasterJournalRevalidation(
     $databasePath,
     $masterPath,
     $masterBytes,

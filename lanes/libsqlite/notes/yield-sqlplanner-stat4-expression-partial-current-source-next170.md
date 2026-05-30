@@ -1,4 +1,4 @@
-# sqlplanner-stat4-expression-partial-current-source-next170
+# sqlplanner-stat4-expression-partial-current-source relevant-row-churn
 
 ## Scope
 
@@ -11,7 +11,7 @@ STAT4 generation changes still require reprepare.
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext170Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialRelevantRowChurnTest.php`
   - `1 test files, 51 assertions, 0 failures`
   - `51` PASS lines
 

@@ -4462,7 +4462,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed>|null $nextSource
          * @return array<string,mixed>
          */
-        public static function materializeNext170(
+        public static function materializeRelevantRowChurn(
             array $preparedSource,
             array $currentSource,
             array $queryTerms,
@@ -4477,8 +4477,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $nextSource,
             );
 
-            $currentSignature = self::relevantRowSignatureNext170($currentSource, $queryTerms);
-            $nextSignature = $nextSource === null ? null : self::relevantRowSignatureNext170($nextSource, $queryTerms);
+            $currentSignature = self::relevantRowChurnSignature($currentSource, $queryTerms);
+            $nextSignature = $nextSource === null ? null : self::relevantRowChurnSignature($nextSource, $queryTerms);
             $relevantStable = $nextSource === null || $currentSignature === $nextSignature;
             $nextSummary = is_array($plan['nextSource'] ?? null) ? $plan['nextSource'] : null;
             $nextReasons = is_array($nextSummary) && is_array($nextSummary['replanReasons'] ?? null)
@@ -4500,8 +4500,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'rowSignatureChanged' => in_array('row-signature', $nextReasons, true),
                 'onlyRowSignatureChanged' => $onlyRowSignatureChanged,
                 'relevantRowSignatureStable' => $relevantStable,
-                'currentRelevantRowids' => self::relevantRowidsNext170($currentSource, $queryTerms),
-                'nextRelevantRowids' => self::relevantRowidsNext170($nextSource, $queryTerms),
+                'currentRelevantRowids' => self::relevantRowChurnRowids($currentSource, $queryTerms),
+                'nextRelevantRowids' => self::relevantRowChurnRowids($nextSource, $queryTerms),
                 'currentRelevantSignature' => $currentSignature,
                 'nextRelevantSignature' => $nextSignature,
                 'admitted' => $next170Admitted,
@@ -4512,15 +4512,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'status' => $ready ? 'stat4-expression-partial-current-source-next170-ready' : 'requires-current-source-reprepare',
                 'nextSourceAdmitted' => $next170Admitted,
                 'next170Source' => $next170Summary,
-                'cursorProgram' => self::cursorProgramNext170(self::listValueNext170($plan, 'cursorProgram'), $ready),
-                'selectedPlan' => array_replace(self::arrayValueNext170($plan, 'selectedPlan'), [
+                'cursorProgram' => self::cursorProgramForRelevantChurn(self::listValueForRelevantChurn($plan, 'cursorProgram'), $ready),
+                'selectedPlan' => array_replace(self::arrayValueForRelevantChurn($plan, 'selectedPlan'), [
                     'next170Ready' => $ready,
                     'next170RelevantRowSignatureStable' => $relevantStable,
                     'next170NextSourceAdmitted' => $next170Admitted,
-                    'next170CurrentRelevantRowids' => self::relevantRowidsNext170($currentSource, $queryTerms),
+                    'next170CurrentRelevantRowids' => self::relevantRowChurnRowids($currentSource, $queryTerms),
                     'next170RelevantRowSignature' => $currentSignature,
                 ]),
-                'stat4Fence' => array_replace(self::arrayValueNext170($plan, 'stat4Fence'), [
+                'stat4Fence' => array_replace(self::arrayValueForRelevantChurn($plan, 'stat4Fence'), [
                     'next170CurrentRelevantRowSignature' => $currentSignature,
                     'next170NextRelevantRowSignature' => $nextSignature,
                     'next170RelevantRowsStable' => $relevantStable,
@@ -4545,9 +4545,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @param list<array<string,mixed>> $queryTerms
          */
-        private static function relevantRowSignatureNext170(array $source, array $queryTerms): string
+        private static function relevantRowChurnSignature(array $source, array $queryTerms): string
         {
-            return self::signatureNext170(self::relevantRowsNext170($source, $queryTerms));
+            return self::signatureForRelevantChurn(self::relevantRowChurnRows($source, $queryTerms));
         }
 
         /**
@@ -4555,9 +4555,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $queryTerms
          * @return list<int>
          */
-        private static function relevantRowidsNext170(array $source, array $queryTerms): array
+        private static function relevantRowChurnRowids(array $source, array $queryTerms): array
         {
-            return array_map(static fn (array $row): int => (int) ($row['rowid'] ?? 0), self::relevantRowsNext170($source, $queryTerms));
+            return array_map(static fn (array $row): int => (int) ($row['rowid'] ?? 0), self::relevantRowChurnRows($source, $queryTerms));
         }
 
         /**
@@ -4565,7 +4565,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $queryTerms
          * @return list<array<string,mixed>>
          */
-        private static function relevantRowsNext170(array $source, array $queryTerms): array
+        private static function relevantRowChurnRows(array $source, array $queryTerms): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -4577,10 +4577,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source next170 rows must be arrays');
                 }
-                if (!self::rowMatchesTermsNext170($row, $queryTerms)) {
+                if (!self::rowMatchesRelevantChurnTerms($row, $queryTerms)) {
                     continue;
                 }
-                $out[] = self::canonicalRelevantRowNext170($row);
+                $out[] = self::canonicalRelevantChurnRow($row);
             }
             usort($out, static fn (array $left, array $right): int => ((int) ($left['rowid'] ?? 0)) <=> ((int) ($right['rowid'] ?? 0)));
 
@@ -4591,7 +4591,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @return array<string,mixed>
          */
-        private static function canonicalRelevantRowNext170(array $row): array
+        private static function canonicalRelevantChurnRow(array $row): array
         {
             return [
                 'rowid' => (int) ($row['rowid'] ?? 0),
@@ -4606,7 +4606,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param list<array<string,mixed>> $queryTerms
          */
-        private static function rowMatchesTermsNext170(array $row, array $queryTerms): bool
+        private static function rowMatchesRelevantChurnTerms(array $row, array $queryTerms): bool
         {
             foreach ($queryTerms as $term) {
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
@@ -4627,7 +4627,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     continue;
                 }
 
-                if (isset($left['expression']) && self::normalExpressionNext170((string) $left['expression']) === 'lower(option_name)') {
+                if (isset($left['expression']) && self::normalizeRelevantChurnExpression((string) $left['expression']) === 'lower(option_name)') {
                     $key = is_string($row['option_name'] ?? null) ? strtolower((string) $row['option_name']) : null;
                     if ($operator === 'IN') {
                         $values = $term['values'] ?? null;
@@ -4644,7 +4644,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function normalExpressionNext170(string $expression): string
+        private static function normalizeRelevantChurnExpression(string $expression): string
         {
             return strtolower((string) preg_replace('/\s+/', '', $expression));
         }
@@ -4653,7 +4653,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return array<string,mixed>
          */
-        private static function arrayValueNext170(array $base, string $key): array
+        private static function arrayValueForRelevantChurn(array $base, string $key): array
         {
             $value = $base[$key] ?? null;
             if (!is_array($value)) {
@@ -4667,7 +4667,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<array<string,mixed>>
          */
-        private static function listValueNext170(array $base, string $key): array
+        private static function listValueForRelevantChurn(array $base, string $key): array
         {
             $value = $base[$key] ?? null;
             if (!is_array($value) || !array_is_list($value)) {
@@ -4681,7 +4681,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $program
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext170(array $program, bool $ready): array
+        private static function cursorProgramForRelevantChurn(array $program, bool $ready): array
         {
             if (!$ready || !isset($program[4]) || !is_array($program[4])) {
                 return $program;
@@ -4692,7 +4692,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext170(mixed $value): string
+        private static function signatureForRelevantChurn(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }

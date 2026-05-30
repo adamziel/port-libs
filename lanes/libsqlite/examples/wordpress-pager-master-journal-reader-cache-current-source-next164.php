@@ -43,7 +43,7 @@ $entry = static fn (string $label, string $image, int $changeCounter, int $schem
     'version_valid_for' => $validFor,
 ], $extra);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext164(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planReaderCacheMasterJournalRecoveryFence(
     $databasePath,
     $masterPath,
     $masterBytes,

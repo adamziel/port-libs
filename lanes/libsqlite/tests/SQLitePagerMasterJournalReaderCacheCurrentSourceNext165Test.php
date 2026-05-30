@@ -56,7 +56,7 @@ $plan = static fn (
     int $endFrame = 12,
     ?string $path = null,
     ?string $mjPath = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext165(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planPinnedReaderCacheMasterJournalRevalidation(
     $path ?? $databasePath,
     $mjPath ?? $masterPath,
     $master === '__default__' ? $currentMaster : $master,

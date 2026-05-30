@@ -69,7 +69,7 @@ $query170 = static fn (): array => [
     $term170('option_name', 'IS NOT NULL'),
 ];
 $needed170 = ['option_name', 'option_value', 'blog_id'];
-$plan170 = static fn (?array $prepared = null, ?array $current = null, ?array $query = null, ?array $next = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext170(
+$plan170 = static fn (?array $prepared = null, ?array $current = null, ?array $query = null, ?array $next = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeRelevantRowChurn(
     $prepared ?? $prepared170(),
     $current ?? $current170(),
     $query ?? $query170(),

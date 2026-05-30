@@ -58,7 +58,7 @@ $cache = [
     ],
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext191(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planMasterJournalDeleteDirectorySyncFence(
     $database,
     $master,
     $masterBytes,
