@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 12:39:39 UTC",
-    "sourceCommit": "80abdbf7a8a3e083dcad4adc82e1108611fad393",
-    "sourceCommitShort": "80abdbf7a8a3",
-    "sourceBranch": "main",
-    "dashboardCommit": "80abdbf7a8a3e083dcad4adc82e1108611fad393",
-    "dashboardCommitShort": "80abdbf7a8a3",
+    "generated": "2026-05-30 12:58:52 UTC",
+    "sourceCommit": "f4871f323d157ef326671a219ee50d7f51089e52",
+    "sourceCommitShort": "f4871f323d15",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "f4871f323d157ef326671a219ee50d7f51089e52",
+    "dashboardCommitShort": "f4871f323d15",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "188342 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, behavior fixes, numbered suffix cons...",
-            "audit": "Accepted source commit 80abdbf7a8a3e083dc...",
-            "currentWork": "Committed libsqlite source 80abdbf7 with STAT4 final handoff cleanup, named-window RANGE/...",
-            "nextTarget": "Publish and live-verify the dashboard snapshot for 80abdbf7, keep 10-11 libsqlite workers...",
+            "audit": "Accepted source commit f4871f323d157ef326...",
+            "currentWork": "Committed libsqlite source f4871f323 with WordPress-specific class/method cleanup while p...",
+            "nextTarget": "Publish and live-verify the dashboard snapshot for f4871f323, refresh 10-11 libsqlite wor...",
             "blocker": "Root/no-arg and full libsqlite lane gates pass under explicit 1024M PHP m...",
-            "commit": "80abdbf"
+            "commit": "f4871f3"
         },
         {
             "library": "LightningCSS",

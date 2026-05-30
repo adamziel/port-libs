@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (API hygiene sample 12:58 UTC):
+  Latest libsqlite source is integrated as `f4871f323`
+  (`libsqlite: genericize application-specific api names`). This is a
+  behavior-preserving API cleanup on top of `80abdbf7`: `OptionRow`
+  declarations are now generic `KeyValueRow`, `Multisite`/`Network`
+  declarations are now `Tenant`, and `Autoload` method names are now
+  `LoadPolicy`. Verification passed PHP lint for 137 changed PHP files,
+  `git diff --check -- lanes/libsqlite`, the stricter
+  `SQLiteNoWordPressSpecificApiTest.php`, focused gate `12 selected files /
+  12019 assertions / 0 failures`, and full libsqlite lane `2 test files /
+  759101 assertions / 0 failures / 188342 PASS lines`. Public pass/fail stays
+  `188342 pass / 0 fail`; mapped coverage remains `830 / 1589` because this
+  commit removes WordPress-shaped classes and methods without claiming new
+  upstream denominator rows. Future libsqlite handoffs must pass the expanded
+  no-WordPress API guard and use generic application examples rather than
+  WordPress-specific smokes.
+
 - 2026-05-30 supervisor continuation (integration sample 13:45 UTC):
   Latest libsqlite source is integrated as `80abdbf7a`
   (`libsqlite: tighten window and suite gates`). The batch accepts four
