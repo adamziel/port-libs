@@ -36,7 +36,7 @@ $recovered = [
     3 => $page('wp next180 recovered active_plugins after master recovery'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext180(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::formatSignatureReaderCachePlan(
     $database,
     $master,
     $masterBytes,
@@ -80,7 +80,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext180
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next180',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-format-signature',
     'status' => $plan['status'],
     'formatTicket' => $plan['format_ticket'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
@@ -99,9 +99,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['optionsReadPrefix'] !== 'wp next180 recovered wp_options after master recovery'
     || $summary['activePluginsCacheHit'] !== false
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next180 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-format-signature self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next180 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-format-signature self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

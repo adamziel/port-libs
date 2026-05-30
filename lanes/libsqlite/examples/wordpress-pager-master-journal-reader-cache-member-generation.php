@@ -29,7 +29,7 @@ $recovered = [
     4 => $page('wp next178 recovered users after member recovery'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext178(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::memberGenerationReaderCachePlan(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -54,7 +54,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext178
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next178',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-member-generation',
     'status' => $plan['status'],
     'memberRows' => $plan['member_rows'],
     'retainedCachePages' => $plan['retained_page_numbers'],
@@ -73,9 +73,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['usersReason'] !== 'reader_cache_member_journal_not_deleted'
     || $summary['activeWriteBefore'] !== 'wp next178 recovered active_plugins after member recovery'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next178 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-member-generation self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next178 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-member-generation self-test passed\n";

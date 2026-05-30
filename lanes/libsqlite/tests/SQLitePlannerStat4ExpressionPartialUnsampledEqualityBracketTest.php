@@ -77,7 +77,7 @@ $terms171 = static fn (): array => [
     $exprGt171('lower(option_name)', 'plugin_'),
 ];
 $needed171 = ['option_name', 'option_value'];
-$plan171 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext171(
+$plan171 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeUnsampledEqualityBracket(
     $prepared ?? $prepared171(),
     $current ?? $current171(),
     $terms ?? $terms171(),

@@ -10596,10 +10596,10 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 220,
         int $nextSchemaCookie = 221,
     ): array {
-        $currentPattern = self::v221_decodePreparedText($currentPatternBytes, $currentPatternEncoding, 'current pattern');
-        $nextPattern = self::v221_decodePreparedText($nextPatternBytes, $nextPatternEncoding, 'next pattern');
-        $currentEscape = self::v221_decodePreparedText($currentEscapeBytes, $currentEscapeEncoding, 'current escape');
-        $nextEscape = self::v221_decodePreparedText($nextEscapeBytes, $nextEscapeEncoding, 'next escape');
+        $currentPattern = self::decodePreparedLikeText($currentPatternBytes, $currentPatternEncoding, 'current pattern');
+        $nextPattern = self::decodePreparedLikeText($nextPatternBytes, $nextPatternEncoding, 'next pattern');
+        $currentEscape = self::decodePreparedLikeText($currentEscapeBytes, $currentEscapeEncoding, 'current escape');
+        $nextEscape = self::decodePreparedLikeText($nextEscapeBytes, $nextEscapeEncoding, 'next escape');
 
         $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
             $currentRows,
@@ -10614,8 +10614,8 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $nextSchemaCookie,
         );
 
-        $currentSignature = self::v221_preparedSignature($currentPatternBytes, $currentPatternEncoding, $currentEscapeBytes, $currentEscapeEncoding);
-        $nextSignature = self::v221_preparedSignature($nextPatternBytes, $nextPatternEncoding, $nextEscapeBytes, $nextEscapeEncoding);
+        $currentSignature = self::preparedLikeByteSignature($currentPatternBytes, $currentPatternEncoding, $currentEscapeBytes, $currentEscapeEncoding);
+        $nextSignature = self::preparedLikeByteSignature($nextPatternBytes, $nextPatternEncoding, $nextEscapeBytes, $nextEscapeEncoding);
         $sameDecodedSql = $currentPattern === $nextPattern && $currentEscape === $nextEscape;
         $samePreparedBytes = $currentSignature === $nextSignature;
 
@@ -10643,10 +10643,10 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextEscape' => $nextEscape,
             'sameDecodedSql' => $sameDecodedSql,
             'samePreparedBytes' => $samePreparedBytes,
-            'currentPatternEncoding' => self::v221_encodingName($currentPatternEncoding),
-            'nextPatternEncoding' => self::v221_encodingName($nextPatternEncoding),
-            'currentEscapeEncoding' => self::v221_encodingName($currentEscapeEncoding),
-            'nextEscapeEncoding' => self::v221_encodingName($nextEscapeEncoding),
+            'currentPatternEncoding' => self::preparedTextEncodingName($currentPatternEncoding),
+            'nextPatternEncoding' => self::preparedTextEncodingName($nextPatternEncoding),
+            'currentEscapeEncoding' => self::preparedTextEncodingName($currentEscapeEncoding),
+            'nextEscapeEncoding' => self::preparedTextEncodingName($nextEscapeEncoding),
             'currentPatternBytesHex' => bin2hex($currentPatternBytes),
             'nextPatternBytesHex' => bin2hex($nextPatternBytes),
             'currentEscapeBytesHex' => bin2hex($currentEscapeBytes),
@@ -10706,31 +10706,31 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         ];
     }
 
-    private static function v221_decodePreparedText(string $bytes, int|string $encoding, string $label): string
+    private static function decodePreparedLikeText(string $bytes, int|string $encoding, string $label): string
     {
         try {
-            return SQLiteEncodingCollationSourceCursor::decodeText($bytes, self::v221_encodingId($encoding));
+            return SQLiteEncodingCollationSourceCursor::decodeText($bytes, self::preparedTextEncodingId($encoding));
         } catch (\InvalidArgumentException $exception) {
             throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoOne prepared {$label} is malformed: " . $exception->getMessage());
         }
     }
 
     /** @return array{patternEncoding:string,patternBytesHex:string,escapeEncoding:string,escapeBytesHex:string} */
-    private static function v221_preparedSignature(
+    private static function preparedLikeByteSignature(
         string $patternBytes,
         int|string $patternEncoding,
         string $escapeBytes,
         int|string $escapeEncoding,
     ): array {
         return [
-            'patternEncoding' => self::v221_encodingName($patternEncoding),
+            'patternEncoding' => self::preparedTextEncodingName($patternEncoding),
             'patternBytesHex' => bin2hex($patternBytes),
-            'escapeEncoding' => self::v221_encodingName($escapeEncoding),
+            'escapeEncoding' => self::preparedTextEncodingName($escapeEncoding),
             'escapeBytesHex' => bin2hex($escapeBytes),
         ];
     }
 
-    private static function v221_encodingId(int|string $encoding): int
+    private static function preparedTextEncodingId(int|string $encoding): int
     {
         return match ($encoding) {
             1, 'UTF-8' => 1,
@@ -10740,9 +10740,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         };
     }
 
-    private static function v221_encodingName(int|string $encoding): string
+    private static function preparedTextEncodingName(int|string $encoding): string
     {
-        return match (self::v221_encodingId($encoding)) {
+        return match (self::preparedTextEncodingId($encoding)) {
             1 => 'UTF-8',
             2 => 'UTF-16LE',
             3 => 'UTF-16BE',
@@ -10796,23 +10796,23 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $nextSchemaCookie,
         );
 
-        $currentOrdered = self::v223_descRows($base['currentMatchedRowids'], $base['currentRtrimTexts'], $base['currentNocaseKeys']);
-        $nextOrdered = self::v223_descRows($base['nextMatchedRowids'], $base['nextRtrimTexts'], $base['nextNocaseKeys']);
+        $currentOrdered = self::descendingRtrimNocaseRows($base['currentMatchedRowids'], $base['currentRtrimTexts'], $base['currentNocaseKeys']);
+        $nextOrdered = self::descendingRtrimNocaseRows($base['nextMatchedRowids'], $base['nextRtrimTexts'], $base['nextNocaseKeys']);
         $currentPage = array_slice($currentOrdered, $offset, $limit);
         $nextPage = array_slice($nextOrdered, $offset, $limit);
         $currentBefore = array_slice($currentOrdered, 0, $offset);
         $nextBefore = array_slice($nextOrdered, 0, $offset);
         $currentAfter = array_slice($currentOrdered, $offset + $limit);
         $nextAfter = array_slice($nextOrdered, $offset + $limit);
-        $currentToken = self::v223_pageToken($currentSource, $currentSchemaCookie, $pattern, $base['currentEscape'], $offset, $limit, $currentPage);
+        $currentToken = self::descendingYieldPageToken($currentSource, $currentSchemaCookie, $pattern, $base['currentEscape'], $offset, $limit, $currentPage);
 
         if ($cursor !== null) {
-            self::v223_assertCursor($cursor, $currentToken);
+            self::assertDescendingYieldCursor($cursor, $currentToken);
         }
 
-        $beforeChanged = self::v223_rowids($currentBefore) !== self::v223_rowids($nextBefore);
-        $pageChanged = self::v223_rowids($currentPage) !== self::v223_rowids($nextPage);
-        $afterChanged = self::v223_rowids($currentAfter) !== self::v223_rowids($nextAfter);
+        $beforeChanged = self::orderedRowids($currentBefore) !== self::orderedRowids($nextBefore);
+        $pageChanged = self::orderedRowids($currentPage) !== self::orderedRowids($nextPage);
+        $afterChanged = self::orderedRowids($currentAfter) !== self::orderedRowids($nextAfter);
         $reasons = $base['baseInvalidationReasons'];
         if ($beforeChanged) {
             $reasons[] = 'desc-rows-before-limit-window';
@@ -10855,17 +10855,17 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextIndexUsable' => $base['nextIndexUsable'],
             'currentMatchedRowids' => $base['currentMatchedRowids'],
             'nextMatchedRowids' => $base['nextMatchedRowids'],
-            'currentDescOrderedRowids' => self::v223_rowids($currentOrdered),
-            'nextDescOrderedRowids' => self::v223_rowids($nextOrdered),
-            'currentBeforeWindowRowids' => self::v223_rowids($currentBefore),
-            'nextBeforeWindowRowids' => self::v223_rowids($nextBefore),
-            'currentPageRowids' => self::v223_rowids($currentPage),
-            'nextPageRowids' => self::v223_rowids($nextPage),
-            'currentAfterWindowRowids' => self::v223_rowids($currentAfter),
-            'nextAfterWindowRowids' => self::v223_rowids($nextAfter),
-            'pageRetainedRowids' => array_values(array_intersect(self::v223_rowids($currentPage), self::v223_rowids($nextPage))),
-            'pageExitedRowids' => self::v223_sortedDiff(self::v223_rowids($currentPage), self::v223_rowids($nextPage)),
-            'pageEnteredRowids' => self::v223_sortedDiff(self::v223_rowids($nextPage), self::v223_rowids($currentPage)),
+            'currentDescOrderedRowids' => self::orderedRowids($currentOrdered),
+            'nextDescOrderedRowids' => self::orderedRowids($nextOrdered),
+            'currentBeforeWindowRowids' => self::orderedRowids($currentBefore),
+            'nextBeforeWindowRowids' => self::orderedRowids($nextBefore),
+            'currentPageRowids' => self::orderedRowids($currentPage),
+            'nextPageRowids' => self::orderedRowids($nextPage),
+            'currentAfterWindowRowids' => self::orderedRowids($currentAfter),
+            'nextAfterWindowRowids' => self::orderedRowids($nextAfter),
+            'pageRetainedRowids' => array_values(array_intersect(self::orderedRowids($currentPage), self::orderedRowids($nextPage))),
+            'pageExitedRowids' => self::sortedRowidDiff(self::orderedRowids($currentPage), self::orderedRowids($nextPage)),
+            'pageEnteredRowids' => self::sortedRowidDiff(self::orderedRowids($nextPage), self::orderedRowids($currentPage)),
             'rowsBeforeWindowChanged' => $beforeChanged,
             'limitWindowChanged' => $pageChanged,
             'rowsAfterWindowChanged' => $afterChanged,
@@ -10876,7 +10876,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'currentPageTail' => $currentPage === [] ? null : $currentPage[array_key_last($currentPage)],
             'nextPageTail' => $nextPage === [] ? null : $nextPage[array_key_last($nextPage)],
             'currentPageToken' => $currentToken,
-            'nextPageToken' => self::v223_pageToken($nextSource, $nextSchemaCookie, $pattern, $base['nextEscape'], $offset, $limit, $nextPage),
+            'nextPageToken' => self::descendingYieldPageToken($nextSource, $nextSchemaCookie, $pattern, $base['nextEscape'], $offset, $limit, $nextPage),
             'cursorInvalidated' => $reasons !== [],
             'cursorReusable' => $reasons === [],
             'staleDescYieldPageRisk' => $beforeChanged || $pageChanged || $base['cursorInvalidated'],
@@ -10913,7 +10913,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<int,string> $nocaseKeys
      * @return list<array{rowid:int,rtrimText:string,nocaseKey:string,matchedText:string}>
      */
-    private static function v223_descRows(array $rowids, array $rtrimTexts, array $nocaseKeys): array
+    private static function descendingRtrimNocaseRows(array $rowids, array $rtrimTexts, array $nocaseKeys): array
     {
         $rows = [];
         foreach ($rowids as $rowid) {
@@ -10937,13 +10937,13 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array{rowid:int}> $rows @return list<int> */
-    private static function v223_rowids(array $rows): array
+    private static function orderedRowids(array $rows): array
     {
         return array_map(static fn (array $row): int => $row['rowid'], $rows);
     }
 
     /** @param list<int> $left @param list<int> $right @return list<int> */
-    private static function v223_sortedDiff(array $left, array $right): array
+    private static function sortedRowidDiff(array $left, array $right): array
     {
         $diff = array_values(array_diff($left, $right));
         sort($diff);
@@ -10952,7 +10952,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $page */
-    private static function v223_pageToken(string $source, int $schemaCookie, string $pattern, string $escape, int $offset, int $limit, array $page): array
+    private static function descendingYieldPageToken(string $source, int $schemaCookie, string $pattern, string $escape, int $offset, int $limit, array $page): array
     {
         $head = $page[0] ?? null;
         $tail = $page === [] ? null : $page[array_key_last($page)];
@@ -10965,7 +10965,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'offset' => $offset,
             'limit' => $limit,
             'order' => 'DESC',
-            'pageRowids' => self::v223_rowids($page),
+            'pageRowids' => self::orderedRowids($page),
             'headRowid' => is_array($head) ? $head['rowid'] : null,
             'headKey' => is_array($head) ? $head['nocaseKey'] : null,
             'tailRowid' => is_array($tail) ? $tail['rowid'] : null,
@@ -10974,7 +10974,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $cursor @param array<string,mixed> $token */
-    private static function v223_assertCursor(array $cursor, array $token): void
+    private static function assertDescendingYieldCursor(array $cursor, array $token): void
     {
         foreach (['source', 'schemaCookie', 'patternHash', 'escapeHash', 'offset', 'limit', 'order', 'headRowid', 'headKey', 'tailRowid', 'tailKey'] as $key) {
             if (($cursor[$key] ?? null) !== $token[$key]) {

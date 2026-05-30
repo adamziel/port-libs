@@ -43,7 +43,7 @@ $recovered = [
     5 => $page('wp next177 recovered extension page'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext177(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::headerTicketReaderCachePlan(
     $database,
     $master,
     $database . "-journal\n/srv/wp-content/database/wp-next177-users.sqlite-journal\n",
@@ -67,7 +67,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext177
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next177',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-header-ticket',
     'status' => $plan['status'],
     'headerTicket' => $plan['header_ticket'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
@@ -85,9 +85,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['invalidatedCachePages'] !== [3, 4]
     || $summary['nextReadPrefixes']['active-read'] !== 'wp next177 recovered active_plugins option'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next177 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-header-ticket self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next177 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-header-ticket self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

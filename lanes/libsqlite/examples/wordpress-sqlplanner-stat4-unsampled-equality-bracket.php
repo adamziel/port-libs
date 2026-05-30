@@ -61,7 +61,7 @@ $current['rows'] = [
     ['rowid' => 40, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo-current'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext171(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeUnsampledEqualityBracket(
     $prepared,
     $current,
     [

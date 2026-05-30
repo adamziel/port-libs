@@ -124,7 +124,7 @@ $read = static fn (int $pageNumber): array => [
     'schema_root_digest' => $schemaRootDigest,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext238(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::schemaRootDigestReaderCacheFence(
     $database,
     $master,
     $masterBytes,
