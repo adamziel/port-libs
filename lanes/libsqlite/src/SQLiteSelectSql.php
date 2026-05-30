@@ -2570,10 +2570,10 @@ final class SQLiteSelectSql
             foreach ($columns as $column) {
                 self::assertBareIdentifier($column, 'SQLite SELECT SQL JOIN USING column');
             }
-            if ($type === 'CROSS') {
-                throw new \InvalidArgumentException('SQLite SELECT SQL CROSS JOIN does not support USING');
-            }
             $join['predicate'] = self::usingPredicate($columns, $leftRows, $join['rows']);
+            if ($type === 'CROSS') {
+                $join['type'] = 'INNER';
+            }
             if ($type === 'LEFT' || $type === 'FULL') {
                 $join['rightColumns'] = self::collectColumns($join['rows']);
             }
@@ -2583,9 +2583,6 @@ final class SQLiteSelectSql
 
         if (preg_match('/^on\s+(.+)$/is', $condition, $on) !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN needs ON or USING');
-        }
-        if ($type === 'CROSS') {
-            throw new \InvalidArgumentException('SQLite SELECT SQL CROSS JOIN does not support ON');
         }
 
         $predicate = self::predicate($on[1], $tables);
@@ -2675,6 +2672,9 @@ final class SQLiteSelectSql
         $join['predicate'] = static function (array $left, array $right) use ($predicate): bool {
             return SQLiteSelectPredicate::filter([array_merge($left, $right)], $predicate) !== [];
         };
+        if ($type === 'CROSS') {
+            $join['type'] = 'INNER';
+        }
         if ($type === 'LEFT' || $type === 'FULL') {
             $join['rightColumns'] = self::collectColumns($join['rows']);
             if ($join['rightColumns'] === [] && ($table['name'] === 'json_each' || $table['name'] === 'json_tree')) {
@@ -3251,7 +3251,7 @@ final class SQLiteSelectSql
             ];
         }
 
-        foreach (['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '=', '>', '<'] as $operator) {
+        foreach (['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '==', '=', '>', '<'] as $operator) {
             $offset = self::operatorOffset($sql, $operator);
             if ($offset === null) {
                 continue;

@@ -14,6 +14,7 @@ use PortLibs\LibSqlite\SQLiteJsonPatch;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
+use PortLibs\LibSqlite\SQLiteSelectExpression;
 
 $tests = [];
 
@@ -254,6 +255,87 @@ $tests['real upstream json502 escaped path and error-position corpus'] = static 
     $malformed = '{a:null,{"h":[1,[1,2,3]],"j":"abc"}:true}';
     $t->same(9, SQLiteJsonErrorPosition::jsonErrorPosition($malformed), 'json502-2.1 error position');
     $t->same(false, SQLiteJsonValidity::jsonValid($malformed, 2), 'json502-2.2 invalid json5');
+};
+
+$tests['real upstream json501 extended json5 lexical corpus'] = static function (TestRunner $t): void {
+    $lexicalCases = [
+        ['json501-5.1', "{a: \"abc\\\nxyz\"}", '$.a', 'abcxyz', '{"a":"abcxyz"}'],
+        ['json501-5.2', "{a: \"abc\\\rxyz\"}", '$.a', 'abcxyz', '{"a":"abcxyz"}'],
+        ['json501-5.3', "{a: \"abc\\\r\nxyz\"}", '$.a', 'abcxyz', '{"a":"abcxyz"}'],
+        ['json501-5.4', "{a: \"abc\\\u{2028}xyz\"}", '$.a', 'abcxyz', '{"a":"abcxyz"}'],
+        ['json501-5.5', "{a: \"abc\\\u{2029}xyz\"}", '$.a', 'abcxyz', '{"a":"abcxyz"}'],
+        ['json501-6.1', "{a: \"abc\\'xyz\"}", '$.a', "abc'xyz", '{"a":"abc\'xyz"}'],
+        ['json501-6.2', "{a: \"abc\\\"xyz\"}", '$.a', 'abc"xyz', '{"a":"abc\"xyz"}'],
+        ['json501-6.3', "{a: \"abc\\\\xyz\"}", '$.a', 'abc\\xyz', '{"a":"abc\\\\xyz"}'],
+        ['json501-6.7', '{a: "abc\x35\x4f\x6Exyz"}', '$.a', 'abc5Onxyz', '{"a":"abc\\u0035\\u004f\\u006Exyz"}'],
+        ['json501-6.8', '{a: "\x6a\x6A\x6b\x6B\x6c\x6C\x6d\x6D\x6e\x6E\x6f\x6F"}', '$.a', 'jjkkllmmnnoo', '{"a":"\\u006a\\u006A\\u006b\\u006B\\u006c\\u006C\\u006d\\u006D\\u006e\\u006E\\u006f\\u006F"}'],
+        ['json501-7.2', '{a: -0x0}', '$.a', 0, '{"a":0}'],
+        ['json501-7.3', '{a: +0x0}', '$.a', 0, '{"a":0}'],
+        ['json501-7.5', '{a: -0xaBcDeF}', '$.a', -11259375, '{"a":-11259375}'],
+        ['json501-7.6', '{a: +0xABCDEF}', '$.a', 11259375, '{"a":11259375}'],
+        ['json501-8.2', '{x: +4.}', '$.x', 4.0, '{"x":4.0}'],
+        ['json501-8.3b', '{x: -4.}', '$.x', -4.0, '{"x":-4.0}'],
+        ['json501-8.4', '{x: -.5}', '$.x', -0.5, '{"x":-0.5}'],
+        ['json501-8.5', '{x: +.5}', '$.x', 0.5, '{"x":0.5}'],
+        ['json501-8.9', '{x: .5e3}', '$.x', 500.0, '{"x":0.5e3}'],
+        ['json501-8.10', '{x: -.5e-1}', '$.x', -0.05, '{"x":-0.5e-1}'],
+        ['json501-8.11', '{x: +.5e-2}', '$.x', 0.005, '{"x":0.5e-2}'],
+        ['json501-9.2', '{x: -Infinity}', '$.x', -INF, '{"x":-9e999}'],
+        ['json501-9.3', '{x: Infinity}', '$.x', INF, '{"x":9e999}'],
+        ['json501-10.1', '{a: +123}', '$.a', 123, '{"a":123}'],
+        ['json501-11.1', " /* abc */ { /*def*/ aaa /* xyz */ : // to the end of line\n          123 /* xyz */ , /* 123 */ }", '$.aaa', 123, '{"aaa":123}'],
+        ['json501-12.1', "\t\n\v\f\r \u{00a0}\u{2028}\u{2029}" . '{a: "xyz"}', '$.a', 'xyz', '{"a":"xyz"}'],
+        ['json501-12.2', '{a:' . "\t\n\v\f\r \u{00a0}\u{2028}\u{2029}" . '"xyz"}', '$.a', 'xyz', '{"a":"xyz"}'],
+        ['json501-12.3', "\u{1680}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{2007}\u{2008}\u{2009}\u{200a}\u{3000}\u{feff}" . '{a: "xyz"}', '$.a', 'xyz', '{"a":"xyz"}'],
+        ['json501-12.4', '{a: ' . "\u{1680}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{2007}\u{2008}\u{2009}\u{200a}\u{3000}\u{feff}" . ' "xyz"}', '$.a', 'xyz', '{"a":"xyz"}'],
+        ['json501-13.1', '{x:\'a "b" c\'}', '$.x', 'a "b" c', '{"x":"a \"b\" c"}'],
+        ['json502-5.3', '{}', '$."\\"Key"', 1, '{"\"Key":1}', '$."\\"Key"'],
+    ];
+
+    foreach ($lexicalCases as $case) {
+        [$scenario, $source, $path, $expectedExtract, $expectedCanonical] = $case;
+        $canonicalSource = array_key_exists(5, $case)
+            ? SQLiteJsonMutation::mutateSqlFunction('json_set', $source, $case[5], $expectedExtract)
+            : SQLiteJsonCanonical::jsonSqlFunction('json', $source);
+        $t->same($expectedCanonical, $canonicalSource, $scenario . ' canonical json5');
+        $t->same($expectedExtract, SQLiteJsonExtract::extract($canonicalSource, $path), $scenario . ' extract from canonical');
+        $t->same(true, SQLiteJsonValidity::jsonValid($source, 2), $scenario . ' accepts json5 mode');
+    }
+};
+
+$tests['real upstream json501 control-character json5 corpus'] = static function (TestRunner $t): void {
+    for ($codepoint = 1; $codepoint <= 0x1f; $codepoint++) {
+        $char = chr($codepoint);
+        $source = '{"label":"abc' . $char . 'xyz"}';
+        $json5Source = '{label:"abc' . $char . 'xyz"}';
+        $canonical = SQLiteJsonCanonical::jsonSqlFunction('json', $json5Source);
+
+        $t->same(false, SQLiteJsonValidity::jsonValid($source), 'json501-14.' . $codepoint . '.1 strict invalid');
+        $t->same(true, SQLiteJsonValidity::jsonValid($source, 2), 'json501-14.' . $codepoint . '.2 json5 valid');
+        $t->same('abc' . $char . 'xyz', SQLiteJsonExtract::extract($canonical, '$.label'), 'json501-14.' . $codepoint . '.3 canonical extract');
+        $t->same($canonical, SQLiteJsonCanonical::jsonSqlFunction('json', new SQLiteBlobValue(SQLiteJsonB::encode(['label' => 'abc' . $char . 'xyz']))), 'json501-14.' . $codepoint . '.4 jsonb canonical parity');
+    }
+};
+
+$tests['real upstream json502 escaped labels through select expressions'] = static function (TestRunner $t): void {
+    $fn = static fn (string $name, array $arguments): array => ['type' => 'function', 'name' => $name, 'arguments' => $arguments];
+    $lit = static fn (mixed $value): array => ['type' => 'literal', 'value' => $value];
+    $rows = [
+        ['json502-3.1', '{"a\\u0062c":123}', '$."abc"', 123],
+        ['json502-3.2', '{"abc":123}', '$."a\\u0062c"', 123],
+        ['json502-3.4', '{"a\\u0062c":123}', '$."abc"', 456, '{"ab\\u0063":456}'],
+        ['json502-5.1', '{"A\"Key":1}', '$.A"Key', 1],
+        ['json502-5.2', '{"A\"Key":1}', '$."A\"Key"', 1],
+    ];
+
+    foreach ($rows as $row) {
+        [$scenario, $source, $path, $expected] = $row;
+        $input = array_key_exists(4, $row)
+            ? SQLiteJsonPatch::patch($source, $row[4])
+            : $source;
+        $t->same($expected, SQLiteSelectExpression::evaluate([], $fn('json_extract', [$lit($input), $lit($path)])), $scenario . ' json_extract dispatch');
+        $t->same($expected, SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->>', 'left' => $lit($input), 'right' => $lit($path)]), $scenario . ' arrow text dispatch');
+    }
 };
 
 $tests['real upstream json dynamic corpus broad scalar matrix'] = static function (TestRunner $t) use ($jsonb, $jsonText): void {

@@ -250,4 +250,71 @@ foreach (range(1, 36) as $offset) {
     };
 }
 
+foreach (range(1, 48) as $offset) {
+    $tests['real upstream trigger fkey dynamic fkey2 delete action matrix row ' . $offset] = static function (TestRunner $t) use ($baseParents, $baseChildren, $fk, $auditTriggers, $returning, $offset): void {
+        $parents = [];
+        $children = [];
+        foreach ($baseParents as $row) {
+            $copy = $row;
+            $copy['setting_id'] = (int) $row['setting_id'] + ($offset * 200);
+            $copy['key_name'] = $row['key_name'] . '-delete-' . $offset;
+            $parents[] = $copy;
+        }
+        foreach ($baseChildren as $row) {
+            $copy = $row;
+            $copy['child_id'] = (int) $row['child_id'] + ($offset * 200);
+            $copy['setting_id'] = (int) $row['setting_id'] + ($offset * 200);
+            $children[] = $copy;
+        }
+
+        $targetOne = 3 + ($offset * 200);
+        $targetTwo = 4 + ($offset * 200);
+        $defaultParent = 9 + ($offset * 200);
+        $mode = $offset % 3;
+        $spec = match ($mode) {
+            0 => $fk('no action', 'set null'),
+            1 => $fk('no action', 'set default', false, $defaultParent),
+            default => $fk('cascade', 'cascade'),
+        };
+        $expectedChildKeys = match ($mode) {
+            0 => [1 + ($offset * 200), 2 + ($offset * 200), null, null],
+            1 => [1 + ($offset * 200), 2 + ($offset * 200), $defaultParent, $defaultParent],
+            default => [1 + ($offset * 200), 2 + ($offset * 200), null, null],
+        };
+        $expectedAction = match ($mode) {
+            0 => 'set-null',
+            1 => 'set-default',
+            default => 'cascade-delete',
+        };
+        $expectedActionTargets = $mode === 1 ? [$defaultParent, $defaultParent] : [null, null];
+
+        $result = SQLiteTriggerForeignKeyReturningPlan::deleteParents(
+            $parents,
+            $children,
+            static fn (array $row): bool => in_array($row['setting_id'], [$targetOne, $targetTwo], true),
+            $spec,
+            $mode === 2 ? $auditTriggers : [],
+            $returning,
+            'setting_id',
+        );
+
+        $t->same(2, $result['changes']);
+        $t->same([1 + ($offset * 200), 2 + ($offset * 200), $defaultParent], array_column($result['parent'], 'setting_id'));
+        $t->same($expectedChildKeys, array_column($result['child'], 'setting_id'));
+        $t->same([$expectedAction, $expectedAction], array_column($result['foreign_key_actions'], 'action'));
+        $t->same([$targetOne, $targetTwo], array_column($result['foreign_key_actions'], 'from'));
+        $t->same([$targetOne, $targetTwo], array_column($result['yielded'], 'old_key'));
+        $t->same([$targetOne, $targetTwo], array_column($result['yielded'], 'new_key'));
+        $t->same([$targetOne, $targetTwo], array_column(array_column($result['yielded'], 'returning'), 'old_setting_id'));
+        $t->same([], $result['foreign_key_violations']);
+        if ($mode === 2) {
+            $t->same(['settings_after_delete_audit', 'settings_after_delete_audit'], array_column($result['trigger_effects'], 'trigger'));
+            $t->same([$targetOne, $targetTwo], array_column(array_column($result['trigger_effects'], 'row'), 'old_key'));
+        } else {
+            $t->same($expectedActionTargets, array_column($result['foreign_key_actions'], 'to'));
+            $t->same([], $result['trigger_effects']);
+        }
+    };
+}
+
 return $tests;

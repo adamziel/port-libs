@@ -13,7 +13,9 @@ use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonPatch;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
+use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
+use PortLibs\LibSqlite\SQLiteSelectExpression;
 
 $jsonb = static fn (string $json): SQLiteBlobValue => SQLiteJsonCanonical::jsonSqlFunction('jsonb', $json);
 $jsonText = static fn (SQLiteBlobValue $value): string => SQLiteJsonCanonical::json($value);
@@ -303,6 +305,37 @@ $json105InsertCases = [
     'json105-5.50 replace reverse last element' => ['json_replace', ['$.b[#-1]', 'AAA'], '{"a":1,"b":[1,[2,3],"AAA"],"c":99}'],
 ];
 
+$json107Blob = new SQLiteBlobValue('{"a":123,"b":456}');
+$json107ValidCases = [
+    'json107-1.1 text-looking BLOB is strict text JSON' => [new SQLiteBlobValue('{"a":1}'), 1, true],
+    'json107-1.1.1 text-looking BLOB is valid with strict-text flag' => [new SQLiteBlobValue('{"a":1}'), 1, true],
+    'json107-1.1.2 text-looking BLOB is valid with JSON5 flag' => [new SQLiteBlobValue('{"a":1}'), 2, true],
+    'json107-1.1.4 text-looking BLOB is not superficial JSONB' => [new SQLiteBlobValue('{"a":1}'), 4, false],
+    'json107-1.1.8 text-looking BLOB is not strict JSONB' => [new SQLiteBlobValue('{"a":1}'), 8, false],
+];
+
+$json109ArrayInsertCases = [
+    'json109-1.1 repeated inserts before first element are left-to-right' => ['[1,2,3]', ['$[0]', 999, '$[0]', 888], '[888,999,1,2,3]'],
+    'json109-1.2 insert before first then append' => ['[1,2,3]', ['$[0]', 999, '$[#]', 888], '[999,1,2,3,888]'],
+    'json109-1.3 insert before array index one' => ['[1,2,3]', ['$[1]', 888], '[1,888,2,3]'],
+    'json109-1.4 insert before array index two' => ['[1,2,3]', ['$[2]', 888], '[1,2,888,3]'],
+    'json109-1.5 insert at array length appends' => ['[1,2,3]', ['$[3]', 888], '[1,2,3,888]'],
+    'json109-1.6 insert before reverse last' => ['[1,2,3]', ['$[#-1]', 888], '[1,2,888,3]'],
+    'json109-1.7 insert before reverse second' => ['[1,2,3]', ['$[#-2]', 888], '[1,888,2,3]'],
+    'json109-1.8 insert before reverse third' => ['[1,2,3]', ['$[#-3]', 888], '[888,1,2,3]'],
+    'json109-1.9 reverse index beyond start leaves input' => ['[1,2,3]', ['$[#-4]', 888], '[1,2,3]'],
+    'json109-2.3 missing object member creates array for indexed child' => ['{a:[1,2,3]}', ['$.b[0]', 888], '{"a":[1,2,3],"b":[888]}'],
+    'json109-2.4 missing nested object path creates array leaf' => ['{a:[1,2,3]}', ['$.b.c.d[0]', 888], '{"a":[1,2,3],"b":{"c":{"d":[888]}}}'],
+];
+
+$json109ArrayInsertErrorCases = [
+    'json109-2.1 object member path is not an array element' => ['{a:[1,2,3]}', '$.a'],
+    'json109-2.2 missing object member path is not an array element' => ['{a:[1,2,3]}', '$.b'],
+    'json109-2.5 malformed array path is not an array element' => ['{a:[1,2,3]}', '$.b.c.d[0'],
+    'json109-2.6 missing nested object path without index is not an array element' => ['{a:[1,2,3]}', '$.b.c.d'],
+    'json109-2.8 later non-array path aborts multi-insert' => ['{a:[1,2,3]}', '$.b[0]', 888, '$.a[1]', '999', '$.c'],
+];
+
 $expected = [
     'json101-1.1.00 json_array scalar mix' => '[1,2.5,null,"hello"]',
     'json101-1.1.01 json_array keeps text JSON quoted' => '[1,"{\"abc\":2.5,\"def\":null,\"ghi\":hello}",99]',
@@ -430,6 +463,80 @@ foreach ($json105InsertCases as $name => [$function, $arguments, $result]) {
     };
 }
 
+foreach ($json107ValidCases as $name => [$input, $flags, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same(
+        $result,
+        SQLiteJsonValidity::jsonValid($input, $flags),
+    );
+}
+
+$tests['real upstream JSON1/JSONB dynamic json107-1.2.1 text-looking BLOB arrow returns JSON text'] = static fn (TestRunner $t) => $t->same(
+    '123',
+    SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->', 'left' => ['type' => 'literal', 'value' => $json107Blob], 'right' => ['type' => 'literal', 'value' => 'a']]),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-1.2.2 text-looking BLOB double-arrow returns SQL scalar'] = static fn (TestRunner $t) => $t->same(
+    123,
+    SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->>', 'left' => ['type' => 'literal', 'value' => $json107Blob], 'right' => ['type' => 'literal', 'value' => 'a']]),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-1.2.3 text-looking BLOB extracts scalar'] = static fn (TestRunner $t) => $t->same(
+    123,
+    SQLiteJsonExtract::extractSqlFunction('json_extract', $json107Blob, '$.a'),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-1.3 text-looking BLOB json_insert mutates text JSON'] = static fn (TestRunner $t) => $t->same(
+    '{"a":123,"b":456,"c":789}',
+    SQLiteJsonMutation::mutateSqlFunction('json_insert', $json107Blob, '$.c', 789),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-1.4 text-looking BLOB json_remove mutates text JSON'] = static fn (TestRunner $t) => $t->same(
+    '{"b":456}',
+    SQLiteJsonRemove::remove(new SQLiteBlobValue('{"a":123,"b":456}'), '$.a'),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-1.5 text-looking BLOB json_set mutates text JSON'] = static fn (TestRunner $t) => $t->same(
+    '{"a":789,"b":456}',
+    SQLiteJsonMutation::mutateSqlFunction('json_set', new SQLiteBlobValue('{"a":123,"b":456}'), '$.a', 789),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-1.6 text-looking BLOB json_replace mutates text JSON'] = static fn (TestRunner $t) => $t->same(
+    '{"a":789,"b":456}',
+    SQLiteJsonMutation::mutateSqlFunction('json_replace', new SQLiteBlobValue('{"a":123,"b":456}'), '$.a', 789),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-1.7 text-looking BLOB json_type reports object'] = static fn (TestRunner $t) => $t->same(
+    'object',
+    SQLiteJsonInspection::jsonType($json107Blob),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-1.8 text-looking BLOB json canonicalizes object'] = static fn (TestRunner $t) => $t->same(
+    '{"a":123,"b":456}',
+    SQLiteJsonCanonical::json($json107Blob),
+);
+$tests['real upstream JSON1/JSONB dynamic json107-2.1 text-looking BLOB json_tree emits scalar members'] = static function (TestRunner $t) use ($json107Blob): void {
+    $rows = array_values(array_filter(
+        SQLiteJsonTree::jsonTreeSqlFunction('json_tree', $json107Blob),
+        static fn (array $row): bool => $row['atom'] !== null,
+    ));
+    $t->same([['a', 123], ['b', 456]], array_map(static fn (array $row): array => [$row['key'], $row['value']], $rows));
+};
+
+foreach ($json109ArrayInsertCases as $name => [$json, $arguments, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same(
+        $result,
+        SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments('json_array_insert', array_merge([$json], $arguments)),
+    );
+    $tests['real upstream JSON1/JSONB dynamic ' . $name . ' on JSONB'] = static fn (TestRunner $t) => $t->same(
+        $result,
+        $jsonText(SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments('jsonb_array_insert', array_merge([$jsonb($json)], $arguments))),
+    );
+}
+
+$tests['real upstream JSON1/JSONB dynamic json109-2.7 array insert against object root leaves input'] = static fn (TestRunner $t) => $t->same(
+    '{"a":[1,2,3]}',
+    SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_array_insert', '{a:[1,2,3]}', '$[0]', 888),
+);
+
+foreach ($json109ArrayInsertErrorCases as $name => $arguments) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->throws(
+        InvalidArgumentException::class,
+        static fn () => SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments('json_array_insert', $arguments),
+    );
+}
+
 foreach ($json104PatchCases as $name => [$target, $patch, $result]) {
     $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same(
         $result,
@@ -507,8 +614,8 @@ $tests['real upstream JSON1/JSONB dynamic jsonb01-2.0 malformed JSONB path opera
     static fn () => SQLiteJsonB::decode(hex2bin('8ce6ffffffff171333')),
 );
 $tests['real upstream JSON1/JSONB dynamic source coverage cites json101 json102 jsonb01'] = static fn (TestRunner $t) => $t->same(
-    ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'jsonb01.test'],
-    ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'jsonb01.test'],
+    ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'json107.test', 'json109.test', 'jsonb01.test'],
+    ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'json107.test', 'json109.test', 'jsonb01.test'],
 );
 $tests['real upstream JSON1/JSONB dynamic dependency scenario uses existing JSON helpers'] = static fn (TestRunner $t) => $t->same(
     'no-new-support-component',

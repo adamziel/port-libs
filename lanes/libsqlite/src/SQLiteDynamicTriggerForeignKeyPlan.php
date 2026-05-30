@@ -469,6 +469,142 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{id:mixed,label?:string}> $parents
+     * @param list<array{id:mixed,parent_id:mixed,label?:string}> $children
+     * @return array<string,mixed>
+     */
+    public static function deferForeignKeysRestrictDelete(array $parents, array $children, mixed $deleteId, bool $deferForeignKeys, bool $repairAfterDelete): array
+    {
+        $originalParents = array_values($parents);
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $deleted = null;
+
+        foreach ($parents as $index => $parent) {
+            if (($parent['id'] ?? null) === $deleteId) {
+                $deleted = $parent;
+                unset($parents[$index]);
+                break;
+            }
+        }
+        $parents = array_values($parents);
+
+        $referencing = self::childrenReferencing($children, $deleteId);
+        if (!$deferForeignKeys && $referencing !== []) {
+            return [
+                'source' => 'fkey6.test fkey6-3.3.1..3.3.4',
+                'operation' => 'defer-foreign-keys-restrict-delete-trigger-repair',
+                'status' => 'constraint-failed',
+                'defer_foreign_keys' => false,
+                'pragma_after_boundary' => 0,
+                'deleted_parent' => $deleteId,
+                'initial_violation_count' => count($referencing),
+                'commit_violation_count' => count($referencing),
+                'trigger_repaired' => false,
+                'trigger_inserted_parent' => null,
+                'parent_ids' => array_values(array_column($originalParents, 'id')),
+                'child_parent_ids' => array_values(array_column($children, 'parent_id')),
+                'rollback_restored' => true,
+                'dependencies' => [
+                    'sqlite-fkey6-restrict-is-immediate-without-defer-foreign-keys',
+                    'sqlite-fkey6-defer-foreign-keys-resets-at-transaction-boundary',
+                ],
+            ];
+        }
+
+        $triggerInserted = null;
+        if ($repairAfterDelete && $deleted !== null) {
+            $triggerInserted = $deleted;
+            $triggerInserted['label'] = 'deleted!';
+            $parents[] = $triggerInserted;
+        }
+
+        $commitViolations = self::foreignKeyViolations($parents, $children, 'id', 'parent_id');
+        $status = $commitViolations === [] ? 'commit-ok' : 'commit-failed';
+
+        return [
+            'source' => 'fkey6.test fkey6-3.3.1..3.3.4',
+            'operation' => 'defer-foreign-keys-restrict-delete-trigger-repair',
+            'status' => $status,
+            'defer_foreign_keys' => $deferForeignKeys,
+            'pragma_after_boundary' => 0,
+            'deleted_parent' => $deleteId,
+            'initial_violation_count' => count($referencing),
+            'commit_violation_count' => count($commitViolations),
+            'trigger_repaired' => $triggerInserted !== null,
+            'trigger_inserted_parent' => $triggerInserted,
+            'parent_ids' => array_values(array_column(self::sortRows($parents), 'id')),
+            'child_parent_ids' => array_values(array_column($children, 'parent_id')),
+            'rollback_restored' => $status !== 'commit-ok',
+            'dependencies' => [
+                'sqlite-fkey6-defer-foreign-keys-disables-restrict-until-commit',
+                'sqlite-fkey6-after-delete-trigger-can-repair-deferred-restrict',
+                'sqlite-fkey6-defer-foreign-keys-resets-at-transaction-boundary',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{id:mixed,label?:string}> $parents
+     * @param list<array{id:mixed,parent_id:mixed,label?:string}> $children
+     * @return array<string,mixed>
+     */
+    public static function deferForeignKeysUpdateCommit(array $parents, array $children, mixed $oldId, mixed $newId, bool $deferForeignKeys): array
+    {
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $referencing = self::childrenReferencing($children, $oldId);
+
+        if (!$deferForeignKeys && $referencing !== []) {
+            return [
+                'source' => 'fkey6.test fkey6-3.2.1..3.2.6',
+                'operation' => 'defer-foreign-keys-restrict-update-commit-check',
+                'status' => 'constraint-failed',
+                'defer_foreign_keys' => false,
+                'pragma_after_boundary' => 0,
+                'old_parent_key' => $oldId,
+                'new_parent_key' => $newId,
+                'initial_violation_count' => count($referencing),
+                'commit_violation_count' => count($referencing),
+                'parent_ids' => array_values(array_column(self::sortRows($parents), 'id')),
+                'child_parent_ids' => array_values(array_column($children, 'parent_id')),
+                'dependencies' => [
+                    'sqlite-fkey6-restrict-update-is-immediate-without-defer-foreign-keys',
+                    'sqlite-fkey6-defer-foreign-keys-resets-at-transaction-boundary',
+                ],
+            ];
+        }
+
+        foreach ($parents as &$parent) {
+            if (($parent['id'] ?? null) === $oldId) {
+                $parent['id'] = $newId;
+            }
+        }
+        unset($parent);
+
+        $commitViolations = self::foreignKeyViolations($parents, $children, 'id', 'parent_id');
+
+        return [
+            'source' => 'fkey6.test fkey6-3.2.1..3.2.6',
+            'operation' => 'defer-foreign-keys-restrict-update-commit-check',
+            'status' => $commitViolations === [] ? 'commit-ok' : 'commit-failed',
+            'defer_foreign_keys' => $deferForeignKeys,
+            'pragma_after_boundary' => 0,
+            'old_parent_key' => $oldId,
+            'new_parent_key' => $newId,
+            'initial_violation_count' => count($referencing),
+            'commit_violation_count' => count($commitViolations),
+            'parent_ids' => array_values(array_column(self::sortRows($parents), 'id')),
+            'child_parent_ids' => array_values(array_column($children, 'parent_id')),
+            'dependencies' => [
+                'sqlite-fkey6-defer-foreign-keys-disables-restrict-until-commit',
+                'sqlite-fkey6-commit-still-rejects-outstanding-violations',
+                'sqlite-fkey6-defer-foreign-keys-resets-at-transaction-boundary',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
@@ -483,6 +619,39 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                     'row_index' => $index,
                     'id' => $row['id'] ?? null,
                     'parent_id' => $parent,
+                    'phase' => 'deferred-commit',
+                ];
+            }
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $children
+     * @return list<array<string,mixed>>
+     */
+    private static function childrenReferencing(array $children, mixed $parentId): array
+    {
+        return array_values(array_filter($children, static fn (array $child): bool => ($child['parent_id'] ?? null) === $parentId));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @return list<array<string,mixed>>
+     */
+    private static function foreignKeyViolations(array $parents, array $children, string $parentKey, string $childKey): array
+    {
+        $parentIds = array_column($parents, $parentKey);
+        $violations = [];
+        foreach ($children as $index => $child) {
+            $value = $child[$childKey] ?? null;
+            if ($value !== null && !in_array($value, $parentIds, true)) {
+                $violations[] = [
+                    'child_index' => $index,
+                    'child_id' => $child['id'] ?? null,
+                    'child_key' => $value,
                     'phase' => 'deferred-commit',
                 ];
             }

@@ -7,36 +7,36 @@ use PortLibs\LibSqlite\SQLiteSchemaImportSavepointPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $plan = SQLiteSchemaImportSavepointPlan::plan(
-    ['wp_commentmeta' => ['type' => 'table', 'sql' => 'CREATE TABLE wp_commentmeta(meta_id INTEGER);']],
+    ['app_comment_meta' => ['type' => 'table', 'sql' => 'CREATE TABLE app_comment_meta(meta_id INTEGER);']],
     [
         [
-            'name' => 'core_schema',
+            'name' => 'settings_schema',
             'dump' => <<<'SQL'
-CREATE TABLE wp_options (
-  option_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  option_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  option_value TEXT NOT NULL DEFAULT '',
-  autoload TEXT NOT NULL DEFAULT 'yes'
+CREATE TABLE app_settings (
+  setting_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  key_value TEXT NOT NULL DEFAULT '',
+  load_policy TEXT NOT NULL DEFAULT 'yes'
 );
-CREATE UNIQUE INDEX wp_options_option_name ON wp_options(option_name COLLATE NOCASE);
+CREATE UNIQUE INDEX app_settings_key_name ON app_settings(key_name COLLATE NOCASE);
 SQL,
         ],
         [
-            'name' => 'plugin_schema',
+            'name' => 'module_schema',
             'dump' => <<<'SQL'
-CREATE TABLE wp_plugin_settings (
-  option_name TEXT NOT NULL,
-  setting_key TEXT NOT NULL,
-  setting_value TEXT NOT NULL,
-  PRIMARY KEY(option_name, setting_key)
+CREATE TABLE app_module_settings (
+  key_name TEXT NOT NULL,
+  module_key TEXT NOT NULL,
+  module_value TEXT NOT NULL,
+  PRIMARY KEY(key_name, module_key)
 );
-CREATE INDEX wp_plugin_settings_option ON wp_plugin_settings(option_name);
+CREATE INDEX app_module_settings_key ON app_module_settings(key_name);
 SQL,
             'release' => false,
         ],
         [
-            'name' => 'duplicate_plugin',
-            'dump' => 'CREATE TABLE wp_plugin_settings(id INTEGER);',
+            'name' => 'duplicate_module',
+            'dump' => 'CREATE TABLE app_module_settings(id INTEGER);',
             'on_error' => 'rollback',
         ],
     ],
@@ -46,9 +46,9 @@ SQL,
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'planned');
     assert($plan['applied_count'] === 4);
-    assert($plan['rolled_back_batches'] === ['duplicate_plugin']);
-    assert(in_array('wp_plugin_settings', $plan['visible_names'], true));
-    assert(!in_array('wp_plugin_settings', $plan['released_names'], true));
+    assert($plan['rolled_back_batches'] === ['duplicate_module']);
+    assert(in_array('app_module_settings', $plan['visible_names'], true));
+    assert(!in_array('app_module_settings', $plan['released_names'], true));
 }
 
 echo json_encode([

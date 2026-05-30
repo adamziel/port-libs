@@ -25,7 +25,7 @@ final class SQLiteSchemaImportSavepointPlan
         $honorIfNotExists = (bool) ($options['honor_if_not_exists'] ?? true);
 
         $savepoints = new SQLiteSavepointStack();
-        $savepoints->beginTransaction('wp_schema_import');
+        $savepoints->beginTransaction('app_schema_import');
 
         $visibleObjects = self::normalizeExisting($existingObjects);
         $releasedObjects = $visibleObjects;
@@ -199,7 +199,7 @@ final class SQLiteSchemaImportSavepointPlan
             throw new \InvalidArgumentException('SQLite Application schema import savepoint batch dump must be SQL text');
         }
 
-        $name = (string) ($batch['name'] ?? 'wp_schema_' . ($index + 1));
+        $name = (string) ($batch['name'] ?? 'app_schema_' . ($index + 1));
         if ($name === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
             throw new \InvalidArgumentException('SQLite Application schema import savepoint names must be SQL identifiers');
         }

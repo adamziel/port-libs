@@ -93,10 +93,10 @@ final class SQLiteTriggerUpsertReturningRecursiveViewPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,mixed>|null
      */
-    private static function findRow(array $rows, string $optionName): ?array
+    private static function findRow(array $rows, string $keyName): ?array
     {
         foreach ($rows as $row) {
-            if (($row['key_name'] ?? null) === $optionName) {
+            if (($row['key_name'] ?? null) === $keyName) {
                 return $row;
             }
         }

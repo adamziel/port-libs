@@ -286,8 +286,8 @@ final class SQLiteImportTransactionErrorYieldPlan
         }
     }
 
-    private static function pageForKeyValueId(int $optionId): int
+    private static function pageForKeyValueId(int $settingId): int
     {
-        return 2 + intdiv($optionId - 1, 64);
+        return 2 + intdiv($settingId - 1, 64);
     }
 }

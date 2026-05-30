@@ -39,6 +39,18 @@ final class SQLitePragmaJournalState
             return $this->executeSynchronous($schema, $parsed['value']);
         }
 
+        if ($parsed['value'] !== null && $schema === 'main' && !self::hasExplicitSchema($sql)) {
+            $result = $this->executeJournalMode($schema, $parsed['value']);
+            foreach (array_keys($this->schemas) as $attachedSchema) {
+                if ($attachedSchema === 'main' || $attachedSchema === 'temp') {
+                    continue;
+                }
+                $this->executeJournalMode($attachedSchema, $parsed['value']);
+            }
+
+            return $result;
+        }
+
         return $this->executeJournalMode($schema, $parsed['value']);
     }
 
@@ -66,6 +78,13 @@ final class SQLitePragmaJournalState
             'pragma' => strtolower($matches['pragma']) === 'synchronous' ? 'synchronous' : 'journal_mode',
             'value' => $value,
         ];
+    }
+
+    private static function hasExplicitSchema(string $sql): bool
+    {
+        $trimmed = rtrim(trim($sql), " \t\r\n;");
+
+        return preg_match('/^pragma\s+[A-Za-z_][A-Za-z0-9_]*\s*\.\s*(?:synchronous|journal_mode)\b/i', $trimmed) === 1;
     }
 
     /**

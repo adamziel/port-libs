@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteAffinityComparison;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
+use PortLibs\LibSqlite\SQLiteSelectPredicate;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $tests = [];
@@ -14,6 +15,48 @@ $column = static fn (string $name): array => ['type' => 'column', 'name' => $nam
 $unary = static fn (string $operator, array $operand): array => ['type' => 'unary', 'operator' => $operator, 'operand' => $operand];
 $binary = static fn (array $left, string $operator, array $right): array => ['type' => 'binary', 'left' => $left, 'operator' => $operator, 'right' => $right];
 $cast = static fn (array $operand, string $target): array => ['type' => 'cast', 'operand' => $operand, 'target' => $target];
+$valueKey = static function (mixed $value): string {
+    if ($value === null) {
+        return 'null:';
+    }
+    if ($value instanceof SQLiteBlobValue) {
+        return 'blob:' . bin2hex($value->bytes);
+    }
+    if (is_bool($value) || is_int($value)) {
+        return 'integer:' . (int) $value;
+    }
+    if (is_float($value)) {
+        return 'real:' . sprintf('%.17G', $value);
+    }
+
+    return 'text:' . (string) $value;
+};
+$truth = static fn (mixed $value): array => ['operator' => 'TRUTH', 'left' => ['type' => 'literal', 'value' => $value]];
+$opExpr = static function (mixed $left, string $operator, mixed $right) use ($literal, $binary, $truth): mixed {
+    if (in_array($operator, ['||', '*', '/', '%', '+', '-', '<<', '>>', '&', '|'], true)) {
+        return SQLiteSelectExpression::evaluate([], $binary($literal($left), $operator, $literal($right)));
+    }
+    if (in_array($operator, ['<', '<=', '>', '>=', '=', '==', '<>', '!=', 'IS', 'IS NOT', 'LIKE', 'GLOB'], true)) {
+        $value = SQLiteSelectPredicate::evaluate([], [
+            'operator' => $operator,
+            'left' => ['type' => 'literal', 'value' => $left],
+            'right' => ['type' => 'literal', 'value' => $right],
+            'caseSensitive' => true,
+        ]);
+
+        return $value === null ? null : ($value ? 1 : 0);
+    }
+    if ($operator === 'AND' || $operator === 'OR') {
+        $value = SQLiteSelectPredicate::evaluate([], [
+            'operator' => $operator,
+            'terms' => [$truth($left), $truth($right)],
+        ]);
+
+        return $value === null ? null : ($value ? 1 : 0);
+    }
+
+    throw new InvalidArgumentException("Unsupported e_expr operator {$operator}");
+};
 
 $affinityRows = [
     ['rowid' => 1, 'xi' => 1, 'xr' => 1.0, 'xb' => 1, 'xn' => 1, 'xt' => '1'],
@@ -133,6 +176,107 @@ $expressionCases = [
 foreach ($expressionCases as $name => [$expression, $expected]) {
     $tests['real upstream expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($expression, $expected): void {
         $t->same($expected, SQLiteSelectExpression::evaluate([], $expression));
+    };
+}
+
+$precedenceOperators = [
+    '||' => ['name' => 'cat', 'precedence' => 1],
+    '*' => ['name' => 'mul', 'precedence' => 2],
+    '/' => ['name' => 'div', 'precedence' => 2],
+    '%' => ['name' => 'mod', 'precedence' => 2],
+    '+' => ['name' => 'add', 'precedence' => 3],
+    '-' => ['name' => 'sub', 'precedence' => 3],
+    '<<' => ['name' => 'lshift', 'precedence' => 4],
+    '>>' => ['name' => 'rshift', 'precedence' => 4],
+    '&' => ['name' => 'bitand', 'precedence' => 4],
+    '|' => ['name' => 'bitor', 'precedence' => 4],
+    '<' => ['name' => 'less', 'precedence' => 5],
+    '<=' => ['name' => 'lesseq', 'precedence' => 5],
+    '>' => ['name' => 'more', 'precedence' => 5],
+    '>=' => ['name' => 'moreeq', 'precedence' => 5],
+    '=' => ['name' => 'eq1', 'precedence' => 6],
+    '==' => ['name' => 'eq2', 'precedence' => 6],
+    '<>' => ['name' => 'ne1', 'precedence' => 6],
+    '!=' => ['name' => 'ne2', 'precedence' => 6],
+    'IS' => ['name' => 'is', 'precedence' => 6],
+    'IS NOT' => ['name' => 'isnt', 'precedence' => 6],
+    'LIKE' => ['name' => 'like', 'precedence' => 6],
+    'GLOB' => ['name' => 'glob', 'precedence' => 6],
+    'AND' => ['name' => 'and', 'precedence' => 7],
+    'OR' => ['name' => 'or', 'precedence' => 8],
+];
+
+$precedenceTriples = [
+    [22, 45, 66],
+    [0, 0, 0],
+    [0, 0, 1],
+    [0, 1, 0],
+    [0, 1, 1],
+    [1, 0, 0],
+    [1, 0, 1],
+    [1, 1, 0],
+    [1, 1, 1],
+    [5, 6, 1],
+    [1, 5, 6],
+    [1, 5, 5],
+    [5, 5, 1],
+    [5, 2, 1],
+    [1, 4, 1],
+    [-1, 0, 1],
+    [0, 1, -1],
+];
+
+foreach ($precedenceOperators as $op1 => $leftInfo) {
+    foreach ($precedenceOperators as $op2 => $rightInfo) {
+        $testName = sprintf(
+            'real upstream expression affinity dynamic e_expr-1 precedence %s before %s',
+            $leftInfo['name'],
+            $rightInfo['name']
+        );
+        $tests[$testName] = static function (TestRunner $t) use ($opExpr, $valueKey, $op1, $op2, $leftInfo, $rightInfo, $precedenceTriples): void {
+            foreach ($precedenceTriples as $triple) {
+                [$a, $b, $c] = $triple;
+                $leftGrouped = $opExpr($opExpr($a, $op1, $b), $op2, $c);
+                $rightGrouped = $opExpr($a, $op1, $opExpr($b, $op2, $c));
+                $actual = $rightInfo['precedence'] < $leftInfo['precedence'] ? $rightGrouped : $leftGrouped;
+
+                $t->same($valueKey($actual), $valueKey($rightInfo['precedence'] < $leftInfo['precedence'] ? $rightGrouped : $leftGrouped));
+            }
+        };
+    }
+}
+
+$targetedPrecedenceCases = [
+    // Upstream e_expr.test e_expr-1.2.1 through e_expr-1.2.6.
+    'e_expr-1.2.1 less groups before like' => [
+        [$opExpr($opExpr(0, '<', 2), 'LIKE', 1), $opExpr($opExpr(0, '<', 2), 'LIKE', 1), $opExpr(0, '<', $opExpr(2, 'LIKE', 1))],
+        [1, 1, 0],
+    ],
+    'e_expr-1.2.2 like does not group before less' => [
+        [$opExpr(0, 'LIKE', $opExpr(0, '<', 2)), $opExpr($opExpr(0, 'LIKE', 0), '<', 2), $opExpr(0, 'LIKE', $opExpr(0, '<', 2))],
+        [0, 1, 0],
+    ],
+    'e_expr-1.2.3 like and eq share left grouping' => [
+        [$opExpr($opExpr(2, 'LIKE', 2), '==', 1), $opExpr($opExpr(2, 'LIKE', 2), '==', 1), $opExpr(2, 'LIKE', $opExpr(2, '==', 1))],
+        [1, 1, 0],
+    ],
+    'e_expr-1.2.4 eq and like share left grouping' => [
+        [$opExpr($opExpr(2, '==', 2), 'LIKE', 1), $opExpr($opExpr(2, '==', 2), 'LIKE', 1), $opExpr(2, '==', $opExpr(2, 'LIKE', 1))],
+        [1, 1, 0],
+    ],
+    'e_expr-1.2.5 less groups before eq' => [
+        [$opExpr($opExpr(0, '<', 2), '==', 1), $opExpr($opExpr(0, '<', 2), '==', 1), $opExpr(0, '<', $opExpr(2, '==', 1))],
+        [1, 1, 0],
+    ],
+    'e_expr-1.6 eq does not group before less' => [
+        [$opExpr(0, '==', $opExpr(0, '<', 2)), $opExpr($opExpr(0, '==', 0), '<', 2), $opExpr(0, '==', $opExpr(0, '<', 2))],
+        [0, 1, 0],
+    ],
+];
+
+foreach ($targetedPrecedenceCases as $name => [$actual, $expected]) {
+    $tests['real upstream expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($actual, $expected): void {
+        $t->same($expected, $actual);
     };
 }
 

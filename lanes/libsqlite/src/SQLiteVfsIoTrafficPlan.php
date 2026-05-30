@@ -211,6 +211,54 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,fail_at:int,callback_method:string,commit_atomic_seen:bool,io_error_injected:bool,legacy_journal_fallback:bool,atomic_commit_boundary:bool,rows_before:int,rows_inserted:int,rows_after:int,integrity_check:string,journal_created:bool,rollback_required:bool,reason:string,dependencies:list<string>}
+     */
+    public static function atomicBatchWriteFallback(int $failAt, int $rowsBefore = 100, int $rowsInserted = 100): array
+    {
+        if ($failAt < 1) {
+            throw new \InvalidArgumentException('SQLite atomic batch write fallback fail index must be positive');
+        }
+        if ($rowsBefore < 0 || $rowsInserted < 1) {
+            throw new \InvalidArgumentException('SQLite atomic batch write fallback row counts are invalid');
+        }
+
+        $callbackMethods = [
+            1 => 'xWrite',
+            2 => 'xWrite',
+            3 => 'xFileControl-BEGIN_ATOMIC_WRITE',
+            4 => 'xWrite',
+            5 => 'xWrite',
+            6 => 'xFileControl-COMMIT_ATOMIC_WRITE',
+            7 => 'xWrite',
+        ];
+        $method = $callbackMethods[$failAt] ?? 'xFileControl-COMMIT_ATOMIC_WRITE';
+        $commitAtomicSeen = $failAt >= 6;
+        $ioErrorInjected = !$commitAtomicSeen;
+        $legacyFallback = $ioErrorInjected;
+
+        return [
+            'script' => 'atomic2.test',
+            'scenario' => 'atomic2-2.0',
+            'fail_at' => $failAt,
+            'callback_method' => $method,
+            'commit_atomic_seen' => $commitAtomicSeen,
+            'io_error_injected' => $ioErrorInjected,
+            'legacy_journal_fallback' => $legacyFallback,
+            'atomic_commit_boundary' => $commitAtomicSeen,
+            'rows_before' => $rowsBefore,
+            'rows_inserted' => $rowsInserted,
+            'rows_after' => $rowsBefore + $rowsInserted,
+            'integrity_check' => 'ok',
+            'journal_created' => $legacyFallback,
+            'rollback_required' => false,
+            'reason' => $legacyFallback
+                ? 'atomic_batch_write_ioerr_retries_with_legacy_journal_commit'
+                : 'commit_atomic_write_boundary_suppresses_later_fault_injection',
+            'dependencies' => ['sqlite-upstream-atomic2-test', 'sqlite-vfs-atomic-batch-write-fallback', 'sqlite-pager-io-traffic'],
+        ];
+    }
+
+    /**
      * @param list<string> $flags
      * @return list<string>
      */

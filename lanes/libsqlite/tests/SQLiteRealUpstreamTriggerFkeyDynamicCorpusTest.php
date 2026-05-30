@@ -472,6 +472,109 @@ for ($i = 1; $i <= 45; $i++) {
     };
 }
 
+for ($i = 1; $i <= 44; $i++) {
+    $parents = [
+        ['id' => 0, 'label' => 'zero'],
+        ['id' => 1, 'label' => 'one'],
+        ['id' => 2, 'label' => 'two'],
+    ];
+    $children = [
+        ['id' => 10, 'parent_id' => 1, 'label' => 'child-a'],
+        ['id' => 11, 'parent_id' => $i % 3 === 0 ? 2 : 1, 'label' => 'child-b'],
+        ['id' => 12, 'parent_id' => null, 'label' => 'loose'],
+    ];
+    if ($i % 4 === 0) {
+        $children[] = ['id' => 13, 'parent_id' => 1, 'label' => 'child-c'];
+    }
+    $newId = $i % 2 === 0 ? 0 : -1;
+    $defer = $i % 5 !== 0;
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::deferForeignKeysUpdateCommit($parents, $children, 1, $newId, $defer);
+    $case = 'fkey6-3.2 defer foreign keys restrict update commit check ' . $i;
+    $expectedStatus = $defer ? 'commit-failed' : 'constraint-failed';
+    $initialViolationCount = count(array_filter($children, static fn (array $row): bool => $row['parent_id'] === 1));
+    foreach ([
+        'source' => 'fkey6.test fkey6-3.2.1..3.2.6',
+        'operation' => 'defer-foreign-keys-restrict-update-commit-check',
+        'status' => $expectedStatus,
+        'defer_foreign_keys' => $defer,
+        'pragma_after_boundary' => 0,
+        'old_parent_key' => 1,
+        'new_parent_key' => $newId,
+        'initial_violation_count' => $initialViolationCount,
+        'commit_violation_count' => $initialViolationCount,
+        'child_parent_ids' => array_column($children, 'parent_id'),
+    ] as $path => $expected) {
+        $tests[$case . ' ' . $path] = static function (TestRunner $t) use ($plan, $path, $expected, $value): void {
+            $t->same($expected, $value($plan(), (string) $path));
+        };
+    }
+    $tests[$case . ' deferred attempt updates parent before failed commit'] = static function (TestRunner $t) use ($plan, $defer, $newId): void {
+        $actual = $plan();
+        $expected = $defer ? [0, $newId, 2] : [0, 1, 2];
+        sort($expected);
+        $t->same($expected, $actual['parent_ids']);
+    };
+    $tests[$case . ' dependency names cite defer and reset'] = static function (TestRunner $t) use ($plan, $defer): void {
+        $deps = $plan()['dependencies'];
+        $t->same(true, in_array('sqlite-fkey6-defer-foreign-keys-resets-at-transaction-boundary', $deps, true));
+        $t->same($defer, in_array('sqlite-fkey6-commit-still-rejects-outstanding-violations', $deps, true));
+    };
+}
+
+for ($i = 1; $i <= 52; $i++) {
+    $parents = [
+        ['id' => 0, 'label' => 'zero'],
+        ['id' => 1, 'label' => 'one'],
+        ['id' => 2, 'label' => 'two'],
+    ];
+    $children = [
+        ['id' => 10, 'parent_id' => 1, 'label' => 'child-a'],
+        ['id' => 11, 'parent_id' => $i % 4 === 0 ? 2 : 1, 'label' => 'child-b'],
+        ['id' => 12, 'parent_id' => null, 'label' => 'loose'],
+    ];
+    if ($i % 5 === 0) {
+        $children[] = ['id' => 13, 'parent_id' => 1, 'label' => 'child-c'];
+    }
+    $defer = $i % 6 !== 0;
+    $repair = $i % 3 !== 0;
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::deferForeignKeysRestrictDelete($parents, $children, 1, $defer, $repair);
+    $case = 'fkey6-3.3 defer foreign keys after delete trigger repair ' . $i;
+    $expectedStatus = !$defer ? 'constraint-failed' : ($repair ? 'commit-ok' : 'commit-failed');
+    $initialViolationCount = count(array_filter($children, static fn (array $row): bool => $row['parent_id'] === 1));
+    foreach ([
+        'source' => 'fkey6.test fkey6-3.3.1..3.3.4',
+        'operation' => 'defer-foreign-keys-restrict-delete-trigger-repair',
+        'status' => $expectedStatus,
+        'defer_foreign_keys' => $defer,
+        'pragma_after_boundary' => 0,
+        'deleted_parent' => 1,
+        'initial_violation_count' => $initialViolationCount,
+        'commit_violation_count' => $expectedStatus === 'commit-failed' ? $initialViolationCount : ($expectedStatus === 'constraint-failed' ? $initialViolationCount : 0),
+        'trigger_repaired' => $defer && $repair,
+        'child_parent_ids' => array_column($children, 'parent_id'),
+    ] as $path => $expected) {
+        $tests[$case . ' ' . $path] = static function (TestRunner $t) use ($plan, $path, $expected, $value): void {
+            $t->same($expected, $value($plan(), (string) $path));
+        };
+    }
+    $tests[$case . ' repaired commit leaves parent key present'] = static function (TestRunner $t) use ($plan, $defer, $repair): void {
+        $actual = $plan();
+        $t->same($defer && $repair, ($actual['status'] === 'commit-ok') && in_array(1, $actual['parent_ids'], true));
+    };
+    $tests[$case . ' repaired trigger uses upstream deleted label'] = static function (TestRunner $t) use ($plan, $defer, $repair): void {
+        $actual = $plan();
+        $t->same($defer && $repair ? 'deleted!' : null, $actual['trigger_inserted_parent']['label'] ?? null);
+    };
+    $tests[$case . ' failed commit preserves rollback preview flag'] = static function (TestRunner $t) use ($plan, $expectedStatus): void {
+        $t->same($expectedStatus !== 'commit-ok', $plan()['rollback_restored']);
+    };
+    $tests[$case . ' dependencies distinguish repair from immediate restrict'] = static function (TestRunner $t) use ($plan, $defer): void {
+        $deps = $plan()['dependencies'];
+        $t->same(true, in_array('sqlite-fkey6-defer-foreign-keys-resets-at-transaction-boundary', $deps, true));
+        $t->same($defer, in_array('sqlite-fkey6-after-delete-trigger-can-repair-deferred-restrict', $deps, true));
+    };
+}
+
 $tests['trigger1 schema duplicate trigger records upstream error'] = static function (TestRunner $t): void {
     $plan = SQLiteDynamicTriggerForeignKeyPlan::schemaLifecycle(
         [['name' => 'items', 'object_type' => 'table']],
