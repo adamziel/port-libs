@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 16:17:09 UTC",
-    "sourceCommit": "2171f12327638c53ff277a82b2825f01c1343e36",
-    "sourceCommitShort": "2171f1232763",
+    "generated": "2026-05-30 16:31:34 UTC",
+    "sourceCommit": "7220c54f92253a73b00ce82116c1fa0badfe57a4",
+    "sourceCommitShort": "7220c54f9225",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2171f12327638c53ff277a82b2825f01c1343e36",
-    "dashboardCommitShort": "2171f1232763",
+    "dashboardCommit": "7220c54f92253a73b00ce82116c1fa0badfe57a4",
+    "dashboardCommitShort": "7220c54f9225",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "958",
             "coverage": "958 / 1589",
-            "php": "188568 pass / 0 fail",
+            "php": "192937 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted source commits 3d8f18d98 and 217...",
-            "currentWork": "Integrated root-gate suite-evidence/window RANGE guards plus real upstream date affinity...",
-            "nextTarget": "Keep 10-11 workers on real upstream SQLite corpus and source-neutral cleanup lanes, integ...",
-            "blocker": "Accepted-progress throughput slowed because workers were producing stale,...",
-            "commit": "2171f12"
+            "audit": "Accepted source commit 7220c54f after app...",
+            "currentWork": "Integrated a high-yield real-upstream corpus batch plus bounded source-neutral JSON impor...",
+            "nextTarget": "Process the newest current-base ready handoffs in separate evidence batches, prioritize s...",
+            "blocker": "The remaining blocker is no longer worker idleness; it is cleanup and acc...",
+            "commit": "7220c54"
         },
         {
             "library": "LightningCSS",
