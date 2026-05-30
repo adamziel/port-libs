@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 21:05 UTC):
+  Latest accepted libsqlite source is `3b81687d`
+  (`libsqlite: add eighth rapid current corpus sweep`). This eighth rapid
+  current-base batch was replayed on dashboard head `6b3b48d9`; ten
+  behavior-producing real upstream corpus handoffs were accepted: windowE
+  collation/range, trigger/FK raise actions, PRAGMA schema third-thousand,
+  B-tree dynamic corpus, select literal-count handling, expression
+  affinity/cast behavior, AppendVFS behavior, B-tree index expression
+  expansion, trigger/FK pragma-toggle behavior, and pager/WAL restart-noop
+  behavior. Four handoffs were parked or rejected: one duplicate PRAGMA apply
+  conflict plus date, JSON, and UPSERT no-delta blocker notes. Focused
+  verification passed `11 files / 258051 assertions / 0 failures / 39710 PASS
+  lines`; the accepted-base comparison over existing selected tests passed `3
+  files / 156222 assertions / 0 failures / 10118 PASS lines`, so the honest
+  selected PASS-line delta is `+29592`. Public libsqlite should move to
+  `718526 pass / 0 fail`; mapped coverage remains `1589 / 1589`. This
+  preserves complete mapped inventory coverage, but it still does not claim
+  full SQLite release/all runner parity. Gates also passed PHP lint for 15
+  changed/new PHP files, `git diff --check -- lanes/libsqlite`, and
+  `SQLiteNoDomainSpecificApiTest`.
+
 - 2026-05-30 supervisor continuation (side PDO sample 21:02 UTC):
   Latest accepted libsqlite source is `f61da53d`
   (`libsqlite: expand SQLite PDO polyfill`). This side API slice builds on the
