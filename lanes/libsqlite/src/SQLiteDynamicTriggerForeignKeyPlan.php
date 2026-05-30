@@ -789,6 +789,104 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * Model the triggerA.test INSTEAD OF view trigger cases where the outer
+     * UPDATE/DELETE WHERE clause must be applied while materializing the view.
+     *
+     * @return array<string,mixed>
+     */
+    public static function insteadOfViewWhereRoutingPlan(int $seed, string $view, string $event): array
+    {
+        if ($seed < 1) {
+            throw new \InvalidArgumentException('SQLite triggerA seed must be positive');
+        }
+
+        $view = self::identifier($view, 'triggerA view name');
+        if (!in_array($view, ['v1', 'v2', 'v3', 'v4', 'v5'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerA view is unsupported');
+        }
+
+        $event = strtolower(trim($event));
+        if (!in_array($event, ['delete', 'update'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerA event is unsupported');
+        }
+
+        $words = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+        $t1 = [];
+        $t2 = [];
+        foreach ($words as $index => $word) {
+            $x = $index + 1;
+            $t1[] = ['x' => $x, 'y' => $word];
+            $t2[] = ['a' => 20 - $x, 'b' => ($x * 100) + strlen($word) + $seed, 'c' => $word];
+        }
+
+        $viewRows = match ($view) {
+            'v1' => array_map(static fn (array $row): array => ['y' => $row['y'], 'x' => $row['x']], $t1),
+            'v2' => array_values(array_map(
+                static fn (array $row): array => ['x' => $row['x'], 'y' => $row['y']],
+                array_filter($t1, static fn (array $row): bool => str_contains((string) $row['y'], 'e'))
+            )),
+            'v3' => self::triggerACompoundRows($t1, null),
+            'v4' => self::triggerACompoundRows($t1, static fn (array $row): bool => $row['x'] >= 3 && $row['x'] <= 5),
+            'v5' => self::triggerAJoinRows($t1, $t2),
+            default => [],
+        };
+
+        $matched = array_values(array_filter($viewRows, static function (array $row) use ($view): bool {
+            if ($view === 'v1' || $view === 'v2' || $view === 'v5') {
+                return ((int) ($row['x'] ?? 0)) >= 3 && ((int) ($row['x'] ?? 0)) <= 5;
+            }
+
+            $value = (string) ($row['c1'] ?? '');
+
+            return strcmp($value, '8') >= 0 && strcmp($value, 'eight') <= 0;
+        }));
+
+        $log = [];
+        foreach ($matched as $row) {
+            if ($event === 'delete') {
+                $log[] = match ($view) {
+                    'v1', 'v2' => ['old_a' => $row['y'], 'old_b' => $row['x']],
+                    'v3', 'v4' => ['old_a' => $row['c1']],
+                    'v5' => ['old_a' => $row['x'], 'old_b' => $row['b']],
+                    default => [],
+                };
+                continue;
+            }
+
+            $log[] = match ($view) {
+                'v1', 'v2' => ['old_a' => $row['y'], 'old_b' => $row['x'], 'new_c' => $row['y'] . '-extra', 'new_d' => $row['x']],
+                'v3', 'v4' => ['old_a' => $row['c1'], 'new_b' => $row['c1'] . '-extra'],
+                'v5' => ['old_a' => $row['x'], 'old_b' => $row['b'], 'new_c' => $row['x'], 'new_d' => $row['b'] + 9900000],
+                default => [],
+            };
+        }
+
+        usort($log, static function (array $left, array $right): int {
+            return ($left['old_a'] <=> $right['old_a']) ?: (($left['old_b'] ?? 0) <=> ($right['old_b'] ?? 0));
+        });
+
+        return [
+            'source' => 'triggerA.test triggerA-2.1..2.11',
+            'operation' => 'instead-of-view-trigger-where-routing',
+            'status' => 'commit-ok',
+            'view' => $view,
+            'event' => $event,
+            'seed' => $seed,
+            'view_row_count' => count($viewRows),
+            'matched_row_count' => count($matched),
+            'trigger_log' => $log,
+            'trigger_log_count' => count($log),
+            'first_log_row' => $log[0] ?? null,
+            'last_log_row' => $log === [] ? null : $log[array_key_last($log)],
+            'dependencies' => [
+                'sqlite-triggerA-instead-of-trigger-view-where-routing',
+                'sqlite-triggerA-compound-view-materialization-before-trigger',
+                'sqlite-triggerA-join-view-materialization-before-trigger',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int}> $baseRows
      * @param list<array{a:int,b:int,c:int}> $statementRows
      * @return array<string,mixed>
@@ -3272,6 +3370,106 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parentRows
+     * @param list<array<string,mixed>> $childRows
+     * @param list<array{parent:string,child:string,parent_collation?:string}> $keyMap
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyCheckCollationPlan(
+        string $childTable,
+        string $parentTable,
+        array $parentRows,
+        array $childRows,
+        array $keyMap,
+        bool $withoutRowidChild = false,
+        ?string $schema = null
+    ): array {
+        $childTable = self::identifier($childTable, 'foreign_key_check child table');
+        $parentTable = self::identifier($parentTable, 'foreign_key_check parent table');
+        if ($schema !== null) {
+            $schema = self::identifier($schema, 'foreign_key_check schema');
+        }
+        if ($keyMap === []) {
+            throw new \InvalidArgumentException('SQLite fkey5 foreign_key_check key map is empty');
+        }
+
+        $normalizedKeys = [];
+        foreach ($keyMap as $key) {
+            $normalizedKeys[] = [
+                'parent' => self::identifier((string) ($key['parent'] ?? ''), 'foreign_key_check parent key'),
+                'child' => self::identifier((string) ($key['child'] ?? ''), 'foreign_key_check child key'),
+                'parent_collation' => strtolower((string) ($key['parent_collation'] ?? 'binary')),
+            ];
+        }
+
+        $violations = [];
+        foreach (array_values($childRows) as $index => $child) {
+            $childKey = [];
+            $hasNull = false;
+            foreach ($normalizedKeys as $key) {
+                if (!array_key_exists($key['child'], $child)) {
+                    throw new \InvalidArgumentException('SQLite fkey5 foreign_key_check child row is missing key column');
+                }
+                $value = $child[$key['child']];
+                $childKey[] = $value;
+                $hasNull = $hasNull || $value === null;
+            }
+            if ($hasNull) {
+                continue;
+            }
+
+            $matched = false;
+            foreach ($parentRows as $parent) {
+                foreach ($normalizedKeys as $position => $key) {
+                    if (!array_key_exists($key['parent'], $parent)) {
+                        throw new \InvalidArgumentException('SQLite fkey5 foreign_key_check parent row is missing key column');
+                    }
+                    if (!self::foreignKeyParentValueMatches($parent[$key['parent']], $childKey[$position], $key['parent_collation'])) {
+                        continue 2;
+                    }
+                }
+                $matched = true;
+                break;
+            }
+
+            if (!$matched) {
+                $violations[] = [
+                    'table' => $childTable,
+                    'rowid' => $withoutRowidChild ? null : $index + 1,
+                    'parent' => $parentTable,
+                    'fkid' => 0,
+                    'child_key' => $childKey,
+                ];
+            }
+        }
+
+        return [
+            'source' => 'fkey5.test fkey5-5.0..13.12',
+            'operation' => 'foreign-key-check-parent-collation-composite',
+            'status' => 'commit-ok',
+            'schema' => $schema ?? 'main',
+            'child_table' => $childTable,
+            'parent_table' => $parentTable,
+            'without_rowid_child' => $withoutRowidChild,
+            'key_columns' => $normalizedKeys,
+            'violation_rows' => $violations,
+            'violation_count' => count($violations),
+            'result_columns' => ['table', 'rowid', 'parent', 'fkid'],
+            'result_tuples' => array_values(array_map(
+                static fn (array $row): array => [$row['table'], $row['rowid'], $row['parent'], $row['fkid']],
+                $violations
+            )),
+            'null_child_key_suppressed' => self::hasNullChildKey($childRows, $normalizedKeys),
+            'dependencies' => [
+                'sqlite-fkey5-foreign-key-check-four-column-result',
+                'sqlite-fkey5-parent-collation-controls-child-comparison',
+                'sqlite-fkey5-composite-key-column-order',
+                'sqlite-fkey5-without-rowid-child-reports-null-rowid',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{id:int,a:int}> $leftRows
      * @param list<array{id:int,b:int}> $rightRows
      * @return list<array{id:int,a:int,b:int}>
@@ -4006,6 +4204,36 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         return $violations;
     }
 
+    private static function foreignKeyParentValueMatches(mixed $parent, mixed $child, string $collation): bool
+    {
+        if ($parent === null || $child === null) {
+            return false;
+        }
+
+        return match ($collation) {
+            'nocase' => strcasecmp((string) $parent, (string) $child) === 0,
+            'rtrim' => rtrim((string) $parent) === rtrim((string) $child),
+            default => (string) $parent === (string) $child,
+        };
+    }
+
+    /**
+     * @param list<array<string,mixed>> $childRows
+     * @param list<array{parent:string,child:string,parent_collation:string}> $keyMap
+     */
+    private static function hasNullChildKey(array $childRows, array $keyMap): bool
+    {
+        foreach ($childRows as $child) {
+            foreach ($keyMap as $key) {
+                if (($child[$key['child']] ?? null) === null) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static function identifier(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
@@ -4013,6 +4241,47 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $value;
+    }
+
+    /**
+     * @param list<array{x:int,y:string}> $rows
+     * @return list<array{c1:string}>
+     */
+    private static function triggerACompoundRows(array $rows, ?callable $wordPredicate): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            $values[(string) $row['x']] = ['c1' => (string) $row['x']];
+        }
+        foreach ($rows as $row) {
+            if ($wordPredicate !== null && !$wordPredicate($row)) {
+                continue;
+            }
+            $values[(string) $row['y']] = ['c1' => (string) $row['y']];
+        }
+        ksort($values, SORT_STRING);
+
+        return array_values($values);
+    }
+
+    /**
+     * @param list<array{x:int,y:string}> $left
+     * @param list<array{a:int,b:int,c:string}> $right
+     * @return list<array{x:int,b:int}>
+     */
+    private static function triggerAJoinRows(array $left, array $right): array
+    {
+        $rows = [];
+        foreach ($left as $leftRow) {
+            foreach ($right as $rightRow) {
+                if ($leftRow['y'] === $rightRow['c']) {
+                    $rows[] = ['x' => $leftRow['x'], 'b' => $rightRow['b']];
+                }
+            }
+        }
+        usort($rows, static fn (array $a, array $b): int => $b['x'] <=> $a['x']);
+
+        return $rows;
     }
 
     /**

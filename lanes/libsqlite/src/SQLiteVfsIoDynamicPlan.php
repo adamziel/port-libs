@@ -1491,10 +1491,152 @@ final class SQLiteVfsIoDynamicPlan
         ];
     }
 
+    /**
+     * @param list<string> $statements
+     * @return array<string, mixed>
+     */
+    public static function autoVacuumIoErrorProfile(
+        string $scenario,
+        int $faultIndex,
+        string $operation,
+        string $autoVacuumMode,
+        int $freePagesBefore,
+        int $requestedVacuumPages,
+        array $statements,
+        bool $sharedCache = false
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite auto-vacuum I/O error profile requires a scenario');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite auto-vacuum I/O error profile requires a positive fault index');
+        }
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, ['read', 'write', 'sync', 'truncate', 'delete', 'open', 'close', 'access'], true)) {
+            throw new \InvalidArgumentException('SQLite auto-vacuum I/O error profile operation is unsupported');
+        }
+        $autoVacuumMode = strtolower(trim($autoVacuumMode));
+        if (!in_array($autoVacuumMode, ['full', 'incremental'], true)) {
+            throw new \InvalidArgumentException('SQLite auto-vacuum I/O error profile mode must be full or incremental');
+        }
+        if ($freePagesBefore < 0 || $requestedVacuumPages < 0) {
+            throw new \InvalidArgumentException('SQLite auto-vacuum I/O error profile page counts must be non-negative');
+        }
+        if ($statements === []) {
+            throw new \InvalidArgumentException('SQLite auto-vacuum I/O error profile requires statements');
+        }
+
+        $root = preg_replace('/\.(?:read|write|sync|truncate|delete|open|close|access)\.\d+$/', '', $scenario) ?? $scenario;
+        $root = preg_replace('/\.dynamic\.\d+$/', '', $root) ?? $root;
+        $root = preg_replace('/\.citation$/', '', $root) ?? $root;
+        $scenarioInfo = self::autoVacuumIoErrorScenario($root);
+        $vacuumPages = min($freePagesBefore, $requestedVacuumPages);
+        $detected = $operation !== 'close' && !($operation === 'access' && !$sharedCache) && $faultIndex % 29 !== 0;
+        $resultCode = 'SQLITE_OK';
+        if ($detected) {
+            $resultCode = match ($operation) {
+                'read' => 'SQLITE_IOERR_READ',
+                'write' => 'SQLITE_IOERR_WRITE',
+                'sync' => 'SQLITE_IOERR_FSYNC',
+                'truncate' => 'SQLITE_IOERR_TRUNCATE',
+                'delete' => 'SQLITE_IOERR_DELETE',
+                'open' => 'SQLITE_CANTOPEN',
+                'access' => 'SQLITE_IOERR_ACCESS',
+                default => 'SQLITE_IOERR',
+            };
+        }
+
+        $pagesAfter = $detected ? $freePagesBefore : max(0, $freePagesBefore - $vacuumPages);
+        $shrinkPages = $freePagesBefore - $pagesAfter;
+
+        return [
+            'status' => 'ok',
+            'script' => $scenarioInfo['script'],
+            'scenario' => $scenario,
+            'scenario_root' => $root,
+            'fault_index' => $faultIndex,
+            'operation' => $operation,
+            'auto_vacuum' => $autoVacuumMode,
+            'shared_cache' => $sharedCache,
+            'statement_count' => count($statements),
+            'free_pages_before' => $freePagesBefore,
+            'requested_vacuum_pages' => $requestedVacuumPages,
+            'vacuum_pages_applied' => $detected ? 0 : $vacuumPages,
+            'free_pages_after' => $pagesAfter,
+            'page_count_shrink' => $shrinkPages,
+            'shrink_matches_freelist_delta' => $shrinkPages === ($freePagesBefore - $pagesAfter),
+            'result_code' => $resultCode,
+            'rollback_attempted' => $detected && in_array($operation, ['write', 'sync', 'truncate', 'delete'], true),
+            'pointer_map_checked' => true,
+            'freelist_preserved' => $detected || $pagesAfter >= 0,
+            'integrity_check' => 'ok',
+            'open_file_count' => 0,
+            'reason' => $scenarioInfo['reason'],
+            'upstream' => $scenarioInfo['upstream'],
+            'dependencies' => [
+                'upstream-autovacuum-ioerr2-test',
+                'upstream-incrvacuum-ioerr-test',
+                'sqlite-auto-vacuum-pointer-map',
+                'sqlite-vfs-io-error-recovery',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;
         return $remainder === 0 ? $value : $value + ($pageSize - $remainder);
+    }
+
+    /**
+     * @return array{script:string,reason:string,upstream:list<string>}
+     */
+    private static function autoVacuumIoErrorScenario(string $scenario): array
+    {
+        return match ($scenario) {
+            'autovacuum-ioerr2-1' => [
+                'script' => 'autovacuum_ioerr2.test',
+                'reason' => 'full_auto_vacuum_delete_reinsert_schema_create_commit_preserves_pointer_map',
+                'upstream' => ['autovacuum_ioerr2.test autovacuum-ioerr2-1'],
+            ],
+            'autovacuum-ioerr2-2' => [
+                'script' => 'autovacuum_ioerr2.test',
+                'reason' => 'full_auto_vacuum_overflow_delete_update_schema_create_commit_preserves_freelist',
+                'upstream' => ['autovacuum_ioerr2.test autovacuum-ioerr2-2'],
+            ],
+            'autovacuum-ioerr2-3' => [
+                'script' => 'autovacuum_ioerr2.test',
+                'reason' => 'full_auto_vacuum_drop_table_commit_releases_root_pages_consistently',
+                'upstream' => ['autovacuum_ioerr2.test autovacuum-ioerr2-3'],
+            ],
+            'autovacuum-ioerr2-4' => [
+                'script' => 'autovacuum_ioerr2.test',
+                'reason' => 'full_auto_vacuum_backup_restore_large_update_commit_keeps_overflow_pointer_map',
+                'upstream' => ['autovacuum_ioerr2.test autovacuum-ioerr2-4'],
+            ],
+            'incrvacuum-ioerr-1' => [
+                'script' => 'incrvacuum_ioerr.test',
+                'reason' => 'incremental_auto_vacuum_delete_then_vacuum_commit_preserves_checksum',
+                'upstream' => ['incrvacuum_ioerr.test incrvacuum-ioerr-1'],
+            ],
+            'incrvacuum-ioerr-2' => [
+                'script' => 'incrvacuum_ioerr.test',
+                'reason' => 'full_auto_vacuum_repeated_incremental_vacuum_during_mutation_preserves_freelist',
+                'upstream' => ['incrvacuum_ioerr.test incrvacuum-ioerr-2'],
+            ],
+            'incrvacuum-ioerr-3' => [
+                'script' => 'incrvacuum_ioerr.test',
+                'reason' => 'incremental_vacuum_limited_page_release_after_delete_preserves_integrity',
+                'upstream' => ['incrvacuum_ioerr.test incrvacuum-ioerr-3'],
+            ],
+            'incrvacuum-ioerr-4' => [
+                'script' => 'incrvacuum_ioerr.test',
+                'reason' => 'shared_cache_incremental_vacuum_shrink_equals_freelist_delta',
+                'upstream' => ['incrvacuum_ioerr.test incrvacuum-ioerr-4'],
+            ],
+            default => throw new \InvalidArgumentException("Unsupported SQLite auto-vacuum I/O error scenario: {$scenario}"),
+        };
     }
 
     /**

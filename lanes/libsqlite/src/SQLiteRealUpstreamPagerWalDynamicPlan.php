@@ -546,6 +546,200 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walProtocolRetrySnapshotCases(): array
+    {
+        $recoveryLocks = [
+            ['slot' => 0, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 1, 'count' => 2, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 4, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 5, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 5, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 6, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 6, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 7, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 7, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 1, 'count' => 2, 'op' => 'unlock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+            ['slot' => 0, 'count' => 1, 'op' => 'unlock', 'level' => 'exclusive', 'result' => 'SQLITE_OK'],
+        ];
+        $protocolRetryLocks = static function (string $blockedSpec) use ($recoveryLocks): array {
+            $locks = [];
+            for ($attempt = 1; $attempt <= 100; $attempt++) {
+                [$slot, $count, $op, $level] = explode(' ', $blockedSpec);
+                $locks[] = [
+                    'slot' => (int) $slot,
+                    'count' => (int) $count,
+                    'op' => $op,
+                    'level' => $level,
+                    'result' => 'SQLITE_BUSY',
+                    'attempt' => $attempt,
+                ];
+            }
+
+            return array_merge($locks, $recoveryLocks);
+        };
+
+        $scenarios = [
+            [
+                'upstream' => 'walprotocol.test 1.1',
+                'source_file' => 'walprotocol.test',
+                'phase' => 'initial-reader-recovery-lock-sequence',
+                'operation' => 'SELECT * FROM x',
+                'expected_code' => 0,
+                'expected_message' => 'z',
+                'expected_extended_code' => 'SQLITE_OK',
+                'retry_limit' => 0,
+                'busy_handler_invoked' => false,
+                'busy_retry_succeeds' => false,
+                'lock_sequence' => $recoveryLocks,
+                'rows' => [['z']],
+                'concurrent_rows' => null,
+                'protocol_error' => false,
+            ],
+            [
+                'upstream' => 'walprotocol.test 1.3',
+                'source_file' => 'walprotocol.test',
+                'phase' => 'recover-lock-busy-retries-to-protocol-error',
+                'operation' => 'SELECT * FROM x',
+                'expected_code' => 1,
+                'expected_message' => 'locking protocol',
+                'expected_extended_code' => 'SQLITE_PROTOCOL',
+                'retry_limit' => 100,
+                'busy_handler_invoked' => false,
+                'busy_retry_succeeds' => false,
+                'lock_sequence' => $protocolRetryLocks('1 2 lock exclusive'),
+                'rows' => [],
+                'concurrent_rows' => null,
+                'protocol_error' => true,
+            ],
+            [
+                'upstream' => 'walprotocol.test 1.4',
+                'source_file' => 'walprotocol.test',
+                'phase' => 'writer-lock-busy-retries-to-protocol-error',
+                'operation' => 'SELECT * FROM x',
+                'expected_code' => 1,
+                'expected_message' => 'locking protocol',
+                'expected_extended_code' => 'SQLITE_PROTOCOL',
+                'retry_limit' => 100,
+                'busy_handler_invoked' => false,
+                'busy_retry_succeeds' => false,
+                'lock_sequence' => $protocolRetryLocks('0 1 lock exclusive'),
+                'rows' => [],
+                'concurrent_rows' => null,
+                'protocol_error' => true,
+            ],
+            [
+                'upstream' => 'walprotocol.test 1.5',
+                'source_file' => 'walprotocol.test',
+                'phase' => 'readmark-lock-busy-can-still-read',
+                'operation' => 'SELECT * FROM x',
+                'expected_code' => 0,
+                'expected_message' => 'z',
+                'expected_extended_code' => 'SQLITE_OK',
+                'retry_limit' => 0,
+                'busy_handler_invoked' => false,
+                'busy_retry_succeeds' => false,
+                'lock_sequence' => [
+                    ['slot' => 4, 'count' => 4, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_BUSY'],
+                    ['slot' => 4, 'count' => 1, 'op' => 'lock', 'level' => 'shared', 'result' => 'SQLITE_OK'],
+                    ['slot' => 4, 'count' => 1, 'op' => 'unlock', 'level' => 'shared', 'result' => 'SQLITE_OK'],
+                ],
+                'rows' => [['z']],
+                'concurrent_rows' => null,
+                'protocol_error' => false,
+            ],
+            [
+                'upstream' => 'walprotocol.test 2.5 2.6',
+                'source_file' => 'walprotocol.test',
+                'phase' => 'reader-during-recovery-unlock-sees-full-rowset',
+                'operation' => 'SELECT * FROM b',
+                'expected_code' => 0,
+                'expected_message' => 'Tehran Qom Markazi Qazvin Gilan Ardabil',
+                'expected_extended_code' => 'SQLITE_OK',
+                'retry_limit' => 0,
+                'busy_handler_invoked' => false,
+                'busy_retry_succeeds' => false,
+                'lock_sequence' => [
+                    ['slot' => 1, 'count' => 2, 'op' => 'unlock', 'level' => 'exclusive', 'result' => 'SQLITE_OK', 'callback' => 'second-reader-select'],
+                ],
+                'rows' => [['Tehran'], ['Qom'], ['Markazi'], ['Qazvin'], ['Gilan'], ['Ardabil']],
+                'concurrent_rows' => [['Tehran'], ['Qom'], ['Markazi'], ['Qazvin'], ['Gilan'], ['Ardabil']],
+                'protocol_error' => false,
+            ],
+            [
+                'upstream' => 'walprotocol2.test 2.2 2.3',
+                'source_file' => 'walprotocol2.test',
+                'phase' => 'begin-exclusive-races-with-concurrent-writer',
+                'operation' => 'BEGIN EXCLUSIVE',
+                'expected_code' => 1,
+                'expected_message' => 'database is locked',
+                'expected_extended_code' => 'SQLITE_BUSY',
+                'retry_limit' => 0,
+                'busy_handler_invoked' => false,
+                'busy_retry_succeeds' => false,
+                'lock_sequence' => [
+                    ['slot' => 0, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_BUSY_SNAPSHOT', 'callback' => 'db2-insert-y'],
+                ],
+                'rows' => [['z'], ['y']],
+                'concurrent_rows' => [['z'], ['y']],
+                'protocol_error' => false,
+            ],
+            [
+                'upstream' => 'walprotocol2.test 2.4 2.5',
+                'source_file' => 'walprotocol2.test',
+                'phase' => 'busy-handler-retries-begin-exclusive-after-snapshot-race',
+                'operation' => 'BEGIN EXCLUSIVE',
+                'expected_code' => 0,
+                'expected_message' => 'z y x',
+                'expected_extended_code' => 'SQLITE_OK',
+                'retry_limit' => 1,
+                'busy_handler_invoked' => true,
+                'busy_retry_succeeds' => true,
+                'lock_sequence' => [
+                    ['slot' => 0, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_BUSY_SNAPSHOT', 'callback' => 'db2-insert-x'],
+                    ['slot' => 0, 'count' => 1, 'op' => 'lock', 'level' => 'exclusive', 'result' => 'SQLITE_OK', 'attempt' => 2],
+                ],
+                'rows' => [['z'], ['y'], ['x']],
+                'concurrent_rows' => [['z'], ['y'], ['x']],
+                'protocol_error' => false,
+            ],
+        ];
+
+        $checkpointModes = ['passive', 'full', 'restart', 'truncate'];
+        $journalModes = ['wal', 'wal-persist'];
+        $pageSizes = [512, 1024, 2048, 4096, 8192];
+        $timeoutMs = [0, 10, 250, 1000];
+
+        $cases = [];
+        for ($i = 0; $i < 1000; $i++) {
+            $scenario = $scenarios[$i % count($scenarios)];
+            $lockResults = array_column($scenario['lock_sequence'], 'result');
+            $busyCount = count(array_filter($lockResults, static fn (mixed $result): bool => in_array($result, ['SQLITE_BUSY', 'SQLITE_BUSY_SNAPSHOT'], true)));
+            $cases[] = $scenario + [
+                'case' => $i + 1,
+                'checkpoint_mode' => $checkpointModes[$i % count($checkpointModes)],
+                'journal_mode' => $journalModes[intdiv($i, 4) % count($journalModes)],
+                'page_size' => $pageSizes[intdiv($i, 8) % count($pageSizes)],
+                'busy_timeout_ms' => $timeoutMs[intdiv($i, 40) % count($timeoutMs)],
+                'lock_count' => count(array_filter($scenario['lock_sequence'], static fn (array $lock): bool => ($lock['op'] ?? null) === 'lock')),
+                'unlock_count' => count(array_filter($scenario['lock_sequence'], static fn (array $lock): bool => ($lock['op'] ?? null) === 'unlock')),
+                'busy_lock_count' => $busyCount,
+                'row_count' => count($scenario['rows']),
+                'concurrent_row_count' => is_array($scenario['concurrent_rows']) ? count($scenario['concurrent_rows']) : null,
+                'dependencies' => [
+                    'sqlite-upstream-walprotocol-locking-protocol',
+                    'sqlite-upstream-walprotocol2-busy-snapshot-retry',
+                    'sqlite-real-upstream-pager-wal-dynamic',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<array<string, mixed>> $locks
      */
     private static function countLocks(array $locks, string $op, string $level): int

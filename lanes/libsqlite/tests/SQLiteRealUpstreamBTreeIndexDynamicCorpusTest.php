@@ -416,6 +416,91 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAJoinPlannerGuardCases(720) as 
     };
 }
 
+// Source truth: SQLite upstream test/indexexpr1.test indexexpr1-110 through
+// 260, indexexpr2.test indexexpr2-3.4.5/3.4.6, and indexexpr2.test
+// indexexpr2-4.110 through 4.130. These cases preserve expression-index
+// lookup, ORDER BY, WITHOUT ROWID replay, collation, and UPDATE recomputation
+// behavior.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases(1200) as $case) {
+    $tests['real upstream index expression dynamic case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->true(str_starts_with($case['source'], 'indexexpr'));
+        $t->true($case['case'] >= 1 && $case['case'] <= 1200);
+        $t->true(str_starts_with($case['upstream_section'], 'indexexpr'));
+        $t->true($case['storage'] === 'rowid' || $case['storage'] === 'without-rowid');
+        $t->true($case['index_name'] !== '');
+        $t->true($case['expression'] !== '');
+        $t->true($case['predicate'] !== '');
+        $t->true($case['detail'] !== '');
+        $t->true(array_values($case['result_rows']) === $case['result_rows']);
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_values($row) === $row);
+        }
+        $t->same($case['uses_index'], str_contains($case['detail'], 'INDEX') || str_contains($case['detail'], 'index entry'));
+        $t->true(in_array($case['collation'], ['binary', 'nocase'], true));
+        $t->true($case['order'] !== '');
+        if ($case['storage'] === 'without-rowid') {
+            $t->true(in_array($case['upstream_section'], ['indexexpr1-210', 'indexexpr1-220', 'indexexpr1-230', 'indexexpr1-241', 'indexexpr1-250', 'indexexpr1-260', 'indexexpr1-170'], true));
+        }
+        if ($case['expression'] === 'length(a)') {
+            $expected = $case['order'] === 'length(a) DESC' ? [[52], [38], [29], [27], [25], [20]] : [[20], [25], [27], [29], [38], [52]];
+            $t->same($expected, $case['result_rows']);
+            $t->true(str_contains($case['detail'], 'COVERING INDEX t1alen'));
+        }
+        if ($case['upstream_section'] === 'indexexpr1-160' || $case['upstream_section'] === 'indexexpr1-260') {
+            $t->same([[1, 1, 1]], $case['result_rows']);
+            $t->same('t1a2', $case['index_name']);
+        }
+        if ($case['upstream_section'] === 'indexexpr2-4.120') {
+            $t->same('b', $case['mutation_column']);
+            $t->same(true, $case['recomputes_index']);
+            $t->same(2, $case['expected_refcount']);
+        }
+        if ($case['upstream_section'] === 'indexexpr2-4.130') {
+            $t->same('d', $case['mutation_column']);
+            $t->same(false, $case['recomputes_index']);
+            $t->same(0, $case['expected_refcount']);
+        }
+        if ($case['collation'] === 'nocase') {
+            $t->true(str_contains($case['expression'], 'COLLATE nocase') || str_contains($case['predicate'], 'COLLATE nocase') || str_contains($case['order'], 'COLLATE nocase'));
+        }
+    };
+}
+
+// Source truth: SQLite upstream test/indexexpr1.test indexexpr1-300 through
+// 410. These cases preserve the DDL admission guards for expression indexes
+// and the UNIQUE expression-index duplicate rollback path.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDdlGuardCases(1000) as $case) {
+    $tests['real upstream index expression ddl guard case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('indexexpr1.test indexexpr1-300 through indexexpr1-410', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'indexexpr1-'));
+        $t->true($case['scenario'] !== '');
+        $t->true($case['sql'] !== '');
+        $t->true($case['table_name'] !== '');
+        $t->true($case['result_code'] === 0 || $case['result_code'] === 1);
+        $t->same($case['result_code'] === 0, $case['message'] === '');
+        $t->same($case['uses_expression_index'], $case['index_name'] !== null && $case['expression'] !== null && ($case['result_code'] === 0 || $case['upstream_section'] === 'indexexpr1-410'));
+        if ($case['result_code'] === 1) {
+            $t->true($case['message'] !== '');
+            $t->same($case['upstream_section'] === 'indexexpr1-410' ? 'ok' : null, $case['integrity']);
+        }
+        if ($case['upstream_section'] === 'indexexpr1-400') {
+            $t->same(0, $case['result_code']);
+            $t->same('ok', $case['integrity']);
+            $t->same([[1], [10]], $case['expected_rows']);
+            $t->same('t3abc', $case['index_name']);
+        }
+        if ($case['upstream_section'] === 'indexexpr1-410') {
+            $t->same(1, $case['result_code']);
+            $t->same('UNIQUE constraint failed: index t3abc', $case['message']);
+            $t->same($case['insert_row'], $case['duplicate_row']);
+        }
+        if ($case['expression'] !== null) {
+            $t->true(str_contains($case['sql'], $case['expression']) || $case['upstream_section'] === 'indexexpr1-410');
+        }
+    };
+}
+
 // Source truth: SQLite upstream test/index3.test index3-2.1 through 2.5.
 // SQLite keeps backwards-compatible support for string literals in places
 // that historically named indexed columns. This dynamic corpus keeps the
