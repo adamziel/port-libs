@@ -30972,20 +30972,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function rowsByRowidForStat4ExpressionPartialPreparedBridgeFourthContinuation(array $source): array
     {
-        if (!isset($source['rows']) || !is_array($source['rows'])) {
-            throw new \InvalidArgumentException('SQLite next510-525 needs current rows');
-        }
-
-        $rows = [];
-        foreach ($source['rows'] as $row) {
-            if (!is_array($row)) {
-                throw new \InvalidArgumentException('SQLite next510-525 current rows must be arrays');
-            }
-            $rowid = self::intValueForStat4ExpressionPartialPreparedBridgeFourthContinuation($row['rowid'] ?? null, 'current rowid');
-            $rows[$rowid] = $row;
-        }
-
-        return $rows;
+        return self::rowsByRowidForPreparedHandoffRange($source, 'next510-525');
     }
 
     /**
@@ -30993,26 +30980,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function intListForStat4ExpressionPartialPreparedBridgeFourthContinuation(mixed $value, string $label): array
     {
-        if (!is_array($value)) {
-            throw new \InvalidArgumentException('SQLite next510-525 needs ' . $label);
-        }
-
-        return array_values(array_map(
-            static fn (mixed $rowid): int => self::intValueForStat4ExpressionPartialPreparedBridgeFourthContinuation($rowid, $label),
-            $value,
-        ));
+        return self::intListForPreparedHandoffRange($value, $label, 'next510-525');
     }
 
     private static function intValueForStat4ExpressionPartialPreparedBridgeFourthContinuation(mixed $value, string $label): int
     {
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
-            return (int) $value;
-        }
-
-        throw new \InvalidArgumentException('SQLite next510-525 ' . $label . ' must be an integer');
+        return self::intValueForPreparedHandoffRange($value, $label, 'next510-525');
     }
 
     /**
@@ -31022,15 +30995,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function projectedColumnsForStat4ExpressionPartialPreparedBridgeFourthContinuation(array $row, array $neededColumns): array
     {
-        $projected = [];
-        foreach ($neededColumns as $column) {
-            if (!is_string($column) || $column === '') {
-                throw new \InvalidArgumentException('SQLite next510-525 projected column names must be non-empty');
-            }
-            $projected[$column] = $row[$column] ?? null;
-        }
-
-        return $projected;
+        return self::projectedColumnsForPreparedHandoffRange($row, $neededColumns, 'next510-525');
     }
 
     /**
@@ -31040,23 +31005,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function cursorProgramForStat4ExpressionPartialPreparedBridgeFourthContinuation(array $program, bool $ready, array $fence): array
     {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
-            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
-            "legacyOpcode" => "PrepareStat4ExpressionPartialNext510525Handoff",
-            "legacyMode" => "next510-525-current-source-stat4-expression-partial-prep",
-            'sliceRange' => $fence['sliceRange'],
-            'priorSliceRange' => $fence['priorSliceRange'],
-            'preparedSlices' => $fence['preparedSlices'],
-            'priorHandoffSignature' => $fence['priorHandoffSignature'],
-            'handoffSignature' => $fence['handoffSignature'],
-        ];
-
-        return $program;
+        return self::cursorProgramForPreparedHandoffRange(
+            $program,
+            $ready,
+            $fence,
+            'PrepareStat4ExpressionPartialNext510525Handoff',
+            'next510-525-current-source-stat4-expression-partial-prep',
+        );
     }
 
     /**
@@ -31199,20 +31154,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function rowsByRowidForStat4ExpressionPartialPreparedBridgeFifthContinuation(array $source): array
     {
-        if (!isset($source['rows']) || !is_array($source['rows'])) {
-            throw new \InvalidArgumentException('SQLite next526-541 needs current rows');
-        }
-
-        $rows = [];
-        foreach ($source['rows'] as $row) {
-            if (!is_array($row)) {
-                throw new \InvalidArgumentException('SQLite next526-541 current rows must be arrays');
-            }
-            $rowid = self::intValueForStat4ExpressionPartialPreparedBridgeFifthContinuation($row['rowid'] ?? null, 'current rowid');
-            $rows[$rowid] = $row;
-        }
-
-        return $rows;
+        return self::rowsByRowidForPreparedHandoffRange($source, 'next526-541');
     }
 
     /**
@@ -31220,26 +31162,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function intListForStat4ExpressionPartialPreparedBridgeFifthContinuation(mixed $value, string $label): array
     {
-        if (!is_array($value)) {
-            throw new \InvalidArgumentException('SQLite next526-541 needs ' . $label);
-        }
-
-        return array_values(array_map(
-            static fn (mixed $rowid): int => self::intValueForStat4ExpressionPartialPreparedBridgeFifthContinuation($rowid, $label),
-            $value,
-        ));
+        return self::intListForPreparedHandoffRange($value, $label, 'next526-541');
     }
 
     private static function intValueForStat4ExpressionPartialPreparedBridgeFifthContinuation(mixed $value, string $label): int
     {
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
-            return (int) $value;
-        }
-
-        throw new \InvalidArgumentException('SQLite next526-541 ' . $label . ' must be an integer');
+        return self::intValueForPreparedHandoffRange($value, $label, 'next526-541');
     }
 
     /**
@@ -31249,10 +31177,84 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function projectedColumnsForStat4ExpressionPartialPreparedBridgeFifthContinuation(array $row, array $neededColumns): array
     {
+        return self::projectedColumnsForPreparedHandoffRange($row, $neededColumns, 'next526-541');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $program
+     * @param array<string,mixed> $fence
+     * @return list<array<string,mixed>>
+     */
+    private static function cursorProgramForStat4ExpressionPartialPreparedBridgeFifthContinuation(array $program, bool $ready, array $fence): array
+    {
+        return self::cursorProgramForPreparedHandoffRange(
+            $program,
+            $ready,
+            $fence,
+            'PrepareStat4ExpressionPartialNext526541Handoff',
+            'next526-541-current-source-stat4-expression-partial-prep',
+        );
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private static function rowsByRowidForPreparedHandoffRange(array $source, string $rangeLabel): array
+    {
+        if (!isset($source['rows']) || !is_array($source['rows'])) {
+            throw new \InvalidArgumentException('SQLite ' . $rangeLabel . ' needs current rows');
+        }
+
+        $rows = [];
+        foreach ($source['rows'] as $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite ' . $rangeLabel . ' current rows must be arrays');
+            }
+            $rowid = self::intValueForPreparedHandoffRange($row['rowid'] ?? null, 'current rowid', $rangeLabel);
+            $rows[$rowid] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function intListForPreparedHandoffRange(mixed $value, string $label, string $rangeLabel): array
+    {
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('SQLite ' . $rangeLabel . ' needs ' . $label);
+        }
+
+        return array_values(array_map(
+            static fn (mixed $rowid): int => self::intValueForPreparedHandoffRange($rowid, $label, $rangeLabel),
+            $value,
+        ));
+    }
+
+    private static function intValueForPreparedHandoffRange(mixed $value, string $label, string $rangeLabel): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite ' . $rangeLabel . ' ' . $label . ' must be an integer');
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    private static function projectedColumnsForPreparedHandoffRange(array $row, array $neededColumns, string $rangeLabel): array
+    {
         $projected = [];
         foreach ($neededColumns as $column) {
             if (!is_string($column) || $column === '') {
-                throw new \InvalidArgumentException('SQLite next526-541 projected column names must be non-empty');
+                throw new \InvalidArgumentException('SQLite ' . $rangeLabel . ' projected column names must be non-empty');
             }
             $projected[$column] = $row[$column] ?? null;
         }
@@ -31265,17 +31267,22 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $fence
      * @return list<array<string,mixed>>
      */
-    private static function cursorProgramForStat4ExpressionPartialPreparedBridgeFifthContinuation(array $program, bool $ready, array $fence): array
-    {
+    private static function cursorProgramForPreparedHandoffRange(
+        array $program,
+        bool $ready,
+        array $fence,
+        string $legacyOpcode,
+        string $legacyMode
+    ): array {
         if (!$ready) {
             return $program;
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
-            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
-            "legacyOpcode" => "PrepareStat4ExpressionPartialNext526541Handoff",
-            "legacyMode" => "next526-541-current-source-stat4-expression-partial-prep",
+            'opcode' => 'PrepareStat4ExpressionPartialPreparedHandoffRange',
+            'mode' => 'prepared-handoff-range-current-source-stat4-expression-partial-prep',
+            'legacyOpcode' => $legacyOpcode,
+            'legacyMode' => $legacyMode,
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],

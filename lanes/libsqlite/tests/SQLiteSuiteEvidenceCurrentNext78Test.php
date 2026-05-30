@@ -70,7 +70,8 @@ function libsqlite_suite_evidence78_record(
     string $head = 'c196709c053869bec78f15d5a1f299d396f8fdb0',
     string $output = null,
     ?int $expected = 12,
-    string $snapshot = ''
+    string $snapshot = '',
+    string $nonOverlapNote = 'current-next78 suite evidence follows current-next77 and avoids current-next75 release/all countability and accepted veryquick manifest baseline'
 ): array {
     return libsqlite_suite_evidence78()->suiteEvidenceSlice(
         $rows,
@@ -79,7 +80,7 @@ function libsqlite_suite_evidence78_record(
         $head,
         'lanes/libsqlite/tests/SQLiteSuiteEvidenceCurrentNext78Test.php',
         $output ?? libsqlite_suite_evidence78_output(),
-        'current-next78 suite evidence follows current-next77 and avoids current-next75 release/all countability and accepted veryquick manifest baseline',
+        $nonOverlapNote,
         $expected,
         $snapshot
     );
@@ -197,5 +198,12 @@ return [
     },
     'current next78 rejects empty row list' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => libsqlite_suite_evidence78_record([]));
+    },
+    'current next78 rejects empty non overlap note' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => libsqlite_suite_evidence78_record(
+            libsqlite_suite_evidence78_rows(),
+            snapshot: '',
+            nonOverlapNote: ''
+        ));
     },
 ];

@@ -3793,9 +3793,7 @@ final class SQLiteSelectSql
         }
         if ($frameOffset !== null) {
             $frame = self::windowFrameClause(trim(substr($windowSql, $frameOffset)));
-            if ($orderBy === [] && in_array($frame['unit'], ['RANGE', 'GROUPS'], true)) {
-                throw new \InvalidArgumentException('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY');
-            }
+            self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
         }
 
         $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'];
@@ -3824,6 +3822,17 @@ final class SQLiteSelectSql
         }
 
         return $expression;
+    }
+
+    /**
+     * @param list<array{expression:array<string,mixed>,direction:string}> $orderBy
+     * @param array{unit:string,preceding:int|float,following:int|float,exclude:string} $frame
+     */
+    private static function assertOrderedRangeOrGroupsFrame(array $orderBy, array $frame): void
+    {
+        if ($orderBy === [] && in_array($frame['unit'], ['RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY');
+        }
     }
 
     private static function windowFrameOffset(string $sql): ?int
