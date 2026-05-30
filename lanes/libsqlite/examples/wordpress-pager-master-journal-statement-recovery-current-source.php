@@ -7,7 +7,7 @@ require_once __DIR__ . '/../src/SQLiteVfsFileWriter.php';
 
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 
-$root = sys_get_temp_dir() . '/port-libsqlite-wp-master-stmt-next119-' . bin2hex(random_bytes(4));
+$root = sys_get_temp_dir() . '/port-libsqlite-wp-master-stmt-current-source-' . bin2hex(random_bytes(4));
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
 $mainPath = '/srv/www/wp-content/database/.ht.sqlite';
@@ -18,35 +18,35 @@ $masterBytes = $mainPath . "-journal\n" . $networkPath . "-journal\n" . $stalePa
 
 mkdir(dirname($root . $masterPath), 0777, true);
 file_put_contents($root . $masterPath, $masterBytes);
-file_put_contents($root . $mainPath, $page('next119 wp schema current') . $page('next119 wp_options dirty active_plugins'));
-file_put_contents($root . $networkPath, $page('next119 network schema current') . $page('next119 site option dirty'));
-file_put_contents($root . $stalePath, $page('next119 stale schema current') . $page('next119 stale dirty option'));
+file_put_contents($root . $mainPath, $page('current-source wp schema current') . $page('current-source wp_options dirty active_plugins'));
+file_put_contents($root . $networkPath, $page('current-source network schema current') . $page('current-source site option dirty'));
+file_put_contents($root . $stalePath, $page('current-source stale schema current') . $page('current-source stale dirty option'));
 file_put_contents($root . $mainPath . '-journal', 'main outer rollback journal');
 file_put_contents($root . $networkPath . '-journal', 'network outer rollback journal');
 file_put_contents($root . $stalePath . '-journal', 'stale outer rollback journal');
 file_put_contents($root . $mainPath . '-stmt-journal', 'main statement journal exists');
 file_put_contents($root . $networkPath . '-stmt-journal', 'network statement journal exists');
 
-$result = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource84($masterPath, [
+$result = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource($masterPath, [
     [
         'database_path' => $mainPath,
         'statement_journal_path' => $mainPath . '-stmt-journal',
-        'statement_pages' => [2 => $page('next119 wp_options before failed active_plugins')],
+        'statement_pages' => [2 => $page('current-source wp_options before failed active_plugins')],
     ],
     [
         'database_path' => $networkPath,
         'statement_journal_path' => $networkPath . '-stmt-journal',
-        'statement_pages' => [2 => $page('next119 site option before failed network update')],
+        'statement_pages' => [2 => $page('current-source site option before failed network update')],
     ],
     [
         'database_path' => $stalePath,
         'statement_journal_path' => $stalePath . '-stmt-journal',
-        'statement_pages' => [2 => $page('next119 stale before image ignored because journal missing')],
+        'statement_pages' => [2 => $page('current-source stale before image ignored because journal missing')],
     ],
 ], $pageSize);
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-statement-recovery-current-source-next119',
+    'scenario' => 'wordpress-pager-master-journal-statement-recovery-current-source',
     'wordpressUse' => 'Recover failed statement pages for copied WordPress option databases only when the current statement journal sidecar still exists; stale preimage input for a missing sidecar is skipped under the master-journal transaction.',
     'status' => $result['status'],
     'recovered' => $result['recovery']['recovered_database_count'],
@@ -55,7 +55,7 @@ $summary = [
     'mainStatementJournalExists' => is_file($root . $mainPath . '-stmt-journal'),
     'networkStatementJournalExists' => is_file($root . $networkPath . '-stmt-journal'),
     'staleStatementJournalExists' => is_file($root . $stalePath . '-stmt-journal'),
-    'staleDatabaseKeptDirty' => str_contains((string) file_get_contents($root . $stalePath), 'next119 stale dirty option'),
+    'staleDatabaseKeptDirty' => str_contains((string) file_get_contents($root . $stalePath), 'current-source stale dirty option'),
 ];
 
 if (in_array('--self-test', $argv, true)) {
@@ -73,7 +73,7 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
-    echo "wordpress-pager-master-journal-statement-recovery-current-source-next119 self-test passed\n";
+    echo "wordpress-pager-master-journal-statement-recovery-current-source self-test passed\n";
     exit(0);
 }
 

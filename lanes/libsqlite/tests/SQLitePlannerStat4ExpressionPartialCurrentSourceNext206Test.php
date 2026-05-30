@@ -79,7 +79,7 @@ $terms206 = static fn (): array => [
     $notNull206('option_name'),
     $eq206('blog_id', 1),
 ];
-$plan206 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext206(
+$plan206 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourcePartialOrPayloadFence(
     $prepared ?? $prepared206(),
     $current ?? $current206(),
     $terms ?? $terms206(),

@@ -1,17 +1,17 @@
-# Pager Super-Journal Hot Rollback Current Source Next106
+# Pager Super-Journal Hot Rollback Current Source
 
 ## Behavior
 
 Adds `SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext()` for hot rollback-journal recovery when a WordPress multi-database import crashes under a SQLite super-journal. The planner hydrates current database and journal bytes, ignores stale candidate snapshots, restores only participant journals listed by the current super-journal, and deletes the super-journal only after every named participant journal is cleared.
 
-`SQLiteVfsFileWriter::applySuperJournalHotRollbackCurrentSource106()` wires the plan to current VFS file handles with atomic operation rollback.
+`SQLiteVfsFileWriter::applySuperJournalHotRollbackFromCurrentSource()` wires the plan to current VFS file handles with atomic operation rollback.
 
 ## Verification
 
 Focused command:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSuperJournalHotRollbackCurrentSourceTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 71 assertions, 0 failures
@@ -20,8 +20,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-pager-super-journal-hot-rollback-current-source-next106.php --self-test
-wordpress-pager-super-journal-hot-rollback-current-source-next106 self-test passed
+php lanes/libsqlite/examples/wordpress-pager-super-journal-hot-rollback-current-source.php --self-test
+wordpress-pager-super-journal-hot-rollback-current-source self-test passed
 ```
 
 ## Dashboard Delta

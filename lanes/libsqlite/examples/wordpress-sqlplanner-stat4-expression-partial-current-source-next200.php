@@ -77,7 +77,7 @@ $terms = [
     $range('lower(option_name)', '<', 'plugin`'),
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext200(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceHistogramFence(
     $prepared,
     $current,
     $terms,

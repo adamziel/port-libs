@@ -10,7 +10,7 @@ $pageSize = 512;
 $mainPath = '/wp-content/database/.ht.sqlite';
 $sitePath = '/wp-content/database/site.sqlite';
 $orphanPath = '/wp-content/database/orphan.sqlite';
-$masterPath = '/wp-content/database/.ht.sqlite-mj84';
+$masterPath = '/wp-content/database/.ht.sqlite-mj';
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
 
 $mainCurrent = $page('main header current source')
@@ -59,7 +59,7 @@ $makeRoot = static function (bool $withMaster = true, bool $reservedSite = false
     $orphanCurrent,
     $databaseSpecs
 ): array {
-    $root = sys_get_temp_dir() . '/port-libsqlite-stmt-source84-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/port-libsqlite-stmt-source-' . bin2hex(random_bytes(4));
     $mainLocal = $root . $mainPath;
     if (!is_dir(dirname($mainLocal)) && !mkdir(dirname($mainLocal), 0777, true) && !is_dir(dirname($mainLocal))) {
         throw new RuntimeException('Unable to create pager statement current-source fixture');
@@ -88,7 +88,7 @@ $makeRoot = static function (bool $withMaster = true, bool $reservedSite = false
 
 $apply = static fn (bool $withMaster = true, bool $reservedSite = false): array => (static function () use ($makeRoot, $masterPath, $pageSize, $withMaster, $reservedSite): array {
     [$root, $specs] = $makeRoot($withMaster, $reservedSite);
-    $applied = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource84($masterPath, $specs, $pageSize);
+    $applied = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource($masterPath, $specs, $pageSize);
 
     return [
         'root' => $root,
@@ -101,7 +101,7 @@ $apply = static fn (bool $withMaster = true, bool $reservedSite = false): array 
         'orphan_stmt_exists' => is_file($root . '/wp-content/database/orphan.sqlite-stmt-journal'),
         'main_journal_exists' => is_file($root . '/wp-content/database/.ht.sqlite-journal'),
         'site_journal_exists' => is_file($root . '/wp-content/database/site.sqlite-journal'),
-        'master_exists' => is_file($root . '/wp-content/database/.ht.sqlite-mj84'),
+        'master_exists' => is_file($root . '/wp-content/database/.ht.sqlite-mj'),
     ];
 })();
 
@@ -153,7 +153,7 @@ $cases = [
     'orphan file remains dirty' => [static fn (): mixed => substr($apply()['orphan'], $pageSize, $pageSize), $page('orphan dirty failed option')],
     'first recovery operation reads current source payload' => [static fn (): mixed => $apply()['applied']['recovery']['operations'][0]['payload_key'], $mainPath . '#statement-rollback'],
     'operation order' => [static fn (): mixed => array_column($apply()['applied']['operations'], 'op'), ['write', 'truncate', 'delete', 'write', 'truncate', 'delete', 'sync_directory']],
-    'dependency next84 present' => [static fn (): mixed => in_array('sqlite-pager-statement-current-source-next84', $apply()['applied']['dependencies'], true), true],
+    'dependency current-source present' => [static fn (): mixed => in_array('sqlite-pager-statement-current-source-next84', $apply()['applied']['dependencies'], true), true],
     'dependency existing statement recovery present' => [static fn (): mixed => in_array('sqlite-statement-journal-page-recovery', $apply()['applied']['dependencies'], true), true],
     'reserved site is skipped' => [static fn (): mixed => $apply(true, true)['applied']['recovery']['databases'][$sitePath]['reason'], 'database_has_reserved_lock'],
     'reserved site statement journal preserved' => [static fn (): mixed => $apply(true, true)['site_stmt_exists'], true],
@@ -166,32 +166,32 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager statement journal recovery current source next84 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager statement journal recovery current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
 $throws = [
-    'empty master rejected' => static fn () => (new SQLiteVfsFileWriter(sys_get_temp_dir()))->applyMasterJournalStatementPageRecoveryFromCurrentSource84('', $databaseSpecs(), $pageSize),
-    'empty database list rejected' => static fn () => (new SQLiteVfsFileWriter(sys_get_temp_dir()))->applyMasterJournalStatementPageRecoveryFromCurrentSource84($masterPath, [], $pageSize),
+    'empty master rejected' => static fn () => (new SQLiteVfsFileWriter(sys_get_temp_dir()))->applyMasterJournalStatementPageRecoveryFromCurrentSource('', $databaseSpecs(), $pageSize),
+    'empty database list rejected' => static fn () => (new SQLiteVfsFileWriter(sys_get_temp_dir()))->applyMasterJournalStatementPageRecoveryFromCurrentSource($masterPath, [], $pageSize),
     'missing database rejected' => static function () use ($masterPath, $pageSize): void {
-        $root = sys_get_temp_dir() . '/port-libsqlite-stmt-source84-missing-' . bin2hex(random_bytes(4));
+        $root = sys_get_temp_dir() . '/port-libsqlite-stmt-source-missing-' . bin2hex(random_bytes(4));
         mkdir($root . '/wp-content/database', 0777, true);
         file_put_contents($root . $masterPath, "/missing.sqlite-journal\n");
-        (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource84($masterPath, [[
+        (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource($masterPath, [[
             'database_path' => '/missing.sqlite',
             'statement_pages' => [1 => str_repeat('m', $pageSize)],
         ]], $pageSize);
     },
-    'path escape rejected' => static fn () => (new SQLiteVfsFileWriter(sys_get_temp_dir()))->applyMasterJournalStatementPageRecoveryFromCurrentSource84('../escape-mj', $databaseSpecs(), $pageSize),
+    'path escape rejected' => static fn () => (new SQLiteVfsFileWriter(sys_get_temp_dir()))->applyMasterJournalStatementPageRecoveryFromCurrentSource('../escape-mj', $databaseSpecs(), $pageSize),
     'readonly rejected before hydration write' => static function () use ($makeRoot, $masterPath, $pageSize): void {
         [$root, $specs] = $makeRoot();
-        (new SQLiteVfsFileWriter($root, true))->applyMasterJournalStatementPageRecoveryFromCurrentSource84($masterPath, $specs, $pageSize);
+        (new SQLiteVfsFileWriter($root, true))->applyMasterJournalStatementPageRecoveryFromCurrentSource($masterPath, $specs, $pageSize);
     },
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['pager statement journal recovery current source next84 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['pager statement journal recovery current source ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }

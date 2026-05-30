@@ -98,7 +98,7 @@ $terms211 = static fn (): array => [
     $notNull211('option_name'),
     $eq211('blog_id', 1),
 ];
-$plan211 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext211(
+$plan211 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceRepeatedSeekResumeFence(
     $prepared ?? $prepared211(),
     $current ?? $current211(),
     $terms ?? $terms211(),

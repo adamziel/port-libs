@@ -15,7 +15,7 @@ $mainPath = '/srv/wp/database/main.sqlite';
 $sitePath = '/srv/wp/database/site.sqlite';
 $cachePath = '/srv/wp/database/cache.sqlite';
 $orphanPath = '/srv/wp/database/orphan.sqlite';
-$superPath = '/srv/wp/database/super-journal-next106';
+$superPath = '/srv/wp/database/super-journal-current-source';
 $page = static fn (string $label, string $pad = '.'): string => str_pad($label, $pageSize, $pad, STR_PAD_RIGHT);
 $makeJournal = static function (array $pages, int $initialPageCount, int $nonce) use ($sectorSize, $pageSize): string {
     $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', count($pages), $nonce, $initialPageCount, $sectorSize, $pageSize);
@@ -43,21 +43,21 @@ $removeTree = static function (string $path) use (&$removeTree): void {
 };
 $local = static fn (string $root, string $path): string => rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($path, '/');
 
-$mainClean1 = $page('next106 clean main schema before plugin activation');
-$mainClean2 = $page('next106 clean main active_plugins before plugin activation');
-$mainDirty1 = $page('next106 dirty main schema after crashed activation');
-$mainDirty2 = $page('next106 dirty main active_plugins after crashed activation');
-$mainDirty3 = $page('next106 dirty main overflow tail after crashed activation');
-$staleMain1 = $page('next106 stale main schema snapshot that must be ignored');
-$staleMain2 = $page('next106 stale active_plugins snapshot that must be ignored');
-$siteClean1 = $page('next106 clean site schema before multisite import');
-$siteClean2 = $page('next106 clean site upload_path before multisite import');
-$siteDirty1 = $page('next106 dirty site schema after multisite import');
-$siteDirty2 = $page('next106 dirty site upload_path after multisite import');
-$cacheClean1 = $page('next106 clean cache schema before object-cache import');
-$cacheDirty1 = $page('next106 dirty cache schema after object-cache import');
-$orphanClean1 = $page('next106 clean orphan schema before unattached import');
-$orphanDirty1 = $page('next106 dirty orphan schema after unattached import');
+$mainClean1 = $page('current-source clean main schema before plugin activation');
+$mainClean2 = $page('current-source clean main active_plugins before plugin activation');
+$mainDirty1 = $page('current-source dirty main schema after crashed activation');
+$mainDirty2 = $page('current-source dirty main active_plugins after crashed activation');
+$mainDirty3 = $page('current-source dirty main overflow tail after crashed activation');
+$staleMain1 = $page('current-source stale main schema snapshot that must be ignored');
+$staleMain2 = $page('current-source stale active_plugins snapshot that must be ignored');
+$siteClean1 = $page('current-source clean site schema before multisite import');
+$siteClean2 = $page('current-source clean site upload_path before multisite import');
+$siteDirty1 = $page('current-source dirty site schema after multisite import');
+$siteDirty2 = $page('current-source dirty site upload_path after multisite import');
+$cacheClean1 = $page('current-source clean cache schema before object-cache import');
+$cacheDirty1 = $page('current-source dirty cache schema after object-cache import');
+$orphanClean1 = $page('current-source clean orphan schema before unattached import');
+$orphanDirty1 = $page('current-source dirty orphan schema after unattached import');
 
 $mainDatabase = $mainDirty1 . $mainDirty2 . $mainDirty3;
 $siteDatabase = $siteDirty1 . $siteDirty2;
@@ -127,7 +127,7 @@ $apply = static function (?string $super = null, array $entries = null) use ($wr
     $root = sys_get_temp_dir() . '/port-libsqlite-super-hot-106-' . bin2hex(random_bytes(4));
     $writeCurrentSourceFiles($root, $super ?? $superBytes, $entries ?? $databases);
     try {
-        return (new SQLiteVfsFileWriter($root))->applySuperJournalHotRollbackCurrentSource106($superPath, array_map(
+        return (new SQLiteVfsFileWriter($root))->applySuperJournalHotRollbackFromCurrentSource($superPath, array_map(
             static fn (array $entry): array => array_filter([
                 'database_path' => $entry['database_path'],
                 'stale_database_bytes' => $entry['stale_database_bytes'] ?? null,
@@ -167,8 +167,8 @@ $cases = [
     'complete cache listed' => static fn (): mixed => $complete()['hot_journals'][$cachePath . '-journal']['listed_in_super_journal'],
     'complete stale ignored' => static fn (): mixed => $complete()['hot_journals'][$mainPath . '-journal']['stale_candidate_ignored'],
     'complete site stale false' => static fn (): mixed => $complete()['hot_journals'][$sitePath . '-journal']['stale_candidate_ignored'],
-    'complete main current prefix dirty' => static fn (): mixed => str_starts_with($complete()['hot_journals'][$mainPath . '-journal']['current_source_database_prefix'], 'next106 dirty main'),
-    'complete main next prefix clean' => static fn (): mixed => str_starts_with($complete()['hot_journals'][$mainPath . '-journal']['next_database_prefix'], 'next106 clean main'),
+    'complete main current prefix dirty' => static fn (): mixed => str_starts_with($complete()['hot_journals'][$mainPath . '-journal']['current_source_database_prefix'], 'current-source dirty main'),
+    'complete main next prefix clean' => static fn (): mixed => str_starts_with($complete()['hot_journals'][$mainPath . '-journal']['next_database_prefix'], 'current-source clean main'),
     'complete next main bytes truncated' => static fn (): mixed => strlen($complete()['next_databases'][$mainPath]),
     'complete next site bytes' => static fn (): mixed => strlen($complete()['next_databases'][$sitePath]),
     'complete next cache bytes' => static fn (): mixed => strlen($complete()['next_databases'][$cachePath]),
@@ -184,13 +184,13 @@ $cases = [
     'missing operations empty' => static fn (): mixed => count($missing()['operations']),
     'missing main reason' => static fn (): mixed => $missing()['hot_journals'][$mainPath . '-journal']['reason'],
     'missing main action' => static fn (): mixed => $missing()['journal_actions'][$mainPath . '-journal'],
-    'missing preserves dirty main' => static fn (): mixed => str_starts_with($missing()['next_databases'][$mainPath], 'next106 dirty main'),
+    'missing preserves dirty main' => static fn (): mixed => str_starts_with($missing()['next_databases'][$mainPath], 'current-source dirty main'),
     'partial status' => static fn (): mixed => $partial()['status'],
     'partial recovered count' => static fn (): mixed => $partial()['recovered_database_count'],
     'partial blocked count' => static fn (): mixed => $partial()['blocked_database_count'],
     'partial site listed false' => static fn (): mixed => $partial()['hot_journals'][$sitePath . '-journal']['listed_in_super_journal'],
     'partial orphan listed false' => static fn (): mixed => $partial()['hot_journals'][$orphanPath . '-journal']['listed_in_super_journal'],
-    'partial site remains dirty' => static fn (): mixed => str_starts_with($partial()['next_databases'][$sitePath], 'next106 dirty site'),
+    'partial site remains dirty' => static fn (): mixed => str_starts_with($partial()['next_databases'][$sitePath], 'current-source dirty site'),
     'partial super not deleted' => static fn (): mixed => count($partial()['operations']),
     'reserved lock status partial' => static fn (): mixed => $reserved()['status'],
     'reserved lock blocks site' => static fn (): mixed => $reserved()['hot_journals'][$sitePath . '-journal']['reason'],
@@ -209,7 +209,7 @@ $cases = [
         $root = sys_get_temp_dir() . '/port-libsqlite-super-hot-106-' . bin2hex(random_bytes(4));
         $writeCurrentSourceFiles($root, null, $databases);
         try {
-            return (new SQLiteVfsFileWriter($root))->applySuperJournalHotRollbackCurrentSource106($superPath, array_map(
+            return (new SQLiteVfsFileWriter($root))->applySuperJournalHotRollbackFromCurrentSource($superPath, array_map(
                 static fn (array $entry): array => ['database_path' => $entry['database_path']],
                 $databases
             ), $pageSize)['status'];
@@ -220,7 +220,7 @@ $cases = [
     'writer missing database rejected' => static function () use ($superPath, $pageSize): mixed {
         $root = sys_get_temp_dir() . '/port-libsqlite-super-hot-106-' . bin2hex(random_bytes(4));
         try {
-            (new SQLiteVfsFileWriter($root))->applySuperJournalHotRollbackCurrentSource106($superPath, [['database_path' => '/missing.sqlite']], $pageSize);
+            (new SQLiteVfsFileWriter($root))->applySuperJournalHotRollbackFromCurrentSource($superPath, [['database_path' => '/missing.sqlite']], $pageSize);
         } catch (RuntimeException) {
             return 'rejected';
         }
@@ -353,7 +353,7 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['pager super journal hot rollback current source next106 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['pager super journal hot rollback current source ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

@@ -9470,8 +9470,8 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 212,
         int $nextSchemaCookie = 213,
     ): array {
-        $escape = self::v213_decodePreparedText($escapeBytes, $escapeEncoding, 'escape');
-        if (self::v213_sqliteTextLength($escape) !== 1) {
+        $escape = self::decodePreparedEscapeText($escapeBytes, $escapeEncoding, 'escape');
+        if (self::sqliteLikeTextLength($escape) !== 1) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneThree ESCAPE must decode to one SQLite text character');
         }
 
@@ -9492,14 +9492,14 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $nextSchemaCookie,
         );
 
-        $currentTokens = self::v213_likeTokens($base['currentPattern'], $escape);
-        $nextTokens = self::v213_likeTokens($base['nextPattern'], $escape);
-        $currentEscapedEscapeOffsets = self::v213_escapedEscapeOffsets($currentTokens, $escape);
-        $nextEscapedEscapeOffsets = self::v213_escapedEscapeOffsets($nextTokens, $escape);
-        $currentEscapedWildcardOffsets = self::v213_escapedWildcardOffsets($currentTokens);
-        $nextEscapedWildcardOffsets = self::v213_escapedWildcardOffsets($nextTokens);
-        $currentFirstWildcardOffset = self::v213_firstWildcardOffset($currentTokens);
-        $nextFirstWildcardOffset = self::v213_firstWildcardOffset($nextTokens);
+        $currentTokens = self::likeEscapeTokens($base['currentPattern'], $escape);
+        $nextTokens = self::likeEscapeTokens($base['nextPattern'], $escape);
+        $currentEscapedEscapeOffsets = self::likeEscapeEscapedEscapeOffsets($currentTokens, $escape);
+        $nextEscapedEscapeOffsets = self::likeEscapeEscapedEscapeOffsets($nextTokens, $escape);
+        $currentEscapedWildcardOffsets = self::likeEscapeEscapedWildcardOffsets($currentTokens);
+        $nextEscapedWildcardOffsets = self::likeEscapeEscapedWildcardOffsets($nextTokens);
+        $currentFirstWildcardOffset = self::likeEscapeFirstWildcardOffset($currentTokens);
+        $nextFirstWildcardOffset = self::likeEscapeFirstWildcardOffset($nextTokens);
 
         $reasons = $base['invalidationReasons'];
         if ($currentEscapedEscapeOffsets !== $nextEscapedEscapeOffsets) {
@@ -9519,7 +9519,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextSchemaCookie' => $nextSchemaCookie,
             'selfEscapedEscapeCharacter' => true,
             'escape' => $escape,
-            'escapeEncoding' => self::v213_encodingName($escapeEncoding),
+            'escapeEncoding' => self::preparedEscapeEncodingName($escapeEncoding),
             'escapeBytesHex' => bin2hex($escapeBytes),
             'currentTokens' => $currentTokens,
             'nextTokens' => $nextTokens,
@@ -9529,8 +9529,8 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextEscapedWildcardOffsets' => $nextEscapedWildcardOffsets,
             'currentFirstWildcardOffset' => $currentFirstWildcardOffset,
             'nextFirstWildcardOffset' => $nextFirstWildcardOffset,
-            'currentPrefixCharacters' => self::v213_sqliteTextLength($base['prefix']),
-            'nextPrefixCharacters' => self::v213_sqliteTextLength($base['nextPrefix']),
+            'currentPrefixCharacters' => self::sqliteLikeTextLength($base['prefix']),
+            'nextPrefixCharacters' => self::sqliteLikeTextLength($base['nextPrefix']),
             'currentPrefixContainsEscapeLiteral' => str_contains($base['prefix'], $escape),
             'nextPrefixContainsEscapeLiteral' => str_contains($base['nextPrefix'], $escape),
             'currentPrefixContainsEscapedWildcardLiteral' => str_contains($base['prefix'], '_') || str_contains($base['prefix'], '%'),
@@ -9556,9 +9556,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /**
      * @return list<array{offset:int,character:string,escaped:bool,kind:string}>
      */
-    private static function v213_likeTokens(string $pattern, string $escape): array
+    private static function likeEscapeTokens(string $pattern, string $escape): array
     {
-        $characters = self::v213_characters($pattern);
+        $characters = self::likeEscapeCharacters($pattern);
         $tokens = [];
         $count = count($characters);
         for ($offset = 0; $offset < $count; $offset++) {
@@ -9570,17 +9570,17 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
                     break;
                 }
                 $escaped = $characters[$offset];
-                $tokens[] = ['offset' => $offset, 'character' => $escaped, 'escaped' => true, 'kind' => self::v213_tokenKind($escaped, $escape)];
+                $tokens[] = ['offset' => $offset, 'character' => $escaped, 'escaped' => true, 'kind' => self::likeEscapeTokenKind($escaped, $escape)];
                 continue;
             }
 
-            $tokens[] = ['offset' => $offset, 'character' => $character, 'escaped' => false, 'kind' => self::v213_tokenKind($character, $escape)];
+            $tokens[] = ['offset' => $offset, 'character' => $character, 'escaped' => false, 'kind' => self::likeEscapeTokenKind($character, $escape)];
         }
 
         return $tokens;
     }
 
-    private static function v213_tokenKind(string $character, string $escape): string
+    private static function likeEscapeTokenKind(string $character, string $escape): string
     {
         if ($character === $escape) {
             return 'escape-literal';
@@ -9593,19 +9593,19 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array{offset:int,character:string,escaped:bool,kind:string}> $tokens @return list<int> */
-    private static function v213_escapedEscapeOffsets(array $tokens, string $escape): array
+    private static function likeEscapeEscapedEscapeOffsets(array $tokens, string $escape): array
     {
-        return self::v213_tokenOffsets($tokens, static fn (array $token): bool => $token['escaped'] && $token['character'] === $escape);
+        return self::likeEscapeTokenOffsets($tokens, static fn (array $token): bool => $token['escaped'] && $token['character'] === $escape);
     }
 
     /** @param list<array{offset:int,character:string,escaped:bool,kind:string}> $tokens @return list<int> */
-    private static function v213_escapedWildcardOffsets(array $tokens): array
+    private static function likeEscapeEscapedWildcardOffsets(array $tokens): array
     {
-        return self::v213_tokenOffsets($tokens, static fn (array $token): bool => $token['escaped'] && ($token['character'] === '%' || $token['character'] === '_'));
+        return self::likeEscapeTokenOffsets($tokens, static fn (array $token): bool => $token['escaped'] && ($token['character'] === '%' || $token['character'] === '_'));
     }
 
     /** @param list<array{offset:int,character:string,escaped:bool,kind:string}> $tokens */
-    private static function v213_firstWildcardOffset(array $tokens): ?int
+    private static function likeEscapeFirstWildcardOffset(array $tokens): ?int
     {
         foreach ($tokens as $token) {
             if (!$token['escaped'] && ($token['character'] === '%' || $token['character'] === '_')) {
@@ -9621,7 +9621,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param callable(array{offset:int,character:string,escaped:bool,kind:string}):bool $filter
      * @return list<int>
      */
-    private static function v213_tokenOffsets(array $tokens, callable $filter): array
+    private static function likeEscapeTokenOffsets(array $tokens, callable $filter): array
     {
         $offsets = [];
         foreach ($tokens as $token) {
@@ -9633,17 +9633,17 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return $offsets;
     }
 
-    private static function v213_decodePreparedText(string $bytes, int|string $encoding, string $label): string
+    private static function decodePreparedEscapeText(string $bytes, int|string $encoding, string $label): string
     {
         try {
-            return SQLiteEncodingCollationSourceCursor::decodeText($bytes, self::v213_encodingId($encoding));
+            return SQLiteEncodingCollationSourceCursor::decodeText($bytes, self::preparedEscapeEncodingId($encoding));
         } catch (\InvalidArgumentException $exception) {
             throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneThree prepared {$label} is malformed: " . $exception->getMessage());
         }
     }
 
     /** @return list<string> */
-    private static function v213_characters(string $value): array
+    private static function likeEscapeCharacters(string $value): array
     {
         if ($value === '') {
             return [];
@@ -9653,12 +9653,12 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return is_array($characters) ? array_values($characters) : str_split($value);
     }
 
-    private static function v213_sqliteTextLength(string $value): int
+    private static function sqliteLikeTextLength(string $value): int
     {
-        return count(self::v213_characters($value));
+        return count(self::likeEscapeCharacters($value));
     }
 
-    private static function v213_encodingId(int|string $encoding): int
+    private static function preparedEscapeEncodingId(int|string $encoding): int
     {
         return match ($encoding) {
             1, 'UTF-8' => 1,
@@ -9668,9 +9668,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         };
     }
 
-    private static function v213_encodingName(int|string $encoding): string
+    private static function preparedEscapeEncodingName(int|string $encoding): string
     {
-        return match (self::v213_encodingId($encoding)) {
+        return match (self::preparedEscapeEncodingId($encoding)) {
             1 => 'UTF-8',
             2 => 'UTF-16LE',
             3 => 'UTF-16BE',

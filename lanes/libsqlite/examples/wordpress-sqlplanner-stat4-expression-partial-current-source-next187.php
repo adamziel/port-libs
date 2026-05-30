@@ -52,7 +52,7 @@ $current['rows'] = [
     ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_tmp_cache', 'option_value' => 'tmp-current'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext187(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceNotLikeResidualFence(
     $prepared,
     $current,
     [

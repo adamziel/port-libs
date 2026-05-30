@@ -92,7 +92,7 @@ file_put_contents($local($sitePath . '-wal'), $siteWalBytes);
 file_put_contents($local($superPath), $superBytes);
 
 $writer = new SQLiteVfsFileWriter($root);
-$applied = $writer->applyMasterSuperJournalHotRecovery74($superPath, $superBytes, [
+$applied = $writer->applyMasterSuperJournalHotRecovery($superPath, $superBytes, [
     [
         'database_path' => $mainPath,
         'database_bytes' => $page('main dirty schema after crash') . $page('main dirty active_plugins after crash'),
@@ -135,7 +135,7 @@ if (in_array('--self-test', $argv, true)) {
     ] as $passed) {
         if (!$passed) {
             $removeTree($root);
-            throw new RuntimeException('WordPress pager hot-journal super/master recovery current-next74 smoke failed');
+            throw new RuntimeException('WordPress pager hot-journal super/master recovery current smoke failed');
         }
     }
 }

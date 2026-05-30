@@ -74,7 +74,7 @@ $terms202 = static fn (): array => [
     $eq202('autoload', 'yes'),
     $notNull202('option_name'),
 ];
-$plan202 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext202(
+$plan202 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceSampleTapeFence(
     $prepared ?? $prepared202(),
     $current ?? $current202(),
     $terms ?? $terms202(),

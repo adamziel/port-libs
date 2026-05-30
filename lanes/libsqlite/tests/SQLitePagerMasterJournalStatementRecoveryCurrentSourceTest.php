@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 $tests = [];
 
 $pageSize = 512;
-$root = sys_get_temp_dir() . '/port-libsqlite-pager-master-stmt-next119-' . bin2hex(random_bytes(4));
+$root = sys_get_temp_dir() . '/port-libsqlite-pager-master-stmt-current-source-' . bin2hex(random_bytes(4));
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
 $mainPath = '/srv/www/wp-content/database/.ht.sqlite';
 $metaPath = '/srv/www/wp-content/database/site-meta.sqlite';
@@ -16,24 +16,24 @@ $missPath = '/srv/www/wp-content/database/missing-stmt.sqlite';
 $masterPath = '/srv/www/wp-content/database/.ht.sqlite-mj119';
 $masterBytes = $mainPath . "-journal\n" . $metaPath . "-journal\n" . $missPath . "-journal\n";
 
-$mainCurrent = $page('next119 main schema current') . $page('next119 main dirty options') . $page('next119 main dirty autoload');
-$metaCurrent = $page('next119 meta schema current') . $page('next119 meta dirty network option');
-$missCurrent = $page('next119 missing schema current') . $page('next119 missing dirty option');
-$mainBefore = $page('next119 main options before statement');
-$mainIndexBefore = $page('next119 main autoload before statement');
-$metaBefore = $page('next119 meta option before statement');
-$missBefore = $page('next119 missing option before stale input');
+$mainCurrent = $page('current-source main schema current') . $page('current-source main dirty options') . $page('current-source main dirty autoload');
+$metaCurrent = $page('current-source meta schema current') . $page('current-source meta dirty network option');
+$missCurrent = $page('current-source missing schema current') . $page('current-source missing dirty option');
+$mainBefore = $page('current-source main options before statement');
+$mainIndexBefore = $page('current-source main autoload before statement');
+$metaBefore = $page('current-source meta option before statement');
+$missBefore = $page('current-source missing option before stale input');
 
 mkdir(dirname($root . $masterPath), 0777, true);
 file_put_contents($root . $masterPath, $masterBytes);
 file_put_contents($root . $mainPath, $mainCurrent);
 file_put_contents($root . $metaPath, $metaCurrent);
 file_put_contents($root . $missPath, $missCurrent);
-file_put_contents($root . $mainPath . '-journal', 'next119 main outer rollback');
-file_put_contents($root . $metaPath . '-journal', 'next119 meta outer rollback');
-file_put_contents($root . $missPath . '-journal', 'next119 missing outer rollback');
-file_put_contents($root . $mainPath . '-stmt-journal', 'next119 main statement journal exists');
-file_put_contents($root . $metaPath . '-stmt-journal', 'next119 meta statement journal exists');
+file_put_contents($root . $mainPath . '-journal', 'current-source main outer rollback');
+file_put_contents($root . $metaPath . '-journal', 'current-source meta outer rollback');
+file_put_contents($root . $missPath . '-journal', 'current-source missing outer rollback');
+file_put_contents($root . $mainPath . '-stmt-journal', 'current-source main statement journal exists');
+file_put_contents($root . $metaPath . '-stmt-journal', 'current-source meta statement journal exists');
 
 $databases = [
     [
@@ -78,7 +78,7 @@ $plan = static fn (): array => SQLitePagerStatementRecoveryPlan::masterJournalSt
 $appliedResult = null;
 $apply = static function () use (&$appliedResult, $root, $masterPath, $databases, $pageSize): array {
     if ($appliedResult === null) {
-        $appliedResult = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource84(
+        $appliedResult = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource(
             $masterPath,
             $databases,
             $pageSize
@@ -99,8 +99,8 @@ $cases = [
     'plan missing statement journal is not recovered' => [static fn (): mixed => $plan()['databases'][$missPath]['recovered'], false],
     'plan missing statement journal action preserves' => [static fn (): mixed => $plan()['statement_journal_actions'][$missPath . '-stmt-journal'], 'preserve_statement_journal'],
     'plan main statement journal action deletes' => [static fn (): mixed => $plan()['statement_journal_actions'][$mainPath . '-stmt-journal'], 'delete_statement_journal_after_rollback'],
-    'plan main next prefix restored' => [static fn (): mixed => $plan()['next_page_prefixes'][$mainPath][2], 'next119 main options before statement'],
-    'plan missing next prefix remains dirty' => [static fn (): mixed => $plan()['next_page_prefixes'][$missPath][2], 'next119 missing dirty option'],
+    'plan main next prefix restored' => [static fn (): mixed => $plan()['next_page_prefixes'][$mainPath][2], 'current-source main options before statement'],
+    'plan missing next prefix remains dirty' => [static fn (): mixed => $plan()['next_page_prefixes'][$missPath][2], 'current-source missing dirty option'],
     'plan payload includes main rollback' => [static fn (): mixed => array_key_exists($mainPath . '#statement-rollback', $plan()['payloads']), true],
     'plan payload excludes missing rollback' => [static fn (): mixed => array_key_exists($missPath . '#statement-rollback', $plan()['payloads']), false],
     'plan operation count for one recovered database' => [static fn (): mixed => count($plan()['operations']), 4],
@@ -124,16 +124,16 @@ $cases = [
     'apply writes recovered bytes' => [static fn (): mixed => $apply()['bytes_written'], ($pageSize * 3) + ($pageSize * 2)],
     'apply truncates recovered bytes' => [static fn (): mixed => $apply()['bytes_truncated'], ($pageSize * 3) + ($pageSize * 2)],
     'apply directory sync once' => [static fn (): mixed => $apply()['directory_syncs'], 1],
-    'apply dependency includes next84 current source' => [static fn (): mixed => in_array('sqlite-pager-statement-current-source-next84', $apply()['dependencies'], true), true],
+    'apply dependency includes current-source' => [static fn (): mixed => in_array('sqlite-pager-statement-current-source-next84', $apply()['dependencies'], true), true],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager master journal statement recovery current source next119 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager master journal statement recovery current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
-$tests['pager master journal statement recovery current source next119 applies images and preserves missing statement sidecar'] = static function (TestRunner $t) use ($root, $mainPath, $metaPath, $missPath, $mainBefore, $mainIndexBefore, $metaBefore, $missCurrent, $pageSize, $apply): void {
+$tests['pager master journal statement recovery current source applies images and preserves missing statement sidecar'] = static function (TestRunner $t) use ($root, $mainPath, $metaPath, $missPath, $mainBefore, $mainIndexBefore, $metaBefore, $missCurrent, $pageSize, $apply): void {
     $apply();
     $mainBytes = (string) file_get_contents($root . $mainPath);
     $metaBytes = (string) file_get_contents($root . $metaPath);
@@ -151,8 +151,8 @@ $tests['pager master journal statement recovery current source next119 applies i
     $t->same(true, is_file($root . $missPath . '-journal'));
 };
 
-$tests['pager master journal statement recovery current source next119 skips when all current statement journals are missing'] = static function (TestRunner $t) use ($root, $masterPath, $missPath, $missBefore, $pageSize): void {
-    $result = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource84($masterPath, [[
+$tests['pager master journal statement recovery current source skips when all current statement journals are missing'] = static function (TestRunner $t) use ($root, $masterPath, $missPath, $missBefore, $pageSize): void {
+    $result = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource($masterPath, [[
         'database_path' => $missPath,
         'statement_journal_path' => $missPath . '-stmt-journal',
         'statement_pages' => [2 => $missBefore],
@@ -167,8 +167,8 @@ $tests['pager master journal statement recovery current source next119 skips whe
     $t->same([], $result['operations']);
 };
 
-$tests['pager master journal statement recovery current source next119 rejects immutable writer before recovery'] = static function (TestRunner $t) use ($root, $masterPath, $databases, $pageSize): void {
-    $t->throws(LogicException::class, static fn (): mixed => (new SQLiteVfsFileWriter($root, false, true))->applyMasterJournalStatementPageRecoveryFromCurrentSource84($masterPath, $databases, $pageSize));
+$tests['pager master journal statement recovery current source rejects immutable writer before recovery'] = static function (TestRunner $t) use ($root, $masterPath, $databases, $pageSize): void {
+    $t->throws(LogicException::class, static fn (): mixed => (new SQLiteVfsFileWriter($root, false, true))->applyMasterJournalStatementPageRecoveryFromCurrentSource($masterPath, $databases, $pageSize));
 };
 
 return $tests;

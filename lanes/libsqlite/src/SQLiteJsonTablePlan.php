@@ -4845,16 +4845,16 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidAliasOrderProfile206(
+        $currentProfile = self::jsonTableGeneratedPathRowidAliasOrderProfile(
             $plan['currentGeneratedPathRowidAliasProjection203'],
             $orderBy,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidAliasOrderProfile206(
+        $nextProfile = self::jsonTableGeneratedPathRowidAliasOrderProfile(
             $plan['nextGeneratedPathRowidAliasProjection203'],
             $orderBy,
         );
-        $transitions = self::jsonTableGeneratedPathRowidAliasOrderTransitions206($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidAliasOrderReasons206($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidAliasOrderTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidAliasOrderReasons($transitions);
 
         $plan['currentGeneratedPathRowidAliasOrder206'] = $currentProfile;
         $plan['nextGeneratedPathRowidAliasOrder206'] = $nextProfile;
@@ -16767,7 +16767,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidAliasOrderProfile206(array $alias203, array $orderBy): array
+    private static function jsonTableGeneratedPathRowidAliasOrderProfile(array $alias203, array $orderBy): array
     {
         $orderTerms = [];
         $unsupported = [];
@@ -16816,7 +16816,7 @@ final class SQLiteJsonTablePlan
         $estimatedCost = $aliasOrderConsumed
             ? max(1, (int) ($alias203['estimatedCost'] ?? 1) + ($aliasOrderReusable ? 0 : count($orderedRowids)))
             : 1000000;
-        $opcode = self::jsonTableGeneratedPathRowidAliasOrderOpcode206(
+        $opcode = self::jsonTableGeneratedPathRowidAliasOrderOpcode(
             $aliasProjectionReusable,
             $aliasOrderConsumed,
             $aliasOrderReusable,
@@ -16840,7 +16840,7 @@ final class SQLiteJsonTablePlan
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
             'aliasOrderOpcode' => $opcode,
-            'costClass' => self::jsonTableGeneratedPathRowidAliasOrderCostClass206($opcode, count($orderedRowids)),
+            'costClass' => self::jsonTableGeneratedPathRowidAliasOrderCostClass($opcode, count($orderedRowids)),
             'aliasOrderFingerprint' => hash('sha256', json_encode([
                 $alias203['aliasProjectionFingerprint'] ?? null,
                 $orderTerms,
@@ -16857,7 +16857,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<string> $unsupported
      */
-    private static function jsonTableGeneratedPathRowidAliasOrderOpcode206(
+    private static function jsonTableGeneratedPathRowidAliasOrderOpcode(
         bool $projectionReusable,
         bool $orderConsumed,
         bool $orderReusable,
@@ -16879,7 +16879,7 @@ final class SQLiteJsonTablePlan
         return 'OP_JsonTableRowidAliasOrderConsumeNext206';
     }
 
-    private static function jsonTableGeneratedPathRowidAliasOrderCostClass206(string $opcode, int $rowCount): string
+    private static function jsonTableGeneratedPathRowidAliasOrderCostClass(string $opcode, int $rowCount): string
     {
         return match ($opcode) {
             'OP_JsonTableRowidAliasOrderConsumeNext206' => $rowCount <= 1
@@ -16897,7 +16897,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidAliasOrderTransitions206(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidAliasOrderTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -16934,7 +16934,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidAliasOrderReasons206(array $transitions): array
+    private static function jsonTableGeneratedPathRowidAliasOrderReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {

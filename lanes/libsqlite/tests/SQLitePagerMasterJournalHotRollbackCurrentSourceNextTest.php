@@ -115,7 +115,7 @@ $writeCurrentSourceFiles = static function (string $root, ?string $master = null
 $apply = static function (?string $master = null, array $entries = null) use ($writeCurrentSourceFiles, $masterBytes, $databases, $masterPath, $pageSize): array {
     $root = sys_get_temp_dir() . '/port-libsqlite-master-hot-89-' . bin2hex(random_bytes(4));
     $writeCurrentSourceFiles($root, $master ?? $masterBytes, $entries ?? $databases);
-    return (new SQLiteVfsFileWriter($root))->applyMasterJournalHotRollbackCurrentSource89($masterPath, array_map(
+    return (new SQLiteVfsFileWriter($root))->applyMasterJournalHotRollbackFromCurrentSource($masterPath, array_map(
         static fn (array $entry): array => array_filter([
             'database_path' => $entry['database_path'],
             'stale_database_bytes' => $entry['stale_database_bytes'] ?? null,
@@ -195,12 +195,12 @@ $cases = [
     'writer missing master skips' => static function () use ($writeCurrentSourceFiles, $masterPath, $databases, $pageSize): mixed {
         $root = sys_get_temp_dir() . '/port-libsqlite-master-hot-89-' . bin2hex(random_bytes(4));
         $writeCurrentSourceFiles($root, null, $databases);
-        return (new SQLiteVfsFileWriter($root))->applyMasterJournalHotRollbackCurrentSource89($masterPath, [['database_path' => $databases[0]['database_path']], ['database_path' => $databases[1]['database_path']]], $pageSize)['status'];
+        return (new SQLiteVfsFileWriter($root))->applyMasterJournalHotRollbackFromCurrentSource($masterPath, [['database_path' => $databases[0]['database_path']], ['database_path' => $databases[1]['database_path']]], $pageSize)['status'];
     },
     'writer missing database rejected' => static function () use ($masterPath, $pageSize): mixed {
         $root = sys_get_temp_dir() . '/port-libsqlite-master-hot-89-' . bin2hex(random_bytes(4));
         try {
-            (new SQLiteVfsFileWriter($root))->applyMasterJournalHotRollbackCurrentSource89($masterPath, [['database_path' => '/missing.sqlite']], $pageSize);
+            (new SQLiteVfsFileWriter($root))->applyMasterJournalHotRollbackFromCurrentSource($masterPath, [['database_path' => '/missing.sqlite']], $pageSize);
         } catch (RuntimeException) {
             return 'rejected';
         }
@@ -331,7 +331,7 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['pager master journal hot rollback current source next89 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['pager master journal hot rollback current source ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

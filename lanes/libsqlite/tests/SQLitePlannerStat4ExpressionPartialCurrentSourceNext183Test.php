@@ -76,7 +76,7 @@ $terms183 = static fn (array $values = null): array => [
     $exprGt183('lower(option_name)', 'plugin_'),
 ];
 $needed183 = ['option_name', 'option_value', 'autoload', 'blog_id'];
-$plan183 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext183(
+$plan183 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourcePartialInProbeFence(
     $prepared ?? $prepared183(),
     $current ?? $current183(),
     $terms ?? $terms183(),

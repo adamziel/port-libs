@@ -31,7 +31,7 @@ file_put_contents($root . $mainPath . '-stmt-journal', 'main failed statement jo
 file_put_contents($root . $metaPath . '-journal', 'meta outer rollback journal');
 file_put_contents($root . $metaPath . '-stmt-journal', 'meta failed statement journal');
 
-$applied = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource84(
+$applied = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecoveryFromCurrentSource(
     $masterPath,
     [
         [
@@ -52,7 +52,7 @@ $applied = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageReco
 );
 
 $summary = [
-    'scenario' => 'wordpress pager statement journal current-source recovery next84',
+    'scenario' => 'wordpress pager statement journal current-source recovery',
     'wordpressUse' => 'Recover failed copied wp_options/wp_sitemeta statement writes from the database bytes currently on disk, deleting only recovered statement journals while preserving outer rollback and master journals.',
     'status' => $applied['status'],
     'applied' => $applied['applied'],
@@ -76,6 +76,6 @@ if (
     || !$summary['outerJournalsPreserved']
     || !$summary['statementJournalsDeleted']
 ) {
-    fwrite(STDERR, "wordpress pager statement journal current-source next84 smoke failed\n");
+    fwrite(STDERR, "wordpress pager statement journal current-source smoke failed\n");
     exit(1);
 }

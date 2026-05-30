@@ -84,7 +84,7 @@ $terms209 = static fn (): array => [
     $notNull209('option_name'),
     $eq209('blog_id', 1),
 ];
-$plan209 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext209(
+$plan209 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceRepeatedSeekWindowFence(
     $prepared ?? $prepared209(),
     $current ?? $current209(),
     $terms ?? $terms209(),

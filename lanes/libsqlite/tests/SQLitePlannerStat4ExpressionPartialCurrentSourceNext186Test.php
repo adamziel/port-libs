@@ -70,7 +70,7 @@ $terms186 = static fn (array $values = null): array => [
     $exprGt186('lower(option_name)', 'plugin_'),
 ];
 $needed186 = ['option_name', 'option_value', 'autoload', 'blog_id'];
-$plan186 = static fn (int $limit = 3, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext186(
+$plan186 = static fn (int $limit = 3, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceInLimitProjectionFence(
     $prepared ?? $prepared186(),
     $current ?? $current186(),
     $terms ?? $terms186(),

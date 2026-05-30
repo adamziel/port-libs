@@ -76,7 +76,7 @@ $terms195 = static fn (): array => [
     $eq195('blog_id', 1),
     $notNull195('option_name'),
 ];
-$plan195 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext195(
+$plan195 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourcePartialPredicateFence(
     $prepared ?? $prepared195(),
     $current ?? $current195(),
     $terms ?? $terms195(),

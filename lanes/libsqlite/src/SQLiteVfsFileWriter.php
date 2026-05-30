@@ -1148,7 +1148,7 @@ final class SQLiteVfsFileWriter
      * @param list<array{database_path:string,stale_database_bytes?:string,stale_journal_bytes?:string,reserved_lock?:bool}> $databases
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{master_journal_path:string,master_journal_exists:bool,database_paths:list<string>,database_bytes:array<string,int>,journal_bytes:array<string,int>}}
      */
-    public function applyMasterJournalHotRollbackCurrentSource89(
+    public function applyMasterJournalHotRollbackFromCurrentSource(
         string $masterJournalPath,
         array $databases,
         int $pageSize,
@@ -1337,7 +1337,7 @@ final class SQLiteVfsFileWriter
      * @param list<array{database_path:string,database_bytes:string,journal:SQLiteRollbackJournal,journal_bytes:string,wal_bytes:string,page_numbers:list<int>,database_page_size?:int,reserved_lock?:bool}> $databases
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool}
      */
-    public function applyMasterSuperJournalHotRecovery74(
+    public function applyMasterSuperJournalHotRecovery(
         string $superJournalPath,
         string $superJournalBytes,
         array $databases,
@@ -1375,7 +1375,7 @@ final class SQLiteVfsFileWriter
      * @param list<array{database_path:string,stale_database_bytes?:string,stale_journal_bytes?:string,reserved_lock?:bool}> $databases
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{super_journal_path:string,super_journal_exists:bool,database_paths:list<string>,database_bytes:array<string,int>,journal_bytes:array<string,int>}}
      */
-    public function applySuperJournalHotRollbackCurrentSource106(
+    public function applySuperJournalHotRollbackFromCurrentSource(
         string $superJournalPath,
         array $databases,
         int $pageSize,
@@ -1817,7 +1817,7 @@ final class SQLiteVfsFileWriter
      * @param list<array{database_path:string,statement_journal_path?:string,statement_pages:array<int,string>,outer_journal_bytes?:string,reserved_lock?:bool}> $databases
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{master_journal_path:string,master_journal_exists:bool,database_paths:list<string>,database_bytes:array<string,int>,statement_journal_paths:array<string,string>}}
      */
-    public function applyMasterJournalStatementPageRecoveryFromCurrentSource84(
+    public function applyMasterJournalStatementPageRecoveryFromCurrentSource(
         string $masterJournalPath,
         array $databases,
         int $pageSize,

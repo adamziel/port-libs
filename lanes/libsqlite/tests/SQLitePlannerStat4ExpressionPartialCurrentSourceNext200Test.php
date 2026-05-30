@@ -84,7 +84,7 @@ $terms200 = static fn (): array => [
     $exprRange200('lower(option_name)', '<', 'plugin`'),
 ];
 $needed200 = ['option_name', 'option_value'];
-$plan200 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext200(
+$plan200 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceHistogramFence(
     $prepared ?? $prepared200(),
     $current ?? $current200(),
     $terms ?? $terms200(),

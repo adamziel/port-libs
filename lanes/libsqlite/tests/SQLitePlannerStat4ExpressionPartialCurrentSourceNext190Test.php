@@ -82,7 +82,7 @@ $terms190 = static fn (): array => [
     $exprRange190('lower(option_name)', '<', 'plugin`'),
 ];
 $needed190 = ['option_name', 'option_value'];
-$plan190 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext190(
+$plan190 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceTrailingPayloadFence(
     $prepared ?? $prepared190(),
     $current ?? $current190(),
     $terms ?? $terms190(),

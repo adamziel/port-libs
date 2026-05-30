@@ -26,7 +26,7 @@ $base = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next707'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next723AfterCurrentCheckpoint($base, [[
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage($base, [[
     'name' => 'wp-next723-current-source-seal',
     'source_token' => $base['source_token'],
     'database_digest' => $base['database_digest'],
@@ -38,7 +38,7 @@ $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next723Afte
     'wal_index_salt_synced' => true,
     'reader_marks_released' => true,
     'hot_journal_visible' => false,
-]]);
+]], 723);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'wal-hot-journal-savepoint-checkpoint-current-source-next723');

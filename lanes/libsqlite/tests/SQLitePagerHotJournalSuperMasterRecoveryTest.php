@@ -172,7 +172,7 @@ $apply = static function (string $superInput = null, bool $includeSite = true) u
     $root = $prepareRoot($superInput, $includeSite);
     try {
         $writer = new SQLiteVfsFileWriter($root);
-        $applied = $writer->applyMasterSuperJournalHotRecovery74(
+        $applied = $writer->applyMasterSuperJournalHotRecovery(
             $superPath,
             $superInput ?? $superBytes,
             $databaseInputs($includeSite)
@@ -251,7 +251,7 @@ $cases = [
     'read only writer rejects apply' => static function () use ($prepareRoot, $removeTree, $databaseInputs, $superPath, $superBytes): mixed {
         $root = $prepareRoot();
         try {
-            (new SQLiteVfsFileWriter($root, readOnly: true))->applyMasterSuperJournalHotRecovery74($superPath, $superBytes, $databaseInputs());
+            (new SQLiteVfsFileWriter($root, readOnly: true))->applyMasterSuperJournalHotRecovery($superPath, $superBytes, $databaseInputs());
         } catch (LogicException) {
             return 'rejected';
         } finally {
@@ -263,7 +263,7 @@ $cases = [
     'immutable writer rejects apply' => static function () use ($prepareRoot, $removeTree, $databaseInputs, $superPath, $superBytes): mixed {
         $root = $prepareRoot();
         try {
-            (new SQLiteVfsFileWriter($root, immutable: true))->applyMasterSuperJournalHotRecovery74($superPath, $superBytes, $databaseInputs());
+            (new SQLiteVfsFileWriter($root, immutable: true))->applyMasterSuperJournalHotRecovery($superPath, $superBytes, $databaseInputs());
         } catch (LogicException) {
             return 'rejected';
         } finally {
@@ -330,7 +330,7 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['pager hot journal super master recovery current next74 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['pager hot journal super master recovery current ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

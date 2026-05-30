@@ -64,7 +64,7 @@ file_put_contents($local($sitePath), $page('dirty site schema after interrupted 
 file_put_contents($local($sitePath . '-journal'), $siteJournalBytes);
 file_put_contents($local($masterPath), $masterBytes);
 
-$applied = (new SQLiteVfsFileWriter($root))->applyMasterJournalHotRollbackCurrentSource89($masterPath, [
+$applied = (new SQLiteVfsFileWriter($root))->applyMasterJournalHotRollbackFromCurrentSource($masterPath, [
     [
         'database_path' => $mainPath,
         'stale_database_bytes' => $page('stale pre-open main schema that must not win') . $page('stale active_plugins that must not win'),
@@ -99,7 +99,7 @@ if (in_array('--self-test', $argv, true)) {
     ] as $passed) {
         if (!$passed) {
             $removeTree($root);
-            throw new RuntimeException('WordPress pager master-journal hot rollback current-source next89 smoke failed');
+            throw new RuntimeException('WordPress pager master-journal hot rollback current-source smoke failed');
         }
     }
 }

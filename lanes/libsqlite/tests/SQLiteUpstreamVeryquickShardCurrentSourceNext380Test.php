@@ -96,7 +96,7 @@ function libsqlite_suite_next380_record(
     ?int $expected = 96,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next380_evidence()->upstreamVeryquickShardCurrentSourceNext380(
+    return libsqlite_suite_next380_evidence()->upstreamVeryquickShardCurrentSourceAdmission(
         $rows,
         740,
         145965,
@@ -109,7 +109,13 @@ function libsqlite_suite_next380_record(
         $output ?? libsqlite_suite_next380_output(),
         'current-source next380 veryquick-shard admission avoids accepted next155/157/159/161/164/166/167/169/171/172/173/174/175/176/177/178/181/184/187/190/192/194/200/202/209/212/213/219/220/222/224/225/226/227/228/229/230/231/232/233/234/235/236/237/238/239/240/241/242/243/244/245/246/247/248/249/250/251/252/253/254/255/256/257/258/259/260/261/262/263/264/265/266/267/268/269/270/271/272/273/274/275/276/277/278/279/280/281/282/283/284/285/286/287/288/289/290/291/292/293/294/295/296/297/298/299/300/301/302/303/304/305/306/307/308/309/311/312/313/314/315/316/317/318/319/320/321/322/323/324/325/326/328/329/331/332/333/334/335/336/337/338/339 suite evidence, exact-shard next148, queued runner106/jsonvt104 rebase work, accepted batch225 suite and batch109-113 behavior surfaces, and live B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE work',
         $expected,
-        $snapshot
+        $snapshot,
+        'current-source-next380-veryquick-shard',
+        'counts_upstream_veryquick_shard_current_source_next380',
+        array_map(static fn (int $prior): string => 'counts_upstream_veryquick_shard_current_source_next' . $prior, [339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155]),
+        'current-source next380 veryquick shard',
+        'current-source next380 veryquick shard admission',
+        'current integration-source provenance'
     );
 }
 

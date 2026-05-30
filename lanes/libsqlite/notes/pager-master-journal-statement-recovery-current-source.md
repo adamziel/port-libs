@@ -1,18 +1,18 @@
-# Pager master-journal statement recovery current-source next119
+# Pager master-journal statement recovery current-source
 
 Status: focused PHP behavior growth for current-source pager statement recovery.
 
-This slice tightens `SQLitePagerStatementRecoveryPlan` and `SQLiteVfsFileWriter::applyMasterJournalStatementPageRecoveryFromCurrentSource84()` so a master-journal member is recovered only when the current statement-journal sidecar still exists. If the sidecar is missing, stale caller-provided preimages are not applied, the database image remains unchanged, and the skipped database records `missing_statement_journal`.
+This slice tightens `SQLitePagerStatementRecoveryPlan` and `SQLiteVfsFileWriter::applyMasterJournalStatementPageRecoveryFromCurrentSource()` so a master-journal member is recovered only when the current statement-journal sidecar still exists. If the sidecar is missing, stale caller-provided preimages are not applied, the database image remains unchanged, and the skipped database records `missing_statement_journal`.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerStatementRecoveryPlan.php && php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php && php -l lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentSourceNext119Test.php && php -l lanes/libsqlite/examples/wordpress-pager-master-journal-statement-recovery-current-source-next119.php`
+- `php -l lanes/libsqlite/src/SQLitePagerStatementRecoveryPlan.php && php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php && php -l lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentSourceTest.php && php -l lanes/libsqlite/examples/wordpress-pager-master-journal-statement-recovery-current-source.php`
   - all changed PHP files reported no syntax errors.
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentSourceNext119Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalStatementRecoveryCurrentSourceTest.php`
   - `1 test files, 54 assertions, 0 failures`
   - `39` PASS lines.
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-statement-recovery-current-source-next119.php --self-test`
-  - `wordpress-pager-master-journal-statement-recovery-current-source-next119 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-pager-master-journal-statement-recovery-current-source.php --self-test`
+  - `wordpress-pager-master-journal-statement-recovery-current-source self-test passed`
 
 Dashboard delta: `phpPass` moves from `45302` to `45341` by the verified `39` new PASS lines. Mapped upstream coverage remains `604 / 1589`; this is focused PHP behavior over already mapped pager/master-journal statement recovery primitives.
 
