@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 13:45 UTC):
+  Latest libsqlite source is integrated as `80abdbf7a`
+  (`libsqlite: tighten window and suite gates`). The batch accepts four
+  current-base handoffs on top of `ef3fc70b`: STAT4 final handoff cleanup,
+  named-window RANGE/GROUPS behavior, WAL hot-journal checkpoint next291
+  consolidation, and suite-evidence dynamic id parsing. Verification passed PHP
+  lint for changed PHP files, `git diff --check -- lanes/libsqlite`, focused
+  gate `360 selected files / 20926 assertions / 0 failures`, full libsqlite
+  lane `2 test files / 759101 assertions / 0 failures / 188342 PASS lines`,
+  no `WordPress`/`wordpress` text in `lanes/libsqlite/src` PHP, and no
+  WordPress/WP/wp_ class, interface, trait, function, or method declarations
+  under `lanes/libsqlite` PHP. Public pass/fail should move to `188342 pass /
+  0 fail`; mapped coverage remains `830 / 1589` until a fresh
+  denominator-mapped SQLite suite row is accepted. Broad suite-evidence
+  mass-deletion handoffs remain parked for full-suite-equivalent review.
+
 - 2026-05-30 supervisor continuation (integration sample 13:20 UTC):
   Latest libsqlite source is integrated as `ef3fc70b3`
   (`libsqlite: consolidate veryquick shard helpers`). The batch accepts
