@@ -3684,3 +3684,21 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Verification passed PHP lint for changed PHP files, focused release/window
   gate 9 files / 4,067 assertions / 0 failures, suite-evidence current-next
   family 26 files / 1,043 assertions / 0 failures, and `git diff --check`.
+
+## Supervisor Integration 2026-05-30T09:00Z Current Consolidation Batch
+
+- Integrated six current-base libsqlite handoffs as source commit
+  `3246c90fe libsqlite: integrate current consolidation batch`.
+- Covered window RANGE direct-query behavior, STAT4 planner suffix
+  consolidation, suite-evidence dynamic coverage, release-runner denominator
+  naming cleanup, veryquick shard suffix cleanup, and countability helper
+  cleanup.
+- Verification passed PHP lint for changed PHP files, focused changed-family
+  gate 4 files / 2,821 assertions / 0 failures, STAT4 family 134 files /
+  7,590 assertions / 0 failures, release family 33 files / 17,262 assertions /
+  0 failures, suite-evidence family 28 files / 1,089 assertions / 0 failures,
+  upstream suite/veryquick sweep 293 files / 372,307 assertions / 0 failures,
+  and `git diff --check`.
+- Broad high-memory baseline remains the prior accepted root/no-arg 2 files /
+  782,790 assertions / 0 failures and full libsqlite lane 2 files / 758,322
+  assertions / 0 failures / 188,257 PASS lines.

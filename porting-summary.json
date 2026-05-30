@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 08:52:13 UTC",
-    "sourceCommit": "caf99d2bca6ae34f18b7fbe4035001e8eaef42af",
-    "sourceCommitShort": "caf99d2bca6a",
+    "generated": "2026-05-30 09:03:47 UTC",
+    "sourceCommit": "3246c90feb455d487243d3891fb30658295797d6",
+    "sourceCommitShort": "3246c90feb45",
     "sourceBranch": "main",
-    "dashboardCommit": "caf99d2bca6ae34f18b7fbe4035001e8eaef42af",
-    "dashboardCommitShort": "caf99d2bca6a",
+    "dashboardCommit": "3246c90feb455d487243d3891fb30658295797d6",
+    "dashboardCommitShort": "3246c90feb45",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "188257 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, behavior fixes, and numbered suffix...",
-            "audit": "Accepted source commit caf99d2bcf2e293c93...",
-            "currentWork": "Committed libsqlite source caf99d2bc removing the numbered suiteReleaseRunnerUpstreamCurr...",
+            "audit": "Accepted source commit 3246c90feb455d4872...",
+            "currentWork": "Committed libsqlite source 3246c90fe integrating the current consolidation batch while re...",
             "nextTarget": "Keep 10-11 libsqlite workers active, prune inactive worktrees, integrate the next high-yi...",
             "blocker": "Root/no-arg and full libsqlite lane gates pass under explicit 1024M PHP m...",
-            "commit": "caf99d2"
+            "commit": "3246c90"
         },
         {
             "library": "LightningCSS",
