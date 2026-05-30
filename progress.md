@@ -3702,3 +3702,25 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Broad high-memory baseline remains the prior accepted root/no-arg 2 files /
   782,790 assertions / 0 failures and full libsqlite lane 2 files / 758,322
   assertions / 0 failures / 188,257 PASS lines.
+
+## Supervisor Integration 2026-05-30T09:08Z Helper Consolidation Batch
+
+- Integrated six additional libsqlite handoffs that still applied cleanly to
+  the latest integration head as source commit
+  `1d9d03948 libsqlite: consolidate current helper batch`.
+- Covered B-tree freeblock/pointer-map helper cleanup, VFS helper cleanup, WAL
+  checkpoint helper cleanup, suite-evidence dynamic range coverage, and stable
+  release-all countability naming.
+- During verification, the combined suite-evidence gate exposed a duplicate
+  test helper name in the new dynamic-range test. The helper was renamed to a
+  range-specific function family and the full suite-evidence gate was rerun.
+- Verification passed PHP lint for changed PHP files, B-tree freeblock family
+  189 files / 118,734 assertions / 0 failures, VFS current-source family 55
+  files / 1,601 assertions / 0 failures, WAL checkpoint family 2 files /
+  11,768 assertions / 0 failures, release/countability family 37 files /
+  18,811 assertions / 0 failures, suite-evidence family 29 files / 1,297
+  assertions / 0 failures, suite/window root-focused gate 27 files / 1,097
+  assertions / 0 failures, and `git diff --check`.
+- Public pass/mapped counters remain `188,257 pass / 0 fail` and `830 / 1589`
+  because this batch removes numbered helper/test suffixes and adds focused
+  guard coverage rather than claiming new upstream denominator rows.
