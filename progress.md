@@ -49,8 +49,10 @@
 ## Current Coordination Snapshot
 
 - 2026-05-30 supervisor continuation (integration sample 20:07 UTC):
-  Accepted a second rapid current-base libsqlite batch replayed on dashboard
-  head `ab0d9bc9`. Twenty-two handoffs applied cleanly after excluding stale
+  Latest accepted libsqlite source is `fb91b18ab`
+  (`libsqlite: add rapid current corpus sweep`). This second rapid
+  current-base batch was replayed on dashboard head `ab0d9bc9`; 22 handoffs
+  applied cleanly after excluding stale
   status/dashboard hunks. Accepted coverage adds real upstream B-tree
   autoindex behavior, date unixepoch batches, expression affinity3 and corpus
   expansion, JSON103/window matrix behavior, pager/WAL matrix behavior, PRAGMA
