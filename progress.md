@@ -48,6 +48,30 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 23:33 UTC):
+  Latest libsqlite source is integrated as `a597a155`
+  (`libsqlite: add twenty-third current corpus sweep`). The batch accepted 13
+  current-base corpus/API handoffs plus the side SQLite PDO polyfill
+  continuation: row-value UPDATE/DELETE LIMIT parity, SELECT7 grouped case
+  coverage, PRAGMA schema shadowing, B-tree index2 and conflict-policy
+  behavior, date/timediff and Julian-week affinity behavior, pager/WAL dynamic
+  corpus planning, UPSERT/RETURNING wide-yield coverage, trigger/FK
+  schema-drop and program execution matrix behavior, VFS sector/safe-append
+  behavior, JSON104 patch corpus expansion, and PDO fetchAll/exec/prepare
+  compatibility. Verification passed PHP lint for changed/new PHP files, `git
+  diff --check -- lanes/libsqlite`, source-neutral guards, focused selected
+  tests `15 files / 235137 assertions / 0 failures / 54265 PASS lines`,
+  accepted-base overlap `5 files / 73395 assertions / 0 failures / 6833 PASS
+  lines`, and bounded related regression `23 files / 213207 assertions / 0
+  failures / 47865 PASS lines`. Honest selected movement is `+47432`, so the
+  public row should move to `1157667 pass / 0 fail` with coverage still
+  `1589 / 1589`. Rejected from this batch: the expression-affinity
+  distinct-null source handoff, after a broad related gate reproduced `66`
+  failures across existing cast-comparison and SELECT/window tests. App-WAL
+  parity, nonnumeric RANGE/window work, note-only JSON, and newer SELECT-source
+  changes remain parked for separate review. The live pool remains at 10-11
+  visible libsqlite workers with no long sleepers.
+
 - 2026-05-30 supervisor continuation (integration sample 23:15 UTC):
   Latest libsqlite source is integrated as `91d79cbb`
   (`libsqlite: add twenty-second rapid current corpus sweep`). The batch
