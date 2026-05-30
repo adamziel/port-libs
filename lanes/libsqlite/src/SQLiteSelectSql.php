@@ -4666,6 +4666,15 @@ final class SQLiteSelectSql
 
             return ['summaryColumn' => 'countAll', 'valueColumn' => null];
         }
+        if ($name === 'count' && count($arguments) === 1 && (($arguments[0]['type'] ?? null) === 'literal')) {
+            if (($term['distinct'] ?? false) === true) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL count(DISTINCT literal) is not supported');
+            }
+
+            return ($arguments[0]['value'] ?? null) === null
+                ? ['summaryColumn' => 'countValue', 'valueColumn' => null]
+                : ['summaryColumn' => 'countAll', 'valueColumn' => null];
+        }
         if (($name === 'min' || $name === 'max') && count($arguments) !== 1) {
             return null;
         }

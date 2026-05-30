@@ -77,6 +77,65 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases(1200) as
     };
 }
 
+// Source truth: SQLite upstream test/indexexpr1.test indexexpr1-300 through
+// indexexpr1-410. These sections cover DDL guardrails for expression indexes
+// and the UNIQUE expression-index duplicate path after indexexpr1-400.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDdlGuardCases(1000) as $case) {
+    $tests['real upstream index expression DDL guard case ' . str_pad((string) $case['case'], 4, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($case): void {
+        $t->same('indexexpr1.test indexexpr1-300 through indexexpr1-410', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'indexexpr1-'));
+        $t->true($case['scenario'] !== '');
+        $t->true($case['sql'] !== '');
+        $t->true($case['table_name'] === 't2' || $case['table_name'] === 'e1' || $case['table_name'] === 't3');
+        $t->same($case['result_code'] === 0, $case['message'] === '');
+        $t->same($case['upstream_section'] === 'indexexpr1-400' || $case['upstream_section'] === 'indexexpr1-410', $case['integrity'] === 'ok');
+        $t->same($case['uses_expression_index'], $case['index_name'] === 't3abc');
+        $t->same($case['uses_expression_index'], $case['upstream_section'] === 'indexexpr1-400' || $case['upstream_section'] === 'indexexpr1-410');
+
+        if ($case['result_code'] === 1) {
+            $t->true($case['message'] !== '');
+            $t->true(
+                str_contains($case['message'], 'prohibited')
+                || str_contains($case['message'], 'non-deterministic')
+                || str_contains($case['message'], 'syntax error')
+                || str_contains($case['message'], 'UNIQUE constraint failed')
+            );
+        }
+
+        if ($case['upstream_section'] === 'indexexpr1-300') {
+            $t->same('b+random()', $case['expression']);
+            $t->same('non-deterministic functions prohibited in index expressions', $case['message']);
+        }
+        if ($case['upstream_section'] === 'indexexpr1-301') {
+            $t->same("julianday('now',a)", $case['expression']);
+            $t->same('non-deterministic use of julianday() in an index', $case['message']);
+        }
+        if ($case['upstream_section'] === 'indexexpr1-310') {
+            $t->same('subqueries prohibited in index expressions', $case['message']);
+            $t->true(str_contains((string) $case['expression'], 'SELECT 15'));
+        }
+        if (in_array($case['upstream_section'], ['indexexpr1-320', 'indexexpr1-330', 'indexexpr1-331'], true)) {
+            $t->same('expressions prohibited in PRIMARY KEY and UNIQUE constraints', $case['message']);
+            $t->same('e1', $case['table_name']);
+        }
+        if ($case['upstream_section'] === 'indexexpr1-340') {
+            $t->same('near "(": syntax error', $case['message']);
+            $t->true(str_contains($case['sql'], 'FOREIGN KEY(substr'));
+        }
+        if ($case['upstream_section'] === 'indexexpr1-400') {
+            $t->same(0, $case['result_code']);
+            $t->same([[1], [10]], $case['expected_rows']);
+            $t->same('CAST(a AS text), b, substr(c,1,3)', $case['expression']);
+        }
+        if ($case['upstream_section'] === 'indexexpr1-410') {
+            $t->same(1, $case['result_code']);
+            $t->same('UNIQUE constraint failed: index t3abc', $case['message']);
+            $t->same([10, 'ab000axyz', 'sample10'], $case['duplicate_row']);
+        }
+    };
+}
+
 $tests['real upstream index expression dynamic corpus source files are explicit'] = static function (TestRunner $t): void {
     $cases = SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases(1200);
 
@@ -91,6 +150,10 @@ $tests['real upstream index expression dynamic corpus source files are explicit'
 
 $tests['real upstream index expression dynamic corpus rejects invalid count'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases(0));
+};
+
+$tests['real upstream index expression DDL guard corpus rejects invalid count'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDdlGuardCases(0));
 };
 
 return $tests;

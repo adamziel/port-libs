@@ -726,6 +726,7 @@ final class SQLiteWindowFunction
         string $endBoundary,
         ?iterable $filters = null,
         string $separator = ',',
+        ?callable $orderComparator = null,
     ): array {
         $function = strtolower($function);
         if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
@@ -757,7 +758,7 @@ final class SQLiteWindowFunction
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
         $order = range(0, count($rows) - 1);
-        usort($order, static function (int $left, int $right) use ($keys, $descending, $nullsFirst): int {
+        usort($order, static function (int $left, int $right) use ($keys, $descending, $nullsFirst, $orderComparator): int {
             $leftKey = $keys[$left];
             $rightKey = $keys[$right];
             if ($leftKey === null || $rightKey === null) {
@@ -768,7 +769,9 @@ final class SQLiteWindowFunction
                 return ($leftKey === null) === $nullsFirst ? -1 : 1;
             }
 
-            $comparison = self::compareSqlValues($leftKey, $rightKey);
+            $comparison = $orderComparator === null
+                ? self::compareSqlValues($leftKey, $rightKey)
+                : self::normalizeComparison($orderComparator($leftKey, $rightKey));
             if ($descending) {
                 $comparison *= -1;
             }
@@ -778,7 +781,7 @@ final class SQLiteWindowFunction
 
         $resultByRow = [];
         foreach ($order as $position => $rowIndex) {
-            $frameRows = self::orderedRangeFrameRows($order, $keys, $position, $descending, $start, $end);
+            $frameRows = self::orderedRangeFrameRows($order, $keys, $position, $descending, $start, $end, $orderComparator);
             if ($filterRows !== null) {
                 $frameRows = array_values(array_filter(
                     $frameRows,
@@ -1099,10 +1102,10 @@ final class SQLiteWindowFunction
      * @param array{type:string,offset:int|float|null} $end
      * @return list<int>
      */
-    private static function orderedRangeFrameRows(array $order, array $keys, int $position, bool $descending, array $start, array $end): array
+    private static function orderedRangeFrameRows(array $order, array $keys, int $position, bool $descending, array $start, array $end, ?callable $orderComparator = null): array
     {
         $count = count($order);
-        [$peerStart, $peerEnd] = self::orderedPeerBounds($order, $keys, $position);
+        [$peerStart, $peerEnd] = self::orderedPeerBounds($order, $keys, $position, $orderComparator);
 
         $startPosition = self::orderedRangeBoundaryPosition($order, $keys, $position, $peerStart, $peerEnd, $descending, $start, true);
         $endPosition = self::orderedRangeBoundaryPosition($order, $keys, $position, $peerStart, $peerEnd, $descending, $end, false);
@@ -1118,14 +1121,14 @@ final class SQLiteWindowFunction
      * @param list<mixed> $keys
      * @return array{0:int,1:int}
      */
-    private static function orderedPeerBounds(array $order, array $keys, int $position): array
+    private static function orderedPeerBounds(array $order, array $keys, int $position, ?callable $orderComparator = null): array
     {
         $start = $position;
         $end = $position;
-        while ($start > 0 && self::compareSqlValues($keys[$order[$start - 1]], $keys[$order[$position]]) === 0) {
+        while ($start > 0 && self::compareOrderKey($keys[$order[$start - 1]], $keys[$order[$position]], $orderComparator) === 0) {
             $start--;
         }
-        while ($end + 1 < count($order) && self::compareSqlValues($keys[$order[$end + 1]], $keys[$order[$position]]) === 0) {
+        while ($end + 1 < count($order) && self::compareOrderKey($keys[$order[$end + 1]], $keys[$order[$position]], $orderComparator) === 0) {
             $end++;
         }
 
@@ -1401,6 +1404,24 @@ final class SQLiteWindowFunction
         }
 
         return strcmp(self::valueText($left), self::valueText($right));
+    }
+
+    private static function compareOrderKey(mixed $left, mixed $right, ?callable $orderComparator): int
+    {
+        if ($orderComparator === null || $left === null || $right === null || self::sortRank($left) !== self::sortRank($right)) {
+            return self::compareSqlValues($left, $right);
+        }
+
+        return self::normalizeComparison($orderComparator($left, $right));
+    }
+
+    private static function normalizeComparison(mixed $comparison): int
+    {
+        if (!is_int($comparison) && !is_float($comparison) && !is_bool($comparison)) {
+            throw new \InvalidArgumentException('SQLite window ORDER BY comparator must return a numeric result');
+        }
+
+        return ((float) $comparison) <=> 0.0;
     }
 
     private static function valueText(mixed $value): string

@@ -602,6 +602,144 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:int,c:int}> $baseRows
+     * @param list<array{a:int,b:int,c:int}> $statementRows
+     * @return array<string,mixed>
+     */
+    public static function raiseActionBoundaryPlan(
+        array $baseRows,
+        array $statementRows,
+        int $raiseValue,
+        bool $insideTransaction = true,
+        bool $viewTrigger = false
+    ): array {
+        $rows = array_values($baseRows);
+        $attemptedRows = [];
+        $insertedRows = [];
+        $raiseAction = self::raiseActionForValue($raiseValue, $viewTrigger);
+        $message = self::raiseMessageForAction($raiseAction, $viewTrigger);
+        $status = $raiseAction === 'none' || $raiseAction === 'ignore' ? 'commit-ok' : 'constraint-trigger';
+        $rolledBack = $raiseAction === 'rollback' && $insideTransaction;
+
+        foreach ($statementRows as $row) {
+            foreach (['a', 'b', 'c'] as $column) {
+                if (!array_key_exists($column, $row)) {
+                    throw new \InvalidArgumentException('SQLite trigger3 row is missing column ' . $column);
+                }
+            }
+            $attemptedRows[] = $row;
+
+            if ($viewTrigger) {
+                if (($row['a'] ?? null) === $raiseValue && $raiseAction !== 'none') {
+                    break;
+                }
+                continue;
+            }
+
+            if (($row['a'] ?? null) === 4) {
+                continue;
+            }
+            $rows[] = $row;
+            $insertedRows[] = $row;
+
+            if (($row['a'] ?? null) === $raiseValue && $raiseAction !== 'none' && $raiseAction !== 'ignore') {
+                break;
+            }
+        }
+
+        if ($rolledBack) {
+            $rows = array_values($baseRows);
+        }
+
+        return [
+            'source' => $viewTrigger ? 'trigger3.test trigger3-7.1..7.3' : 'trigger3.test trigger3-1.1..4.2',
+            'operation' => $viewTrigger ? 'view-trigger-raise-action-boundary' : 'table-trigger-raise-action-boundary',
+            'status' => $status,
+            'raise_action' => $raiseAction,
+            'raise_message' => $message,
+            'inside_transaction' => $insideTransaction,
+            'view_trigger' => $viewTrigger,
+            'rolled_back' => $rolledBack,
+            'statement_aborted' => in_array($raiseAction, ['abort', 'fail', 'rollback'], true),
+            'attempted_a_values' => array_values(array_column($attemptedRows, 'a')),
+            'inserted_a_values' => array_values(array_column($insertedRows, 'a')),
+            'final_a_values' => array_values(array_column($rows, 'a')),
+            'error_code' => $status === 'constraint-trigger' ? 'SQLITE_CONSTRAINT_TRIGGER' : null,
+            'changes' => count($insertedRows),
+            'dependencies' => [
+                'sqlite-trigger3-raise-abort-fail-rollback-boundaries',
+                'sqlite-trigger3-raise-ignore-skips-current-row',
+                'sqlite-trigger3-view-trigger-raise-actions',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $rows
+     * @return array<string,mixed>
+     */
+    public static function raiseIgnoreMutationPlan(array $rows, string $operation): array
+    {
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, ['update', 'delete', 'nested-insert'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger3 RAISE IGNORE operation is unsupported');
+        }
+
+        $rows = array_values($rows);
+        $ignored = [];
+        $mutated = [];
+        $nestedRows = [];
+
+        if ($operation === 'update') {
+            foreach ($rows as $index => $row) {
+                if (($row['a'] ?? null) === 1) {
+                    $ignored[] = $row['a'];
+                    continue;
+                }
+                $rows[$index]['c'] = 10;
+                $mutated[] = $row['a'];
+            }
+        } elseif ($operation === 'delete') {
+            foreach ($rows as $index => $row) {
+                if (($row['a'] ?? null) === 1) {
+                    $ignored[] = $row['a'];
+                    continue;
+                }
+                $mutated[] = $row['a'];
+                unset($rows[$index]);
+            }
+            $rows = array_values($rows);
+        } else {
+            $nestedRows[] = ['a' => 1, 'b' => 2, 'c' => 3];
+            $nestedRows[] = ['a' => 1, 'b' => 2, 'c' => 3];
+            foreach ($rows as $index => $row) {
+                if (($row['a'] ?? null) === 1) {
+                    $ignored[] = $row['a'];
+                    continue;
+                }
+                $rows[$index]['c'] = 10;
+                $mutated[] = $row['a'];
+            }
+        }
+
+        return [
+            'source' => $operation === 'nested-insert' ? 'trigger3.test trigger3-6' : 'trigger3.test trigger3-5.1..5.2',
+            'operation' => 'raise-ignore-' . $operation,
+            'status' => 'commit-ok',
+            'ignored_a_values' => $ignored,
+            'mutated_a_values' => $mutated,
+            'final_rows' => self::sortRows($rows),
+            'final_a_values' => array_values(array_column(self::sortRows($rows), 'a')),
+            'nested_rows' => $nestedRows,
+            'nested_row_count' => count($nestedRows),
+            'dependencies' => [
+                'sqlite-trigger3-raise-ignore-update-delete-row-skip',
+                'sqlite-trigger3-nested-trigger-ignore-resumes-outer-program',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int,d:int}> $rows
      * @param list<array{columns:list<string>,where?:callable(array<string,mixed>):bool}> $updates
      * @param list<array{a:int,b:int,c:int,d:int}> $insertRows
@@ -1340,6 +1478,66 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'dependencies' => [
                 'sqlite-fkey4-deferred-autocommit-violation-rolls-back-statement',
                 'sqlite-fkey4-reprepared-statement-fails-independently',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{op:string,value?:bool,name?:string}> $actions
+     * @return array<string,mixed>
+     */
+    public static function foreignKeysPragmaToggleTransaction(array $actions, bool $initial = false): array
+    {
+        $enabled = $initial;
+        $depth = 0;
+        $history = [];
+        $ignored = 0;
+
+        foreach ($actions as $index => $action) {
+            $op = strtolower(trim((string) ($action['op'] ?? '')));
+            if ($op === 'begin' || $op === 'savepoint') {
+                ++$depth;
+            } elseif ($op === 'commit' || $op === 'release') {
+                $depth = max(0, $depth - 1);
+            } elseif ($op === 'rollback') {
+                $depth = 0;
+            } elseif ($op === 'pragma') {
+                $value = (bool) ($action['value'] ?? false);
+                if ($depth === 0) {
+                    $enabled = $value;
+                } else {
+                    ++$ignored;
+                }
+            } elseif ($op === 'read') {
+                // Read-only probe used by the upstream fkey2-8 matrix.
+            } else {
+                throw new \InvalidArgumentException('SQLite fkey2 foreign_keys pragma action is unsupported');
+            }
+
+            $history[] = [
+                'index' => $index,
+                'op' => $op,
+                'requested' => $action['value'] ?? null,
+                'transaction_depth' => $depth,
+                'foreign_keys' => $enabled ? 1 : 0,
+                'ignored_in_transaction' => $op === 'pragma' && $depth > 0,
+            ];
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-8.1..8.16',
+            'operation' => 'foreign-keys-pragma-transaction-boundary',
+            'status' => 'commit-ok',
+            'initial_foreign_keys' => $initial ? 1 : 0,
+            'final_foreign_keys' => $enabled ? 1 : 0,
+            'transaction_depth' => $depth,
+            'ignored_toggle_count' => $ignored,
+            'history' => $history,
+            'history_count' => count($history),
+            'dependencies' => [
+                'sqlite-fkey2-foreign-keys-pragma-autocommit-toggle',
+                'sqlite-fkey2-foreign-keys-pragma-ignored-inside-transaction',
+                'sqlite-fkey2-foreign-keys-pragma-ignored-inside-savepoint',
             ],
         ];
     }
@@ -2772,5 +2970,43 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $value;
+    }
+
+    private static function raiseActionForValue(int $value, bool $viewTrigger): string
+    {
+        if ($viewTrigger) {
+            return match ($value) {
+                1 => 'rollback',
+                2 => 'ignore',
+                3 => 'abort',
+                default => 'none',
+            };
+        }
+
+        return match ($value) {
+            1 => 'abort',
+            2 => 'fail',
+            3 => 'rollback',
+            4 => 'ignore',
+            default => 'none',
+        };
+    }
+
+    private static function raiseMessageForAction(string $action, bool $viewTrigger): ?string
+    {
+        if ($action === 'none' || $action === 'ignore') {
+            return null;
+        }
+
+        if ($viewTrigger) {
+            return $action === 'rollback' ? 'View rollback' : 'View abort';
+        }
+
+        return match ($action) {
+            'abort' => 'Trigger abort',
+            'fail' => 'Trigger fail',
+            'rollback' => 'Trigger rollback',
+            default => null,
+        };
     }
 }

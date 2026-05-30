@@ -461,4 +461,48 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexFaultCreateIndexRecoveryCases(1
     };
 }
 
+// Source truth: SQLite upstream test/numindex1.test numindex1-1.1 through
+// 3.2. These cases preserve large numeric index-key behavior where integer
+// and REAL values share or cross precision boundaries during delete, equality,
+// self-join, and ORDER BY probes.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::numindexLargeNumericKeyCases(1000) as $case) {
+    $tests['real upstream numindex1 large numeric index key case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('numindex1.test numindex1-1.1 through numindex1-3.2', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(in_array($case['upstream_section'], ['numindex1-1.1', 'numindex1-1.2', 'numindex1-1.3', 'numindex1-2.1', 'numindex1-3.2'], true));
+        $t->true($case['scenario'] !== '');
+        $t->true($case['index_name'] === 't1b' || $case['index_name'] === 't2-auto');
+        $t->true($case['integer_value'] > 10000000000000000);
+        $t->true($case['float_value'] > 1.0e16);
+        $t->true($case['comparison'] !== '');
+        $t->true($case['ordered_rowids'] !== []);
+        $t->true($case['selected_labels'] !== []);
+        $t->same('ok', $case['integrity']);
+        $t->true($case['precision_boundary'] !== '');
+
+        if ($case['upstream_section'] === 'numindex1-1.1') {
+            $t->same([0, 100], $case['ordered_rowids']);
+            $t->same('integer-real-equal-before-delete', $case['comparison']);
+            $t->same(['lower-integer', 'surviving-integer'], $case['selected_labels']);
+        }
+        if ($case['upstream_section'] === 'numindex1-1.2') {
+            $t->same([1, 2, 3], $case['ordered_rowids']);
+            $t->same(['b:integer', 'c:real', 'd:integer'], $case['selected_labels']);
+            $t->same('typeof-preserved', $case['comparison']);
+        }
+        if ($case['upstream_section'] === 'numindex1-1.3') {
+            $t->same(['b==b', 'b==c', 'b<>d', 'c==b', 'c==c', 'c<>d', 'd<>b', 'd<>c', 'd==d'], $case['selected_labels']);
+            $t->same('b==c and b<>d', $case['comparison']);
+        }
+        if ($case['upstream_section'] === 'numindex1-2.1') {
+            $t->same([37, 23], $case['ordered_rowids']);
+            $t->same('sentinel-integers-survive-duplicate-delete', $case['comparison']);
+        }
+        if ($case['upstream_section'] === 'numindex1-3.2') {
+            $t->same([1, 2, 4, 5, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 13, 19, 17, 3, 11, 7], $case['ordered_rowids']);
+            $t->same('mixed-integer-real-order', $case['comparison']);
+        }
+    };
+}
+
 return $tests;

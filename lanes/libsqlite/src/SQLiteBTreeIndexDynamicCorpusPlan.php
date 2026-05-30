@@ -1776,6 +1776,261 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,sql:string,result_code:int,message:string,index_name:string|null,expression:string|null,table_name:string,integrity:string|null,insert_row:array<int,mixed>|null,duplicate_row:array<int,mixed>|null,expected_rows:list<array<int,mixed>>,uses_expression_index:bool}>
+     */
+    public static function indexExpressionDdlGuardCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite upstream index expression DDL guard corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'indexexpr1-300',
+                'non-deterministic scalar calls are rejected in index expressions',
+                'CREATE INDEX t2x1 ON t2(a,b+random())',
+                1,
+                'non-deterministic functions prohibited in index expressions',
+                't2x1',
+                'b+random()',
+                't2',
+                null,
+                null,
+                [],
+                false,
+            ],
+            [
+                'indexexpr1-301',
+                'date/time now usage is rejected in index expressions',
+                "CREATE INDEX t2x1 ON t2(julianday('now',a))",
+                1,
+                'non-deterministic use of julianday() in an index',
+                't2x1',
+                "julianday('now',a)",
+                't2',
+                null,
+                null,
+                [],
+                false,
+            ],
+            [
+                'indexexpr1-310',
+                'subqueries are rejected in index expressions',
+                'CREATE INDEX t2x2 ON t2(a,b+(SELECT 15))',
+                1,
+                'subqueries prohibited in index expressions',
+                't2x2',
+                'b+(SELECT 15)',
+                't2',
+                null,
+                null,
+                [],
+                false,
+            ],
+            [
+                'indexexpr1-320',
+                'UNIQUE table constraints do not admit expression terms',
+                'CREATE TABLE e1(x,y,UNIQUE(y,substr(x,1,5)))',
+                1,
+                'expressions prohibited in PRIMARY KEY and UNIQUE constraints',
+                null,
+                'substr(x,1,5)',
+                'e1',
+                null,
+                null,
+                [],
+                false,
+            ],
+            [
+                'indexexpr1-330',
+                'PRIMARY KEY table constraints do not admit expression terms',
+                'CREATE TABLE e1(x,y,PRIMARY KEY(y,substr(x,1,5)))',
+                1,
+                'expressions prohibited in PRIMARY KEY and UNIQUE constraints',
+                null,
+                'substr(x,1,5)',
+                'e1',
+                null,
+                null,
+                [],
+                false,
+            ],
+            [
+                'indexexpr1-331',
+                'WITHOUT ROWID primary keys do not admit expression terms',
+                'CREATE TABLE e1(x,y,PRIMARY KEY(y,substr(x,1,5))) WITHOUT ROWID',
+                1,
+                'expressions prohibited in PRIMARY KEY and UNIQUE constraints',
+                null,
+                'substr(x,1,5)',
+                'e1',
+                null,
+                null,
+                [],
+                false,
+            ],
+            [
+                'indexexpr1-340',
+                'foreign-key column lists reject expression terms at parse time',
+                'CREATE TABLE e1(x,y,FOREIGN KEY(substr(y,1,5)) REFERENCES t1)',
+                1,
+                'near "(": syntax error',
+                null,
+                'substr(y,1,5)',
+                'e1',
+                null,
+                null,
+                [],
+                false,
+            ],
+            [
+                'indexexpr1-400',
+                'unique expression indexes preserve text-cast ordering and integrity',
+                'CREATE UNIQUE INDEX t3abc ON t3(CAST(a AS text), b, substr(c,1,3))',
+                0,
+                '',
+                't3abc',
+                'CAST(a AS text), b, substr(c,1,3)',
+                't3',
+                'ok',
+                null,
+                [
+                    [1],
+                    [10],
+                ],
+                true,
+            ],
+            [
+                'indexexpr1-410',
+                'duplicate rows are rejected by the unique expression index',
+                'INSERT INTO t3 SELECT * FROM t3 WHERE rowid=10',
+                1,
+                'UNIQUE constraint failed: index t3abc',
+                't3abc',
+                'CAST(a AS text), b, substr(c,1,3)',
+                't3',
+                'ok',
+                [10, 'ab000axyz', 'sample10'],
+                null,
+                true,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $sql, $code, $message, $indexName, $expression, $table, $integrity, $insertRow, $expectedRows, $usesIndex] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'indexexpr1.test indexexpr1-300 through indexexpr1-410',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'sql' => $sql,
+                'result_code' => $code,
+                'message' => $message,
+                'index_name' => $indexName,
+                'expression' => $expression,
+                'table_name' => $table,
+                'integrity' => $integrity,
+                'insert_row' => $insertRow,
+                'duplicate_row' => $section === 'indexexpr1-410' ? $insertRow : null,
+                'expected_rows' => $expectedRows,
+                'uses_expression_index' => $usesIndex,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,index_name:string,integer_value:int,float_value:float,comparison:string,ordered_rowids:list<int>,selected_labels:list<string>,integrity:string,precision_boundary:string}>
+     */
+    public static function numindexLargeNumericKeyCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite numindex1 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'numindex1-1.1',
+                'delete rounded REAL duplicate between adjacent large integer index keys',
+                't1b',
+                356282677878746339,
+                356282677878746339.0,
+                'integer-real-equal-before-delete',
+                [0, 100],
+                ['lower-integer', 'surviving-integer'],
+                '53-bit-plus integer/REAL comparison boundary',
+            ],
+            [
+                'numindex1-1.2',
+                'store integer and REAL values around one shifted 58-bit key',
+                't2-auto',
+                288230376151711744,
+                2.88230376151712e+17,
+                'typeof-preserved',
+                [1, 2, 3],
+                ['b:integer', 'c:real', 'd:integer'],
+                '1<<58 storage class split',
+            ],
+            [
+                'numindex1-1.3',
+                'self-join equality treats rounded REAL value equal to base integer only',
+                't2-auto',
+                288230376151711744,
+                2.88230376151712e+17,
+                'b==c and b<>d',
+                [1, 2, 3],
+                ['b==b', 'b==c', 'b<>d', 'c==b', 'c==c', 'c<>d', 'd<>b', 'd<>c', 'd==d'],
+                'large numeric equality matrix',
+            ],
+            [
+                'numindex1-2.1',
+                'delete one hundred rounded REAL duplicates leaving adjacent integer sentinels',
+                't1b',
+                10000000000000005,
+                10000000000000004.0,
+                'sentinel-integers-survive-duplicate-delete',
+                [37, 23],
+                ['low-sentinel', 'high-sentinel'],
+                '10000000000000004 REAL duplicate run',
+            ],
+            [
+                'numindex1-3.2',
+                'ORDER BY index over mixed integer and rounded REAL values preserves SQLite numeric order',
+                't1b',
+                100000000000000005,
+                100000000000000005.0,
+                'mixed-integer-real-order',
+                [1, 2, 4, 5, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 13, 19, 17, 3, 11, 7],
+                ['bulk-real-prefix', 'integer-tail'],
+                '100000000000000000 order boundary',
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $indexName, $integerValue, $floatValue, $comparison, $orderedRowids, $labels, $boundary] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'numindex1.test numindex1-1.1 through numindex1-3.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'index_name' => $indexName,
+                'integer_value' => $integerValue,
+                'float_value' => $floatValue,
+                'comparison' => $comparison,
+                'ordered_rowids' => $orderedRowids,
+                'selected_labels' => $labels,
+                'integrity' => 'ok',
+                'precision_boundary' => $boundary,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int
