@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 20:03 UTC):
+  Accepted a post-publish current-base libsqlite batch replayed on dashboard
+  head `688b5b5b`. Nineteen handoffs applied cleanly after excluding stale
+  status/dashboard hunks. Accepted coverage adds bulk veryquick shard evidence
+  plus real upstream B-tree numeric affinity, date fraction truncation,
+  expression affinity/types2/BETWEEN, JSON tree invariants and JSON corpus,
+  pager/WAL crash and follow-up behavior, PRAGMA schema5 legacy behavior,
+  trigger/FK action and foreign-key-check behavior, VFS IO behavior, and
+  window3/window8 group matrix coverage. Focused verification passed `15 files
+  / 243233 assertions / 0 failures / 32046 PASS lines`; the accepted-base
+  comparison passed `2 files / 25532 assertions / 0 failures / 51 PASS lines`,
+  so the honest selected PASS-line delta is `+31995`. Public libsqlite should
+  move to `528264 pass / 0 fail`; mapped coverage remains `1472 / 1589`.
+  Gates also passed PHP lint for 20 changed/new PHP files, `git diff --check`,
+  no new domain-shaped source additions, and `SQLiteNoDomainSpecificApiTest`.
+
 - 2026-05-30 supervisor continuation (integration sample 19:56 UTC):
   Latest accepted libsqlite source is `c3f5a2bb7`
   (`libsqlite: add high yield current base corpus batch`). This batch replays

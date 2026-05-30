@@ -1467,7 +1467,7 @@ final class SQLiteCoreScalarFunction
         if (strcasecmp($text, 'now') === 0) {
             return ['instant' => new \DateTimeImmutable('now', $timezone), 'floor' => null];
         }
-        if (preg_match('/\A\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
+        if (preg_match('/\A\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
             $normalized = self::normalizeDateTimeText('2000-01-01 ' . $text);
 
             try {
@@ -1494,7 +1494,7 @@ final class SQLiteCoreScalarFunction
                 return null;
             }
         }
-        if (preg_match('/\A-?\d{4}-\d{2}-\d{2}(?:[ T]+)\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
+        if (preg_match('/\A-?\d{4}-\d{2}-\d{2}(?:[ T]+)\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
             $normalized = self::normalizeDateTimeText($text);
 
             try {
@@ -1527,6 +1527,14 @@ final class SQLiteCoreScalarFunction
         $normalized = preg_replace('/[ T]+/', ' ', trim($text));
         if ($normalized === null) {
             throw new \InvalidArgumentException('Failed to normalize SQLite date/time value');
+        }
+        $normalized = preg_replace_callback(
+            '/(\d{2}:\d{2}:\d{2}\.)(\d+)/',
+            static fn (array $matches): string => $matches[1] . substr($matches[2], 0, 6),
+            $normalized
+        );
+        if ($normalized === null) {
+            throw new \InvalidArgumentException('Failed to normalize SQLite date/time fractional seconds');
         }
         $normalized = preg_replace('/\s+(Z|[+-]\d{2}:\d{2})\z/i', '$1', $normalized);
         if ($normalized === null) {

@@ -180,7 +180,11 @@ final class SQLiteSelectPredicate
             return $nullsEqual ? $accept($left === $right ? 0 : 1) : null;
         }
 
-        $comparison = self::compareValues($left, $right, $nullsEqual, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
+        $leftAffinity = self::operandAffinity($row, $predicate['left'] ?? null);
+        $rightAffinity = self::operandAffinity($row, $predicate['right'] ?? null);
+        $comparison = $leftAffinity !== null || $rightAffinity !== null
+            ? SQLiteAffinityComparison::compare($left, $right, $leftAffinity ?? 'NONE', $rightAffinity ?? 'NONE', self::predicateCollation($predicate) ?? 'BINARY')
+            : self::compareValues($left, $right, $nullsEqual, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
         if ($comparison === null && $nullsEqual) {
             return $accept(1);
         }
@@ -493,6 +497,45 @@ final class SQLiteSelectPredicate
         return self::compareText($leftText, $rightText, is_string($collation) ? $collation : 'BINARY');
     }
 
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function operandAffinity(array $row, mixed $expression): ?string
+    {
+        if (!is_array($expression)) {
+            return null;
+        }
+        if (($expression['type'] ?? null) === 'collate') {
+            return self::operandAffinity($row, $expression['operand'] ?? null);
+        }
+
+        $column = null;
+        if (array_key_exists('column', $expression)) {
+            $column = $expression['column'];
+        } elseif (($expression['type'] ?? null) === 'column') {
+            $column = $expression['name'] ?? null;
+        }
+        if (!is_string($column) || $column === '') {
+            return null;
+        }
+
+        $affinities = $row['__sqlite_column_affinities'] ?? null;
+        if (!is_array($affinities)) {
+            return null;
+        }
+        if (isset($affinities[$column]) && is_string($affinities[$column])) {
+            return $affinities[$column];
+        }
+        if (str_contains($column, '.')) {
+            $bare = substr($column, strrpos($column, '.') + 1);
+            if (isset($affinities[$bare]) && is_string($affinities[$bare])) {
+                return $affinities[$bare];
+            }
+        }
+
+        return null;
+    }
+
     private static function compareText(string $left, string $right, string $collation): int
     {
         return match (strtoupper($collation)) {
@@ -774,6 +817,12 @@ final class SQLiteSelectPredicate
         foreach ($row as $column => $value) {
             if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite SELECT predicate rows must have named columns');
+            }
+            if ($column === '__sqlite_column_affinities') {
+                if (!is_array($value)) {
+                    throw new \InvalidArgumentException('SQLite SELECT predicate column affinity metadata must be an array');
+                }
+                continue;
             }
             self::assertValue($value);
         }

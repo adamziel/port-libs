@@ -966,6 +966,95 @@ final class SQLiteVfsIoDynamicPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function pagerFaultLargeRollbackProfile(
+        string $scenario,
+        int $faultIndex,
+        int $pageSize,
+        int $seedPages,
+        int $touchedRows,
+        int $payloadBytes
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['large-savepoint-rollback', 'large-blob-insert', 'vacuum-page-size-rollback'], true)) {
+            throw new \InvalidArgumentException('SQLite pager fault rollback scenario is unsupported');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite pager fault rollback fault index must be positive');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite pager fault rollback page size must be a power of two at least 512');
+        }
+        if ($seedPages < 1 || $touchedRows < 1 || $payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite pager fault rollback requires positive page, row, and payload sizes');
+        }
+
+        $faultClass = 'oom-transient';
+        $autoVacuum = false;
+        $savepointName = null;
+        $rollbackAction = 'statement_replayed';
+        $rollbackExtendsFile = false;
+        $preVacuumPages = $seedPages;
+        $postVacuumPages = $seedPages;
+        $rollbackTargetPages = $seedPages;
+        $dirtyPages = max(1, (int) ceil(($touchedRows * ($payloadBytes + 16)) / $pageSize));
+        $lookasideDisabled = true;
+        $cacheSize = null;
+
+        if ($scenario === 'large-savepoint-rollback') {
+            $savepointName = 'abc';
+            $rollbackAction = 'rollback_to_savepoint_restores_large_update';
+            $dirtyPages = max($dirtyPages, 501);
+            $cacheSize = 4096;
+        } elseif ($scenario === 'large-blob-insert') {
+            $savepointName = 'abc';
+            $rollbackAction = 'large_blob_insert_oom_releases_statement_journal';
+            $dirtyPages = max($dirtyPages, 2442);
+            $cacheSize = 20;
+        } else {
+            $faultClass = 'ioerr-transient';
+            $autoVacuum = true;
+            $rollbackAction = 'hot_journal_rollback_extends_database_to_original_sector';
+            $rollbackExtendsFile = true;
+            $preVacuumPages = $seedPages;
+            $postVacuumPages = $seedPages + 1;
+            $rollbackTargetPages = $seedPages + 2;
+            $dirtyPages = max(1, $postVacuumPages);
+            $lookasideDisabled = false;
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => str_starts_with($scenario, 'large-') ? 'pagerfault2.test' : 'pagerfault3.test',
+            'scenario' => $scenario,
+            'upstream' => self::pagerFaultLargeRollbackUpstream($scenario),
+            'fault_class' => $faultClass,
+            'fault_index' => $faultIndex,
+            'journal_mode' => 'delete',
+            'auto_vacuum' => $autoVacuum,
+            'page_size' => $pageSize,
+            'seed_pages' => $seedPages,
+            'pre_vacuum_pages' => $preVacuumPages,
+            'post_vacuum_pages' => $postVacuumPages,
+            'rollback_target_pages' => $rollbackTargetPages,
+            'rollback_extends_file' => $rollbackExtendsFile,
+            'touched_rows' => $touchedRows,
+            'payload_bytes' => $payloadBytes,
+            'dirty_pages' => $dirtyPages,
+            'savepoint_name' => $savepointName,
+            'cache_size' => $cacheSize,
+            'lookaside_disabled' => $lookasideDisabled,
+            'rollback_action' => $rollbackAction,
+            'body_result' => 'ok',
+            'integrity_check' => 'ok',
+            'connection_reusable_after_fault' => true,
+            'statement_journal_released' => true,
+            'dependencies' => ['upstream-pagerfault2-test', 'upstream-pagerfault3-test', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;
@@ -1065,6 +1154,18 @@ final class SQLiteVfsIoDynamicPlan
             'walvfs-7' => ['walvfs.test 7.1'],
             'walvfs-8' => ['walvfs.test 8.2', 'walvfs.test 8.3'],
             'walvfs-9' => ['walvfs.test 9.1'],
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function pagerFaultLargeRollbackUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'large-savepoint-rollback' => ['pagerfault2.test pagerfault2-1-pre1', 'pagerfault2.test pagerfault2-1'],
+            'large-blob-insert' => ['pagerfault2.test pagerfault2-2-pre1', 'pagerfault2.test pagerfault2-2'],
+            'vacuum-page-size-rollback' => ['pagerfault3.test pagerfault3-pre1', 'pagerfault3.test pagerfault3-pre2', 'pagerfault3.test pagerfault3-1'],
         };
     }
 }

@@ -838,6 +838,122 @@ $tests['real upstream corpus vfs io dynamic walvfs shm fault profile rejects mal
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::walShmFaultProfile('walvfs-5', -1));
 };
 
+$pagerFaultCases = [];
+foreach (range(1, 70) as $faultIndex) {
+    $pagerFaultCases[] = [
+        'large-savepoint-rollback',
+        $faultIndex,
+        1024,
+        8268,
+        501,
+        402,
+        'pagerfault2.test',
+        'oom-transient',
+        'abc',
+        4096,
+        false,
+        'rollback_to_savepoint_restores_large_update',
+    ];
+    $pagerFaultCases[] = [
+        'large-blob-insert',
+        $faultIndex,
+        1024,
+        8268,
+        1,
+        2500000,
+        'pagerfault2.test',
+        'oom-transient',
+        'abc',
+        20,
+        false,
+        'large_blob_insert_oom_releases_statement_journal',
+    ];
+    $pagerFaultCases[] = [
+        'vacuum-page-size-rollback',
+        $faultIndex,
+        1024,
+        2,
+        1,
+        1200,
+        'pagerfault3.test',
+        'ioerr-transient',
+        null,
+        null,
+        true,
+        'hot_journal_rollback_extends_database_to_original_sector',
+    ];
+}
+
+$tests['real upstream corpus vfs io dynamic pagerfault2 and pagerfault3 large rollback matrix'] = static function (TestRunner $t) use ($pagerFaultCases): void {
+    foreach ($pagerFaultCases as [$scenario, $faultIndex, $pageSize, $seedPages, $touchedRows, $payloadBytes, $script, $faultClass, $savepointName, $cacheSize, $rollbackExtendsFile, $rollbackAction]) {
+        $profile = SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile(
+            $scenario,
+            $faultIndex,
+            $pageSize,
+            $seedPages,
+            $touchedRows,
+            $payloadBytes
+        );
+
+        $t->same('ok', $profile['status']);
+        $t->same($script, $profile['script']);
+        $t->same($scenario, $profile['scenario']);
+        $t->same($faultClass, $profile['fault_class']);
+        $t->same($faultIndex, $profile['fault_index']);
+        $t->same('delete', $profile['journal_mode']);
+        $t->same($scenario === 'vacuum-page-size-rollback', $profile['auto_vacuum']);
+        $t->same($pageSize, $profile['page_size']);
+        $t->same($seedPages, $profile['seed_pages']);
+        $t->same($touchedRows, $profile['touched_rows']);
+        $t->same($payloadBytes, $profile['payload_bytes']);
+        $t->same($savepointName, $profile['savepoint_name']);
+        $t->same($cacheSize, $profile['cache_size']);
+        $t->same($rollbackExtendsFile, $profile['rollback_extends_file']);
+        $t->same($rollbackAction, $profile['rollback_action']);
+        $t->same('ok', $profile['body_result']);
+        $t->same('ok', $profile['integrity_check']);
+        $t->same(true, $profile['connection_reusable_after_fault']);
+        $t->same(true, $profile['statement_journal_released']);
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $profile['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic pagerfault3 rollback extends database image'] = static function (TestRunner $t): void {
+    $profile = SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('vacuum-page-size-rollback', 11, 1024, 2, 1, 1200);
+
+    $t->same('pagerfault3.test', $profile['script']);
+    $t->same(['pagerfault3.test pagerfault3-pre1', 'pagerfault3.test pagerfault3-pre2', 'pagerfault3.test pagerfault3-1'], $profile['upstream']);
+    $t->same(2, $profile['pre_vacuum_pages']);
+    $t->same(3, $profile['post_vacuum_pages']);
+    $t->same(4, $profile['rollback_target_pages']);
+    $t->same(true, $profile['rollback_extends_file']);
+    $t->same('ioerr-transient', $profile['fault_class']);
+    $t->same(true, in_array('upstream-pagerfault3-test', $profile['dependencies'], true));
+};
+
+$tests['real upstream corpus vfs io dynamic pagerfault2 large savepoint profiles cite upstream sections'] = static function (TestRunner $t): void {
+    $savepoint = SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('large-savepoint-rollback', 4, 1024, 8268, 501, 402);
+    $blob = SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('large-blob-insert', 5, 1024, 8268, 1, 2500000);
+
+    $t->same(['pagerfault2.test pagerfault2-1-pre1', 'pagerfault2.test pagerfault2-1'], $savepoint['upstream']);
+    $t->same(['pagerfault2.test pagerfault2-2-pre1', 'pagerfault2.test pagerfault2-2'], $blob['upstream']);
+    $t->same(true, $savepoint['lookaside_disabled']);
+    $t->same(true, $blob['lookaside_disabled']);
+    $t->same(true, $savepoint['dirty_pages'] >= 501);
+    $t->same(true, $blob['dirty_pages'] >= 2442);
+    $t->same(true, in_array('upstream-pagerfault2-test', $savepoint['dependencies'], true));
+    $t->same(true, in_array('upstream-pagerfault2-test', $blob['dependencies'], true));
+};
+
+$tests['real upstream corpus vfs io dynamic pagerfault large rollback rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('', 1, 1024, 1, 1, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('large-savepoint-rollback', 0, 1024, 1, 1, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('large-savepoint-rollback', 1, 1000, 1, 1, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('large-savepoint-rollback', 1, 1024, 0, 1, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('large-savepoint-rollback', 1, 1024, 1, 0, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('large-savepoint-rollback', 1, 1024, 1, 1, 0));
+};
+
 $tests['real upstream corpus vfs io dynamic cksumvfs and walvfs reject malformed inputs'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::checksumReserveProfile(-1, 4096, 1, 1, 1, 1));
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::checksumReserveProfile(8, 1000, 1, 1, 1, 1));

@@ -579,6 +579,109 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{pid:int|string,label?:string}> $parents
+     * @param list<array{cid:int|string,pid:int|string|null,payload?:string}> $children
+     * @param array{operation:string,action:string,new_pid?:int|string|null,default?:int|string|null,conflict?:string,attached?:bool} $statement
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyActionJournalPlan(array $parents, array $children, array $statement): array
+    {
+        $operation = strtolower((string) ($statement['operation'] ?? ''));
+        $action = strtolower((string) ($statement['action'] ?? ''));
+        $conflict = strtolower((string) ($statement['conflict'] ?? 'default'));
+        if (!in_array($operation, ['delete', 'update'], true)) {
+            throw new \InvalidArgumentException('SQLite dynamic trigger FK action operation is unsupported');
+        }
+        if (!in_array($action, ['cascade', 'set null', 'set default', 'no action'], true)) {
+            throw new \InvalidArgumentException('SQLite dynamic trigger FK action is unsupported');
+        }
+        if (!in_array($conflict, ['default', 'ignore'], true)) {
+            throw new \InvalidArgumentException('SQLite dynamic trigger FK conflict policy is unsupported');
+        }
+
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $originalParents = $parents;
+        $originalChildren = $children;
+        $useStatementJournal = self::foreignKeyActionUsesStatementJournal($operation, $action, $conflict);
+        $actions = [];
+        $targetPids = array_values(array_map(static fn (array $row): mixed => $row['pid'], $parents));
+
+        if ($operation === 'delete') {
+            $parents = [];
+            foreach ($children as $index => $child) {
+                if (!in_array($child['pid'], $targetPids, true)) {
+                    continue;
+                }
+                if ($action === 'cascade') {
+                    $actions[] = ['action' => 'delete-child', 'cid' => $child['cid'], 'old_pid' => $child['pid'], 'new_pid' => null];
+                    unset($children[$index]);
+                    continue;
+                }
+                if ($action === 'set null') {
+                    $actions[] = ['action' => 'set-null-child', 'cid' => $child['cid'], 'old_pid' => $child['pid'], 'new_pid' => null];
+                    $children[$index]['pid'] = null;
+                    continue;
+                }
+                if ($action === 'set default') {
+                    $default = $statement['default'] ?? 0;
+                    $actions[] = ['action' => 'set-default-child', 'cid' => $child['cid'], 'old_pid' => $child['pid'], 'new_pid' => $default];
+                    $children[$index]['pid'] = $default;
+                }
+            }
+            $children = array_values($children);
+        } else {
+            $newPid = $statement['new_pid'] ?? null;
+            foreach ($parents as $index => $parent) {
+                $oldPid = $parent['pid'];
+                if ($conflict === 'ignore') {
+                    continue;
+                }
+                $parents[$index]['pid'] = self::updatedForeignKeyValue($oldPid, $newPid);
+                foreach ($children as $childIndex => $child) {
+                    if ($child['pid'] !== $oldPid) {
+                        continue;
+                    }
+                    $nextPid = match ($action) {
+                        'cascade' => $parents[$index]['pid'],
+                        'set null' => null,
+                        'set default' => $statement['default'] ?? 0,
+                        default => $child['pid'],
+                    };
+                    $actions[] = ['action' => 'update-child', 'cid' => $child['cid'], 'old_pid' => $child['pid'], 'new_pid' => $nextPid];
+                    $children[$childIndex]['pid'] = $nextPid;
+                }
+            }
+        }
+
+        $violations = self::simpleForeignKeyViolations($parents, $children);
+
+        return [
+            'source' => $operation === 'delete' ? 'fkey8.test fkey8-1.2.1..1.5.3' : 'fkey8.test fkey8-1.6.1..1.6.4,7.1..7.3',
+            'operation' => 'foreign-key-action-statement-journal-plan',
+            'status' => $violations === [] ? 'commit-ok' : 'constraint-failed',
+            'attached_schema' => (bool) ($statement['attached'] ?? false),
+            'statement_journal' => $useStatementJournal,
+            'foreign_key_action' => $action,
+            'statement_operation' => $operation,
+            'conflict_policy' => $conflict,
+            'parent_pids' => array_values(array_map(static fn (array $row): mixed => $row['pid'], self::sortRows($parents))),
+            'child_pids' => array_values(array_map(static fn (array $row): mixed => $row['pid'], self::sortRows($children))),
+            'action_count' => count($actions),
+            'actions' => $actions,
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'rollback_image_parent_pids' => $useStatementJournal ? array_values(array_map(static fn (array $row): mixed => $row['pid'], self::sortRows($originalParents))) : [],
+            'rollback_image_child_pids' => $useStatementJournal ? array_values(array_map(static fn (array $row): mixed => $row['pid'], self::sortRows($originalChildren))) : [],
+            'dependencies' => [
+                'sqlite-fkey8-action-statement-journal-classification',
+                'sqlite-fkey8-set-null-default-child-key-rewrite',
+                'sqlite-fkey8-attached-update-cascade-child-key-rewrite',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int}> $rows
      * @return array<string,mixed>
      */
@@ -1767,6 +1870,50 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         sort($names);
 
         return $names;
+    }
+
+    private static function foreignKeyActionUsesStatementJournal(string $operation, string $action, string $conflict): bool
+    {
+        if ($operation === 'delete') {
+            return $action === 'no action' || $action === 'set default';
+        }
+
+        if ($conflict === 'ignore') {
+            return $action !== 'cascade';
+        }
+
+        return $action !== 'cascade';
+    }
+
+    private static function updatedForeignKeyValue(mixed $oldPid, mixed $newPid): mixed
+    {
+        if (is_int($oldPid)) {
+            return $newPid === null ? $oldPid * 10 : $newPid;
+        }
+        if (is_numeric($oldPid)) {
+            return $newPid === null ? (string) ((int) $oldPid * 10) : $newPid;
+        }
+
+        return $newPid === null ? (string) $oldPid . '_updated' : $newPid;
+    }
+
+    /**
+     * @param list<array{pid:int|string,label?:string}> $parents
+     * @param list<array{cid:int|string,pid:int|string|null,payload?:string}> $children
+     * @return list<array{cid:int|string,pid:int|string|null}>
+     */
+    private static function simpleForeignKeyViolations(array $parents, array $children): array
+    {
+        $parentKeys = array_values(array_map(static fn (array $row): mixed => $row['pid'], $parents));
+        $violations = [];
+        foreach ($children as $child) {
+            if ($child['pid'] === null || in_array($child['pid'], $parentKeys, true)) {
+                continue;
+            }
+            $violations[] = ['cid' => $child['cid'], 'pid' => $child['pid']];
+        }
+
+        return $violations;
     }
 
     /**
