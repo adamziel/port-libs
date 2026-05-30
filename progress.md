@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 23:45 UTC):
+  Latest libsqlite source is integrated as `4f38a10f`
+  (`libsqlite: add twenty-sixth current corpus sweep`). The batch accepted 10
+  behavior-producing handoffs: B-tree index expression/JSON covering behavior,
+  expression bitwise affinity and negative operand semantics, JSON104
+  merge-patch matrix behavior, pager/WAL real pager recovery, PRAGMA
+  data_version behavior, SELECT G/H VALUES and compound behavior, trigger9 OLD
+  row/view materialization behavior, UPSERT autoincrement RETURNING behavior,
+  VFS journal2 SAFE_DELETE lifecycle behavior, and window8 GROUPS/EXCLUDE
+  extensions. Verification passed PHP lint for `16` changed/new PHP files,
+  `git diff --cached --check -- lanes/libsqlite`, source-neutral guards,
+  focused selected tests `10 files / 176313 assertions / 0 failures / 35342
+  PASS lines`, accepted-base overlap `1 file / 8401 assertions / 0 failures /
+  2801 PASS lines`, expression related tests `4 files / 31667 assertions / 0
+  failures / 10603 PASS lines`, SELECT related tests `6 files / 57319
+  assertions / 0 failures / 8959 PASS lines`, and trigger related tests `5
+  files / 48441 assertions / 0 failures / 46925 PASS lines`. Honest selected
+  movement is `+32541`, so the public row should move to `1202711 pass / 0
+  fail` with coverage still `1589 / 1589`. A separate visible side worker
+  `side-sqlite-pdo-trust-lib-20260530T234355Z` is running to move PDO SQL
+  validation down into libsqlite and remove PDO-specific INSERT syntax gating.
+
 - 2026-05-30 supervisor continuation (integration sample 23:40 UTC):
   Latest libsqlite source is integrated as `252baed08`
   (`libsqlite: add twenty-fifth current corpus sweep`). The batch accepted 7
