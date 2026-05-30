@@ -62,7 +62,7 @@ ksort($rolledBack, SORT_NUMERIC);
 $rolledBackBytes = implode('', $rolledBack);
 $sourceId = 'wal-hot-journal-savepoint-checkpoint-next161:current:' . substr(hash('sha256', $databasePath . '|plugin-import-next161|restart|4|' . $currentWalBytes . '|' . $rolledBackBytes), 0, 24);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerCacheCheckpointPlan(
     $databasePath,
     $databaseBytes,
     $pageSize,

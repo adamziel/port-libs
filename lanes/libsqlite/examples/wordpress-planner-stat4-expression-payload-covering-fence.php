@@ -103,7 +103,7 @@ $where = [
     ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext218(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeExpressionPayloadCoveringFence(
     $prepared,
     $current,
     $where,

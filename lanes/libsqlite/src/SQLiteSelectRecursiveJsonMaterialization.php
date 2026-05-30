@@ -30,7 +30,7 @@ final class SQLiteSelectRecursiveJsonMaterialization
             'orderColumns' => $plan['orderColumns'],
             'indexes' => $plan['indexes'],
             'keys' => $plan['keys'],
-            'currentNext' => SQLiteJsonTableDerivedIndex::currentNextPairs($plan),
+            'currentNext' => SQLiteJsonTableDerivedIndex::adjacentPairs($plan),
             'recursiveCurrentNext' => self::recursiveCurrentNext($trace, $plan['rows']),
             'trace' => $trace,
             'dependencies' => [
@@ -56,7 +56,7 @@ final class SQLiteSelectRecursiveJsonMaterialization
             'indexes' => $plan['indexes'],
         ];
 
-        return SQLiteJsonTableDerivedIndex::currentNextFor($indexPlan, $criteria);
+        return SQLiteJsonTableDerivedIndex::adjacentFor($indexPlan, $criteria);
     }
 
     /**

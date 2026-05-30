@@ -5726,7 +5726,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext173(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
+        public static function materializeDuplicateSampleFanout(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
             $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePostAnalyzeSampleWindowFence(
                 $preparedSource,
@@ -5734,20 +5734,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $whereTerms,
                 $neededColumns,
             );
-            $selected = self::arrayValueNext173($base, 'selectedPlan');
+            $selected = self::arrayValueForDuplicateFanout($base, 'selectedPlan');
             $indexName = (string) ($selected['name'] ?? '');
             $expression = (string) ($selected['expression'] ?? 'lower(option_name)');
             $collation = (string) ($selected['collation'] ?? 'BINARY');
-            $currentWindow = self::arrayValueNext173($base, 'currentSampleWindow');
-            $sampleFence = self::arrayValueNext173($base, 'postAnalyzeSampleFence');
-            $sampleFanout = self::sampleFanoutNext173($currentSource, $indexName, $currentWindow, $expression, $collation);
+            $currentWindow = self::arrayValueForDuplicateFanout($base, 'currentSampleWindow');
+            $sampleFence = self::arrayValueForDuplicateFanout($base, 'postAnalyzeSampleFence');
+            $sampleFanout = self::duplicateSampleFanout($currentSource, $indexName, $currentWindow, $expression, $collation);
             $duplicateBuckets = array_values(array_filter(
                 $sampleFanout,
                 static fn (array $bucket): bool => count($bucket['rowids']) > 1,
             ));
-            $fanoutRowids = self::uniqueRowidsNext173($sampleFanout);
-            $sampleOnlyRowids = array_values(array_diff(self::intListNext173($sampleFence['currentRowids'] ?? []), $fanoutRowids));
-            $windowRowids = self::intListNext173($currentWindow['rowids'] ?? []);
+            $fanoutRowids = self::uniqueDuplicateFanoutRowids($sampleFanout);
+            $sampleOnlyRowids = array_values(array_diff(self::intListForDuplicateFanout($sampleFence['currentRowids'] ?? []), $fanoutRowids));
+            $windowRowids = self::intListForDuplicateFanout($currentWindow['rowids'] ?? []);
             sort($windowRowids, SORT_NUMERIC);
             $completeFanout = $duplicateBuckets !== []
                 && array_reduce($duplicateBuckets, static fn (bool $carry, array $bucket): bool => $carry && ($bucket['complete'] ?? false) === true, true);
@@ -5764,9 +5764,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'stat4FanoutRowids' => $fanoutRowids,
                 'sampleOnlyRowidsMissingCurrentFanout' => $sampleOnlyRowids,
                 'stat4DuplicateKeyCount' => count($duplicateBuckets),
-                'stat4FanoutSignature' => self::signatureNext173($sampleFanout),
-                'cursorProgram' => self::cursorProgramNext173(
-                    self::listValueNext173($base['cursorProgram'] ?? []),
+                'stat4FanoutSignature' => self::duplicateFanoutSignature($sampleFanout),
+                'cursorProgram' => self::duplicateFanoutCursorProgram(
+                    self::listValueForDuplicateFanout($base['cursorProgram'] ?? []),
                     $duplicateBuckets,
                     $fanoutRowids,
                     $ready,
@@ -5775,12 +5775,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next173Ready' => $ready,
                     'next173DuplicateKeyCount' => count($duplicateBuckets),
                     'next173FanoutRowids' => $fanoutRowids,
-                    'next173FanoutSignature' => self::signatureNext173($sampleFanout),
+                    'next173FanoutSignature' => self::duplicateFanoutSignature($sampleFanout),
                 ]),
                 'stat4Fence' => array_replace(
-                    self::arrayValueNext173($base, 'stat4Fence'),
+                    self::arrayValueForDuplicateFanout($base, 'stat4Fence'),
                     [
-                        'next173FanoutSignature' => self::signatureNext173($sampleFanout),
+                        'next173FanoutSignature' => self::duplicateFanoutSignature($sampleFanout),
                         'next173DuplicateKeyCount' => count($duplicateBuckets),
                     ],
                 ),
@@ -5803,10 +5803,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $window
          * @return list<array{key:mixed,sampleRowid:int,neq:int,rowids:list<int>,rowCount:int,complete:bool}>
          */
-        private static function sampleFanoutNext173(array $source, string $indexName, array $window, string $expression, string $collation): array
+        private static function duplicateSampleFanout(array $source, string $indexName, array $window, string $expression, string $collation): array
         {
             $rowsByKey = [];
-            foreach (self::listValueNext173($window['rows'] ?? []) as $row) {
+            foreach (self::listValueForDuplicateFanout($window['rows'] ?? []) as $row) {
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next173 window rows must be arrays');
                 }
@@ -5815,12 +5815,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_int($rowid) || $rowid < 0) {
                     throw new \InvalidArgumentException('SQLite next173 window rowid must be a non-negative integer');
                 }
-                $rowsByKey[self::keySignatureNext173($key, $collation)][] = $rowid;
+                $rowsByKey[self::keySignatureForDuplicateFanout($key, $collation)][] = $rowid;
             }
 
             $buckets = [];
-            foreach (self::indexSamplesNext173($source, $indexName) as $sample) {
-                $signature = self::keySignatureNext173($sample['key'], $collation);
+            foreach (self::stat4DuplicateFanoutSamples($source, $indexName) as $sample) {
+                $signature = self::keySignatureForDuplicateFanout($sample['key'], $collation);
                 if (!isset($rowsByKey[$signature])) {
                     continue;
                 }
@@ -5836,7 +5836,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ];
             }
 
-            usort($buckets, static fn (array $a, array $b): int => self::compareNext173($a['key'], $b['key'], $collation));
+            usort($buckets, static fn (array $a, array $b): int => self::compareDuplicateFanoutKeys($a['key'], $b['key'], $collation));
 
             return $buckets;
         }
@@ -5844,21 +5844,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @return list<array{key:mixed,rowid:int,neq:int}>
          */
-        private static function indexSamplesNext173(array $source, string $indexName): array
+        private static function stat4DuplicateFanoutSamples(array $source, string $indexName): array
         {
-            foreach (self::listValueNext173($source['indexes'] ?? []) as $index) {
+            foreach (self::listValueForDuplicateFanout($source['indexes'] ?? []) as $index) {
                 if (!is_array($index) || ($index['name'] ?? null) !== $indexName) {
                     continue;
                 }
                 $samples = [];
-                foreach (self::listValueNext173($index['stat4Samples'] ?? []) as $sample) {
+                foreach (self::listValueForDuplicateFanout($index['stat4Samples'] ?? []) as $sample) {
                     if (!is_array($sample) || !is_array($sample['sample'] ?? null) || count($sample['sample']) < 2) {
                         throw new \InvalidArgumentException('SQLite next173 STAT4 samples need key and rowid');
                     }
                     $samples[] = [
                         'key' => $sample['sample'][0],
-                        'rowid' => self::intValueNext173($sample['sample'][1]),
-                        'neq' => self::firstStatIntNext173($sample['neq'] ?? 1),
+                        'rowid' => self::intValueForDuplicateFanout($sample['sample'][1]),
+                        'neq' => self::firstStatIntForDuplicateFanout($sample['neq'] ?? 1),
                     ];
                 }
 
@@ -5874,7 +5874,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<int> $fanoutRowids
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext173(array $cursor, array $duplicateBuckets, array $fanoutRowids, bool $ready): array
+        private static function duplicateFanoutCursorProgram(array $cursor, array $duplicateBuckets, array $fanoutRowids, bool $ready): array
         {
             if (!$ready) {
                 return [['opcode' => 'FallbackFullScan', 'reason' => 'STAT4 duplicate-key fanout not complete']];
@@ -5899,11 +5899,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $buckets */
-        private static function uniqueRowidsNext173(array $buckets): array
+        private static function uniqueDuplicateFanoutRowids(array $buckets): array
         {
             $rowids = [];
             foreach ($buckets as $bucket) {
-                foreach (self::intListNext173($bucket['rowids'] ?? []) as $rowid) {
+                foreach (self::intListForDuplicateFanout($bucket['rowids'] ?? []) as $rowid) {
                     $rowids[$rowid] = $rowid;
                 }
             }
@@ -5913,7 +5913,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return array<string,mixed> */
-        private static function arrayValueNext173(array $array, string $key): array
+        private static function arrayValueForDuplicateFanout(array $array, string $key): array
         {
             $value = $array[$key] ?? null;
             if (!is_array($value)) {
@@ -5924,23 +5924,23 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return list<mixed> */
-        private static function listValueNext173(mixed $value): array
+        private static function listValueForDuplicateFanout(mixed $value): array
         {
             return is_array($value) ? array_values($value) : [];
         }
 
         /** @return list<int> */
-        private static function intListNext173(mixed $value): array
+        private static function intListForDuplicateFanout(mixed $value): array
         {
             $out = [];
-            foreach (self::listValueNext173($value) as $item) {
-                $out[] = self::intValueNext173($item);
+            foreach (self::listValueForDuplicateFanout($value) as $item) {
+                $out[] = self::intValueForDuplicateFanout($item);
             }
 
             return $out;
         }
 
-        private static function intValueNext173(mixed $value): int
+        private static function intValueForDuplicateFanout(mixed $value): int
         {
             if (!is_int($value) && !ctype_digit((string) $value)) {
                 throw new \InvalidArgumentException('SQLite next173 integer value expected');
@@ -5949,16 +5949,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return (int) $value;
         }
 
-        private static function firstStatIntNext173(mixed $value): int
+        private static function firstStatIntForDuplicateFanout(mixed $value): int
         {
             if (is_string($value)) {
                 $value = preg_split('/\s+/', trim($value))[0] ?? '0';
             }
 
-            return self::intValueNext173($value);
+            return self::intValueForDuplicateFanout($value);
         }
 
-        private static function keySignatureNext173(mixed $key, string $collation): string
+        private static function keySignatureForDuplicateFanout(mixed $key, string $collation): string
         {
             $value = (string) $key;
             if (strtoupper($collation) === 'NOCASE') {
@@ -5968,12 +5968,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $value;
         }
 
-        private static function compareNext173(mixed $left, mixed $right, string $collation): int
+        private static function compareDuplicateFanoutKeys(mixed $left, mixed $right, string $collation): int
         {
-            return self::keySignatureNext173($left, $collation) <=> self::keySignatureNext173($right, $collation);
+            return self::keySignatureForDuplicateFanout($left, $collation) <=> self::keySignatureForDuplicateFanout($right, $collation);
         }
 
-        private static function signatureNext173(mixed $value): string
+        private static function duplicateFanoutSignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -16084,7 +16084,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext218(
+        public static function materializeExpressionPayloadCoveringFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -16101,10 +16101,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $offset,
             );
             $selectedName = (string) ($base['selectedPlan']['name'] ?? '');
-            $currentIndex = self::indexByNameNext218($currentSource, $selectedName);
-            $fence = self::payloadFenceNext218(
+            $currentIndex = self::indexByNameForExpressionPayloadFence($currentSource, $selectedName);
+            $fence = self::expressionPayloadCoveringFence(
                 $currentIndex,
-                self::matchedRowsNext218($base),
+                self::matchedRowsForExpressionPayloadFence($base),
                 $neededColumns,
             );
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next212-ready'
@@ -16128,7 +16128,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next218ExpressionPayloadSignature' => $fence['expressionPayloadSignature'],
                     'next218PayloadProofSignature' => $fence['proofSignature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext218(
+                'cursorProgram' => self::cursorProgramForExpressionPayloadFence(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
@@ -16150,7 +16150,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext218(array $source, string $name): array
+        private static function indexByNameForExpressionPayloadFence(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -16172,7 +16172,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<array<string,mixed>>
          */
-        private static function matchedRowsNext218(array $base): array
+        private static function matchedRowsForExpressionPayloadFence(array $base): array
         {
             $rows = $base['matchedRows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -16193,7 +16193,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function payloadFenceNext218(array $index, array $matchedRows, array $neededColumns): array
+        private static function expressionPayloadCoveringFence(array $index, array $matchedRows, array $neededColumns): array
         {
             $expression = strtolower(preg_replace('/\s+/', '', (string) ($index['expression'] ?? '')) ?? '');
             if ($expression !== 'lower(option_name)') {
@@ -16203,9 +16203,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!in_array($collation, ['BINARY', 'NOCASE'], true)) {
                 throw new \InvalidArgumentException('SQLite next218 expression payload collation is unsupported');
             }
-            $covering = self::stringListNext218($index['coveringColumns'] ?? null, 'coveringColumns');
-            $payloads = self::payloadsNext218($index['stat4ExpressionPayloads'] ?? null);
-            $samples = self::samplesNext218($index['stat4Samples'] ?? null);
+            $covering = self::stringListForExpressionPayloadFence($index['coveringColumns'] ?? null, 'coveringColumns');
+            $payloads = self::payloadsForExpressionPayloadFence($index['stat4ExpressionPayloads'] ?? null);
+            $samples = self::samplesForExpressionPayloadFence($index['stat4Samples'] ?? null);
             $missingColumns = array_values(array_diff($neededColumns, $covering));
             $payloadByRowid = [];
             foreach ($payloads as $payload) {
@@ -16215,10 +16215,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $rowProofs = [];
             $stale = [];
             foreach ($matchedRows as $row) {
-                $rowid = self::rowidNext218($row, 'matched rowid');
+                $rowid = self::rowidForExpressionPayloadFence($row, 'matched rowid');
                 $payload = $payloadByRowid[$rowid] ?? null;
                 $rowPayload = is_array($row['payload'] ?? null) ? $row['payload'] : $row;
-                $expectedKey = self::expressionKeyNext218($row['expressionKey'] ?? ($rowPayload['option_name'] ?? null), $collation);
+                $expectedKey = self::expressionKeyForExpressionPayloadFence($row['expressionKey'] ?? ($rowPayload['option_name'] ?? null), $collation);
                 $actualKey = is_array($payload) ? (string) ($payload['expressionKey'] ?? '') : null;
                 $coveredValues = is_array($payload) && is_array($payload['coveredValues'] ?? null)
                     ? $payload['coveredValues']
@@ -16270,16 +16270,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'stat4SamplePayloadProofs' => $sampleProofs,
                 'missingSamplePayloadRowids' => array_values(array_unique($missingSamples)),
                 'allStat4SamplePayloadsResolveToCurrentRows' => $missingSamples === [],
-                'expressionPayloadSignature' => self::signatureNext218($payloads),
-                'currentCoveringSignature' => self::signatureNext218([$covering, $neededColumns, $collation]),
-                'proofSignature' => self::signatureNext218([$rowProofs, $sampleProofs, $missingColumns]),
+                'expressionPayloadSignature' => self::signatureForExpressionPayloadFence($payloads),
+                'currentCoveringSignature' => self::signatureForExpressionPayloadFence([$covering, $neededColumns, $collation]),
+                'proofSignature' => self::signatureForExpressionPayloadFence([$rowProofs, $sampleProofs, $missingColumns]),
             ];
         }
 
         /**
          * @return list<string>
          */
-        private static function stringListNext218(mixed $value, string $label): array
+        private static function stringListForExpressionPayloadFence(mixed $value, string $label): array
         {
             if (!is_array($value) || !array_is_list($value)) {
                 throw new \InvalidArgumentException('SQLite next218 ' . $label . ' must be a list');
@@ -16291,7 +16291,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @return list<array{rowid:int,expressionKey:string,coveredValues:array<string,mixed>}>
          */
-        private static function payloadsNext218(mixed $value): array
+        private static function payloadsForExpressionPayloadFence(mixed $value): array
         {
             if (!is_array($value) || !array_is_list($value) || $value === []) {
                 throw new \InvalidArgumentException('SQLite next218 needs stat4ExpressionPayloads');
@@ -16302,7 +16302,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     throw new \InvalidArgumentException('SQLite next218 expression payload entries are malformed');
                 }
                 $out[] = [
-                    'rowid' => self::rowidNext218(['rowid' => $payload['rowid'] ?? null], 'payload rowid'),
+                    'rowid' => self::rowidForExpressionPayloadFence(['rowid' => $payload['rowid'] ?? null], 'payload rowid'),
                     'expressionKey' => strtolower((string) ($payload['expressionKey'] ?? '')),
                     'coveredValues' => $payload['coveredValues'],
                 ];
@@ -16314,7 +16314,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @return list<array{rowid:int,expressionKey:string}>
          */
-        private static function samplesNext218(mixed $value): array
+        private static function samplesForExpressionPayloadFence(mixed $value): array
         {
             if (!is_array($value) || !array_is_list($value) || $value === []) {
                 throw new \InvalidArgumentException('SQLite next218 needs stat4Samples');
@@ -16326,14 +16326,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $out[] = [
                     'expressionKey' => strtolower((string) $sample['sample'][0]),
-                    'rowid' => self::rowidNext218(['rowid' => $sample['sample'][1]], 'sample rowid'),
+                    'rowid' => self::rowidForExpressionPayloadFence(['rowid' => $sample['sample'][1]], 'sample rowid'),
                 ];
             }
 
             return $out;
         }
 
-        private static function expressionKeyNext218(mixed $value, string $collation): ?string
+        private static function expressionKeyForExpressionPayloadFence(mixed $value, string $collation): ?string
         {
             if ($value === null) {
                 return null;
@@ -16344,7 +16344,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext218(array $row, string $label): int
+        private static function rowidForExpressionPayloadFence(array $row, string $label): int
         {
             if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
                 throw new \InvalidArgumentException('SQLite next218 ' . $label . ' must be an integer');
@@ -16358,7 +16358,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext218(array $program, bool $ready, array $fence): array
+        private static function cursorProgramForExpressionPayloadFence(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
@@ -16373,7 +16373,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext218(mixed $value): string
+        private static function signatureForExpressionPayloadFence(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         }
@@ -16859,7 +16859,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext218(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeExpressionPayloadCoveringFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,

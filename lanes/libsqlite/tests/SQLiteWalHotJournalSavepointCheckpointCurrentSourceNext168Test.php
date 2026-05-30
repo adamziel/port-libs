@@ -56,7 +56,7 @@ $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 
 $checkpointPages = [1, 2, 3, 4, 5];
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerCacheCheckpointPlan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -75,7 +75,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next16
 );
 $currentToken = $bootstrap['current_source_token'];
 $nextToken = $bootstrap['next_source_token'];
-$truncateBootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
+$truncateBootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerCacheCheckpointPlan(
     $databasePath,
     $databaseBytes,
     $pageSize,

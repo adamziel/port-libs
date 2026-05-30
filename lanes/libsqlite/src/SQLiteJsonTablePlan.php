@@ -282,7 +282,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,runnable:bool,idxNum:int,idxStr:string,filterArguments:list<mixed>,constraintUsage:list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}>,filterCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,rowCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null,currentIndex:int,nextIndex:int|null,currentId:int|null,nextId:int|null,sameParent:bool,samePath:bool}>,estimatedCost:int,estimatedRows:int}
      */
-    public static function currentNextConstraintPlan(string $function, array $constraints, array $orderBy = []): array
+    public static function adjacentConstraintPlan(string $function, array $constraints, array $orderBy = []): array
     {
         $indexPlan = self::xBestIndexPlan($function, $constraints, $orderBy);
         $validatedPlan = self::validatedPlan($function, $constraints);
@@ -444,7 +444,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $partitionBy
      * @return list<array{current:array<string,mixed>,next:array<string,mixed>|null,partitionKey:string,currentIndex:int,nextIndex:int|null,currentRank:int,nextRank:int|null,samePeer:bool,samePartition:bool}>
      */
-    public static function rankedCurrentNextRows(
+    public static function rankedAdjacentRows(
         string $function,
         array $constraints,
         array $orderBy,
@@ -1320,10 +1320,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableIndexedConstraintCostProfile119($plan['current'], $plan['currentCostOrder']);
-        $nextProfile = self::jsonTableIndexedConstraintCostProfile119($plan['next'], $plan['nextCostOrder']);
-        $transitions = self::jsonTableIndexedConstraintTransitions119($currentProfile, $nextProfile);
-        $reasons = self::jsonTableIndexedConstraintReplanReasons119($transitions);
+        $currentProfile = self::jsonTableIndexedConstraintCostProfile($plan['current'], $plan['currentCostOrder']);
+        $nextProfile = self::jsonTableIndexedConstraintCostProfile($plan['next'], $plan['nextCostOrder']);
+        $transitions = self::jsonTableIndexedConstraintTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableIndexedConstraintReplanReasons($transitions);
 
         $currentProfile['nestedRoot'] = $plan['currentNestedPath']['root'];
         $currentProfile['nestedPathMode'] = $plan['currentNestedPath']['mode'];
@@ -2948,7 +2948,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidXNextBatch(
+    public static function currentSourceGeneratedPathRowidBatchAdvancePlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3388,7 +3388,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidYieldNextPlan(
+    public static function currentSourceGeneratedPathRowidYieldAdvancePlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3462,7 +3462,7 @@ final class SQLiteJsonTablePlan
      * @param list<int>|null $observedDeliveredRowids
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidXNextResumePlan(
+    public static function currentSourceGeneratedPathRowidResumePlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -4295,7 +4295,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidXNext(
+    public static function currentSourceGeneratedPathRowidAdvancePlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -5334,7 +5334,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidBatchedXNextPlan(
+        $plan = self::currentSourceGeneratedPathRowidBatchedAdvancePlan(
             $function,
             $currentSource,
             $nextSource,
@@ -5466,7 +5466,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidBatchedXNextPlan(
+    public static function currentSourceGeneratedPathRowidBatchedAdvancePlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7312,10 +7312,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableIndexedConstraintCostProfile119($plan['current'], $plan['currentCostOrder']);
-        $nextProfile = self::jsonTableIndexedConstraintCostProfile119($plan['next'], $plan['nextCostOrder']);
-        $transitions = self::jsonTableIndexedConstraintTransitions119($currentProfile, $nextProfile);
-        $reasons = self::jsonTableIndexedConstraintReplanReasons119($transitions);
+        $currentProfile = self::jsonTableIndexedConstraintCostProfile($plan['current'], $plan['currentCostOrder']);
+        $nextProfile = self::jsonTableIndexedConstraintCostProfile($plan['next'], $plan['nextCostOrder']);
+        $transitions = self::jsonTableIndexedConstraintTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableIndexedConstraintReplanReasons($transitions);
 
         $plan['currentIndexedConstraintCost'] = $currentProfile;
         $plan['nextIndexedConstraintCost'] = $nextProfile;
@@ -8691,7 +8691,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $costOrder
      * @return array{indexedConstraints:list<array<string,mixed>>,selected:array<string,mixed>|null,selectedSignature:string|null,scanStrategy:string,indexedEstimatedRows:int,indexedEstimatedCost:int,sortPenalty:int,effectiveEstimatedCost:int,costClass:string,rowCount:int}
      */
-    private static function jsonTableIndexedConstraintCostProfile119(array $plan, array $costOrder): array
+    private static function jsonTableIndexedConstraintCostProfile(array $plan, array $costOrder): array
     {
         $indexed = [];
         foreach ($plan['constraintUsage'] as $usage) {
@@ -8704,7 +8704,7 @@ final class SQLiteJsonTablePlan
             $candidateUsage['value'] = $argumentIndex !== null && array_key_exists($argumentIndex, $plan['filterArguments'])
                 ? $plan['filterArguments'][$argumentIndex]
                 : null;
-            $candidate = self::jsonTableIndexedConstraintCandidate119($candidateUsage, (int) $plan['estimatedRows'], (int) $plan['estimatedCost']);
+            $candidate = self::jsonTableIndexedConstraintCandidate($candidateUsage, (int) $plan['estimatedRows'], (int) $plan['estimatedCost']);
             if ($candidate !== null) {
                 $indexed[] = $candidate;
             }
@@ -8738,13 +8738,13 @@ final class SQLiteJsonTablePlan
         return [
             'indexedConstraints' => $indexed,
             'selected' => $selected,
-            'selectedSignature' => $selected === null ? null : self::jsonTableIndexedConstraintSignature119($selected),
+            'selectedSignature' => $selected === null ? null : self::jsonTableIndexedConstraintSignature($selected),
             'scanStrategy' => $scanStrategy,
             'indexedEstimatedRows' => $indexedRows,
             'indexedEstimatedCost' => $indexedCost,
             'sortPenalty' => $sortPenalty,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTableIndexedConstraintCostClass119($scanStrategy, $selected, $effectiveCost),
+            'costClass' => self::jsonTableIndexedConstraintCostClass($scanStrategy, $selected, $effectiveCost),
             'rowCount' => count($plan['rows']),
         ];
     }
@@ -8753,7 +8753,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $usage
      * @return array<string,mixed>|null
      */
-    private static function jsonTableIndexedConstraintCandidate119(array $usage, int $baseRows, int $baseCost): ?array
+    private static function jsonTableIndexedConstraintCandidate(array $usage, int $baseRows, int $baseCost): ?array
     {
         $column = self::normalizeConstraintColumn((string) $usage['column']);
         $operator = strtoupper((string) $usage['operator']);
@@ -8802,7 +8802,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array<string,mixed>|null $selected
      */
-    private static function jsonTableIndexedConstraintCostClass119(string $scanStrategy, ?array $selected, int $effectiveCost): string
+    private static function jsonTableIndexedConstraintCostClass(string $scanStrategy, ?array $selected, int $effectiveCost): string
     {
         if ($scanStrategy === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -8823,7 +8823,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array<string,mixed> $selected
      */
-    private static function jsonTableIndexedConstraintSignature119(array $selected): string
+    private static function jsonTableIndexedConstraintSignature(array $selected): string
     {
         return implode(':', [
             (string) $selected['constraintIndex'],
@@ -8838,7 +8838,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableIndexedConstraintTransitions119(array $current, array $next): array
+    private static function jsonTableIndexedConstraintTransitions(array $current, array $next): array
     {
         return [
             [
@@ -8884,7 +8884,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableIndexedConstraintReplanReasons119(array $transitions): array
+    private static function jsonTableIndexedConstraintReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -18445,7 +18445,7 @@ final class SQLiteJsonTablePlan
         return [
             'pathConstraints' => $pathConstraints,
             'selectedPath' => $selected,
-            'selectedPathSignature' => $selected === null ? null : self::jsonTableIndexedConstraintSignature119($selected),
+            'selectedPathSignature' => $selected === null ? null : self::jsonTableIndexedConstraintSignature($selected),
             'pathScanStrategy' => $strategy,
             'pathEstimatedRows' => $rows,
             'pathEstimatedCost' => $cost,
@@ -20482,7 +20482,7 @@ final class SQLiteJsonTablePlan
 
         $path = $pathCost['selectedPath'];
         $pathSignature = $pathCost['selectedPathSignature'];
-        $rowidSignature = $rowid === null ? null : self::jsonTableIndexedConstraintSignature119($rowid);
+        $rowidSignature = $rowid === null ? null : self::jsonTableIndexedConstraintSignature($rowid);
         $rowids = self::rowidsFromRows($plan['rows']);
         $pathRowidTape = self::jsonTablePathRowidTape126($plan['rows']);
 

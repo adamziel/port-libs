@@ -61,7 +61,7 @@ $baseForTokens = static function () use ($databasePath, $databaseBytes, $pageSiz
         1 => ['image' => $page('next164 current wal schema draft'), 'source_id' => 'bootstrap', 'epoch' => 1],
     ];
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerCacheCheckpointPlan(
         $databasePath,
         $databaseBytes,
         $pageSize,

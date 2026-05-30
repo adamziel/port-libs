@@ -57,7 +57,7 @@ $nextWalBytes = $makeWal([
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerCacheCheckpointPlan(
     $databasePath,
     $databaseBytes,
     $pageSize,

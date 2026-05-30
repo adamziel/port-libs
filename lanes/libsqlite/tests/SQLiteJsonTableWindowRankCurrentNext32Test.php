@@ -16,7 +16,7 @@ $orderBy = [
 ];
 $partitionBy = ['path'];
 
-$pairs = static fn (): array => SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', $constraints, $orderBy, $partitionBy, 3);
+$pairs = static fn (): array => SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', $constraints, $orderBy, $partitionBy, 3);
 $rows = static fn (): array => array_column($pairs(), 'current');
 $column = static fn (string $column): array => array_column($rows(), $column);
 
@@ -40,7 +40,7 @@ $allPriorityConstraints = [
     ['column' => 'root', 'operator' => '=', 'value' => '$.plugins'],
     ['column' => 'key', 'operator' => '=', 'value' => 'priority'],
 ];
-$globalPairs = static fn (): array => SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', $allPriorityConstraints, [
+$globalPairs = static fn (): array => SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', $allPriorityConstraints, [
     ['column' => 'atom', 'direction' => 'DESC'],
 ], [], 2);
 $globalRows = static fn (): array => array_column($globalPairs(), 'current');
@@ -145,16 +145,16 @@ $tests += [
 ];
 
 $tests += [
-    'json table window rank current next32 rejects missing order by' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', $constraints, [])),
-    'json table window rank current next32 rejects zero ntile buckets' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', $constraints, $orderBy, [], 0)),
-    'json table window rank current next32 rejects missing value column' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', $constraints, $orderBy, [], 1, 'missing')),
-    'json table window rank current next32 empty filtered json source returns empty pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', [['column' => 'json', 'operator' => '=', 'value' => '{"plugins":[]}'], ['column' => 'root', 'operator' => '=', 'value' => '$.plugins'], ['column' => 'key', 'operator' => '=', 'value' => 'priority']], [['column' => 'id']])),
-    'json table window rank current next32 sql null json source returns empty pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', [['column' => 'json', 'operator' => '=', 'value' => null]], [['column' => 'id']])),
-    'json table window rank current next32 respects hidden limit before ranking order' => static fn (TestRunner $t) => $t->same([9, 5, 5], array_column(array_column(SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', array_merge($allPriorityConstraints, [['column' => 'limit', 'operator' => '=', 'value' => 3]]), [['column' => 'atom', 'direction' => 'DESC']]), 'current'), 'atom')),
-    'json table window rank current next32 respects offset before ranking' => static fn (TestRunner $t) => $t->same([7, 5, 5, 3, 3], array_column(array_column(SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', array_merge($allPriorityConstraints, [['column' => 'offset', 'operator' => '=', 'value' => 1]]), [['column' => 'atom', 'direction' => 'DESC']]), 'current'), 'atom')),
-    'json table window rank current next32 accepts json each arrays' => static fn (TestRunner $t) => $t->same([4, 4, 2, 1], array_column(array_column(SQLiteJsonTablePlan::rankedCurrentNextRows('json_each', [['column' => 'json', 'operator' => '=', 'value' => '[4,4,2,1]']], [['column' => 'atom', 'direction' => 'DESC']]), 'current'), 'atom')),
-    'json table window rank current next32 json each tie ranks' => static fn (TestRunner $t) => $t->same([1, 1, 3, 4], array_column(array_column(SQLiteJsonTablePlan::rankedCurrentNextRows('json_each', [['column' => 'json', 'operator' => '=', 'value' => '[4,4,2,1]']], [['column' => 'atom', 'direction' => 'DESC']]), 'current'), 'window_rank')),
-    'json table window rank current next32 json each tie peer flag' => static fn (TestRunner $t) => $t->same([true, false, false, false], array_column(SQLiteJsonTablePlan::rankedCurrentNextRows('json_each', [['column' => 'json', 'operator' => '=', 'value' => '[4,4,2,1]']], [['column' => 'atom', 'direction' => 'DESC']]), 'samePeer')),
+    'json table window rank current next32 rejects missing order by' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', $constraints, [])),
+    'json table window rank current next32 rejects zero ntile buckets' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', $constraints, $orderBy, [], 0)),
+    'json table window rank current next32 rejects missing value column' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', $constraints, $orderBy, [], 1, 'missing')),
+    'json table window rank current next32 empty filtered json source returns empty pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', [['column' => 'json', 'operator' => '=', 'value' => '{"plugins":[]}'], ['column' => 'root', 'operator' => '=', 'value' => '$.plugins'], ['column' => 'key', 'operator' => '=', 'value' => 'priority']], [['column' => 'id']])),
+    'json table window rank current next32 sql null json source returns empty pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', [['column' => 'json', 'operator' => '=', 'value' => null]], [['column' => 'id']])),
+    'json table window rank current next32 respects hidden limit before ranking order' => static fn (TestRunner $t) => $t->same([9, 5, 5], array_column(array_column(SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', array_merge($allPriorityConstraints, [['column' => 'limit', 'operator' => '=', 'value' => 3]]), [['column' => 'atom', 'direction' => 'DESC']]), 'current'), 'atom')),
+    'json table window rank current next32 respects offset before ranking' => static fn (TestRunner $t) => $t->same([7, 5, 5, 3, 3], array_column(array_column(SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', array_merge($allPriorityConstraints, [['column' => 'offset', 'operator' => '=', 'value' => 1]]), [['column' => 'atom', 'direction' => 'DESC']]), 'current'), 'atom')),
+    'json table window rank current next32 accepts json each arrays' => static fn (TestRunner $t) => $t->same([4, 4, 2, 1], array_column(array_column(SQLiteJsonTablePlan::rankedAdjacentRows('json_each', [['column' => 'json', 'operator' => '=', 'value' => '[4,4,2,1]']], [['column' => 'atom', 'direction' => 'DESC']]), 'current'), 'atom')),
+    'json table window rank current next32 json each tie ranks' => static fn (TestRunner $t) => $t->same([1, 1, 3, 4], array_column(array_column(SQLiteJsonTablePlan::rankedAdjacentRows('json_each', [['column' => 'json', 'operator' => '=', 'value' => '[4,4,2,1]']], [['column' => 'atom', 'direction' => 'DESC']]), 'current'), 'window_rank')),
+    'json table window rank current next32 json each tie peer flag' => static fn (TestRunner $t) => $t->same([true, false, false, false], array_column(SQLiteJsonTablePlan::rankedAdjacentRows('json_each', [['column' => 'json', 'operator' => '=', 'value' => '[4,4,2,1]']], [['column' => 'atom', 'direction' => 'DESC']]), 'samePeer')),
 ];
 
 return $tests;

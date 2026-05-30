@@ -40,7 +40,7 @@ $sql = "SELECT o.option_id AS option_id, o.option_name AS option_name, o.autoloa
 $tables = ['wp_options' => $options];
 $plan = static fn (): array => SQLiteJsonTableDerivedIndex::materialize($sql, $tables, ['option_name', 'attr'], ['fullkey']);
 $lookup = static fn (string $name, string $attr): array => SQLiteJsonTableDerivedIndex::lookup($plan(), ['option_name' => $name, 'attr' => $attr]);
-$pairs = static fn (string $name, string $attr): array => SQLiteJsonTableDerivedIndex::currentNextFor($plan(), ['option_name' => $name, 'attr' => $attr]);
+$pairs = static fn (string $name, string $attr): array => SQLiteJsonTableDerivedIndex::adjacentFor($plan(), ['option_name' => $name, 'attr' => $attr]);
 
 $tests = [
     'materializes derived json leaf rows' => static function (TestRunner $t) use ($plan): void {
@@ -125,13 +125,13 @@ $tests = [
         $t->same('enabled', $pairs('plugin_beta_settings', 'enabled')[0]['key']['attr']);
     },
     'all current next pairs include every materialized row' => static function (TestRunner $t) use ($plan): void {
-        $t->same(12, count(SQLiteJsonTableDerivedIndex::currentNextPairs($plan())));
+        $t->same(12, count(SQLiteJsonTableDerivedIndex::adjacentPairs($plan())));
     },
     'all current next pairs keep first option grouping' => static function (TestRunner $t) use ($plan): void {
-        $t->same('plugin_alpha_settings', SQLiteJsonTableDerivedIndex::currentNextPairs($plan())[0]['key']['option_name']);
+        $t->same('plugin_alpha_settings', SQLiteJsonTableDerivedIndex::adjacentPairs($plan())[0]['key']['option_name']);
     },
     'all current next pairs keep first attribute grouping' => static function (TestRunner $t) use ($plan): void {
-        $t->same('enabled', SQLiteJsonTableDerivedIndex::currentNextPairs($plan())[0]['key']['attr']);
+        $t->same('enabled', SQLiteJsonTableDerivedIndex::adjacentPairs($plan())[0]['key']['attr']);
     },
     'derived select can read indexed rows back through select sql' => static function (TestRunner $t) use ($sql, $tables): void {
         $rows = SQLiteSelectSql::execute("SELECT option_name, attr, atom FROM ({$sql}) AS derived WHERE attr = 'priority' ORDER BY option_name, atom", $tables);
@@ -191,7 +191,7 @@ $tests = [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTableDerivedIndex::lookup($plan(), ['option_name' => 'plugin_alpha_settings']));
     },
     'rejects current next lookup missing key column' => static function (TestRunner $t) use ($plan): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTableDerivedIndex::currentNextFor($plan(), ['option_name' => 'plugin_alpha_settings']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTableDerivedIndex::adjacentFor($plan(), ['option_name' => 'plugin_alpha_settings']));
     },
     'preserves sql text in plan' => static function (TestRunner $t) use ($plan, $sql): void {
         $t->same($sql, $plan()['sql']);

@@ -33,7 +33,7 @@ $plan202 = static fn (
     ?string $observedSourceGeneration = null,
     int $xNextBatchSize = 1,
     ?string $observedSourceFingerprint = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXNextBatch(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatchAdvancePlan(
     'json_tree',
     $current ?? $current202,
     $next ?? $next202,
@@ -130,7 +130,7 @@ $tests = [
     'preserves next194 source reason' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-source-changed-next194', $changed202()['next202ReplanReasons'], true)),
     'bad projection rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan202(null, null, null, null, null, null, ['bad_column'])),
     'bad xnext batch rejected' => function (TestRunner $t) use ($current202): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXNextBatch(
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatchAdvancePlan(
             'json_tree',
             $current202,
             $current202,

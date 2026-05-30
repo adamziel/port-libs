@@ -37,7 +37,7 @@ $alphaPriorities = SQLiteJsonTableDerivedIndex::lookup($plan, [
     'option_name' => 'plugin_alpha_settings',
     'attr' => 'priority',
 ]);
-$alphaPriorityPairs = SQLiteJsonTableDerivedIndex::currentNextFor($plan, [
+$alphaPriorityPairs = SQLiteJsonTableDerivedIndex::adjacentFor($plan, [
     'option_name' => 'plugin_alpha_settings',
     'attr' => 'priority',
 ]);

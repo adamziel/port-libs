@@ -1,4 +1,4 @@
-# sqlplanner-stat4-expression-partial-current-source-next218
+# sqlplanner-stat4-expression-payload-covering-fence
 
 ## Behavior
 
@@ -15,7 +15,7 @@ covering payload rows.
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext218Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialExpressionPayloadCoveringFenceTest.php`
   - `1 test files, 70 assertions, 0 failures`
 
 ## Non-Overlap

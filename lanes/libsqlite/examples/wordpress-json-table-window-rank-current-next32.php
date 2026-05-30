@@ -18,7 +18,7 @@ require __DIR__ . '/../src/SQLiteJsonTablePlan.php';
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $settings = '{"plugins":[{"slug":"seo","priority":9},{"slug":"cache","priority":5},{"slug":"forms","priority":5},{"slug":"media","priority":3}]}';
-$pairs = SQLiteJsonTablePlan::rankedCurrentNextRows('json_tree', [
+$pairs = SQLiteJsonTablePlan::rankedAdjacentRows('json_tree', [
     ['column' => 'json', 'operator' => '=', 'value' => $settings],
     ['column' => 'root', 'operator' => '=', 'value' => '$.plugins'],
     ['column' => 'key', 'operator' => '=', 'value' => 'priority'],

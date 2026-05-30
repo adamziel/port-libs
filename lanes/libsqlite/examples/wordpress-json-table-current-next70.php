@@ -28,7 +28,7 @@ $settings = json_encode([
     ],
 ], JSON_THROW_ON_ERROR);
 
-$plan = SQLiteJsonTablePlan::currentNextConstraintPlan('json_tree', [
+$plan = SQLiteJsonTablePlan::adjacentConstraintPlan('json_tree', [
     ['column' => 'json', 'operator' => '=', 'value' => $settings],
     ['column' => 'root', 'operator' => '=', 'value' => '$.plugins'],
     ['column' => 'key', 'operator' => '=', 'value' => 'slug'],

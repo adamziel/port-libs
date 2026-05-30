@@ -45,7 +45,7 @@ $stack->recordWalFrameWrite(2, 2, true);
 $stack->savepoint('plugin-import-next162');
 $stack->recordWalFrameWrite(3, 3, true);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next162Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::hotJournalSavepointCheckpointPlan(
     '/srv/www/wp-content/database/wp.sqlite',
     $dirtyDatabase,
     $journalBytes,

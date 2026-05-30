@@ -30,7 +30,7 @@ $plan216 = static fn (
     ?int $lastYieldedRowid = null,
     ?int $yieldBatchSize = 3,
     ?array $projection = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXNext(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidAdvancePlan(
     'json_tree',
     $current ?? $current216,
     $next ?? $xnext,
@@ -116,7 +116,7 @@ $tests = [
     'unusable range cost class reseek' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-xnext-reseek-range', $unusableRange216()['currentGeneratedPathRowidCurrentSourceXNext']['costClass']),
     'malformed generated path rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan216(array_replace($current216, ['generated_path' => '$.rules[']), $current216)),
     'bad root rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan216(array_replace($current216, ['scan_root' => 216]), $current216)),
-    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXNext('json_bad', $current216, $current216, 'option_value', 'generated_path')),
+    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidAdvancePlan('json_bad', $current216, $current216, 'option_value', 'generated_path')),
     'dependency closure' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

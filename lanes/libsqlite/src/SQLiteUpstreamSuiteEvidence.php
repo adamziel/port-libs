@@ -8656,7 +8656,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext377(
+    public function upstreamVeryquickShardCurrentSourcePublishedShard(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -21516,7 +21516,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerAdmissionCurrentSourceNext102(
+    public function upstreamRunnerAdmission(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -21790,7 +21790,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerAdmissionCurrentSourceNext102(
+        $record = $this->upstreamRunnerAdmission(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,

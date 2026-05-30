@@ -62,7 +62,7 @@ $current['rows'] = [
     ['rowid' => 40, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo', 'updated_at' => 40],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext173(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeDuplicateSampleFanout(
     $prepared,
     $current,
     [
@@ -78,12 +78,12 @@ if (in_array('--self-test', $argv, true)) {
     assert($plan['status'] === 'stat4-expression-partial-current-source-next173-ready');
     assert($plan['duplicateStat4KeyBuckets'][0]['rowids'] === [10, 12]);
     assert($plan['stat4FanoutRowids'] === [10, 12, 20, 40, 50]);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next173 self-test passed\n";
+    echo "wordpress-sqlplanner-stat4-expression-partial-duplicate-sample-fanout self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next173',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-duplicate-sample-fanout',
     'wordpressUse' => 'Preview copied wp_options plugin scans after ANALYZE keeps one STAT4 sample for duplicate lower(option_name) keys, expanding the current partial expression-index rowid fanout while blocking stale prepared rows.',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],

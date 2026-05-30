@@ -29,7 +29,7 @@ $plan182 = static fn (
     ?int $limit = 4,
     ?int $lastYieldedRowid = 7,
     ?int $yieldBatchSize = 1,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatchedXNextPlan(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatchedAdvancePlan(
     'json_tree',
     $current ?? $current182,
     $next ?? $next182,

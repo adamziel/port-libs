@@ -24,7 +24,7 @@ $constraints70 = [
     ['column' => 'id', 'operator' => '>=', 'value' => 4],
 ];
 
-$plan70 = static fn (): array => SQLiteJsonTablePlan::currentNextConstraintPlan(
+$plan70 = static fn (): array => SQLiteJsonTablePlan::adjacentConstraintPlan(
     'json_tree',
     $constraints70,
     [['column' => 'id']],
@@ -33,7 +33,7 @@ $pairs70 = static fn (): array => $plan70()['rowCurrentNext'];
 $first70 = static fn (): array => $pairs70()[0];
 $second70 = static fn (): array => $pairs70()[1];
 
-$limited70 = static fn (): array => SQLiteJsonTablePlan::currentNextConstraintPlan(
+$limited70 = static fn (): array => SQLiteJsonTablePlan::adjacentConstraintPlan(
     'json_tree',
     array_merge($constraints70, [
         ['column' => 'limit', 'operator' => '=', 'value' => 1],
@@ -42,7 +42,7 @@ $limited70 = static fn (): array => SQLiteJsonTablePlan::currentNextConstraintPl
     [['column' => 'id']],
 );
 
-$unordered70 = static fn (): array => SQLiteJsonTablePlan::currentNextConstraintPlan(
+$unordered70 = static fn (): array => SQLiteJsonTablePlan::adjacentConstraintPlan(
     'json_tree',
     $constraints70,
     [['column' => 'atom', 'direction' => 'DESC']],
@@ -97,11 +97,11 @@ $cases70 = [
     'descending atom order is applied when order by is not consumed' => static fn (TestRunner $t) => $t->same('seo-pack', $unordered70()['rowCurrentNext'][0]['current']['atom']),
     'descending atom next follows sorted order' => static fn (TestRunner $t) => $t->same('forms-lite', $unordered70()['rowCurrentNext'][0]['next']['atom']),
     'descending atom terminal is cache pro' => static fn (TestRunner $t) => $t->same('cache-pro', $unordered70()['rowCurrentNext'][2]['current']['atom']),
-    'sql null hidden json has no row pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::currentNextConstraintPlan('json_each', [['column' => 'json', 'operator' => '=', 'value' => null]])['rowCurrentNext']),
-    'malformed jsonb hidden json has no row pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::currentNextConstraintPlan('json_each', [['column' => 'json', 'operator' => '=', 'value' => new PortLibs\LibSqlite\SQLiteBlobValue(hex2bin("1c00"))]])['rowCurrentNext']),
-    'unusable json is not runnable' => static fn (TestRunner $t) => $t->same(false, SQLiteJsonTablePlan::currentNextConstraintPlan('json_each', [['column' => 'json', 'operator' => '=', 'value' => $settings70, 'usable' => false]])['runnable']),
-    'unusable json has no row pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::currentNextConstraintPlan('json_each', [['column' => 'json', 'operator' => '=', 'value' => $settings70, 'usable' => false]])['rowCurrentNext']),
-    'invalid root path is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentNextConstraintPlan('json_tree', [['column' => 'json', 'operator' => '=', 'value' => $settings70], ['column' => 'root', 'operator' => '=', 'value' => '$.[bad']])) ,
+    'sql null hidden json has no row pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::adjacentConstraintPlan('json_each', [['column' => 'json', 'operator' => '=', 'value' => null]])['rowCurrentNext']),
+    'malformed jsonb hidden json has no row pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::adjacentConstraintPlan('json_each', [['column' => 'json', 'operator' => '=', 'value' => new PortLibs\LibSqlite\SQLiteBlobValue(hex2bin("1c00"))]])['rowCurrentNext']),
+    'unusable json is not runnable' => static fn (TestRunner $t) => $t->same(false, SQLiteJsonTablePlan::adjacentConstraintPlan('json_each', [['column' => 'json', 'operator' => '=', 'value' => $settings70, 'usable' => false]])['runnable']),
+    'unusable json has no row pairs' => static fn (TestRunner $t) => $t->same([], SQLiteJsonTablePlan::adjacentConstraintPlan('json_each', [['column' => 'json', 'operator' => '=', 'value' => $settings70, 'usable' => false]])['rowCurrentNext']),
+    'invalid root path is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::adjacentConstraintPlan('json_tree', [['column' => 'json', 'operator' => '=', 'value' => $settings70], ['column' => 'root', 'operator' => '=', 'value' => '$.[bad']])) ,
 ];
 
 foreach ($cases70 as $name => $case) {

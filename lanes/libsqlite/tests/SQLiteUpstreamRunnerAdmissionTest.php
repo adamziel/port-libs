@@ -10,7 +10,7 @@ $dashboard = '103fc00c42f1ff0580cae8a7768e4a3da0979c2d';
 $status = '5883f5e65ebfd2e9cf8c9acf617a2a818277909c';
 $implementation = '21f1e38635e924df34f7be1aef3242b4b233710c';
 $next = 'next102-source-head0000000000000000000000000000';
-$focusedPath = 'lanes/libsqlite/tests/SQLiteUpstreamRunnerAdmissionCurrentSourceNext102Test.php';
+$focusedPath = 'lanes/libsqlite/tests/SQLiteUpstreamRunnerAdmissionTest.php';
 $nonOverlap = 'next102 admits current-source upstream runner artifacts without repeating release-runner countability next99, suite denominator current-next68, or focused runner artifact admission';
 $focusedOutput = "Focused test run: 1 selected test files (root lock skipped)\n"
     . "PASS next102 admission countable\n"
@@ -59,7 +59,7 @@ $admittedRows = [
     ],
 ];
 
-$record = static fn (array $rows = null, ?int $expectedPassDelta = 3, string $processSnapshot = ''): array => $evidence()->upstreamRunnerAdmissionCurrentSourceNext102(
+$record = static fn (array $rows = null, ?int $expectedPassDelta = 3, string $processSnapshot = ''): array => $evidence()->upstreamRunnerAdmission(
     $rows ?? $admittedRows,
     587,
     39474,
@@ -147,6 +147,6 @@ return [
     'next102 duplicate broad runner exposes blocker' => static fn (TestRunner $t) => $t->same('duplicate-broad-runner-active', $record(null, 3, "123 testfixture ../libsqlite/test/testrunner.tcl --stop-on-error all\n")['blockers'][0]['id']),
     'next102 expected pass mismatch blocks admission' => static fn (TestRunner $t) => $t->same('blocked', $record(null, 4)['status']),
     'next102 expected pass mismatch reports php blocker' => static fn (TestRunner $t) => $t->same('focused-current-head-php-pass-blocked', $record(null, 4)['blockers'][0]['id']),
-    'next102 rejects empty artifacts' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $evidence()->upstreamRunnerAdmissionCurrentSourceNext102([], 587, 39474, $base, $dashboard, $status, $implementation, $next, $focusedPath, $focusedOutput, $nonOverlap, 3)),
-    'next102 rejects missing next source head' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $evidence()->upstreamRunnerAdmissionCurrentSourceNext102($admittedRows, 587, 39474, $base, $dashboard, $status, $implementation, '', $focusedPath, $focusedOutput, $nonOverlap, 3)),
+    'next102 rejects empty artifacts' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $evidence()->upstreamRunnerAdmission([], 587, 39474, $base, $dashboard, $status, $implementation, $next, $focusedPath, $focusedOutput, $nonOverlap, 3)),
+    'next102 rejects missing next source head' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $evidence()->upstreamRunnerAdmission($admittedRows, 587, 39474, $base, $dashboard, $status, $implementation, '', $focusedPath, $focusedOutput, $nonOverlap, 3)),
 ];

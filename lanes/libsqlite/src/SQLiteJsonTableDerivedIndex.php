@@ -82,7 +82,7 @@ final class SQLiteJsonTableDerivedIndex
      * @param array{rows:list<array<string,mixed>>,indexColumns:list<string>,indexes:array<string,list<int>>} $plan
      * @return list<array{key:array<string,mixed>,current:array<string,mixed>,next:?array<string,mixed>,currentPosition:int,nextPosition:int|null}>
      */
-    public static function currentNextPairs(array $plan): array
+    public static function adjacentPairs(array $plan): array
     {
         $pairs = [];
         foreach ($plan['indexes'] as $positions) {
@@ -110,12 +110,12 @@ final class SQLiteJsonTableDerivedIndex
      * @param array<string,mixed> $criteria
      * @return list<array{key:array<string,mixed>,current:array<string,mixed>,next:?array<string,mixed>,currentPosition:int,nextPosition:int|null}>
      */
-    public static function currentNextFor(array $plan, array $criteria): array
+    public static function adjacentFor(array $plan, array $criteria): array
     {
         $wanted = self::criteriaKey($plan['indexColumns'], $criteria);
 
         return array_values(array_filter(
-            self::currentNextPairs($plan),
+            self::adjacentPairs($plan),
             static fn (array $pair): bool => self::rowKey($pair['current'], $plan['indexColumns']) === $wanted,
         ));
     }

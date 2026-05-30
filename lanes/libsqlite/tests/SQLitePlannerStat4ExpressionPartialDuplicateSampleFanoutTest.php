@@ -78,7 +78,7 @@ $terms173 = static fn (): array => [
     $notNull173('option_name'),
 ];
 $needed173 = ['option_name', 'option_value', 'updated_at'];
-$plan173 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext173(
+$plan173 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeDuplicateSampleFanout(
     $prepared ?? $prepared173(),
     $current ?? $current173(),
     $terms ?? $terms173(),

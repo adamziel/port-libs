@@ -32,7 +32,7 @@ $next = [
     'source_generation' => 22,
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatchedXNextPlan(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatchedAdvancePlan(
     'json_tree',
     $current,
     $next,
