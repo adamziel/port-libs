@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 17:20 UTC):
+  Latest accepted libsqlite source is `7ad48fe68`
+  (`libsqlite: add focused throughput corpus batch`). The batch accepted a
+  compatible current-base bundle covering real upstream expression/affinity,
+  JSON merge-patch, date4, B-tree/index, trigger/FK, window, PRAGMA, VFS, and
+  source-neutral CAST/LIKE/GLOB plus JSONB CHECK cleanup. Verification passed
+  PHP lint for changed and new PHP files, `git diff --check -- lanes/libsqlite`,
+  changed-file domain-shaped text scans except the existing status schema keys,
+  and focused gate `14 files / 13155 assertions / 0 failures / 6946 selected
+  PASS lines`. Accepted-base comparison at `45c7c0b7` passed `11 files / 4817
+  assertions / 0 failures / 1837 PASS lines`, so the honest new PASS-line
+  delta is `+5109`, moving public libsqlite from `201224 pass / 0 fail` to
+  `206333 pass / 0 fail`; mapped coverage remains `958 / 1589`. A full
+  libsqlite lane run was started and confirmed CPU-bound, but stopped after
+  `32447` interim PASS lines because per-batch full-lane replay would consume
+  tens of minutes and prevent the requested `10k+` PASS/hour integration rate.
+  Full-lane verification should run at periodic larger checkpoints or after
+  riskier production changes; focused current-base batches should keep landing
+  every 10-15 minutes with honest baseline-delta accounting.
+
 - 2026-05-30 supervisor continuation (integration sample 17:00 UTC):
   Latest accepted libsqlite source is `b998b5462`
   (`libsqlite: add focused real corpus batch`). The batch accepted seven clean
