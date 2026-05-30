@@ -43,6 +43,7 @@ final class SQLiteRowValueNestedSavepointReturningPlan
         }
 
         $outerImage = self::normalizeTables($tables);
+        $rowIdColumn = self::resolveRowIdColumn($outerImage, $rowIdColumn);
         [$innerReleased, $innerExecuted, $innerReturning] = self::runStatements(
             $outerImage,
             $innerStatements,
@@ -180,6 +181,69 @@ final class SQLiteRowValueNestedSavepointReturningPlan
         }
 
         return $tables;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     */
+    private static function resolveRowIdColumn(array $tables, string $preferred): string
+    {
+        if ($preferred === '') {
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint rowid column must be non-empty');
+        }
+
+        foreach ($tables as $rows) {
+            if ($rows === []) {
+                continue;
+            }
+            if (array_key_exists($preferred, $rows[0])) {
+                return $preferred;
+            }
+        }
+
+        $candidates = [];
+        foreach ($tables as $rows) {
+            foreach ($rows as $row) {
+                foreach ($row as $column => $value) {
+                    if (!is_string($column) || !str_ends_with($column, '_id')) {
+                        continue;
+                    }
+                    if (!is_int($value) && !is_string($value)) {
+                        unset($candidates[$column]);
+                        continue;
+                    }
+                    $candidates[$column] ??= [];
+                    $candidates[$column][(string) $value] = true;
+                }
+            }
+        }
+
+        foreach (array_keys($candidates) as $column) {
+            foreach ($tables as $rows) {
+                if ($rows === []) {
+                    continue;
+                }
+                $seen = [];
+                foreach ($rows as $row) {
+                    if (!array_key_exists($column, $row)) {
+                        continue 2;
+                    }
+                    $value = $row[$column];
+                    if (!is_int($value) && !is_string($value)) {
+                        continue 2;
+                    }
+                    $key = (string) $value;
+                    if (isset($seen[$key])) {
+                        continue 2;
+                    }
+                    $seen[$key] = true;
+                }
+            }
+
+            return $column;
+        }
+
+        throw new \InvalidArgumentException("SQLite row-value nested savepoint rowid column {$preferred} is missing");
     }
 
     private static function identifier(string $value, string $label): void

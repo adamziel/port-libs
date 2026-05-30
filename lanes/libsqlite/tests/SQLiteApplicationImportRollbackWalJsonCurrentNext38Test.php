@@ -11,7 +11,7 @@ use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 $pageSize = 512;
 
 $databaseBytes = static fn (): string => str_pad('sqlite-page-1', $pageSize, "\0")
-    . str_pad('plugin-before', $pageSize, "\0")
+    . str_pad('feature-before', $pageSize, "\0")
     . str_pad('theme-before', $pageSize, "\0")
     . str_pad('broken-before', $pageSize, "\0");
 
@@ -27,32 +27,32 @@ $walBytes = static function (int $frames = 4) use ($pageSize): string {
 
 $rows = static fn (): array => [
     [
-        'option_id' => 1,
-        'option_name' => 'plugin_settings',
-        'option_value' => '{"enabled":false,"version":1}',
-        'autoload' => 'yes',
+        'setting_id' => 1,
+        'key_name' => 'feature_settings',
+        'key_value' => '{"enabled":false,"version":1}',
+        'load_policy' => 'yes',
         'page_number' => 2,
     ],
     [
-        'option_id' => 2,
-        'option_name' => 'theme_mods_twentyfive',
-        'option_value' => new SQLiteBlobValue(SQLiteJsonB::encode(['palette' => ['accent' => 'blue']])),
-        'autoload' => 'yes',
+        'setting_id' => 2,
+        'key_name' => 'theme_palette_default',
+        'key_value' => new SQLiteBlobValue(SQLiteJsonB::encode(['palette' => ['accent' => 'blue']])),
+        'load_policy' => 'yes',
         'page_number' => 3,
     ],
     [
-        'option_id' => 3,
-        'option_name' => 'broken_import_payload',
-        'option_value' => '{"enabled":',
-        'autoload' => 'no',
+        'setting_id' => 3,
+        'key_name' => 'broken_import_payload',
+        'key_value' => '{"enabled":',
+        'load_policy' => 'no',
         'page_number' => 4,
     ],
 ];
 
 $mutations = static fn (): array => [
     [
-        'statement' => 'enable_plugin',
-        'option_name' => 'plugin_settings',
+        'statement' => 'enable_feature',
+        'key_name' => 'feature_settings',
         'function' => 'json_set',
         'path' => '$.enabled',
         'value' => true,
@@ -60,7 +60,7 @@ $mutations = static fn (): array => [
     ],
     [
         'statement' => 'theme_palette',
-        'option_name' => 'theme_mods_twentyfive',
+        'key_name' => 'theme_palette_default',
         'function' => 'jsonb_set',
         'path' => '$.palette.accent',
         'value' => new SQLiteJsonSubtypeValue('{"slug":"green","contrast":7}'),
@@ -68,7 +68,7 @@ $mutations = static fn (): array => [
     ],
     [
         'statement' => 'broken_payload',
-        'option_name' => 'broken_import_payload',
+        'key_name' => 'broken_import_payload',
         'function' => 'json_set',
         'path' => '$.enabled',
         'value' => true,
@@ -88,8 +88,8 @@ $plan = static fn (array $options = [], ?array $planRows = null, ?array $planMut
 
 $validMutations = [
     [
-        'statement' => 'enable_plugin',
-        'option_name' => 'plugin_settings',
+        'statement' => 'enable_feature',
+        'key_name' => 'feature_settings',
         'function' => 'json_set',
         'path' => '$.enabled',
         'value' => true,
@@ -97,7 +97,7 @@ $validMutations = [
     ],
     [
         'statement' => 'theme_palette',
-        'option_name' => 'theme_mods_twentyfive',
+        'key_name' => 'theme_palette_default',
         'function' => 'jsonb_set',
         'path' => '$.palette.accent',
         'value' => new SQLiteJsonSubtypeValue('{"slug":"green","contrast":7}'),
@@ -134,7 +134,7 @@ $cases = [
     'import plan is exposed for diagnostics' => static fn (): mixed => $plan()['import_plan']['status'],
     'import failed rollback restored broken page only at statement level' => static fn (): mixed => $plan()['import_plan']['failed'][0]['rollback']['restored_page_numbers'],
     'import failed rollback discarded failed frame only at statement level' => static fn (): mixed => array_column($plan()['import_plan']['failed'][0]['rollback']['discarded_wal_frames'], 'frame_index'),
-    'import final rows still show applied text before outer rollback' => static fn (): mixed => json_decode((string) $plan()['import_plan']['final_rows'][0]['option_value'], true)['enabled'],
+    'import final rows still show applied text before outer rollback' => static fn (): mixed => json_decode((string) $plan()['import_plan']['final_rows'][0]['key_value'], true)['enabled'],
     'dependency includes json import savepoint' => static fn (): mixed => in_array('sqlite-application-json-import-savepoint-current', $plan()['dependencies'], true),
     'dependency includes wal rollback' => static fn (): mixed => in_array('sqlite-savepoint-wal-rollback-current', $plan()['dependencies'], true),
     'dependency includes byte truncation' => static fn (): mixed => in_array('sqlite-wal-current-batch-byte-truncation', $plan()['dependencies'], true),
@@ -145,7 +145,7 @@ $cases = [
     'all valid import returns changed database bytes' => static fn (): mixed => $plan([], $rows(), $validMutations)['database_restored_to_before'],
     'explicit rollback_on_error false keeps partial status' => static fn (): mixed => $plan(['rollback_on_error' => false])['status'],
     'explicit rollback_on_error false does not truncate wal' => static fn (): mixed => $plan(['rollback_on_error' => false])['wal_truncated'],
-    'custom transaction is forwarded' => static fn (): mixed => $plan(['transaction' => 'wp_current_import'])['transaction'],
+    'custom transaction is forwarded' => static fn (): mixed => $plan(['transaction' => 'application_current_import'])['transaction'],
     'custom savepoint is forwarded' => static fn (): mixed => $plan(['savepoint' => 'json_current_38'])['savepoint'],
     'short wal header is rejected' => static function () use ($plan): mixed {
         try {
@@ -187,11 +187,11 @@ $cases = [
         }
         return 'missed';
     },
-    'missing option still triggers current batch rollback' => static fn (): mixed => $plan([], $rows(), [
-        ['statement' => 'missing_option', 'option_name' => 'missing', 'path' => '$.enabled', 'value' => true],
+    'missing setting still triggers current batch rollback' => static fn (): mixed => $plan([], $rows(), [
+        ['statement' => 'missing_setting', 'key_name' => 'missing', 'path' => '$.enabled', 'value' => true],
     ])['failed_statements'],
-    'missing option rollback truncates all wal frames' => static fn (): mixed => $plan([], $rows(), [
-        ['statement' => 'missing_option', 'option_name' => 'missing', 'path' => '$.enabled', 'value' => true],
+    'missing setting rollback truncates all wal frames' => static fn (): mixed => $plan([], $rows(), [
+        ['statement' => 'missing_setting', 'key_name' => 'missing', 'path' => '$.enabled', 'value' => true],
     ])['discarded_wal_frame_count'],
     'empty wal defaults to header only' => static fn (): mixed => strlen($plan(['wal_bytes' => null])['wal_bytes_before']),
     'empty wal default has zero frames before rollback' => static fn (): mixed => $plan(['wal_bytes' => null])['wal_frame_count_before'],
@@ -237,15 +237,15 @@ $expected = [
     'all valid import returns changed database bytes' => false,
     'explicit rollback_on_error false keeps partial status' => 'partial_rollback',
     'explicit rollback_on_error false does not truncate wal' => false,
-    'custom transaction is forwarded' => 'wp_current_import',
+    'custom transaction is forwarded' => 'application_current_import',
     'custom savepoint is forwarded' => 'json_current_38',
     'short wal header is rejected' => 'rejected',
     'partial wal frame tail is rejected' => 'rejected',
     'unaligned database bytes are rejected' => 'rejected',
     'invalid page size is rejected' => 'rejected',
     'non string wal bytes are rejected' => 'rejected',
-    'missing option still triggers current batch rollback' => ['missing_option'],
-    'missing option rollback truncates all wal frames' => 4,
+    'missing setting still triggers current batch rollback' => ['missing_setting'],
+    'missing setting rollback truncates all wal frames' => 4,
     'empty wal defaults to header only' => 32,
     'empty wal default has zero frames before rollback' => 0,
 ];

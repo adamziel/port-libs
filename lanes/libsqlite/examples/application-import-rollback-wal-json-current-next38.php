@@ -12,7 +12,7 @@ use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 
 $pageSize = 512;
 $databaseBytes = str_pad('sqlite-page-1', $pageSize, "\0")
-    . str_pad('plugin-before', $pageSize, "\0")
+    . str_pad('feature-before', $pageSize, "\0")
     . str_pad('theme-before', $pageSize, "\0")
     . str_pad('broken-before', $pageSize, "\0");
 
@@ -25,31 +25,31 @@ for ($index = 1; $index <= 4; $index++) {
 $plan = SQLiteJsonImportRollbackWalPlan::plan(
     [
         [
-            'option_id' => 1,
-            'option_name' => 'plugin_settings',
-            'option_value' => '{"enabled":false,"version":1}',
-            'autoload' => 'yes',
+            'setting_id' => 1,
+            'key_name' => 'feature_settings',
+            'key_value' => '{"enabled":false,"version":1}',
+            'load_policy' => 'yes',
             'page_number' => 2,
         ],
         [
-            'option_id' => 2,
-            'option_name' => 'theme_mods_twentyfive',
-            'option_value' => new SQLiteBlobValue(SQLiteJsonB::encode(['palette' => ['accent' => 'blue']])),
-            'autoload' => 'yes',
+            'setting_id' => 2,
+            'key_name' => 'theme_palette_default',
+            'key_value' => new SQLiteBlobValue(SQLiteJsonB::encode(['palette' => ['accent' => 'blue']])),
+            'load_policy' => 'yes',
             'page_number' => 3,
         ],
         [
-            'option_id' => 3,
-            'option_name' => 'broken_import_payload',
-            'option_value' => '{"enabled":',
-            'autoload' => 'no',
+            'setting_id' => 3,
+            'key_name' => 'broken_import_payload',
+            'key_value' => '{"enabled":',
+            'load_policy' => 'no',
             'page_number' => 4,
         ],
     ],
     [
         [
-            'statement' => 'enable_plugin',
-            'option_name' => 'plugin_settings',
+            'statement' => 'enable_feature',
+            'key_name' => 'feature_settings',
             'function' => 'json_set',
             'path' => '$.enabled',
             'value' => true,
@@ -57,7 +57,7 @@ $plan = SQLiteJsonImportRollbackWalPlan::plan(
         ],
         [
             'statement' => 'theme_palette',
-            'option_name' => 'theme_mods_twentyfive',
+            'key_name' => 'theme_palette_default',
             'function' => 'jsonb_set',
             'path' => '$.palette.accent',
             'value' => new SQLiteJsonSubtypeValue('{"slug":"green","contrast":7}'),
@@ -65,7 +65,7 @@ $plan = SQLiteJsonImportRollbackWalPlan::plan(
         ],
         [
             'statement' => 'broken_payload',
-            'option_name' => 'broken_import_payload',
+            'key_name' => 'broken_import_payload',
             'function' => 'json_set',
             'path' => '$.enabled',
             'value' => true,

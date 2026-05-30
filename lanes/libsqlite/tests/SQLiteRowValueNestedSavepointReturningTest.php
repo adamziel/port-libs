@@ -64,7 +64,7 @@ $cases = [
 
     'plan status' => [static fn (): mixed => $plan()['status'], 'nested-release-rolled-back-retried-current-source'],
     'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'app_outer_import'],
-    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'app_inner_plugin'],
+    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'app_inner_batch'],
     'plan inner released into outer' => [static fn (): mixed => $plan()['inner_released_into_outer'], true],
     'plan rolled back to outer' => [static fn (): mixed => $plan()['rolled_back_to_outer_savepoint'], true],
     'plan inner inactive after release' => [static fn (): mixed => $plan()['inner_savepoint_no_longer_active_after_release'], true],
