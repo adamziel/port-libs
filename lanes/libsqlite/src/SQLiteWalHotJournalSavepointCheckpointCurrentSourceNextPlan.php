@@ -28325,17 +28325,13 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             288 => 'verify_after_ready_checkpoint_current_source_token',
             289 => 'verify_after_ready_checkpoint_wal_frame_fence',
             290 => 'verify_after_ready_checkpoint_hot_journal_absent',
+            291 => 'seal_after_ready_checkpoint_current_source_next_delta',
         ];
         if (!isset($steps[$next])) {
             throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source verification has no registered step for next{$next}");
         }
 
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, $next, $steps[$next]);
-    }
-
-    public static function next291AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 291, 'seal_after_ready_checkpoint_current_source_next_delta');
     }
 
     public static function afterReadyCheckpointReceipt(array $checkpointPlan, array $checkpointReceipts, int $checkpointSequence): array

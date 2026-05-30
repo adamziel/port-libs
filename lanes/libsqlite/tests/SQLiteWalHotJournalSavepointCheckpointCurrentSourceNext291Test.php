@@ -38,7 +38,7 @@ $receipt = [
 ];
 
 $plan = static fn (?array $inputBase = null, ?array $receipts = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next291AfterCurrentCheckpoint($inputBase ?? $base, $receipts ?? [$receipt]);
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointVerification($inputBase ?? $base, $receipts ?? [$receipt]);
 
 $tests['wal hot journal savepoint checkpoint current source next291 seals isolated delta'] = static function (TestRunner $t) use ($plan): void {
     $record = $plan();
@@ -50,6 +50,11 @@ $tests['wal hot journal savepoint checkpoint current source next291 seals isolat
     $t->contains('next291 only advances the after-current WAL checkpoint receipt chain', $record['non_overlap']);
 };
 
+$tests['wal hot journal savepoint checkpoint current source next291 uses canonical verifier'] = static function (TestRunner $t): void {
+    $t->same(false, method_exists(SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::class, 'next291AfterCurrentCheckpoint'));
+    $t->true(method_exists(SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::class, 'afterCurrentCheckpointVerification'));
+};
+
 $tests['wal hot journal savepoint checkpoint current source next291 blocks stale page cache digest'] = static function (TestRunner $t) use ($plan, $receipt): void {
     $badReceipt = array_replace($receipt, ['page_cache_digest' => hash('sha256', 'stale next291 page cache')]);
     $record = $plan(receipts: [$badReceipt]);
@@ -59,7 +64,7 @@ $tests['wal hot journal savepoint checkpoint current source next291 blocks stale
 };
 
 $tests['wal hot journal savepoint checkpoint current source next291 rejects wrong base'] = static function (TestRunner $t) use ($plan, $base): void {
-    $t->throws(Throwable::class, static fn () => $plan(array_replace($base, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next289'])));
+    $t->throws(Throwable::class, static fn () => $plan(array_replace($base, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next291'])));
 };
 
 return $tests;

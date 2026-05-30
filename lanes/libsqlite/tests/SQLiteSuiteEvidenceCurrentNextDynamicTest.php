@@ -290,4 +290,54 @@ return [
         $t->contains('accepted-head-mismatch', implode('; ', array_column($record['blockers'], 'evidence')));
         $t->contains('composes lane-local artifact metadata', $record['dependency_closure']);
     },
+    'current next dynamic evidence preserves ids mentioned only in evidence text' => static function (TestRunner $t): void {
+        $head = 'c196709c053869bec78f15d5a1f299d396f8fdb0';
+        $record = libsqlite_suite_evidence_dynamic()->suiteEvidenceSlice(
+            [
+                [
+                    'unit' => 'suite-evidence-dynamic-focused-artifact',
+                    'tier' => 'focused',
+                    'repository_head' => $head,
+                    'current_countable' => false,
+                    'next_countable' => true,
+                    'artifact_path' => 'lanes/libsqlite/notes/suite-evidence-dynamic-focused.md',
+                    'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick attach3.test wal2.test',
+                    'scripts' => ['pager-dynamic-focused.test', 'attach3.test', 'wal2.test'],
+                    'exit' => 0,
+                    'errors' => 0,
+                    'current_tests' => 0,
+                    'next_tests' => 1041,
+                    'evidence' => 'current next104 records a bounded dynamic suite evidence row',
+                ],
+                [
+                    'unit' => 'suite-evidence-dynamic-preserved-baseline',
+                    'tier' => 'focused',
+                    'repository_head' => $head,
+                    'current_countable' => true,
+                    'next_countable' => true,
+                    'artifact_path' => 'lanes/libsqlite/notes/suite-evidence-dynamic-preserved.md',
+                    'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick attach3.test wal2.test',
+                    'scripts' => ['pager-dynamic-preserved.test', 'attach3.test', 'wal2.test'],
+                    'exit' => 0,
+                    'errors' => 0,
+                    'current_tests' => 778,
+                    'next_tests' => 778,
+                    'evidence' => 'accepted current-next78 suite evidence remains preserved for current-next104 dependency closure',
+                ],
+            ],
+            490,
+            29306,
+            $head,
+            'lanes/libsqlite/tests/SQLiteSuiteEvidenceCurrentNextDynamicTest.php',
+            libsqlite_suite_evidence_dynamic_output(),
+            'dynamic suite evidence follows the current accepted source and preserves dependency closure without release/all parity',
+            3
+        );
+
+        $t->same('current-next104-suite-evidence-countable', $record['status']);
+        $t->same(true, array_key_exists('counts_suite_evidence_current_next78', $record));
+        $t->same(false, $record['counts_suite_evidence_current_next78']);
+        $t->same(true, $record['counts_suite_evidence_current_next104']);
+        $t->contains('current-next104 suite evidence', $record['dependency_closure']);
+    },
 ];

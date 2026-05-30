@@ -145,6 +145,23 @@ $tests['upstream corpus window groups range current next18 named range frame inh
     $t->same([3, 3, 3, 3, 3, 1], array_column($rows, 'window_count'));
 };
 
+$tests['upstream corpus window groups range current next18 inline base window groups frame inherits order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT sum(bytes) OVER (framed GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_sum FROM wp_options WINDOW framed AS (ORDER BY bytes) ORDER BY option_id', ['wp_options' => $options]);
+
+    $t->same([40, 40, 80, 100, 100, 40], array_column($rows, 'window_sum'));
+};
+
+$tests['upstream corpus window groups range current next18 inline base window range frame without inherited order rejects'] = static function (TestRunner $t) use ($options): void {
+    try {
+        SQLiteSelectSql::execute('SELECT count(*) OVER (framed RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) FROM wp_options WINDOW framed AS (PARTITION BY autoload)', ['wp_options' => $options]);
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY', $exception->getMessage());
+        return;
+    }
+
+    throw new RuntimeException('Expected inline base-window RANGE frame without inherited ORDER BY to be rejected');
+};
+
 $tests['upstream corpus window groups range current next18 rows frame without order remains valid'] = static function (TestRunner $t) use ($options): void {
     $t->same([20, 30, 50, 60, 70, 40], array_column(SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_sum FROM wp_options ORDER BY option_id', ['wp_options' => $options]), 'window_sum'));
 };

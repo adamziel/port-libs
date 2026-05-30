@@ -19145,6 +19145,7 @@ final class SQLiteUpstreamSuiteEvidence
                 'next_tests' => $nextTests,
                 'scripts' => $rowScripts,
                 'artifact_path' => $artifactPath,
+                'evidence' => $evidence,
                 'blocker_ids' => $rowBlockers,
             ];
         }
@@ -19401,6 +19402,7 @@ final class SQLiteUpstreamSuiteEvidence
                 'next_tests' => $nextTests,
                 'scripts' => $rowScripts,
                 'artifact_path' => $artifactPath,
+                'evidence' => $evidence,
                 'blocker_ids' => $rowBlockers,
             ];
         }
@@ -19644,6 +19646,7 @@ final class SQLiteUpstreamSuiteEvidence
                 'next_tests' => $nextTests,
                 'scripts' => $rowScripts,
                 'artifact_path' => $artifactPath,
+                'evidence' => $evidence,
                 'blocker_ids' => $rowBlockers,
             ];
         }
@@ -19889,6 +19892,7 @@ final class SQLiteUpstreamSuiteEvidence
                 'next_tests' => $nextTests,
                 'scripts' => $rowScripts,
                 'artifact_path' => $artifactPath,
+                'evidence' => $evidence,
                 'blocker_ids' => $rowBlockers,
             ];
         }
@@ -19921,7 +19925,7 @@ final class SQLiteUpstreamSuiteEvidence
             $currentNextIds += self::extractSuiteEvidenceCurrentNextIds($unit);
         }
         foreach ($entries as $entry) {
-            $entryText = (string) $entry['unit'] . ' ' . (string) $entry['artifact_path'] . ' ' . implode(' ', $entry['scripts']);
+            $entryText = (string) $entry['unit'] . ' ' . (string) $entry['artifact_path'] . ' ' . (string) $entry['evidence'] . ' ' . implode(' ', $entry['scripts']);
             $currentNextIds += self::extractSuiteEvidenceCurrentNextIds($entryText);
         }
         $currentNextIds += self::extractSuiteEvidenceCurrentNextIds($nonOverlapNote);
@@ -19939,7 +19943,7 @@ final class SQLiteUpstreamSuiteEvidence
                     continue;
                 }
 
-                $entryText = (string) $entry['unit'] . ' ' . (string) $entry['artifact_path'] . ' ' . implode(' ', $entry['scripts']);
+                $entryText = (string) $entry['unit'] . ' ' . (string) $entry['artifact_path'] . ' ' . (string) $entry['evidence'] . ' ' . implode(' ', $entry['scripts']);
                 if (preg_match('/current[\s_-]*next(\d+)/i', $entryText, $matches) === 1) {
                     $primaryCurrentNext = 'current-next' . $matches[1];
                     break;

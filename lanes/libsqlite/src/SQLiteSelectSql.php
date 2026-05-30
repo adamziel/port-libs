@@ -4814,7 +4814,27 @@ final class SQLiteSelectSql
                 $spaces .= $sql[$i];
                 $i++;
             }
-            if ($i >= $length || !preg_match('/[A-Za-z_]/', $sql[$i]) || ($sql[$i] ?? '') === '(') {
+            if ($i < $length && ($sql[$i] ?? '') === '(') {
+                [$body, $endOffset] = self::consumeParenthesized($sql, $i);
+                $trimmedBody = trim($body);
+                if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+(.*))?$/is', $trimmedBody, $match) === 1
+                    && !in_array(strtoupper($match[1]), ['PARTITION', 'ORDER', 'ROWS', 'RANGE', 'GROUPS'], true)) {
+                    $key = strtolower($match[1]);
+                    if (!isset($windows[$key])) {
+                        throw new \InvalidArgumentException("SQLite SELECT SQL named window {$match[1]} is not defined");
+                    }
+                    $suffix = trim((string) ($match[2] ?? ''));
+                    $result .= $spaces . '(' . trim($windows[$key] . ($suffix === '' ? '' : ' ' . $suffix)) . ')';
+                    $i = $endOffset - 1;
+                    continue;
+                }
+
+                $result .= $spaces . '(' . $body . ')';
+                $i = $endOffset - 1;
+                continue;
+            }
+
+            if ($i >= $length || !preg_match('/[A-Za-z_]/', $sql[$i])) {
                 $result .= $spaces;
                 $i--;
                 continue;
