@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_release_burnup_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_release_suite_burnup_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_release_burnup_output(int $assertions = 50, int $failures = 0): string
+function libsqlite_release_suite_burnup_output(int $assertions = 50, int $failures = 0): string
 {
     return "Focused test run: 1 selected test files (root lock skipped)\n"
         . "1 test files, {$assertions} assertions, {$failures} failures\n";
 }
 
-function libsqlite_release_burnup_rows(int $case): array
+function libsqlite_release_suite_burnup_rows(int $case): array
 {
     $rows = [
         [
@@ -75,13 +75,13 @@ $tests = [];
 
 for ($i = 1; $i <= 50; $i++) {
     $tests['current next50 suite burnup classifies focused row ' . $i] = static function (TestRunner $t) use ($i, $currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-        $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
-            libsqlite_release_burnup_rows($i),
+        $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+            libsqlite_release_suite_burnup_rows($i),
             $currentHead,
             $nextHead,
             18565,
             $focusedPath,
-            libsqlite_release_burnup_output(50),
+            libsqlite_release_suite_burnup_output(50),
             $nonOverlap,
             40
         );
@@ -100,7 +100,7 @@ for ($i = 1; $i <= 50; $i++) {
 }
 
 $tests['current next50 suite burnup advances a newly countable release artifact'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
         [
             ['id' => 'veryquick', 'tier' => 'veryquick', 'artifact' => 'current', 'current_status' => 'passed', 'next_status' => 'passed', 'current_tests' => 329670, 'next_tests' => 329670],
             ['id' => 'release', 'tier' => 'release', 'artifact' => 'next-release', 'current_status' => 'missing', 'next_status' => 'passed', 'next_tests' => 45000],
@@ -109,7 +109,7 @@ $tests['current next50 suite burnup advances a newly countable release artifact'
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -120,13 +120,13 @@ $tests['current next50 suite burnup advances a newly countable release artifact'
 };
 
 $tests['current next50 suite burnup preserves current countability with open blockers'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
-        libsqlite_release_burnup_rows(1),
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+        libsqlite_release_suite_burnup_rows(1),
         $currentHead,
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -137,7 +137,7 @@ $tests['current next50 suite burnup preserves current countability with open blo
 };
 
 $tests['current next50 suite burnup preserves clean equal rows'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
         [
             ['id' => 'veryquick', 'tier' => 'veryquick', 'artifact' => 'current', 'current_status' => 'passed', 'next_status' => 'passed', 'current_tests' => 329670, 'next_tests' => 329670],
             ['id' => 'focused-json', 'tier' => 'focused', 'artifact' => 'focused', 'current_status' => 'passed', 'next_status' => 'passed', 'current_tests' => 700, 'next_tests' => 701],
@@ -146,7 +146,7 @@ $tests['current next50 suite burnup preserves clean equal rows'] = static functi
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -156,13 +156,13 @@ $tests['current next50 suite burnup preserves clean equal rows'] = static functi
 };
 
 $tests['current next50 suite burnup blocks regressed artifacts'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
-        libsqlite_release_burnup_rows(13),
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+        libsqlite_release_suite_burnup_rows(13),
         $currentHead,
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -172,7 +172,7 @@ $tests['current next50 suite burnup blocks regressed artifacts'] = static functi
 };
 
 $tests['current next50 suite burnup blocks under threshold php evidence'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
         [
             ['id' => 'release', 'tier' => 'release', 'artifact' => 'next-release', 'current_status' => 'missing', 'next_status' => 'passed', 'next_tests' => 45000],
         ],
@@ -180,7 +180,7 @@ $tests['current next50 suite burnup blocks under threshold php evidence'] = stat
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(39),
+        libsqlite_release_suite_burnup_output(39),
         $nonOverlap,
         40
     );
@@ -191,7 +191,7 @@ $tests['current next50 suite burnup blocks under threshold php evidence'] = stat
 };
 
 $tests['current next50 suite burnup blocks unfocused php output'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
         [
             ['id' => 'release', 'tier' => 'release', 'artifact' => 'next-release', 'current_status' => 'missing', 'next_status' => 'passed', 'next_tests' => 45000],
         ],
@@ -209,13 +209,13 @@ $tests['current next50 suite burnup blocks unfocused php output'] = static funct
 };
 
 $tests['current next50 suite burnup records artifact labels deterministically'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
-        libsqlite_release_burnup_rows(6),
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+        libsqlite_release_suite_burnup_rows(6),
         $currentHead,
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -229,13 +229,13 @@ $tests['current next50 suite burnup records artifact labels deterministically'] 
 };
 
 $tests['current next50 suite burnup aggregates tiers in stable order'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
-        libsqlite_release_burnup_rows(6),
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+        libsqlite_release_suite_burnup_rows(6),
         $currentHead,
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -245,7 +245,7 @@ $tests['current next50 suite burnup aggregates tiers in stable order'] = static 
 };
 
 $tests['current next50 suite burnup preserves non overlap through admission'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
         [
             ['id' => 'release', 'tier' => 'release', 'artifact' => 'next-release', 'current_status' => 'missing', 'next_status' => 'passed', 'next_tests' => 45000],
         ],
@@ -253,7 +253,7 @@ $tests['current next50 suite burnup preserves non overlap through admission'] = 
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -261,7 +261,7 @@ $tests['current next50 suite burnup preserves non overlap through admission'] = 
 };
 
 $tests['current next50 suite burnup protects negative test totals'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
         [
             ['id' => 'release', 'tier' => 'release', 'artifact' => 'next-release', 'current_status' => 'missing', 'next_status' => 'passed', 'current_tests' => -5, 'next_tests' => -10],
         ],
@@ -269,7 +269,7 @@ $tests['current next50 suite burnup protects negative test totals'] = static fun
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -278,7 +278,7 @@ $tests['current next50 suite burnup protects negative test totals'] = static fun
 };
 
 $tests['current next50 suite burnup reports invalid rows'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
         [
             'release' => ['id' => 'release', 'tier' => 'release', 'artifact' => 'next-release', 'current_status' => 'missing', 'next_status' => 'passed', 'next_tests' => 45000],
             'invalid' => 'not-a-row',
@@ -287,7 +287,7 @@ $tests['current next50 suite burnup reports invalid rows'] = static function (Te
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 
@@ -298,13 +298,13 @@ $tests['current next50 suite burnup reports invalid rows'] = static function (Te
 $tests['current next50 suite burnup rejects missing heads'] = static function (TestRunner $t) use ($focusedPath, $nonOverlap): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+        static fn () => libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
             [['id' => 'release', 'next_status' => 'passed']],
             '',
             'next',
             18565,
             $focusedPath,
-            libsqlite_release_burnup_output(50),
+            libsqlite_release_suite_burnup_output(50),
             $nonOverlap
         )
     );
@@ -313,13 +313,13 @@ $tests['current next50 suite burnup rejects missing heads'] = static function (T
 $tests['current next50 suite burnup rejects empty rows'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+        static fn () => libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
             [],
             $currentHead,
             $nextHead,
             18565,
             $focusedPath,
-            libsqlite_release_burnup_output(50),
+            libsqlite_release_suite_burnup_output(50),
             $nonOverlap
         )
     );
@@ -328,13 +328,13 @@ $tests['current next50 suite burnup rejects empty rows'] = static function (Test
 $tests['current next50 suite burnup rejects zero minimum'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+        static fn () => libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
             [['id' => 'release', 'next_status' => 'passed']],
             $currentHead,
             $nextHead,
             18565,
             $focusedPath,
-            libsqlite_release_burnup_output(50),
+            libsqlite_release_suite_burnup_output(50),
             $nonOverlap,
             0
         )
@@ -342,7 +342,7 @@ $tests['current next50 suite burnup rejects zero minimum'] = static function (Te
 };
 
 $tests['current next50 suite burnup records dependency closure'] = static function (TestRunner $t) use ($currentHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
+    $record = libsqlite_release_suite_burnup_evidence()->releaseRunnerUpstreamSuiteBurnup(
         [
             ['id' => 'veryquick', 'tier' => 'veryquick', 'artifact' => 'current', 'current_status' => 'passed', 'next_status' => 'passed', 'current_tests' => 329670, 'next_tests' => 329670],
         ],
@@ -350,7 +350,7 @@ $tests['current next50 suite burnup records dependency closure'] = static functi
         $nextHead,
         18565,
         $focusedPath,
-        libsqlite_release_burnup_output(50),
+        libsqlite_release_suite_burnup_output(50),
         $nonOverlap
     );
 

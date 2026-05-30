@@ -154,13 +154,17 @@ final class SQLitePragmaForeignKeyCheck
     {
         $affinity = strtoupper($affinity);
 
-        return SQLiteAffinityComparison::equals(
-            SQLiteAffinityComparison::applyAffinity($child, $affinity),
-            SQLiteAffinityComparison::applyAffinity($parent, $affinity),
-            'NONE',
-            'NONE',
-            strtoupper($collation),
-        );
+        try {
+            return SQLiteAffinityComparison::equals(
+                SQLiteAffinityComparison::applyAffinity($child, $affinity),
+                SQLiteAffinityComparison::applyAffinity($parent, $affinity),
+                'NONE',
+                'NONE',
+                strtoupper($collation),
+            );
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
     }
 
     /**
