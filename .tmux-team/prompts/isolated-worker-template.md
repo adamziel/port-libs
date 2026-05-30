@@ -10,6 +10,22 @@ Supervisor log: `{{LOG_FILE}}`
 
 Current supervisor override, 2026-05-30 13:20 UTC:
 
+- Throughput override, 2026-05-30 15:38 UTC:
+  the next libsqlite work should increase accepted upstream coverage in large
+  batches. Slices starting with `bulk-upstream-`, `suite-upstream-`, or
+  `root-gate-upstream-` must target broad veryquick/suite shard admission,
+  runner-map gap closure, or denominator burnup. `bulk-upstream-*` slices
+  should not stop at another 16-row/one-file current-next micro-batch. Either
+  produce a directly integrable batch that moves at least 1,000 real
+  TestRunner PASS cases, 10,000 real assertions or upstream subtests, or a
+  generator/runner-map change that lets the integrator admit that volume
+  safely. If the slice cannot reach that floor, mark the handoff as blocked
+  with the exact missing blocker and do not emit a cosmetic small patch.
+  Include before/after counts for actual PHP PASS lines, assertions, mapped
+  denominator rows, and upstream runner pass/fail rows. Do not spend these
+  slices on suffix cleanup, cosmetic renames, dashboard edits, or tiny
+  one-test plans.
+
 - User rule: the libsqlite port must have zero WordPress-specific classes,
   interfaces, traits, functions, or methods. Do not create declarations whose
   names contain `WordPress`, `wordpress`, `WP`, `Wp`, `wp_`, `OptionRow`,
