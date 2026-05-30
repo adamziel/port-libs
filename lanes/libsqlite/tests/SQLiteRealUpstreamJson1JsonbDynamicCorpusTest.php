@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
+use PortLibs\LibSqlite\SQLiteJsonAggregate;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonConstructor;
 use PortLibs\LibSqlite\SQLiteJsonEach;
@@ -653,6 +654,164 @@ $tests['real upstream json101-2.4 json_object rejects non jsonb blob values'] = 
 };
 $tests['real upstream jsonb01-2.0 json operator rejects malformed jsonb blob'] = static function (TestRunner $t) use ($lit): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->', 'left' => $lit(new SQLiteBlobValue(hex2bin('8ce6ffffffff171333'))), 'right' => $lit('$')]));
+};
+
+$json103Rows = [];
+for ($i = 1; $i <= 100; $i++) {
+    $json103Rows[$i] = [
+        'a' => $i,
+        'b' => $i % 3,
+        'c' => 'n' . $i,
+    ];
+}
+$json103Rows[39]['a'] = 'orange';
+$json103Rows[31]['a'] = 32.5;
+$json103Rows[29]['a'] = new SQLiteBlobValue('012');
+$json103Rows[37]['a'] = null;
+
+$json103Values = static fn (int $start, int $end): array => array_map(
+    static fn (array $row): mixed => $row['a'],
+    array_slice($json103Rows, $start - 1, $end - $start + 1)
+);
+$json103Pairs = static fn (int $start, int $end, ?callable $filter = null): array => array_map(
+    static fn (array $row): array => [$row['c'], $row['a']],
+    array_values(array_filter(
+        array_slice($json103Rows, $start - 1, $end - $start + 1),
+        static fn (array $row, int $offset): bool => $filter === null || $filter($row, $start + $offset),
+        ARRAY_FILTER_USE_BOTH
+    ))
+);
+$json103GroupedRows = static function (int $maxRowid) use ($json103Rows): array {
+    $groups = [0 => [], 1 => [], 2 => []];
+    foreach (array_slice($json103Rows, 0, $maxRowid - 1) as $row) {
+        $groups[$row['b']][] = $row['a'];
+    }
+
+    return $groups;
+};
+$json103GroupedPairs = static function (int $maxRowid) use ($json103Rows): array {
+    $groups = [0 => [], 1 => [], 2 => []];
+    foreach (array_slice($json103Rows, 0, $maxRowid - 1) as $row) {
+        $groups[$row['b']][] = [$row['c'], $row['a']];
+    }
+
+    return $groups;
+};
+
+$tests['real upstream json103-100 json_group_array empty filtered rows returns empty array'] = static function (TestRunner $t): void {
+    $t->same('[]', SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group_array', []));
+};
+$tests['real upstream json103-102 jsonb_group_array empty filtered rows decodes empty array'] = static function (TestRunner $t) use ($decodeJson): void {
+    $value = SQLiteJsonAggregate::jsonGroupArraySqlFunction('jsonb_group_array', []);
+    $t->same(true, $value instanceof SQLiteBlobValue);
+    $t->same([], $decodeJson($value));
+};
+$tests['real upstream json103-110 json_group_array preserves row order scalars and null'] = static function (TestRunner $t) use ($json103Values): void {
+    $t->same('[32.5,32,33,34,35,36,null,38,"orange"]', SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group_array', $json103Values(31, 39)));
+};
+$tests['real upstream json103-111 json_array_length over json_group_array result'] = static function (TestRunner $t) use ($json103Values): void {
+    $t->same(9, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group_array', $json103Values(31, 39))));
+};
+$tests['real upstream json103-110b jsonb_group_array preserves row order scalars and null'] = static function (TestRunner $t) use ($json103Values, $decodeJson): void {
+    $value = SQLiteJsonAggregate::jsonGroupArraySqlFunction('jsonb_group_array', $json103Values(31, 39));
+    $t->same(true, $value instanceof SQLiteBlobValue);
+    $t->same([32.5, 32, 33, 34, 35, 36, null, 38, 'orange'], $decodeJson($value));
+};
+
+foreach ($json103GroupedRows(10) as $bucket => $values) {
+    $expected = match ($bucket) {
+        0 => '[3,6,9]',
+        1 => '[1,4,7]',
+        2 => '[2,5,8]',
+    };
+    $tests["real upstream json103-120 json_group_array grouped bucket {$bucket}"] = static function (TestRunner $t) use ($values, $expected): void {
+        $t->same($expected, SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group_array', $values));
+    };
+    $tests["real upstream json103-120b jsonb_group_array grouped bucket {$bucket}"] = static function (TestRunner $t) use ($values, $bucket, $decodeJson): void {
+        $value = SQLiteJsonAggregate::jsonGroupArraySqlFunction('jsonb_group_array', $values);
+        $t->same(true, $value instanceof SQLiteBlobValue);
+        $t->same(match ($bucket) {
+            0 => [3, 6, 9],
+            1 => [1, 4, 7],
+            2 => [2, 5, 8],
+        }, $decodeJson($value));
+    };
+}
+
+$tests['real upstream json103-200 json_group_object empty filtered rows returns empty object'] = static function (TestRunner $t): void {
+    $t->same('{}', SQLiteJsonAggregate::jsonGroupObjectSqlFunction('json_group_object', []));
+};
+$tests['real upstream json103-202 jsonb_group_object empty filtered rows decodes empty object'] = static function (TestRunner $t) use ($decodeJson): void {
+    $value = SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group_object', []);
+    $t->same(true, $value instanceof SQLiteBlobValue);
+    $decoded = $decodeJson($value);
+    $t->same(true, is_object($decoded));
+    $t->same([], get_object_vars($decoded));
+};
+$tests['real upstream json103-210 json_group_object preserves odd rowid object order'] = static function (TestRunner $t) use ($json103Pairs): void {
+    $t->same('{"n31":32.5,"n33":33,"n35":35,"n37":null,"n39":"orange"}', SQLiteJsonAggregate::jsonGroupObjectSqlFunction('json_group_object', $json103Pairs(31, 39, static fn (array $row, int $rowid): bool => $rowid % 2 === 1)));
+};
+$tests['real upstream json103-210b jsonb_group_object preserves odd rowid object order'] = static function (TestRunner $t) use ($json103Pairs, $decodeJson): void {
+    $value = SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group_object', $json103Pairs(31, 39, static fn (array $row, int $rowid): bool => $rowid % 2 === 1));
+    $t->same(true, $value instanceof SQLiteBlobValue);
+    $t->same(['n31' => 32.5, 'n33' => 33, 'n35' => 35, 'n37' => null, 'n39' => 'orange'], $decodeJson($value));
+};
+
+foreach ($json103GroupedPairs(7) as $bucket => $pairs) {
+    $expected = match ($bucket) {
+        0 => '{"n3":3,"n6":6}',
+        1 => '{"n1":1,"n4":4}',
+        2 => '{"n2":2,"n5":5}',
+    };
+    $tests["real upstream json103-220 json_group_object grouped bucket {$bucket}"] = static function (TestRunner $t) use ($pairs, $expected): void {
+        $t->same($expected, SQLiteJsonAggregate::jsonGroupObjectSqlFunction('json_group_object', $pairs));
+    };
+    $tests["real upstream json103-220b jsonb_group_object grouped bucket {$bucket}"] = static function (TestRunner $t) use ($pairs, $bucket, $decodeJson): void {
+        $value = SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group_object', $pairs);
+        $t->same(true, $value instanceof SQLiteBlobValue);
+        $t->same(match ($bucket) {
+            0 => ['n3' => 3, 'n6' => 6],
+            1 => ['n1' => 1, 'n4' => 4],
+            2 => ['n2' => 2, 'n5' => 5],
+        }, $decodeJson($value));
+    };
+}
+
+$json103SubtypeRows = [1, 'abc'];
+$json103SubtypeObjectRows = [['x', 1], ['x', 'abc']];
+$tests['real upstream json103-300 json_group_array resets subtype between plain and object aggregates'] = static function (TestRunner $t) use ($json103SubtypeRows): void {
+    $t->same('[1,"abc"]', SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group_array', $json103SubtypeRows));
+};
+$tests['real upstream json103-300 json_group_array embeds nested object aggregate values'] = static function (TestRunner $t) use ($json103SubtypeObjectRows): void {
+    $objects = array_map(static fn (array $pair): SQLiteJsonSubtypeValue => new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObjectSqlFunction('json_object', $pair[0], $pair[1])), $json103SubtypeObjectRows);
+    $t->same('[{"x":1},{"x":"abc"}]', SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group_array', $objects));
+};
+
+$json103WindowValues = [1, 'a,b', 3, 'x"y', 5, 6, 7];
+$json103WindowArrayExpected = ['[1]', '[1,"a,b"]', '[1,"a,b",3]', '["a,b",3,"x\"y"]', '[3,"x\"y",5]', '["x\"y",5,6]', '[5,6,7]'];
+$json103WindowObjectExpected = ['{"1":1}', '{"1":1,"2":"a,b"}', '{"1":1,"2":"a,b","3":3}', '{"2":"a,b","3":3,"4":"x\"y"}', '{"3":3,"4":"x\"y","5":5}', '{"4":"x\"y","5":5,"6":6}', '{"5":5,"6":6,"7":7}'];
+
+$tests['real upstream json103-400 json_group_array window rows 2 preceding'] = static function (TestRunner $t) use ($json103WindowValues, $json103WindowArrayExpected): void {
+    $t->same($json103WindowArrayExpected, SQLiteJsonAggregate::jsonGroupArrayWindowSqlFunction('json_group_array', $json103WindowValues, 2));
+};
+$tests['real upstream json103-400b jsonb_group_array window rows 2 preceding'] = static function (TestRunner $t) use ($json103WindowValues, $json103WindowArrayExpected, $decodeJson, $canonical): void {
+    $frames = SQLiteJsonAggregate::jsonGroupArrayWindowSqlFunction('jsonb_group_array', $json103WindowValues, 2);
+    $t->same($json103WindowArrayExpected, array_map(static fn (SQLiteBlobValue $value): string => $canonical($decodeJson($value)), $frames));
+};
+$tests['real upstream json103-410 json_group_object window rows 2 preceding'] = static function (TestRunner $t) use ($json103WindowValues, $json103WindowObjectExpected): void {
+    $pairs = [];
+    foreach ($json103WindowValues as $offset => $value) {
+        $pairs[] = [(string) ($offset + 1), $value];
+    }
+    $t->same($json103WindowObjectExpected, SQLiteJsonAggregate::jsonGroupObjectWindowSqlFunction('json_group_object', $pairs, 2));
+};
+$tests['real upstream json103-410b jsonb_group_object window rows 2 preceding'] = static function (TestRunner $t) use ($json103WindowValues, $json103WindowObjectExpected, $decodeJson, $canonical): void {
+    $pairs = [];
+    foreach ($json103WindowValues as $offset => $value) {
+        $pairs[] = [(string) ($offset + 1), $value];
+    }
+    $frames = SQLiteJsonAggregate::jsonGroupObjectWindowSqlFunction('jsonb_group_object', $pairs, 2);
+    $t->same($json103WindowObjectExpected, array_map(static fn (SQLiteBlobValue $value): string => $canonical($decodeJson($value)), $frames));
 };
 
 return $tests;

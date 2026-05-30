@@ -1,0 +1,27 @@
+# real-upstream-corpus-pragma-schema-dynamic-20260530T183552Z-0
+
+- Base accepted HEAD: `365df791b359e0dd925a461a6d36ddf8a8d0f5f1`.
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/schema2.test`
+    - `schema2-1.*` through `schema2-5.*`
+    - `schema2-10.*`
+    - rollback/cookie-reuse behavior matching `schema2-12.1`
+- Behavior covered:
+  - Temp-schema `CREATE TABLE`/`DROP TABLE` DDL advances schema generation and expires prepared temp-schema readers.
+  - Temp-schema `CREATE VIEW`, `CREATE TRIGGER`, and `CREATE INDEX` changes expire cached schema readers while preserving final resolved table/index metadata when the transient objects are dropped again.
+  - `ATTACH` changes database-list generation without changing existing temp table resolution; `DETACH` expires lookups that depended on the removed attached schema.
+  - Rollback/cookie-reuse-shaped temp DDL keeps stale prepared statements expired and exposes the post-rollback temp schema through PRAGMA table metadata.
+- Focused PHP coverage:
+  - Added `SQLiteRealUpstreamPragmaSchema2TempDynamicTest.php`.
+  - `1,000` distinct real upstream behavior PASS cases.
+  - `9,000` focused behavior assertions.
+- Non-overlap:
+  - This does not repeat prior `pragma.test` / `pragma3.test` / `pragma4.test` schema PRAGMA catalog rows or the existing `schema.test` main-schema invalidation corpus.
+  - The source file and subtest family are `schema2.test`, focused on temp-schema DDL and ATTACH/DETACH invalidation.
+  - No mapped-denominator growth is claimed; this is PASS-line/assertion growth only.
+- Dependency closure:
+  - No new support component is needed. This reuses existing lane-local `SQLiteAttachedSchemaCatalog`, `SQLiteSchemaDdlReparsePlan`, and `SQLitePragmaSchemaCatalog` behavior.
+- Verification:
+  - `php -l lanes/libsqlite/tests/SQLiteRealUpstreamPragmaSchema2TempDynamicTest.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamPragmaSchema2TempDynamicTest.php`
+    - `1 test files, 9000 assertions, 0 failures`

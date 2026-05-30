@@ -1198,6 +1198,10 @@ final class SQLiteCoreScalarFunction
             return null;
         }
 
+        if (!self::isDateTimeInSQLiteRange($instant)) {
+            return null;
+        }
+
         return match ($functionName) {
             'date' => $instant->format('Y-m-d'),
             'time' => self::formatTime($instant, $subsecond),
@@ -1207,6 +1211,22 @@ final class SQLiteCoreScalarFunction
             'strftime' => self::strftimeSql(self::coerceText('strftime', $arguments[0], 'format'), $instant),
             default => throw new \InvalidArgumentException("Unsupported SQLite date/time function: {$functionName}"),
         };
+    }
+
+    private static function isDateTimeInSQLiteRange(\DateTimeImmutable $instant): bool
+    {
+        $julianDay = self::unixTimestampFloat($instant) / 86400.0 + 2440587.5;
+        $year = (int) $instant->format('Y');
+        if ($year > 9999 || $year < -4713) {
+            return false;
+        }
+
+        return self::isSQLiteJulianDayInRange($julianDay);
+    }
+
+    private static function isSQLiteJulianDayInRange(float $julianDay): bool
+    {
+        return $julianDay >= -0.00000001 && $julianDay <= 5373484.49999999;
     }
 
     /**
@@ -1401,7 +1421,7 @@ final class SQLiteCoreScalarFunction
                 return null;
             }
             $numeric = self::coerceLosslessNumeric($value);
-            if ($numeric === null) {
+            if ($numeric === null || !self::isSQLiteJulianDayInRange((float) $numeric)) {
                 return null;
             }
 
@@ -1426,11 +1446,19 @@ final class SQLiteCoreScalarFunction
             return ['instant' => self::dateTimeFromUnixTimestamp($numeric, $timezone), 'floor' => null];
         }
         if (is_int($value) || is_float($value)) {
+            if (!self::isSQLiteJulianDayInRange((float) $value)) {
+                return null;
+            }
+
             return ['instant' => self::dateTimeFromJulianDay((float) $value, $timezone), 'floor' => null];
         }
 
         $text = trim(self::coerceText('date/time', $value, 'time-value'));
         if (preg_match('/\A[+-]?(?:\d+(?:\.\d*)?|\.\d+)\z/', $text) === 1) {
+            if (!self::isSQLiteJulianDayInRange((float) $text)) {
+                return null;
+            }
+
             return ['instant' => self::dateTimeFromJulianDay((float) $text, $timezone), 'floor' => null];
         }
         if (strcasecmp($text, 'now') === 0) {
