@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_suite_current_admission_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_suite_veryquick_admission_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_suite_current_admission_output(int $passLines = 82, int $assertions = 82, int $failures = 0): string
+function libsqlite_suite_veryquick_admission_output(int $passLines = 96, int $assertions = 96, int $failures = 0): string
 {
     $lines = ['Focused test run: 1 selected test files (root lock skipped)'];
     for ($i = 1; $i <= $passLines; $i++) {
-        $lines[] = sprintf('PASS current source veryquick veryquick shard admission case %02d', $i);
+        $lines[] = sprintf('PASS current source next235 veryquick shard admission case %02d', $i);
     }
     $lines[] = sprintf('1 test files, %d assertions, %d failures', $assertions, $failures);
 
@@ -23,30 +23,30 @@ function libsqlite_suite_current_admission_output(int $passLines = 82, int $asse
 /**
  * @return list<array<string, mixed>>
  */
-function libsqlite_suite_current_admission_rows(
+function libsqlite_suite_veryquick_admission_rows(
     int $case = 1,
-    string $launcherBase = 'b6077760c9cf35c1f9bb62cadb033a5845e26258',
+    string $launcherBase = '07f09e50ff14014cd43ac1209a553e4babc35c96',
     string $dashboardSource = '8a447f445e5d2fd32fc9fd463117f585d1416551',
     string $statusSource = '8a447f445e5d2fd32fc9fd463117f585d1416551',
     string $implementationSource = '8a447f445e5d2fd32fc9fd463117f585d1416551',
-    string $nextHead = 'suite-upstream-veryquick-shard-current-source-veryquick'
+    string $nextHead = 'suite-upstream-veryquick-shard-current-source-next235'
 ): array {
-    $script = sprintf('veryquick-current-source-veryquick-%02d.test', $case);
+    $script = sprintf('veryquick-current-source-next235-%02d.test', $case);
 
     return [
         [
-            'unit' => 'suite-upstream-veryquick-shard-current-source-veryquick',
+            'unit' => 'suite-upstream-veryquick-shard-current-source-next235',
             'kind' => 'bounded-upstream-veryquick-shard-runner',
-            'gap_id' => 'current-source-veryquick-veryquick-shard-gap',
+            'gap_id' => 'current-source-next235-veryquick-shard-gap',
             'gap_status' => 'removed',
-            'removed_blocker' => 'veryquick admits one focused veryquick shard row tied to launcher Base accepted HEAD b6077760 and integration source 8a447f44 without duplicating accepted historical suite evidence',
+            'removed_blocker' => 'next235 admits one focused veryquick shard row tied to launcher Base accepted HEAD 1d2e4d79 and integration source 8a447f44 without duplicating accepted next155 through next230 suite evidence',
             'tier' => 'focused-veryquick-shard',
             'source_head' => $nextHead,
             'launcher_base_head' => $launcherBase,
             'dashboard_source_head' => $dashboardSource,
             'status_source_head' => $statusSource,
             'implementation_source_head' => $implementationSource,
-            'artifact_path' => 'lanes/libsqlite/notes/yield-suite-upstream-veryquick-shard-current-source-veryquick.md',
+            'artifact_path' => 'lanes/libsqlite/notes/consolidate-upstream-veryquick-shard-current-source-admission.md',
             'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick ' . $script,
             'scripts' => [$script, 'testrunner.test'],
             'current_countable' => false,
@@ -54,12 +54,12 @@ function libsqlite_suite_current_admission_rows(
             'exit' => 0,
             'errors' => 0,
             'current_tests' => 0,
-            'next_tests' => 92140 + $case,
+            'next_tests' => 113830 + $case,
         ],
         [
-            'unit' => 'batch176-current-source-anchor',
+            'unit' => 'batch201-current-source-anchor',
             'kind' => 'accepted-upstream-runner-anchor',
-            'gap_id' => 'accepted-batch176-suite-anchor',
+            'gap_id' => 'accepted-batch201-suite-anchor',
             'gap_status' => 'preserved',
             'removed_blocker' => '',
             'tier' => 'accepted-anchor',
@@ -68,15 +68,15 @@ function libsqlite_suite_current_admission_rows(
             'dashboard_source_head' => $dashboardSource,
             'status_source_head' => $statusSource,
             'implementation_source_head' => $implementationSource,
-            'artifact_path' => 'lanes/libsqlite/notes/yield-suite-upstream-veryquick-shard-current-source-anchor.md',
-            'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick accepted-batch176-anchor.test',
-            'scripts' => ['accepted-batch176-anchor.test'],
+            'artifact_path' => 'lanes/libsqlite/notes/yield-suite-upstream-veryquick-shard-current-source-next212.md',
+            'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick accepted-batch201-anchor.test',
+            'scripts' => ['accepted-batch201-anchor.test'],
             'current_countable' => true,
             'next_countable' => true,
             'exit' => 0,
             'errors' => 0,
-            'current_tests' => 92140,
-            'next_tests' => 92140,
+            'current_tests' => 113830,
+            'next_tests' => 113830,
         ],
     ];
 }
@@ -85,94 +85,99 @@ function libsqlite_suite_current_admission_rows(
  * @param list<array<string, mixed>> $rows
  * @return array<string, mixed>
  */
-function libsqlite_suite_current_admission_record(
+function libsqlite_suite_veryquick_admission_record(
     array $rows,
-    string $launcherBase = 'b6077760c9cf35c1f9bb62cadb033a5845e26258',
+    string $launcherBase = '07f09e50ff14014cd43ac1209a553e4babc35c96',
     string $dashboardSource = '8a447f445e5d2fd32fc9fd463117f585d1416551',
     string $statusSource = '8a447f445e5d2fd32fc9fd463117f585d1416551',
     string $implementationSource = '8a447f445e5d2fd32fc9fd463117f585d1416551',
-    string $nextHead = 'suite-upstream-veryquick-shard-current-source-veryquick',
+    string $nextHead = 'suite-upstream-veryquick-shard-current-source-next235',
     ?string $output = null,
-    ?int $expected = 82,
+    ?int $expected = 96,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_current_admission_evidence()->upstreamVeryquickShardCurrentSourceAdmission(
+    return libsqlite_suite_veryquick_admission_evidence()->upstreamVeryquickShardCurrentSource(
         $rows,
-        617,
-        92140,
+        634,
+        113830,
         $launcherBase,
         $dashboardSource,
         $statusSource,
         $implementationSource,
         $nextHead,
         'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceAdmissionTest.php',
-        $output ?? libsqlite_suite_current_admission_output(),
-        'current-source veryquick-shard admission avoids accepted historical suite evidence, exact-shard baseline work, queued manifest-conflict work, runner rebase work, accepted batch behavior surfaces, and live B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE work',
+        $output ?? libsqlite_suite_veryquick_admission_output(),
+        'current-source next235 veryquick-shard admission avoids accepted next155/157/159/161/164/166/167/169/171/172/173/174/175/176/177/178/181/184/187/190/194/200/202/209/212/213/224/228/229/230 suite evidence, exact-shard next148, queued suite156/160/162/163/165/168/170/182/183/185/186/211 manifest-conflict work, runner106/jsonvt104 rebase work, accepted batch201 behavior surfaces, and live B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE work',
         $expected,
-        $snapshot
+        $snapshot,
+        'next235-veryquick-shard'
     );
 }
 
 $tests = [];
 
-foreach (range(1, 70) as $case) {
-    $tests[sprintf('current source veryquick admits veryquick shard case %02d', $case)] = static function (TestRunner $t) use ($case): void {
-        $record = libsqlite_suite_current_admission_record(libsqlite_suite_current_admission_rows($case));
+foreach (range(1, 80) as $case) {
+    $tests[sprintf('current source next235 admits veryquick shard case %02d', $case)] = static function (TestRunner $t) use ($case): void {
+        $record = libsqlite_suite_veryquick_admission_record(libsqlite_suite_veryquick_admission_rows($case));
 
-        $t->same('current-source-veryquick-veryquick-shard-advanced', $record['status']);
+        $t->same('current-source-next235-veryquick-shard-advanced', $record['status']);
         $t->same(true, $record['countable']);
-        $t->same(617, $record['current_mapped']);
-        $t->same(618, $record['next_mapped']);
+        $t->same(634, $record['current_mapped']);
+        $t->same(635, $record['next_mapped']);
         $t->same(1, $record['mapped_delta']);
-        $t->same(82, $record['php_pass_delta']);
-        $t->same(92222, $record['next_php_pass']);
-        $t->same(['suite-upstream-veryquick-shard-current-source-veryquick'], $record['admitted_units']);
-        $t->same(['batch176-current-source-anchor'], $record['preserved_units']);
-        $t->contains(sprintf('veryquick-current-source-veryquick-%02d.test', $case), implode(',', $record['target_scripts']));
-        $t->same(true, $record['counts_upstream_veryquick_shard_current_source_veryquick']);
+        $t->same(96, $record['php_pass_delta']);
+        $t->same(113926, $record['next_php_pass']);
+        $t->same(['suite-upstream-veryquick-shard-current-source-next235'], $record['admitted_units']);
+        $t->same(['batch201-current-source-anchor'], $record['preserved_units']);
+        $t->contains(sprintf('veryquick-current-source-next235-%02d.test', $case), implode(',', $record['target_scripts']));
+        $t->same(true, $record['counts_upstream_veryquick_shard_current_source_next235']);
+        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next212']);
+        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next209']);
+        $t->same(false, $record['counts_upstream_exact_shard_runner_current_source_next148']);
+        $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
         $t->same(false, $record['counts_release_parity']);
     };
 }
 
-$tests['current source veryquick records authoritative launcher and source heads'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_current_admission_record(libsqlite_suite_current_admission_rows(8));
+$tests['current source next235 records authoritative launcher and source heads'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(libsqlite_suite_veryquick_admission_rows(8));
 
-    $t->same('b6077760c9cf35c1f9bb62cadb033a5845e26258', $record['launcher_base_head']);
+    $t->same('07f09e50ff14014cd43ac1209a553e4babc35c96', $record['launcher_base_head']);
     $t->same('8a447f445e5d2fd32fc9fd463117f585d1416551', $record['dashboard_source_head']);
     $t->same('8a447f445e5d2fd32fc9fd463117f585d1416551', $record['status_source_head']);
     $t->same('8a447f445e5d2fd32fc9fd463117f585d1416551', $record['implementation_source_head']);
-    $t->same(['suite-upstream-veryquick-shard-current-source-veryquick'], $record['artifact_source_heads']);
+    $t->same(['suite-upstream-veryquick-shard-current-source-next235'], $record['artifact_source_heads']);
 };
 
-$tests['current source veryquick records target scripts and tier counts'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_current_admission_record(libsqlite_suite_current_admission_rows(13));
+$tests['current source next235 records target scripts and tier counts'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(libsqlite_suite_veryquick_admission_rows(13));
 
-    $t->same(92153, $record['tests_total_delta']);
-    $t->same(['accepted-batch176-anchor.test', 'testrunner.test', 'veryquick-current-source-veryquick-13.test'], $record['target_scripts']);
+    $t->same(113843, $record['tests_total_delta']);
+    $t->same(['accepted-batch201-anchor.test', 'testrunner.test', 'veryquick-current-source-next235-13.test'], $record['target_scripts']);
     $t->same('accepted-anchor', $record['tier_counts'][0]['tier']);
     $t->same(0, $record['tier_counts'][0]['admitted']);
     $t->same(1, $record['tier_counts'][0]['preserved']);
     $t->same('focused-veryquick-shard', $record['tier_counts'][1]['tier']);
     $t->same(1, $record['tier_counts'][1]['admitted']);
-    $t->same(92153, $record['tier_counts'][1]['tests']);
+    $t->same(113843, $record['tier_counts'][1]['tests']);
 };
 
-$tests['current source veryquick preserves already counted row without mapped inflation'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_current_admission_rows();
+$tests['current source next235 preserves already counted row without mapped inflation'] = static function (TestRunner $t): void {
+    $rows = libsqlite_suite_veryquick_admission_rows();
     $rows[0]['current_countable'] = true;
-    $rows[0]['current_tests'] = 92141;
+    $rows[0]['current_tests'] = 113831;
 
-    $record = libsqlite_suite_current_admission_record($rows);
+    $record = libsqlite_suite_veryquick_admission_record($rows);
 
-    $t->same('current-source-veryquick-veryquick-shard-preserved', $record['status']);
+    $t->same('current-source-next235-veryquick-shard-preserved', $record['status']);
     $t->same(0, $record['mapped_delta']);
-    $t->same(617, $record['next_mapped']);
-    $t->same(['batch176-current-source-anchor', 'suite-upstream-veryquick-shard-current-source-veryquick'], $record['preserved_units']);
+    $t->same(634, $record['next_mapped']);
+    $t->same(['batch201-current-source-anchor', 'suite-upstream-veryquick-shard-current-source-next235'], $record['preserved_units']);
 };
 
-$tests['current source veryquick blocks stale source provenance'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_current_admission_record(
-        libsqlite_suite_current_admission_rows(
+$tests['current source next235 blocks stale source provenance'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(
+        libsqlite_suite_veryquick_admission_rows(
             launcherBase: '0000000000000000000000000000000000000000',
             dashboardSource: '1111111111111111111111111111111111111111',
             statusSource: '2222222222222222222222222222222222222222',
@@ -189,13 +194,13 @@ $tests['current source veryquick blocks stale source provenance'] = static funct
     $t->contains('implementation-source-head-mismatch', $evidence);
 };
 
-$tests['current source veryquick blocks unguarded and non local artifacts'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_current_admission_rows();
-    $rows[0]['artifact_path'] = '/tmp/veryquick.md';
+$tests['current source next235 blocks unguarded and non local artifacts'] = static function (TestRunner $t): void {
+    $rows = libsqlite_suite_veryquick_admission_rows();
+    $rows[0]['artifact_path'] = '/tmp/next235.md';
     $rows[0]['runner_command'] = './testfixture ../libsqlite/test/testrunner.tcl all';
     $rows[0]['scripts'] = ['README.md'];
 
-    $record = libsqlite_suite_current_admission_record($rows);
+    $record = libsqlite_suite_veryquick_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $evidence = implode('; ', array_column($record['blockers'], 'evidence'));
@@ -204,31 +209,31 @@ $tests['current source veryquick blocks unguarded and non local artifacts'] = st
     $t->contains('concrete-test-scripts-missing', $evidence);
 };
 
-$tests['current source veryquick blocks non zero runner artifacts'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_current_admission_rows();
+$tests['current source next235 blocks non zero runner artifacts'] = static function (TestRunner $t): void {
+    $rows = libsqlite_suite_veryquick_admission_rows();
     $rows[0]['exit'] = 1;
     $rows[0]['errors'] = 2;
 
-    $record = libsqlite_suite_current_admission_record($rows);
+    $record = libsqlite_suite_veryquick_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->same(0, $record['php_pass_delta']);
     $t->contains('runner-artifact-not-zero-error', implode('; ', array_column($record['blockers'], 'evidence')));
 };
 
-$tests['current source veryquick blocks missing removed blocker classification'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_current_admission_rows();
+$tests['current source next235 blocks missing removed blocker classification'] = static function (TestRunner $t): void {
+    $rows = libsqlite_suite_veryquick_admission_rows();
     $rows[0]['removed_blocker'] = '';
 
-    $record = libsqlite_suite_current_admission_record($rows);
+    $record = libsqlite_suite_veryquick_admission_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->contains('removed-blocker-missing', implode('; ', array_column($record['blockers'], 'evidence')));
 };
 
-$tests['current source veryquick blocks duplicate broad runner snapshot'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_current_admission_record(
-        libsqlite_suite_current_admission_rows(),
+$tests['current source next235 blocks duplicate broad runner snapshot'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(
+        libsqlite_suite_veryquick_admission_rows(),
         snapshot: "12345 ./testfixture ../libsqlite/test/testrunner.tcl release\n"
     );
 
@@ -238,28 +243,28 @@ $tests['current source veryquick blocks duplicate broad runner snapshot'] = stat
     $t->contains('duplicate-broad-runner-active', implode('; ', array_column($record['blockers'], 'id')));
 };
 
-$tests['current source veryquick blocks focused php admission mismatch'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_current_admission_record(
-        libsqlite_suite_current_admission_rows(),
-        output: libsqlite_suite_current_admission_output(assertions: 81)
+$tests['current source next235 blocks focused php admission mismatch'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(
+        libsqlite_suite_veryquick_admission_rows(),
+        output: libsqlite_suite_veryquick_admission_output(assertions: 83)
     );
 
     $t->same('blocked', $record['status']);
     $t->contains('focused-php-pass-delta-mismatch', implode('; ', array_column($record['blockers'], 'id')));
 };
 
-$tests['current source veryquick records exact focused php admission'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_current_admission_record(libsqlite_suite_current_admission_rows());
+$tests['current source next235 records exact focused php admission'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(libsqlite_suite_veryquick_admission_rows());
 
     $t->same('admitted', $record['php_pass_admission']['status']);
-    $t->same(82, $record['php_pass_admission']['assertion_delta']);
-    $t->same(92222, $record['php_pass_admission']['next_php_pass']);
+    $t->same(96, $record['php_pass_admission']['assertion_delta']);
+    $t->same(113926, $record['php_pass_admission']['next_php_pass']);
     $t->same(null, $record['php_pass_admission']['blocker']);
 };
 
-$tests['current source veryquick blocks missing focused runner summary'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_current_admission_record(
-        libsqlite_suite_current_admission_rows(),
+$tests['current source next235 blocks missing focused runner summary'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(
+        libsqlite_suite_veryquick_admission_rows(),
         output: 'Focused test run: 1 selected test files (root lock skipped)'
     );
 
@@ -270,12 +275,45 @@ $tests['current source veryquick blocks missing focused runner summary'] = stati
     $t->contains('focused-php-pass-delta-mismatch', implode('; ', array_column($record['blockers'], 'id')));
 };
 
-$tests['current source veryquick carries dependency closure and non overlap notes'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_current_admission_record(libsqlite_suite_current_admission_rows());
+$tests['current source next235 carries dependency closure and non overlap notes'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(libsqlite_suite_veryquick_admission_rows());
 
     $t->contains('no new support component needed', $record['dependency_closure']);
-    $t->contains('accepted historical suite evidence', $record['non_overlap_note']);
+    $t->contains('224/228/229/230', $record['non_overlap_note']);
     $t->contains('release/all parity remains unclaimed', $record['next_gate']);
+};
+
+$tests['current source next235 blocks missing next countability flag'] = static function (TestRunner $t): void {
+    $rows = libsqlite_suite_veryquick_admission_rows();
+    $rows[0]['next_countable'] = false;
+
+    $record = libsqlite_suite_veryquick_admission_record($rows);
+
+    $t->same('blocked', $record['status']);
+    $t->same(0, $record['mapped_delta']);
+    $t->contains('next-countability-not-admitted', implode('; ', array_column($record['blockers'], 'evidence')));
+};
+
+$tests['current source next235 keeps broad release parity unclaimed'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(libsqlite_suite_veryquick_admission_rows(21));
+
+    $t->same(false, $record['counts_release_parity']);
+    $t->same(false, $record['counts_upstream_runner_rebase_gap_current_source_next122']);
+    $t->contains('veryquick shard', $record['next_gate']);
+};
+
+$tests['current source next235 does not recount prior veryquick shards'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(libsqlite_suite_veryquick_admission_rows(22));
+
+    $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next213']);
+    $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next202']);
+};
+
+$tests['current source next235 records focused shard dependency closure'] = static function (TestRunner $t): void {
+    $record = libsqlite_suite_veryquick_admission_record(libsqlite_suite_veryquick_admission_rows(23));
+
+    $t->contains('current-source next235 veryquick shard admission', $record['dependency_closure']);
+    $t->contains('zero-error guarded-runner metadata', $record['dependency_closure']);
 };
 
 return $tests;

@@ -27270,7 +27270,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext310(mixed ...$args): array
+    public static function currentSourceReaderCacheIgnoreCheckConstraintsFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
@@ -27288,7 +27288,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next311 requires application-id token');
         }
-        $base = self::variantNext310(...$args);
+        $base = self::currentSourceReaderCacheIgnoreCheckConstraintsFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_application_id_token', $currentToken, 311, 'reader_cache_application_id', 'reader_cache_application_id_must_match_current_application_id');
     }
@@ -27318,7 +27318,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext314(mixed ...$args): array
+    public static function currentSourceReaderCacheAutoVacuumIncrementalFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
@@ -27336,7 +27336,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next315 requires application-id token');
         }
-        $base = self::variantNext310(...$args);
+        $base = self::currentSourceReaderCacheIgnoreCheckConstraintsFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_application_id_token', $currentToken, 315, 'reader_cache_application_id', 'reader_cache_application_id_must_match_current_database_header');
     }

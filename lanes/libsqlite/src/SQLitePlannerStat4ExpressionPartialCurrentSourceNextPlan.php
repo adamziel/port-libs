@@ -34736,50 +34736,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         $range = $fence["sliceRange"] ?? [0, 0];
         $first = (int) ($range[0] ?? 0);
         $last = (int) ($range[1] ?? 0);
-        $compactRange = $first . $last;
-        $label = "next{$first}-{$last}";
-        $opcode = "PrepareStat4ExpressionPartialNext{$compactRange}Handoff";
-        $mode = "{$label}-current-source-stat4-expression-partial-prep";
-        if ($first === 846 && $last === 861) {
-            $opcode = "PrepareStat4ExpressionPartialPreparedHandoffContinuationWindow";
-            $mode = "prepared-handoff-continuation-window-current-source-stat4-expression-partial-prep";
-        }
-        if ($first === 862 && $last === 877) {
-            $opcode = "PrepareStat4ExpressionPartialPreparedHandoffResumeWindow";
-            $mode = "prepared-handoff-resume-window-current-source-stat4-expression-partial-prep";
-        }
-        if ($first === 878 && $last === 893) {
-            $opcode = "PrepareStat4ExpressionPartialPreparedHandoffValidationContinuation";
-            $mode = "prepared-handoff-validation-continuation-current-source-stat4-expression-partial-prep";
-        }
-        if ($first === 894 && $last === 909) {
-            $opcode = "PrepareStat4ExpressionPartialLatePreparedHandoffContinuation";
-            $mode = "late-prepared-handoff-continuation-current-source-stat4-expression-partial-prep";
-        }
-        if ($first === 910 && $last === 925) {
-            $opcode = "PrepareStat4ExpressionPartialFinalPreparedHandoffContinuation";
-            $mode = "final-prepared-handoff-continuation-current-source-stat4-expression-partial-prep";
-        }
-        if ($first === 926 && $last === 941) {
-            $opcode = "PrepareStat4ExpressionPartialAdvancedPreparedHandoffContinuation";
-            $mode = "advanced-prepared-handoff-continuation-current-source-stat4-expression-partial-prep";
-        }
-        if ($first === 942 && $last === 957) {
-            $opcode = "PrepareStat4ExpressionPartialPenultimatePreparedHandoff";
-            $mode = "penultimate-prepared-handoff-current-source-stat4-expression-partial-prep";
-        }
-        if ($first === 958 && $last === 973) {
-            $opcode = "PrepareStat4ExpressionPartialTerminalPreparedHandoff";
-            $mode = "terminal-prepared-handoff-current-source-stat4-expression-partial-prep";
-        }
-        if ($first === 990 && $last === 1005) {
-            $opcode = "PrepareStat4ExpressionPartialFinalPreparedHandoffHandoff";
-            $mode = "final prepared handoff-current-source-stat4-expression-partial-prep";
-        }
+        $metadata = self::preparedHandoffCursorMetadataForRange($first, $last);
 
         $program[] = [
-            "opcode" => $opcode,
-            "mode" => $mode,
+            "opcode" => $metadata["opcode"],
+            "mode" => $metadata["mode"],
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -34788,6 +34749,61 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
 
         return $program;
+    }
+
+    /**
+     * @return array{opcode:string,mode:string}
+     */
+    private static function preparedHandoffCursorMetadataForRange(int $first, int $last): array
+    {
+        $namedRanges = [
+            "846:861" => [
+                "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffContinuationWindow",
+                "mode" => "prepared-handoff-continuation-window-current-source-stat4-expression-partial-prep",
+            ],
+            "862:877" => [
+                "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffResumeWindow",
+                "mode" => "prepared-handoff-resume-window-current-source-stat4-expression-partial-prep",
+            ],
+            "878:893" => [
+                "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffValidationContinuation",
+                "mode" => "prepared-handoff-validation-continuation-current-source-stat4-expression-partial-prep",
+            ],
+            "894:909" => [
+                "opcode" => "PrepareStat4ExpressionPartialLatePreparedHandoffContinuation",
+                "mode" => "late-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
+            ],
+            "910:925" => [
+                "opcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoffContinuation",
+                "mode" => "final-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
+            ],
+            "926:941" => [
+                "opcode" => "PrepareStat4ExpressionPartialAdvancedPreparedHandoffContinuation",
+                "mode" => "advanced-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
+            ],
+            "942:957" => [
+                "opcode" => "PrepareStat4ExpressionPartialPenultimatePreparedHandoff",
+                "mode" => "penultimate-prepared-handoff-current-source-stat4-expression-partial-prep",
+            ],
+            "958:973" => [
+                "opcode" => "PrepareStat4ExpressionPartialTerminalPreparedHandoff",
+                "mode" => "terminal-prepared-handoff-current-source-stat4-expression-partial-prep",
+            ],
+            "990:1005" => [
+                "opcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoffHandoff",
+                "mode" => "final prepared handoff-current-source-stat4-expression-partial-prep",
+            ],
+        ];
+
+        $rangeKey = "{$first}:{$last}";
+        if (isset($namedRanges[$rangeKey])) {
+            return $namedRanges[$rangeKey];
+        }
+
+        return [
+            "opcode" => "PrepareStat4ExpressionPartialNext{$first}{$last}Handoff",
+            "mode" => "next{$first}-{$last}-current-source-stat4-expression-partial-prep",
+        ];
     }
 
     /**

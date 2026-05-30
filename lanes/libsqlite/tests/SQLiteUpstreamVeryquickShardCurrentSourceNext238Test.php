@@ -68,7 +68,7 @@ function libsqlite_suite_next238_rows(
             'dashboard_source_head' => $dashboardSource,
             'status_source_head' => $statusSource,
             'implementation_source_head' => $implementationSource,
-            'artifact_path' => 'lanes/libsqlite/notes/yield-suite-upstream-veryquick-shard-current-source-next235.md',
+            'artifact_path' => 'lanes/libsqlite/notes/consolidate-upstream-veryquick-shard-current-source-admission.md',
             'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick accepted-batch204-anchor.test',
             'scripts' => ['accepted-batch204-anchor.test'],
             'current_countable' => true,

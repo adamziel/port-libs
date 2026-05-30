@@ -51,7 +51,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext187($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNegativeRecursiveLimitBoundary($sql, $currentTables, $nextTables);
 
 if (in_array('--self-test', $argv, true)) {
     if (($plan['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next187-ready') {

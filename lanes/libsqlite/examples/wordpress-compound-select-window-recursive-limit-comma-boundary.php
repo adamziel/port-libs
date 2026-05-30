@@ -2,78 +2,81 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
+require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
-        ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'weight' => 20],
-        ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'weight' => 18],
-        ['option_id' => 3, 'option_name' => 'active_plugins', 'autoload' => 'no', 'weight' => 14],
+        ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'score' => 101],
+        ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'score' => 84],
+        ['option_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'score' => 67],
+        ['option_id' => 4, 'option_name' => 'cache_seed', 'autoload' => 'no', 'score' => 20],
     ],
 ];
-$nextTables = $currentTables;
-$nextTables['wp_options'][] = ['option_id' => 4, 'option_name' => 'plugin_alpha', 'autoload' => 'yes', 'weight' => 28];
-$nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'theme_mods', 'autoload' => 'yes', 'weight' => 17];
+$nextTables = [
+    'wp_options' => [
+        ...$currentTables['wp_options'],
+        ['option_id' => 5, 'option_name' => 'plugin_ranked', 'autoload' => 'yes', 'score' => 96],
+        ['option_id' => 6, 'option_name' => 'theme_mods_next', 'autoload' => 'yes', 'score' => 73],
+    ],
+];
 
 $sql = <<<'SQL'
-WITH RECURSIVE q(id, label, weight) AS (
-    VALUES (1, 'seed', 40)
+WITH RECURSIVE q(id, label, score) AS (
+    VALUES (1, 'seed', 118)
     UNION ALL
-    SELECT id + 1, label || ':' || (id + 1), weight - 3
+    SELECT id + 1, label || ':' || (id + 1), score - 8
       FROM q
      WHERE id < 9
-     LIMIT 1,5
+     LIMIT 7 OFFSET 2
 )
 SELECT id,
        label,
-       sum(weight) OVER (
-           ORDER BY id
-           ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING
-       ) AS metric
+       lag(score, 1, score) OVER (ORDER BY id) AS metric
   FROM q
 UNION ALL
 SELECT option_id AS id,
        option_name AS label,
-       first_value(weight) OVER (
-           PARTITION BY autoload
-           ORDER BY weight DESC, option_id
-           ROWS BETWEEN CURRENT ROW AND CURRENT ROW
-       ) AS metric
+       lead(score, 1, score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric
   FROM wp_options
+ WHERE autoload = 'yes'
+UNION ALL
+SELECT id,
+       label,
+       rank() OVER (ORDER BY score DESC, id) AS metric
+  FROM q
+UNION ALL
+SELECT option_id AS id,
+       option_name AS label,
+       dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric
+  FROM wp_options
+ WHERE autoload = 'yes'
+UNION
+SELECT option_id AS id,
+       option_name AS label,
+       score AS metric
+  FROM wp_options
+ WHERE score >= 67
  ORDER BY metric DESC, id
- LIMIT 1,4
+ LIMIT 3, 6
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCommaBoundary($sql, $currentTables, $nextTables);
-$result = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-comma-boundary',
-    'sqlShape' => 'WITH RECURSIVE queue LIMIT offset,count feeding windowed UNION ALL with final LIMIT offset,count',
-    'wordpressUse' => 'Copied wp_options import previews can use SQLite comma-form LIMIT syntax while preserving recursive queue skipping, per-arm window metrics, and final compound current/next boundaries.',
-    'currentLabels' => array_column($plan['currentRows'], 'label'),
-    'nextLabels' => array_column($plan['nextRows'], 'label'),
-    'recursiveSkippedLabels' => $plan['recursive']['currentSkippedLabels'],
-    'gainedLabels' => $plan['boundary']['gainedLabels'],
-    'lostLabels' => $plan['boundary']['lostLabels'],
-    'replanReasons' => $plan['replanReasons'],
-    'dependency' => 'native PHP SELECT SQL recursive CTE/window/compound comma-LIMIT execution; no ext/sqlite required',
-];
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCommaLimitRecursiveWindowBoundary($sql, $currentTables, $nextTables);
 
-if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    if ($result['currentLabels'] !== ['seed:2:3', 'seed:2:3:4', 'seed:2:3:4:5', 'seed:2:3:4:5:6']) {
-        fwrite(STDERR, "unexpected current compound labels\n");
-        exit(1);
-    }
-    if ($result['nextLabels'] !== ['seed:2:3', 'seed:2:3:4', 'seed:2:3:4:5', 'plugin_alpha']) {
-        fwrite(STDERR, "unexpected next compound labels\n");
-        exit(1);
-    }
-    if (!in_array('compound-final-comma-limit-offset', $result['replanReasons'], true)) {
-        fwrite(STDERR, "missing comma LIMIT reason\n");
-        exit(1);
-    }
-    echo "wordpress-compound-select-window-recursive-limit-current-source-comma-boundary self-test passed\n";
+if (($argv[1] ?? null) === '--self-test') {
+    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-next186-ready');
+    assert($plan['compound']['commaLimit'] === ['offset' => 3, 'count' => 6]);
+    assert($plan['sourceBoundary']['addedAdmittedLabels'] === ['siteurl', 'plugin_ranked']);
+    echo "wordpress-compound-select-window-recursive-limit-current-source-next186 self-test passed\n";
+    return;
 }
 
-return $result;
+echo json_encode([
+    'status' => $plan['status'],
+    'commaLimit' => $plan['compound']['commaLimit'],
+    'currentAdmittedLabels' => $plan['sourceBoundary']['currentAdmittedLabels'],
+    'nextAdmittedLabels' => $plan['sourceBoundary']['nextAdmittedLabels'],
+    'addedAdmittedLabels' => $plan['sourceBoundary']['addedAdmittedLabels'],
+    'dependencyClosure' => $plan['dependency_closure'],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

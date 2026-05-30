@@ -2361,7 +2361,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $normalizedConstraints = self::jsonTableGeneratedPathRowidAliasConstraints174($constraints);
+        $normalizedConstraints = self::jsonTableGeneratedPathRowidAliasConstraints($constraints);
         $plan = self::currentSourceGeneratedPathRowidCurrentSourceCost(
             $function,
             $currentSource,
@@ -2373,16 +2373,16 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidAliasProfile174(
+        $currentProfile = self::jsonTableGeneratedPathRowidAliasProfile(
             $plan['currentGeneratedPathRowidCurrentSource'],
             $constraints,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidAliasProfile174(
+        $nextProfile = self::jsonTableGeneratedPathRowidAliasProfile(
             $plan['nextGeneratedPathRowidCurrentSource'],
             $constraints,
         );
-        $transitions = self::jsonTableGeneratedPathRowidAliasTransitions174($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidAliasReplanReasons174($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidAliasTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidAliasReplanReasons($transitions);
 
         $plan['currentGeneratedPathRowidAliasCurrentSourceNext174'] = $currentProfile;
         $plan['nextGeneratedPathRowidAliasCurrentSourceNext174'] = $nextProfile;
@@ -2432,18 +2432,18 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidXFilterProgram177(
+        $currentProfile = self::jsonTableGeneratedPathRowidXFilterProgram(
             $function,
             $plan['currentGeneratedPathRowidAliasCurrentSourceNext174'],
             $plan['currentGeneratedPathRowidCurrentSource'],
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidXFilterProgram177(
+        $nextProfile = self::jsonTableGeneratedPathRowidXFilterProgram(
             $function,
             $plan['nextGeneratedPathRowidAliasCurrentSourceNext174'],
             $plan['nextGeneratedPathRowidCurrentSource'],
         );
-        $transitions = self::jsonTableGeneratedPathRowidXFilterTransitions177($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidXFilterReplanReasons177($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidXFilterTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidXFilterReplanReasons($transitions);
 
         $plan['currentGeneratedPathRowidXFilterProgram177'] = $currentProfile;
         $plan['nextGeneratedPathRowidXFilterProgram177'] = $nextProfile;
@@ -13458,7 +13458,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidAliasProfile174(array $profile170, array $constraints): array
+    private static function jsonTableGeneratedPathRowidAliasProfile(array $profile170, array $constraints): array
     {
         $aliasConstraints = [];
         $pointValues = [];
@@ -13575,7 +13575,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return list<array{column:string,operator:string,value:mixed,usable?:bool}>
      */
-    private static function jsonTableGeneratedPathRowidAliasConstraints174(array $constraints): array
+    private static function jsonTableGeneratedPathRowidAliasConstraints(array $constraints): array
     {
         $canonicalRowid = null;
         $sawPointAlias = false;
@@ -13624,7 +13624,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidAliasTransitions174(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidAliasTransitions(array $current, array $next): array
     {
         $fields = [
             'sourceOptionId',
@@ -13661,7 +13661,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidAliasReplanReasons174(array $transitions): array
+    private static function jsonTableGeneratedPathRowidAliasReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -13995,7 +13995,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $profile170
      * @return array{function:string,sourceOptionId:int|null,generatedPath:string|null,currentSourcePinned:bool,conflictingRowidAliases:bool,xFilterOpcode:string,resetRequired:bool,argvColumns:list<string>,argvValues:list<mixed>,argvProgram:list<array{step:int,opcode:string,column:string,value:mixed,omit:bool}>,omittedConstraintColumns:list<string>,residualConstraintColumns:list<string>,yieldRowids:list<int>,yieldPaths:list<string>,yieldCount:int,sourcePinKey:string|null,estimatedRows:int,estimatedCost:int,costClass:string,programFingerprint:string}
      */
-    private static function jsonTableGeneratedPathRowidXFilterProgram177(
+    private static function jsonTableGeneratedPathRowidXFilterProgram(
         string $function,
         array $alias174,
         array $profile170,
@@ -14041,14 +14041,14 @@ final class SQLiteJsonTablePlan
         foreach ($argvColumns as $index => $column) {
             $argvProgram[] = [
                 'step' => $index + 1,
-                'opcode' => self::jsonTableGeneratedPathRowidXFilterArgOpcode177($column),
+                'opcode' => self::jsonTableGeneratedPathRowidXFilterArgOpcode($column),
                 'column' => $column,
                 'value' => $argvValues[$index] ?? null,
                 'omit' => in_array($column, $omitColumns, true),
             ];
         }
 
-        $opcode = self::jsonTableGeneratedPathRowidXFilterOpcode177($conflict, $pinned, $cursorMode, $residualColumns, $rowids);
+        $opcode = self::jsonTableGeneratedPathRowidXFilterOpcode($conflict, $pinned, $cursorMode, $residualColumns, $rowids);
         $resetRequired = str_starts_with($opcode, 'xfilter-reset-')
             || str_starts_with($opcode, 'xfilter-empty-')
             || $sourcePinKey === null;
@@ -14057,7 +14057,7 @@ final class SQLiteJsonTablePlan
         $estimatedCost = $resetRequired
             ? ($conflict ? 0 : 1000000)
             : max(1, min($baseCost, max(1, $estimatedRows)));
-        $costClass = self::jsonTableGeneratedPathRowidXFilterCostClass177($opcode, $estimatedRows, count($residualColumns));
+        $costClass = self::jsonTableGeneratedPathRowidXFilterCostClass($opcode, $estimatedRows, count($residualColumns));
 
         return [
             'function' => $function,
@@ -14092,7 +14092,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function jsonTableGeneratedPathRowidXFilterArgOpcode177(string $column): string
+    private static function jsonTableGeneratedPathRowidXFilterArgOpcode(string $column): string
     {
         return match (self::normalizeConstraintColumn($column)) {
             'path' => 'bind-generated-path',
@@ -14105,7 +14105,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $residualColumns
      * @param list<int> $rowids
      */
-    private static function jsonTableGeneratedPathRowidXFilterOpcode177(
+    private static function jsonTableGeneratedPathRowidXFilterOpcode(
         bool $conflict,
         bool $pinned,
         string $cursorMode,
@@ -14128,7 +14128,7 @@ final class SQLiteJsonTablePlan
         return 'xfilter-current-source-covered-seek-next177';
     }
 
-    private static function jsonTableGeneratedPathRowidXFilterCostClass177(string $opcode, int $rowCount, int $residualCount): string
+    private static function jsonTableGeneratedPathRowidXFilterCostClass(string $opcode, int $rowCount, int $residualCount): string
     {
         if (str_starts_with($opcode, 'xfilter-empty-rowid-alias-contradiction')) {
             return 'json-table-generated-path-rowid-xfilter-contradiction-empty-next177';
@@ -14154,7 +14154,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidXFilterTransitions177(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidXFilterTransitions(array $current, array $next): array
     {
         $fields = [
             'sourceOptionId',
@@ -14192,7 +14192,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidXFilterReplanReasons177(array $transitions): array
+    private static function jsonTableGeneratedPathRowidXFilterReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {

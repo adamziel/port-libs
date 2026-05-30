@@ -9,8 +9,8 @@ foreach (glob(__DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourc
 }
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-options-next310.sqlite';
-$usersDatabase = '/srv/wp-content/database/wp-users-next310.sqlite';
+$database = '/srv/wp-content/database/wp-options-next314.sqlite';
+$usersDatabase = '/srv/wp-content/database/wp-users-next314.sqlite';
 $mainJournal = $database . '-journal';
 $usersJournal = $usersDatabase . '-journal';
 $master = $database . '-mj';
@@ -21,7 +21,7 @@ $formatPage = static function (string $label) use ($pageSize): string {
     $page = substr_replace($page, pack('n', 512), 16, 2);
     $page = substr_replace($page, chr(4), 20, 1);
     $page = substr_replace($page, pack('N', 2), 56, 4);
-    $page = substr_replace($page, pack('N', 310), 60, 4);
+    $page = substr_replace($page, pack('N', 314), 60, 4);
 
     return substr_replace($page, $label, 100, strlen($label));
 };
@@ -48,85 +48,89 @@ $recovered = [
     3 => $page('current active_plugins after collation catalog'),
     4 => $page('current usermeta after transaction state'),
 ];
-$tokens = [$mainJournal => 'member-main-current-310', $usersJournal => 'member-users-current-310'];
-$headers = [$mainJournal => hash('sha256', 'main header next310'), $usersJournal => hash('sha256', 'users header next310')];
+$tokens = [$mainJournal => 'member-main-current-314', $usersJournal => 'member-users-current-314'];
+$headers = [$mainJournal => hash('sha256', 'main header next314'), $usersJournal => hash('sha256', 'users header next314')];
 $base = [
-    'source_id' => 'wordpress-pager-reader-cache-next310',
-    'epoch' => 310,
-    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 310, 0])),
-    'publication_generation' => 310,
-    'master_source_digest' => hash('sha256', 'wordpress next310 master source'),
-    'recovery_sequence' => 310,
+    'source_id' => 'wordpress-pager-reader-cache-next314',
+    'epoch' => 314,
+    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 314, 0])),
+    'publication_generation' => 314,
+    'master_source_digest' => hash('sha256', 'wordpress next314 master source'),
+    'recovery_sequence' => 314,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
     'member_journal_header_digests' => $headers,
     'master_member_order_digest' => hash('sha256', implode("\n", array_keys($tokens))),
-    'master_journal_file_token' => 'master-file-current-310',
+    'master_journal_file_token' => 'master-file-current-314',
     'master_journal_bytes_digest' => hash('sha256', $masterBytes),
-    'database_file_token' => 'database-file-current-310',
-    'master_journal_cleanup_token' => 'master-cleanup-current-310',
-    'reader_lease_token' => 'reader-lease-current-310',
-    'pager_cache_source_token' => 'pager-cache-source-current-310',
-    'read_transaction_token' => 'read-transaction-current-310',
-    'schema_reparse_token' => 'schema-reparse-current-310',
-    'statement_schema_root_token' => 'statement-schema-root-current-310',
-    'current_source_provenance_token' => 'source-provenance-current-310',
-    'pager_reader_cache_generation_token' => 'cache-generation-current-310',
-    'reader_snapshot_token' => 'reader-snapshot-current-310',
-    'master_journal_recovery_receipt_token' => 'recovery-receipt-current-310',
-    'pager_spill_drain_token' => 'spill-drain-current-310',
-    'rollback_journal_reader_source_token' => 'rollback-source-current-310',
-    'pager_hot_journal_header_token' => 'hot-header-current-310',
-    'master_journal_member_epoch_token' => 'member-epoch-current-310',
-    'reader_cache_schema_cookie_token' => 'schema-cookie-current-310',
-    'reader_cache_vacuum_root_token' => 'vacuum-root-current-310',
-    'pager_reserved_lock_token' => 'reserved-lock-current-310',
-    'reader_cache_page_count_token' => 'page-count-current-310',
-    'reader_cache_schema_version_token' => 'schema-version-current-310',
-    'reader_cache_change_counter_token' => 'change-counter-current-310',
-    'reader_cache_freelist_trunk_token' => 'freelist-trunk-current-310',
-    'reader_cache_auto_vacuum_token' => 'auto-vacuum-current-310',
-    'reader_cache_encoding_token' => 'encoding-current-310',
-    'reader_cache_text_schema_token' => 'text-schema-current-310',
-    'reader_cache_index_schema_token' => 'index-schema-current-310',
-    'reader_cache_trigger_schema_token' => 'trigger-schema-current-310',
-    'reader_cache_view_schema_token' => 'view-schema-current-310',
-    'reader_cache_virtual_table_schema_token' => 'virtual-table-schema-current-310',
-    'reader_cache_module_schema_token' => 'module-schema-current-310',
-    'reader_cache_pragma_schema_token' => 'pragma-schema-current-310',
-    'reader_cache_collation_schema_token' => 'collation-schema-current-310',
-    'reader_cache_authorizer_schema_token' => 'authorizer-schema-current-310',
-    'reader_cache_transaction_state_token' => 'transaction-state-current-310',
-    'reader_cache_commit_phase_token' => 'commit-phase-current-310',
-    'reader_cache_busy_handler_token' => 'busy-handler-current-310',
-    'reader_cache_savepoint_stack_token' => 'savepoint-stack-current-310',
-    'reader_cache_statement_journal_token' => 'statement-journal-current-310',
-    'reader_cache_temp_page_token' => 'temp-page-current-310',
-    'reader_cache_dirty_list_token' => 'dirty-list-current-310',
-    'reader_cache_spill_epoch_token' => 'spill-epoch-current-310',
-    'reader_cache_locking_mode_token' => 'locking-mode-current-310',
-    'reader_cache_journal_mode_token' => 'journal-mode-current-310',
-    'reader_cache_synchronous_token' => 'synchronous-current-310',
-    'reader_cache_mmap_size_token' => 'mmap-size-current-310',
-    'reader_cache_cache_size_token' => 'cache-size-current-310',
-    'reader_cache_wal_autocheckpoint_token' => 'wal-autocheckpoint-current-310',
-    'reader_cache_query_only_token' => 'query-only-current-310',
-    'reader_cache_foreign_key_token' => 'foreign-key-current-310',
-    'reader_cache_defer_foreign_key_token' => 'defer-foreign-key-current-310',
-    'reader_cache_recursive_trigger_token' => 'recursive-trigger-current-310',
-    'reader_cache_trusted_schema_token' => 'trusted-schema-current-310',
-    'reader_cache_ignore_check_constraints_token' => 'ignore-check-constraints-current-310',
+    'database_file_token' => 'database-file-current-314',
+    'master_journal_cleanup_token' => 'master-cleanup-current-314',
+    'reader_lease_token' => 'reader-lease-current-314',
+    'pager_cache_source_token' => 'pager-cache-source-current-314',
+    'read_transaction_token' => 'read-transaction-current-314',
+    'schema_reparse_token' => 'schema-reparse-current-314',
+    'statement_schema_root_token' => 'statement-schema-root-current-314',
+    'current_source_provenance_token' => 'source-provenance-current-314',
+    'pager_reader_cache_generation_token' => 'cache-generation-current-314',
+    'reader_snapshot_token' => 'reader-snapshot-current-314',
+    'master_journal_recovery_receipt_token' => 'recovery-receipt-current-314',
+    'pager_spill_drain_token' => 'spill-drain-current-314',
+    'rollback_journal_reader_source_token' => 'rollback-source-current-314',
+    'pager_hot_journal_header_token' => 'hot-header-current-314',
+    'master_journal_member_epoch_token' => 'member-epoch-current-314',
+    'reader_cache_schema_cookie_token' => 'schema-cookie-current-314',
+    'reader_cache_vacuum_root_token' => 'vacuum-root-current-314',
+    'pager_reserved_lock_token' => 'reserved-lock-current-314',
+    'reader_cache_page_count_token' => 'page-count-current-314',
+    'reader_cache_schema_version_token' => 'schema-version-current-314',
+    'reader_cache_change_counter_token' => 'change-counter-current-314',
+    'reader_cache_freelist_trunk_token' => 'freelist-trunk-current-314',
+    'reader_cache_auto_vacuum_token' => 'auto-vacuum-current-314',
+    'reader_cache_encoding_token' => 'encoding-current-314',
+    'reader_cache_text_schema_token' => 'text-schema-current-314',
+    'reader_cache_index_schema_token' => 'index-schema-current-314',
+    'reader_cache_trigger_schema_token' => 'trigger-schema-current-314',
+    'reader_cache_view_schema_token' => 'view-schema-current-314',
+    'reader_cache_virtual_table_schema_token' => 'virtual-table-schema-current-314',
+    'reader_cache_module_schema_token' => 'module-schema-current-314',
+    'reader_cache_pragma_schema_token' => 'pragma-schema-current-314',
+    'reader_cache_collation_schema_token' => 'collation-schema-current-314',
+    'reader_cache_authorizer_schema_token' => 'authorizer-schema-current-314',
+    'reader_cache_transaction_state_token' => 'transaction-state-current-314',
+    'reader_cache_commit_phase_token' => 'commit-phase-current-314',
+    'reader_cache_busy_handler_token' => 'busy-handler-current-314',
+    'reader_cache_savepoint_stack_token' => 'savepoint-stack-current-314',
+    'reader_cache_statement_journal_token' => 'statement-journal-current-314',
+    'reader_cache_temp_page_token' => 'temp-page-current-314',
+    'reader_cache_dirty_list_token' => 'dirty-list-current-314',
+    'reader_cache_spill_epoch_token' => 'spill-epoch-current-314',
+    'reader_cache_locking_mode_token' => 'locking-mode-current-314',
+    'reader_cache_journal_mode_token' => 'journal-mode-current-314',
+    'reader_cache_synchronous_token' => 'synchronous-current-314',
+    'reader_cache_mmap_size_token' => 'mmap-size-current-314',
+    'reader_cache_cache_size_token' => 'cache-size-current-314',
+    'reader_cache_wal_autocheckpoint_token' => 'wal-autocheckpoint-current-314',
+    'reader_cache_query_only_token' => 'query-only-current-314',
+    'reader_cache_foreign_key_token' => 'foreign-key-current-314',
+    'reader_cache_defer_foreign_key_token' => 'defer-foreign-key-current-314',
+    'reader_cache_recursive_trigger_token' => 'recursive-trigger-current-314',
+    'reader_cache_trusted_schema_token' => 'trusted-schema-current-314',
+    'reader_cache_ignore_check_constraints_token' => 'ignore-check-constraints-current-314',
+    'reader_cache_application_id_token' => 'application-id-current-314',
+    'reader_cache_user_version_token' => 'user-version-current-314',
+    'reader_cache_schema_format_token' => 'schema-format-current-314',
+    'reader_cache_auto_vacuum_incremental_token' => 'auto-vacuum-incremental-current-314',
 ];
 $cacheEntry = static fn (string $label, string $image, array $extra = []): array => array_merge($base, ['label' => $label, 'reader_id' => $label . '-reader', 'image' => $image], $extra);
 $read = static fn (int $pageNumber, array $extra = []): array => array_merge([
     'reader_id' => 'read-' . $pageNumber,
     'page_number' => $pageNumber,
     'source_id' => $base['source_id'],
-    'epoch' => 310,
+    'epoch' => 314,
     'format_signature' => $base['format_signature'],
-    'publication_generation' => 310,
+    'publication_generation' => 314,
     'master_source_digest' => $base['master_source_digest'],
-    'recovery_sequence' => 310,
+    'recovery_sequence' => 314,
     'recovered_page_set_digest' => $base['recovered_page_set_digest'],
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
@@ -186,9 +190,13 @@ $read = static fn (int $pageNumber, array $extra = []): array => array_merge([
     'reader_cache_recursive_trigger_token' => $base['reader_cache_recursive_trigger_token'],
     'reader_cache_trusted_schema_token' => $base['reader_cache_trusted_schema_token'],
     'reader_cache_ignore_check_constraints_token' => $base['reader_cache_ignore_check_constraints_token'],
+    'reader_cache_application_id_token' => $base['reader_cache_application_id_token'],
+    'reader_cache_user_version_token' => $base['reader_cache_user_version_token'],
+    'reader_cache_schema_format_token' => $base['reader_cache_schema_format_token'],
+    'reader_cache_auto_vacuum_incremental_token' => $base['reader_cache_auto_vacuum_incremental_token'],
 ], $extra);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext310(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderCacheAutoVacuumIncrementalFence(
     $database,
     $master,
     $masterBytes,
@@ -201,12 +209,12 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext310
         3 => $cacheEntry('plugins-collation-stale', $recovered[3], ['reader_cache_collation_schema_token' => 'collation-schema-old']),
         4 => $cacheEntry('usermeta-current', $recovered[4]),
     ],
-    [$read(1), $read(2), $read(3), $read(4, ['reader_cache_savepoint_stack_token' => 'savepoint-stack-old', 'reader_cache_statement_journal_token' => 'statement-journal-old', 'reader_cache_temp_page_token' => 'temp-page-old', 'reader_cache_dirty_list_token' => 'dirty-list-old', 'reader_cache_spill_epoch_token' => 'spill-epoch-old', 'reader_cache_locking_mode_token' => 'locking-mode-old', 'reader_cache_journal_mode_token' => 'journal-mode-old', 'reader_cache_synchronous_token' => 'synchronous-old', 'reader_cache_mmap_size_token' => 'mmap-size-old', 'reader_cache_cache_size_token' => 'cache-size-old', 'reader_cache_wal_autocheckpoint_token' => 'wal-autocheckpoint-old', 'reader_cache_query_only_token' => 'query-only-old', 'reader_cache_foreign_key_token' => 'foreign-key-old', 'reader_cache_defer_foreign_key_token' => 'defer-foreign-key-old', 'reader_cache_recursive_trigger_token' => 'recursive-trigger-old', 'reader_cache_trusted_schema_token' => 'trusted-schema-old', 'reader_cache_ignore_check_constraints_token' => 'ignore-check-constraints-old'])],
+    [$read(1), $read(2), $read(3), $read(4, ['reader_cache_savepoint_stack_token' => 'savepoint-stack-old', 'reader_cache_statement_journal_token' => 'statement-journal-old', 'reader_cache_temp_page_token' => 'temp-page-old', 'reader_cache_dirty_list_token' => 'dirty-list-old', 'reader_cache_spill_epoch_token' => 'spill-epoch-old', 'reader_cache_locking_mode_token' => 'locking-mode-old', 'reader_cache_journal_mode_token' => 'journal-mode-old', 'reader_cache_synchronous_token' => 'synchronous-old', 'reader_cache_mmap_size_token' => 'mmap-size-old', 'reader_cache_cache_size_token' => 'cache-size-old', 'reader_cache_wal_autocheckpoint_token' => 'wal-autocheckpoint-old', 'reader_cache_query_only_token' => 'query-only-old', 'reader_cache_foreign_key_token' => 'foreign-key-old', 'reader_cache_defer_foreign_key_token' => 'defer-foreign-key-old', 'reader_cache_recursive_trigger_token' => 'recursive-trigger-old', 'reader_cache_trusted_schema_token' => 'trusted-schema-old', 'reader_cache_ignore_check_constraints_token' => 'ignore-check-constraints-old', 'reader_cache_application_id_token' => 'application-id-old', 'reader_cache_user_version_token' => 'user-version-old', 'reader_cache_schema_format_token' => 'schema-format-old', 'reader_cache_auto_vacuum_incremental_token' => 'auto-vacuum-incremental-old'])],
     $base['source_id'],
-    310,
-    310,
+    314,
+    314,
     $base['master_source_digest'],
-    310,
+    314,
     $tokens,
     $headers,
     $base['master_journal_file_token'],
@@ -263,11 +271,15 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext310
     $base['reader_cache_recursive_trigger_token'],
     $base['reader_cache_trusted_schema_token'],
     $base['reader_cache_ignore_check_constraints_token'],
+    $base['reader_cache_application_id_token'],
+    $base['reader_cache_user_version_token'],
+    $base['reader_cache_schema_format_token'],
+    $base['reader_cache_auto_vacuum_incremental_token'],
 );
 
 if (in_array('--self-test', $argv, true)) {
-    if ($plan['status'] !== 'pager-master-journal-reader-cache-current-source-next310') {
-        fwrite(STDERR, "unexpected pager reader-cache next310 status\n");
+    if ($plan['status'] !== 'pager-master-journal-reader-cache-current-source-next314') {
+        fwrite(STDERR, "unexpected pager reader-cache next314 status\n");
         exit(1);
     }
     if ($plan['reader_cache_module_schema_invalidated_cache_page_numbers'] !== [1]) {
@@ -294,7 +306,11 @@ if (in_array('--self-test', $argv, true)) {
         fwrite(STDERR, "expected ignore check constraints ticket to reopen\n");
         exit(1);
     }
-    echo "wordpress-pager-master-journal-reader-cache-current-source-next310 self-test passed\n";
+    if (($plan['next_reads'][3]['reader_cache_auto_vacuum_incremental_token_reason'] ?? '') !== 'reader_ticket_reader_cache_auto_vacuum_incremental_predates_current_source') {
+        fwrite(STDERR, "expected auto vacuum incremental ticket to reopen\n");
+        exit(1);
+    }
+    echo "wordpress-pager-master-journal-reader-cache-auto-vacuum-incremental self-test passed\n";
     return;
 }
 
@@ -306,5 +322,6 @@ echo json_encode([
     'reader_cache_collation_schema_invalidated_cache_page_numbers' => $plan['reader_cache_collation_schema_invalidated_cache_page_numbers'],
     'current_reader_cache_foreign_key_token' => $plan['current_reader_cache_foreign_key_token'],
     'current_reader_cache_ignore_check_constraints_token' => $plan['current_reader_cache_ignore_check_constraints_token'],
+    'current_reader_cache_auto_vacuum_incremental_token' => $plan['current_reader_cache_auto_vacuum_incremental_token'],
     'read_cache_hits' => $plan['read_cache_hits'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

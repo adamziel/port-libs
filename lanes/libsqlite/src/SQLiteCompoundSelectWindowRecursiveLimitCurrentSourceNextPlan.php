@@ -5340,14 +5340,14 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext185(string $sql, array $currentTables, array $nextTables): array
+        public static function compareUnionTailRecursiveLimitBoundary(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext185($sql, $currentPlan, $nextPlan);
+            self::assertUnionTailRecursiveLimitBoundarySupported($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext185($sql);
-            $traceSql = self::recursiveTraceSqlNext185($sql);
+            $preLimitSql = self::withoutFinalLimitForUnionTailBoundary($sql);
+            $traceSql = self::recursiveTraceSqlForUnionTailBoundary($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
@@ -5361,16 +5361,16 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'nextRows' => $nextRows,
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
-                'changedSignatures' => self::changedSignaturesNext185($currentRows, $nextRows),
+                'changedSignatures' => self::changedSignaturesForUnionTailBoundary($currentRows, $nextRows),
                 'compound' => [
-                    'operators' => self::operatorsNext185($currentPlan),
+                    'operators' => self::compoundOperatorsForUnionTailBoundary($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext185($currentPlan),
+                    'orderColumns' => self::orderColumnsForUnionTailBoundary($currentPlan),
                     'limit' => $currentPlan['compound']['limit'] ?? null,
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
-                    'distinctArmIndex' => self::distinctArmIndexNext185($currentPlan),
-                    'hasUnionAllTail' => self::operatorsNext185($currentPlan) === ['UNION', 'UNION ALL'],
+                    'distinctArmIndex' => self::distinctArmIndexForUnionTailBoundary($currentPlan),
+                    'hasUnionAllTail' => self::compoundOperatorsForUnionTailBoundary($currentPlan) === ['UNION', 'UNION ALL'],
                 ],
                 'recursive' => [
                     'name' => $currentRecursive['name'],
@@ -5380,40 +5380,40 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'nextRows' => $nextRecursive['rows'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext185($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext185($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext185($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext185($nextRecursive['trace'], true),
-                    'currentFinalLimitRemaining' => self::lastTraceValueNext185($currentRecursive['trace'], 'limit_remaining'),
-                    'nextFinalLimitRemaining' => self::lastTraceValueNext185($nextRecursive['trace'], 'limit_remaining'),
-                    'currentFinalOffsetRemaining' => self::lastTraceValueNext185($currentRecursive['trace'], 'offset_remaining'),
-                    'nextFinalOffsetRemaining' => self::lastTraceValueNext185($nextRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsForUnionTailBoundary($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsForUnionTailBoundary($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsForUnionTailBoundary($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsForUnionTailBoundary($nextRecursive['trace'], true),
+                    'currentFinalLimitRemaining' => self::lastTraceValueForUnionTailBoundary($currentRecursive['trace'], 'limit_remaining'),
+                    'nextFinalLimitRemaining' => self::lastTraceValueForUnionTailBoundary($nextRecursive['trace'], 'limit_remaining'),
+                    'currentFinalOffsetRemaining' => self::lastTraceValueForUnionTailBoundary($currentRecursive['trace'], 'offset_remaining'),
+                    'nextFinalOffsetRemaining' => self::lastTraceValueForUnionTailBoundary($nextRecursive['trace'], 'offset_remaining'),
                     'dependencies' => array_values(array_unique(array_merge($currentRecursive['dependencies'], $nextRecursive['dependencies']))),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext185($currentPlan),
-                    'next' => self::windowTermsNext185($nextPlan),
-                    'functions' => array_values(array_unique(array_column(self::windowTermsNext185($currentPlan), 'function'))),
+                    'current' => self::windowTermsForUnionTailBoundary($currentPlan),
+                    'next' => self::windowTermsForUnionTailBoundary($nextPlan),
+                    'functions' => array_values(array_unique(array_column(self::windowTermsForUnionTailBoundary($currentPlan), 'function'))),
                 ],
                 'distinctUnion' => [
-                    'currentDuplicateLabels' => self::duplicateLabelsNext185($currentPreLimitRows),
-                    'nextDuplicateLabels' => self::duplicateLabelsNext185($nextPreLimitRows),
-                    'currentSurvivorLabels' => self::labelsNext185($currentPreLimitRows),
-                    'nextSurvivorLabels' => self::labelsNext185($nextPreLimitRows),
-                    'changedSurvivors' => self::changedLabelsNext185($currentPreLimitRows, $nextPreLimitRows),
+                    'currentDuplicateLabels' => self::duplicateLabelsForUnionTailBoundary($currentPreLimitRows),
+                    'nextDuplicateLabels' => self::duplicateLabelsForUnionTailBoundary($nextPreLimitRows),
+                    'currentSurvivorLabels' => self::labelsForUnionTailBoundary($currentPreLimitRows),
+                    'nextSurvivorLabels' => self::labelsForUnionTailBoundary($nextPreLimitRows),
+                    'changedSurvivors' => self::changedLabelsForUnionTailBoundary($currentPreLimitRows, $nextPreLimitRows),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext185($currentPreLimitRows, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext185($nextPreLimitRows, $nextRows, $nextPlan),
+                    'current' => self::limitTraceForUnionTailBoundary($currentPreLimitRows, $currentRows, $currentPlan),
+                    'next' => self::limitTraceForUnionTailBoundary($nextPreLimitRows, $nextRows, $nextPlan),
                 ],
                 'sourceClasses' => [
-                    'current' => self::sourceClassesNext185($currentRows),
-                    'next' => self::sourceClassesNext185($nextRows),
-                    'preLimitCurrent' => self::sourceClassesNext185($currentPreLimitRows),
-                    'preLimitNext' => self::sourceClassesNext185($nextPreLimitRows),
+                    'current' => self::sourceClassesForUnionTailBoundary($currentRows),
+                    'next' => self::sourceClassesForUnionTailBoundary($nextRows),
+                    'preLimitCurrent' => self::sourceClassesForUnionTailBoundary($currentPreLimitRows),
+                    'preLimitNext' => self::sourceClassesForUnionTailBoundary($nextPreLimitRows),
                 ],
-                'boundary' => self::boundaryDeltaNext185($currentRows, $nextRows),
-                'replanReasons' => self::replanReasonsNext185($currentRows, $nextRows, $currentPreLimitRows, $nextPreLimitRows, $currentRecursive, $currentPlan),
+                'boundary' => self::boundaryDeltaForUnionTailBoundary($currentRows, $nextRows),
+                'replanReasons' => self::replanReasonsForUnionTailBoundary($currentRows, $nextRows, $currentPreLimitRows, $nextPreLimitRows, $currentRecursive, $currentPlan),
                 'dependencies' => [
                     'sqlite-select-sql-recursive-single-row-limit-offset-next185',
                     'sqlite-select-sql-compound-union-distinct-before-union-all-next185',
@@ -5429,7 +5429,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext185(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertUnionTailRecursiveLimitBoundarySupported(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next185 needs WITH RECURSIVE SQL');
@@ -5437,7 +5437,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next185 needs compound SELECT SQL');
             }
-            if (self::operatorsNext185($currentPlan) !== ['UNION', 'UNION ALL']) {
+            if (self::compoundOperatorsForUnionTailBoundary($currentPlan) !== ['UNION', 'UNION ALL']) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next185 needs UNION distinct followed by UNION ALL');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
@@ -5446,7 +5446,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             if (preg_match('/WITH\s+RECURSIVE.*?\bLIMIT\s+1\s+OFFSET\s+\d+/is', $sql) !== 1) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next185 needs single-row recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext185($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsForUnionTailBoundary($currentPlan), 'function'));
             foreach (['row_number', 'dense_rank', 'rank'] as $function) {
                 if (!in_array($function, $functions, true)) {
                     throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT next185 needs {$function} window output");
@@ -5454,7 +5454,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             }
         }
 
-        private static function recursiveTraceSqlNext185(string $sql): string
+        private static function recursiveTraceSqlForUnionTailBoundary(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
@@ -5464,7 +5464,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext185(string $sql): string
+        private static function withoutFinalLimitForUnionTailBoundary(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
@@ -5479,7 +5479,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function operatorsNext185(array $plan): array
+        private static function compoundOperatorsForUnionTailBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -5490,7 +5490,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext185(array $plan): array
+        private static function orderColumnsForUnionTailBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -5503,9 +5503,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function distinctArmIndexNext185(array $plan): ?int
+        private static function distinctArmIndexForUnionTailBoundary(array $plan): ?int
         {
-            foreach (self::operatorsNext185($plan) as $index => $operator) {
+            foreach (self::compoundOperatorsForUnionTailBoundary($plan) as $index => $operator) {
                 if ($operator === 'UNION') {
                     return $index + 1;
                 }
@@ -5518,7 +5518,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext185(array $plan): array
+        private static function windowTermsForUnionTailBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -5546,7 +5546,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<string>
          */
-        private static function traceLabelsNext185(array $trace, bool $emitted): array
+        private static function traceLabelsForUnionTailBoundary(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $step) {
@@ -5565,7 +5565,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $trace
          */
-        private static function lastTraceValueNext185(array $trace, string $key): ?int
+        private static function lastTraceValueForUnionTailBoundary(array $trace, string $key): ?int
         {
             $last = $trace === [] ? null : $trace[count($trace) - 1];
             $value = is_array($last) ? ($last[$key] ?? null) : null;
@@ -5579,7 +5579,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function limitTraceNext185(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTraceForUnionTailBoundary(array $preLimitRows, array $limitedRows, array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $offset = isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0;
@@ -5600,7 +5600,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array<string,int>
          */
-        private static function sourceClassesNext185(array $rows): array
+        private static function sourceClassesForUnionTailBoundary(array $rows): array
         {
             $classes = [];
             foreach ($rows as $row) {
@@ -5617,7 +5617,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function labelsNext185(array $rows): array
+        private static function labelsForUnionTailBoundary(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? ''), $rows));
         }
@@ -5626,10 +5626,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function duplicateLabelsNext185(array $rows): array
+        private static function duplicateLabelsForUnionTailBoundary(array $rows): array
         {
             $counts = [];
-            foreach (self::labelsNext185($rows) as $label) {
+            foreach (self::labelsForUnionTailBoundary($rows) as $label) {
                 $counts[$label] = ($counts[$label] ?? 0) + 1;
             }
 
@@ -5641,11 +5641,11 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedLabelsNext185(array $currentRows, array $nextRows): array
+        private static function changedLabelsForUnionTailBoundary(array $currentRows, array $nextRows): array
         {
             return array_values(array_unique(array_merge(
-                array_diff(self::labelsNext185($nextRows), self::labelsNext185($currentRows)),
-                array_diff(self::labelsNext185($currentRows), self::labelsNext185($nextRows)),
+                array_diff(self::labelsForUnionTailBoundary($nextRows), self::labelsForUnionTailBoundary($currentRows)),
+                array_diff(self::labelsForUnionTailBoundary($currentRows), self::labelsForUnionTailBoundary($nextRows)),
             )));
         }
 
@@ -5654,7 +5654,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext185(array $currentRows, array $nextRows): array
+        private static function changedSignaturesForUnionTailBoundary(array $currentRows, array $nextRows): array
         {
             $current = array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $currentRows);
             $next = array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $nextRows);
@@ -5667,7 +5667,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array<string,mixed>
          */
-        private static function boundaryDeltaNext185(array $currentRows, array $nextRows): array
+        private static function boundaryDeltaForUnionTailBoundary(array $currentRows, array $nextRows): array
         {
             $currentSignatures = array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $currentRows);
             $nextSignatures = array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $nextRows);
@@ -5691,22 +5691,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @return list<string>
          */
-        private static function replanReasonsNext185(array $currentRows, array $nextRows, array $currentPreLimitRows, array $nextPreLimitRows, array $currentRecursive, array $currentPlan): array
+        private static function replanReasonsForUnionTailBoundary(array $currentRows, array $nextRows, array $currentPreLimitRows, array $nextPreLimitRows, array $currentRecursive, array $currentPlan): array
         {
             $reasons = [];
-            if (self::changedSignaturesNext185($currentRows, $nextRows) !== []) {
+            if (self::changedSignaturesForUnionTailBoundary($currentRows, $nextRows) !== []) {
                 $reasons[] = 'limited-union-distinct-window-rowset-changed';
             }
-            if (self::changedSignaturesNext185($currentPreLimitRows, $nextPreLimitRows) !== []) {
+            if (self::changedSignaturesForUnionTailBoundary($currentPreLimitRows, $nextPreLimitRows) !== []) {
                 $reasons[] = 'prelimit-union-distinct-window-rowset-changed';
             }
-            if (self::duplicateLabelsNext185($currentPreLimitRows) !== []) {
+            if (self::duplicateLabelsForUnionTailBoundary($currentPreLimitRows) !== []) {
                 $reasons[] = 'union-distinct-arm-collapsed-duplicates-before-union-all-tail';
             }
-            if (count($currentRecursive['rows'] ?? []) === 1 && self::lastTraceValueNext185((array) ($currentRecursive['trace'] ?? []), 'offset_remaining') === 0) {
+            if (count($currentRecursive['rows'] ?? []) === 1 && self::lastTraceValueForUnionTailBoundary((array) ($currentRecursive['trace'] ?? []), 'offset_remaining') === 0) {
                 $reasons[] = 'recursive-limit-offset-emitted-single-row';
             }
-            if (self::windowTermsNext185($currentPlan) !== []) {
+            if (self::windowTermsForUnionTailBoundary($currentPlan) !== []) {
                 $reasons[] = 'window-functions-materialized-before-distinct-union';
             }
             if (($currentPlan['compound']['offset'] ?? 0) > 0) {
@@ -5723,29 +5723,29 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext186(string $sql, array $currentTables, array $nextTables): array
+        public static function compareCommaLimitRecursiveWindowBoundary(string $sql, array $currentTables, array $nextTables): array
         {
-            self::assertCommaLimitSqlNext186($sql);
+            self::assertCommaLimitRecursiveWindowSql($sql);
 
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareTailWindowLimitBoundary(self::offsetLimitSqlNext186($sql), $currentTables, $nextTables);
-            $currentRows = self::rowsNext186($base, 'currentRows');
-            $nextRows = self::rowsNext186($base, 'nextRows');
-            $currentPreLimit = self::rowsNext186($base, 'currentPreLimitRows');
-            $nextPreLimit = self::rowsNext186($base, 'nextPreLimitRows');
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareTailWindowLimitBoundary(self::offsetLimitSqlForCommaLimitBoundary($sql), $currentTables, $nextTables);
+            $currentRows = self::rowsForCommaLimitBoundary($base, 'currentRows');
+            $nextRows = self::rowsForCommaLimitBoundary($base, 'nextRows');
+            $currentPreLimit = self::rowsForCommaLimitBoundary($base, 'currentPreLimitRows');
+            $nextPreLimit = self::rowsForCommaLimitBoundary($base, 'nextPreLimitRows');
 
             $base['status'] = 'compound-select-window-recursive-limit-current-source-next186-ready';
-            $base['compound']['commaLimit'] = self::commaLimitNext186($sql);
+            $base['compound']['commaLimit'] = self::commaLimitForRecursiveWindowBoundary($sql);
             $base['sourceBoundary'] = [
-                'currentAdmittedLabels' => self::labelsNext186($currentRows),
-                'nextAdmittedLabels' => self::labelsNext186($nextRows),
-                'currentSkippedLabels' => self::labelsNext186(array_slice($currentPreLimit, 0, self::offsetNext186($base))),
-                'nextSkippedLabels' => self::labelsNext186(array_slice($nextPreLimit, 0, self::offsetNext186($base))),
-                'currentTruncatedLabels' => self::labelsNext186(array_slice($currentPreLimit, self::offsetNext186($base) + self::limitNext186($base))),
-                'nextTruncatedLabels' => self::labelsNext186(array_slice($nextPreLimit, self::offsetNext186($base) + self::limitNext186($base))),
-                'addedAdmittedLabels' => self::changedLabelsNext186($currentRows, $nextRows, true),
-                'removedAdmittedLabels' => self::changedLabelsNext186($currentRows, $nextRows, false),
-                'nextAutoloadWindowLabels' => self::autoloadLabelsNext186($nextPreLimit),
-                'nextRecursiveLabels' => self::recursiveLabelsNext186($nextPreLimit),
+                'currentAdmittedLabels' => self::labelsForCommaLimitBoundary($currentRows),
+                'nextAdmittedLabels' => self::labelsForCommaLimitBoundary($nextRows),
+                'currentSkippedLabels' => self::labelsForCommaLimitBoundary(array_slice($currentPreLimit, 0, self::offsetForCommaLimitBoundary($base))),
+                'nextSkippedLabels' => self::labelsForCommaLimitBoundary(array_slice($nextPreLimit, 0, self::offsetForCommaLimitBoundary($base))),
+                'currentTruncatedLabels' => self::labelsForCommaLimitBoundary(array_slice($currentPreLimit, self::offsetForCommaLimitBoundary($base) + self::limitForCommaLimitBoundary($base))),
+                'nextTruncatedLabels' => self::labelsForCommaLimitBoundary(array_slice($nextPreLimit, self::offsetForCommaLimitBoundary($base) + self::limitForCommaLimitBoundary($base))),
+                'addedAdmittedLabels' => self::changedLabelsForCommaLimitBoundary($currentRows, $nextRows, true),
+                'removedAdmittedLabels' => self::changedLabelsForCommaLimitBoundary($currentRows, $nextRows, false),
+                'nextAutoloadWindowLabels' => self::autoloadLabelsForCommaLimitBoundary($nextPreLimit),
+                'nextRecursiveLabels' => self::recursiveLabelsForCommaLimitBoundary($nextPreLimit),
             ];
             $base['replanReasons'] = array_values(array_unique(array_merge(
                 is_array($base['replanReasons'] ?? null) ? $base['replanReasons'] : [],
@@ -5767,7 +5767,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             return $base;
         }
 
-        private static function assertCommaLimitSqlNext186(string $sql): void
+        private static function assertCommaLimitRecursiveWindowSql(string $sql): void
         {
             if (preg_match('/\s+LIMIT\s+\d+\s*,\s*\d+\s*;?\s*$/i', trim($sql)) !== 1) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source next186 needs comma-form final LIMIT offset,count');
@@ -5777,9 +5777,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             }
         }
 
-        private static function offsetLimitSqlNext186(string $sql): string
+        private static function offsetLimitSqlForCommaLimitBoundary(string $sql): string
         {
-            $limit = self::commaLimitNext186($sql);
+            $limit = self::commaLimitForRecursiveWindowBoundary($sql);
             $converted = preg_replace(
                 '/\s+LIMIT\s+\d+\s*,\s*\d+\s*;?\s*$/i',
                 ' LIMIT ' . $limit['count'] . ' OFFSET ' . $limit['offset'],
@@ -5796,7 +5796,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $summary
          * @return list<array<string,mixed>>
          */
-        private static function rowsNext186(array $summary, string $key): array
+        private static function rowsForCommaLimitBoundary(array $summary, string $key): array
         {
             return is_array($summary[$key] ?? null) ? array_values(array_filter(
                 $summary[$key],
@@ -5807,7 +5807,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @return array{offset:int,count:int}
          */
-        private static function commaLimitNext186(string $sql): array
+        private static function commaLimitForRecursiveWindowBoundary(string $sql): array
         {
             if (preg_match('/\s+LIMIT\s+(\d+)\s*,\s*(\d+)\s*;?\s*$/i', trim($sql), $match) !== 1) {
                 return ['offset' => 0, 'count' => 0];
@@ -5819,7 +5819,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $summary
          */
-        private static function limitNext186(array $summary): int
+        private static function limitForCommaLimitBoundary(array $summary): int
         {
             $compound = is_array($summary['compound'] ?? null) ? $summary['compound'] : [];
 
@@ -5829,7 +5829,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $summary
          */
-        private static function offsetNext186(array $summary): int
+        private static function offsetForCommaLimitBoundary(array $summary): int
         {
             $compound = is_array($summary['compound'] ?? null) ? $summary['compound'] : [];
 
@@ -5840,7 +5840,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function labelsNext186(array $rows): array
+        private static function labelsForCommaLimitBoundary(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? ''), $rows));
         }
@@ -5849,10 +5849,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function autoloadLabelsNext186(array $rows): array
+        private static function autoloadLabelsForCommaLimitBoundary(array $rows): array
         {
             return array_values(array_filter(
-                self::labelsNext186($rows),
+                self::labelsForCommaLimitBoundary($rows),
                 static fn (string $label): bool => !str_starts_with($label, 'seed'),
             ));
         }
@@ -5861,10 +5861,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function recursiveLabelsNext186(array $rows): array
+        private static function recursiveLabelsForCommaLimitBoundary(array $rows): array
         {
             return array_values(array_filter(
-                self::labelsNext186($rows),
+                self::labelsForCommaLimitBoundary($rows),
                 static fn (string $label): bool => str_starts_with($label, 'seed'),
             ));
         }
@@ -5874,7 +5874,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedLabelsNext186(array $currentRows, array $nextRows, bool $gained): array
+        private static function changedLabelsForCommaLimitBoundary(array $currentRows, array $nextRows, bool $gained): array
         {
             $current = [];
             foreach ($currentRows as $row) {
@@ -5895,14 +5895,14 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext187(string $sql, array $currentTables, array $nextTables): array
+        public static function compareNegativeRecursiveLimitBoundary(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext187($sql, $currentPlan, $nextPlan);
+            self::assertNegativeRecursiveLimitBoundarySupported($sql, $currentPlan, $nextPlan);
 
-            $traceSql = self::recursiveTraceSqlNext187($sql);
-            $preLimitSql = self::withoutFinalLimitNext187($sql);
+            $traceSql = self::recursiveTraceSqlForNegativeLimitBoundary($sql);
+            $preLimitSql = self::withoutFinalLimitForNegativeLimitBoundary($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimit = SQLiteSelectSql::execute($preLimitSql, $currentTables);
@@ -5915,18 +5915,18 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
                 'compound' => [
-                    'operators' => self::operatorsNext187($currentPlan),
+                    'operators' => self::compoundOperatorsForNegativeLimitBoundary($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext187($currentPlan),
+                    'orderColumns' => self::orderColumnsForNegativeLimitBoundary($currentPlan),
                     'limit' => $currentPlan['compound']['limit'] ?? null,
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
-                    'hasUnionDistinct' => in_array('UNION', self::operatorsNext187($currentPlan), true),
+                    'hasUnionDistinct' => in_array('UNION', self::compoundOperatorsForNegativeLimitBoundary($currentPlan), true),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext187($currentPlan),
-                    'next' => self::windowTermsNext187($nextPlan),
-                    'functions' => array_values(array_unique(array_column(self::windowTermsNext187($currentPlan), 'function'))),
+                    'current' => self::windowTermsForNegativeLimitBoundary($currentPlan),
+                    'next' => self::windowTermsForNegativeLimitBoundary($nextPlan),
+                    'functions' => array_values(array_unique(array_column(self::windowTermsForNegativeLimitBoundary($currentPlan), 'function'))),
                 ],
                 'recursive' => [
                     'name' => $currentRecursive['name'],
@@ -5936,30 +5936,30 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'nextRows' => $nextRecursive['rows'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext187($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext187($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext187($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext187($nextRecursive['trace'], true),
-                    'currentLimitRemaining' => self::lastTraceValueNext187($currentRecursive['trace'], 'limit_remaining'),
-                    'nextLimitRemaining' => self::lastTraceValueNext187($nextRecursive['trace'], 'limit_remaining'),
-                    'currentOffsetRemaining' => self::lastTraceValueNext187($currentRecursive['trace'], 'offset_remaining'),
-                    'nextOffsetRemaining' => self::lastTraceValueNext187($nextRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsForNegativeLimitBoundary($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsForNegativeLimitBoundary($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsForNegativeLimitBoundary($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsForNegativeLimitBoundary($nextRecursive['trace'], true),
+                    'currentLimitRemaining' => self::lastTraceValueForNegativeLimitBoundary($currentRecursive['trace'], 'limit_remaining'),
+                    'nextLimitRemaining' => self::lastTraceValueForNegativeLimitBoundary($nextRecursive['trace'], 'limit_remaining'),
+                    'currentOffsetRemaining' => self::lastTraceValueForNegativeLimitBoundary($currentRecursive['trace'], 'offset_remaining'),
+                    'nextOffsetRemaining' => self::lastTraceValueForNegativeLimitBoundary($nextRecursive['trace'], 'offset_remaining'),
                 ],
                 'negativeLimitOffset' => [
-                    'current' => self::negativeLimitSummaryNext187($currentRecursive['trace'], $currentPreLimit, $currentRows),
-                    'next' => self::negativeLimitSummaryNext187($nextRecursive['trace'], $nextPreLimit, $nextRows),
-                    'changedAdmittedLabels' => self::changedLabelsNext187($currentRows, $nextRows),
-                    'changedRecursiveLabels' => self::changedRecursiveLabelsNext187($currentRows, $nextRows),
+                    'current' => self::negativeLimitSummaryForBoundary($currentRecursive['trace'], $currentPreLimit, $currentRows),
+                    'next' => self::negativeLimitSummaryForBoundary($nextRecursive['trace'], $nextPreLimit, $nextRows),
+                    'changedAdmittedLabels' => self::changedLabelsForNegativeLimitBoundary($currentRows, $nextRows),
+                    'changedRecursiveLabels' => self::changedRecursiveLabelsForNegativeLimitBoundary($currentRows, $nextRows),
                 ],
                 'yieldTape' => [
-                    'current' => self::yieldTapeNext187($currentPreLimit, $currentRows),
-                    'next' => self::yieldTapeNext187($nextPreLimit, $nextRows),
+                    'current' => self::yieldTapeForNegativeLimitBoundary($currentPreLimit, $currentRows),
+                    'next' => self::yieldTapeForNegativeLimitBoundary($nextPreLimit, $nextRows),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext187($currentPreLimit, $currentRows),
-                    'next' => self::limitTraceNext187($nextPreLimit, $nextRows),
+                    'current' => self::limitTraceForNegativeLimitBoundary($currentPreLimit, $currentRows),
+                    'next' => self::limitTraceForNegativeLimitBoundary($nextPreLimit, $nextRows),
                 ],
-                'replanReasons' => self::replanReasonsNext187($currentRecursive['trace'], $nextRecursive['trace'], $currentPreLimit, $nextPreLimit, $currentRows, $nextRows),
+                'replanReasons' => self::replanReasonsForNegativeLimitBoundary($currentRecursive['trace'], $nextRecursive['trace'], $currentPreLimit, $nextPreLimit, $currentRows, $nextRows),
                 'dependencies' => [
                     'sqlite-recursive-cte-negative-limit-offset-next187',
                     'sqlite-select-sql-window-before-union-distinct-next187',
@@ -5974,7 +5974,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext187(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertNegativeRecursiveLimitBoundarySupported(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source next187 needs WITH RECURSIVE SQL');
@@ -5982,7 +5982,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source next187 needs compound SELECT SQL');
             }
-            if (!in_array('UNION ALL', self::operatorsNext187($currentPlan), true) || !in_array('UNION', self::operatorsNext187($currentPlan), true)) {
+            if (!in_array('UNION ALL', self::compoundOperatorsForNegativeLimitBoundary($currentPlan), true) || !in_array('UNION', self::compoundOperatorsForNegativeLimitBoundary($currentPlan), true)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source next187 needs UNION ALL plus UNION distinct arms');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
@@ -5991,7 +5991,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             if (preg_match('/WITH\s+RECURSIVE.*?\bLIMIT\s+-1\s+OFFSET\s+\d+/is', $sql) !== 1) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source next187 needs recursive LIMIT -1 OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext187($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsForNegativeLimitBoundary($currentPlan), 'function'));
             foreach (['lag', 'lead'] as $function) {
                 if (!in_array($function, $functions, true)) {
                     throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT current-source next187 needs {$function} window output");
@@ -5999,7 +5999,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             }
         }
 
-        private static function recursiveTraceSqlNext187(string $sql): string
+        private static function recursiveTraceSqlForNegativeLimitBoundary(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
@@ -6009,7 +6009,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext187(string $sql): string
+        private static function withoutFinalLimitForNegativeLimitBoundary(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
@@ -6024,7 +6024,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function operatorsNext187(array $plan): array
+        private static function compoundOperatorsForNegativeLimitBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -6035,7 +6035,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext187(array $plan): array
+        private static function orderColumnsForNegativeLimitBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -6049,7 +6049,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext187(array $plan): array
+        private static function windowTermsForNegativeLimitBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -6077,7 +6077,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<string>
          */
-        private static function traceLabelsNext187(array $trace, bool $emitted): array
+        private static function traceLabelsForNegativeLimitBoundary(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $step) {
@@ -6096,7 +6096,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $trace
          */
-        private static function lastTraceValueNext187(array $trace, string $key): ?int
+        private static function lastTraceValueForNegativeLimitBoundary(array $trace, string $key): ?int
         {
             $last = $trace === [] ? null : $trace[count($trace) - 1];
             $value = is_array($last) ? ($last[$key] ?? null) : null;
@@ -6110,18 +6110,18 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array<string,mixed>
          */
-        private static function negativeLimitSummaryNext187(array $trace, array $preLimitRows, array $rows): array
+        private static function negativeLimitSummaryForBoundary(array $trace, array $preLimitRows, array $rows): array
         {
             return [
                 'traceCount' => count($trace),
-                'limitRemaining' => self::lastTraceValueNext187($trace, 'limit_remaining'),
-                'offsetRemaining' => self::lastTraceValueNext187($trace, 'offset_remaining'),
-                'skippedLabels' => self::traceLabelsNext187($trace, false),
-                'emittedLabels' => self::traceLabelsNext187($trace, true),
-                'admittedRecursiveLabels' => self::recursiveLabelsNext187($rows),
-                'recursiveRowsDroppedByFinalLimit' => array_values(array_diff(self::recursiveLabelsNext187($preLimitRows), self::recursiveLabelsNext187($rows))),
-                'preLimitRecursiveCount' => count(self::recursiveLabelsNext187($preLimitRows)),
-                'finalRecursiveCount' => count(self::recursiveLabelsNext187($rows)),
+                'limitRemaining' => self::lastTraceValueForNegativeLimitBoundary($trace, 'limit_remaining'),
+                'offsetRemaining' => self::lastTraceValueForNegativeLimitBoundary($trace, 'offset_remaining'),
+                'skippedLabels' => self::traceLabelsForNegativeLimitBoundary($trace, false),
+                'emittedLabels' => self::traceLabelsForNegativeLimitBoundary($trace, true),
+                'admittedRecursiveLabels' => self::recursiveLabelsForNegativeLimitBoundary($rows),
+                'recursiveRowsDroppedByFinalLimit' => array_values(array_diff(self::recursiveLabelsForNegativeLimitBoundary($preLimitRows), self::recursiveLabelsForNegativeLimitBoundary($rows))),
+                'preLimitRecursiveCount' => count(self::recursiveLabelsForNegativeLimitBoundary($preLimitRows)),
+                'finalRecursiveCount' => count(self::recursiveLabelsForNegativeLimitBoundary($rows)),
             ];
         }
 
@@ -6129,7 +6129,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function recursiveLabelsNext187(array $rows): array
+        private static function recursiveLabelsForNegativeLimitBoundary(array $rows): array
         {
             return array_values(array_filter(
                 array_map(static fn (array $row): string => (string) ($row['label'] ?? ''), $rows),
@@ -6142,9 +6142,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $limitedRows
          * @return list<array<string,mixed>>
          */
-        private static function yieldTapeNext187(array $preLimitRows, array $limitedRows): array
+        private static function yieldTapeForNegativeLimitBoundary(array $preLimitRows, array $limitedRows): array
         {
-            $limited = array_flip(self::rowSignaturesNext187($limitedRows));
+            $limited = array_flip(self::rowSignaturesForNegativeLimitBoundary($limitedRows));
             $seen = [];
             $tape = [];
             foreach ($preLimitRows as $index => $row) {
@@ -6169,9 +6169,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $limitedRows
          * @return array<string,mixed>
          */
-        private static function limitTraceNext187(array $preLimitRows, array $limitedRows): array
+        private static function limitTraceForNegativeLimitBoundary(array $preLimitRows, array $limitedRows): array
         {
-            $limited = array_flip(self::rowSignaturesNext187($limitedRows));
+            $limited = array_flip(self::rowSignaturesForNegativeLimitBoundary($limitedRows));
 
             return [
                 'preLimitCount' => count($preLimitRows),
@@ -6187,9 +6187,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedLabelsNext187(array $currentRows, array $nextRows): array
+        private static function changedLabelsForNegativeLimitBoundary(array $currentRows, array $nextRows): array
         {
-            $changed = array_merge(array_diff(self::rowSignaturesNext187($currentRows), self::rowSignaturesNext187($nextRows)), array_diff(self::rowSignaturesNext187($nextRows), self::rowSignaturesNext187($currentRows)));
+            $changed = array_merge(array_diff(self::rowSignaturesForNegativeLimitBoundary($currentRows), self::rowSignaturesForNegativeLimitBoundary($nextRows)), array_diff(self::rowSignaturesForNegativeLimitBoundary($nextRows), self::rowSignaturesForNegativeLimitBoundary($currentRows)));
 
             return array_values(array_unique(array_map(static function (string $signature): string {
                 $row = json_decode($signature, true, 512, JSON_THROW_ON_ERROR);
@@ -6203,11 +6203,11 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedRecursiveLabelsNext187(array $currentRows, array $nextRows): array
+        private static function changedRecursiveLabelsForNegativeLimitBoundary(array $currentRows, array $nextRows): array
         {
             return array_values(array_unique(array_merge(
-                array_diff(self::recursiveLabelsNext187($currentRows), self::recursiveLabelsNext187($nextRows)),
-                array_diff(self::recursiveLabelsNext187($nextRows), self::recursiveLabelsNext187($currentRows))
+                array_diff(self::recursiveLabelsForNegativeLimitBoundary($currentRows), self::recursiveLabelsForNegativeLimitBoundary($nextRows)),
+                array_diff(self::recursiveLabelsForNegativeLimitBoundary($nextRows), self::recursiveLabelsForNegativeLimitBoundary($currentRows))
             )));
         }
 
@@ -6215,7 +6215,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext187(array $rows): array
+        private static function rowSignaturesForNegativeLimitBoundary(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -6229,16 +6229,16 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function replanReasonsNext187(array $currentTrace, array $nextTrace, array $currentPreLimit, array $nextPreLimit, array $currentRows, array $nextRows): array
+        private static function replanReasonsForNegativeLimitBoundary(array $currentTrace, array $nextTrace, array $currentPreLimit, array $nextPreLimit, array $currentRows, array $nextRows): array
         {
             $reasons = ['recursive-negative-limit-offset-drains-queue'];
-            if (self::traceLabelsNext187($currentTrace, false) !== [] || self::traceLabelsNext187($nextTrace, false) !== []) {
+            if (self::traceLabelsForNegativeLimitBoundary($currentTrace, false) !== [] || self::traceLabelsForNegativeLimitBoundary($nextTrace, false) !== []) {
                 $reasons[] = 'recursive-offset-skipped-anchor-with-unbounded-limit';
             }
             if (count($nextPreLimit) > count($currentPreLimit)) {
                 $reasons[] = 'next-source-prelimit-rowset-expanded';
             }
-            if (self::changedLabelsNext187($currentRows, $nextRows) !== []) {
+            if (self::changedLabelsForNegativeLimitBoundary($currentRows, $nextRows) !== []) {
                 $reasons[] = 'current-next-final-limit-boundary-shifted';
             }
 
@@ -12162,25 +12162,25 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext210($sql, $currentPlan, $nextPlan);
+            self::assertSupportedRowNumberLastValueIntersectExceptLimit($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext210($sql);
-            $traceSql = self::recursiveTraceSqlNext210($sql);
+            $preLimitSql = self::withoutFinalLimitRowNumberLastValueIntersectExceptLimit($sql);
+            $traceSql = self::recursiveTraceSqlRowNumberLastValueIntersectExceptLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $nextTables);
             $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
-            $currentToken = self::sourceTokenNext210($currentRows, $currentPreLimitRows, $currentRecursive['trace']);
-            $nextToken = self::sourceTokenNext210($nextRows, $nextPreLimitRows, $nextRecursive['trace']);
-            self::validateCursorNext210($cursor, $currentToken);
+            $currentToken = self::sourceTokenRowNumberLastValueIntersectExceptLimit($currentRows, $currentPreLimitRows, $currentRecursive['trace']);
+            $nextToken = self::sourceTokenRowNumberLastValueIntersectExceptLimit($nextRows, $nextPreLimitRows, $nextRecursive['trace']);
+            self::validateCursorRowNumberLastValueIntersectExceptLimit($cursor, $currentToken);
 
-            $currentWindows = self::windowTermsNext210($currentPlan);
-            $nextWindows = self::windowTermsNext210($nextPlan);
+            $currentWindows = self::windowTermsRowNumberLastValueIntersectExceptLimit($currentPlan);
+            $nextWindows = self::windowTermsRowNumberLastValueIntersectExceptLimit($nextPlan);
             $functions = array_values(array_unique(array_column($currentWindows, 'function')));
-            $offset = self::offsetNext210($currentPlan);
-            $limit = self::limitNext210($currentPlan);
+            $offset = self::offsetRowNumberLastValueIntersectExceptLimit($currentPlan);
+            $limit = self::limitRowNumberLastValueIntersectExceptLimit($currentPlan);
 
             return [
                 'status' => 'compound-select-window-recursive-limit-current-source-next210-ready',
@@ -12189,15 +12189,15 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
                 'compound' => [
-                    'operators' => self::operatorsNext210($currentPlan),
+                    'operators' => self::operatorsRowNumberLastValueIntersectExceptLimit($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext210($currentPlan),
+                    'orderColumns' => self::orderColumnsRowNumberLastValueIntersectExceptLimit($currentPlan),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'hasUnionAllHead' => (self::operatorsNext210($currentPlan)[0] ?? null) === 'UNION ALL',
-                    'hasIntersectMiddle' => in_array('INTERSECT', self::operatorsNext210($currentPlan), true),
-                    'hasExceptTail' => in_array('EXCEPT', self::operatorsNext210($currentPlan), true),
+                    'hasUnionAllHead' => (self::operatorsRowNumberLastValueIntersectExceptLimit($currentPlan)[0] ?? null) === 'UNION ALL',
+                    'hasIntersectMiddle' => in_array('INTERSECT', self::operatorsRowNumberLastValueIntersectExceptLimit($currentPlan), true),
+                    'hasExceptTail' => in_array('EXCEPT', self::operatorsRowNumberLastValueIntersectExceptLimit($currentPlan), true),
                 ],
                 'recursiveQueue' => [
                     'name' => $currentRecursive['name'],
@@ -12205,40 +12205,40 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'operator' => $currentRecursive['operator'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext210($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext210($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext210($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext210($nextRecursive['trace'], true),
-                    'currentQueueFronts' => self::queueFrontLabelsNext210($currentRecursive['trace']),
-                    'nextQueueFronts' => self::queueFrontLabelsNext210($nextRecursive['trace']),
-                    'currentLimitRemaining' => self::lastTraceValueNext210($currentRecursive['trace'], 'limit_remaining'),
-                    'nextLimitRemaining' => self::lastTraceValueNext210($nextRecursive['trace'], 'limit_remaining'),
-                    'currentOffsetRemaining' => self::lastTraceValueNext210($currentRecursive['trace'], 'offset_remaining'),
-                    'nextOffsetRemaining' => self::lastTraceValueNext210($nextRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsRowNumberLastValueIntersectExceptLimit($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsRowNumberLastValueIntersectExceptLimit($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsRowNumberLastValueIntersectExceptLimit($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsRowNumberLastValueIntersectExceptLimit($nextRecursive['trace'], true),
+                    'currentQueueFronts' => self::queueFrontLabelsRowNumberLastValueIntersectExceptLimit($currentRecursive['trace']),
+                    'nextQueueFronts' => self::queueFrontLabelsRowNumberLastValueIntersectExceptLimit($nextRecursive['trace']),
+                    'currentLimitRemaining' => self::lastTraceValueRowNumberLastValueIntersectExceptLimit($currentRecursive['trace'], 'limit_remaining'),
+                    'nextLimitRemaining' => self::lastTraceValueRowNumberLastValueIntersectExceptLimit($nextRecursive['trace'], 'limit_remaining'),
+                    'currentOffsetRemaining' => self::lastTraceValueRowNumberLastValueIntersectExceptLimit($currentRecursive['trace'], 'offset_remaining'),
+                    'nextOffsetRemaining' => self::lastTraceValueRowNumberLastValueIntersectExceptLimit($nextRecursive['trace'], 'offset_remaining'),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
                     'next' => $nextWindows,
                     'functions' => $functions,
                     'valueFunctions' => array_values(array_filter($functions, static fn (string $function): bool => in_array($function, ['last_value', 'first_value', 'nth_value'], true))),
-                    'rowNumberMetrics' => self::metricsForLabelsNext210($currentPreLimitRows, 'seed'),
-                    'lastValueMetrics' => self::metricsForLabelsNext210($currentPreLimitRows, ''),
+                    'rowNumberMetrics' => self::metricsForLabelsRowNumberLastValueIntersectExceptLimit($currentPreLimitRows, 'seed'),
+                    'lastValueMetrics' => self::metricsForLabelsRowNumberLastValueIntersectExceptLimit($currentPreLimitRows, ''),
                 ],
                 'sourceWindow' => [
                     'currentToken' => $currentToken,
                     'nextToken' => $nextToken,
-                    'currentAdmittedLabels' => self::labelsNext210($currentRows),
-                    'nextAdmittedLabels' => self::labelsNext210($nextRows),
-                    'currentSkippedLabels' => self::labelsNext210(array_slice($currentPreLimitRows, 0, $offset)),
-                    'nextSkippedLabels' => self::labelsNext210(array_slice($nextPreLimitRows, 0, $offset)),
-                    'currentTruncatedLabels' => self::labelsNext210(array_slice($currentPreLimitRows, $offset + $limit)),
-                    'nextTruncatedLabels' => self::labelsNext210(array_slice($nextPreLimitRows, $offset + $limit)),
-                    'nextOnlyAdmittedLabels' => self::changedLabelsNext210($currentRows, $nextRows, true),
-                    'currentOnlyAdmittedLabels' => self::changedLabelsNext210($currentRows, $nextRows, false),
+                    'currentAdmittedLabels' => self::labelsRowNumberLastValueIntersectExceptLimit($currentRows),
+                    'nextAdmittedLabels' => self::labelsRowNumberLastValueIntersectExceptLimit($nextRows),
+                    'currentSkippedLabels' => self::labelsRowNumberLastValueIntersectExceptLimit(array_slice($currentPreLimitRows, 0, $offset)),
+                    'nextSkippedLabels' => self::labelsRowNumberLastValueIntersectExceptLimit(array_slice($nextPreLimitRows, 0, $offset)),
+                    'currentTruncatedLabels' => self::labelsRowNumberLastValueIntersectExceptLimit(array_slice($currentPreLimitRows, $offset + $limit)),
+                    'nextTruncatedLabels' => self::labelsRowNumberLastValueIntersectExceptLimit(array_slice($nextPreLimitRows, $offset + $limit)),
+                    'nextOnlyAdmittedLabels' => self::changedLabelsRowNumberLastValueIntersectExceptLimit($currentRows, $nextRows, true),
+                    'currentOnlyAdmittedLabels' => self::changedLabelsRowNumberLastValueIntersectExceptLimit($currentRows, $nextRows, false),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext210($currentPreLimitRows, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext210($nextPreLimitRows, $nextRows, $nextPlan),
+                    'current' => self::limitTraceRowNumberLastValueIntersectExceptLimit($currentPreLimitRows, $currentRows, $currentPlan),
+                    'next' => self::limitTraceRowNumberLastValueIntersectExceptLimit($nextPreLimitRows, $nextRows, $nextPlan),
                 ],
                 'cursor' => [
                     'currentToken' => $currentToken,
@@ -12267,7 +12267,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext210(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedRowNumberLastValueIntersectExceptLimit(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next210 needs WITH RECURSIVE SQL');
@@ -12275,17 +12275,17 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next210 needs compound SELECT SQL');
             }
-            $operators = self::operatorsNext210($currentPlan);
+            $operators = self::operatorsRowNumberLastValueIntersectExceptLimit($currentPlan);
             if (!in_array('UNION ALL', $operators, true) || !in_array('INTERSECT', $operators, true) || !in_array('EXCEPT', $operators, true)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next210 needs UNION ALL, INTERSECT, and EXCEPT');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next210 needs final LIMIT/OFFSET');
             }
-            if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyNext210($sql)) !== 1) {
+            if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyRowNumberLastValueIntersectExceptLimit($sql)) !== 1) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next210 needs ordered recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext210($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsRowNumberLastValueIntersectExceptLimit($currentPlan), 'function'));
             foreach (['row_number', 'last_value'] as $function) {
                 if (!in_array($function, $functions, true)) {
                     throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT next210 needs {$function} window output");
@@ -12293,7 +12293,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             }
         }
 
-        private static function recursiveBodyNext210(string $sql): string
+        private static function recursiveBodyRowNumberLastValueIntersectExceptLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^WITH\s+RECURSIVE\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s+AS\s*\((.*)\)\s*SELECT\s+/is', $trimmed, $match) !== 1) {
@@ -12303,7 +12303,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             return $match[1];
         }
 
-        private static function recursiveTraceSqlNext210(string $sql): string
+        private static function recursiveTraceSqlRowNumberLastValueIntersectExceptLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
@@ -12313,7 +12313,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext210(string $sql): string
+        private static function withoutFinalLimitRowNumberLastValueIntersectExceptLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
@@ -12328,7 +12328,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function operatorsNext210(array $plan): array
+        private static function operatorsRowNumberLastValueIntersectExceptLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -12339,7 +12339,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext210(array $plan): array
+        private static function orderColumnsRowNumberLastValueIntersectExceptLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -12353,7 +12353,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext210(array $plan): array
+        private static function windowTermsRowNumberLastValueIntersectExceptLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -12381,7 +12381,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function limitNext210(array $plan): int
+        private static function limitRowNumberLastValueIntersectExceptLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -12391,7 +12391,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function offsetNext210(array $plan): int
+        private static function offsetRowNumberLastValueIntersectExceptLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -12402,7 +12402,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function labelsNext210(array $rows): array
+        private static function labelsRowNumberLastValueIntersectExceptLimit(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? ''), $rows));
         }
@@ -12411,7 +12411,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array<string,int>
          */
-        private static function metricsForLabelsNext210(array $rows, string $prefix): array
+        private static function metricsForLabelsRowNumberLastValueIntersectExceptLimit(array $rows, string $prefix): array
         {
             $metrics = [];
             foreach ($rows as $row) {
@@ -12434,7 +12434,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<string>
          */
-        private static function traceLabelsNext210(array $trace, bool $emitted): array
+        private static function traceLabelsRowNumberLastValueIntersectExceptLimit(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $entry) {
@@ -12452,7 +12452,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<string>
          */
-        private static function queueFrontLabelsNext210(array $trace): array
+        private static function queueFrontLabelsRowNumberLastValueIntersectExceptLimit(array $trace): array
         {
             $labels = [];
             foreach ($trace as $entry) {
@@ -12469,7 +12469,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $trace
          */
-        private static function lastTraceValueNext210(array $trace, string $key): ?int
+        private static function lastTraceValueRowNumberLastValueIntersectExceptLimit(array $trace, string $key): ?int
         {
             $last = $trace === [] ? null : $trace[count($trace) - 1];
             $value = is_array($last) ? ($last[$key] ?? null) : null;
@@ -12483,10 +12483,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array{skippedBeforeOffset:list<array<string,mixed>>,admitted:list<array<string,mixed>>,truncatedAfterLimit:list<array<string,mixed>>}
          */
-        private static function limitTraceNext210(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTraceRowNumberLastValueIntersectExceptLimit(array $preLimitRows, array $limitedRows, array $plan): array
         {
-            $offset = self::offsetNext210($plan);
-            $limit = self::limitNext210($plan);
+            $offset = self::offsetRowNumberLastValueIntersectExceptLimit($plan);
+            $limit = self::limitRowNumberLastValueIntersectExceptLimit($plan);
 
             return [
                 'skippedBeforeOffset' => array_slice($preLimitRows, 0, $offset),
@@ -12500,13 +12500,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $preLimitRows
          * @param list<array<string,mixed>> $trace
          */
-        private static function sourceTokenNext210(array $rows, array $preLimitRows, array $trace): string
+        private static function sourceTokenRowNumberLastValueIntersectExceptLimit(array $rows, array $preLimitRows, array $trace): string
         {
             return hash('sha256', json_encode([
                 'rows' => $rows,
                 'preLimitRows' => $preLimitRows,
-                'emitted' => self::traceLabelsNext210($trace, true),
-                'fronts' => self::queueFrontLabelsNext210($trace),
+                'emitted' => self::traceLabelsRowNumberLastValueIntersectExceptLimit($trace, true),
+                'fronts' => self::queueFrontLabelsRowNumberLastValueIntersectExceptLimit($trace),
             ], JSON_THROW_ON_ERROR));
         }
 
@@ -12515,7 +12515,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedLabelsNext210(array $currentRows, array $nextRows, bool $gained): array
+        private static function changedLabelsRowNumberLastValueIntersectExceptLimit(array $currentRows, array $nextRows, bool $gained): array
         {
             $current = [];
             foreach ($currentRows as $row) {
@@ -12532,7 +12532,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed>|null $cursor
          */
-        private static function validateCursorNext210(?array $cursor, string $currentToken): void
+        private static function validateCursorRowNumberLastValueIntersectExceptLimit(?array $cursor, string $currentToken): void
         {
             if ($cursor === null) {
                 return;
