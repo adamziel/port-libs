@@ -23,13 +23,12 @@ final class SQLiteVfsCurrentSourceNextPlan
             'next170-173' => self::runPathControlNames($operations, $options),
             'next174-177' => self::runAccessDeleteRandomSleep($operations, $options),
             'next178-181' => self::runSyncTruncateSizeReserve($operations, $options),
-            'next182-185' => self::run182185($operations, $options),
-            'next186-189' => self::run186189($operations, $options),
+            'next182-185' => self::runTempDirectoryReadonly($operations, $options),
+            'next186-189' => self::runReservedLockFileControl($operations, $options),
             'next190-193' => self::run190193($operations, $options),
             'next194-197' => self::run194197($operations, $options),
             'next198-201' => self::run198201($operations, $options),
             'next202-205' => self::run202205($operations, $options),
-            'snapshot-reuse-publication' => self::runSnapshotReusePublication($operations, $options),
             'snapshot-reuse-publication' => self::runSnapshotReusePublication($operations, $options),
             'next210-213' => self::run210213($operations, $options),
             'next214-217' => self::run214217($operations, $options),
@@ -3092,7 +3091,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run182185(array $operations, array $options = []): array
+    private static function runTempDirectoryReadonly(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next182-185 requires operations');
@@ -3460,7 +3459,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run186189(array $operations, array $options = []): array
+    private static function runReservedLockFileControl(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next186-189 requires operations');

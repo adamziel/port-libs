@@ -16387,7 +16387,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext219(
+        public static function materializeStat4PeerRunYieldFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -16411,7 +16411,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $limit + 1,
                 $offset,
             );
-            $peerFence = self::peerRunFenceNext219(self::matchedRowsNext219($base), self::matchedRowsNext219($lookahead), $limit, $offset);
+            $peerFence = self::peerRunFenceForStat4PeerRunYieldFence(self::matchedRowsForStat4PeerRunYieldFence($base), self::matchedRowsForStat4PeerRunYieldFence($lookahead), $limit, $offset);
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next217-ready'
                 && ($lookahead['status'] ?? null) === 'stat4-expression-partial-current-source-next217-ready'
                 && $peerFence['ready'] === true
@@ -16433,7 +16433,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next219PeerRunSignature' => $peerFence['peerRunSignature'],
                     'next219ProofSignature' => $peerFence['proofSignature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext219(
+                'cursorProgram' => self::cursorProgramForStat4PeerRunYieldFence(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $peerFence,
@@ -16459,31 +16459,31 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $lookaheadRows
          * @return array<string,mixed>
          */
-        private static function peerRunFenceNext219(array $pageRows, array $lookaheadRows, int $limit, int $offset): array
+        private static function peerRunFenceForStat4PeerRunYieldFence(array $pageRows, array $lookaheadRows, int $limit, int $offset): array
         {
             if ($limit < 0 || $offset < 0) {
                 throw new \InvalidArgumentException('SQLite next219 limit and offset must be non-negative');
             }
 
-            $pageRowids = array_map(static fn (array $row): int => self::rowidNext219($row), $pageRows);
-            $lookaheadRowids = array_map(static fn (array $row): int => self::rowidNext219($row), $lookaheadRows);
+            $pageRowids = array_map(static fn (array $row): int => self::rowidForStat4PeerRunYieldFence($row), $pageRows);
+            $lookaheadRowids = array_map(static fn (array $row): int => self::rowidForStat4PeerRunYieldFence($row), $lookaheadRows);
             $lastPageRow = $pageRows === [] ? null : $pageRows[array_key_last($pageRows)];
-            $boundaryKey = is_array($lastPageRow) ? self::expressionKeyNext219($lastPageRow) : null;
+            $boundaryKey = is_array($lastPageRow) ? self::expressionKeyForStat4PeerRunYieldFence($lastPageRow) : null;
             $peerRows = [];
             $peerRowids = [];
             $onPage = [];
             $afterPage = [];
             $rejected = [];
             $nextRow = $lookaheadRows[count($pageRows)] ?? null;
-            $nextRowid = is_array($nextRow) ? self::rowidNext219($nextRow) : null;
-            $nextKey = is_array($nextRow) ? self::expressionKeyNext219($nextRow) : null;
+            $nextRowid = is_array($nextRow) ? self::rowidForStat4PeerRunYieldFence($nextRow) : null;
+            $nextKey = is_array($nextRow) ? self::expressionKeyForStat4PeerRunYieldFence($nextRow) : null;
 
             if ($boundaryKey !== null) {
                 foreach ($lookaheadRows as $position => $row) {
-                    if (self::expressionKeyNext219($row) !== $boundaryKey) {
+                    if (self::expressionKeyForStat4PeerRunYieldFence($row) !== $boundaryKey) {
                         continue;
                     }
-                    $rowid = self::rowidNext219($row);
+                    $rowid = self::rowidForStat4PeerRunYieldFence($row);
                     $peerRows[] = [
                         'position' => $position,
                         'rowid' => $rowid,
@@ -16524,13 +16524,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'boundaryContinuesAfterPage' => $afterPage !== [],
                 'nextRowContinuesBoundaryPeerRun' => $afterPage === [] || ($nextKey === $boundaryKey && $nextRowid === $afterPage[0]),
                 'rowidsRejectedByPeerFence' => array_values(array_filter($rejected, static fn (mixed $rowid): bool => $rowid !== null)),
-                'peerRunSignature' => self::signatureNext219([$boundaryKey, $peerRowids, $onPage, $afterPage]),
-                'proofSignature' => self::signatureNext219($proof),
+                'peerRunSignature' => self::signatureForStat4PeerRunYieldFence([$boundaryKey, $peerRowids, $onPage, $afterPage]),
+                'proofSignature' => self::signatureForStat4PeerRunYieldFence($proof),
             ];
         }
 
         /** @param array<string,mixed> $base @return list<array<string,mixed>> */
-        private static function matchedRowsNext219(array $base): array
+        private static function matchedRowsForStat4PeerRunYieldFence(array $base): array
         {
             $rows = $base['matchedRows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -16546,7 +16546,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function expressionKeyNext219(array $row): string
+        private static function expressionKeyForStat4PeerRunYieldFence(array $row): string
         {
             if (array_key_exists('expressionKey', $row)) {
                 return strtolower((string) $row['expressionKey']);
@@ -16560,7 +16560,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext219(array $row): int
+        private static function rowidForStat4PeerRunYieldFence(array $row): int
         {
             if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
                 throw new \InvalidArgumentException('SQLite next219 matched rowid must be an integer');
@@ -16574,7 +16574,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $peerFence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext219(array $program, bool $ready, array $peerFence): array
+        private static function cursorProgramForStat4PeerRunYieldFence(array $program, bool $ready, array $peerFence): array
         {
             if (!$ready) {
                 return $program;
@@ -16591,7 +16591,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext219(mixed $value): string
+        private static function signatureForStat4PeerRunYieldFence(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -17149,7 +17149,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext219(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4PeerRunYieldFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -28070,8 +28070,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext254269Handoff',
-            'mode' => 'next254-269-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext254269Handoff",
+            "legacyMode" => "next254-269-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
             'rowids' => $fence['yieldedRowids'],
@@ -28240,8 +28242,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext270285Handoff',
-            'mode' => 'next270-285-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext270285Handoff",
+            "legacyMode" => "next270-285-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -28411,8 +28415,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext286301Handoff',
-            'mode' => 'next286-301-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext286301Handoff",
+            "legacyMode" => "next286-301-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -28582,8 +28588,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext302317Handoff',
-            'mode' => 'next302-317-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext302317Handoff",
+            "legacyMode" => "next302-317-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -28753,8 +28761,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext318333Handoff',
-            'mode' => 'next318-333-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext318333Handoff",
+            "legacyMode" => "next318-333-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -28924,8 +28934,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext334349Handoff',
-            'mode' => 'next334-349-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext334349Handoff",
+            "legacyMode" => "next334-349-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -29095,8 +29107,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext350365Handoff',
-            'mode' => 'next350-365-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext350365Handoff",
+            "legacyMode" => "next350-365-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -29266,8 +29280,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext366381Handoff',
-            'mode' => 'next366-381-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext366381Handoff",
+            "legacyMode" => "next366-381-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -29371,8 +29387,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext382397Handoff',
-            'mode' => 'next382-397-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext382397Handoff",
+            "legacyMode" => "next382-397-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -29542,8 +29560,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext398413Handoff',
-            'mode' => 'next398-413-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext398413Handoff",
+            "legacyMode" => "next398-413-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -29713,8 +29733,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext414429Handoff',
-            'mode' => 'next414-429-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext414429Handoff",
+            "legacyMode" => "next414-429-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -29884,8 +29906,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext430445Handoff',
-            'mode' => 'next430-445-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext430445Handoff",
+            "legacyMode" => "next430-445-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -30055,8 +30079,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext446461Handoff',
-            'mode' => 'next446-461-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext446461Handoff",
+            "legacyMode" => "next446-461-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -30280,8 +30306,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext462477Handoff',
-            'mode' => 'next462-477-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext462477Handoff",
+            "legacyMode" => "next462-477-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -30505,8 +30533,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext478493Handoff',
-            'mode' => 'next478-493-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext478493Handoff",
+            "legacyMode" => "next478-493-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -30730,8 +30760,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext494509Handoff',
-            'mode' => 'next494-509-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext494509Handoff",
+            "legacyMode" => "next494-509-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -30955,8 +30987,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext510525Handoff',
-            'mode' => 'next510-525-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext510525Handoff",
+            "legacyMode" => "next510-525-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -31180,8 +31214,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            'opcode' => 'PrepareStat4ExpressionPartialNext526541Handoff',
-            'mode' => 'next526-541-current-source-stat4-expression-partial-prep',
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext526541Handoff",
+            "legacyMode" => "next526-541-current-source-stat4-expression-partial-prep",
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
@@ -31406,8 +31442,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext542557Handoff",
-            "mode" => "next542-557-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext542557Handoff",
+            "legacyMode" => "next542-557-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -31888,8 +31926,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext574589Handoff",
-            "mode" => "next574-589-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext574589Handoff",
+            "legacyMode" => "next574-589-current-source-stat4-expression-partial-prep",
             "canonicalOpcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
             "canonicalMode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
@@ -32116,8 +32156,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext590605Handoff",
-            "mode" => "next590-605-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext590605Handoff",
+            "legacyMode" => "next590-605-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -32502,8 +32544,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext622637Handoff",
-            "mode" => "next622-637-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext622637Handoff",
+            "legacyMode" => "next622-637-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -32715,8 +32759,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         $last = (int) $range[1];
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext" . $first . $last . "Handoff",
-            "mode" => "next" . $first . "-" . $last . "-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext" . $first . $last . "Handoff",
+            "legacyMode" => "next" . $first . "-" . $last . "-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -32963,8 +33009,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext670685Handoff",
-            "mode" => "next670-685-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext670685Handoff",
+            "legacyMode" => "next670-685-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -33156,8 +33204,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext686701Handoff",
-            "mode" => "next686-701-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext686701Handoff",
+            "legacyMode" => "next686-701-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -33349,8 +33399,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext702717Handoff",
-            "mode" => "next702-717-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext702717Handoff",
+            "legacyMode" => "next702-717-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -33542,8 +33594,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext718733Handoff",
-            "mode" => "next718-733-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext718733Handoff",
+            "legacyMode" => "next718-733-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -33876,8 +33930,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext750765Handoff",
-            "mode" => "next750-765-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext750765Handoff",
+            "legacyMode" => "next750-765-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -34017,8 +34073,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext766781Handoff",
-            "mode" => "next766-781-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext766781Handoff",
+            "legacyMode" => "next766-781-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -34679,13 +34737,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         if (isset($metadata["canonicalMode"])) {
             $step["canonicalMode"] = $metadata["canonicalMode"];
         }
+        if (isset($metadata["legacyOpcode"])) {
+            $step["legacyOpcode"] = $metadata["legacyOpcode"];
+        }
+        if (isset($metadata["legacyMode"])) {
+            $step["legacyMode"] = $metadata["legacyMode"];
+        }
         $program[] = $step;
 
         return $program;
     }
 
     /**
-     * @return array{opcode:string,mode:string,canonicalOpcode?:string,canonicalMode?:string}
+     * @return array{opcode:string,mode:string,canonicalOpcode?:string,canonicalMode?:string,legacyOpcode?:string,legacyMode?:string}
      */
     private static function preparedHandoffCursorMetadataForRange(int $first, int $last): array
     {
@@ -34740,10 +34804,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         return [
-            "opcode" => "PrepareStat4ExpressionPartialNext{$first}{$last}Handoff",
-            "mode" => "next{$first}-{$last}-current-source-stat4-expression-partial-prep",
-            "canonicalOpcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
-            "canonicalMode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
+            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+            "legacyOpcode" => "PrepareStat4ExpressionPartialNext{$first}{$last}Handoff",
+            "legacyMode" => "next{$first}-{$last}-current-source-stat4-expression-partial-prep",
         ];
     }
 

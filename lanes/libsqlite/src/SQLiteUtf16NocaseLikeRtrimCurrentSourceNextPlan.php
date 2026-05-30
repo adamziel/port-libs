@@ -10212,15 +10212,15 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $nextSchemaCookie = 219,
     ): array {
         $like = SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, false);
-        $current = self::v219_scan($currentRows, $pattern, $escape, $like['range']);
-        $next = self::v219_scan($nextRows, $pattern, $escape, $like['range']);
+        $current = self::supplementaryWildcardScan($currentRows, $pattern, $escape, $like['range']);
+        $next = self::supplementaryWildcardScan($nextRows, $pattern, $escape, $like['range']);
 
-        $currentCandidates = self::v219_rowids($current['candidates']);
-        $nextCandidates = self::v219_rowids($next['candidates']);
-        $currentMatched = self::v219_rowids($current['matched']);
-        $nextMatched = self::v219_rowids($next['matched']);
-        $changes = self::v219_changes($current['decoded'], $next['decoded']);
-        $changes['residualChangedRowids'] = self::v219_residualChanges($current['candidates'], $next['candidates']);
+        $currentCandidates = self::supplementaryWildcardRowids($current['candidates']);
+        $nextCandidates = self::supplementaryWildcardRowids($next['candidates']);
+        $currentMatched = self::supplementaryWildcardRowids($current['matched']);
+        $nextMatched = self::supplementaryWildcardRowids($next['matched']);
+        $changes = self::supplementaryWildcardChanges($current['decoded'], $next['decoded']);
+        $changes['residualChangedRowids'] = self::supplementaryWildcardResidualChanges($current['candidates'], $next['candidates']);
 
         $reasons = [];
         if ($currentSource !== $nextSource) {
@@ -10273,11 +10273,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextCandidateRowids' => $nextCandidates,
             'currentMatchedRowids' => $currentMatched,
             'nextMatchedRowids' => $nextMatched,
-            'matchedRetainedRowids' => self::v219_sortedIntersect($currentMatched, $nextMatched),
-            'matchedExitedRowids' => self::v219_sortedDiff($currentMatched, $nextMatched),
-            'matchedEnteredRowids' => self::v219_sortedDiff($nextMatched, $currentMatched),
-            'currentFalsePositiveRowids' => self::v219_rowids($current['falsePositive']),
-            'nextFalsePositiveRowids' => self::v219_rowids($next['falsePositive']),
+            'matchedRetainedRowids' => self::supplementaryWildcardSortedIntersect($currentMatched, $nextMatched),
+            'matchedExitedRowids' => self::supplementaryWildcardSortedDiff($currentMatched, $nextMatched),
+            'matchedEnteredRowids' => self::supplementaryWildcardSortedDiff($nextMatched, $currentMatched),
+            'currentFalsePositiveRowids' => self::supplementaryWildcardRowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::supplementaryWildcardRowids($next['falsePositive']),
             'currentCodeUnitWildcardTrapRowids' => $current['codeUnitWildcardTrapRowids'],
             'nextCodeUnitWildcardTrapRowids' => $next['codeUnitWildcardTrapRowids'],
             'currentSupplementaryRowids' => $current['supplementaryRowids'],
@@ -10286,20 +10286,20 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextMalformedRowids' => $next['malformedRowids'],
             'currentErrors' => $current['errors'],
             'nextErrors' => $next['errors'],
-            'currentRtrimTexts' => self::v219_map($current['decoded'], 'rtrimText'),
-            'nextRtrimTexts' => self::v219_map($next['decoded'], 'rtrimText'),
-            'currentNocaseKeys' => self::v219_map($current['decoded'], 'nocaseKey'),
-            'nextNocaseKeys' => self::v219_map($next['decoded'], 'nocaseKey'),
-            'currentCharacterCounts' => self::v219_map($current['decoded'], 'characterCount'),
-            'nextCharacterCounts' => self::v219_map($next['decoded'], 'characterCount'),
-            'currentUtf16CodeUnitCounts' => self::v219_map($current['decoded'], 'utf16CodeUnits'),
-            'nextUtf16CodeUnitCounts' => self::v219_map($next['decoded'], 'utf16CodeUnits'),
-            'currentSupplementaryCounts' => self::v219_map($current['decoded'], 'supplementaryCount'),
-            'nextSupplementaryCounts' => self::v219_map($next['decoded'], 'supplementaryCount'),
-            'currentResidualMatches' => self::v219_map($current['candidates'], 'residualMatch'),
-            'nextResidualMatches' => self::v219_map($next['candidates'], 'residualMatch'),
-            'currentCodeUnitTrapMatches' => self::v219_map($current['candidates'], 'codeUnitTrapMatch'),
-            'nextCodeUnitTrapMatches' => self::v219_map($next['candidates'], 'codeUnitTrapMatch'),
+            'currentRtrimTexts' => self::supplementaryWildcardMap($current['decoded'], 'rtrimText'),
+            'nextRtrimTexts' => self::supplementaryWildcardMap($next['decoded'], 'rtrimText'),
+            'currentNocaseKeys' => self::supplementaryWildcardMap($current['decoded'], 'nocaseKey'),
+            'nextNocaseKeys' => self::supplementaryWildcardMap($next['decoded'], 'nocaseKey'),
+            'currentCharacterCounts' => self::supplementaryWildcardMap($current['decoded'], 'characterCount'),
+            'nextCharacterCounts' => self::supplementaryWildcardMap($next['decoded'], 'characterCount'),
+            'currentUtf16CodeUnitCounts' => self::supplementaryWildcardMap($current['decoded'], 'utf16CodeUnits'),
+            'nextUtf16CodeUnitCounts' => self::supplementaryWildcardMap($next['decoded'], 'utf16CodeUnits'),
+            'currentSupplementaryCounts' => self::supplementaryWildcardMap($current['decoded'], 'supplementaryCount'),
+            'nextSupplementaryCounts' => self::supplementaryWildcardMap($next['decoded'], 'supplementaryCount'),
+            'currentResidualMatches' => self::supplementaryWildcardMap($current['candidates'], 'residualMatch'),
+            'nextResidualMatches' => self::supplementaryWildcardMap($next['candidates'], 'residualMatch'),
+            'currentCodeUnitTrapMatches' => self::supplementaryWildcardMap($current['candidates'], 'codeUnitTrapMatch'),
+            'nextCodeUnitTrapMatches' => self::supplementaryWildcardMap($next['candidates'], 'codeUnitTrapMatch'),
             'changedTextRowids' => $changes['textChangedRowids'],
             'changedRtrimRowids' => $changes['rtrimChangedRowids'],
             'changedNocaseKeyRowids' => $changes['nocaseKeyChangedRowids'],
@@ -10330,18 +10330,18 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param ?array{lowerInclusive:string,upperBound:?string} $range
      * @return array{decoded:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,supplementaryRowids:list<int>,codeUnitWildcardTrapRowids:list<int>,malformedRowids:list<int>,errors:array<int,string>}
      */
-    private static function v219_scan(array $rows, string $pattern, ?string $escape, ?array $range): array
+    private static function supplementaryWildcardScan(array $rows, string $pattern, ?string $escape, ?array $range): array
     {
         $decoded = [];
         $supplementary = [];
         $malformed = [];
         $errors = [];
         foreach ($rows as $row) {
-            self::v219_assertRow($row);
+            self::supplementaryWildcardAssertRow($row);
             try {
                 $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
-                $supplementaryCount = self::v219_supplementaryCount($rtrim);
+                $supplementaryCount = self::supplementaryWildcardSupplementaryCount($rtrim);
                 if ($supplementaryCount > 0) {
                     $supplementary[] = $row['option_id'];
                 }
@@ -10349,9 +10349,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
                     'rowid' => $row['option_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
-                    'nocaseKey' => self::v219_asciiLower($rtrim),
-                    'characterCount' => self::v219_characterCount($rtrim),
-                    'utf16CodeUnits' => self::v219_utf16CodeUnits($rtrim),
+                    'nocaseKey' => self::supplementaryWildcardAsciiLower($rtrim),
+                    'characterCount' => self::supplementaryWildcardCharacterCount($rtrim),
+                    'utf16CodeUnits' => self::supplementaryWildcardUtf16CodeUnits($rtrim),
                     'supplementaryCount' => $supplementaryCount,
                     'bytesHex' => bin2hex($row['option_name_bytes']),
                 ];
@@ -10361,7 +10361,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             }
         }
 
-        usort($decoded, self::v219_sortRows(...));
+        usort($decoded, self::supplementaryWildcardSortRows(...));
         sort($supplementary);
         sort($malformed);
         ksort($errors);
@@ -10371,7 +10371,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $falsePositive = [];
         $traps = [];
         foreach ($decoded as $entry) {
-            if (!self::v219_inRange($entry['nocaseKey'], $range)) {
+            if (!self::supplementaryWildcardInRange($entry['nocaseKey'], $range)) {
                 continue;
             }
             $entry['residualMatch'] = SQLiteDatabase::likeMatches($entry['rtrimText'], $pattern, $escape, false);
@@ -10401,7 +10401,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $row */
-    private static function v219_assertRow(array $row): void
+    private static function supplementaryWildcardAssertRow(array $row): void
     {
         if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneNine rows require integer option_id');
@@ -10415,7 +10415,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
-    private static function v219_inRange(string $key, ?array $range): bool
+    private static function supplementaryWildcardInRange(string $key, ?array $range): bool
     {
         if ($range === null || strcmp($key, $range['lowerInclusive']) < 0) {
             return false;
@@ -10425,7 +10425,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param array{nocaseKey:string,rowid:int} $left @param array{nocaseKey:string,rowid:int} $right */
-    private static function v219_sortRows(array $left, array $right): int
+    private static function supplementaryWildcardSortRows(array $left, array $right): int
     {
         $comparison = strcmp($left['nocaseKey'], $right['nocaseKey']);
 
@@ -10433,13 +10433,13 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array{rowid:int}> $rows @return list<int> */
-    private static function v219_rowids(array $rows): array
+    private static function supplementaryWildcardRowids(array $rows): array
     {
         return array_map(static fn (array $row): int => $row['rowid'], $rows);
     }
 
     /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
-    private static function v219_map(array $rows, string $key): array
+    private static function supplementaryWildcardMap(array $rows, string $key): array
     {
         $mapped = [];
         foreach ($rows as $row) {
@@ -10450,7 +10450,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<int> $left @param list<int> $right @return list<int> */
-    private static function v219_sortedDiff(array $left, array $right): array
+    private static function supplementaryWildcardSortedDiff(array $left, array $right): array
     {
         $diff = array_values(array_diff($left, $right));
         sort($diff);
@@ -10459,7 +10459,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<int> $left @param list<int> $right @return list<int> */
-    private static function v219_sortedIntersect(array $left, array $right): array
+    private static function supplementaryWildcardSortedIntersect(array $left, array $right): array
     {
         $intersect = array_values(array_intersect($left, $right));
         sort($intersect);
@@ -10472,9 +10472,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array{textChangedRowids:list<int>,rtrimChangedRowids:list<int>,nocaseKeyChangedRowids:list<int>,supplementaryChangedRowids:list<int>,utf16CodeUnitChangedRowids:list<int>,residualChangedRowids:list<int>}
      */
-    private static function v219_changes(array $currentRows, array $nextRows): array
+    private static function supplementaryWildcardChanges(array $currentRows, array $nextRows): array
     {
-        $current = self::v219_byRowid($currentRows);
+        $current = self::supplementaryWildcardByRowid($currentRows);
         $result = [
             'textChangedRowids' => [],
             'rtrimChangedRowids' => [],
@@ -10483,7 +10483,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'utf16CodeUnitChangedRowids' => [],
             'residualChangedRowids' => [],
         ];
-        foreach (self::v219_byRowid($nextRows) as $rowid => $entry) {
+        foreach (self::supplementaryWildcardByRowid($nextRows) as $rowid => $entry) {
             if (!isset($current[$rowid])) {
                 continue;
             }
@@ -10508,11 +10508,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $currentRows @param list<array<string,mixed>> $nextRows @return list<int> */
-    private static function v219_residualChanges(array $currentRows, array $nextRows): array
+    private static function supplementaryWildcardResidualChanges(array $currentRows, array $nextRows): array
     {
-        $current = self::v219_byRowid($currentRows);
+        $current = self::supplementaryWildcardByRowid($currentRows);
         $rowids = [];
-        foreach (self::v219_byRowid($nextRows) as $rowid => $entry) {
+        foreach (self::supplementaryWildcardByRowid($nextRows) as $rowid => $entry) {
             if (isset($current[$rowid]) && ($current[$rowid]['residualMatch'] ?? null) !== ($entry['residualMatch'] ?? null)) {
                 $rowids[] = $rowid;
             }
@@ -10523,7 +10523,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
-    private static function v219_byRowid(array $rows): array
+    private static function supplementaryWildcardByRowid(array $rows): array
     {
         $mapped = [];
         foreach ($rows as $row) {
@@ -10533,23 +10533,23 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return $mapped;
     }
 
-    private static function v219_characterCount(string $value): int
+    private static function supplementaryWildcardCharacterCount(string $value): int
     {
-        return count(self::v219_characters($value));
+        return count(self::supplementaryWildcardCharacters($value));
     }
 
-    private static function v219_utf16CodeUnits(string $value): int
+    private static function supplementaryWildcardUtf16CodeUnits(string $value): int
     {
         $bytes = SQLiteEncodingCollationSourceCursor::encodeText($value, 2);
 
         return intdiv(strlen($bytes), 2);
     }
 
-    private static function v219_supplementaryCount(string $value): int
+    private static function supplementaryWildcardSupplementaryCount(string $value): int
     {
         $count = 0;
-        foreach (self::v219_characters($value) as $character) {
-            if (self::v219_utf16CodeUnits($character) === 2) {
+        foreach (self::supplementaryWildcardCharacters($value) as $character) {
+            if (self::supplementaryWildcardUtf16CodeUnits($character) === 2) {
                 $count++;
             }
         }
@@ -10558,7 +10558,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @return list<string> */
-    private static function v219_characters(string $value): array
+    private static function supplementaryWildcardCharacters(string $value): array
     {
         if ($value === '') {
             return [];
@@ -10568,7 +10568,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return is_array($characters) ? array_values($characters) : str_split($value);
     }
 
-    private static function v219_asciiLower(string $value): string
+    private static function supplementaryWildcardAsciiLower(string $value): string
     {
         return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
     }

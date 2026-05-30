@@ -8,7 +8,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentOption = [
     'option_id' => 10331048,
-    'option_name' => 'wp_plugin_generated_rule_lookup_next10331048',
+    'option_name' => 'wp_plugin_generated_rule_lookup_final_range_late',
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"version":1}}',
     'generated_path' => '$.rules',
     'scan_root' => '$.rules',
@@ -41,8 +41,8 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
 );
 
 $payload = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next1033-1048',
-    'wordpressUse' => 'Generated wp_options JSON path scans keep rowid point-cost admission stable across the next1033-1048 follow-on while changed copied source rows force a next reader reprepare.',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-final-range-late',
+    'wordpressUse' => 'Generated wp_options JSON path scans keep rowid point-cost admission stable across this accepted follow-on range while changed copied source rows force a next reader reprepare.',
     'dependency' => 'sqlite-json-table-generated-path-rowid-cost-current-source-next1048',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
@@ -67,7 +67,7 @@ if (($argv[1] ?? null) === '--self-test') {
         exit(1);
     }
 
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next1033-1048 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-cost-final-range-late self-test passed\n";
     return;
 }
 
