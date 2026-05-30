@@ -8,7 +8,7 @@ final class SQLiteIncrementalBlobIoPlan
 {
     /**
      * @param list<array<string, mixed>> $rows
-     * @param array{database?:string,table:string,column:string,rowid:int,readonly?:bool} $request
+     * @param array{database?:string,table:string,column:string,rowid:int,readonly?:bool,foreign_key_columns?:list<string>} $request
      * @return array{status:string,database:string,table:string,column:string,rowid:int,readonly:bool,bytes:int,payload:SQLiteBlobValue,dependencies:list<string>}
      */
     public static function open(array $rows, array $request): array
@@ -18,10 +18,14 @@ final class SQLiteIncrementalBlobIoPlan
         $rowid = self::rowid($request['rowid'] ?? null);
         $database = self::schema($request['database'] ?? 'main');
         $readonly = (bool) ($request['readonly'] ?? false);
+        $foreignKeyColumns = self::foreignKeyColumns($request['foreign_key_columns'] ?? []);
         $row = self::findRow($rows, $rowid);
 
         if (!array_key_exists($column, $row)) {
             throw new \InvalidArgumentException("SQLite incremental blob column {$column} is not present");
+        }
+        if (!$readonly && in_array($column, $foreignKeyColumns, true)) {
+            throw new \RuntimeException('SQLite incremental blob cannot open foreign key column for writing');
         }
         if (!$row[$column] instanceof SQLiteBlobValue) {
             throw new \InvalidArgumentException('SQLite incremental blob handles require a BLOB storage value');
@@ -36,7 +40,11 @@ final class SQLiteIncrementalBlobIoPlan
             'readonly' => $readonly,
             'bytes' => strlen($row[$column]->bytes),
             'payload' => $row[$column],
-            'dependencies' => ['sqlite3-blob-open', 'sqlite3-blob-bytes'],
+            'dependencies' => array_values(array_filter([
+                'sqlite3-blob-open',
+                'sqlite3-blob-bytes',
+                $foreignKeyColumns === [] ? null : 'sqlite-fkey2-incremental-blob-foreign-key-column-guard',
+            ])),
         ];
     }
 
@@ -183,6 +191,23 @@ final class SQLiteIncrementalBlobIoPlan
         }
 
         return $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function foreignKeyColumns(mixed $columns): array
+    {
+        if (!is_array($columns)) {
+            throw new \InvalidArgumentException('SQLite incremental blob foreign key columns must be a list');
+        }
+
+        $normalized = [];
+        foreach ($columns as $column) {
+            $normalized[] = self::identifier($column, 'foreign key column');
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     private static function schema(mixed $value): string

@@ -654,6 +654,64 @@ final class SQLiteWindowFunction
 
     /**
      * @param iterable<mixed> $values
+     * @param iterable<mixed> $separators
+     * @param iterable<mixed> $orderKeys
+     * @param iterable<bool|int|float|string|null>|null $filters
+     * @return list<string|null>
+     */
+    public static function groupConcatFrameBetweenSeparators(
+        iterable $values,
+        iterable $separators,
+        iterable $orderKeys,
+        string $frameUnit,
+        string $startBoundary,
+        string $endBoundary,
+        string $exclude = 'NO OTHERS',
+        ?iterable $filters = null,
+    ): array {
+        $rows = self::rows($values);
+        $separatorRows = self::rows($separators);
+        $keys = self::rows($orderKeys);
+        if (count($rows) !== count($separatorRows) || count($rows) !== count($keys)) {
+            throw new \InvalidArgumentException('SQLite group_concat() values, separators, and ORDER BY keys must have the same row count');
+        }
+
+        $filterRows = $filters === null ? null : self::rows($filters);
+        if ($filterRows !== null && count($filterRows) !== count($rows)) {
+            throw new \InvalidArgumentException('SQLite window FILTER values must have the same row count');
+        }
+
+        $excludeMode = strtoupper(trim($exclude));
+        if (!in_array($excludeMode, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
+            throw new \InvalidArgumentException('SQLite window EXCLUDE mode is not supported');
+        }
+
+        $unit = strtoupper(trim($frameUnit));
+        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite window frame unit is not supported');
+        }
+
+        $start = self::parseFrameBoundary($startBoundary);
+        $end = self::parseFrameBoundary($endBoundary);
+        $result = [];
+        foreach (array_keys($rows) as $index) {
+            $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
+            $frameIndexes = self::applyExclude($frameIndexes, $keys, $index, $excludeMode);
+            if ($filterRows !== null) {
+                $frameIndexes = array_values(array_filter(
+                    $frameIndexes,
+                    static fn (int $frameIndex): bool => self::sqlTruthy($filterRows[$frameIndex]),
+                ));
+            }
+
+            $result[] = self::groupConcatFrameWithRowSeparators($rows, $separatorRows, $frameIndexes);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param iterable<mixed> $values
      * @param iterable<mixed> $orderKeys
      * @param iterable<bool|int|float|string|null>|null $filters
      * @return list<mixed>
@@ -1438,6 +1496,32 @@ final class SQLiteWindowFunction
         }
 
         return $text === [] ? null : implode($separator, $text);
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @param list<mixed> $separators
+     * @param list<int> $frameIndexes
+     */
+    private static function groupConcatFrameWithRowSeparators(array $values, array $separators, array $frameIndexes): ?string
+    {
+        $result = null;
+        foreach ($frameIndexes as $frameIndex) {
+            $value = $values[$frameIndex];
+            if ($value === null) {
+                continue;
+            }
+
+            if ($result === null) {
+                $result = self::valueText($value);
+                continue;
+            }
+
+            $separator = $separators[$frameIndex] === null ? '' : self::valueText($separators[$frameIndex]);
+            $result .= $separator . self::valueText($value);
+        }
+
+        return $result;
     }
 
     private static function sortRank(mixed $value): int

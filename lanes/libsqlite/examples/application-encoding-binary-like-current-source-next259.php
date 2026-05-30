@@ -13,16 +13,16 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $current = [
-    ['option_id' => 1, 'option_name_bytes' => $enc('Plugin_Cache', 1), 'text_encoding' => 1],
-    ['option_id' => 2, 'option_name_bytes' => $enc('plugin_cache', 2), 'text_encoding' => 2],
-    ['option_id' => 3, 'option_name_bytes' => $enc('PLUGIN_CACHE', 3), 'text_encoding' => 3],
-    ['option_id' => 4, 'option_name' => 'Plugout_Cache'],
+    ['setting_id' => 1, 'key_name_bytes' => $enc('Plugin_Cache', 1), 'text_encoding' => 1],
+    ['setting_id' => 2, 'key_name_bytes' => $enc('plugin_cache', 2), 'text_encoding' => 2],
+    ['setting_id' => 3, 'key_name_bytes' => $enc('PLUGIN_CACHE', 3), 'text_encoding' => 3],
+    ['setting_id' => 4, 'key_name' => 'Plugout_Cache'],
 ];
 $next = [
-    ['option_id' => 1, 'option_name_bytes' => $enc('Plugin_Cache', 1), 'text_encoding' => 1],
-    ['option_id' => 2, 'option_name_bytes' => $enc('plugin_cache_v2', 2), 'text_encoding' => 2],
-    ['option_id' => 3, 'option_name_bytes' => $enc('PLUGIN_CACHE', 3), 'text_encoding' => 3],
-    ['option_id' => 5, 'option_name' => 'plugin_new'],
+    ['setting_id' => 1, 'key_name_bytes' => $enc('Plugin_Cache', 1), 'text_encoding' => 1],
+    ['setting_id' => 2, 'key_name_bytes' => $enc('plugin_cache_v2', 2), 'text_encoding' => 2],
+    ['setting_id' => 3, 'key_name_bytes' => $enc('PLUGIN_CACHE', 3), 'text_encoding' => 3],
+    ['setting_id' => 5, 'key_name' => 'plugin_new'],
 ];
 
 $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationBinaryCollationDefaultLikePlan($current, $next);
@@ -39,7 +39,7 @@ $summary = [
 
 if (in_array('--self-test', $argv, true)) {
     if (
-        $summary['status'] !== 'encoding-collation-affinity-like-current-source-next259'
+        $summary['status'] !== 'encoding-collation-affinity-like-current-source-nexttwoFiveNine'
         || $summary['binaryRangeUsable'] !== false
         || $summary['fullScanResidualRequired'] !== true
         || $summary['currentMatchedRowids'] !== [3, 1, 2]

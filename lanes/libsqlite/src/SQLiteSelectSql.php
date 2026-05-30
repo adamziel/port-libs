@@ -952,14 +952,15 @@ final class SQLiteSelectSql
         }
 
         $collations = [];
-        foreach ($select as $term) {
+        foreach ($select as $index => $term) {
             if (!is_array($term) || ($term['type'] ?? null) !== 'collate' || !isset($term['collation']) || !is_string($term['collation'])) {
                 continue;
             }
             $column = $term['alias'] ?? null;
-            if (is_string($column) && $column !== '') {
-                $collations[$column] = strtoupper($term['collation']);
-            }
+            $column = is_string($column) && $column !== ''
+                ? $column
+                : self::compoundArmOutputColumn($term, $index + 1);
+            $collations[$column] = strtoupper($term['collation']);
         }
 
         return $collations;

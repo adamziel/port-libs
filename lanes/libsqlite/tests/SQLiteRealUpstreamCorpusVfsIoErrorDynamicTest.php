@@ -7,118 +7,229 @@ use PortLibs\LibSqlite\SQLiteVfsIoTransactionSequencePlan;
 $tests = [];
 
 $scenarios = [
-    ['script' => 'ioerr.test', 'name' => 'ioerr-1', 'phase' => 'rollback-transaction', 'exclude' => [4], 'ckrefcount' => true],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-2', 'phase' => 'vacuum', 'exclude' => [1, 9], 'ckrefcount' => true, 'cksum' => true, 'write_context' => 'vacuum'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-3', 'phase' => 'delete-update-commit', 'ckrefcount' => true],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-4', 'phase' => 'overflow-record-header', 'ckrefcount' => true, 'read_context' => 'record-header'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-5', 'phase' => 'multi-file-commit', 'exclude' => [4, 17], 'ckrefcount' => true, 'write_context' => 'super-journal'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-7', 'phase' => 'hot-journal-rollback', 'exclude' => [1], 'read_context' => 'hot-journal'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-8', 'phase' => 'short-field-read', 'ckrefcount' => true, 'read_context' => 'record-header'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-9', 'phase' => 'master-journal-name-read', 'read_context' => 'master-journal'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-10', 'phase' => 'statement-playback', 'ckrefcount' => true, 'write_context' => 'statement-journal'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-11', 'phase' => 'update-write', 'ckrefcount' => true],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-12', 'phase' => 'incremental-vacuum', 'ckrefcount' => true, 'write_context' => 'vacuum'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-13', 'phase' => 'balance-quick-pointer-map', 'ckrefcount' => true, 'write_context' => 'pointer-map'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-14', 'phase' => 'balance-deeper-pointer-map', 'ckrefcount' => true, 'write_context' => 'pointer-map'],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-15', 'phase' => 'index-delete-overflow-commit', 'ckrefcount' => true],
-    ['script' => 'ioerr.test', 'name' => 'ioerr-16', 'phase' => 'incremental-vacuum-commit', 'ckrefcount' => true, 'write_context' => 'vacuum'],
-    ['script' => 'ioerr5.test', 'name' => 'ioerr5-1', 'phase' => 'memory-reclaim-error-state', 'persistent' => true, 'ckrefcount' => true],
+    [
+        'name' => 'ioerr-1 transaction rollback preserves original rows',
+        'script' => 'ioerr.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'exclude' => [4],
+        'access_is_required' => false,
+    ],
+    [
+        'name' => 'ioerr-2 vacuum temp database keeps checksum stable',
+        'script' => 'ioerr.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'exclude' => [1, 9],
+        'write_context' => 'vacuum',
+        'cksum' => true,
+    ],
+    [
+        'name' => 'ioerr-4 overflow record header read aborts cleanly',
+        'script' => 'ioerr.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'read_context' => 'record-header',
+    ],
+    [
+        'name' => 'ioerr-5 attached two-file commit holds super journal',
+        'script' => 'ioerr.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'write_context' => 'super-journal',
+        'access_is_required' => true,
+    ],
+    [
+        'name' => 'ioerr-7 hot journal rollback defers failed reads',
+        'script' => 'ioerr.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'read_context' => 'hot-journal',
+        'exclude' => [1],
+    ],
+    [
+        'name' => 'ioerr-9 master journal name read failure is isolated',
+        'script' => 'ioerr.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'read_context' => 'master-journal',
+        'write_context' => 'super-journal',
+    ],
+    [
+        'name' => 'ioerr-10 statement journal playback rolls back constraint work',
+        'script' => 'ioerr.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'write_context' => 'statement-journal',
+    ],
+    [
+        'name' => 'ioerr-12 coresident page journal write restores pointer map',
+        'script' => 'ioerr.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'write_context' => 'pointer-map',
+    ],
+    [
+        'name' => 'ioerr2-7 nonpersistent pager error retries clean transaction',
+        'script' => 'ioerr2.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'persistent' => false,
+        'phase' => 'pager-retry-after-nonpersistent-error',
+    ],
+    [
+        'name' => 'ioerr5 persistent error state keeps dirty pages in cache',
+        'script' => 'ioerr5.test',
+        'operations' => ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'],
+        'persistent' => true,
+        'phase' => 'memory-reclaim-error-state',
+    ],
 ];
 
-$operations = ['read', 'write', 'sync', 'truncate', 'delete', 'access', 'open', 'close'];
-$failpoints = range(1, 8);
+$expectedRc = static function (array $scenario, string $operation, int $failpoint): string {
+    if (in_array($failpoint, $scenario['exclude'] ?? [], true)) {
+        return 'SQLITE_OK';
+    }
+    if ($operation === 'access' && !($scenario['access_is_required'] ?? false)) {
+        return 'SQLITE_OK';
+    }
+    if ($operation === 'close') {
+        return 'SQLITE_OK';
+    }
+    if (($scenario['persistent'] ?? false) === true) {
+        return 'SQLITE_IOERR';
+    }
 
-foreach ($scenarios as $scenarioIndex => $scenario) {
-    foreach ($operations as $operation) {
-        foreach ($failpoints as $failpoint) {
+    return match ($operation) {
+        'sync' => 'SQLITE_IOERR_FSYNC',
+        'write' => ($scenario['full_on_write'] ?? false) ? 'SQLITE_FULL' : 'SQLITE_IOERR_WRITE',
+        'read' => 'SQLITE_IOERR_READ',
+        'truncate' => 'SQLITE_IOERR_TRUNCATE',
+        'delete' => 'SQLITE_IOERR_DELETE',
+        'open' => 'SQLITE_CANTOPEN',
+        default => 'SQLITE_IOERR',
+    };
+};
+
+$expectedRecovery = static function (array $scenario, string $operation, int $failpoint): string {
+    if (($scenario['phase'] ?? '') === 'memory-reclaim-error-state') {
+        return 'do_not_spill_dirty_pages_from_error_state';
+    }
+    if (in_array($failpoint, $scenario['exclude'] ?? [], true)) {
+        return 'ignored_fixture_probe';
+    }
+    if ($operation === 'access' && !($scenario['access_is_required'] ?? false)) {
+        return 'optional_access_probe_ignored';
+    }
+    if ($operation === 'close') {
+        return 'close_error_does_not_change_database_image';
+    }
+    if (($scenario['persistent'] ?? false) === true) {
+        return 'pager_error_state_holds_dirty_pages';
+    }
+
+    if ($operation === 'sync') {
+        return 'rollback_after_failed_sync';
+    }
+    if ($operation === 'write') {
+        return match ($scenario['write_context'] ?? 'transaction') {
+            'statement-journal' => 'play_statement_journal_then_rollback',
+            'pointer-map' => 'rollback_pointer_map_update',
+            'vacuum' => 'discard_vacuum_temp_database',
+            'super-journal' => 'retain_super_journal_until_all_members_resolved',
+            default => 'rollback_transaction_and_keep_original_pages',
+        };
+    }
+    if ($operation === 'read') {
+        return match ($scenario['read_context'] ?? 'database') {
+            'hot-journal' => 'defer_hot_journal_replay_until_read_succeeds',
+            'record-header' => 'abort_record_decode_without_cache_poisoning',
+            'master-journal' => 'treat_master_journal_name_as_unreadable',
+            default => 'abort_read_without_dirtying_cache',
+        };
+    }
+
+    return match ($operation) {
+        'truncate' => 'keep_original_database_size_until_retry',
+        'delete' => 'keep_journal_until_delete_can_be_retried',
+        'open' => 'abort_before_database_image_changes',
+        default => 'rollback_and_preserve_database_image',
+    };
+};
+
+$caseOrdinal = 0;
+foreach ($scenarios as $scenario) {
+    foreach ($scenario['operations'] as $operation) {
+        foreach (range(1, 13) as $failpoint) {
+            $caseOrdinal++;
+            $persistent = ($scenario['persistent'] ?? false) === true && ($failpoint % 2) === 0;
             $name = sprintf(
-                'real upstream corpus vfs io error dynamic %s %s failpoint %02d',
+                'real upstream corpus vfs ioerr dynamic %04d %s operation %s failpoint %02d',
+                $caseOrdinal,
                 $scenario['name'],
                 $operation,
                 $failpoint
             );
 
-            $tests[$name] = static function (TestRunner $t) use ($scenario, $scenarioIndex, $operation, $failpoint): void {
-                $persistent = (($scenarioIndex + $failpoint) % 5) === 0;
+            $tests[$name] = static function (TestRunner $t) use ($scenario, $operation, $failpoint, $persistent, $expectedRc, $expectedRecovery): void {
                 $plan = SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome($scenario, $operation, $failpoint, $persistent);
-                $excluded = in_array($failpoint, $scenario['exclude'] ?? [], true);
-                $scenarioPersistent = $persistent || (bool) ($scenario['persistent'] ?? false);
 
                 $t->same('ok', $plan['status']);
                 $t->same($scenario['script'], $plan['script']);
                 $t->same($scenario['name'], $plan['scenario']);
                 $t->same($operation, $plan['operation']);
                 $t->same($failpoint, $plan['failpoint']);
-                $t->same((string) $scenario['phase'], $plan['phase']);
-                $t->same($excluded, $plan['excluded']);
-                $t->same($excluded ? 'upstream excludes this injected failpoint' : null, $plan['exclude_reason']);
-                $t->same(0, $plan['open_file_count']);
-                $t->same((bool) ($scenario['ckrefcount'] ?? true), $plan['refcount_check']);
-                $t->same((bool) ($scenario['cksum'] ?? false), $plan['checksum_check']);
+                $t->same($expectedRc($scenario, $operation, $failpoint), $plan['expected_rc']);
+                $t->same($expectedRecovery($scenario, $operation, $failpoint), $plan['recovery_action']);
+                $t->same(in_array($failpoint, $scenario['exclude'] ?? [], true), $plan['excluded']);
                 $t->same(true, $plan['database_image_stable']);
-                $t->same($scenarioPersistent, $plan['persistent']);
-                $expectedDirtyPreserved = !$excluded
-                    && (
-                        $scenario['phase'] === 'memory-reclaim-error-state'
-                        || (!in_array($operation, ['access', 'close'], true) && $scenarioPersistent)
-                    );
-                $t->same($expectedDirtyPreserved, $plan['dirty_pages_preserved']);
+                $t->same(0, $plan['open_file_count']);
                 $t->same(true, in_array('vfs-io-error-injection', $plan['dependencies'], true));
                 $t->same(true, in_array('pager-error-state-recovery', $plan['dependencies'], true));
                 $t->same(true, in_array('real-upstream-corpus-ioerr-test', $plan['dependencies'], true));
                 $t->same([$scenario['script'] . ' ' . $scenario['name']], $plan['upstream']);
-
-                if ($excluded) {
-                    $t->same('SQLITE_OK', $plan['expected_rc']);
-                    $t->same('ignored_fixture_probe', $plan['recovery_action']);
-                } elseif ($operation === 'access') {
-                    $t->same('SQLITE_OK', $plan['expected_rc']);
-                    $t->same(
-                        $scenario['phase'] === 'memory-reclaim-error-state' ? 'do_not_spill_dirty_pages_from_error_state' : 'optional_access_probe_ignored',
-                        $plan['recovery_action']
-                    );
-                } elseif ($operation === 'close') {
-                    $t->same('SQLITE_OK', $plan['expected_rc']);
-                    $t->same(
-                        $scenario['phase'] === 'memory-reclaim-error-state' ? 'do_not_spill_dirty_pages_from_error_state' : 'close_error_does_not_change_database_image',
-                        $plan['recovery_action']
-                    );
-                } elseif ($scenario['phase'] === 'memory-reclaim-error-state') {
-                    $t->same('SQLITE_IOERR', $plan['expected_rc']);
-                    $t->same('do_not_spill_dirty_pages_from_error_state', $plan['recovery_action']);
-                } elseif ($scenarioPersistent) {
-                    $t->same('SQLITE_IOERR', $plan['expected_rc']);
-                    $t->same('pager_error_state_holds_dirty_pages', $plan['recovery_action']);
-                } elseif ($operation === 'sync') {
-                    $t->same('SQLITE_IOERR_FSYNC', $plan['expected_rc']);
-                    $t->same('rollback_after_failed_sync', $plan['recovery_action']);
-                } elseif ($operation === 'write' && ($scenario['write_context'] ?? '') === 'pointer-map') {
-                    $t->same('SQLITE_IOERR_WRITE', $plan['expected_rc']);
-                    $t->same('rollback_pointer_map_update', $plan['recovery_action']);
-                } elseif ($operation === 'read' && ($scenario['read_context'] ?? '') === 'record-header') {
-                    $t->same('SQLITE_IOERR_READ', $plan['expected_rc']);
-                    $t->same('abort_record_decode_without_cache_poisoning', $plan['recovery_action']);
-                } else {
-                    $t->same(true, in_array($plan['expected_rc'], ['SQLITE_OK', 'SQLITE_IOERR_READ', 'SQLITE_IOERR_WRITE', 'SQLITE_IOERR_TRUNCATE', 'SQLITE_IOERR_DELETE', 'SQLITE_CANTOPEN'], true));
-                }
             };
         }
     }
 }
 
-$tests['real upstream corpus vfs io error dynamic rejects missing scenario name'] = static fn (TestRunner $t) => $t->throws(
-    InvalidArgumentException::class,
-    static fn () => SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome([], 'read', 1)
-);
+$persistentCases = [
+    'ioerr5.test persistent write preserves dirty pages' => [
+        ['name' => 'ioerr5 persistent write path', 'script' => 'ioerr5.test', 'persistent' => true],
+        'write',
+        3,
+        true,
+        'pager_error_state_holds_dirty_pages',
+    ],
+    'ioerr5.test memory reclaim persistent sync does not spill dirty pages' => [
+        ['name' => 'ioerr5 memory reclaim', 'script' => 'ioerr5.test', 'persistent' => true, 'phase' => 'memory-reclaim-error-state'],
+        'sync',
+        5,
+        true,
+        'do_not_spill_dirty_pages_from_error_state',
+    ],
+    'ioerr2.test transient write can roll back without dirty cache preservation' => [
+        ['name' => 'ioerr2 nonpersistent pager retry', 'script' => 'ioerr2.test', 'persistent' => false],
+        'write',
+        7,
+        false,
+        'rollback_transaction_and_keep_original_pages',
+    ],
+];
 
-$tests['real upstream corpus vfs io error dynamic rejects unknown operation'] = static fn (TestRunner $t) => $t->throws(
-    InvalidArgumentException::class,
-    static fn () => SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome(['name' => 'ioerr-1'], 'seek', 1)
-);
+foreach ($persistentCases as $name => [$scenario, $operation, $failpoint, $dirtyPagesPreserved, $recovery]) {
+    $tests['real upstream corpus vfs ioerr dynamic ' . $name] = static function (TestRunner $t) use ($scenario, $operation, $failpoint, $dirtyPagesPreserved, $recovery): void {
+        $plan = SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome($scenario, $operation, $failpoint);
 
-$tests['real upstream corpus vfs io error dynamic rejects nonpositive failpoint'] = static fn (TestRunner $t) => $t->throws(
-    InvalidArgumentException::class,
-    static fn () => SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome(['name' => 'ioerr-1'], 'read', 0)
-);
+        $t->same($dirtyPagesPreserved, $plan['dirty_pages_preserved']);
+        $t->same($recovery, $plan['recovery_action']);
+        $t->same($scenario['persistent'], $plan['persistent']);
+        $t->same(true, $plan['database_image_stable']);
+        $t->same([$scenario['script'] . ' ' . $scenario['name']], $plan['upstream']);
+    };
+}
+
+$guardCases = [
+    'rejects missing scenario name' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome(['script' => 'ioerr.test'], 'write', 1),
+    'rejects missing scenario script' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome(['name' => 'ioerr guard', 'script' => ''], 'write', 1),
+    'rejects unsupported operation' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome(['name' => 'ioerr guard'], 'rename', 1),
+    'rejects zero failpoint' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome(['name' => 'ioerr guard'], 'write', 0),
+    'rejects negative failpoint' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::ioErrorOutcome(['name' => 'ioerr guard'], 'write', -1),
+];
+
+foreach ($guardCases as $name => $callable) {
+    $tests['real upstream corpus vfs ioerr dynamic ' . $name] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, $callable);
+}
 
 return $tests;

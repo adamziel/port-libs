@@ -6672,7 +6672,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
         return [
             'status' => 'encoding-collation-affinity-like-current-source-nexttwoFiveNine',
             'operator' => 'LIKE',
-            'expression' => 'option_name COLLATE BINARY LIKE ? /* default LIKE ignores BINARY collation for ASCII folding */',
+            'expression' => 'key_name COLLATE BINARY LIKE ? /* default LIKE ignores BINARY collation for ASCII folding */',
             'pattern' => $pattern,
             'patternHex' => strtoupper(bin2hex($pattern)),
             'escape' => $escape,
@@ -6731,7 +6731,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
                 'sqlite-current-source-nexttwoFiveNine',
             ],
             'dependency_closure' => 'no new support component needed; reuses native LIKE matching, BINARY collation byte keys, mixed UTF decoding, scalar text-affinity, and current-source diagnostics',
-            'non_overlap' => 'nextTwoFiveNine covers default LIKE ASCII folding over a BINARY-collated option_name expression where a BINARY prefix cursor is unsafe until case_sensitive_like is enabled; avoids accepted nextTwoFiveFive GLOB bracket-class fallback, nextTwoFiveSix dynamic pattern affinity, Unicode GLOB ranges, UTF-16 malformed guards, JSON/VFS/WAL/B-tree/SQL planner clusters, and suite evidence slices',
+            'non_overlap' => 'nextTwoFiveNine covers default LIKE ASCII folding over a BINARY-collated key_name expression where a BINARY prefix cursor is unsafe until case_sensitive_like is enabled; avoids accepted nextTwoFiveFive GLOB bracket-class fallback, nextTwoFiveSix dynamic pattern affinity, Unicode GLOB ranges, UTF-16 malformed guards, JSON/VFS/WAL/B-tree/SQL planner clusters, and suite evidence slices',
         ];
     }
 
@@ -6748,10 +6748,10 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
         $errors = [];
 
         foreach ($rows as $index => $row) {
-            if (!array_key_exists('option_name', $row) && !array_key_exists('option_name_bytes', $row)) {
-                throw new \InvalidArgumentException('SQLite BINARY LIKE nextTwoFiveNine rows require option_name or option_name_bytes');
+            if (!array_key_exists('key_name', $row) && !array_key_exists('key_name_bytes', $row)) {
+                throw new \InvalidArgumentException('SQLite BINARY LIKE nextTwoFiveNine rows require key_name or key_name_bytes');
             }
-            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            $rowid = is_int($row['setting_id'] ?? null) ? $row['setting_id'] : $index + 1;
             try {
                 $coerced = self::nextTwoFiveNine_coerceText($row);
                 if ($coerced === null) {
@@ -6759,7 +6759,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
                     continue;
                 }
                 if (preg_match('//u', $coerced['text']) !== 1) {
-                    throw new \InvalidArgumentException('SQLite BINARY LIKE nextTwoFiveNine option_name text is malformed UTF-8');
+                    throw new \InvalidArgumentException('SQLite BINARY LIKE nextTwoFiveNine key_name text is malformed UTF-8');
                 }
                 $trace[] = [
                     'rowid' => $rowid,
@@ -6823,19 +6823,19 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     /** @param array<string,mixed> $row @return ?array{text:string,encoding:string,storage:string} */
     private static function nextTwoFiveNine_coerceText(array $row): ?array
     {
-        if (array_key_exists('option_name_bytes', $row)) {
-            if (!is_string($row['option_name_bytes']) || !isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
-                throw new \InvalidArgumentException('SQLite BINARY LIKE nextTwoFiveNine byte rows require option_name_bytes and integer text_encoding');
+        if (array_key_exists('key_name_bytes', $row)) {
+            if (!is_string($row['key_name_bytes']) || !isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite BINARY LIKE nextTwoFiveNine byte rows require key_name_bytes and integer text_encoding');
             }
 
             return [
-                'text' => SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']),
+                'text' => SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']),
                 'encoding' => self::nextTwoFiveNine_encodingName($row['text_encoding']),
                 'storage' => 'text',
             ];
         }
 
-        $value = $row['option_name'];
+        $value = $row['key_name'];
         if ($value === null || $value instanceof SQLiteBlobValue) {
             return null;
         }
@@ -6854,7 +6854,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
             return ['text' => $value, 'encoding' => 'UTF-8', 'storage' => 'text'];
         }
 
-        throw new \InvalidArgumentException('SQLite BINARY LIKE nextTwoFiveNine option_name must be scalar text-affinity input');
+        throw new \InvalidArgumentException('SQLite BINARY LIKE nextTwoFiveNine key_name must be scalar text-affinity input');
     }
 
     private static function nextTwoFiveNine_encodingName(int $encoding): string
