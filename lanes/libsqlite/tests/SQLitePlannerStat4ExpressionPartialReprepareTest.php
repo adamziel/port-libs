@@ -139,6 +139,40 @@ $covered154 = static function () use ($current154, $plan154): array {
 
     return $plan154(null, $current);
 };
+$nocase154 = static function () use ($prepared154, $current154, $plan154, $term154, $exprEq154, $exprIn154, $exprBetween154): array {
+    $prepared = $prepared154();
+    $current = $current154();
+    foreach ([&$prepared, &$current] as &$source) {
+        $source['indexes'] = [$source['indexes'][0]];
+        $source['indexes'][0]['expression'] = 'option_name';
+        $source['indexes'][0]['expressionColumn'] = 'option_name';
+        $source['indexes'][0]['collation'] = 'NOCASE';
+        $source['indexes'][0]['coveringColumns'] = ['option_name', 'option_value', 'updated_at'];
+        $source['indexes'][0]['stat4Samples'][0]['sample'][0] = 'Plugin_Cache';
+    }
+    unset($source);
+
+    return [
+        'eq' => $plan154($prepared, $current, [
+            $exprEq154('option_name', 'plugin_cache'),
+            $term154('blog_id', '=', 1),
+            $term154('autoload', '=', 'yes'),
+            $term154('option_name', 'IS NOT NULL'),
+        ]),
+        'in' => $plan154($prepared, $current, [
+            $exprIn154('option_name', ['PLUGIN_CACHE', 'plugin_seo']),
+            $term154('blog_id', '=', 1),
+            $term154('autoload', '=', 'yes'),
+            $term154('option_name', 'IS NOT NULL'),
+        ]),
+        'between' => $plan154($prepared, $current, [
+            $exprBetween154('option_name', 'PLUGIN_CACHE', 'plugin_forms'),
+            $term154('blog_id', '=', 1),
+            $term154('autoload', '=', 'yes'),
+            $term154('option_name', 'IS NOT NULL'),
+        ]),
+    ];
+};
 
 return [
     'planner stat4 expression partial current source stat4-expression-partial-reprepare status ready' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-reprepare-ready', $plan154()['status']),
@@ -201,6 +235,13 @@ return [
     'planner stat4 expression partial current source stat4-expression-partial-reprepare unproved falls back' => static fn (TestRunner $t) => $t->same('requires-next-stage', $unproved154()['status']),
     'planner stat4 expression partial current source stat4-expression-partial-reprepare covered removes table lookup' => static fn (TestRunner $t) => $t->same(false, $covered154()['tableLookupRequired']),
     'planner stat4 expression partial current source stat4-expression-partial-reprepare covered no deferred seek' => static fn (TestRunner $t) => $t->same('Noop', $covered154()['cursorProgram'][3]['opcode']),
+    'planner stat4 expression partial current source stat4-expression-partial-reprepare nocase status ready' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-reprepare-ready', $nocase154()['eq']['status']),
+    'planner stat4 expression partial current source stat4-expression-partial-reprepare nocase stat4 sample matched' => static fn (TestRunner $t) => $t->same(['Plugin_Cache'], $nocase154()['eq']['selectedPlan']['matchedStat4Keys']),
+    'planner stat4 expression partial current source stat4-expression-partial-reprepare nocase row residual keeps mixed case' => static fn (TestRunner $t) => $t->same([2, 3], $nocase154()['eq']['selectedPlan']['matchedRowids']),
+    'planner stat4 expression partial current source stat4-expression-partial-reprepare nocase row residual keeps payload' => static fn (TestRunner $t) => $t->same(['warm', 'fresh'], array_column($nocase154()['eq']['matchedRows'], 'payload', 'rowid') === [] ? [] : array_column(array_column($nocase154()['eq']['matchedRows'], 'payload'), 'option_value')),
+    'planner stat4 expression partial current source stat4-expression-partial-reprepare nocase in row residual' => static fn (TestRunner $t) => $t->same([2, 3, 8], $nocase154()['in']['selectedPlan']['matchedRowids']),
+    'planner stat4 expression partial current source stat4-expression-partial-reprepare nocase between row residual' => static fn (TestRunner $t) => $t->same([2, 3, 4], $nocase154()['between']['selectedPlan']['matchedRowids']),
+    'planner stat4 expression partial current source stat4-expression-partial-reprepare nocase cursor stays covering' => static fn (TestRunner $t) => $t->same('covering-index', $nocase154()['eq']['cursorProgram'][4]['source']),
     'planner stat4 expression partial current source stat4-expression-partial-reprepare invalid empty terms' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan154(null, null, [])),
     'planner stat4 expression partial current source stat4-expression-partial-reprepare invalid needed columns' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan154(null, null, null, [])),
     'planner stat4 expression partial current source stat4-expression-partial-reprepare invalid stat4 sample' => static function (TestRunner $t) use ($current154, $plan154): void {

@@ -92,8 +92,8 @@ $fixture = static function () use ($firstPage, $putPointerMapEntry): array {
 
         return substr($payload, 0, $byteCount);
     };
-    $table = SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::tableLeafCurrentNext($database, 3, 11, 12, true);
-    $index = SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::indexLeafCurrentNext($database, 4, $idxAValues, $idxBValues, true, overflowReader: $overflowReader);
+    $table = SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::sequentialTableLeafDeletes($database, 3, 11, 12, true);
+    $index = SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::sequentialIndexLeafDeletes($database, 4, $idxAValues, $idxBValues, true, overflowReader: $overflowReader);
 
     return [$database, $table, $index, $idxAValues, $idxBValues];
 };
@@ -188,7 +188,7 @@ $cases = [
     'summary next count' => static fn (array $fx): mixed => $fx[2]->toArray()['next_freelist_count'],
     'rejects missing table current row' => static fn (array $fx): mixed => (static function () use ($fx): string {
         try {
-            SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::tableLeafCurrentNext($fx[0], 3, 99, 12);
+            SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::sequentialTableLeafDeletes($fx[0], 3, 99, 12);
         } catch (Throwable $exception) {
             return $exception->getMessage();
         }
@@ -196,7 +196,7 @@ $cases = [
     })(),
     'rejects missing index next record' => static fn (array $fx): mixed => (static function () use ($fx): string {
         try {
-            SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::indexLeafCurrentNext($fx[0], 4, $fx[3], ['missing']);
+            SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::sequentialIndexLeafDeletes($fx[0], 4, $fx[3], ['missing']);
         } catch (Throwable $exception) {
             return $exception->getMessage();
         }

@@ -102,6 +102,49 @@ $current = static fn (): array => $run([
     ],
 ]);
 
+$hydrated = [
+    'sequence' => 3,
+    'current_source' => 'shm',
+    'source_handles' => ['main' => 'vfs97-1', 'shm' => 'vfs97-2'],
+    'handles' => [
+        'vfs97-1' => [
+            'id' => 'vfs97-1',
+            'source' => 'main',
+            'path' => '/srv/www/wp-content/database/wp copy.sqlite',
+            'owner' => '/srv/www/wp-content/database/wp copy.sqlite',
+            'readonly' => false,
+            'nolock' => false,
+            'uri' => ['is_uri' => true, 'path' => '/srv/www/wp-content/database/wp copy.sqlite', 'mode' => 'rw', 'cache' => 'shared', 'immutable' => false, 'nolock' => false, 'vfs' => null, 'authority' => null],
+        ],
+        'vfs97-2' => [
+            'id' => 'vfs97-2',
+            'source' => 'shm',
+            'path' => '/srv/www/wp-content/database/wp copy.sqlite-shm',
+            'owner' => '/srv/www/wp-content/database/wp copy.sqlite',
+            'readonly' => false,
+            'nolock' => false,
+            'uri' => ['is_uri' => true, 'path' => '/srv/www/wp-content/database/wp copy.sqlite-shm', 'mode' => 'rw', 'cache' => 'shared', 'immutable' => false, 'nolock' => false, 'vfs' => null, 'authority' => null],
+        ],
+    ],
+    'lock_holders' => [
+        '/srv/www/wp-content/database/wp copy.sqlite' => ['wp-reader' => 'shared'],
+    ],
+    'shared_slots' => [
+        '/srv/www/wp-content/database/wp copy.sqlite' => ['wp-reader' => 17],
+    ],
+    'shm_locks' => [
+        '/srv/www/wp-content/database/wp copy.sqlite' => ['read0' => ['wp-reader' => 'shared']],
+    ],
+    'shm_lock_sources' => [
+        '/srv/www/wp-content/database/wp copy.sqlite' => ['read0' => ['wp-reader' => 'shm']],
+    ],
+    'persistent_generations' => [
+        '/srv/www/wp-content/database/wp copy.sqlite' => 4,
+    ],
+];
+
+$hydratedReplay = static fn (): array => $run(['shm read0 exclusive wp-import'], ['current' => $hydrated]);
+
 $tests['vfs lock byte uri shm current source next97 dependency marker'] = static fn (TestRunner $t) => $t->same(true, in_array('vfs-lock-byte-uri-shm-current-source-next97', $wordpress()['dependencies'], true));
 $tests['vfs lock byte uri shm current source next97 event count'] = static fn (TestRunner $t) => $t->same(15, count($wordpress()['events']));
 $tests['vfs lock byte uri shm current source next97 first open status'] = static fn (TestRunner $t) => $t->same('shm-open', $wordpress()['events'][0]['status']);
@@ -169,6 +212,17 @@ $tests['vfs lock byte uri shm current source next97 current source replay blocke
 $tests['vfs lock byte uri shm current source next97 current source replay yield'] = static fn (TestRunner $t) => $t->same('released', $current()['events'][2]['status']);
 $tests['vfs lock byte uri shm current source next97 current source replay exclusive succeeds'] = static fn (TestRunner $t) => $t->same('planned', $current()['events'][3]['status']);
 $tests['vfs lock byte uri shm current source next97 current source replay shm cleared'] = static fn (TestRunner $t) => $t->same([], $current()['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['shm_locks']['read0']);
+
+$tests['vfs lock byte uri shm current source next97 hydrated shm source retained'] = static fn (TestRunner $t) => $t->same('shm', $hydratedReplay()['events'][0]['source']);
+$tests['vfs lock byte uri shm current source next97 hydrated shm owner retained'] = static fn (TestRunner $t) => $t->same('/srv/www/wp-content/database/wp copy.sqlite', $hydratedReplay()['events'][0]['owner']);
+$tests['vfs lock byte uri shm current source next97 hydrated shm blocker retained'] = static fn (TestRunner $t) => $t->same(['wp-reader:shared'], $hydratedReplay()['events'][0]['blocking']);
+$tests['vfs lock byte uri shm current source next97 hydrated generation retained'] = static fn (TestRunner $t) => $t->same(4, $hydratedReplay()['events'][0]['next']['owners']['/srv/www/wp-content/database/wp copy.sqlite']['generation']);
+$tests['vfs lock byte uri shm current source next97 rejects bad hydrated source handle key'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['source(shm)'], ['current' => array_replace($hydrated, ['source_handles' => ['temp-shm' => 'vfs97-2']])]));
+$tests['vfs lock byte uri shm current source next97 rejects bad hydrated source mismatch'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['source(shm)'], ['current' => array_replace($hydrated, ['source_handles' => ['wal' => 'vfs97-2']])]));
+$tests['vfs lock byte uri shm current source next97 rejects bad hydrated shm lock'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['source(shm)'], ['current' => array_replace($hydrated, ['shm_locks' => ['/srv/www/wp-content/database/wp copy.sqlite' => ['temp' => ['wp-reader' => 'shared']]]])]));
+$tests['vfs lock byte uri shm current source next97 rejects bad hydrated shm mode'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['source(shm)'], ['current' => array_replace($hydrated, ['shm_locks' => ['/srv/www/wp-content/database/wp copy.sqlite' => ['read0' => ['wp-reader' => 'unlock']]]])]));
+$tests['vfs lock byte uri shm current source next97 rejects bad hydrated shm source'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['source(shm)'], ['current' => array_replace($hydrated, ['shm_lock_sources' => ['/srv/www/wp-content/database/wp copy.sqlite' => ['read0' => ['wp-reader' => 'temp-shm']]]])]));
+$tests['vfs lock byte uri shm current source next97 rejects bad hydrated byte level'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['source(shm)'], ['current' => array_replace($hydrated, ['lock_holders' => ['/srv/www/wp-content/database/wp copy.sqlite' => ['wp-reader' => 'bad']]])]));
 
 $tests['vfs lock byte uri shm current source next97 same shm shared coexists'] = static fn (TestRunner $t) => $t->same('acquired', $run(['open(shm)', 'shm read0 shared a', 'shm read0 shared b'])['events'][2]['status']);
 $tests['vfs lock byte uri shm current source next97 shm exclusive blocked by shared'] = static fn (TestRunner $t) => $t->same(['a:shared'], $run(['open(shm)', 'shm read0 shared a', 'shm read0 exclusive b'])['events'][2]['blocking']);

@@ -62,7 +62,7 @@ $putPointerMapEntry($pages, 3, SQLitePointerMapEntry::ROOT_PAGE, 0);
 $putPointerMapEntry($pages, 6, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
 $putPointerMapEntry($pages, 8, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
 
-$plan = SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::tableLeafCurrentNext(
+$plan = SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::sequentialTableLeafDeletes(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     11,

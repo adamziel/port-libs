@@ -212,6 +212,26 @@ $cases = [
         'previous_rank',
         [0, 1, 2],
     ],
+    'aggregate sum defaults through current row' => [
+        'SELECT option_name, sum(weight) OVER (ORDER BY option_id) AS running_weight FROM wp_options ORDER BY option_id',
+        'running_weight',
+        [9, 18, 23, 27, 31, 32],
+    ],
+    'aggregate count star defaults through current row' => [
+        'SELECT option_name, count(*) OVER (ORDER BY option_id) AS running_count FROM wp_options ORDER BY option_id',
+        'running_count',
+        [1, 2, 3, 4, 5, 6],
+    ],
+    'aggregate avg partitions over text buckets' => [
+        'SELECT option_name, avg(weight) OVER (PARTITION BY autoload ORDER BY option_id) AS running_average FROM wp_options ORDER BY option_id',
+        'running_average',
+        [9.0, 9.0, 23 / 3, 4.0, 4.0, 3.0],
+    ],
+    'aggregate max respects explicit row frame' => [
+        'SELECT option_name, max(weight) OVER (ORDER BY option_id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS local_max FROM wp_options ORDER BY option_id',
+        'local_max',
+        [9, 9, 9, 5, 4, 4],
+    ],
 ];
 
 $joinedTables = $tables + [
@@ -244,7 +264,7 @@ $tests['select sql window text plan keeps window expression metadata'] = static 
 
 $errorCases = [
     'missing over parens' => 'SELECT row_number() OVER ORDER BY option_id AS rn FROM wp_options',
-    'unsupported function' => 'SELECT sum(weight) OVER (ORDER BY option_id) AS s FROM wp_options',
+    'unsupported function' => 'SELECT definitely_missing_window(weight) OVER (ORDER BY option_id) AS s FROM wp_options',
     'lag without argument' => 'SELECT lag() OVER (ORDER BY option_id) AS previous_name FROM wp_options',
     'ntile without argument' => 'SELECT ntile() OVER (ORDER BY option_id) AS bucket FROM wp_options',
     'ntile zero bucket' => 'SELECT ntile(0) OVER (ORDER BY option_id) AS bucket FROM wp_options',

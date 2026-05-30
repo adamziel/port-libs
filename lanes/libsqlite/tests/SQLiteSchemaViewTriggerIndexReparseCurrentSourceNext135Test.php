@@ -80,7 +80,7 @@ $tests = [
     'schema view trigger index reparse current source next135 second view reference label' => static fn (TestRunner $t) => $t->same(['view:wp_autoloaded_options'], $op135(1)['view_references']),
     'schema view trigger index reparse current source next135 second body table captures audit only' => static fn (TestRunner $t) => $t->same(['wp_option_audit'], $op135(1)['body_source_tables']),
     'schema view trigger index reparse current source next135 second generated column ref from view select' => static fn (TestRunner $t) => $t->same(['option_name_lc'], $op135(1)['generated_column_references']),
-    'schema view trigger index reparse current source next135 second no direct indexed by refs' => static fn (TestRunner $t) => $t->same([], $op135(1)['generated_index_references']),
+    'schema view trigger index reparse current source next135 second inherits generated index refs from view' => static fn (TestRunner $t) => $t->same(['wp_options_generated_lookup'], $op135(1)['generated_index_references']),
     'schema view trigger index reparse current source next135 second view forces current source' => static fn (TestRunner $t) => $t->same(true, $op135(1)['current_source_reparse']),
     'schema view trigger index reparse current source next135 third plain view captured' => static fn (TestRunner $t) => $t->same(['wp_plain_options'], $op135(2)['body_source_views']),
     'schema view trigger index reparse current source next135 third plain view reference label' => static fn (TestRunner $t) => $t->same(['view:wp_plain_options'], $op135(2)['view_references']),

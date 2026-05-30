@@ -827,6 +827,11 @@ final class SQLiteSchemaDdlReparsePlan
                             $generatedColumnReferences[] = $column;
                         }
                     }
+                    foreach ($viewMetadata['generated_index_references'] as $indexName) {
+                        if (!in_array($indexName, $generatedIndexReferences, true)) {
+                            $generatedIndexReferences[] = $indexName;
+                        }
+                    }
                 }
             }
         }

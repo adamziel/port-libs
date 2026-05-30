@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeDeleteOverflowCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteBTreeDeleteOverflowPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -73,7 +73,7 @@ $fixture = static function () use ($databaseFixture): array {
         'rowid' => 2,
         'obsolete_overflow_page_numbers' => [6, 7],
     ];
-    $table = SQLiteBTreeDeleteOverflowCurrentNextPlan::tableLeafCurrentNext($database, 3, $tableCurrentDelete, 3, [8], true);
+    $table = SQLiteBTreeDeleteOverflowPlan::sequentialTableLeafDeletes($database, 3, $tableCurrentDelete, 3, [8], true);
 
     $indexCurrentDelete = [
         'page' => SQLiteIndexLeafPage::deleteCellByRecordValues(
@@ -84,7 +84,7 @@ $fixture = static function () use ($databaseFixture): array {
         'record_values' => ['_transient_a', 2, str_repeat('i', 40)],
         'obsolete_overflow_page_numbers' => [9],
     ];
-    $index = SQLiteBTreeDeleteOverflowCurrentNextPlan::indexLeafCurrentNext(
+    $index = SQLiteBTreeDeleteOverflowPlan::sequentialIndexLeafDeletes(
         $database,
         4,
         $indexCurrentDelete,
@@ -190,10 +190,10 @@ $cases = [
     'index pointer map page 9 free' => static fn (array $fx): mixed => $fx[2]->databaseAfterNext->pointerMapEntryForPage(9)->typeName(),
     'index pointer map page 10 free' => static fn (array $fx): mixed => $fx[2]->databaseAfterNext->pointerMapEntryForPage(10)->typeName(),
     'index page count stable' => static fn (array $fx): mixed => $fx[2]->databaseAfterNext->pageCount(),
-    'rejects missing table current rowid' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeDeleteOverflowCurrentNextPlan::tableLeafCurrentNext($fx[0], 3, ['page' => $fx[0]->page(3), 'obsolete_overflow_page_numbers' => []], 3, [])),
-    'rejects next missing rowid' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeDeleteOverflowCurrentNextPlan::tableLeafCurrentNext($fx[0], 3, ['page' => SQLiteTableLeafPage::deleteCellByRowId($fx[0]->page(3), 2), 'rowid' => 2, 'obsolete_overflow_page_numbers' => []], 99, [])),
-    'rejects missing index current record' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeDeleteOverflowCurrentNextPlan::indexLeafCurrentNext($fx[0], 4, ['page' => $fx[0]->page(4), 'obsolete_overflow_page_numbers' => []], ['_transient_b', 3, str_repeat('j', 38)], [])),
-    'rejects noninteger next overflow page' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeDeleteOverflowCurrentNextPlan::tableLeafCurrentNext($fx[0], 3, ['page' => SQLiteTableLeafPage::deleteCellByRowId($fx[0]->page(3), 2), 'rowid' => 2, 'obsolete_overflow_page_numbers' => []], 3, ['bad'])),
+    'rejects missing table current rowid' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeDeleteOverflowPlan::sequentialTableLeafDeletes($fx[0], 3, ['page' => $fx[0]->page(3), 'obsolete_overflow_page_numbers' => []], 3, [])),
+    'rejects next missing rowid' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeDeleteOverflowPlan::sequentialTableLeafDeletes($fx[0], 3, ['page' => SQLiteTableLeafPage::deleteCellByRowId($fx[0]->page(3), 2), 'rowid' => 2, 'obsolete_overflow_page_numbers' => []], 99, [])),
+    'rejects missing index current record' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeDeleteOverflowPlan::sequentialIndexLeafDeletes($fx[0], 4, ['page' => $fx[0]->page(4), 'obsolete_overflow_page_numbers' => []], ['_transient_b', 3, str_repeat('j', 38)], [])),
+    'rejects noninteger next overflow page' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeDeleteOverflowPlan::sequentialTableLeafDeletes($fx[0], 3, ['page' => SQLiteTableLeafPage::deleteCellByRowId($fx[0]->page(3), 2), 'rowid' => 2, 'obsolete_overflow_page_numbers' => []], 3, ['bad'])),
 ];
 
 $expected = [

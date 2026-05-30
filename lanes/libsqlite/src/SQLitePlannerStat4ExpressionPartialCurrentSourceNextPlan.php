@@ -245,7 +245,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite STAT4 expression partial rows must be arrays');
                 }
-                if (!self::rowSatisfiesTermsStat4ExpressionPartialReprepare($row, $queryTerms, (string) ($plan['expression'] ?? ''))) {
+                if (!self::rowSatisfiesTermsStat4ExpressionPartialReprepare($row, $queryTerms, (string) ($plan['expression'] ?? ''), (string) ($plan['collation'] ?? 'BINARY'))) {
                     continue;
                 }
                 $out[] = [
@@ -264,21 +264,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $terms
          */
-        private static function rowSatisfiesTermsStat4ExpressionPartialReprepare(array $row, array $terms, string $expression): bool
+        private static function rowSatisfiesTermsStat4ExpressionPartialReprepare(array $row, array $terms, string $expression, string $collation): bool
         {
             foreach ($terms as $term) {
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
                 $left = $term['left'] ?? null;
                 if (is_array($left) && isset($left['expression']) && self::normalizeExpressionStat4ExpressionPartialReprepare((string) $left['expression']) === self::normalizeExpressionStat4ExpressionPartialReprepare($expression)) {
                     $value = self::expressionValueStat4ExpressionPartialReprepare($expression, $row);
-                    if ($operator === '=' && self::compareStat4ExpressionPartialReprepare($value, self::literalStat4ExpressionPartialReprepare($term['right'] ?? null), 'BINARY') !== 0) {
+                    if ($operator === '=' && self::compareStat4ExpressionPartialReprepare($value, self::literalStat4ExpressionPartialReprepare($term['right'] ?? null), $collation) !== 0) {
                         return false;
                     }
                     if ($operator === 'IN') {
                         $values = isset($term['values']) && is_array($term['values']) ? array_map(self::literalStat4ExpressionPartialReprepare(...), $term['values']) : [];
                         $matched = false;
                         foreach ($values as $expected) {
-                            if (self::compareStat4ExpressionPartialReprepare($value, $expected, 'BINARY') === 0) {
+                            if (self::compareStat4ExpressionPartialReprepare($value, $expected, $collation) === 0) {
                                 $matched = true;
                                 break;
                             }
@@ -287,10 +287,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                             return false;
                         }
                     }
-                    if ($operator === 'BETWEEN' && (self::compareStat4ExpressionPartialReprepare($value, self::literalStat4ExpressionPartialReprepare($term['lower'] ?? null), 'BINARY') < 0 || self::compareStat4ExpressionPartialReprepare($value, self::literalStat4ExpressionPartialReprepare($term['upper'] ?? null), 'BINARY') > 0)) {
+                    if ($operator === 'BETWEEN' && (self::compareStat4ExpressionPartialReprepare($value, self::literalStat4ExpressionPartialReprepare($term['lower'] ?? null), $collation) < 0 || self::compareStat4ExpressionPartialReprepare($value, self::literalStat4ExpressionPartialReprepare($term['upper'] ?? null), $collation) > 0)) {
                         return false;
                     }
-                    if (!self::rangeTermMatchesStat4ExpressionPartialReprepare($value, $operator, self::literalStat4ExpressionPartialReprepare($term['right'] ?? null))) {
+                    if (!self::rangeTermMatchesStat4ExpressionPartialReprepare($value, $operator, self::literalStat4ExpressionPartialReprepare($term['right'] ?? null), $collation)) {
                         return false;
                     }
                     continue;
@@ -319,12 +319,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function rangeTermMatchesStat4ExpressionPartialReprepare(mixed $value, string $operator, mixed $right): bool
+        private static function rangeTermMatchesStat4ExpressionPartialReprepare(mixed $value, string $operator, mixed $right, string $collation = 'BINARY'): bool
         {
             if (!in_array($operator, ['>', '>=', '<', '<='], true)) {
                 return true;
             }
-            $comparison = self::compareStat4ExpressionPartialReprepare($value, $right, 'BINARY');
+            $comparison = self::compareStat4ExpressionPartialReprepare($value, $right, $collation);
 
             return match ($operator) {
                 '>' => $comparison > 0,

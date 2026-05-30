@@ -1,7 +1,7 @@
-# B-tree Delete Overflow Materialization Current/Next80
+# B-tree Delete Overflow Materialization Sequential Deletes
 
-Adds `SQLiteBTreeDeleteOverflowCurrentNextPlan`, a bounded native PHP
-current/next materializer for consecutive overflow-backed deletes on the same
+Adds `SQLiteBTreeDeleteOverflowPlan`, a bounded native PHP
+sequential delete materializer for consecutive overflow-backed deletes on the same
 table or index leaf. The current delete is applied into a database image first;
 the next delete is derived from that materialized page, then its obsolete
 overflow pages are connected into the updated freelist and auto-vacuum
@@ -9,12 +9,12 @@ pointer-map state.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeDeleteOverflowMaterializationCurrentNext80Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeDeleteOverflowMaterializationTest.php`
   - `1 test files, 78 assertions, 0 failures`
-- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-btree-delete-overflow-current-next.php`
-- `php -l lanes/libsqlite/src/SQLiteBTreeDeleteOverflowCurrentNextPlan.php`
-- `php -l lanes/libsqlite/tests/SQLiteBTreeDeleteOverflowMaterializationCurrentNext80Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-delete-overflow-current-next.php`
+- `php -d auto_prepend_file=tools/bootstrap.php lanes/libsqlite/examples/wordpress-btree-delete-overflow.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeDeleteOverflowPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteBTreeDeleteOverflowMaterializationTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-btree-delete-overflow.php`
 - `git diff --check -- lanes/libsqlite`
 
 WordPress smoke:

@@ -529,19 +529,282 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
             ];
         }
 
-        return [
+        $handles = self::normalizeHydratedHandles($current['handles'] ?? []);
+        $sourceHandles = self::normalizeHydratedSourceHandles($current['source_handles'] ?? [], $handles);
+        $lockHolders = self::normalizeHydratedLockHolders($current['lock_holders'] ?? []);
+        $sharedSlots = self::normalizeHydratedSharedSlots($current['shared_slots'] ?? []);
+        $shmLocks = self::normalizeHydratedShmLocks($current['shm_locks'] ?? []);
+        $shmLockSources = self::normalizeHydratedShmLockSources($current['shm_lock_sources'] ?? [], $shmLocks);
+        $persistentControls = self::normalizeHydratedPersistentControls($current['persistent_controls'] ?? []);
+        $persistentGenerations = self::normalizeHydratedPersistentGenerations($current['persistent_generations'] ?? []);
+        $owners = [];
+        foreach (array_unique(array_merge(
+            array_keys($lockHolders),
+            array_keys($sharedSlots),
+            array_keys($shmLocks),
+            array_keys($persistentControls),
+            array_map(static fn (array $handle): string => (string) $handle['owner'], $handles)
+        )) as $owner) {
+            $owners[(string) $owner] = [];
+        }
+
+        $state = [
             'sequence' => max(0, (int) ($current['sequence'] ?? 0)),
             'current_source' => isset($current['current_source']) ? self::sourceName((string) $current['current_source']) : null,
-            'handles' => is_array($current['handles'] ?? null) ? $current['handles'] : [],
-            'source_handles' => is_array($current['source_handles'] ?? null) ? $current['source_handles'] : [],
-            'owners' => is_array($current['owners'] ?? null) ? $current['owners'] : [],
-            'lock_holders' => is_array($current['lock_holders'] ?? null) ? $current['lock_holders'] : [],
-            'shared_slots' => is_array($current['shared_slots'] ?? null) ? $current['shared_slots'] : [],
-            'shm_locks' => is_array($current['shm_locks'] ?? null) ? $current['shm_locks'] : [],
-            'shm_lock_sources' => is_array($current['shm_lock_sources'] ?? null) ? $current['shm_lock_sources'] : [],
-            'persistent_controls' => is_array($current['persistent_controls'] ?? null) ? $current['persistent_controls'] : [],
-            'persistent_generations' => is_array($current['persistent_generations'] ?? null) ? $current['persistent_generations'] : [],
+            'handles' => $handles,
+            'source_handles' => $sourceHandles,
+            'owners' => $owners,
+            'lock_holders' => $lockHolders,
+            'shared_slots' => $sharedSlots,
+            'shm_locks' => $shmLocks,
+            'shm_lock_sources' => $shmLockSources,
+            'persistent_controls' => $persistentControls,
+            'persistent_generations' => $persistentGenerations,
         ];
+        foreach (array_keys($state['owners']) as $owner) {
+            self::ensureOwner($state, (string) $owner);
+        }
+
+        return $state;
+    }
+
+    /**
+     * @param mixed $handles
+     * @return array<string,array<string,mixed>>
+     */
+    private static function normalizeHydratedHandles(mixed $handles): array
+    {
+        if (!is_array($handles)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($handles as $id => $handle) {
+            if (!is_string($id) || !is_array($handle)) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated current-source handles must be keyed arrays');
+            }
+            $source = self::sourceName((string) ($handle['source'] ?? ''));
+            $owner = self::stringValue($handle['owner'] ?? null, 'hydrated owner');
+            $path = self::stringValue($handle['path'] ?? self::sourcePath($owner, $source), 'hydrated path');
+            $normalized[$id] = $handle + [
+                'id' => $id,
+                'status' => $source . '-open',
+                'readonly' => false,
+                'nolock' => false,
+                'temporary' => false,
+                'local_generation' => 1,
+                'controls' => [],
+                'source_generation' => 1,
+                'owner_had_main_open' => false,
+                'uri' => [],
+            ];
+            $normalized[$id]['source'] = $source;
+            $normalized[$id]['owner'] = $owner;
+            $normalized[$id]['path'] = $path;
+            $normalized[$id]['readonly'] = (bool) $normalized[$id]['readonly'];
+            $normalized[$id]['nolock'] = (bool) $normalized[$id]['nolock'];
+            $normalized[$id]['temporary'] = (bool) $normalized[$id]['temporary'];
+            $normalized[$id]['source_generation'] = max(1, (int) $normalized[$id]['source_generation']);
+            $normalized[$id]['local_generation'] = max(1, (int) $normalized[$id]['local_generation']);
+            $normalized[$id]['controls'] = is_array($normalized[$id]['controls']) ? self::persistentControls($normalized[$id]['controls']) : [];
+            $normalized[$id]['uri'] = is_array($normalized[$id]['uri']) ? $normalized[$id]['uri'] : [];
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param mixed $sourceHandles
+     * @param array<string,array<string,mixed>> $handles
+     * @return array<string,string>
+     */
+    private static function normalizeHydratedSourceHandles(mixed $sourceHandles, array $handles): array
+    {
+        if (!is_array($sourceHandles)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($sourceHandles as $source => $handleId) {
+            $sourceName = self::sourceName((string) $source);
+            if (!is_string($handleId) || !isset($handles[$handleId])) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated source handle points at a missing handle');
+            }
+            if (($handles[$handleId]['source'] ?? null) !== $sourceName) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated source handle source mismatch');
+            }
+            $normalized[$sourceName] = $handleId;
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param mixed $holders
+     * @return array<string,array<string,string>>
+     */
+    private static function normalizeHydratedLockHolders(mixed $holders): array
+    {
+        if (!is_array($holders)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($holders as $owner => $ownerHolders) {
+            if (!is_string($owner) || !is_array($ownerHolders)) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated byte locks must be keyed by owner');
+            }
+            foreach ($ownerHolders as $connection => $level) {
+                $normalized[$owner][self::connection((string) $connection)] = self::level((string) $level);
+            }
+            ksort($normalized[$owner]);
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param mixed $slots
+     * @return array<string,array<string,int>>
+     */
+    private static function normalizeHydratedSharedSlots(mixed $slots): array
+    {
+        if (!is_array($slots)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($slots as $owner => $ownerSlots) {
+            if (!is_string($owner) || !is_array($ownerSlots)) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated shared slots must be keyed by owner');
+            }
+            foreach ($ownerSlots as $connection => $slot) {
+                $normalized[$owner][self::connection((string) $connection)] = self::slot($slot);
+            }
+            ksort($normalized[$owner]);
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param mixed $locks
+     * @return array<string,array<string,array<string,string>>>
+     */
+    private static function normalizeHydratedShmLocks(mixed $locks): array
+    {
+        if (!is_array($locks)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($locks as $owner => $ownerLocks) {
+            if (!is_string($owner) || !is_array($ownerLocks)) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated SHM locks must be keyed by owner');
+            }
+            $normalized[$owner] = self::emptyShmLocks();
+            foreach ($ownerLocks as $lock => $holders) {
+                $lockName = self::shmLock((string) $lock);
+                if (!is_array($holders)) {
+                    throw new \InvalidArgumentException('SQLite VFS hydrated SHM lock holders must be arrays');
+                }
+                foreach ($holders as $connection => $mode) {
+                    $lockMode = self::shmMode((string) $mode);
+                    if ($lockMode === 'unlock') {
+                        throw new \InvalidArgumentException('SQLite VFS hydrated SHM lock mode cannot be unlock');
+                    }
+                    $normalized[$owner][$lockName][self::connection((string) $connection)] = $lockMode;
+                }
+                ksort($normalized[$owner][$lockName]);
+            }
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param mixed $sources
+     * @param array<string,array<string,array<string,string>>> $locks
+     * @return array<string,array<string,array<string,string>>>
+     */
+    private static function normalizeHydratedShmLockSources(mixed $sources, array $locks): array
+    {
+        $normalized = [];
+        foreach (array_keys($locks) as $owner) {
+            $normalized[$owner] = self::emptyShmLocks();
+        }
+        if (!is_array($sources)) {
+            return $normalized;
+        }
+
+        foreach ($sources as $owner => $ownerSources) {
+            if (!is_string($owner) || !is_array($ownerSources)) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated SHM lock sources must be keyed by owner');
+            }
+            $normalized[$owner] ??= self::emptyShmLocks();
+            foreach ($ownerSources as $lock => $holders) {
+                $lockName = self::shmLock((string) $lock);
+                if (!is_array($holders)) {
+                    throw new \InvalidArgumentException('SQLite VFS hydrated SHM lock source holders must be arrays');
+                }
+                foreach ($holders as $connection => $source) {
+                    $normalized[$owner][$lockName][self::connection((string) $connection)] = self::sourceName((string) $source);
+                }
+                ksort($normalized[$owner][$lockName]);
+            }
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param mixed $controls
+     * @return array<string,array<string,mixed>>
+     */
+    private static function normalizeHydratedPersistentControls(mixed $controls): array
+    {
+        if (!is_array($controls)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($controls as $owner => $ownerControls) {
+            if (!is_string($owner) || !is_array($ownerControls)) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated persistent controls must be keyed by owner');
+            }
+            $normalized[$owner] = self::persistentControls($ownerControls);
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param mixed $generations
+     * @return array<string,int>
+     */
+    private static function normalizeHydratedPersistentGenerations(mixed $generations): array
+    {
+        if (!is_array($generations)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($generations as $owner => $generation) {
+            if (!is_string($owner) || !is_int($generation) || $generation < 1) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated persistent generation must be a positive integer');
+            }
+            $normalized[$owner] = $generation;
+        }
+        ksort($normalized);
+
+        return $normalized;
     }
 
     /**

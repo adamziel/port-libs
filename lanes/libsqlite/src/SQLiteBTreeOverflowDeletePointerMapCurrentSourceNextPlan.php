@@ -10,12 +10,12 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
      * @param list<array<string, mixed>> $pointerMapTransitions
      */
     private function __construct(
-        public readonly SQLiteBTreeDeleteOverflowCurrentNextPlan $deletePlan,
+        public readonly SQLiteBTreeDeleteOverflowPlan $deletePlan,
         public readonly array $pointerMapTransitions,
     ) {
     }
 
-    public static function tableLeafCurrentNext(
+    public static function sequentialTableLeafDeletes(
         SQLiteDatabase $database,
         int $leafPageNumber,
         int $currentRowId,
@@ -32,7 +32,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
             $secureDelete,
         );
 
-        $deletePlan = SQLiteBTreeDeleteOverflowCurrentNextPlan::tableLeafCurrentNext(
+        $deletePlan = SQLiteBTreeDeleteOverflowPlan::sequentialTableLeafDeletes(
             $database,
             $leafPageNumber,
             $currentDelete,
@@ -48,7 +48,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
      * @param list<mixed> $currentRecordValues
      * @param list<mixed> $nextRecordValues
      */
-    public static function indexLeafCurrentNext(
+    public static function sequentialIndexLeafDeletes(
         SQLiteDatabase $database,
         int $leafPageNumber,
         array $currentRecordValues,
@@ -69,7 +69,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
             $overflowReader,
         );
 
-        $deletePlan = SQLiteBTreeDeleteOverflowCurrentNextPlan::indexLeafCurrentNext(
+        $deletePlan = SQLiteBTreeDeleteOverflowPlan::sequentialIndexLeafDeletes(
             $database,
             $leafPageNumber,
             $currentDelete,
@@ -233,7 +233,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function pointerMapTransitions(SQLiteDatabase $current, SQLiteBTreeDeleteOverflowCurrentNextPlan $plan): array
+    private static function pointerMapTransitions(SQLiteDatabase $current, SQLiteBTreeDeleteOverflowPlan $plan): array
     {
         if (!$current->isAutoVacuum()) {
             return [];

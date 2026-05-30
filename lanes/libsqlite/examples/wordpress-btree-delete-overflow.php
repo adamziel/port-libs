@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeDeleteOverflowCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteBTreeDeleteOverflowPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -56,7 +56,7 @@ $currentDelete = [
     'obsolete_overflow_page_numbers' => [6, 7],
 ];
 
-$plan = SQLiteBTreeDeleteOverflowCurrentNextPlan::tableLeafCurrentNext(
+$plan = SQLiteBTreeDeleteOverflowPlan::sequentialTableLeafDeletes(
     $database,
     3,
     $currentDelete,
@@ -66,7 +66,7 @@ $plan = SQLiteBTreeDeleteOverflowCurrentNextPlan::tableLeafCurrentNext(
 );
 
 echo json_encode([
-    'scenario' => 'wordpress-btree-delete-overflow-current-next',
+    'scenario' => 'wordpress-btree-delete-overflow',
     'current_deleted_rowids' => $plan->current->deletedRowIds,
     'next_deleted_rowids' => $plan->next->deletedRowIds,
     'released_overflow_pages' => $plan->releasedOverflowPageNumbers(),

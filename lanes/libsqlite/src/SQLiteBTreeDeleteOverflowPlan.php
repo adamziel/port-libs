@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeDeleteOverflowCurrentNextPlan
+final class SQLiteBTreeDeleteOverflowPlan
 {
     /**
      * @param array<int, string> $currentPageImages
@@ -28,7 +28,7 @@ final class SQLiteBTreeDeleteOverflowCurrentNextPlan
      * @param array<string, mixed> $currentDeleteResult
      * @param list<int> $nextObsoleteOverflowPageNumbers
      */
-    public static function tableLeafCurrentNext(
+    public static function sequentialTableLeafDeletes(
         SQLiteDatabase $database,
         int $leafPageNumber,
         array $currentDeleteResult,
@@ -71,7 +71,7 @@ final class SQLiteBTreeDeleteOverflowCurrentNextPlan
      * @param list<mixed> $nextRecordValues
      * @param list<int> $nextObsoleteOverflowPageNumbers
      */
-    public static function indexLeafCurrentNext(
+    public static function sequentialIndexLeafDeletes(
         SQLiteDatabase $database,
         int $leafPageNumber,
         array $currentDeleteResult,

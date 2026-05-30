@@ -35,8 +35,8 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 156,
         int $nextSchemaCookie = 157,
     ): array {
-        self::v157_assertUtf16Rows($currentRows);
-        self::v157_assertUtf16Rows($nextRows);
+        self::assertUtf16ByteOrderRows($currentRows);
+        self::assertUtf16ByteOrderRows($nextRows);
 
         $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
             $currentRows,
@@ -49,9 +49,9 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $nextSchemaCookie,
         );
 
-        $currentByteOrders = self::v157_byteOrders($plan['currentDecoded']);
-        $nextByteOrders = self::v157_byteOrders($plan['nextDecoded']);
-        $changedByteOrders = self::v157_changedByteOrders($currentByteOrders, $nextByteOrders);
+        $currentByteOrders = self::byteOrdersByRowid($plan['currentDecoded']);
+        $nextByteOrders = self::byteOrdersByRowid($plan['nextDecoded']);
+        $changedByteOrders = self::changedByteOrderRowids($currentByteOrders, $nextByteOrders);
 
         $reasons = $plan['invalidationReasons'];
         if ($changedByteOrders !== [] && !in_array('utf16-byte-order', $reasons, true)) {
@@ -81,7 +81,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows */
-    private static function v157_assertUtf16Rows(array $rows): void
+    private static function assertUtf16ByteOrderRows(array $rows): void
     {
         foreach ($rows as $row) {
             if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
@@ -97,7 +97,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<int,string>
      */
-    private static function v157_byteOrders(array $rows): array
+    private static function byteOrdersByRowid(array $rows): array
     {
         $orders = [];
         foreach ($rows as $row) {
@@ -112,7 +112,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<int,string> $next
      * @return list<int>
      */
-    private static function v157_changedByteOrders(array $current, array $next): array
+    private static function changedByteOrderRowids(array $current, array $next): array
     {
         $changed = [];
         foreach ($next as $rowid => $order) {
