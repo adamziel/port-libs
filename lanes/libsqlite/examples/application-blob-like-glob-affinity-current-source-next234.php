@@ -11,20 +11,20 @@ use PortLibs\LibSqlite\SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 
 $current = [
-    ['option_id' => 1, 'option_name' => 'plugin_text', 'option_value' => 'plugin:cache', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin:cache'), 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'theme_text', 'option_value' => 'theme:cache', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'service_text', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('plugin:cache'), 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'profile_text', 'key_value' => 'theme:cache', 'load_policy' => 'yes'],
 ];
 
 $next = [
-    ['option_id' => 1, 'option_name' => 'plugin_text', 'option_value' => 'plugin:cache', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_blob', 'option_value' => 'plugin:cache', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'theme_text', 'option_value' => 'theme:cache', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_blob_new', 'option_value' => new SQLiteBlobValue('plugin:new'), 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'service_text', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_blob', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'profile_text', 'key_value' => 'theme:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_blob_new', 'key_value' => new SQLiteBlobValue('plugin:new'), 'load_policy' => 'no'],
 ];
 
-$implicit = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($current, $next, 'plugin:%');
-$cast = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan($current, $next, 'plugin:%', 'LIKE', 'NOCASE', null, false, true);
+$implicit = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($current, $next, 'plugin:%');
+$cast = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($current, $next, 'plugin:%', 'LIKE', 'NOCASE', null, false, true);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($implicit['currentRowids'] === [1]);

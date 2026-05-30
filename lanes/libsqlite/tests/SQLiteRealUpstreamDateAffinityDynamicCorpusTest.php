@@ -67,6 +67,15 @@ $dateTimeCases = [
     'date.test date-2.41 datetime seconds modifier' => ['datetime', ['2003-10-22 12:24', '23 seconds'], '2003-10-22 12:24:23'],
     'date.test date-2.45 datetime sixty seconds rolls minute' => ['datetime', ['2003-10-22 12:24', '60 second'], '2003-10-22 12:25:00'],
     'date.test date-2.60 datetime normalizes overflow day' => ['datetime', ['2023-02-31'], '2023-03-03 00:00:00'],
+    'date.test date-11.1 datetime negative hh mm ss modifier' => ['datetime', ['2004-02-28 20:00:00', '-01:20:30'], '2004-02-28 18:39:30'],
+    'date.test date-11.2 datetime positive hh mm ss modifier crosses leap day' => ['datetime', ['2004-02-28 20:00:00', '+12:30:00'], '2004-02-29 08:30:00'],
+    'date.test date-11.3 datetime positive hh mm modifier crosses leap day' => ['datetime', ['2004-02-28 20:00:00', '+12:30'], '2004-02-29 08:30:00'],
+    'date.test date-11.4 datetime unsigned hh mm modifier is positive' => ['datetime', ['2004-02-28 20:00:00', '12:30'], '2004-02-29 08:30:00'],
+    'date.test date-11.5 datetime negative twelve hours' => ['datetime', ['2004-02-28 20:00:00', '-12:00'], '2004-02-28 08:00:00'],
+    'date.test date-11.6 datetime negative twelve hours one minute' => ['datetime', ['2004-02-28 20:00:00', '-12:01'], '2004-02-28 07:59:00'],
+    'date.test date-11.7 datetime negative eleven hours fifty nine' => ['datetime', ['2004-02-28 20:00:00', '-11:59'], '2004-02-28 08:01:00'],
+    'date.test date-11.8 datetime unsigned eleven hours fifty nine' => ['datetime', ['2004-02-28 20:00:00', '11:59'], '2004-02-29 07:59:00'],
+    'date.test date-11.9 datetime unsigned twelve hours one minute' => ['datetime', ['2004-02-28 20:00:00', '12:01'], '2004-02-29 08:01:00'],
     'date.test date-5.1 timezone positive offset' => ['datetime', ['1994-04-16 14:00:00 +05:00'], '1994-04-16 09:00:00'],
     'date.test date-5.2 timezone negative offset' => ['datetime', ['1994-04-16 14:00:00 -05:15'], '1994-04-16 19:15:00'],
     'date.test date-5.3 timezone half-hour positive offset' => ['datetime', ['1994-04-16 05:00:00 +08:30'], '1994-04-15 20:30:00'],
@@ -250,6 +259,28 @@ $tests['real upstream corpus date affinity dynamic application expiry bucket use
         'cache.feed' => '2000-01-02',
         'cache.audit' => '2000-01-03',
     ], $buckets);
+};
+
+$tests['real upstream corpus date affinity dynamic application elapsed window modifiers'] = static function (TestRunner $t): void {
+    $events = [
+        ['key_name' => 'retry.backoff', 'base' => '2004-02-28 20:00:00', 'modifier' => '+12:30:00'],
+        ['key_name' => 'retry.grace', 'base' => '2004-02-28 20:00:00', 'modifier' => '11:59'],
+        ['key_name' => 'retry.rewind', 'base' => '2004-02-28 20:00:00', 'modifier' => '-01:20:30'],
+    ];
+
+    $windows = [];
+    foreach ($events as $event) {
+        $windows[$event['key_name']] = SQLiteCoreScalarFunction::sqlFunctionArguments(
+            'datetime',
+            [$event['base'], $event['modifier']]
+        );
+    }
+
+    $t->same([
+        'retry.backoff' => '2004-02-29 08:30:00',
+        'retry.grace' => '2004-02-29 07:59:00',
+        'retry.rewind' => '2004-02-28 18:39:30',
+    ], $windows);
 };
 
 function sqliteRealUpstreamDateAffinityDynamicWeekNumber(DateTimeImmutable $instant, int $firstWeekday): string

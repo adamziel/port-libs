@@ -149,12 +149,15 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */
-    public static function nolockProbe(string $filename, bool $writeTransaction = false): array
+    public static function nolockProbe(string $filename, bool $writeTransaction = false, array $deviceFlags = []): array
     {
-        $capability = SQLiteVfsCapabilityPlan::forFilename($filename, true, !$writeTransaction || !str_contains($filename, 'mode=ro'));
-        $suppressed = (bool) $capability['nolock'] || (bool) $capability['immutable'];
+        $flags = self::deviceFlags($deviceFlags);
+        $capability = SQLiteVfsCapabilityPlan::forFilename($filename, true, !$writeTransaction || !str_contains($filename, 'mode=ro'), 512, $flags);
+        $immutableDevice = in_array('immutable', $flags, true);
+        $suppressed = (bool) $capability['nolock'] || (bool) $capability['immutable'] || $immutableDevice;
         $readOnly = (bool) $capability['read_only'];
 
         if ($suppressed) {
@@ -170,6 +173,7 @@ final class SQLiteVfsIoDynamicPlan
             'path' => $capability['path'],
             'read_only' => $readOnly,
             'immutable' => (bool) $capability['immutable'],
+            'immutable_device' => $immutableDevice,
             'nolock' => (bool) $capability['nolock'],
             'write_transaction' => $writeTransaction,
             'calls' => $calls,

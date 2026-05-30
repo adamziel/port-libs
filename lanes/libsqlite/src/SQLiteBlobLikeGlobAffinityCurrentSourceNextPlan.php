@@ -109,7 +109,7 @@ final class SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan
                 'sqlite-current-source-next234',
             ],
             'dependency_closure' => 'no new support component needed; reuses native scalar storage classification, SQLiteBlobValue bytes, LIKE/GLOB residual matching, and current-source invalidation diagnostics',
-            'non_overlap' => 'covers implicit BLOB exclusion versus explicit CAST admission for LIKE/GLOB option_value scans; avoids accepted UTF-16 NOCASE/LIKE/RTRIM, Unicode GLOB range, malformed UTF-16 insert guard, and scalar-only cast/collation clusters',
+            'non_overlap' => 'covers implicit BLOB exclusion versus explicit CAST admission for LIKE/GLOB key_value scans; avoids accepted UTF-16 NOCASE/LIKE/RTRIM, Unicode GLOB range, malformed UTF-16 insert guard, and scalar-only cast/collation clusters',
         ];
     }
 
@@ -124,9 +124,9 @@ final class SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan
         $errors = [];
         foreach ($rows as $row) {
             self::assertRow($row);
-            $rowid = $row['option_id'];
+            $rowid = $row['setting_id'];
             try {
-                $decoded = self::decodeValue($row['option_value']);
+                $decoded = self::decodeValue($row['key_value']);
                 $storage = SQLiteAffinityComparison::storageClass($decoded);
                 $blobSkipped = $decoded instanceof SQLiteBlobValue && !$explicitCastToText;
                 $likeText = $blobSkipped ? null : self::likeText($decoded, $explicitCastToText);
@@ -136,7 +136,7 @@ final class SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan
                     : SQLiteDatabase::globMatches($likeText, $pattern));
                 $trace[] = [
                     'rowid' => $rowid,
-                    'optionName' => (string) ($row['option_name'] ?? ''),
+                    'keyName' => (string) ($row['key_name'] ?? ''),
                     'storage' => $storage,
                     'bytesHex' => self::bytesHex($decoded),
                     'likeText' => $likeText,
@@ -144,7 +144,7 @@ final class SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan
                     'collationKey' => $collationKey,
                     'blobLikeSkipped' => $blobSkipped,
                     'matched' => $matched,
-                    'autoload' => $row['autoload'] ?? null,
+                    'loadPolicy' => $row['load_policy'] ?? null,
                 ];
             } catch (\InvalidArgumentException $exception) {
                 $malformed[] = $rowid;
@@ -168,11 +168,11 @@ final class SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite BLOB LIKE/GLOB affinity next234 rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite BLOB LIKE/GLOB affinity next234 rows require integer setting_id');
         }
-        if (!array_key_exists('option_value', $row)) {
-            throw new \InvalidArgumentException('SQLite BLOB LIKE/GLOB affinity next234 rows require option_value');
+        if (!array_key_exists('key_value', $row)) {
+            throw new \InvalidArgumentException('SQLite BLOB LIKE/GLOB affinity next234 rows require key_value');
         }
     }
 
@@ -182,7 +182,7 @@ final class SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan
             return $value;
         }
 
-        throw new \InvalidArgumentException('SQLite BLOB LIKE/GLOB affinity next234 rows require scalar option_value values');
+        throw new \InvalidArgumentException('SQLite BLOB LIKE/GLOB affinity next234 rows require scalar key_value values');
     }
 
     private static function likeText(mixed $value, bool $explicitCastToText): string

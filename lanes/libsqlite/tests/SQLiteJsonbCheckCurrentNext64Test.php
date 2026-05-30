@@ -209,6 +209,44 @@ SQL;
     $t->same(7, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
 };
 
+$tests['jsonb check current next64 supports neutral dynamic rowid column option'] = static function (TestRunner $t) use ($jsonb64): void {
+    $schema = <<<'SQL'
+CREATE TABLE tenant_settings(
+  tenant_setting_key TEXT PRIMARY KEY,
+  payload_jsonb BLOB,
+  CHECK(json_valid(payload_jsonb, 8)),
+  CHECK(json_extract(payload_jsonb, '$.rank') BETWEEN 1 AND 9)
+)
+SQL;
+    $plan = SQLiteJsonbCheckCurrentNextPlan::plan(
+        $schema,
+        [
+            ['tenant_setting_key' => 'tenant-a:feature-flags', 'payload_jsonb' => $jsonb64(['rank' => 2])],
+            ['tenant_setting_key' => 'tenant-b:feature-flags', 'payload_jsonb' => $jsonb64(['rank' => 4])],
+        ],
+        [
+            ['op' => 'UPDATE', 'rowid' => 'tenant-a:feature-flags', 'mutations' => [
+                ['function' => 'jsonb_set', 'path' => '$.rank', 'value' => 7],
+            ]],
+            ['op' => 'INSERT', 'row' => ['tenant_setting_key' => 'tenant-c:feature-flags', 'payload_jsonb' => $jsonb64(['rank' => 12])]],
+        ],
+        ['jsonColumn' => 'payload_jsonb', 'rowidColumn' => 'tenant_setting_key'],
+    );
+
+    $t->same('tenant_settings', $plan['table']);
+    $t->same(['tenant-a:feature-flags', 'tenant-b:feature-flags'], array_column($plan['current'], 'rowid'));
+    $t->same(['tenant-a:feature-flags'], array_column($plan['accepted'], 'rowid'));
+    $t->same(['tenant-c:feature-flags'], array_column($plan['rejected'], 'rowid'));
+    $t->same(7, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
+};
+
+$tests['jsonb check current next64 rejects invalid neutral rowid column option'] = static function (TestRunner $t) use ($schema64, $rows64, $changes64): void {
+    $t->throws(
+        InvalidArgumentException::class,
+        static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema64, $rows64, $changes64, ['rowidColumn' => 'tenant-key']),
+    );
+};
+
 $tests['jsonb check current next64 rejects invalid neutral json column option'] = static function (TestRunner $t) use ($schema64, $rows64, $changes64): void {
     $t->throws(
         InvalidArgumentException::class,

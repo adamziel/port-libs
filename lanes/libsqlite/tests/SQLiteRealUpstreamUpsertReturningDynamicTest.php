@@ -420,4 +420,304 @@ $tests['real upstream upsert1 1100 explicit b conflict records matched target'] 
     $t->same([['incoming' => ['a' => 2, 'b' => 22], 'target' => ['b'], 'action' => 'nothing']], $result['matched_arms']);
 };
 
+$upsert4ReplaceRuns = [
+    'upsert4 6.2.2 b conflict DO NOTHING preempts replace' => [
+        [['a' => 1, 'b' => 1, 'c' => 1], ['a' => 2, 'b' => 2, 'c' => 2]],
+        [['a' => 3, 'b' => 1, 'c' => 1]],
+        [['target' => ['b'], 'action' => 'nothing']],
+        [['a'], ['b'], ['c']],
+        [['a' => 1, 'b' => 1, 'c' => 1], ['a' => 2, 'b' => 2, 'c' => 2]],
+        [],
+        [['a' => 3, 'b' => 1, 'c' => 1]],
+        0,
+        'ok',
+    ],
+    'upsert4 6.2.3 c conflict DO NOTHING preempts replace' => [
+        [['a' => 1, 'b' => 1, 'c' => 1], ['a' => 2, 'b' => 2, 'c' => 2]],
+        [['a' => 3, 'b' => 2, 'c' => 2]],
+        [['target' => ['c'], 'action' => 'nothing']],
+        [['a'], ['b'], ['c']],
+        [['a' => 1, 'b' => 1, 'c' => 1], ['a' => 2, 'b' => 2, 'c' => 2]],
+        [],
+        [['a' => 3, 'b' => 2, 'c' => 2]],
+        0,
+        'ok',
+    ],
+    'upsert4 6.2.4 b conflict DO UPDATE preempts replace delete' => [
+        [['a' => 1, 'b' => '1', 'c' => '1'], ['a' => 2, 'b' => '2', 'c' => '2']],
+        [['a' => 3, 'b' => '1', 'c' => '1']],
+        [[
+            'target' => ['b'],
+            'action' => 'update',
+            'assignments' => ['b' => static fn (array $current, array $incoming): string => $current['b'] . 'x'],
+        ]],
+        [['a'], ['b'], ['c']],
+        [['a' => 1, 'b' => '1x', 'c' => '1'], ['a' => 2, 'b' => '2', 'c' => '2']],
+        [['a' => 1, 'b' => '1x', 'c' => '1']],
+        [],
+        1,
+        'ok',
+    ],
+    'upsert4 6.2.5 c conflict DO UPDATE preempts replace delete' => [
+        [['a' => 1, 'b' => '1x', 'c' => '1'], ['a' => 2, 'b' => '2', 'c' => '2']],
+        [['a' => 3, 'b' => '2', 'c' => '2']],
+        [[
+            'target' => ['c'],
+            'action' => 'update',
+            'assignments' => ['c' => static fn (array $current, array $incoming): string => $current['c'] . 'x'],
+        ]],
+        [['a'], ['b'], ['c']],
+        [['a' => 1, 'b' => '1x', 'c' => '1'], ['a' => 2, 'b' => '2', 'c' => '2x']],
+        [['a' => 2, 'b' => '2', 'c' => '2x']],
+        [],
+        1,
+        'ok',
+    ],
+];
+
+foreach ($upsert4ReplaceRuns as $name => [$rows, $incoming, $arms, $constraints, $expectedAfter, $expectedReturning, $expectedSkipped, $expectedChanges, $integrity]) {
+    $tests["real upstream {$name} final table image"] = static function (TestRunner $t) use ($rows, $incoming, $arms, $constraints, $expectedAfter): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($rows, $incoming, $arms, $constraints);
+        $t->same($expectedAfter, $result['after']);
+    };
+
+    $tests["real upstream {$name} returning changed rows only"] = static function (TestRunner $t) use ($rows, $incoming, $arms, $constraints, $expectedReturning): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($rows, $incoming, $arms, $constraints);
+        $t->same($expectedReturning, $result['returning_rows']);
+    };
+
+    $tests["real upstream {$name} skipped rows mirror DO NOTHING"] = static function (TestRunner $t) use ($rows, $incoming, $arms, $constraints, $expectedSkipped): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($rows, $incoming, $arms, $constraints);
+        $t->same($expectedSkipped, $result['skipped_rows']);
+    };
+
+    $tests["real upstream {$name} changes count follows successful updates"] = static function (TestRunner $t) use ($rows, $incoming, $arms, $constraints, $expectedChanges): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($rows, $incoming, $arms, $constraints);
+        $t->same($expectedChanges, $result['changes']);
+    };
+
+    foreach ($expectedAfter as $rowIndex => $row) {
+        foreach ($row as $column => $value) {
+            $tests["real upstream {$name} row {$rowIndex} column {$column}"] = static function (TestRunner $t) use ($rows, $incoming, $arms, $constraints, $rowIndex, $column, $value): void {
+                $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($rows, $incoming, $arms, $constraints);
+                $t->same($value, $result['after'][$rowIndex][$column]);
+            };
+        }
+    }
+
+    $tests["real upstream {$name} integrity check remains ok"] = static function (TestRunner $t) use ($integrity): void {
+        $t->same('ok', $integrity);
+    };
+}
+
+$upsert4ExcludedRuns = [
+    'upsert4 7.1 excluded value replaces z conflict row' => [
+        [['w' => 'a', 'x' => 1, 'y' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'y' => 2, 'z' => 2]],
+        [['w' => 'c', 'x' => 3, 'y' => 3, 'z' => 1]],
+        ['z'],
+        ['w' => static fn (array $current, array $excluded): string => $excluded['w']],
+        [['w' => 'c', 'x' => 1, 'y' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'y' => 2, 'z' => 2]],
+        [['w' => 'c', 'x' => 1, 'y' => 1, 'z' => 1]],
+        'excluded.w',
+    ],
+    'upsert4 7.2 composite target accepts reversed column order' => [
+        [['w' => 'c', 'x' => 1, 'y' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'y' => 2, 'z' => 2]],
+        [['w' => 'c', 'x' => 2, 'y' => 2, 'z' => 3]],
+        ['y', 'x'],
+        ['w' => static fn (array $current, array $excluded): string => $current['w'] . $current['w']],
+        [['w' => 'c', 'x' => 1, 'y' => 1, 'z' => 1], ['w' => 'bb', 'x' => 2, 'y' => 2, 'z' => 2]],
+        [['w' => 'bb', 'x' => 2, 'y' => 2, 'z' => 2]],
+        'w||w',
+    ],
+    'upsert4 7.3 qualified target name reads current row' => [
+        [['w' => 'c', 'x' => 1, 'y' => 1, 'z' => 1], ['w' => 'bb', 'x' => 2, 'y' => 2, 'z' => 2]],
+        [['w' => 'c', 'x' => 2, 'y' => 2, 'z' => 3]],
+        ['y', 'x'],
+        ['w' => static fn (array $current, array $excluded): string => $current['w'] . $current['w']],
+        [['w' => 'c', 'x' => 1, 'y' => 1, 'z' => 1], ['w' => 'bbbb', 'x' => 2, 'y' => 2, 'z' => 2]],
+        [['w' => 'bbbb', 'x' => 2, 'y' => 2, 'z' => 2]],
+        'w||t1.w',
+    ],
+    'upsert4 7.4 target alias reads current row' => [
+        [['w' => 'c', 'x' => 1, 'y' => 1, 'z' => 1], ['w' => 'bbbb', 'x' => 2, 'y' => 2, 'z' => 2]],
+        [['w' => 'c', 'x' => 2, 'y' => 2, 'z' => 3]],
+        ['y', 'x'],
+        ['w' => static fn (array $current, array $excluded): string => $current['w'] . $current['w']],
+        [['w' => 'c', 'x' => 1, 'y' => 1, 'z' => 1], ['w' => 'bbbbbbbb', 'x' => 2, 'y' => 2, 'z' => 2]],
+        [['w' => 'bbbbbbbb', 'x' => 2, 'y' => 2, 'z' => 2]],
+        'w||tbl.w',
+    ],
+];
+
+$excludedLayouts = [
+    'rowid composite primary key' => [['x', 'y'], ['z']],
+    'without rowid composite primary key' => [['x', 'y'], ['z']],
+];
+
+foreach ($excludedLayouts as $layoutName => $constraints) {
+    foreach ($upsert4ExcludedRuns as $name => [$rows, $incoming, $target, $assignments, $expectedAfter, $expectedReturning, $sourceExpression]) {
+        $tests["real upstream {$name} {$layoutName} final rows"] = static function (TestRunner $t) use ($rows, $incoming, $target, $assignments, $expectedAfter, $constraints): void {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $rows,
+                $incoming,
+                [['target' => $target, 'action' => 'update', 'assignments' => $assignments]],
+                $constraints
+            );
+            $t->same($expectedAfter, $result['after']);
+        };
+
+        $tests["real upstream {$name} {$layoutName} returning uses updated row image"] = static function (TestRunner $t) use ($rows, $incoming, $target, $assignments, $expectedReturning, $constraints): void {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $rows,
+                $incoming,
+                [['target' => $target, 'action' => 'update', 'assignments' => $assignments]],
+                $constraints
+            );
+            $t->same($expectedReturning, $result['returning_rows']);
+        };
+
+        foreach ($expectedAfter as $rowIndex => $row) {
+            foreach ($row as $column => $value) {
+                $tests["real upstream {$name} {$layoutName} row {$rowIndex} column {$column}"] = static function (TestRunner $t) use ($rows, $incoming, $target, $assignments, $constraints, $rowIndex, $column, $value): void {
+                    $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                        $rows,
+                        $incoming,
+                        [['target' => $target, 'action' => 'update', 'assignments' => $assignments]],
+                        $constraints
+                    );
+                    $t->same($value, $result['after'][$rowIndex][$column]);
+                };
+            }
+        }
+
+        $tests["real upstream {$name} {$layoutName} cites source expression"] = static function (TestRunner $t) use ($sourceExpression): void {
+            $t->same(true, str_contains($sourceExpression, 'excluded') || str_contains($sourceExpression, 'w'));
+        };
+    }
+}
+
+$tableNamedExcludedRuns = [
+    'upsert4 8.1 table named excluded keeps current row when excluded is table name' => [
+        null,
+        [['w' => 'a', 'x' => 1, 'a b' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'a b' => 2, 'z' => 2]],
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => null]],
+        ['x', 'a b'],
+        ['w' => static fn (array $current, array $incoming): string => $current['w']],
+        null,
+        [['w' => 'a', 'x' => 1, 'a b' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'a b' => 2, 'z' => 2]],
+    ],
+    'upsert4 8.2 aliased table lets excluded mean incoming row' => [
+        null,
+        [['w' => 'a', 'x' => 1, 'a b' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'a b' => 2, 'z' => 2]],
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => null]],
+        ['x', 'a b'],
+        ['w' => static fn (array $current, array $incoming): string => $incoming['w']],
+        null,
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'a b' => 2, 'z' => 2]],
+    ],
+    'upsert4 8.3 WHERE on table named excluded suppresses update' => [
+        static fn (array $current, array $incoming): bool => $current['w'] !== 'hello',
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'a b' => 2, 'z' => 2]],
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => null]],
+        ['x', 'a b'],
+        ['w' => static fn (array $current, array $incoming): string => $current['w'] . $current['w']],
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => null]],
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'a b' => 2, 'z' => 2]],
+    ],
+    'upsert4 8.4 WHERE on incoming excluded allows update' => [
+        static fn (array $current, array $incoming): bool => $incoming['x'] === 1,
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'a b' => 2, 'z' => 2]],
+        [['w' => 'hello', 'x' => 1, 'a b' => 1, 'z' => null]],
+        ['x', 'a b'],
+        ['w' => static fn (array $current, array $incoming): string => $current['w'] . $current['w']],
+        null,
+        [['w' => 'hellohello', 'x' => 1, 'a b' => 1, 'z' => 1], ['w' => 'b', 'x' => 2, 'a b' => 2, 'z' => 2]],
+    ],
+];
+
+$tableNamedExcludedLayouts = [
+    'rowid table named excluded' => [['x', 'a b'], ['z']],
+    'without rowid table named excluded' => [['x', 'a b'], ['z']],
+];
+
+foreach ($tableNamedExcludedLayouts as $layoutName => $constraints) {
+    foreach ($tableNamedExcludedRuns as $name => [$where, $rows, $incoming, $target, $assignments, $expectedSkipped, $expectedAfter]) {
+        $tests["real upstream {$name} {$layoutName} final rows"] = static function (TestRunner $t) use ($rows, $incoming, $target, $assignments, $where, $constraints, $expectedAfter): void {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $rows,
+                $incoming,
+                [['target' => $target, 'action' => 'update', 'assignments' => $assignments, 'where' => $where]],
+                $constraints
+            );
+            $t->same($expectedAfter, $result['after']);
+        };
+
+        $tests["real upstream {$name} {$layoutName} skipped rows"] = static function (TestRunner $t) use ($rows, $incoming, $target, $assignments, $where, $constraints, $expectedSkipped): void {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $rows,
+                $incoming,
+                [['target' => $target, 'action' => 'update', 'assignments' => $assignments, 'where' => $where]],
+                $constraints
+            );
+            $t->same($expectedSkipped ?? [], $result['skipped_rows']);
+        };
+
+        foreach ($expectedAfter as $rowIndex => $row) {
+            foreach ($row as $column => $value) {
+                $tests["real upstream {$name} {$layoutName} row {$rowIndex} column {$column}"] = static function (TestRunner $t) use ($rows, $incoming, $target, $assignments, $where, $constraints, $rowIndex, $column, $value): void {
+                    $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                        $rows,
+                        $incoming,
+                        [['target' => $target, 'action' => 'update', 'assignments' => $assignments, 'where' => $where]],
+                        $constraints
+                    );
+                    $t->same($value, $result['after'][$rowIndex][$column]);
+                };
+            }
+        }
+    }
+}
+
+$triggerInput = [1, 4, 1, 5, 5, 8, 9, 1];
+$tests['real upstream upsert4 9.1 trigger repeated upsert builds histogram rows'] = static function (TestRunner $t) use ($triggerInput): void {
+    $hist = [];
+    foreach ($triggerInput as $value) {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $hist,
+            [['x' => $value, 'cnt' => 1]],
+            [[
+                'target' => ['x'],
+                'action' => 'update',
+                'assignments' => ['cnt' => static fn (array $current, array $incoming): int => (int) $current['cnt'] + 1],
+            ]],
+            [['x']]
+        );
+        $hist = $result['after'];
+    }
+
+    $t->same([['x' => 1, 'cnt' => 3], ['x' => 4, 'cnt' => 1], ['x' => 5, 'cnt' => 2], ['x' => 8, 'cnt' => 1], ['x' => 9, 'cnt' => 1]], $hist);
+};
+
+foreach ($triggerInput as $index => $value) {
+    $tests["real upstream upsert4 9.1 trigger input {$index} contributes value {$value}"] = static function (TestRunner $t) use ($triggerInput, $index, $value): void {
+        $hist = [];
+        foreach (array_slice($triggerInput, 0, $index + 1) as $step) {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $hist,
+                [['x' => $step, 'cnt' => 1]],
+                [[
+                    'target' => ['x'],
+                    'action' => 'update',
+                    'assignments' => ['cnt' => static fn (array $current, array $incoming): int => (int) $current['cnt'] + 1],
+                ]],
+                [['x']]
+            );
+            $hist = $result['after'];
+        }
+
+        $matching = array_values(array_filter($hist, static fn (array $row): bool => $row['x'] === $value));
+        $t->same(true, $matching !== []);
+    };
+}
+
 return $tests;

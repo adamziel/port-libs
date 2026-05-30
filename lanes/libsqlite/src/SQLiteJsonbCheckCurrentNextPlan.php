@@ -9,7 +9,7 @@ final class SQLiteJsonbCheckCurrentNextPlan
     /**
      * @param list<array<string,mixed>> $currentRows
      * @param list<array{op:string,rowid?:int|string,row?:array<string,mixed>,set?:array<string,mixed>,mutations?:list<array{column?:string,function:string,path:string,value:mixed}>}> $changes
-     * @param array{jsonColumn?:string} $options
+     * @param array{jsonColumn?:string,rowidColumn?:string} $options
      * @return array<string,mixed>
      */
     public static function plan(string $createTableSql, array $currentRows, array $changes, array $options = []): array
@@ -19,11 +19,14 @@ final class SQLiteJsonbCheckCurrentNextPlan
             throw new \InvalidArgumentException('SQLite JSONB CHECK current/next plan requires CHECK constraints');
         }
         $jsonColumn = self::identifier((string) ($options['jsonColumn'] ?? 'key_value'), 'JSON column');
+        $rowidColumn = isset($options['rowidColumn'])
+            ? self::identifier((string) $options['rowidColumn'], 'rowid column')
+            : null;
 
-        $rows = self::rowsByRowid($currentRows);
+        $rows = self::rowsByRowid($currentRows, $rowidColumn);
         $current = [];
         foreach ($currentRows as $row) {
-            $rowid = self::rowid($row);
+            $rowid = self::rowid($row, $rowidColumn);
             $current[] = [
                 'rowid' => $rowid,
                 'ok' => self::checksOk(self::evaluateChecks($row, $checks)),
@@ -36,7 +39,7 @@ final class SQLiteJsonbCheckCurrentNextPlan
         $next = [];
         foreach ($changes as $index => $change) {
             $candidate = self::candidateRow($rows, $change, $index, $jsonColumn);
-            $rowid = self::rowid($candidate);
+            $rowid = self::rowid($candidate, $rowidColumn);
             $evaluated = self::evaluateChecks($candidate, $checks);
             $record = [
                 'op' => strtoupper($change['op']),
@@ -370,25 +373,30 @@ final class SQLiteJsonbCheckCurrentNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<int|string,array<string,mixed>>
      */
-    private static function rowsByRowid(array $rows): array
+    private static function rowsByRowid(array $rows, ?string $rowidColumn): array
     {
         $result = [];
         foreach ($rows as $row) {
-            $result[self::rowid($row)] = $row;
+            $result[self::rowid($row, $rowidColumn)] = $row;
         }
 
         return $result;
     }
 
-    private static function rowid(array $row): int|string
+    private static function rowid(array $row, ?string $rowidColumn): int|string
     {
+        if ($rowidColumn !== null && isset($row[$rowidColumn]) && (is_int($row[$rowidColumn]) || is_string($row[$rowidColumn]))) {
+            return $row[$rowidColumn];
+        }
+
         foreach (['rowid', 'setting_id', 'id'] as $column) {
             if (isset($row[$column]) && (is_int($row[$column]) || is_string($row[$column]))) {
                 return $row[$column];
             }
         }
 
-        throw new \InvalidArgumentException('SQLite JSONB CHECK row requires rowid, setting_id, or id');
+        $suffix = $rowidColumn === null ? 'rowid, setting_id, or id' : "{$rowidColumn}, rowid, setting_id, or id";
+        throw new \InvalidArgumentException("SQLite JSONB CHECK row requires {$suffix}");
     }
 
     /**

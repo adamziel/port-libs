@@ -20,6 +20,7 @@ final class SQLiteVfsCapabilityPlan
         'sequential' => 0x00000400,
         'undeletable_when_open' => 0x00000800,
         'powersafe_overwrite' => 0x00001000,
+        'immutable' => 0x00002000,
         'batch_atomic' => 0x00004000,
     ];
 

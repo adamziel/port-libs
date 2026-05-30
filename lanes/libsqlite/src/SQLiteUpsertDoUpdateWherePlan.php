@@ -280,7 +280,7 @@ final class SQLiteUpsertDoUpdateWherePlan
             throw new \InvalidArgumentException('SQLite UPSERT unique columns must be a non-empty list');
         }
         foreach ($uniqueColumns as $column) {
-            if (!preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', $column)) {
+            if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite UPSERT unique column name is malformed');
             }
         }

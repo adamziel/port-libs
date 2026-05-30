@@ -199,6 +199,33 @@ $tests['real upstream corpus vfs io dynamic nolock preserves normalized paths'] 
     }
 };
 
+$immutableDeviceCases = [
+    'nolock-3.1 normal open with immutable device characteristic' => ['file:/srv/app/data/app.sqlite?mode=rw', false],
+    'nolock-3.11 readonly open with immutable device characteristic' => ['file:/srv/app/data/app.sqlite?mode=ro', false],
+    'nolock-3.21 explicit nolock plus immutable device characteristic' => ['file:/srv/app/data/app.sqlite?nolock=1', true],
+    'nolock-3.31 uri immutable plus immutable device characteristic' => ['file:/srv/app/data/app.sqlite?immutable=1&mode=ro', true],
+];
+
+$tests['real upstream corpus vfs io dynamic nolock sqlite iocap immutable suppresses locking'] = static function (TestRunner $t) use ($immutableDeviceCases): void {
+    foreach ($immutableDeviceCases as $name => [$filename, $uriSuppressed]) {
+        $probe = SQLiteVfsIoDynamicPlan::nolockProbe($filename, false, ['immutable']);
+
+        $t->same('ok', $probe['status']);
+        $t->same(true, $probe['immutable_device']);
+        $t->same($uriSuppressed, $probe['nolock'] || $probe['immutable']);
+        $t->same(true, $probe['lock_calls_suppressed']);
+        $t->same(['xLock' => 0, 'xUnlock' => 0, 'xCheckReservedLock' => 0, 'xAccess' => 0], $probe['calls']);
+        $t->same(true, str_ends_with($probe['path'], 'app.sqlite'));
+        $t->same(true, in_array('upstream-nolock-uri-lock-suppression', $probe['dependencies'], true));
+        $t->same(true, in_array('vfs-device-characteristics', $probe['dependencies'], true));
+        $t->same(true, is_string($name));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic nolock unsupported immutable device flags are rejected'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::nolockProbe('file:/srv/app/data/app.sqlite', false, ['cloud_lockless']));
+};
+
 $fileControlCases = [
     ['PRAGMA mmap_size=65536', 'mmap_size', 65536],
     ['PRAGMA mmap_size(32768)', 'mmap_size', 32768],
@@ -253,6 +280,66 @@ $tests['real upstream corpus vfs io dynamic filectrl threads current state throu
     $t->same(5, $sequence['applied']);
     $t->same(3, $sequence['changed']);
     $t->same(true, in_array('vfs-io-dynamic-real-corpus', $sequence['dependencies'], true));
+};
+
+$nameHintCases = [
+    'filectrl-1.1 no temp object' => ['file_control(name_hint, main database)', 'file_control(tempfilename, db)', 'main database', '.db'],
+    'filectrl-1.2 temp table handle' => ['file_control(name_hint, temp table x)', 'file_control(tempfilename, temp)', 'temp table x', '.temp'],
+    'filectrl-1.4 errno handle' => ['file_control(name_hint, last errno)', 'file_control(tempfilename, errno)', 'last errno', '.errno'],
+    'filectrl-1.5 lockproxy handle' => ['file_control(name_hint, lock proxy)', 'file_control(tempfilename, proxy)', 'lock proxy', '.proxy'],
+    'filectrl-1.6 tempfilename handle' => ['file_control(name_hint, etilqs source)', 'file_control(tempfilename, journal)', 'etilqs source', '.journal'],
+];
+
+$tests['real upstream corpus vfs io dynamic filectrl name hints feed temp filename'] = static function (TestRunner $t) use ($nameHintCases): void {
+    foreach ($nameHintCases as $scenario => [$hintSql, $tempSql, $rawHint, $suffix]) {
+        $sequence = SQLiteVfsIoDynamicPlan::fileControlSequence('file:/srv/app/data/app.sqlite?mode=rw&cache=shared&vfs=unix', [
+            $hintSql,
+            $tempSql,
+        ]);
+        $hint = $sequence['pairs'][0];
+        $temp = $sequence['pairs'][1];
+
+        $t->same('ok', $sequence['status']);
+        $t->same(2, $sequence['count']);
+        $t->same('name_hint', $hint['op']);
+        $t->same('ok', $hint['result']['status']);
+        $t->same($rawHint, $temp['current']['name_hint']);
+        $t->same('tempfilename', $temp['op']);
+        $t->same('ok', $temp['result']['status']);
+        $t->same(true, str_contains($temp['result']['value'], '/etilqs_'));
+        $t->same(true, str_ends_with($temp['result']['value'], $suffix));
+        $t->same(true, in_array('upstream-filectrl-sql-file-control', $sequence['dependencies'], true));
+        $t->same(true, str_starts_with($scenario, 'filectrl-1.'));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic filectrl sequence preserves read only result controls'] = static function (TestRunner $t): void {
+    $sequence = SQLiteVfsIoDynamicPlan::fileControlSequence('file:/srv/app/data/app.sqlite?mode=rw&cache=shared&vfs=unix', [
+        'PRAGMA data_version',
+        'file_control(device_characteristics)',
+        'file_control(sector_size)',
+        'file_control(persist_wal, 1)',
+        'file_control(powersafe_overwrite, 0)',
+        'file_control(size_limit, 32768)',
+        'file_control(size_hint, 16384)',
+    ]);
+
+    $t->same(7, $sequence['count']);
+    $t->same('data_version', $sequence['pairs'][0]['op']);
+    $t->same(1, $sequence['pairs'][0]['result']['value']);
+    $t->same('device_characteristics', $sequence['pairs'][1]['op']);
+    $t->same(true, is_int($sequence['pairs'][1]['result']['value']));
+    $t->same('sector_size', $sequence['pairs'][2]['op']);
+    $t->same(4096, $sequence['pairs'][2]['result']['value']);
+    $t->same(true, $sequence['pairs'][3]['next']['persist_wal']);
+    $t->same(false, $sequence['pairs'][4]['next']['powersafe_overwrite']);
+    $t->same(32768, $sequence['pairs'][5]['next']['size_limit']);
+    $t->same(16384, $sequence['pairs'][6]['result']['value']);
+    $t->same(3, $sequence['changed']);
+    $t->same(7, $sequence['applied']);
+    $t->same(0, $sequence['ignored']);
+    $t->same(0, $sequence['notfound']);
+    $t->same(true, in_array('vfs-sql-file-control-sequence', $sequence['dependencies'], true));
 };
 
 $tests['real upstream corpus vfs io dynamic filectrl immutable and nolock retain ignored mmap behavior'] = static function (TestRunner $t): void {

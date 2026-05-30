@@ -1056,6 +1056,26 @@ final class SQLiteSelectQuery
      */
     private static function applyGroupBy(array $rows, array $groupBy, array $plan = []): array
     {
+        if (array_key_exists('expressions', $groupBy)) {
+            if (!is_array($groupBy['expressions']) || !array_is_list($groupBy['expressions'])) {
+                throw new \InvalidArgumentException('SQLite SELECT query groupBy expressions must be a list');
+            }
+            foreach ($groupBy['expressions'] as $entry) {
+                if (!is_array($entry)) {
+                    throw new \InvalidArgumentException('SQLite SELECT query groupBy expression entries must be arrays');
+                }
+                $column = $entry['column'] ?? null;
+                $expression = $entry['expression'] ?? null;
+                if (!is_string($column) || $column === '' || !is_array($expression)) {
+                    throw new \InvalidArgumentException('SQLite SELECT query groupBy expression entry is malformed');
+                }
+                foreach ($rows as $index => $row) {
+                    $row[$column] = SQLiteSelectExpression::evaluate($row, $expression);
+                    $rows[$index] = $row;
+                }
+            }
+        }
+
         $groupColumn = self::groupColumns($groupBy);
         $valueColumn = array_key_exists('valueColumn', $groupBy)
             ? self::nullableString($groupBy, 'valueColumn', 'groupBy')

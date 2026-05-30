@@ -8,31 +8,31 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 $tests = [];
 
 $currentRows234 = [
-    ['option_id' => 1, 'option_name' => 'plugin_text', 'option_value' => 'plugin:cache', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin:cache'), 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_blob_upper', 'option_value' => new SQLiteBlobValue('PLUGIN:CACHE'), 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_spaces', 'option_value' => 'plugin:cache  ', 'autoload' => 'yes'],
-    ['option_id' => 5, 'option_name' => 'plugin_tab', 'option_value' => "Plugin:Cache\t", 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'plugin_number', 'option_value' => 42, 'autoload' => 'no'],
-    ['option_id' => 7, 'option_name' => 'plugin_null', 'option_value' => null, 'autoload' => 'no'],
-    ['option_id' => 8, 'option_name' => 'plugin_bad_text', 'option_value' => "\xffplugin", 'autoload' => 'no'],
-    ['option_id' => 9, 'option_name' => 'plugin_bad_blob', 'option_value' => new SQLiteBlobValue("\xffplugin"), 'autoload' => 'no'],
-    ['option_id' => 10, 'option_name' => 'theme_text', 'option_value' => 'theme:cache', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'service_text', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('plugin:cache'), 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'module_blob_upper', 'key_value' => new SQLiteBlobValue('PLUGIN:CACHE'), 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_spaces', 'key_value' => 'plugin:cache  ', 'load_policy' => 'yes'],
+    ['setting_id' => 5, 'key_name' => 'module_tab', 'key_value' => "Plugin:Cache\t", 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'module_number', 'key_value' => 42, 'load_policy' => 'no'],
+    ['setting_id' => 7, 'key_name' => 'module_null', 'key_value' => null, 'load_policy' => 'no'],
+    ['setting_id' => 8, 'key_name' => 'module_bad_text', 'key_value' => "\xffplugin", 'load_policy' => 'no'],
+    ['setting_id' => 9, 'key_name' => 'module_bad_blob', 'key_value' => new SQLiteBlobValue("\xffplugin"), 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'profile_text', 'key_value' => 'theme:cache', 'load_policy' => 'yes'],
 ];
 
 $nextRows234 = [
-    ['option_id' => 1, 'option_name' => 'plugin_text', 'option_value' => 'plugin:cache', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_blob', 'option_value' => 'plugin:cache', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_blob_upper', 'option_value' => new SQLiteBlobValue('plugin:cache-extra'), 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_spaces', 'option_value' => 'plugin:cache', 'autoload' => 'yes'],
-    ['option_id' => 5, 'option_name' => 'plugin_tab', 'option_value' => "Plugin:Cache\t", 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'plugin_number', 'option_value' => 43, 'autoload' => 'no'],
-    ['option_id' => 7, 'option_name' => 'plugin_null', 'option_value' => null, 'autoload' => 'no'],
-    ['option_id' => 8, 'option_name' => 'plugin_bad_text', 'option_value' => "\xffplugin", 'autoload' => 'no'],
-    ['option_id' => 9, 'option_name' => 'plugin_bad_blob', 'option_value' => new SQLiteBlobValue("\xffplugin"), 'autoload' => 'no'],
-    ['option_id' => 10, 'option_name' => 'theme_text', 'option_value' => 'theme:cache', 'autoload' => 'yes'],
-    ['option_id' => 11, 'option_name' => 'plugin_added_text', 'option_value' => 'plugin:added', 'autoload' => 'yes'],
-    ['option_id' => 12, 'option_name' => 'plugin_added_blob', 'option_value' => new SQLiteBlobValue('plugin:blob'), 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'service_text', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_blob', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'module_blob_upper', 'key_value' => new SQLiteBlobValue('plugin:cache-extra'), 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_spaces', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 5, 'key_name' => 'module_tab', 'key_value' => "Plugin:Cache\t", 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'module_number', 'key_value' => 43, 'load_policy' => 'no'],
+    ['setting_id' => 7, 'key_name' => 'module_null', 'key_value' => null, 'load_policy' => 'no'],
+    ['setting_id' => 8, 'key_name' => 'module_bad_text', 'key_value' => "\xffplugin", 'load_policy' => 'no'],
+    ['setting_id' => 9, 'key_name' => 'module_bad_blob', 'key_value' => new SQLiteBlobValue("\xffplugin"), 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'profile_text', 'key_value' => 'theme:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 11, 'key_name' => 'module_added_text', 'key_value' => 'plugin:added', 'load_policy' => 'yes'],
+    ['setting_id' => 12, 'key_name' => 'module_added_blob', 'key_value' => new SQLiteBlobValue('plugin:blob'), 'load_policy' => 'yes'],
 ];
 
 $valueAt234 = static function (array $value, string $path): mixed {
@@ -135,7 +135,7 @@ $implicitCases234 = [
     'reason blob skip' => ['invalidationReasons.5', 'blob-skip-state'],
     'reason matched' => ['invalidationReasons.6', 'matched-rowset'],
     'reason malformed' => ['invalidationReasons.7', 'malformed-text'],
-    'dependency blob option' => ['dependencies.0', 'sqlite-like-does-not-match-blobs'],
+    'dependency blob behavior' => ['dependencies.0', 'sqlite-like-does-not-match-blobs'],
     'dependency cast admission' => ['dependencies.1', 'sqlite-explicit-cast-text-admission'],
     'dependency collation' => ['dependencies.2', 'sqlite-like-glob-collation'],
     'dependency source' => ['dependencies.3', 'sqlite-current-source-next234'],
@@ -228,8 +228,8 @@ foreach ($globCases234 as $name => [$planFactory, $path, $expected]) {
 
 $tests['blob like glob affinity current source next234 stable implicit scan is reusable'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin:cache'],
-        ['option_id' => 2, 'option_value' => new SQLiteBlobValue('plugin:cache')],
+        ['setting_id' => 1, 'key_value' => 'plugin:cache'],
+        ['setting_id' => 2, 'key_value' => new SQLiteBlobValue('plugin:cache')],
     ];
     $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'plugin:%', 'LIKE', 'BINARY', null, false, false, 'stable', 'stable', 7, 7);
     $t->same(true, $plan['cursorReusable']);
@@ -239,8 +239,8 @@ $tests['blob like glob affinity current source next234 stable implicit scan is r
 
 $tests['blob like glob affinity current source next234 stable cast scan admits blob'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin:cache'],
-        ['option_id' => 2, 'option_value' => new SQLiteBlobValue('plugin:cache')],
+        ['setting_id' => 1, 'key_value' => 'plugin:cache'],
+        ['setting_id' => 2, 'key_value' => new SQLiteBlobValue('plugin:cache')],
     ];
     $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'plugin:%', 'LIKE', 'BINARY', null, false, true, 'stable', 'stable', 7, 7);
     $t->same(true, $plan['cursorReusable']);
@@ -261,17 +261,17 @@ $tests['blob like glob affinity current source next234 rejects bad collation'] =
 };
 
 $tests['blob like glob affinity current source next234 rejects missing rowid'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['option_value' => 'plugin']], [], '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['key_value' => 'plugin']], [], '%'));
 };
 
 $tests['blob like glob affinity current source next234 rejects missing value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1]], [], '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['setting_id' => 1]], [], '%'));
 };
 
 $tests['blob like glob affinity current source next234 nonscalar value becomes malformed row'] = static function (TestRunner $t): void {
-    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1, 'option_value' => []]], [], '%');
+    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['setting_id' => 1, 'key_value' => []]], [], '%');
     $t->same([1], $plan['currentMalformedRowids']);
-    $t->same('SQLite BLOB LIKE/GLOB affinity next234 rows require scalar option_value values', $plan['currentErrors'][1]);
+    $t->same('SQLite BLOB LIKE/GLOB affinity next234 rows require scalar key_value values', $plan['currentErrors'][1]);
 };
 
 return $tests;

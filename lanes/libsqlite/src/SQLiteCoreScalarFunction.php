@@ -1114,6 +1114,14 @@ final class SQLiteCoreScalarFunction
                 }
                 continue;
             }
+            if (preg_match('/\A([+-]?)(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\z/', $modifierText, $matches) === 1) {
+                $seconds = ((int) $matches[2] * 3600) + ((int) $matches[3] * 60) + (isset($matches[4]) && $matches[4] !== '' ? (int) $matches[4] : 0);
+                if ($matches[1] === '-') {
+                    $seconds *= -1;
+                }
+                $instant = self::modifyBySeconds($instant, (float) $seconds);
+                continue;
+            }
             if (preg_match('/\A([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s+(second|seconds|minute|minutes|hour|hours|day|days|month|months|year|years)\z/', $modifierText, $matches) === 1) {
                 $instant = self::applyDateTimeAmountModifier($instant, (float) $matches[1], $matches[2]);
                 continue;

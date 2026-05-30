@@ -4314,19 +4314,35 @@ final class SQLiteSelectSql
     private static function groupBy(string $sql, array $select, array $aggregateExpressions = []): array
     {
         $columns = [];
-        foreach (self::splitTopLevel($sql, ',') as $term) {
-            self::assertIdentifier($term, 'SQLite SELECT SQL GROUP BY column');
-            $columns[] = $term;
+        $expressions = [];
+        foreach (self::splitTopLevel($sql, ',') as $index => $term) {
+            $term = trim($term);
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $term) === 1) {
+                $columns[] = $term;
+                continue;
+            }
+
+            $column = '__groupByExpression' . $index;
+            $columns[] = $column;
+            $expressions[] = [
+                'column' => $column,
+                'expression' => self::valueExpression($term),
+            ];
         }
         if ($columns === []) {
             throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY needs at least one column');
         }
 
-        return [
+        $groupBy = [
             'columns' => $columns,
             'valueColumn' => self::aggregateValueColumn($select, $aggregateExpressions),
             'jsonAggregates' => self::jsonAggregateSpecs($select, $aggregateExpressions),
         ];
+        if ($expressions !== []) {
+            $groupBy['expressions'] = $expressions;
+        }
+
+        return $groupBy;
     }
 
     /**
