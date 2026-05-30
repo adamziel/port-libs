@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 17:00 UTC):
+  Latest accepted libsqlite source is `b998b5462`
+  (`libsqlite: add focused real corpus batch`). The batch accepted seven clean
+  real-upstream corpus handoffs plus one source-neutral schema-migration
+  cleanup, and skipped one stale duplicate B-tree handoff plus one conflicting
+  expression handoff. Verification passed PHP lint for changed and new PHP
+  files, `git diff --check -- lanes/libsqlite`, no fresh domain-shaped text in
+  changed/new libsqlite files outside the existing status schema key, focused
+  gate `9 files / 8875 assertions / 0 failures / 5305 selected PASS lines`,
+  accepted-base comparison at `9dc20dce` with `7 files / 4584 assertions / 0
+  failures / 2772 PASS lines`, adjacent UPSERT/window/pager/no-domain gate
+  `9 files / 6274 assertions / 0 failures`, and the touched
+  `application-schema-migration-transaction-current-next30.php` example smoke.
+  Honest new PASS delta is `+2533`, moving public libsqlite from
+  `198691 pass / 0 fail` to `201224 pass / 0 fail`; mapped coverage remains
+  `958 / 1589`. Continue 10-15 minute current-base batches and keep rejecting
+  duplicate/conflicting stale handoffs instead of letting them slow the queue.
+
 - 2026-05-30 supervisor continuation (throughput sample 16:50 UTC):
   Latest published libsqlite source is `f78a8f36d` with dashboard commit
   `a84cc0bc4`. Public libsqlite evidence is now `198691 pass / 0 fail`,
