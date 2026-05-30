@@ -3669,3 +3669,18 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   superseded evidence, then archived and removed one inactive dirty isolated
   worktree without losing its diff. `/home/claude` remains healthy at roughly
   421G free.
+
+## Supervisor Integration 2026-05-30T08:51Z Current-Base Cleanup
+
+- Integrated two current-base libsqlite handoffs as source commit
+  `caf99d2bc libsqlite: rename release runner admission helper`.
+- Removed the numbered production helper name
+  `suiteReleaseRunnerUpstreamCurrentNext81()` in favor of the stable
+  `suiteReleaseRunnerUpstreamAdmission()` entry point, preserving the existing
+  countability contract and tests.
+- Added current-base evidence that the window GROUPS/RANGE next18 root-gate
+  failure remains fixed on `b8bd60778`/later; the behavior fix itself was
+  already in `1e69d503e`.
+- Verification passed PHP lint for changed PHP files, focused release/window
+  gate 9 files / 4,067 assertions / 0 failures, suite-evidence current-next
+  family 26 files / 1,043 assertions / 0 failures, and `git diff --check`.
