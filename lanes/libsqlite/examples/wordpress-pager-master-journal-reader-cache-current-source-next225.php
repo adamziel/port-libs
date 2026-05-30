@@ -125,7 +125,7 @@ $reads = array_map(
     [1, 2, 3],
 );
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext225(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalPathFence(
     $database,
     $masterJournal,
     $masterBytes,

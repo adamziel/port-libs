@@ -151,7 +151,7 @@ $plan = static fn (
     ?string $currentLeaseToken = null,
     ?string $currentCleanupToken = null,
     ?string $currentDatabaseToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext224(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCacheInvalidationFence(
     $database,
     $master,
     $masterBytes,

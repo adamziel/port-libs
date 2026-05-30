@@ -95,9 +95,9 @@ $leases = [
     ],
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, $leases);
-$missingFence = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($missingFenceBase, $leases);
-$allCurrent = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, [$leases[0], $leases[1]]);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, $leases);
+$missingFence = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($missingFenceBase, $leases);
+$allCurrent = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, [$leases[0], $leases[1]]);
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next204'],
@@ -152,18 +152,18 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($blockedBase, $leases),
-    'missing leases rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, []),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan(array_merge($base, ['checkpoint_generation' => 0]), $leases),
-    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan(array_merge($base, ['schema_cookie' => 0]), $leases),
-    'bad page count rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan(array_merge($base, ['checkpointed_page_count' => 0]), $leases),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan(array_merge($base, ['checkpointed_database_digest' => 'short']), $leases),
-    'missing lease name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, [array_merge($leases[0], ['name' => ''])]),
-    'bad observed generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, [array_merge($leases[0], ['observed_checkpoint_generation' => 0])]),
-    'bad observed schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, [array_merge($leases[0], ['observed_schema_cookie' => 0])]),
-    'bad observed page count rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, [array_merge($leases[0], ['observed_page_count' => 0])]),
-    'bad observed digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, [array_merge($leases[0], ['observed_database_digest' => 'short'])]),
-    'bad reader epoch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan($base, [array_merge($leases[0], ['reader_epoch' => 0])]),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($blockedBase, $leases),
+    'missing leases rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, []),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan(array_merge($base, ['checkpoint_generation' => 0]), $leases),
+    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan(array_merge($base, ['schema_cookie' => 0]), $leases),
+    'bad page count rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan(array_merge($base, ['checkpointed_page_count' => 0]), $leases),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan(array_merge($base, ['checkpointed_database_digest' => 'short']), $leases),
+    'missing lease name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, [array_merge($leases[0], ['name' => ''])]),
+    'bad observed generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, [array_merge($leases[0], ['observed_checkpoint_generation' => 0])]),
+    'bad observed schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, [array_merge($leases[0], ['observed_schema_cookie' => 0])]),
+    'bad observed page count rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, [array_merge($leases[0], ['observed_page_count' => 0])]),
+    'bad observed digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, [array_merge($leases[0], ['observed_database_digest' => 'short'])]),
+    'bad reader epoch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan($base, [array_merge($leases[0], ['reader_epoch' => 0])]),
 ];
 
 foreach ($throws as $name => $callback) {

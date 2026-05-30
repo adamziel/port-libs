@@ -144,7 +144,7 @@ $reads = static fn (?string $payloadDigest = null): array => array_map(
     ],
     range(1, 8),
 );
-$plan = static fn (?array $readerCache = null, ?array $readList = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext228(
+$plan = static fn (?array $readerCache = null, ?array $readList = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderIdOrderingFence(
     $database,
     $master,
     $masterBytes,
@@ -252,10 +252,10 @@ $throws = [
     'missing read payload digest rejected' => static fn () => $plan(null, [array_diff_key($reads()[0], ['page_payload_digest' => true])]),
     'empty read payload digest rejected' => static fn () => $plan(null, [['reader_id' => 'bad-read', 'page_payload_digest' => ''] + $reads()[0]]),
     'empty read id rejected' => static fn () => $plan(null, [['reader_id' => '', 'page_payload_digest' => $currentDigest(1)] + $reads()[0]]),
-    'bad page size rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext228($database, $master, $masterBytes, implode('', $before), 500, $recovered, $cache(), $reads(), $sourceId, 228, $publication, $masterDigest, $recoverySequence, $tokens, $headers, $masterToken, $databaseToken, $cleanupToken, $readerLeaseToken),
-    'unaligned database rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext228($database, $master, $masterBytes, implode('', $before) . 'x', $pageSize, $recovered, $cache(), $reads(), $sourceId, 228, $publication, $masterDigest, $recoverySequence, $tokens, $headers, $masterToken, $databaseToken, $cleanupToken, $readerLeaseToken),
-    'bad recovered page number rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext228($database, $master, $masterBytes, implode('', $before), $pageSize, [0 => $recovered[1]], $cache(), $reads(), $sourceId, 228, $publication, $masterDigest, $recoverySequence, $tokens, $headers, $masterToken, $databaseToken, $cleanupToken, $readerLeaseToken),
-    'short recovered page rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext228($database, $master, $masterBytes, implode('', $before), $pageSize, [1 => 'short'], $cache(), $reads(), $sourceId, 228, $publication, $masterDigest, $recoverySequence, $tokens, $headers, $masterToken, $databaseToken, $cleanupToken, $readerLeaseToken),
+    'bad page size rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderIdOrderingFence($database, $master, $masterBytes, implode('', $before), 500, $recovered, $cache(), $reads(), $sourceId, 228, $publication, $masterDigest, $recoverySequence, $tokens, $headers, $masterToken, $databaseToken, $cleanupToken, $readerLeaseToken),
+    'unaligned database rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderIdOrderingFence($database, $master, $masterBytes, implode('', $before) . 'x', $pageSize, $recovered, $cache(), $reads(), $sourceId, 228, $publication, $masterDigest, $recoverySequence, $tokens, $headers, $masterToken, $databaseToken, $cleanupToken, $readerLeaseToken),
+    'bad recovered page number rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderIdOrderingFence($database, $master, $masterBytes, implode('', $before), $pageSize, [0 => $recovered[1]], $cache(), $reads(), $sourceId, 228, $publication, $masterDigest, $recoverySequence, $tokens, $headers, $masterToken, $databaseToken, $cleanupToken, $readerLeaseToken),
+    'short recovered page rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderIdOrderingFence($database, $master, $masterBytes, implode('', $before), $pageSize, [1 => 'short'], $cache(), $reads(), $sourceId, 228, $publication, $masterDigest, $recoverySequence, $tokens, $headers, $masterToken, $databaseToken, $cleanupToken, $readerLeaseToken),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -65,7 +65,7 @@ $current['rows'] = [
     ['rowid' => 10, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_alpha', 'option_value' => 'alpha', 'updated_at' => 10],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext191(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePayloadExpressionFence(
     $prepared,
     $current,
     [
@@ -83,12 +83,12 @@ if (in_array('--self-test', $argv, true)) {
     assert($plan['matchedRowids'] === [30, 50, 20, 21, 22]);
     assert($plan['payloadExpressionFence']['checkedRowids'] === [30, 50, 20, 21, 22]);
     assert($plan['payloadExpressionFence']['mismatchedRowids'] === []);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next191 self-test passed\n";
+    echo "wordpress-sqlplanner-stat4-expression-partial-payload-expression-fence self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next191',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-payload-expression-fence',
     'wordpressUse' => 'Copied wp_options plugin screens can reuse a partial lower(option_name) STAT4 plan only when the current covering payload still recomputes to each indexed expression key.',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],

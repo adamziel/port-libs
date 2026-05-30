@@ -131,7 +131,7 @@ $read = static fn (int $pageNumber, ?string $handoffToken = null): array => [
     'reader_cache_source_handoff_token' => $handoffToken ?? $currentHandoffToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext249(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderRefreshReceipt(
     $database,
     $master,
     $masterBytes,

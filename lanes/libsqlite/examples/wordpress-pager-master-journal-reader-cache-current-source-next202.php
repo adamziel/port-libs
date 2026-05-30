@@ -114,7 +114,7 @@ $reads = array_map(static fn (int $pageNumber): array => [
     'member_journal_playback_digest' => $mapDigest($playback),
 ], [1, 2, 3, 4]);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext202(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantPlaybackDigestFence(
     $database,
     $master,
     $masterBytes,

@@ -134,7 +134,7 @@ $read = static fn (int $pageNumber, string $manifest = null): array => [
     'master_member_manifest_token' => $manifest ?? $manifestToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext252(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalReaderCacheReceipt(
     $database,
     $master,
     $masterBytes,

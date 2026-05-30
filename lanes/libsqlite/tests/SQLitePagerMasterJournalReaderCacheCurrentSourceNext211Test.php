@@ -145,7 +145,7 @@ $plan = static fn (
     ?array $readerCache = null,
     ?array $readList = null,
     ?array $memberRecovered = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext211(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCacheSourceDigestFence(
     $database,
     $master,
     $masterBytes,

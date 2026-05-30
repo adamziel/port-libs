@@ -122,7 +122,7 @@ $read = static fn (int $pageNumber, string $schemaToken = null, string $sharedGe
     'shared_cache_generation_token' => $sharedGeneration ?? $sharedCacheGenerationToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext239(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReadGroupTokenFence(
     $database,
     $master,
     $masterBytes,

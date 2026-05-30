@@ -142,7 +142,7 @@ $readTicket = static fn (int $pageNumber, int $version) => [
     'sqlite_version_number' => $version,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext230(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCachePageDigestFence(
     $database,
     $master,
     $masterBytes,

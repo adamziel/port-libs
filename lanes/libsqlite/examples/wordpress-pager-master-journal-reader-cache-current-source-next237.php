@@ -147,7 +147,7 @@ $readTicket = static fn (int $pageNumber, int $format) => [
     'schema_format_number' => $format,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext237(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCacheSourceMapFence(
     $database,
     $master,
     $masterBytes,

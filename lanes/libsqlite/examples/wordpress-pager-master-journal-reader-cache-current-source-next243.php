@@ -125,7 +125,7 @@ $read = static fn (int $pageNumber, string $sourceToken = null): array => [
     'current_source_provenance_token' => $sourceToken ?? $currentSourceProvenanceToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext243(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantRecoveryPlaybackFence(
     $database,
     $master,
     $masterBytes,

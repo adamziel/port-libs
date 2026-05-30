@@ -96,7 +96,7 @@ $plan = static fn (
     string $journal = null,
     string $currentWalBytes = null,
     SQLiteWal $currentWal = null,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next152Plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::hotJournalSavepointCheckpointCurrentSourcePlan(
     $dbPath ?? $databasePath,
     $dbBytes ?? $dirtyDatabase,
     $journal ?? $journalBytes,
@@ -199,8 +199,8 @@ $throws = [
     'outside page rejected' => static fn () => $plan([6]),
     'unaligned database rejected' => static fn () => $plan([1], 'restart', null, false, null, $dirtyDatabase . 'x'),
     'reader past retained wal rejected' => static fn () => $plan([1], 'restart', 3),
-    'journal page size mismatch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next152Plan($databasePath, $dirtyDatabase, $makeWrongPageSizeJournalBytes($cleanPages), $wal, $walBytes, $stack(), 'plugin-batch-next152', [1]),
-    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next152Plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, $stack(), '', [1]),
+    'journal page size mismatch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::hotJournalSavepointCheckpointCurrentSourcePlan($databasePath, $dirtyDatabase, $makeWrongPageSizeJournalBytes($cleanPages), $wal, $walBytes, $stack(), 'plugin-batch-next152', [1]),
+    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::hotJournalSavepointCheckpointCurrentSourcePlan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, $stack(), '', [1]),
 ];
 
 foreach ($throws as $name => $callback) {

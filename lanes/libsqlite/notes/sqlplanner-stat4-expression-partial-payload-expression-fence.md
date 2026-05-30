@@ -9,19 +9,19 @@ Behavior:
 - Blocks reuse when a stale STAT4 anchor or stale covering payload would let a partial `lower(option_name)` index return a row whose payload no longer matches the indexed expression key.
 
 WordPress path:
-- `wordpress-sqlplanner-stat4-expression-partial-current-source-next191.php` models copied `wp_options` plugin-option screens using a partial `lower(option_name)` STAT4 index after copied rows and ANALYZE data have changed.
+- `wordpress-sqlplanner-stat4-expression-partial-payload-expression-fence.php` models copied `wp_options` plugin-option screens using a partial `lower(option_name)` STAT4 index after copied rows and ANALYZE data have changed.
 
 Verification:
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next191.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next191.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Test.php`
+- `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPayloadExpressionFenceTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPayloadExpressionFenceTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-payload-expression-fence.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-payload-expression-fence.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPayloadExpressionFenceTest.php`
   - `1 test files, 61 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next191.php --self-test`
-  - `wordpress-sqlplanner-stat4-expression-partial-current-source-next191 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-payload-expression-fence.php --self-test`
+  - `wordpress-sqlplanner-stat4-expression-partial-payload-expression-fence self-test passed`
 
 Non-overlap:
 - Avoids accepted next188 duplicate peer rowid fencing, next185 sample provenance, next182 LIMIT/OFFSET covering windows, next180 descending scans, expression ORDER BY, expression-index range costs, JSON, WAL, VFS, B-tree, trigger, and UTF clusters.

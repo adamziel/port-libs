@@ -160,7 +160,7 @@ $plan = static fn (
     ?array $readerCache = null,
     ?array $readList = null,
     ?string $currentSchemaToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext236(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMemberJournalHeaderDigestFence(
     $database,
     $master,
     $masterBytes,

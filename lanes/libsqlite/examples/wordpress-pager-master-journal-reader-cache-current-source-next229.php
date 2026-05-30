@@ -114,7 +114,7 @@ $read = static fn (int $pageNumber): array => [
     'pager_cache_source_token' => $pagerCacheSourceToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext229(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantCurrentSourceEpochFence(
     $database,
     $master,
     $masterBytes,

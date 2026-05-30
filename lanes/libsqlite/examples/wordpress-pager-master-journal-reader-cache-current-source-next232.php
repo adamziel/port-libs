@@ -117,7 +117,7 @@ $read = static fn (int $pageNumber): array => [
     'database_path_token' => $mainPathToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext232(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantRecoveredPageDigestFence(
     $database,
     $master,
     $masterBytes,

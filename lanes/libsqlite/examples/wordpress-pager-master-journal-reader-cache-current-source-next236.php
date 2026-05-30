@@ -119,7 +119,7 @@ $read = static fn (int $pageNumber, string $schemaToken = null): array => [
     'schema_reparse_token' => $schemaToken ?? $schemaReparseToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext236(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMemberJournalHeaderDigestFence(
     $database,
     $master,
     $masterBytes,

@@ -122,7 +122,7 @@ $read = static fn (int $pageNumber, string $statementToken = null): array => [
     'statement_schema_root_token' => $statementToken ?? $statementSchemaRootToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext240(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCacheOperationFence(
     $database,
     $master,
     $masterBytes,

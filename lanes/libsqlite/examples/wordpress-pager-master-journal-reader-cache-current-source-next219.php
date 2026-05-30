@@ -130,7 +130,7 @@ $readTicket = static fn (int $pageNumber, int $pageCount) => [
     'database_page_count' => $pageCount,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext219(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCacheRetentionFence(
     $database,
     $master,
     $masterBytes,

@@ -111,7 +111,7 @@ $read = static fn (int $pageNumber): array => [
     'reader_lease_token' => $readerLeaseToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext224(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCacheInvalidationFence(
     $database,
     $master,
     $masterBytes,

@@ -116,7 +116,7 @@ $read = static fn (int $pageNumber, string $transaction = null): array => [
     'read_transaction_token' => $transaction ?? $readTransactionToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext233(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMemberJournalTokenDigestFence(
     $database,
     $master,
     $masterBytes,

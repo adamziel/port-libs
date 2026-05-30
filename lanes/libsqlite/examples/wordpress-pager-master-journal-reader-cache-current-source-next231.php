@@ -149,7 +149,7 @@ $readTicket = static fn (int $pageNumber, int $trunk, int $count) => [
     'freelist_page_count' => $count,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext231(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantPinnedSharedReaderFence(
     $database,
     $master,
     $masterBytes,

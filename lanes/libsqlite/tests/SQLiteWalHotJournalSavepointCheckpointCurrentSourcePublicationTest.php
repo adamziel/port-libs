@@ -74,7 +74,7 @@ $plan = static fn (
     ?string $expectedCheckpoint = null,
     ?string $expectedWal = null,
     ?string $hotJournal = null,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next201PublishCurrentSources(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::publishDurableReaderCurrentSources(
     $input ?? $admission,
     $sourceRows ?? $rows,
     $expectedCheckpoint ?? $checkpointDigest,

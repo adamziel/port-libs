@@ -62,7 +62,7 @@ $savepoints->savepoint('plugin-batch-next152');
 $savepoints->recordWalFrameWrite(3, 3);
 $savepoints->recordWalFrameWrite(4, 4, true);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next152Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::hotJournalSavepointCheckpointCurrentSourcePlan(
     $databasePath,
     $databaseBytes,
     $journalBytes,

@@ -131,7 +131,7 @@ $read = static fn (int $pageNumber, string $rootpageMap = null, string $ownerMap
     'page_owner_map_token' => $ownerMap ?? $pageOwnerMapToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext248(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantCacheInvalidationReceipt(
     $database,
     $master,
     $masterBytes,

@@ -31037,7 +31037,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return array_keys($duplicates);
     }
 
-    public static function next152Plan(
+    public static function hotJournalSavepointCheckpointCurrentSourcePlan(
         string $databasePath,
         string $databaseBytes,
         string $journalBytes,
@@ -31287,7 +31287,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         })::plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, $savepoints, $savepoint, $pageNumbers, $mode, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next153Plan(
+    public static function hotJournalSavepointCheckpointAppendPlan(
         string $databasePath,
         string $dirtyDatabaseBytes,
         string $journalBytes,
@@ -31524,7 +31524,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         })::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $savepoints, $savepoint, $wal, $walBytes, $pageNumbers, $nextTransactions, $currentReaderEndFrame, $mode, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next154Plan(
+    public static function savepointCheckpointReaderFrameFencePlan(
         string $databasePath,
         string $dirtyDatabaseBytes,
         string $journalBytes,
@@ -31795,7 +31795,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         })::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $currentWal, $currentWalBytes, $readerDatabaseBytes, $readerWalBytes, $checkpointDatabaseBytes, $savepointName, $savepointEndFrame, $pageNumbers, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next155Plan(
+    public static function checkpointDatabaseVisibilityPlan(
         string $databasePath,
         string $dirtyDatabaseBytes,
         string $journalBytes,
@@ -32028,7 +32028,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         })::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $currentWal, $currentWalBytes, $readerDatabaseBytes, $readerWalBytes, $checkpointDatabaseBytes, $pageNumbers, $savepointRollbackFrame, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next201PublishCurrentSources(
+    public static function publishDurableReaderCurrentSources(
         array $admission,
         array $sourceRows,
         string $expectedCheckpointDigest,
@@ -32300,7 +32300,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         })::publishCurrentSources($admission, $sourceRows, $expectedCheckpointDigest, $expectedWalDigest, $hotJournalBytes);
     }
 
-    public static function next204Plan(array $basePlan, array $leases): array
+    public static function checkpointGenerationLeasePlan(array $basePlan, array $leases): array
     {
         return (new class {
     /**

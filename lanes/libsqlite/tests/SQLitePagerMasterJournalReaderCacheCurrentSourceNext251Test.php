@@ -152,7 +152,7 @@ $reads = static fn (?string $snapshotToken = null, ?string $generationToken = nu
     $read(4, $snapshotToken, $generationToken, $sourceToken),
     $read(5, $snapshotToken, $generationToken, $sourceToken),
 ];
-$plan = static fn (?array $readerCache = null, ?array $nextReads = null, ?string $snapshotToken = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext251(
+$plan = static fn (?array $readerCache = null, ?array $nextReads = null, ?string $snapshotToken = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantPinnedReaderReceipt(
     $database,
     $master,
     $masterBytes,

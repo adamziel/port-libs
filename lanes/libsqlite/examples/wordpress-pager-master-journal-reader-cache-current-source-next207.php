@@ -71,7 +71,7 @@ $formatSignature = hash('sha256', implode('|', [512, 4, 2, 207, 0x57503237]));
 $sourceId = 'wordpress-database-file-token-source';
 $masterDigest = hash('sha256', 'wordpress-next207-master-source');
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext207(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantDirtyReaderRefreshFence(
     $database,
     $masterJournal,
     implode("\n", $members) . "\n",

@@ -122,7 +122,7 @@ $readTicket = static fn (int $pageNumber, string $token) => [
     'database_file_token' => $token,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext212(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantPublicationGenerationFence(
     $database,
     $master,
     $masterBytes,

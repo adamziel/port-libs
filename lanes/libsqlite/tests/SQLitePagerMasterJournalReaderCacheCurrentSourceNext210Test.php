@@ -145,7 +145,7 @@ $plan = static fn (
     ?array $readList = null,
     ?string $masterToken = null,
     ?array $headers = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext210(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalMemberTokenFence(
     $database,
     $master,
     $masterBytes,

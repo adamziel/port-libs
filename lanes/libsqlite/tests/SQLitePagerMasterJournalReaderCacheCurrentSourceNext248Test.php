@@ -186,7 +186,7 @@ $plan = static fn (
     ?array $readList = null,
     ?string $currentRootpageMapToken = null,
     ?string $currentPageOwnerMapToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext248(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantCacheInvalidationReceipt(
     $database,
     $master,
     $masterBytes,

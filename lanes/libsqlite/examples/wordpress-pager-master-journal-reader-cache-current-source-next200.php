@@ -53,7 +53,7 @@ $oldOptionsToken = $readerToken('wp-options-reader', [
     '3:' . $oldUsersToken . ':' . $pageDigest(3, $before[3], $usersJournal, $oldUsersToken),
 ]);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext200(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMemberGenerationTokens(
     $database,
     $master,
     $masterBytes,

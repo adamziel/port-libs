@@ -128,7 +128,7 @@ $read = static fn (int $pageNumber, string $sourceToken = null, string $generati
     'pager_reader_cache_generation_token' => $generationToken ?? $currentPagerReaderCacheGenerationToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext247(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantJournalMemberRetentionFence(
     $database,
     $master,
     $masterBytes,

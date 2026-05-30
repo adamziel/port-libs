@@ -137,7 +137,7 @@ $readTicket = static fn (int $pageNumber, int $change, int $valid) => [
     'version_valid_for' => $valid,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext226(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMemberJournalPlaybackFence(
     $database,
     $master,
     $masterBytes,

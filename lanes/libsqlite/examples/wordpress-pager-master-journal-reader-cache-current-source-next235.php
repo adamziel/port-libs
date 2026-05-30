@@ -120,7 +120,7 @@ $read = static fn (int $pageNumber): array => [
     'database_change_counter' => $changeCounter,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext235(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCacheRefreshPlan(
     $database,
     $master,
     $masterBytes,

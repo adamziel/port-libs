@@ -108,7 +108,7 @@ $read = static fn (int $pageNumber): array => [
     'master_journal_cleanup_token' => $cleanupToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext218(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMemberJournalHeaderFence(
     $database,
     $master,
     $masterBytes,

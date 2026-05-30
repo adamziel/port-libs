@@ -3,13 +3,13 @@
 Date: 2026-05-28
 
 This isolated upstream-suite micro-slice does not launch a broad SQLite
-`testfixture`, `make test`, `mptest`, `all`, or `release` run. It adds
-`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceNext379()`,
-which admits one lane-local zero-error guarded veryquick shard row only when
-the launcher Base accepted HEAD, current integration source provenance,
-concrete `.test` selections, duplicate-runner gate, removed-blocker
-classification, and focused PHP PASS-line output all match the next379
-evidence record.
+`testfixture`, `make test`, `mptest`, `all`, or `release` run. The evidence now
+uses `SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceAdmission()`
+with the next379 status/count keys, admitting one lane-local zero-error guarded
+veryquick shard row only when the launcher Base accepted HEAD, current
+integration source provenance, concrete `.test` selections, duplicate-runner
+gate, removed-blocker classification, and focused PHP PASS-line output all
+match the next379 evidence record.
 
 Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
 moves from `740` to `741`. The slice records focused current-source veryquick

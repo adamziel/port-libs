@@ -128,7 +128,7 @@ $read = static fn (int $pageNumber, string $statementSnapshot = null, string $ro
     'rootpage_map_token' => $rootpageMap ?? $rootpageMapToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext245(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderPublicationFence(
     $database,
     $master,
     $masterBytes,

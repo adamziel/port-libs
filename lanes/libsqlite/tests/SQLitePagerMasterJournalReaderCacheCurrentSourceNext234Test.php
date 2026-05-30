@@ -150,7 +150,7 @@ $plan = static fn (
     ?array $readList = null,
     ?int $user = null,
     ?int $app = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext234(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterMemberOrderFence(
     $database,
     $master,
     $masterBytes,

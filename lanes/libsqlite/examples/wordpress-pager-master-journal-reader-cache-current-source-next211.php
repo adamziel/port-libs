@@ -121,7 +121,7 @@ $cacheEntry = static fn (string $label, string $image, array $memberPages): arra
     'master_journal_bytes_digest' => $masterBytesDigest,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext211(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderCacheSourceDigestFence(
     $database,
     $masterJournal,
     $masterBytes,

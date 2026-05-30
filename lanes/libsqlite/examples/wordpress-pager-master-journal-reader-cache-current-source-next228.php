@@ -112,7 +112,7 @@ $read = static fn (int $pageNumber): array => [
     'page_payload_digest' => $currentDigest($pageNumber),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext228(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderIdOrderingFence(
     $database,
     $master,
     $masterBytes,

@@ -165,7 +165,7 @@ $plan = static fn (
     ?int $changeCounter = null,
     ?int $versionValidFor = null,
     ?string $databaseHeader = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext225(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalPathFence(
     $database,
     $master,
     $masterBytes,

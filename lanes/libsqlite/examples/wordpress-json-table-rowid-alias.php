@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current = [
     'option_id' => 174,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next174',
+    'option_name' => 'wp_plugin_generated_path_rowid_alias',
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
@@ -18,9 +18,8 @@ $next = array_replace($current, [
     'generated_path' => '$.rules[2]',
 ]);
 
-$sameAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
+$sameAlias = SQLiteJsonTablePlan::generatedPathRowidAliasPlan(
     'json_tree',
-    174,
     $current,
     $next,
     'option_value',
@@ -35,9 +34,8 @@ $sameAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAl
     [['column' => 'path'], ['column' => 'rowid']],
 );
 
-$conflictingAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
+$conflictingAlias = SQLiteJsonTablePlan::generatedPathRowidAliasPlan(
     'json_tree',
-    174,
     $current,
     $current,
     'option_value',
@@ -53,9 +51,9 @@ $conflictingAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSele
 );
 
 echo json_encode([
-    'scenario' => 'wordpress-json-table-rowid-alias-next174',
+    'scenario' => 'wordpress-json-table-rowid-alias',
     'wordpressUse' => 'Copied wp_options JSON diagnostics can safely treat json_tree rowid, _rowid_, and oid constraints as the same virtual-table rowid, deduping identical aliases and short-circuiting contradictory aliases before current-source cursor reuse.',
-    'sameAlias' => $sameAlias['currentGeneratedPathRowidAliasCurrentSourceNext174'],
+    'sameAlias' => $sameAlias['currentGeneratedPathRowidAliasProfile'],
     'nextPolicy' => $sameAlias['nextReaderPolicy'],
-    'conflictingAlias' => $conflictingAlias['currentGeneratedPathRowidAliasCurrentSourceNext174'],
+    'conflictingAlias' => $conflictingAlias['currentGeneratedPathRowidAliasProfile'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

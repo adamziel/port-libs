@@ -61,7 +61,7 @@ $checkpointDatabase = $page('wp next154 clean schema before plugin import')
     . $page('wp next154 savepoint active_plugins commit')
     . $page('wp next154 clean autoload before plugin import');
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next154Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::savepointCheckpointReaderFrameFencePlan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

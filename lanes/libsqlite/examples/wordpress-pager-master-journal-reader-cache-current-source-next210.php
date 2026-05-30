@@ -73,7 +73,7 @@ $formatSignature = hash('sha256', implode('|', [512, 4, 2, 210, 0x57503240]));
 $sourceId = 'wordpress-master-journal-read-source';
 $masterDigest = hash('sha256', 'wordpress-next210-master-source');
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext210(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalMemberTokenFence(
     $database,
     $masterJournal,
     $masterBytes,

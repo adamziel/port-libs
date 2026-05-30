@@ -147,7 +147,7 @@ $readTicket = static fn (int $pageNumber, int $user, int $app) => [
     'application_id' => $app,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext234(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterMemberOrderFence(
     $database,
     $master,
     $masterBytes,

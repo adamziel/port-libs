@@ -162,7 +162,7 @@ $plan = static fn (
     ?array $readerCache = null,
     ?array $readList = null,
     ?string $handoffToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext249(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderRefreshReceipt(
     $database,
     $master,
     $masterBytes,

@@ -73,7 +73,7 @@ $tokenDigest = $mapDigest($currentTokens);
 $headerDigest = $mapDigest($currentHeaders);
 $orderDigest = hash('sha256', implode("\n", [$mainJournal, $usersJournal]));
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext208(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantRecoveredPageSetFence(
     $database,
     $masterJournal,
     $masterBytes,

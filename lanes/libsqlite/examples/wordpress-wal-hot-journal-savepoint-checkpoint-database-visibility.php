@@ -61,7 +61,7 @@ $checkpointDatabase = $page('wp next155 schema draft before savepoint')
     . $page('wp next155 clean autoload index')
     . $page('wp next155 clean rewrite rules');
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next155Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointDatabaseVisibilityPlan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

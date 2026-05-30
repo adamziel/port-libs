@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPl
 
 $digest = static fn (string $bytes): string => hash('sha256', $bytes);
 $databaseDigest = $digest('wp next204 checkpointed database image');
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointGenerationLeasePlan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next203',
         'database_path' => '/srv/www/wp-content/database/wp-next204.sqlite',

@@ -131,7 +131,7 @@ $read = static fn (int $pageNumber, ?string $snapshotToken = null): array => [
     'reader_snapshot_token' => $snapshotToken ?? $currentReaderSnapshotToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext251(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantPinnedReaderReceipt(
     $database,
     $master,
     $masterBytes,

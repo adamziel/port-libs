@@ -79,7 +79,7 @@ $reads = array_map(
     [1, 2, 3, 4],
 );
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext205(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderFormatSignatureFence(
     $database,
     $master,
     $mainJournal . "\n" . $usersJournal . "\n",

@@ -23,7 +23,7 @@ $admission = [
 $checkpointDigest = hash('sha256', 'wp_options checkpoint database page images after hot journal recovery');
 $walDigest = hash('sha256', 'wp_options retry WAL page images after savepoint release');
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next201PublishCurrentSources(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::publishDurableReaderCurrentSources(
     $admission,
     [
         [

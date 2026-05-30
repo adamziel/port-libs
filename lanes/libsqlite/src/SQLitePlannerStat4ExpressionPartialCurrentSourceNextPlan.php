@@ -10476,7 +10476,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext191(
+        public static function materializePayloadExpressionFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -10493,10 +10493,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $offset,
             );
             $selectedName = (string) (($base['selectedPlan']['name'] ?? ''));
-            $currentIndex = self::indexByNameNext191($currentSource, $selectedName);
-            $expression = self::expressionNext191($currentIndex);
-            $rows = self::matchedRowsNext191($base);
-            $payloadFence = self::payloadExpressionFenceNext191($rows, $expression, self::sampleKeysByRowidNext191($currentIndex));
+            $currentIndex = self::indexByNameForPayloadExpressionFence($currentSource, $selectedName);
+            $expression = self::expressionForPayloadExpressionFence($currentIndex);
+            $rows = self::matchedRowsForPayloadExpressionFence($base);
+            $payloadFence = self::payloadExpressionFence($rows, $expression, self::sampleKeysByRowidForPayloadExpressionFence($currentIndex));
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next188-ready'
                 && $payloadFence['allPayloadExpressionKeysMatch'] === true
                 && $payloadFence['mismatchedRowids'] === []
@@ -10515,7 +10515,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'stat4Fence' => array_replace(is_array($base['stat4Fence'] ?? null) ? $base['stat4Fence'] : [], [
                     'next191PayloadExpressionSignature' => $payloadFence['signature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext191(
+                'cursorProgram' => self::cursorProgramForPayloadExpressionFence(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $payloadFence
@@ -10540,7 +10540,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return array<string,mixed>
          */
-        private static function indexByNameNext191(array $source, string $name): array
+        private static function indexByNameForPayloadExpressionFence(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -10559,7 +10559,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $index */
-        private static function expressionNext191(array $index): string
+        private static function expressionForPayloadExpressionFence(array $index): string
         {
             $expression = $index['expression'] ?? null;
             if (!is_string($expression) || trim($expression) === '') {
@@ -10577,7 +10577,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<array<string,mixed>>
          */
-        private static function matchedRowsNext191(array $base): array
+        private static function matchedRowsForPayloadExpressionFence(array $base): array
         {
             $rows = $base['matchedRows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -10591,7 +10591,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array<string,mixed>
          */
-        private static function payloadExpressionFenceNext191(array $rows, string $expression, array $sampleKeysByRowid): array
+        private static function payloadExpressionFence(array $rows, string $expression, array $sampleKeysByRowid): array
         {
             $details = [];
             $mismatched = [];
@@ -10612,7 +10612,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
 
                 $rowid = (int) $row['rowid'];
-                $actual = self::evaluateLowerOptionNameNext191($payload['option_name']);
+                $actual = self::evaluateLowerOptionNameForPayloadExpressionFence($payload['option_name']);
                 $expected = (string) $row['expressionKey'];
                 $sampleKey = $sampleKeysByRowid[$rowid] ?? null;
                 $matches = $actual !== null && $actual === $expected && ($sampleKey === null || $sampleKey === $actual);
@@ -10640,7 +10640,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'mismatchedRowids' => $mismatched,
                 'nullExpressionRowids' => $nulls,
                 'allPayloadExpressionKeysMatch' => $mismatched === [] && $nulls === [],
-                'signature' => self::signatureNext191($details),
+                'signature' => self::signatureForPayloadExpressionFence($details),
             ];
         }
 
@@ -10648,7 +10648,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $index
          * @return array<int,string>
          */
-        private static function sampleKeysByRowidNext191(array $index): array
+        private static function sampleKeysByRowidForPayloadExpressionFence(array $index): array
         {
             $samples = $index['stat4Samples'] ?? null;
             if (!is_array($samples) || !array_is_list($samples)) {
@@ -10672,7 +10672,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $out;
         }
 
-        private static function evaluateLowerOptionNameNext191(mixed $value): ?string
+        private static function evaluateLowerOptionNameForPayloadExpressionFence(mixed $value): ?string
         {
             if ($value === null) {
                 return null;
@@ -10689,7 +10689,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $payloadFence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext191(array $program, bool $ready, array $payloadFence): array
+        private static function cursorProgramForPayloadExpressionFence(array $program, bool $ready, array $payloadFence): array
         {
             if (!$ready) {
                 return $program;
@@ -10705,7 +10705,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext191(mixed $value): string
+        private static function signatureForPayloadExpressionFence(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -11494,7 +11494,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext191(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePayloadExpressionFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,

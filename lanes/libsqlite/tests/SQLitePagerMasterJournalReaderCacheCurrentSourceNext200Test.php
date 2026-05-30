@@ -140,7 +140,7 @@ $plan = static fn (
     ?string $source = null,
     int $epochOverride = 200,
     int $checkpointOverride = 2007,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext200(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMemberGenerationTokens(
     $path ?? $database,
     $masterPath ?? $master,
     $masterBytesOverride ?? $masterBytes,

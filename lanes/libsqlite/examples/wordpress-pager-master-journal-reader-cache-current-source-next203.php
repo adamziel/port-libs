@@ -68,7 +68,7 @@ $formatSignature = hash('sha256', implode('|', [512, 4, 2, 203, 0x57503230]));
 $sourceId = 'wordpress-member-order-source';
 $masterDigest = hash('sha256', 'wordpress-current-master-source-next203');
 $recoveredSetDigest = $recoveredDigest($recovered);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext203(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMemberOrderDigestFence(
     $database,
     $masterJournal,
     implode("\n", $members) . "\n",

@@ -128,7 +128,7 @@ $read = static fn (int $pageNumber): array => [
     'schema_cookie' => $schemaCookie,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext241(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalReadFence(
     $database,
     $master,
     $masterBytes,

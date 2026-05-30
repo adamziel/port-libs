@@ -183,7 +183,7 @@ $plan = static fn (
     ?string $currentSharedGenerationToken = null,
     ?string $currentStatementSnapshotToken = null,
     ?string $currentRootpageMapToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext245(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantReaderPublicationFence(
     $database,
     $master,
     $masterBytes,
