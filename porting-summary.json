@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 22:11:57 UTC",
-    "sourceCommit": "6859e0729246fd8cc8708fdff1c8453f8ef2813b",
-    "sourceCommitShort": "6859e0729246",
+    "generated": "2026-05-30 22:19:04 UTC",
+    "sourceCommit": "d063cc4361066e4b1ad31fa06a64352122d899d8",
+    "sourceCommitShort": "d063cc436106",
     "sourceBranch": "main",
-    "dashboardCommit": "6859e0729246fd8cc8708fdff1c8453f8ef2813b",
-    "dashboardCommitShort": "6859e0729246",
+    "dashboardCommit": "d063cc4361066e4b1ad31fa06a64352122d899d8",
+    "dashboardCommitShort": "d063cc436106",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "912041 pass / 0 fail",
+            "php": "929877 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted parity fixes after PHP lint for...",
-            "currentWork": "Published source 94fb545f with full-run parity fixes after the fourteenth rapid sweep. Se...",
-            "nextTarget": "Run another bounded full-directory/parity sweep or integrate the next verified parity-app...",
-            "blocker": "The named rowvalue fatal and application WAL current-next38 failures are...",
-            "commit": "94fb545"
+            "audit": "Accepted fifteenth current-corpus batch a...",
+            "currentWork": "Published source 7fd97850 with a fifteenth rapid current-base libsqlite sweep. Selected a...",
+            "nextTarget": "Integrate the next verified current-base real-corpus or parity handoff with an accepted-b...",
+            "blocker": "Selected fifteenth corpus gates pass.",
+            "commit": "7fd9785"
         },
         {
             "library": "LightningCSS",
