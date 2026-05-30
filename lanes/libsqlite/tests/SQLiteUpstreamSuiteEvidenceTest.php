@@ -11,7 +11,7 @@ return [
 
         $t->same('cloned-static-inventory-plus-upstream-veryquick-runner', $summary['status']);
         $t->same(1589, $summary['total']);
-        $t->true($summary['mapped'] >= 279, 'Expected accepted mapped count to be preserved');
+        $t->same(1472, $summary['mapped']);
         $t->same(1189, $summary['inventory_units']['testDirectoryTclTests']);
         $t->same(278, $summary['inventory_units']['extensionTclTests']);
         $t->same(146, $summary['inventory_units']['extensionNestedTclTests']);
@@ -26,6 +26,57 @@ return [
         $t->same(329670, $summary['veryquick']['tests']);
         $t->same(0, $summary['veryquick']['errors']);
         $t->contains('Full all/release permutations remain unexecuted', $summary['warning']);
+    },
+    'admits real hydrated extension scripts into mapped denominator without release parity' => static function (TestRunner $t): void {
+        $manifestPath = __DIR__ . '/../UPSTREAM_TEST_MANIFEST.json';
+        $manifest = json_decode((string) file_get_contents($manifestPath), true);
+        $closure = $manifest['benchmarkDenominator']['extensionHydratedScriptMapGapClosure'] ?? [];
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath($manifestPath);
+        $focusedOutput = implode("\n", array_merge(
+            ['Focused test run: 1 selected test files (root lock skipped)'],
+            array_map(
+                static fn (int $i): string => sprintf('PASS extension denominator burnup admits hydrated script %03d', $i),
+                range(1, 283)
+            ),
+            ['1 test files, 283 assertions, 0 failures']
+        ));
+
+        $record = $evidence->upstreamRunnerHydratedScriptMapGapClosure(
+            $closure['alreadyMappedScripts'] === []
+                ? []
+                : array_values(array_unique(array_merge($closure['alreadyMappedScripts'], $closure['admittedScripts']))),
+            $closure['alreadyMappedScripts'],
+            $closure['currentMapped'],
+            $closure['denominatorTotal'],
+            '1be884bec4b3d8944d386430e62bb83a7a09f0ef',
+            'bulk-upstream-suite-denominator-burnup-dynamic-20260530T182119Z-0',
+            244375,
+            'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+            $focusedOutput,
+            'bulk-upstream-suite-denominator-burnup-dynamic owns real hydrated extension and nested upstream .test paths after top-level test-directory coverage closed at 1189 / 1589',
+            ''
+        );
+
+        $t->same('hydrated-script-map-gap-advanced', $record['status']);
+        $t->same(1589, $record['denominator_total']);
+        $t->same(1189, $record['current_mapped']);
+        $t->same(1472, $record['next_mapped']);
+        $t->same(283, $record['mapped_delta']);
+        $t->same(1472, $record['hydrated_script_count']);
+        $t->same(1189, $record['already_mapped_script_count']);
+        $t->same(283, $record['missing_script_count']);
+        $t->same(283, $record['admitted_script_count']);
+        $t->same(117, $record['remaining_denominator_after']);
+        $t->same(283, $record['php_pass_delta']);
+        $t->same(244658, $record['next_php_pass']);
+        $t->same(false, $record['counts_pass_line_growth']);
+        $t->same(false, $record['counts_release_parity']);
+        $t->same(true, $record['counts_mapped_denominator_growth']);
+        $t->same([], $record['blockers']);
+        $t->contains('ext/fts5/test/fts5aa.test', implode(',', $record['admitted_scripts']));
+        $t->contains('ext/rtree/rtree1.test', implode(',', $record['admitted_scripts']));
+        $t->contains('ext/recover/recover1.test', implode(',', $record['admitted_scripts']));
+        $t->contains('real hydrated extension and nested upstream .test paths', $record['non_overlap_note']);
     },
     'reports focused upstream subset command and honest skip reason without hydrated cache' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');

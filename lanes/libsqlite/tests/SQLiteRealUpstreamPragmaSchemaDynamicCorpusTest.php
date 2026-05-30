@@ -341,7 +341,7 @@ foreach (range(1, 35) as $variant) {
     };
 }
 
-foreach (range(1, 120) as $variant) {
+foreach (range(1, 420) as $variant) {
     $shared = 'dynamic_schema_settings_' . $variant;
     $mainRecords = [
         new SQLiteSchemaRecord(

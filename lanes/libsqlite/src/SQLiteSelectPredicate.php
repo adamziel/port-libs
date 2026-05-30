@@ -59,6 +59,8 @@ final class SQLiteSelectPredicate
             'NOT LIKE' => self::like($row, $predicate, true),
             'GLOB' => self::glob($row, $predicate, false),
             'NOT GLOB' => self::glob($row, $predicate, true),
+            'MATCH' => self::matchRegexp($row, $predicate, 'MATCH'),
+            'REGEXP' => self::matchRegexp($row, $predicate, 'REGEXP'),
             'IS NULL' => self::operand($row, $predicate, 'left') === null,
             'IS NOT NULL' => self::operand($row, $predicate, 'left') !== null,
             default => throw new \InvalidArgumentException("SQLite SELECT predicate operator {$operator} is not supported"),
@@ -344,6 +346,32 @@ final class SQLiteSelectPredicate
         $matched = SQLiteDatabase::globMatches($left, $right);
 
         return $negate ? !$matched : $matched;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $predicate
+     */
+    private static function matchRegexp(array $row, array $predicate, string $operator): ?bool
+    {
+        $left = self::operand($row, $predicate, 'left');
+        $right = self::operand($row, $predicate, 'right');
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        $callback = $predicate['callback'] ?? null;
+        if ($callback !== null) {
+            if (!is_callable($callback)) {
+                throw new \InvalidArgumentException("SQLite SELECT {$operator} predicate callback must be callable");
+            }
+
+            return self::truthValue($callback($left, $right));
+        }
+
+        $comparison = self::compareValues($left, $right, false, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
+
+        return $comparison === null ? null : $comparison === 0;
     }
 
     /**

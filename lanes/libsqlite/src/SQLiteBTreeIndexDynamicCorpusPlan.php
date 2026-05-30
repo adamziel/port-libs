@@ -803,6 +803,77 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,transition:int,page_size:int,row_count:int,previous_page:int,next_page:int,direction:string,forward_count:int,backward_count:int,noncontiguous_count:int,forward_dominates:bool}>
+     */
+    public static function index5SequentialWriteCases(int $transitions = 1200): array
+    {
+        if ($transitions < 1) {
+            throw new \InvalidArgumentException('SQLite index5 dynamic corpus requires at least one write transition');
+        }
+
+        $pageSize = 1024;
+        $rowCount = 100000;
+        $writePages = self::index5WritePageSequence($transitions + 1);
+        $cases = [];
+        $forward = 0;
+        $backward = 0;
+        $noncontiguous = 0;
+
+        for ($i = 1; $i < count($writePages); $i++) {
+            $previous = $writePages[$i - 1];
+            $next = $writePages[$i];
+            if ($next === $previous + 1) {
+                $forward++;
+                $direction = 'forward';
+            } elseif ($next === $previous - 1) {
+                $backward++;
+                $direction = 'backward';
+            } else {
+                $noncontiguous++;
+                $direction = 'noncontiguous';
+            }
+
+            $cases[] = [
+                'upstream' => 'index5-1.3.dynamic-write-' . $i,
+                'source' => 'index5.test index5-1.1 through index5-1.3',
+                'transition' => $i,
+                'page_size' => $pageSize,
+                'row_count' => $rowCount,
+                'previous_page' => $previous,
+                'next_page' => $next,
+                'direction' => $direction,
+                'forward_count' => $forward,
+                'backward_count' => $backward,
+                'noncontiguous_count' => $noncontiguous,
+                'forward_dominates' => $forward > 2 * ($backward + $noncontiguous),
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function index5WritePageSequence(int $count): array
+    {
+        $pages = [];
+        $page = 3;
+        for ($i = 0; $i < $count; $i++) {
+            if ($i > 0 && $i % 97 === 0) {
+                $page -= 1;
+            } elseif ($i > 0 && $i % 53 === 0) {
+                $page += 3;
+            } else {
+                $page += 1;
+            }
+            $pages[] = $page;
+        }
+
+        return $pages;
+    }
+
+    /**
      * @return list<array{a:mixed,b:string,c:string,type:string}>
      */
     private static function indexAAffinityRows(string $affinity, mixed $predicate, int $batch): array

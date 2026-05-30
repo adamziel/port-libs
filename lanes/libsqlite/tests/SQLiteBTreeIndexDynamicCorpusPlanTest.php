@@ -166,11 +166,34 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases() a
     };
 }
 
+// Source truth: SQLite upstream test/index5.test index5-1.1 through 1.3.
+// The upstream VFS callback records database page writes during CREATE INDEX
+// over 100000 rows and requires forward contiguous writes to dominate.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index5SequentialWriteCases() as $case) {
+    $tests['real upstream index5 sequential create index write ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index5.test index5-1.1 through index5-1.3', $case['source']);
+        $t->same(1024, $case['page_size']);
+        $t->same(100000, $case['row_count']);
+        $t->true($case['transition'] >= 1);
+        $t->true($case['previous_page'] > 0);
+        $t->true($case['next_page'] > 0);
+        $t->same($case['direction'] === 'forward', $case['next_page'] === $case['previous_page'] + 1);
+        $t->same($case['direction'] === 'backward', $case['next_page'] === $case['previous_page'] - 1);
+        $t->same($case['direction'] === 'noncontiguous', abs($case['next_page'] - $case['previous_page']) !== 1);
+        $t->same($case['transition'], $case['forward_count'] + $case['backward_count'] + $case['noncontiguous_count']);
+        if ($case['transition'] >= 120) {
+            $t->same(true, $case['forward_dominates']);
+            $t->true($case['forward_count'] > 2 * ($case['backward_count'] + $case['noncontiguous_count']));
+        }
+    };
+}
+
 $tests['real upstream btree index dynamic corpus source files are explicit'] = static function (TestRunner $t): void {
     $t->same([
         'btree01.test',
         'btree02.test',
         'index.test',
+        'index5.test',
         'index6.test',
         'index7.test',
         'index9.test',
@@ -180,6 +203,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'btree01.test',
         'btree02.test',
         'index.test',
+        'index5.test',
         'index6.test',
         'index7.test',
         'index9.test',
@@ -197,10 +221,11 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(10, count(SQLiteBTreeIndexDynamicCorpusPlan::index6PartialJoinAndUpdateCases()));
     $t->same(999, count(SQLiteBTreeIndexDynamicCorpusPlan::index7WithoutRowidPartialIndexCases()));
     $t->same(1080, count(SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases()));
+    $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::index5SequentialWriteCases()));
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {
-    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, and cursor-case helpers');
+    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, write-order, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, write-order, and cursor-case helpers');
 };
 
 return $tests;

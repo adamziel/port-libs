@@ -16945,10 +16945,10 @@ final class SQLiteUpstreamSuiteEvidence
 
     private function isConcreteUpstreamTestScript(string $script): bool
     {
-        return preg_match('/\A[A-Za-z0-9_.-]+\.test\z/', $script) === 1
+        return preg_match('#\A[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\.test\z#', $script) === 1
             && !str_contains($script, '*')
             && !str_contains($script, '?')
-            && !str_contains($script, '/');
+            && !str_contains($script, '..');
     }
 
     /**

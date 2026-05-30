@@ -555,6 +555,57 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function memoryJournalSavepointProfile(
+        int $seedRows,
+        int $outerSavepointOrdinal,
+        int $innerUpdateRepeats,
+        int $payloadBytes,
+        bool $rollbackOuter
+    ): array {
+        if ($seedRows < 1 || $outerSavepointOrdinal < 1 || $innerUpdateRepeats < 1 || $payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite memory journal savepoint profile requires positive row, ordinal, repeat, and payload values');
+        }
+
+        $outerTouchedRows = min($seedRows, $outerSavepointOrdinal);
+        $innerTouchedRows = 1;
+        $outerImageBytes = $outerTouchedRows * ($payloadBytes + 24);
+        $innerImageBytes = $innerTouchedRows * ($payloadBytes + 24);
+        $memoryJournalBytes = $outerImageBytes + ($innerImageBytes * $innerUpdateRepeats);
+        $finalTouchedRows = $rollbackOuter ? 0 : $outerTouchedRows;
+
+        return [
+            'status' => 'ok',
+            'script' => 'memjournal2.test',
+            'upstream' => [
+                'memjournal.test 1.0-1.3',
+                'memjournal2.test 1.0',
+                'memjournal2.test 1.1',
+                'memjournal2.test 1.2.200-1.2.300',
+            ],
+            'journal_mode' => 'memory',
+            'seed_rows' => $seedRows,
+            'outer_savepoint_ordinal' => $outerSavepointOrdinal,
+            'inner_update_repeats' => $innerUpdateRepeats,
+            'payload_bytes' => $payloadBytes,
+            'outer_touched_rows' => $outerTouchedRows,
+            'inner_touched_rows' => $innerTouchedRows,
+            'outer_image_bytes' => $outerImageBytes,
+            'inner_image_bytes' => $innerImageBytes,
+            'memory_journal_bytes' => $memoryJournalBytes,
+            'disk_journal_created' => false,
+            'vfs_write_count' => 0,
+            'inner_rollback_restores_row_one' => true,
+            'outer_rollback_requested' => $rollbackOuter,
+            'final_touched_rows' => $finalTouchedRows,
+            'final_integrity_check' => 'ok',
+            'commit_result' => 'ok',
+            'dependencies' => ['upstream-memjournal-savepoint-loop', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */

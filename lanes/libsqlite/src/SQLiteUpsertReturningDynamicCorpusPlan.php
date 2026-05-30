@@ -375,4 +375,120 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
 
         return $cases;
     }
+
+    /**
+     * @return list<array{upstream:string,source:string,schema:string,without_rowid:bool,columns:list<string>,before:list<array<string,mixed>>,incoming:array<string,mixed>,constraints:list<list<string>>,arms:list<array<string,mixed>>,expected:list<array<string,mixed>>,returning:list<array<string,mixed>>,matched:list<string>,changes:int,skipped:int,selected:string|null}>
+     */
+    public static function upsert5CatchAllPriorityCases(): array
+    {
+        $schemas = [
+            1 => ['schema' => 'rowid integer primary key first', 'columns' => ['a', 'b', 'c', 'd', 'e'], 'constraints' => [['a'], ['c'], ['d'], ['e']], 'without_rowid' => false],
+            2 => ['schema' => 'int primary key first', 'columns' => ['a', 'b', 'c', 'd', 'e'], 'constraints' => [['a'], ['c'], ['d'], ['e']], 'without_rowid' => false],
+            3 => ['schema' => 'int primary key first without rowid', 'columns' => ['a', 'b', 'c', 'd', 'e'], 'constraints' => [['a'], ['c'], ['d'], ['e']], 'without_rowid' => true],
+            4 => ['schema' => 'rowid integer primary key after unique columns', 'columns' => ['e', 'd', 'c', 'a', 'b'], 'constraints' => [['e'], ['d'], ['c'], ['a']], 'without_rowid' => false],
+            5 => ['schema' => 'int primary key after unique columns', 'columns' => ['e', 'd', 'c', 'a', 'b'], 'constraints' => [['e'], ['d'], ['c'], ['a']], 'without_rowid' => false],
+            6 => ['schema' => 'int primary key after unique columns without rowid', 'columns' => ['e', 'd', 'c', 'a', 'b'], 'constraints' => [['e'], ['d'], ['c'], ['a']], 'without_rowid' => true],
+        ];
+
+        $rows = [['a' => 1, 'b' => 2, 'c' => 3, 'd' => 4, 'e' => 5]];
+        $cases = [];
+        $specs = [
+            100 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 3, 'd' => 4, 'e' => 5], 'order' => ['a', 'c', 'd', 'e'], 'expected_b' => 'a'],
+            101 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 4, 'e' => 5], 'order' => ['a', 'c', 'd', 'e'], 'expected_b' => 'c'],
+            102 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 5], 'order' => ['a', 'c', 'd', 'e'], 'expected_b' => 'd'],
+            103 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['a', 'c', 'd', 'e'], 'expected_b' => 'e'],
+            200 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c', 'a', 'd', 'e'], 'expected_b' => 'a'],
+            201 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95], 'order' => ['c', 'a', 'd', 'e'], 'expected_b' => 'c'],
+            202 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 3, 'd' => 4, 'e' => 5], 'order' => ['c', 'a', 'd', 'e'], 'expected_b' => 'c'],
+            203 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c', 'a', 'd', 'e'], 'expected_b' => 'a'],
+            204 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 95], 'order' => ['c', 'a', 'd', 'e'], 'expected_b' => 'a'],
+            210 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', 'a', 'e'], 'expected_b' => 'a'],
+            211 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 95], 'order' => ['c', 'd', 'a', 'e'], 'expected_b' => 'd'],
+            212 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c', 'd', 'a', 'e'], 'expected_b' => 'a'],
+            213 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c', 'd', 'a', 'e'], 'expected_b' => 'e'],
+            214 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c', 'd', 'e', 'a'], 'expected_b' => 'e'],
+            215 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c', 'd', 'e', 'a'], 'expected_b' => 'e'],
+            216 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', 'e', 'a'], 'expected_b' => 'a'],
+            300 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', 'a1', 'a2', 'a3', 'a4', 'a5', 'e'], 'expected_b' => 'a1'],
+            301 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c', 'd', 'a1', 'a2', 'a3', 'a4', 'a5', 'e'], 'expected_b' => 'e'],
+            400 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', '*x'], 'expected_b' => 'x'],
+            401 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c', 'd', '*x'], 'expected_b' => 'x'],
+            402 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', '*x'], 'expected_b' => 'x'],
+            403 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', '*x'], 'expected_b' => 'c'],
+            404 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 4, 'e' => 95], 'order' => ['c', 'd', '*x'], 'expected_b' => 'c'],
+            405 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 5], 'order' => ['c', 'd', '*x'], 'expected_b' => 'd'],
+            410 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['*x'], 'expected_b' => 'x'],
+            411 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['*x'], 'expected_b' => 'x'],
+            412 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 95], 'order' => ['*x'], 'expected_b' => 'x'],
+            413 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95], 'order' => ['*x'], 'expected_b' => 'x'],
+            420 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c:nothing', 'd:nothing', '*x'], 'expected_b' => 'x'],
+            421 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c:nothing', 'd:nothing', '*x'], 'expected_b' => 'x'],
+            422 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 95], 'order' => ['c:nothing', 'd:nothing', '*x'], 'expected_b' => 2],
+            423 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95], 'order' => ['c:nothing', 'd:nothing', '*x'], 'expected_b' => 2],
+            500 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', '*nothing'], 'expected_b' => 2],
+            501 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5], 'order' => ['c', 'd', '*nothing'], 'expected_b' => 2],
+            502 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', '*nothing'], 'expected_b' => 2],
+            503 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95], 'order' => ['c', 'd', '*nothing'], 'expected_b' => 'c'],
+            504 => ['incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 4, 'e' => 95], 'order' => ['c', 'd', '*nothing'], 'expected_b' => 'c'],
+            505 => ['incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 5], 'order' => ['c', 'd', '*nothing'], 'expected_b' => 'd'],
+        ];
+
+        foreach ($schemas as $schemaNumber => $schema) {
+            foreach ($specs as $caseNumber => $spec) {
+                $arms = self::upsert5Arms($spec['order']);
+                $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($rows, [$spec['incoming']], $arms, $schema['constraints']);
+                $expected = [['a' => 1, 'b' => $spec['expected_b'], 'c' => 3, 'd' => 4, 'e' => 5]];
+                $cases[] = [
+                    'upstream' => 'upsert5-1.' . $schemaNumber . '.' . $caseNumber,
+                    'source' => 'upsert5.test',
+                    'schema' => $schema['schema'],
+                    'without_rowid' => $schema['without_rowid'],
+                    'columns' => $schema['columns'],
+                    'before' => $rows,
+                    'incoming' => $spec['incoming'],
+                    'constraints' => $schema['constraints'],
+                    'arms' => $arms,
+                    'expected' => $expected,
+                    'returning' => SQLiteUpsertDoUpdateWherePlan::returningRows($plan['returning_rows'], ['a', 'b', 'c', 'd', 'e']),
+                    'matched' => array_map(
+                        static fn (array $match): string => $match['target'] === null ? '*' : implode(',', $match['target']),
+                        $plan['matched_arms'],
+                    ),
+                    'changes' => $plan['changes'],
+                    'skipped' => count($plan['skipped_rows']),
+                    'selected' => $spec['expected_b'] === 2 ? null : (string) $spec['expected_b'],
+                ];
+            }
+        }
+
+        return $cases;
+    }
+
+    /**
+     * @param list<string> $order
+     * @return list<array<string,mixed>>
+     */
+    private static function upsert5Arms(array $order): array
+    {
+        $arms = [];
+        foreach ($order as $term) {
+            if ($term === '*x') {
+                $arms[] = ['target' => null, 'action' => 'update', 'assignments' => ['b' => static fn (): string => 'x']];
+                continue;
+            }
+            if ($term === '*nothing') {
+                $arms[] = ['target' => null, 'action' => 'nothing'];
+                continue;
+            }
+            if (str_ends_with($term, ':nothing')) {
+                $target = substr($term, 0, -8);
+                $arms[] = ['target' => [$target], 'action' => 'nothing'];
+                continue;
+            }
+            $target = $term[0];
+            $arms[] = ['target' => [$target], 'action' => 'update', 'assignments' => ['b' => static fn (): string => $term]];
+        }
+
+        return $arms;
+    }
 }
