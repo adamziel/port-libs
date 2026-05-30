@@ -57,7 +57,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@166',
     int $currentCookie = 165,
     int $nextCookie = 166,
-): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapePlan(
+): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::keyValueRowKeyEscapePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $enc($currentPattern, $currentPatternEncoding),
@@ -161,7 +161,7 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim escape current source nextOneSixSix byte only escape reprepare is reusable'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::keyValueRowKeyEscapePlan(
         $rows,
         $rows,
         $enc('plugin!_cache% ', 2),
@@ -195,7 +195,7 @@ $tests['utf16 nocase like rtrim escape current source nextOneSixSix semantic esc
 };
 
 $tests['utf16 nocase like rtrim escape current source nextOneSixSix escape tabs are not trimmed'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::keyValueRowKeyEscapePlan(
         $currentRows,
         $nextRows,
         $enc('plugin!_cache%', 2),
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim escape current source nextOneSixSix escape tabs 
 };
 
 $tests['utf16 nocase like rtrim escape current source nextOneSixSix rejects malformed escape bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::keyValueRowKeyEscapePlan(
         $currentRows,
         $nextRows,
         $enc('plugin!_cache%', 2),
@@ -225,7 +225,7 @@ $tests['utf16 nocase like rtrim escape current source nextOneSixSix rejects malf
 };
 
 $tests['utf16 nocase like rtrim escape current source nextOneSixSix rejects empty escape after rtrim'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::optionRowNameEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::keyValueRowKeyEscapePlan(
         $currentRows,
         $nextRows,
         $enc('plugin!_cache%', 2),

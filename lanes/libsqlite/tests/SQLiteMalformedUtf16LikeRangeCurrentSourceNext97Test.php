@@ -67,7 +67,7 @@ $plan = static fn (
     bool $caseSensitiveLike = false,
     string $currentSource = 'main.wp_options@cookie96',
     string $nextSource = 'main.wp_options@cookie97',
-): array => SQLiteMalformedLikeGlobSourceNextPlan::optionRowNameCurrentNext(
+): array => SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext(
     $currentRows,
     $nextRows,
     $pattern,
@@ -150,11 +150,11 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['malformed utf16 like range current source next97 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedLikeGlobSourceNextPlan::optionRowNameCurrentNext($currentRows, $nextRows, 'plugin%', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext($currentRows, $nextRows, 'plugin%', 'REGEXP'));
 };
 
 $tests['malformed utf16 like range current source next97 rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedLikeGlobSourceNextPlan::optionRowNameCurrentNext([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
 };
 
 return $tests;

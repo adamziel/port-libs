@@ -131,7 +131,7 @@ $applicationRows = array_map(static fn (array $entry): array => [
 ], $entries('UTF-16LE'));
 
 $tests['utf16 like glob current next75 application helper scans option_name_utf16'] = static function (TestRunner $t) use ($applicationRows): void {
-    $rows = SQLiteUtf16LikeGlobCurrentNextCursor::optionRowNameScan($applicationRows, 'plugin\_100\%%', 'LIKE', 'UTF-16LE', 'NOCASE', '\\');
+    $rows = SQLiteUtf16LikeGlobCurrentNextCursor::keyValueRowKeyScan($applicationRows, 'plugin\_100\%%', 'LIKE', 'UTF-16LE', 'NOCASE', '\\');
     $t->same([6, 7, 8], array_column($rows, 'rowid'));
 };
 
@@ -162,7 +162,7 @@ $tests['utf16 like glob current next75 rejects unsupported operator'] = static f
 };
 
 $tests['utf16 like glob current next75 rejects missing application utf16 column'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobCurrentNextCursor::optionRowNameScan([['option_id' => 1]], 'a%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobCurrentNextCursor::keyValueRowKeyScan([['option_id' => 1]], 'a%'));
 };
 
 return $tests;

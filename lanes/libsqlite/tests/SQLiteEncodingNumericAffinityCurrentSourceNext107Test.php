@@ -61,7 +61,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@cookie108',
     int $currentCookie = 107,
     int $nextCookie = 108,
-): array => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValueComparisonPlan(
+): array => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -167,7 +167,7 @@ $tests['encoding numeric affinity current source next107 nocase collation matche
 };
 
 $tests['encoding numeric affinity current source next107 stable source reusable for same bytes'] = static function (TestRunner $t) use ($currentRows): void {
-    $stable = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValueComparisonPlan(
+    $stable = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
         $currentRows,
         $currentRows,
         'option_value',
@@ -187,15 +187,15 @@ $tests['encoding numeric affinity current source next107 stable source reusable 
 };
 
 $tests['encoding numeric affinity current source next107 rejects missing column'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValueComparisonPlan([['option_id' => 1]], $nextRows, 'option_value', 10));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan([['option_id' => 1]], $nextRows, 'option_value', 10));
 };
 
 $tests['encoding numeric affinity current source next107 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValueComparisonPlan($currentRows, $nextRows, 'option_value', 10, 'LIKE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan($currentRows, $nextRows, 'option_value', 10, 'LIKE'));
 };
 
 $tests['encoding numeric affinity current source next107 rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValueComparisonPlan($currentRows, $nextRows, 'option_value', 10, '=', 'NUMERIC', 'NONE', 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan($currentRows, $nextRows, 'option_value', 10, '=', 'NUMERIC', 'NONE', 'UNICODE'));
 };
 
 return $tests;

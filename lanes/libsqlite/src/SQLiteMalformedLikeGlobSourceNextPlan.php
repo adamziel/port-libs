@@ -39,7 +39,7 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
      *   dependencies:list<string>
      * }
      */
-    public static function optionRowNameCurrentNext(
+    public static function keyValueRowKeyCurrentNext(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -180,7 +180,7 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
         sort($malformedCandidateRowids);
 
         return [
-            'matched' => SQLiteEncodingCollationSourceCursor::optionRowNameScan(
+            'matched' => SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan(
                 $validRows,
                 $pattern,
                 $operator,

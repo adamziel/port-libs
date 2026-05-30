@@ -11,7 +11,7 @@ final class SQLiteCastRtrimLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValuePlan(
+    public static function keyValueRowValuePlan(
         array $currentRows,
         array $nextRows,
         string $castTarget,

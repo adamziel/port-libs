@@ -57,7 +57,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@143',
     int $currentCookie = 142,
     int $nextCookie = 143,
-): array => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::optionRowNameLikeEscape(
+): array => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::keyValueRowKeyLikeEscape(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -163,11 +163,11 @@ $tests['utf16 like escape current source nextOneFourThree rejects unsupported co
 };
 
 $tests['utf16 like escape current source nextOneFourThree rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::optionRowNameLikeEscape([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::keyValueRowKeyLikeEscape([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
 };
 
 $tests['utf16 like escape current source nextOneFourThree rejects non integer rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::optionRowNameLikeEscape([['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::keyValueRowKeyLikeEscape([['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'plugin%'));
 };
 
 $tests['utf16 like escape current source nextOneFourThree rejects invalid escape length'] = static function (TestRunner $t) use ($plan): void {

@@ -53,7 +53,7 @@ $plan = static fn (
     string $currentEscapeEncoding = 'UTF-16LE',
     ?string $nextEscape = '\\',
     string $nextEscapeEncoding = 'UTF-16BE',
-): array => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::optionRowNamePatternPlan(
+): array => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::keyValueRowKeyPatternPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $enc($currentPattern, $currentPatternEncoding),
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim pattern current source nextOneSixZero stable pat
         $row(1, 'Plugin_Cache', 'UTF-16LE'),
         $row(2, 'plugin_cache  ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::optionRowNamePatternPlan(
+    $result = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::keyValueRowKeyPatternPlan(
         $rows,
         $rows,
         $enc('plugin\\_cache%', 'UTF-16LE'),
@@ -187,11 +187,11 @@ $tests['utf16 nocase like rtrim pattern current source nextOneSixZero null escap
 };
 
 $tests['utf16 nocase like rtrim pattern current source nextOneSixZero rejects malformed pattern bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::optionRowNamePatternPlan($currentRows, $nextRows, "p\0x", 2, "p\0%", 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::keyValueRowKeyPatternPlan($currentRows, $nextRows, "p\0x", 2, "p\0%", 2));
 };
 
 $tests['utf16 nocase like rtrim pattern current source nextOneSixZero rejects multi-character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::optionRowNamePatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::keyValueRowKeyPatternPlan(
         $currentRows,
         $nextRows,
         $enc('plugin%', 'UTF-8'),

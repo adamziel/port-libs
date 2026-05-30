@@ -6,14 +6,14 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteRtrimNocaseGlobCurrentSourceNextPlan
 {
-    public static function optionRowNamePlan(mixed ...$args): array
+    public static function keyValueRowKeyPlan(mixed ...$args): array
     {
-        return SQLiteRtrimNocaseGlobCurrentSourceNextPlainImpl::optionRowNamePlan(...$args);
+        return SQLiteRtrimNocaseGlobCurrentSourceNextPlainImpl::keyValueRowKeyPlan(...$args);
     }
 
-    public static function optionRowNameExpressionPlan(mixed ...$args): array
+    public static function keyValueRowKeyExpressionPlan(mixed ...$args): array
     {
-        return SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl::optionRowNameExpressionPlan(...$args);
+        return SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl::keyValueRowKeyExpressionPlan(...$args);
     }
 
 }
@@ -25,7 +25,7 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextPlainImpl
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNamePlan(
+    public static function keyValueRowKeyPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -228,7 +228,7 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameExpressionPlan(
+    public static function keyValueRowKeyExpressionPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

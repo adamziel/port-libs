@@ -60,7 +60,7 @@ $plan233 = static fn (
     string $nextSource = 'main.wp_options@233',
     int $currentCookie = 232,
     int $nextCookie = 233,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalUnicodePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalUnicodePlan(
     $current ?? $current233,
     $next ?? $nextTwoThreeThree,
     $pattern,
@@ -191,7 +191,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeThree upper accented 
         $row233(1, 'plugin_caf' . $upperPre233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf' . "\u{00e9}");
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalUnicodePlan($rows, $rows, 'plugin!_caf' . "\u{00e9}");
 
     $t->same([], $result['currentMatchedRowids']);
     $t->same([], $result['currentCandidateRowids']);
@@ -203,8 +203,8 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeThree decomposed acce
         $row233(1, 'plugin_caf' . $comb233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
     ];
-    $one = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_');
-    $two = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf__');
+    $one = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_');
+    $two = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalUnicodePlan($rows, $rows, 'plugin!_caf__');
 
     $t->same([2], $one['currentMatchedRowids']);
     $t->same([1], $one['currentSingleWildcardFalsePositiveRowids']);
@@ -216,7 +216,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeThree ascii rtrim doe
         $row233(1, 'plugin_caf' . $comb233 . '  ', 'UTF-16LE'),
         $row233(2, 'plugin_cafe  ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_');
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_');
 
     $t->same('plugin_caf' . $comb233, $result['currentRtrimTexts'][1]);
     $t->same('plugin_cafe', $result['currentRtrimTexts'][2]);
@@ -228,7 +228,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeThree stable precompo
         $row233(1, 'plugin_caf' . $pre233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_', '!', 'stable', 'stable', 233, 233);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_', '!', 'stable', 'stable', 233, 233);
 
     $t->same([2, 1], $result['currentMatchedRowids']);
     $t->same(false, $result['cursorInvalidated']);
@@ -237,7 +237,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeThree stable precompo
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeThree rejects malformed row shape'] = static function (TestRunner $t) use ($enc233): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc233('plugin_cafe', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalUnicodePlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalUnicodePlan($rows, $rows));
 };
 
 return $tests;

@@ -2518,8 +2518,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'nextFinalOffsetRemaining' => self::lastTraceValueDistinctUnionWindowLimitOffset($nextRecursive['trace'], 'offset_remaining'),
                 ],
                 'unionTrace' => [
-                    'currentDuplicateLabels' => self::duplicateLabelsDistinctUnionWindowLimitOffset($currentRecursive['rows'], self::autoloadLabelsDistinctUnionWindowLimitOffset($currentTables)),
-                    'nextDuplicateLabels' => self::duplicateLabelsDistinctUnionWindowLimitOffset($nextRecursive['rows'], self::autoloadLabelsDistinctUnionWindowLimitOffset($nextTables)),
+                    'currentDuplicateLabels' => self::duplicateLabelsDistinctUnionWindowLimitOffset($currentRecursive['rows'], self::loadPolicyLabelsDistinctUnionWindowLimitOffset($currentTables)),
+                    'nextDuplicateLabels' => self::duplicateLabelsDistinctUnionWindowLimitOffset($nextRecursive['rows'], self::loadPolicyLabelsDistinctUnionWindowLimitOffset($nextTables)),
                     'currentPreLimitCount' => count($currentPreLimitRows),
                     'nextPreLimitCount' => count($nextPreLimitRows),
                 ],
@@ -2668,7 +2668,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $tables
          * @return list<string>
          */
-        private static function autoloadLabelsDistinctUnionWindowLimitOffset(array $tables): array
+        private static function loadPolicyLabelsDistinctUnionWindowLimitOffset(array $tables): array
         {
             $labels = [];
             foreach ($tables['wp_options'] ?? [] as $row) {
@@ -5790,7 +5790,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'nextTruncatedLabels' => self::labelsForCommaLimitBoundary(array_slice($nextPreLimit, self::offsetForCommaLimitBoundary($base) + self::limitForCommaLimitBoundary($base))),
                 'addedAdmittedLabels' => self::changedLabelsForCommaLimitBoundary($currentRows, $nextRows, true),
                 'removedAdmittedLabels' => self::changedLabelsForCommaLimitBoundary($currentRows, $nextRows, false),
-                'nextAutoloadWindowLabels' => self::autoloadLabelsForCommaLimitBoundary($nextPreLimit),
+                'nextAutoloadWindowLabels' => self::loadPolicyLabelsForCommaLimitBoundary($nextPreLimit),
                 'nextRecursiveLabels' => self::recursiveLabelsForCommaLimitBoundary($nextPreLimit),
             ];
             $base['replanReasons'] = array_values(array_unique(array_merge(
@@ -5895,7 +5895,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function autoloadLabelsForCommaLimitBoundary(array $rows): array
+        private static function loadPolicyLabelsForCommaLimitBoundary(array $rows): array
         {
             return array_values(array_filter(
                 self::labelsForCommaLimitBoundary($rows),

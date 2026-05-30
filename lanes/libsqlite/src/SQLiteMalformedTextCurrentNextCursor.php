@@ -169,7 +169,7 @@ final class SQLiteMalformedTextCurrentNextCursor
      * @param array<string,mixed> $filters
      * @return list<array{key:mixed,rowid:int,payload:array<string,mixed>}>
      */
-    public static function optionRowNameRange(array $rows, mixed $lowerInclusive, mixed $upperExclusive, string $collation = 'BINARY', array $filters = []): array
+    public static function keyValueRowKeyRange(array $rows, mixed $lowerInclusive, mixed $upperExclusive, string $collation = 'BINARY', array $filters = []): array
     {
         $entries = [];
         foreach ($rows as $index => $row) {

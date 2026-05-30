@@ -11,7 +11,7 @@ final class SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValuePlan(
+    public static function keyValueRowValuePlan(
         array $currentRows,
         array $nextRows,
         string $patternBytes,
@@ -47,7 +47,7 @@ final class SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan
             }
         }
 
-        $base = SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
+        $base = SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
             $currentRows,
             $nextRows,
             $patternBytes,

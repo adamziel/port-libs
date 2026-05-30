@@ -55,7 +55,7 @@ $plan196 = static fn (
     string $nextSource = 'main.wp_options@196',
     int $currentCookie = 195,
     int $nextCookie = 196,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
     $current ?? $current196,
     $next ?? $nextOneNineSix,
     'plugin!_cache',
@@ -152,7 +152,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineSix stable duplicate p
         $row196(11, 'plugin_cache', 'UTF-16BE'),
         $row196(12, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -186,7 +186,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineSix duplicate peer ins
         $row196(6, 'plugin_cache', 'UTF-16LE'),
         $row196(12, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
         $current,
         $next,
         'plugin!_cache',
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineSix false positive dup
         $row196(6, "plugin_cache\t", 'UTF-16BE'),
         $row196(8, "plugin_cache\t", 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
         $current,
         $next,
         'plugin!_cache',
@@ -239,7 +239,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineSix canonical token ke
         $row196(1, 'Plugin_Cache', 'UTF-16LE'),
         $row196(2, 'plugin_cache_zip', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -261,7 +261,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineSix missing token bloc
         $row196(1, 'plugin_cache', 'UTF-16LE'),
         $row196(2, 'plugin_cache', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -281,7 +281,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineSix missing token bloc
 
 $tests['utf16 nocase like rtrim current source nextOneNineSix rejects malformed token key'] = static function (TestRunner $t) use ($row196): void {
     $rows = [$row196(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin%',
@@ -292,7 +292,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineSix rejects malformed 
 
 $tests['utf16 nocase like rtrim current source nextOneNineSix rejects malformed token rowid'] = static function (TestRunner $t) use ($row196): void {
     $rows = [$row196(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicatePeerResumePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin%',

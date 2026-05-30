@@ -47,7 +47,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@139',
     int $currentSchemaCookie = 138,
     int $nextSchemaCookie = 139,
-): array => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan(
+): array => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -142,7 +142,7 @@ $tests['nocase glob affinity current source next139 stable binary source reusabl
         ['option_id' => 1, 'option_name' => 'plugin_alpha'],
         ['option_id' => 2, 'option_name' => 'plugin_beta'],
     ];
-    $plan = SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan($rows, $rows, 'plugin_*', 'TEXT', 'BINARY', 'stable', 'stable', 9, 9);
+    $plan = SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan($rows, $rows, 'plugin_*', 'TEXT', 'BINARY', 'stable', 'stable', 9, 9);
     $t->same([1, 2], $plan['currentRowids']);
     $t->same([], $plan['invalidationReasons']);
     $t->same(true, $plan['cursorReusable']);
@@ -153,34 +153,34 @@ $tests['nocase glob affinity current source next139 stable nocase still records 
         ['option_id' => 1, 'option_name' => 'plugin_alpha'],
         ['option_id' => 2, 'option_name' => 'Plugin_Beta'],
     ];
-    $plan = SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan($rows, $rows, 'plugin_*', 'TEXT', 'NOCASE', 'stable', 'stable', 9, 9);
+    $plan = SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan($rows, $rows, 'plugin_*', 'TEXT', 'NOCASE', 'stable', 'stable', 9, 9);
     $t->same([1], $plan['currentRowids']);
     $t->same(['glob-range-requires-binary-collation'], $plan['invalidationReasons']);
     $t->same(false, $plan['cursorReusable']);
 };
 
 $tests['nocase glob affinity current source next139 rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan($currentRows, $currentRows, 'plugin_*', 'TEXT', 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $currentRows, 'plugin_*', 'TEXT', 'UNICODE'));
 };
 
 $tests['nocase glob affinity current source next139 rejects missing option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1]], [], 'plugin_*'));
 };
 
 $tests['nocase glob affinity current source next139 rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_id' => '1', 'option_name' => 'plugin_alpha']], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => '1', 'option_name' => 'plugin_alpha']], [], 'plugin_*'));
 };
 
 $tests['nocase glob affinity current source next139 rejects blob option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name' => new SQLiteBlobValue('plugin_alpha')]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name' => new SQLiteBlobValue('plugin_alpha')]], [], 'plugin_*'));
 };
 
 $tests['nocase glob affinity current source next139 rejects null option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name' => null]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name' => null]], [], 'plugin_*'));
 };
 
 $tests['nocase glob affinity current source next139 rejects malformed utf8'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name' => "plugin_\xc3"]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name' => "plugin_\xc3"]], [], 'plugin_*'));
 };
 
 return $tests;

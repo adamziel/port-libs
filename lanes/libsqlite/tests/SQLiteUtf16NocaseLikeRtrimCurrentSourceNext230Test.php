@@ -53,7 +53,7 @@ $plan230 = static fn (
     string $nextSource = 'main.wp_options@230',
     int $currentCookie = 229,
     int $nextCookie = 230,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLineBreakBoundaryPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan(
     $current ?? $current230,
     $next ?? $nextTwoThreeZero,
     $pattern,
@@ -173,7 +173,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeZero stable line brea
         $row230(2, "plugin_cache\n", 'UTF-16BE'),
         $row230(3, 'PLUGIN_CACHE ', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLineBreakBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan(
         $rows,
         $rows,
         'plugin_cache',
@@ -196,7 +196,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeZero escaped undersco
         $row230(2, "plugin_cache\r", 'UTF-16LE'),
         $row230(3, 'pluginXcache', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLineBreakBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -214,7 +214,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeZero escaped undersco
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeZero rejects malformed row shape'] = static function (TestRunner $t) use ($enc230): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc230('plugin_cache', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLineBreakBoundaryPlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan($rows, $rows));
 };
 
 return $tests;

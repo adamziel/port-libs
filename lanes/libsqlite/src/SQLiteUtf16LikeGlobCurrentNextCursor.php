@@ -175,7 +175,7 @@ final class SQLiteUtf16LikeGlobCurrentNextCursor
      * @param list<array<string,mixed>> $rows
      * @return list<array{rowid:int,keyText:string,keyBytesHex:string,payload:array<string,mixed>,position:int}>
      */
-    public static function optionRowNameScan(
+    public static function keyValueRowKeyScan(
         array $rows,
         string $pattern,
         string $operator = 'LIKE',

@@ -54,7 +54,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@163',
     int $currentCookie = 162,
     int $nextCookie = 163,
-): array => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
+): array => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $enc($currentPattern, $currentEncoding),
@@ -154,7 +154,7 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim rhs current source nextOneSixThree stable trailing pattern spaces reusable'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
         $rows,
         $rows,
         $enc('plugin!_cache%   ', 2),
@@ -197,7 +197,7 @@ $tests['utf16 nocase like rtrim rhs current source nextOneSixThree tabs are not 
 };
 
 $tests['utf16 nocase like rtrim rhs current source nextOneSixThree rejects malformed rhs pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
         $currentRows,
         $nextRows,
         "p\0x",
@@ -209,7 +209,7 @@ $tests['utf16 nocase like rtrim rhs current source nextOneSixThree rejects malfo
 
 $tests['utf16 nocase like rtrim rhs current source nextOneSixThree rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc('plugin_cache', 2)]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
         $rows,
         $rows,
         $enc('plugin%', 2),

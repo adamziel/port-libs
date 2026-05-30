@@ -65,7 +65,7 @@ $plan218 = static fn (
     int $currentSchemaCookie = 217,
     int $nextSchemaCookie = 218,
     ?array $cursor = null,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameYieldPagePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPagePlan(
     $current ?? $current218,
     $next ?? $nextTwoOneEight,
     'plugin!_cache%',

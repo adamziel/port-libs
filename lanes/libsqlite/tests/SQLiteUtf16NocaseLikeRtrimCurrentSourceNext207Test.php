@@ -54,7 +54,7 @@ $plan207 = static fn (
     string $nextSource = 'main.wp_options@207',
     int $cookie = 206,
     int $nextCookie = 207,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameRtrimCollationRebindPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyRtrimCollationRebindPlan(
     $current ?? $rows207,
     $next ?? $nextRows207,
     'plugin!_cache%',
@@ -158,7 +158,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroSeven stable rtrim cur
         $row207(1, 'Plugin_Cache', 'UTF-16LE'),
         $row207(2, 'plugin_cache  ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameRtrimCollationRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyRtrimCollationRebindPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -185,7 +185,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroSeven detects exact-pa
         $row207(2, 'plugin_cache  ', 'UTF-16BE'),
         $row207(3, 'Plugin_Cache   ', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameRtrimCollationRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyRtrimCollationRebindPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -208,13 +208,13 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroSeven detects exact-pa
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroSeven rejects missing option id'] = static function (TestRunner $t) use ($nextRows207): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameRtrimCollationRebindPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyRtrimCollationRebindPlan([
         ['option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ], $nextRows207));
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroSeven rejects non integer encoding'] = static function (TestRunner $t) use ($rows207): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameRtrimCollationRebindPlan($rows207, [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyRtrimCollationRebindPlan($rows207, [
         ['option_id' => 1, 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 'UTF-8'],
     ]));
 };

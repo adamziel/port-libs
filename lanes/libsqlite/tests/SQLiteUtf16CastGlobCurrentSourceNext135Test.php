@@ -47,7 +47,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@135',
     int $currentCookie = 134,
     int $nextCookie = 135,
-): array => SQLiteUtf16CastGlobCurrentSourceNextPlan::optionRowValuePlan(
+): array => SQLiteUtf16CastGlobCurrentSourceNextPlan::keyValueRowValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -157,7 +157,7 @@ $tests['utf16 cast glob current source nextOneThreeFive stable rows are reusable
         ['option_id' => 1, 'option_value_bytes' => $enc('plugin_cache', 2), 'text_encoding' => 2],
         ['option_id' => 2, 'option_value_bytes' => $enc('plugin_cache_extra', 3), 'text_encoding' => 3],
     ];
-    $plan = SQLiteUtf16CastGlobCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'plugin_*', 'stable', 'stable', 7, 7);
+    $plan = SQLiteUtf16CastGlobCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'plugin_*', 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentRowids']);
     $t->same([], $plan['invalidationReasons']);
     $t->same(true, $plan['cursorReusable']);
@@ -167,27 +167,27 @@ $tests['utf16 cast glob current source nextOneThreeFive stable malformed row kee
     $rows = [
         ['option_id' => 1, 'option_value_bytes' => "p\0x", 'text_encoding' => 2],
     ];
-    $plan = SQLiteUtf16CastGlobCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'plugin_*', 'stable', 'stable', 7, 7);
+    $plan = SQLiteUtf16CastGlobCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'plugin_*', 'stable', 'stable', 7, 7);
     $t->same([1], $plan['currentMalformedRowids']);
     $t->same([], $plan['currentRowids']);
     $t->same(['malformed-text'], $plan['invalidationReasons']);
 };
 
 $tests['utf16 cast glob current source nextOneThreeFive rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::optionRowValuePlan([['option_value_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::keyValueRowValuePlan([['option_value_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
 $tests['utf16 cast glob current source nextOneThreeFive rejects missing value bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
 $tests['utf16 cast glob current source nextOneThreeFive rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1, 'option_value_bytes' => 'p']], $nextRows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1, 'option_value_bytes' => 'p']], $nextRows, 'p*'));
 };
 
 $tests['utf16 cast glob current source nextOneThreeFive rejects unsupported storage class'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value_bytes' => 'p', 'text_encoding' => 1, 'storage_class' => 'integer']];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'p*'));
 };
 
 return $tests;

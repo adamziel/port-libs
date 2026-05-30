@@ -74,7 +74,7 @@ $plan = static fn (
     int $nextSchemaCookie = 149,
     int $currentCollationVersion = 14,
     int $nextCollationVersion = 15,
-): array => SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::optionRowNameValuePlan(
+): array => SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -165,7 +165,7 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['rtrim glob nocase affinity current source next149 stable rows still keep class residual invalidation'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin-cache', '10', 'UTF-8', 'UTF-8'), $row(2, 'Plugin_Cache', '11', 'UTF-16LE', 'UTF-16BE')];
-    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::optionRowNameValuePlan($rows, $rows, 'plugin[-_]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
+    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'plugin[-_]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
     $t->same([1, 2], $result['currentCandidateRowids']);
     $t->same([1], $result['currentMatchedRowids']);
     $t->same(['glob-character-class-residual'], $result['invalidationReasons']);
@@ -174,7 +174,7 @@ $tests['rtrim glob nocase affinity current source next149 stable rows still keep
 
 $tests['rtrim glob nocase affinity current source next149 negated class records bytewise exclusion'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin-cache', '10', 'UTF-8', 'UTF-8'), $row(2, 'plugin_cache', '11', 'UTF-8', 'UTF-8'), $row(3, 'pluginXcache', '12', 'UTF-8', 'UTF-8')];
-    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::optionRowNameValuePlan($rows, $rows, 'plugin[^_]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
+    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'plugin[^_]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
     $t->same(true, $result['hasNegatedGlobClass']);
     $t->same('[^_]', $result['globCharacterClasses'][0]['raw']);
     $t->same([1, 3], $result['currentMatchedRowids']);
@@ -183,7 +183,7 @@ $tests['rtrim glob nocase affinity current source next149 negated class records 
 
 $tests['rtrim glob nocase affinity current source next149 range class records unicode ranges'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin-acache', '10', 'UTF-8', 'UTF-8'), $row(2, 'plugin-écache', '11', 'UTF-16LE', 'UTF-16LE'), $row(3, 'plugin-zcache', '12', 'UTF-16BE', 'UTF-16BE')];
-    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::optionRowNameValuePlan($rows, $rows, 'plugin-[a-é]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
+    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'plugin-[a-é]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
     $t->same(['a-é'], $result['globCharacterClasses'][0]['ranges']);
     $t->same([1, 3, 2], $result['currentMatchedRowids']);
     $t->same([1, 3, 2], $result['currentAffinityMatchedRowids']);
@@ -202,7 +202,7 @@ $tests['rtrim glob nocase affinity current source next149 rejects reversed numer
 };
 
 $tests['rtrim glob nocase affinity current source next149 rejects bad option row shape'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::optionRowNameValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin[-_]cache*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin[-_]cache*', 1, 2));
 };
 
 return $tests;

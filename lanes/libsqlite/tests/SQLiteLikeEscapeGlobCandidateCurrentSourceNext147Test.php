@@ -74,7 +74,7 @@ $plan147 = static fn (
     array $nextStatement,
     ?array $currentRows = null,
     ?array $nextRows = null,
-): array => SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement(
+): array => SQLiteLikeGlobCurrentSourceNextPlan::keyValueRowKeyStatement(
     $currentRows ?? $currentRows147,
     $nextRows ?? $nextRows147,
     $currentStatement,

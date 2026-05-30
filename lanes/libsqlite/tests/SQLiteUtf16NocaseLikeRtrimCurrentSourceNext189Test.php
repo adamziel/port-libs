@@ -55,7 +55,7 @@ $plan189 = static fn (
     string $nextSource = 'main.wp_options@189',
     int $currentCookie = 188,
     int $nextCookie = 189,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerWindowPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
     $current ?? $current189,
     $next ?? $nextOneEightNine,
     'plugin!_cache%',
@@ -147,7 +147,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightNine stable peer wind
         $row189(3, 'PLUGIN_CACHE', 'UTF-8'),
         $row189(4, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerWindowPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -168,7 +168,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightNine stable peer wind
 $tests['utf16 nocase like rtrim current source nextOneEightNine row inserted before token is unsafe'] = static function (TestRunner $t) use ($row189): void {
     $current = [$row189(2, 'plugin_cache', 'UTF-16LE'), $row189(3, 'plugin_cache_alpha', 'UTF-16LE')];
     $next = [$row189(1, 'PLUGIN_CACHE ', 'UTF-16BE'), $row189(2, 'plugin_cache', 'UTF-16LE'), $row189(3, 'plugin_cache_alpha', 'UTF-16LE')];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerWindowPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightNine row inserted bef
 
 $tests['utf16 nocase like rtrim current source nextOneEightNine canonicalizes token key before peer lookup'] = static function (TestRunner $t) use ($row189): void {
     $rows = [$row189(1, 'Plugin_Cache', 'UTF-16LE'), $row189(2, 'plugin_cache_alpha', 'UTF-16LE')];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerWindowPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -206,7 +206,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightNine canonicalizes to
 
 $tests['utf16 nocase like rtrim current source nextOneEightNine rejects malformed token key'] = static function (TestRunner $t) use ($row189): void {
     $rows = [$row189(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerWindowPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $rows,
         $rows,
         'plugin%',
@@ -217,7 +217,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightNine rejects malforme
 
 $tests['utf16 nocase like rtrim current source nextOneEightNine rejects malformed token rowid'] = static function (TestRunner $t) use ($row189): void {
     $rows = [$row189(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerWindowPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerWindowPlan(
         $rows,
         $rows,
         'plugin%',

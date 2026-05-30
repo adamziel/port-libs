@@ -51,7 +51,7 @@ $plan225 = static fn (
     string $nextSource = 'main.wp_options@225',
     int $currentCookie = 224,
     int $nextCookie = 225,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceBytePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceBytePlan(
     $current ?? $current225,
     $next ?? $nextTwoTwoFive,
     'plugin!_cache%',
@@ -164,7 +164,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoFive same decoded rows 
         $row225(1, 'plugin_cache', 'UTF-16BE'),
         $row225(2, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceBytePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceBytePlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoFive byte identical sou
         $row225(1, 'plugin_cache', 'UTF-16LE'),
         $row225(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceBytePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceBytePlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -208,7 +208,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoFive byte identical sou
 
 $tests['utf16 nocase like rtrim current source nextTwoTwoFive rejects unsupported raw encoding'] = static function (TestRunner $t) use ($bad225): void {
     $rows = [$bad225(1, "p\0", 4)];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceBytePlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceBytePlan($rows, $rows));
 };
 
 return $tests;

@@ -54,7 +54,7 @@ $plan203 = static fn (
     string $nextSource = 'main.wp_options@203',
     int $currentCookie = 202,
     int $nextCookie = 203,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFullScanPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFullScanPlan(
     $current ?? $current203,
     $next ?? $nextTwoZeroThree,
     $pattern,
@@ -164,7 +164,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroThree stable source st
         $row203(2, 'theme cache  ', 'UTF-16BE'),
         $row203(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFullScanPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFullScanPlan(
         $rows,
         $rows,
         '%cache',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroThree escaped leading 
         $row203(2, 'plugin%cache', 'UTF-16BE'),
     ];
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFullScanPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFullScanPlan(
         $rows,
         $rows,
         '!%cache',
@@ -202,7 +202,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroThree accepts undersco
         $row203(2, 'cache', 'UTF-16BE'),
         $row203(3, 'xxcache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFullScanPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFullScanPlan(
         $rows,
         $rows,
         '_cache',
@@ -220,19 +220,19 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroThree accepts undersco
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroThree rejects missing option id'] = static function (TestRunner $t) use ($nextTwoZeroThree): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFullScanPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFullScanPlan([
         ['option_name_bytes' => 'cache', 'text_encoding' => 1],
     ], $nextTwoZeroThree));
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroThree rejects missing bytes'] = static function (TestRunner $t) use ($nextTwoZeroThree): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFullScanPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFullScanPlan([
         ['option_id' => 1, 'text_encoding' => 1],
     ], $nextTwoZeroThree));
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroThree rejects missing encoding'] = static function (TestRunner $t) use ($nextTwoZeroThree): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameFullScanPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyFullScanPlan([
         ['option_id' => 1, 'option_name_bytes' => 'cache'],
     ], $nextTwoZeroThree));
 };

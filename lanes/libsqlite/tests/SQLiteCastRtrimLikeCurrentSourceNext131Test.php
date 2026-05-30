@@ -51,7 +51,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@131',
     int $currentCookie = 130,
     int $nextCookie = 131,
-): array => SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan(
+): array => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $castTarget,
@@ -162,7 +162,7 @@ $tests['cast rtrim like current source next131 stable exact padded peer is reusa
         ['option_id' => 1, 'option_value' => 'plugin_cache'],
         ['option_id' => 2, 'option_value' => 'plugin_cache '],
     ];
-    $plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'TEXT', 'plugin\\_cache', '\\', 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', 'plugin\\_cache', '\\', 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentCandidateRowids']);
     $t->same([2], $plan['currentResidualRejectedRowids']);
     $t->same([1], $plan['currentRowids']);
@@ -172,30 +172,30 @@ $tests['cast rtrim like current source next131 stable exact padded peer is reusa
 
 $tests['cast rtrim like current source next131 stable leading wildcard keeps no prefix reason'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => 'plugin_cache']];
-    $plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'TEXT', '%cache', null, 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', '%cache', null, 'stable', 'stable', 7, 7);
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentRowids']);
     $t->same(['no-prefix-range'], $plan['invalidationReasons']);
 };
 
 $tests['cast rtrim like current source next131 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $nextRows, 'TEXT); DROP TABLE wp_options; --', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'TEXT); DROP TABLE wp_options; --', 'plugin%'));
 };
 
 $tests['cast rtrim like current source next131 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan([['option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin%'));
 };
 
 $tests['cast rtrim like current source next131 rejects missing option value'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1]], $nextRows, 'TEXT', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1]], $nextRows, 'TEXT', 'plugin%'));
 };
 
 $tests['cast rtrim like current source next131 rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan([['option_id' => '1', 'option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => '1', 'option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin%'));
 };
 
 $tests['cast rtrim like current source next131 rejects multi byte escape'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $nextRows, 'TEXT', 'plugin!!_%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'TEXT', 'plugin!!_%', '!!'));
 };
 
 return $tests;

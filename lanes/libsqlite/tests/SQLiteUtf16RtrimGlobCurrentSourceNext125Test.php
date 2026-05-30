@@ -64,7 +64,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@125',
     ?array $current = null,
     ?array $next = null,
-): array => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::optionRowNamePlan(
+): array => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -154,7 +154,7 @@ foreach ($cases as $name => [$pattern, $path, $expected]) {
 
 $tests['utf16 rtrim glob current source nextOneTwoFive stable exact still rejects rtrim peers without invalidation'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'plugin_cache ', 'UTF-16BE')];
-    $plan = SQLiteUtf16RtrimGlobCurrentSourceNextPlan::optionRowNamePlan($rows, $rows, 'plugin_cache', 'stable', 'stable');
+    $plan = SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan($rows, $rows, 'plugin_cache', 'stable', 'stable');
     $t->same([1, 2], $plan['currentCandidateRowids']);
     $t->same([2], $plan['currentResidualRejectedRowids']);
     $t->same([1], $plan['currentRowids']);
@@ -164,22 +164,22 @@ $tests['utf16 rtrim glob current source nextOneTwoFive stable exact still reject
 
 $tests['utf16 rtrim glob current source nextOneTwoFive stable leading class has no prefix invalidation'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'Plugin_Cache', 'UTF-8')];
-    $plan = SQLiteUtf16RtrimGlobCurrentSourceNextPlan::optionRowNamePlan($rows, $rows, '[Pp]lugin_*', 'stable', 'stable');
+    $plan = SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan($rows, $rows, '[Pp]lugin_*', 'stable', 'stable');
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentRowids']);
     $t->same(['no-prefix-range'], $plan['invalidationReasons']);
 };
 
 $tests['utf16 rtrim glob current source nextOneTwoFive rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::optionRowNamePlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
 $tests['utf16 rtrim glob current source nextOneTwoFive rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
 $tests['utf16 rtrim glob current source nextOneTwoFive rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p*'));
 };
 
 return $tests;

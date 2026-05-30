@@ -11,7 +11,7 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameCurrentNext(
+    public static function keyValueRowKeyCurrentNext(
         array $currentRows,
         array $nextRows,
         string $probe,

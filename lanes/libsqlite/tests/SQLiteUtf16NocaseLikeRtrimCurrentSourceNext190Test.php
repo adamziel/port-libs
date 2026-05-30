@@ -53,7 +53,7 @@ $plan190 = static fn (
     string $nextSource = 'main.wp_options@190',
     int $currentCookie = 189,
     int $nextCookie = 190,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceTrimBoundaryPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceTrimBoundaryPlan(
     $current ?? $current190,
     $next ?? $nextOneNineZero,
     $pattern,
@@ -166,7 +166,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineZero stable source reu
         $row190(2, "Plugin_Cache\t", 'UTF-16BE'),
         $row190(3, "plugin_cache\u{00a0}", 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceTrimBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceTrimBoundaryPlan(
         $rows,
         $rows,
         'plugin%',
@@ -190,7 +190,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineZero non-breaking spac
     $next = [
         $row190(1, 'plugin_cache  ', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceTrimBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceTrimBoundaryPlan(
         $current,
         $next,
         'plugin_cache%',
@@ -208,7 +208,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineZero non-breaking spac
 };
 
 $tests['utf16 nocase like rtrim current source nextOneNineZero invalid escape length rejected by base planner'] = static function (TestRunner $t) use ($current190, $nextOneNineZero): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceTrimBoundaryPlan($current190, $nextOneNineZero, 'plugin!!', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceTrimBoundaryPlan($current190, $nextOneNineZero, 'plugin!!', '!!'));
 };
 
 return $tests;

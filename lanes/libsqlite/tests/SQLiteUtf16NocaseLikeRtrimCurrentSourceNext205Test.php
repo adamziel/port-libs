@@ -56,7 +56,7 @@ $plan205 = static fn (
     string $nextSource = 'main.wp_options@205',
     int $currentCookie = 204,
     int $nextCookie = 205,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiFullScanPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiFullScanPlan(
     $current ?? $current205,
     $next ?? $nextTwoZeroFive,
     $pattern,
@@ -151,7 +151,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroFive stable non-ascii 
         $row205(2, 'PLüG_Cache  ', 'UTF-16BE'),
         $row205(3, 'plÜg_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiFullScanPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiFullScanPlan(
         $rows,
         $rows,
         'plüg!_%',
@@ -176,7 +176,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroFive ascii prefix stil
         $row205(2, 'plugin!cache', 'UTF-16BE'),
         $row205(3, 'other_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiFullScanPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiFullScanPlan(
         $rows,
         $rows,
         'plugin!_%',
@@ -196,11 +196,11 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroFive ascii prefix stil
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroFive rejects invalid escape length'] = static function (TestRunner $t) use ($current205, $nextTwoZeroFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiFullScanPlan($current205, $nextTwoZeroFive, 'plüg!!_%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiFullScanPlan($current205, $nextTwoZeroFive, 'plüg!!_%', '!!'));
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroFive rejects missing encoding'] = static function (TestRunner $t) use ($nextTwoZeroFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiFullScanPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiFullScanPlan([
         ['option_id' => 1, 'option_name_bytes' => 'plüg_cache'],
     ], $nextTwoZeroFive));
 };

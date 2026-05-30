@@ -50,7 +50,7 @@ $plan181 = static fn (
     string $nextSource = 'stable',
     int $currentCookie = 181,
     int $nextCookie = 181,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan(
     $current ?? $rows181,
     $next ?? $rows181,
     'plugin!_cache%',
@@ -157,7 +157,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne peer insertion be
         $row181(4, 'plugin_cache_alpha', 'UTF-16BE'),
         $row181(0, 'plugin_cache', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan($current, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($current, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
     $t->same(['peer-rowset-changed'], $result['peerReplayUnsafeReasons']);
     $t->same([0, 1, 2, 3], $result['nextPeerRowids']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
@@ -168,14 +168,14 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne canonical token m
     $badToken = $token181;
     $badToken['key'] = 'Plugin_Cache  ';
     $badToken['keyBytes'] = $enc181('plugin_cache', 'UTF-16BE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', $badToken, 'stable', 'stable', 181, 181);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', $badToken, 'stable', 'stable', 181, 181);
     $t->same(['yield-token-not-stable'], $result['peerReplayUnsafeReasons']);
     $t->same(['token-key-not-canonical'], $result['tokenNormalizationReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightOne no token cannot continue within peer group'] = static function (TestRunner $t) use ($rows181): void {
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', null, 'stable', 'stable', 181, 181);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', null, 'stable', 'stable', 181, 181);
     $t->same(null, $result['peerKey']);
     $t->same(['yield-token-not-stable'], $result['peerReplayUnsafeReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
@@ -185,7 +185,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne no token cannot c
 $tests['utf16 nocase like rtrim current source nextOneEightOne malformed peer source reparses'] = static function (TestRunner $t) use ($rows181, $bad181, $token181): void {
     $next = $rows181;
     $next[] = $bad181(9, "\x00\xd8", 2);
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan($rows181, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows181, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
     $t->same(['malformed-text'], $result['peerReplayUnsafeReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
     $t->same([1, 2, 3, 4, 5, 6], $result['replayPlanRowids']);
@@ -198,7 +198,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne non ascii nocase 
         $row181(3, 'plugin_cachex', 'UTF-8'),
     ];
     $tokenBytes = $enc181('plugin_cacheé', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan(
         $rows,
         $rows,
         'plugin!_cache_',
@@ -220,7 +220,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row witho
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => 2, 'option_name_bytes' => 'plugin_cache'],
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row without bytes'] = static function (TestRunner $t) use ($row181, $token181): void {
@@ -228,7 +228,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row witho
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => 2, 'text_encoding' => 2],
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row without integer rowid'] = static function (TestRunner $t) use ($row181, $token181): void {
@@ -236,7 +236,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne rejects row witho
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => '2', 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
 
 return $tests;

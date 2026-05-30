@@ -11,7 +11,7 @@ final class SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameGlobPlan(
+    public static function keyValueRowKeyGlobPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

@@ -11,7 +11,7 @@ final class SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueMalformedGlobPlan(
+    public static function keyValueRowValueMalformedGlobPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

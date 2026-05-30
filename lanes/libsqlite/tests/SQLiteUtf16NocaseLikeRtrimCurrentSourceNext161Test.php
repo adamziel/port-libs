@@ -42,7 +42,7 @@ $plan = static fn (
     string $nextCollation = 'NOCASE/RTRIM@161',
     string $currentLike = 'like@160',
     string $nextLike = 'like@161',
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameGenerationPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     'plugin!_cache%',
@@ -144,7 +144,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixOne stable same generat
         $row(1, 'plugin_cache  ', 2),
         $row(2, 'plugin_cache_shadow', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameGenerationPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -167,7 +167,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixOne stable same generat
 
 $tests['utf16 nocase like rtrim current source nextOneSixOne same rows collation generation invalidates'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameGenerationPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixOne same rows collation
 
 $tests['utf16 nocase like rtrim current source nextOneSixOne same rows like generation invalidates'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameGenerationPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
         $rows,
         $rows,
         'plugin!_cache%',

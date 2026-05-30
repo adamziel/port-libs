@@ -139,7 +139,7 @@ final class SQLiteJsonImportSavepointPlan
                     'statement' => $statementName,
                     'option_name' => isset($mutation['option_name']) && is_string($mutation['option_name']) ? $mutation['option_name'] : null,
                     'option_key' => self::failedMutationRowKey($mutation, $hasMultisiteRows),
-                    'blog_id' => self::mutationBlogIdOrNull($mutation),
+                    'blog_id' => self::mutationTenantIdOrNull($mutation),
                     'error' => $exception->getMessage(),
                     'rollback' => $rollback,
                     'database_restored' => true,
@@ -206,7 +206,7 @@ final class SQLiteJsonImportSavepointPlan
             throw new \InvalidArgumentException('wp_options JSON import autoload must be text');
         }
 
-        $blogId = self::blogIdOrNull($row['blog_id'] ?? null, 'wp_options JSON import blog_id');
+        $blogId = self::tenantIdOrNull($row['blog_id'] ?? null, 'wp_options JSON import blog_id');
 
         return [
             'option_id' => $id,
@@ -280,7 +280,7 @@ final class SQLiteJsonImportSavepointPlan
             'option_value' => $mutation['initial_value'] ?? '{}',
             'autoload' => $autoload,
             'page_number' => $page,
-            'blog_id' => $hasMultisiteRows ? self::mutationBlogIdOrNull($mutation) : null,
+            'blog_id' => $hasMultisiteRows ? self::mutationTenantIdOrNull($mutation) : null,
         ];
     }
 
@@ -294,7 +294,7 @@ final class SQLiteJsonImportSavepointPlan
             return $optionName;
         }
 
-        $blogId = self::blogIdOrNull($mutation['blog_id'] ?? null, 'wp_options JSON import mutation blog_id');
+        $blogId = self::tenantIdOrNull($mutation['blog_id'] ?? null, 'wp_options JSON import mutation blog_id');
         if ($blogId === null) {
             throw new \InvalidArgumentException('SQLite Application multisite JSON import mutation requires blog_id');
         }
@@ -314,7 +314,7 @@ final class SQLiteJsonImportSavepointPlan
             return $mutation['option_name'];
         }
 
-        $blogId = self::mutationBlogIdOrNull($mutation);
+        $blogId = self::mutationTenantIdOrNull($mutation);
 
         return $blogId === null ? null : self::key($blogId, $mutation['option_name']);
     }
@@ -322,9 +322,9 @@ final class SQLiteJsonImportSavepointPlan
     /**
      * @param array<string,mixed> $mutation
      */
-    private static function mutationBlogIdOrNull(array $mutation): ?int
+    private static function mutationTenantIdOrNull(array $mutation): ?int
     {
-        return self::blogIdOrNull($mutation['blog_id'] ?? null, 'wp_options JSON import mutation blog_id');
+        return self::tenantIdOrNull($mutation['blog_id'] ?? null, 'wp_options JSON import mutation blog_id');
     }
 
     /**
@@ -348,7 +348,7 @@ final class SQLiteJsonImportSavepointPlan
         return $blogId . ':' . $optionName;
     }
 
-    private static function blogIdOrNull(mixed $value, string $label): ?int
+    private static function tenantIdOrNull(mixed $value, string $label): ?int
     {
         if ($value === null) {
             return null;

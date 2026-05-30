@@ -11,7 +11,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameRtrimPatternPlan(
+    public static function keyValueRowKeyRtrimPatternPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -31,7 +31,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
         $currentTrimmedBytes = SQLiteEncodingCollationSourceCursor::encodeText($currentTrimmedPattern, $currentPatternEncoding);
         $nextTrimmedBytes = SQLiteEncodingCollationSourceCursor::encodeText($nextTrimmedPattern, $nextPatternEncoding);
 
-        $currentPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceDeltaPlan(
+        $currentPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceDeltaPlan(
             $currentRows,
             $currentRows,
             $currentTrimmedPattern,
@@ -41,7 +41,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $nextPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceDeltaPlan(
+        $nextPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceDeltaPlan(
             $nextRows,
             $nextRows,
             $nextTrimmedPattern,

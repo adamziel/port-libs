@@ -48,7 +48,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@129',
     int $currentCookie = 128,
     int $nextCookie = 129,
-): array => SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan(
+): array => SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $castTarget,
@@ -146,14 +146,14 @@ $tests['cast nocase current source next129 stable sources are reusable'] = stati
         ['option_id' => 1, 'option_value' => 'Plugin_Cache'],
         ['option_id' => 2, 'option_value' => 'PLUGIN_CACHE_EXTRA'],
     ];
-    $plan = SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'TEXT', 'plugin\\_cache%', '\\', 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', 'plugin\\_cache%', '\\', 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentRowids']);
     $t->same([], $plan['invalidationReasons']);
     $t->same(true, $plan['cursorReusable']);
 };
 
 $tests['cast nocase current source next129 leading wildcard has no range'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan($currentRows, $currentRows, 'TEXT', '%cache%', null, 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'TEXT', '%cache%', null, 'stable', 'stable', 7, 7);
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentCandidateRowids']);
     $t->same(['no-prefix-range'], $plan['invalidationReasons']);
@@ -164,29 +164,29 @@ $tests['cast nocase current source next129 escaped wildcard stays literal prefix
         ['option_id' => 1, 'option_value' => 'Plugin_Cache'],
         ['option_id' => 2, 'option_value' => 'PluginXCache'],
     ];
-    $plan = SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan($rows, $rows, 'TEXT', 'plugin\\_cache%', '\\', 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', 'plugin\\_cache%', '\\', 'stable', 'stable', 7, 7);
     $t->same([1], $plan['currentRowids']);
     $t->same([1], $plan['currentCandidateRowids']);
 };
 
 $tests['cast nocase current source next129 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan($currentRows, $currentRows, 'TEXT); DROP TABLE wp_options; --', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'TEXT); DROP TABLE wp_options; --', 'plugin%'));
 };
 
 $tests['cast nocase current source next129 rejects missing option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan([['option_value' => 'plugin']], [], 'TEXT', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan([['option_value' => 'plugin']], [], 'TEXT', 'plugin%'));
 };
 
 $tests['cast nocase current source next129 rejects missing option value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1]], [], 'TEXT', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1]], [], 'TEXT', 'plugin%'));
 };
 
 $tests['cast nocase current source next129 rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan([['option_id' => '1', 'option_value' => 'plugin']], [], 'TEXT', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => '1', 'option_value' => 'plugin']], [], 'TEXT', 'plugin%'));
 };
 
 $tests['cast nocase current source next129 rejects multi byte escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan($currentRows, $currentRows, 'TEXT', 'plugin!!_%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'TEXT', 'plugin!!_%', '!!'));
 };
 
 return $tests;

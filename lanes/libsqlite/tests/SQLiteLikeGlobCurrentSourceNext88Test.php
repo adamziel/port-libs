@@ -66,7 +66,7 @@ $statement = static function (
     ];
 };
 
-$plan = static fn (array $currentStatement, array $nextStatement, ?array $current = null, ?array $next = null): array => SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement(
+$plan = static fn (array $currentStatement, array $nextStatement, ?array $current = null, ?array $next = null): array => SQLiteLikeGlobCurrentSourceNextPlan::keyValueRowKeyStatement(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $currentStatement,

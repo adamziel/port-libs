@@ -11,7 +11,7 @@ final class SQLiteEncodingNumericAffinityCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueComparisonPlan(
+    public static function keyValueRowValueComparisonPlan(
         array $currentRows,
         array $nextRows,
         string $column,

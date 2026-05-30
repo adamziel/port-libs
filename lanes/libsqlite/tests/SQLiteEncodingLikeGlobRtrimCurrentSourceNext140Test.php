@@ -59,7 +59,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@140',
     int $currentCookie = 139,
     int $nextCookie = 140,
-): array => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::optionRowNamePlan(
+): array => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $operator,
@@ -178,11 +178,11 @@ $tests['encoding like glob rtrim current source next140 rejects unsupported oper
 };
 
 $tests['encoding like glob rtrim current source next140 rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'LIKE', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'LIKE', 'plugin%'));
 };
 
 $tests['encoding like glob rtrim current source next140 rejects non integer rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::optionRowNamePlan([['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]], $nextRows, 'LIKE', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]], $nextRows, 'LIKE', 'plugin%'));
 };
 
 return $tests;

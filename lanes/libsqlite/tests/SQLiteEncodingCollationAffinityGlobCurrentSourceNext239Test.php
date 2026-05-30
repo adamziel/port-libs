@@ -43,7 +43,7 @@ $plan239 = static fn (
     string $nextSource = 'main.wp_options@239',
     int $currentCookie = 238,
     int $nextCookie = 239,
-): array => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan(
+): array => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan(
     $current ?? $current239,
     $next ?? $next239,
     $pattern,
@@ -124,12 +124,12 @@ foreach ($cases239 as $name => [$path, $expected]) {
 }
 
 $tests['encoding collation affinity glob current source next239 valid euro does not match malformed byte range'] = static function (TestRunner $t) use ($current239, $next239): void {
-    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan($current239, $next239, "plugin_[\xe2-\xe2]*");
+    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($current239, $next239, "plugin_[\xe2-\xe2]*");
     $t->same(false, array_key_exists(3, $plan['currentTextsHex']));
 };
 
 $tests['encoding collation affinity glob current source next239 continuation byte range matches separate byte'] = static function (TestRunner $t) use ($current239, $next239): void {
-    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan($current239, $next239, "plugin_[\x80-\x8f]*");
+    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($current239, $next239, "plugin_[\x80-\x8f]*");
     $t->same([4], $plan['currentRowids']);
     $t->same([4], $plan['nextRowids']);
     $t->same(['source-name', 'schema-cookie'], $plan['invalidationReasons']);
@@ -141,24 +141,24 @@ $tests['encoding collation affinity glob current source next239 question consume
         ['option_id' => 2, 'option_value' => "legacy_\xe2\x82_tail"],
         ['option_id' => 3, 'option_value' => "legacy_\xe2\x82\xac_tail"],
     ];
-    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan($rows, $rows, 'legacy_?_tail', 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($rows, $rows, 'legacy_?_tail', 'same', 'same', 1, 1);
     $t->same([1, 3], $plan['currentRowids']);
 };
 
 $tests['encoding collation affinity glob current source next239 negated malformed byte class excludes e2'] = static function (TestRunner $t) use ($current239, $next239): void {
-    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan($current239, $next239, "plugin_[^\xe2]*");
+    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($current239, $next239, "plugin_[^\xe2]*");
     $t->same([4, 5, 3], $plan['currentRowids']);
     $t->same([4, 5, 12], $plan['nextRowids']);
 };
 
 $tests['encoding collation affinity glob current source next239 reversed malformed range is literal start only'] = static function (TestRunner $t) use ($current239, $next239): void {
-    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan($current239, $next239, "plugin_[\xe3-\xe2]*");
+    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($current239, $next239, "plugin_[\xe3-\xe2]*");
     $t->same([], $plan['currentRowids']);
     $t->same([], $plan['nextRowids']);
 };
 
 $tests['encoding collation affinity glob current source next239 binary glob keeps uppercase distinct'] = static function (TestRunner $t) use ($current239, $next239): void {
-    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan($current239, $next239, "Plugin_[\xe2-\xe2]*");
+    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($current239, $next239, "Plugin_[\xe2-\xe2]*");
     $t->same([6], $plan['currentRowids']);
     $t->same([6], $plan['nextRowids']);
 };
@@ -171,7 +171,7 @@ $tests['encoding collation affinity glob current source next239 numeric affinity
         ['option_id' => 4, 'option_value' => false],
         ['option_id' => 5, 'option_value' => null],
     ];
-    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan($rows, $rows, '42*', 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($rows, $rows, '42*', 'same', 'same', 1, 1);
     $t->same([1, 2], $plan['currentRowids']);
     $t->same(['3432', '34322e35'], array_values($plan['currentTextsHex']));
 };
@@ -181,7 +181,7 @@ $tests['encoding collation affinity glob current source next239 blob and null re
         ['option_id' => 1, 'option_value' => new SQLiteBlobValue("plugin_\xe2blob")],
         ['option_id' => 2, 'option_value' => null],
     ];
-    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan($rows, $rows, "plugin_[\xe2-\xe2]*", 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($rows, $rows, "plugin_[\xe2-\xe2]*", 'same', 'same', 1, 1);
     $t->same([], $plan['currentRowids']);
     $t->same(false, $plan['cursorInvalidated']);
 };
@@ -194,11 +194,11 @@ $tests['encoding collation affinity glob current source next239 stable cursor re
 };
 
 $tests['encoding collation affinity glob current source next239 rejects missing option value'] = static function (TestRunner $t) use ($next239): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan([['option_id' => 1]], $next239, "plugin_[\xe2-\xe2]*"));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan([['option_id' => 1]], $next239, "plugin_[\xe2-\xe2]*"));
 };
 
 $tests['encoding collation affinity glob current source next239 rejects non scalar value'] = static function (TestRunner $t) use ($next239): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan([['option_id' => 1, 'option_value' => ['x']]], $next239, "plugin_[\xe2-\xe2]*"));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan([['option_id' => 1, 'option_value' => ['x']]], $next239, "plugin_[\xe2-\xe2]*"));
 };
 
 return $tests;

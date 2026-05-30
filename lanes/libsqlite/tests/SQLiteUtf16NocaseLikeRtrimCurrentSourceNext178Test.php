@@ -56,7 +56,7 @@ $plan178 = static fn (
     string $nextSource = 'main.wp_options@178',
     int $currentCookie = 177,
     int $nextCookie = 178,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
     $current ?? $current178,
     $next ?? $nextOneSevenEight,
     'plugin!_cache%',
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenEight canonical token
         $row178(3, 'plugin_cache_beta', 'UTF-8'),
     ];
     $bytes = $enc178('Plugin_Cache  ', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenEight canonicalizes s
         $row178(3, 'plugin_cache_beta', 'UTF-8'),
     ];
     $bytes = $enc178('Plugin_Cache  ', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -213,7 +213,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenEight raw byte mismat
         $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
     $rawBytes = $enc178('plugin_cache', 'UTF-16BE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -242,7 +242,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenEight raw encoding mi
         $row178(2, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
     $rawBytes = $enc178('plugin_cache', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -270,7 +270,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenEight missing token s
         $row178(1, 'plugin_cache', 'UTF-16LE'),
         $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -291,7 +291,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenEight rejects malform
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16LE'),
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin%',
@@ -309,7 +309,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenEight rejects partial
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16LE'),
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin%',

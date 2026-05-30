@@ -62,7 +62,7 @@ $plan224 = static fn (
     int $currentSchemaCookie = 223,
     int $nextSchemaCookie = 224,
     ?array $resumeToken = null,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameKeysetResumePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyKeysetResumePlan(
     $current ?? $current224,
     $next ?? $nextTwoTwoFour,
     'plugin!_cache%',
@@ -235,7 +235,7 @@ $tests['utf16 nocase like rtrim current source nextTwoTwoFour defaults resume ke
         $row224(1, 'Plugin_Cache', 'UTF-16BE'),
         $row224(2, 'plugin_cache_alpha', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameKeysetResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyKeysetResumePlan(
         $rows,
         $rows,
         'plugin!_cache%',

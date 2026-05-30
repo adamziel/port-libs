@@ -33,7 +33,7 @@ final class SQLiteEncodingLikeGlobSourceSwitchPlan
      *   dependencies:list<string>
      * }
      */
-    public static function optionRowNameSourceSwitch(
+    public static function keyValueRowKeySourceSwitch(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -44,7 +44,7 @@ final class SQLiteEncodingLikeGlobSourceSwitchPlan
         string $currentSource = 'current',
         string $nextSource = 'next',
     ): array {
-        $currentMatches = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
+        $currentMatches = SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan(
             $currentRows,
             $pattern,
             $operator,
@@ -52,7 +52,7 @@ final class SQLiteEncodingLikeGlobSourceSwitchPlan
             $escape,
             $caseSensitiveLike,
         );
-        $nextMatches = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
+        $nextMatches = SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan(
             $nextRows,
             $pattern,
             $operator,

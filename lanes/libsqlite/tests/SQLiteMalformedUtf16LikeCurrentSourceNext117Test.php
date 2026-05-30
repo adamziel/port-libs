@@ -68,7 +68,7 @@ $plan = static fn (
     bool $caseSensitiveLike = false,
     string $currentSource = 'main.wp_options@cookie116',
     string $nextSource = 'main.wp_options@cookie117',
-): array => SQLiteMalformedLikeGlobSourceNextPlan::optionRowNameCurrentNext(
+): array => SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext(
     $currentRows,
     $nextRows,
     $pattern,

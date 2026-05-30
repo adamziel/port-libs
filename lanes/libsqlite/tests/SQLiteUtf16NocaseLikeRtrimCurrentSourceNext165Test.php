@@ -61,7 +61,7 @@ $plan = static function (
     int $currentSchemaCookie = 11,
     int $nextSchemaCookie = 11,
 ) use ($currentRows, $nextRows, $enc, $code): array {
-    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumePlan(
+    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumePlan(
         $current ?? $currentRows,
         $next ?? $nextRows,
         $enc($currentPattern, $currentPatternEncoding),
@@ -216,7 +216,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixFive decoded pattern ch
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixFive invalid token shape throws'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc, $code): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumePlan(
         $currentRows,
         $nextRows,
         $enc('plugin\\_cache%', 'UTF-8'),

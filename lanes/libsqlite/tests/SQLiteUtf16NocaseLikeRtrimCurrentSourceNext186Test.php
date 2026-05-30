@@ -52,7 +52,7 @@ $plan186 = static fn (
     int $currentCookie = 185,
     int $nextCookie = 186,
     ?array $resumeToken = ['key' => 'plugin_cache', 'rowid' => 2],
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumeBoundaryPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumeBoundaryPlan(
     $current ?? $current186,
     $next ?? $nextOneEightSix,
     $pattern,
@@ -175,7 +175,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightSix stable byte order
         $row186(2, 'plugin_cache_alpha', 3),
         $row186(3, 'plugin_cache_beta', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumeBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumeBoundaryPlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -201,7 +201,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightSix rtrim tab boundar
         $row186(2, 'plugin_cache' . "\t", 2),
         $row186(3, 'plugin_cache ', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumeBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumeBoundaryPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -219,7 +219,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightSix rtrim tab boundar
 
 $tests['utf16 nocase like rtrim current source nextOneEightSix rejects malformed resume key'] = static function (TestRunner $t) use ($row186): void {
     $rows = [$row186(1, 'plugin_cache', 2)];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumeBoundaryPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumeBoundaryPlan(
         $rows,
         $rows,
         'plugin%',
@@ -234,7 +234,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightSix rejects malformed
 
 $tests['utf16 nocase like rtrim current source nextOneEightSix rejects malformed resume rowid'] = static function (TestRunner $t) use ($row186): void {
     $rows = [$row186(1, 'plugin_cache', 2)];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumeBoundaryPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumeBoundaryPlan(
         $rows,
         $rows,
         'plugin%',

@@ -54,7 +54,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@148',
     string $currentEncoding = 'UTF-16LE',
     string $nextEncoding = 'UTF-16BE',
-): array => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::optionRowNameGlobPlan(
+): array => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyGlobPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -187,7 +187,7 @@ $tests['utf16 nocase glob affinity current source nextOneFourEight stable exact 
         $row(2, 'Plugin_Cache', 'UTF-16LE'),
         $row(3, 'theme_cache', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::optionRowNameGlobPlan($rows, $rows, 'plugin_cache*', 'stable', 'stable', 'UTF-16LE', 'UTF-16LE');
+    $result = SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyGlobPlan($rows, $rows, 'plugin_cache*', 'stable', 'stable', 'UTF-16LE', 'UTF-16LE');
     $t->same([1, 2], $result['currentCandidateRowids']);
     $t->same([1], $result['currentRowids']);
     $t->same([2], $result['currentResidualRejectedRowids']);
@@ -198,27 +198,27 @@ $tests['utf16 nocase glob affinity current source nextOneFourEight stable exact 
 $tests['utf16 nocase glob affinity current source nextOneFourEight malformed error change invalidates only malformed text'] = static function (TestRunner $t) use ($row, $bad): void {
     $current = [$row(1, 'plugin_cache'), $bad(9, "\xff")];
     $next = [$row(1, 'plugin_cache'), $bad(9, "\x3d\xd8")];
-    $result = SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::optionRowNameGlobPlan($current, $next, 'plugin_cache*', 'stable', 'stable', 'UTF-16LE', 'UTF-16LE');
+    $result = SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyGlobPlan($current, $next, 'plugin_cache*', 'stable', 'stable', 'UTF-16LE', 'UTF-16LE');
     $t->same([1], $result['currentRowids']);
     $t->same([1], $result['nextRowids']);
     $t->same(['malformed-text'], $result['invalidationReasons']);
 };
 
 $tests['utf16 nocase glob affinity current source nextOneFourEight rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::optionRowNameGlobPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $nextRows, 'plugin*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyGlobPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $nextRows, 'plugin*'));
 };
 
 $tests['utf16 nocase glob affinity current source nextOneFourEight rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::optionRowNameGlobPlan([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyGlobPlan([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin*'));
 };
 
 $tests['utf16 nocase glob affinity current source nextOneFourEight rejects non utf16 row encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::optionRowNameGlobPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyGlobPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin*'));
 };
 
 $tests['utf16 nocase glob affinity current source nextOneFourEight rejects unsupported storage class'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_cache', 'UTF-16LE'), 'text_encoding' => 2, 'storage_class' => 'integer']];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::optionRowNameGlobPlan($rows, $rows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyGlobPlan($rows, $rows, 'p*'));
 };
 
 $tests['utf16 nocase glob affinity current source nextOneFourEight rejects non utf16 database encoding'] = static function (TestRunner $t) use ($plan): void {

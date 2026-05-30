@@ -139,17 +139,17 @@ $wpRows = [
 ];
 
 $tests['utf16 collation affinity current source nextEightFive application numeric seek includes utf16 and integer peers'] = static function (TestRunner $t) use ($wpRows, $enc): void {
-    $rows = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek($wpRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE');
+    $rows = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek($wpRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE');
     $t->same([21, 24, 22, 23], array_column($rows, 'rowid'));
 };
 
 $tests['utf16 collation affinity current source nextEightFive application text seek reports decoded payload'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek($wpRows, 'Plugin_Alpha', 'TEXT', 'TEXT', 'RTRIM');
+    $rows = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek($wpRows, 'Plugin_Alpha', 'TEXT', 'TEXT', 'RTRIM');
     $t->same('Plugin_Alpha ', $rows[0]['value']);
 };
 
 $tests['utf16 collation affinity current source nextEightFive application text seek reports utf16le encoding'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek($wpRows, 'Plugin_Alpha', 'TEXT', 'TEXT', 'RTRIM');
+    $rows = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek($wpRows, 'Plugin_Alpha', 'TEXT', 'TEXT', 'RTRIM');
     $t->same('UTF-16LE', $rows[0]['encoding']);
 };
 
@@ -194,15 +194,15 @@ $tests['utf16 collation affinity current source nextEightFive rejects non string
 };
 
 $tests['utf16 collation affinity current source nextEightFive application rejects missing option value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::optionRowValueSeek([['option_id' => 1]], 'p'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek([['option_id' => 1]], 'p'));
 };
 
 $tests['utf16 collation affinity current source nextEightFive application rejects missing encoding'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::optionRowValueSeek([['option_id' => 1, 'option_value_bytes' => 'p']], 'p'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek([['option_id' => 1, 'option_value_bytes' => 'p']], 'p'));
 };
 
 $tests['utf16 collation affinity current source nextEightFive application rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::optionRowValueSeek([['option_id' => '1', 'option_value' => 'p']], 'p'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek([['option_id' => '1', 'option_value' => 'p']], 'p'));
 };
 
 return $tests;

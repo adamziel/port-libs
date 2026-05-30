@@ -11,7 +11,7 @@ final class SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameOperatorSwitchPlan(
+    public static function keyValueRowKeyOperatorSwitchPlan(
         array $currentRows,
         array $nextRows,
         string $currentPattern,

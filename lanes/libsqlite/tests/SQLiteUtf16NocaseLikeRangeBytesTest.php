@@ -53,7 +53,7 @@ $plan = static fn (
     string $nextDatabaseEncoding = 'UTF-16BE',
     ?array $current = null,
     ?array $next = null,
-): array => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::optionRowNameLikePlan(
+): array => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::keyValueRowKeyLikePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,

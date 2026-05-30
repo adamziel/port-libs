@@ -47,7 +47,7 @@ $plan180 = static fn (
     string $nextSource = 'main.wp_options@180',
     int $currentCookie = 179,
     int $nextCookie = 180,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiPrefixPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixPlan(
     $current ?? $current180,
     $next ?? $nextOneEightZero,
     $pattern,
@@ -148,7 +148,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightZero stable full scan
         $row180(2, 'éCLAIR_cache ', 3),
         $row180(3, 'Éclair_cache', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixPlan(
         $rows,
         $rows,
         'éclair!_%',
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightZero ascii prefix sti
         $row180(2, 'plugin_cache ', 3),
         $row180(3, 'theme_cache', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixPlan(
         $rows,
         $rows,
         'plugin!_%',
@@ -193,7 +193,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightZero no fixed prefix 
         $row180(1, 'éclair_cache', 2),
         $row180(2, 'plugin_cache', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixPlan(
         $rows,
         $rows,
         '%cache',
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightZero no fixed prefix 
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightZero rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiPrefixPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixPlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],
         'éclair%',

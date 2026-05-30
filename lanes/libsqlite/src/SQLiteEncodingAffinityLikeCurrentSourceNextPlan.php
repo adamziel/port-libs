@@ -11,7 +11,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValuePlan(
+    public static function keyValueRowValuePlan(
         array $currentRows,
         array $nextRows,
         string $column,
@@ -39,7 +39,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
             ? SQLiteLikeCollationPlan::plan($pattern, $collation, $escape, $caseSensitiveLike)['range']
             : SQLiteDatabase::globPrefixRangeBounds($pattern);
 
-        $current = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan(
+        $current = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan(
             $currentRows,
             $column,
             $pattern,
@@ -49,7 +49,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
             $caseSensitiveLike,
             $currentEncoding,
         );
-        $next = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan(
+        $next = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan(
             $nextRows,
             $column,
             $pattern,
@@ -156,7 +156,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueDynamicPatternPlan(
+    public static function keyValueRowValueDynamicPatternPlan(
         array $currentRows,
         array $nextRows,
         string $valueColumn,
@@ -170,7 +170,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
         int $currentSchemaCookie = 1,
         int $nextSchemaCookie = 1,
     ): array {
-        return self::optionRowValueDynamicLikeGlobPlan(
+        return self::keyValueRowValueDynamicLikeGlobPlan(
             $currentRows,
             $nextRows,
             $valueColumn,
@@ -192,7 +192,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueDynamicLikeGlobPlan(
+    public static function keyValueRowValueDynamicLikeGlobPlan(
         array $currentRows,
         array $nextRows,
         string $valueColumn,

@@ -11,7 +11,7 @@ final class SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameEmbeddedNulPlan(
+    public static function keyValueRowKeyEmbeddedNulPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

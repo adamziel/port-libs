@@ -161,7 +161,7 @@ final class SQLiteUtf16CollationAffinityCursor
      * @param list<array<string,mixed>> $rows
      * @return list<array{rowid:int,value:mixed,storage:string,encoding:?string,valueBytesHex:?string,comparisonToProbe:?int,payload:array<string,mixed>,position:int}>
      */
-    public static function optionRowValueSeek(
+    public static function keyValueRowValueSeek(
         array $rows,
         mixed $probe,
         string $leftAffinity = 'TEXT',

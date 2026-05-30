@@ -54,7 +54,7 @@ $plan192 = static fn (
     string $nextSource = 'main.wp_options@192',
     int $currentCookie = 191,
     int $nextCookie = 192,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
     $current ?? $current192,
     $next ?? $nextOneNineTwo,
     'plugin!_cache',
@@ -147,7 +147,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineTwo stable false-posit
         $row192(3, 'plugin_cache_alpha', 'UTF-16LE'),
         $row192(4, 'plugin_cache_zip', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -171,7 +171,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineTwo stable false-posit
 $tests['utf16 nocase like rtrim current source nextOneNineTwo matched row becoming false positive forces reprepare'] = static function (TestRunner $t) use ($row192): void {
     $current = [$row192(1, 'plugin_cache', 'UTF-16LE'), $row192(2, 'plugin_cache_alpha', 'UTF-16LE')];
     $next = [$row192(1, "plugin_cache\t", 'UTF-16BE'), $row192(2, 'plugin_cache_alpha', 'UTF-16LE')];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
         $current,
         $next,
         'plugin!_cache',
@@ -192,7 +192,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineTwo matched row becomi
 
 $tests['utf16 nocase like rtrim current source nextOneNineTwo canonicalizes token key'] = static function (TestRunner $t) use ($row192): void {
     $rows = [$row192(1, 'Plugin_Cache', 'UTF-16LE'), $row192(2, 'plugin_cache_zip', 'UTF-16BE')];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -211,7 +211,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineTwo canonicalizes toke
 
 $tests['utf16 nocase like rtrim current source nextOneNineTwo missing token blocks resume'] = static function (TestRunner $t) use ($row192): void {
     $rows = [$row192(1, 'plugin_cache', 'UTF-16LE')];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -230,7 +230,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineTwo missing token bloc
 
 $tests['utf16 nocase like rtrim current source nextOneNineTwo rejects malformed token key'] = static function (TestRunner $t) use ($row192): void {
     $rows = [$row192(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
         $rows,
         $rows,
         'plugin%',
@@ -241,7 +241,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineTwo rejects malformed 
 
 $tests['utf16 nocase like rtrim current source nextOneNineTwo rejects malformed token rowid'] = static function (TestRunner $t) use ($row192): void {
     $rows = [$row192(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
         $rows,
         $rows,
         'plugin%',

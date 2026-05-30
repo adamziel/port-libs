@@ -54,7 +54,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@cookie91',
     ?array $current = null,
     ?array $next = null,
-): array => SQLiteMalformedLikeGlobSourceNextPlan::optionRowNameCurrentNext(
+): array => SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,

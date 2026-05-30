@@ -13,7 +13,7 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
      * @param array<string,mixed> $nextStatement
      * @return array<string,mixed>
      */
-    public static function optionRowNameStatement(
+    public static function keyValueRowKeyStatement(
         array $currentRows,
         array $nextRows,
         array $currentStatement,
@@ -22,7 +22,7 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
         $current = self::normalizeStatement($currentStatement, 'current');
         $next = self::normalizeStatement($nextStatement, 'next');
 
-        $currentMatches = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
+        $currentMatches = SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan(
             $currentRows,
             $current['pattern'],
             $current['operator'],
@@ -30,7 +30,7 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
             $current['escape'],
             $current['caseSensitiveLike'],
         );
-        $currentCandidates = SQLiteEncodingCollationSourceCursor::optionRowNameRangeScan(
+        $currentCandidates = SQLiteEncodingCollationSourceCursor::keyValueRowKeyRangeScan(
             $currentRows,
             $current['pattern'],
             $current['operator'],
@@ -38,7 +38,7 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
             $current['escape'],
             $current['caseSensitiveLike'],
         );
-        $nextMatches = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
+        $nextMatches = SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan(
             $nextRows,
             $next['pattern'],
             $next['operator'],
@@ -46,7 +46,7 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
             $next['escape'],
             $next['caseSensitiveLike'],
         );
-        $nextCandidates = SQLiteEncodingCollationSourceCursor::optionRowNameRangeScan(
+        $nextCandidates = SQLiteEncodingCollationSourceCursor::keyValueRowKeyRangeScan(
             $nextRows,
             $next['pattern'],
             $next['operator'],

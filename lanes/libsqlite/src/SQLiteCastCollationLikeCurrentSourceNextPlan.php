@@ -11,7 +11,7 @@ final class SQLiteCastCollationLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueCastScan(
+    public static function keyValueRowValueCastScan(
         array $currentRows,
         array $nextRows,
         string $castTarget,

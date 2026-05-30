@@ -53,7 +53,7 @@ $plan194 = static fn (
     string $nextSource = 'main.wp_options@194',
     int $currentCookie = 193,
     int $nextCookie = 194,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedWildcardPrefixPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan(
     $current ?? $current194,
     $next ?? $nextOneNineFour,
     $pattern,
@@ -158,7 +158,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineFour stable source can
         $row194(2, 'Plugin%Cache  ', 'UTF-16BE'),
         $row194(3, 'plugin%cache_extra', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedWildcardPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan(
         $rows,
         $rows,
         'plugin!%%',
@@ -182,7 +182,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineFour escaped underscor
         $row194(2, 'PLUGIN_CACHE_A', 'UTF-16BE'),
         $row194(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedWildcardPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan(
         $rows,
         $rows,
         'plugin!_%',
@@ -207,7 +207,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineFour unescaped percent
         $row194(2, 'plugin_cache', 'UTF-16BE'),
         $row194(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedWildcardPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan(
         $rows,
         $rows,
         'plugin%',
@@ -230,7 +230,7 @@ $tests['utf16 nocase like rtrim current source nextOneNineFour escaped literal e
         $row194(2, 'plugin%cache_extra', 'UTF-16BE'),
         $row194(3, 'plugin&cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedWildcardPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan(
         $rows,
         $rows,
         'plugin!%cache',
@@ -249,11 +249,11 @@ $tests['utf16 nocase like rtrim current source nextOneNineFour escaped literal e
 };
 
 $tests['utf16 nocase like rtrim current source nextOneNineFour rejects invalid escape length via base planner'] = static function (TestRunner $t) use ($current194, $nextOneNineFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedWildcardPrefixPlan($current194, $nextOneNineFour, 'plugin!!%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan($current194, $nextOneNineFour, 'plugin!!%', '!!'));
 };
 
 $tests['utf16 nocase like rtrim current source nextOneNineFour rejects missing option id'] = static function (TestRunner $t) use ($nextOneNineFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapedWildcardPrefixPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapedWildcardPrefixPlan([
         ['option_name_bytes' => 'plugin%cache', 'text_encoding' => 1],
     ], $nextOneNineFour));
 };

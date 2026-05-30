@@ -38,7 +38,7 @@ final class SQLiteUtf16CollationAffinitySourceSwitchPlan
      *   dependencies:list<string>
      * }
      */
-    public static function optionRowValueSourceSwitch(
+    public static function keyValueRowValueSourceSwitch(
         array $currentRows,
         array $nextRows,
         mixed $probe,
@@ -48,14 +48,14 @@ final class SQLiteUtf16CollationAffinitySourceSwitchPlan
         string $currentSource = 'current',
         string $nextSource = 'next',
     ): array {
-        $currentMatches = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek(
+        $currentMatches = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek(
             $currentRows,
             $probe,
             $leftAffinity,
             $rightAffinity,
             $collation,
         );
-        $nextMatches = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek(
+        $nextMatches = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek(
             $nextRows,
             $probe,
             $leftAffinity,
@@ -169,7 +169,7 @@ final class SQLiteUtf16CollationAffinitySourceSwitchPlan
      */
     private static function normalizedRows(array $rows, string $leftAffinity, string $rightAffinity, string $collation, mixed $probe): array
     {
-        $remaining = SQLiteUtf16CollationAffinityCursor::optionRowValueSeek($rows, $probe, $leftAffinity, $rightAffinity, $collation);
+        $remaining = SQLiteUtf16CollationAffinityCursor::keyValueRowValueSeek($rows, $probe, $leftAffinity, $rightAffinity, $collation);
         $byRowid = [];
         foreach ($remaining as $row) {
             $byRowid[$row['rowid']] = [

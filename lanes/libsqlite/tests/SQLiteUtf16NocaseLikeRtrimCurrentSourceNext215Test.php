@@ -53,7 +53,7 @@ $plan215 = static fn (
     string $nextSource = 'main.wp_options@215',
     int $currentCookie = 214,
     int $nextCookie = 215,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulTokenPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulTokenPlan(
     $current ?? $current215,
     $next ?? $nextTwoOneFive,
     'plugin!_cache%',
@@ -153,7 +153,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneFive stable embedded nu
         $row215(2, "plugin_cache\0shadow", 'UTF-16BE'),
         $row215(3, 'plugin_cache_extra', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -177,7 +177,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneFive canonicalizes resu
         $row215(1, "Plugin_Cache\0Shadow", 'UTF-16LE'),
         $row215(2, 'plugin_cache_zip', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -201,7 +201,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneFive null token replays
         $row215(2, "plugin_cache\0later", 'UTF-16BE'),
         $row215(3, 'theme_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -220,7 +220,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneFive null token replays
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneFive rejects missing option bytes'] = static function (TestRunner $t) use ($nextTwoOneFive): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulTokenPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulTokenPlan([
         ['option_id' => 1, 'text_encoding' => 1],
     ], $nextTwoOneFive));
 };

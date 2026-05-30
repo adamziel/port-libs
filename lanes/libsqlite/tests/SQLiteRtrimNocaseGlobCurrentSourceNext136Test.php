@@ -65,7 +65,7 @@ $plan = static fn (
     int $nextSchemaCookie = 12,
     int $currentCollationVersion = 3,
     int $nextCollationVersion = 4,
-): array => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNameExpressionPlan(
+): array => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -195,15 +195,15 @@ $tests['rtrim nocase glob current source nextOneThreeSix exact rtrim range keeps
 };
 
 $tests['rtrim nocase glob current source nextOneThreeSix rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNameExpressionPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_*'));
 };
 
 $tests['rtrim nocase glob current source nextOneThreeSix rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNameExpressionPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'plugin_*'));
 };
 
 $tests['rtrim nocase glob current source nextOneThreeSix rejects missing text encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNameExpressionPlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache']], $nextRows, 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache']], $nextRows, 'plugin_*'));
 };
 
 return $tests;

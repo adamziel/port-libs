@@ -394,7 +394,7 @@ final class SQLiteJsonImportWalSavepointPlan
                 continue;
             }
             $current = $currentByName[$name] ?? null;
-            if ($current === null || self::optionValueForComparison($current['option_value'] ?? '') !== self::optionValueForComparison($row['option_value'] ?? '') || self::autoloadForComparison($current['autoload'] ?? 'no') !== self::autoloadForComparison($row['autoload'] ?? 'no')) {
+            if ($current === null || self::optionValueForComparison($current['option_value'] ?? '') !== self::optionValueForComparison($row['option_value'] ?? '') || self::loadPolicyForComparison($current['autoload'] ?? 'no') !== self::loadPolicyForComparison($row['autoload'] ?? 'no')) {
                 $changed[] = $row;
             }
         }
@@ -415,7 +415,7 @@ final class SQLiteJsonImportWalSavepointPlan
                 'option_id' => isset($row['option_id']) && is_int($row['option_id']) ? $row['option_id'] : null,
                 'option_name' => (string) ($row['option_name'] ?? ''),
                 'option_value' => self::optionValueForComparison($value),
-                'autoload' => self::autoloadForComparison($row['autoload'] ?? 'no'),
+                'autoload' => self::loadPolicyForComparison($row['autoload'] ?? 'no'),
             ];
         }
 
@@ -460,7 +460,7 @@ final class SQLiteJsonImportWalSavepointPlan
         return (string) $value;
     }
 
-    private static function autoloadForComparison(mixed $autoload): string
+    private static function loadPolicyForComparison(mixed $autoload): string
     {
         return in_array(strtolower(trim((string) $autoload)), ['yes', 'on', 'true', '1'], true) ? 'yes' : 'no';
     }

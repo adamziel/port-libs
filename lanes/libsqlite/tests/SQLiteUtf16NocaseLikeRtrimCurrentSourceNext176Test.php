@@ -48,7 +48,7 @@ $plan176 = static fn (
     string $nextSource = 'main.wp_options@176',
     int $currentCookie = 175,
     int $nextCookie = 176,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerYieldPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerYieldPlan(
     $current ?? $current176,
     $next ?? $nextOneSevenSix,
     $pattern,
@@ -152,7 +152,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSix stable peer rows 
         $row176(2, 'plugin_cache  ', 2),
         $row176(4, 'plugin_cache_extra', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerYieldPlan($current, $next, 'plugin!_cache%', '!', ['key' => 'plugin_cache', 'rowid' => 2], 2, 'stable', 'stable', 8, 8);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerYieldPlan($current, $next, 'plugin!_cache%', '!', ['key' => 'plugin_cache', 'rowid' => 2], 2, 'stable', 'stable', 8, 8);
     $t->same([4], $result['nextAfterTokenRowids']);
     $t->same([4], $result['yieldedRowids']);
     $t->same([], $result['peerGroupChanges']);
@@ -168,7 +168,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSix yield page can st
         $row176(3, 'Plugin_Cache  ', 2),
         $row176(4, 'plugin_cache_extra', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerYieldPlan($rows, $rows, 'plugin!_cache%', '!', null, 2, 'stable', 'stable', 9, 9);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerYieldPlan($rows, $rows, 'plugin!_cache%', '!', null, 2, 'stable', 'stable', 9, 9);
     $t->same([1, 2], $result['yieldedRowids']);
     $t->same([3, 4], $result['deferredRowids']);
     $t->same(['key' => 'plugin_cache', 'rowid' => 2], $result['highWaterToken']);
@@ -182,7 +182,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSix unicode prefix di
         $row176(1, 'éclair_cache', 2),
         $row176(2, 'Éclair_Cache  ', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerYieldPlan($rows, $rows, 'éclair%', null, null, 5, 'stable', 'stable', 10, 10);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerYieldPlan($rows, $rows, 'éclair%', null, null, 5, 'stable', 'stable', 10, 10);
     $t->same(false, $result['indexUsable']);
     $t->same(['unusable-nocase-prefix-range'], $result['invalidationReasons']);
     $t->same([], $result['currentMatchedRowids']);
@@ -198,7 +198,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSix rejects zero page
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSevenSix rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerYieldPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerYieldPlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],
         'plugin%',

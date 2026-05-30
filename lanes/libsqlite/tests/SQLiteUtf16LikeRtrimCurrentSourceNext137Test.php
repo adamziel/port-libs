@@ -66,7 +66,7 @@ $plan137 = static fn (
     ?array $next = null,
     string $currentSource = 'main.wp_options@136',
     string $nextSource = 'main.wp_options@137',
-): array => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::optionRowNamePlan(
+): array => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current ?? $current137,
     $next ?? $nextOneThreeSeven,
     $pattern,
@@ -200,15 +200,15 @@ $tests['utf16 like rtrim current source nextOneThreeSeven rejects invalid escape
 };
 
 $tests['utf16 like rtrim current source nextOneThreeSeven rejects non integer option id'] = static function (TestRunner $t) use ($nextOneThreeSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::optionRowNamePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextOneThreeSeven, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextOneThreeSeven, 'plugin%'));
 };
 
 $tests['utf16 like rtrim current source nextOneThreeSeven rejects missing bytes'] = static function (TestRunner $t) use ($nextOneThreeSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'text_encoding' => 1]], $nextOneThreeSeven, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], $nextOneThreeSeven, 'plugin%'));
 };
 
 $tests['utf16 like rtrim current source nextOneThreeSeven rejects missing encoding'] = static function (TestRunner $t) use ($nextOneThreeSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name_bytes' => 'x']], $nextOneThreeSeven, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'x']], $nextOneThreeSeven, 'plugin%'));
 };
 
 return $tests;

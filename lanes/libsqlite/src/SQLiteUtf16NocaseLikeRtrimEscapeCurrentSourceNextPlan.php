@@ -6,14 +6,14 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan
 {
-    public static function optionRowNameEscapePlan(mixed ...$args): array
+    public static function keyValueRowKeyEscapePlan(mixed ...$args): array
     {
-        return SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl::optionRowNameEscapePlan(...$args);
+        return SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl::keyValueRowKeyEscapePlan(...$args);
     }
 
-    public static function optionRowNameEscapeReplayPlan(mixed ...$args): array
+    public static function keyValueRowKeyEscapeReplayPlan(mixed ...$args): array
     {
-        return SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl::optionRowNameEscapeReplayPlan(...$args);
+        return SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl::keyValueRowKeyEscapeReplayPlan(...$args);
     }
 
 }
@@ -25,7 +25,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameEscapePlan(
+    public static function keyValueRowKeyEscapePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -48,7 +48,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
         self::assertSingleCharacterEscape($currentTrimmedEscape, 'current');
         self::assertSingleCharacterEscape($nextTrimmedEscape, 'next');
 
-        $base = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -62,7 +62,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
             $nextSchemaCookie,
         );
 
-        $nextBase = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
+        $nextBase = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
             $nextRows,
             $nextRows,
             $nextPatternBytes,
@@ -211,7 +211,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameEscapeReplayPlan(
+    public static function keyValueRowKeyEscapeReplayPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -271,7 +271,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl
 
         $base = null;
         if ($pattern['value'] !== null && $nextEscape['value'] !== null && $nextEscape['width'] === 1) {
-            $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameTokenFingerprintPlan(
+            $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyTokenFingerprintPlan(
                 $currentRows,
                 $nextRows,
                 $pattern['value'],

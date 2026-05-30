@@ -30,7 +30,7 @@ final class SQLiteUtf16GlobRangeCurrentSourceNextPlan
      *   dependencies:list<string>
      * }
      */
-    public static function optionRowNameGlobRange(
+    public static function keyValueRowKeyGlobRange(
         array $currentRows,
         array $nextRows,
         string $pattern,

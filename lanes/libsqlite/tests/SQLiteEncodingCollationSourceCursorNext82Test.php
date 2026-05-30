@@ -133,7 +133,7 @@ $tests['encoding collation source next82 application option scan maps copied col
         ['option_id' => 3, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_100x_enabled', 'UTF-16BE'), 'text_encoding' => 3, 'autoload' => 'yes'],
     ];
 
-    $matched = SQLiteEncodingCollationSourceCursor::optionRowNameScan($rows, 'plugin\_100\%%', 'LIKE', 'NOCASE', '\\');
+    $matched = SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan($rows, 'plugin\_100\%%', 'LIKE', 'NOCASE', '\\');
     $t->same([1, 2], array_column($matched, 'rowid'));
     $t->same(['UTF-16LE', 'UTF-8'], array_column($matched, 'textEncoding'));
 };
@@ -187,7 +187,7 @@ $tests['encoding collation source next82 rejects non integer rowid'] = static fu
 };
 
 $tests['encoding collation source next82 application scan rejects missing encoding column'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationSourceCursor::optionRowNameScan([['option_id' => 1, 'option_name_bytes' => 'plugin']], 'p%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan([['option_id' => 1, 'option_name_bytes' => 'plugin']], 'p%'));
 };
 
 return $tests;

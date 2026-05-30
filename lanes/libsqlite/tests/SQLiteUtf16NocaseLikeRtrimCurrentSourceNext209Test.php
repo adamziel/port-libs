@@ -42,7 +42,7 @@ $nextTwoZeroNine = [
     $bad209(9, "\x00\xd8", 2),
 ];
 
-$plan209 = static fn (?array $current = null, ?array $next = null, string $pattern = 'plugin%'): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceRtrimPlan(
+$plan209 = static fn (?array $current = null, ?array $next = null, string $pattern = 'plugin%'): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceRtrimPlan(
     $current ?? $current209,
     $next ?? $nextTwoZeroNine,
     $pattern,
@@ -144,7 +144,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroNine stable ascii spac
         $row209(3, "plugin_cache\xc2\xa0", 'UTF-8'),
         $row209(4, 'theme_plugin', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceRtrimPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceRtrimPlan(
         $rows,
         $rows,
         'plugin%',
@@ -169,7 +169,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroNine unicode case vari
         $row209(11, 'INSERT_plugin', 'UTF-16BE'),
         $row209(12, 'insert_plugin', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceRtrimPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceRtrimPlan(
         $rows,
         $rows,
         'insert%',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source nextTwoZeroNine unicode case vari
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoZeroNine rejects invalid row shape'] = static function (TestRunner $t) use ($row209): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiSpaceRtrimPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiSpaceRtrimPlan(
         [['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]],
         [$row209(1, 'plugin', 'UTF-8')],
     ));

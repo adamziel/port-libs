@@ -11,7 +11,7 @@ final class SQLiteUtf16LikeEscapeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameLikeEscape(
+    public static function keyValueRowKeyLikeEscape(
         array $currentRows,
         array $nextRows,
         string $pattern,

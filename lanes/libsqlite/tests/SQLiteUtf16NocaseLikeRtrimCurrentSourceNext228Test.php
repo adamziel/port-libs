@@ -53,7 +53,7 @@ $plan228 = static fn (
     string $nextSource = 'stable',
     int $currentCookie = 228,
     int $nextCookie = 228,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameHeaderEncodingFencePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyHeaderEncodingFencePlan(
     $current ?? $current228,
     $next ?? $nextTwoTwoEight,
     'plugin!_cache%',

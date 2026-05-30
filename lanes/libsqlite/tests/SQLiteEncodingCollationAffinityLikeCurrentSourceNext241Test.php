@@ -47,7 +47,7 @@ $plan241 = static fn (
     string $nextSource = 'main.wp_options@241',
     int $currentCookie = 240,
     int $nextCookie = 241,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameByteAwareLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowKeyByteAwareLikePlan(
     $current ?? $current241,
     $next ?? $nextTwoFourOne,
     $pattern,
@@ -199,15 +199,15 @@ $tests['encoding collation affinity like current source nextTwoFourOne direct li
 };
 
 $tests['encoding collation affinity like current source nextTwoFourOne rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourOne): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameByteAwareLikePlan([['option_id' => 1]], $nextTwoFourOne, 'wp%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowKeyByteAwareLikePlan([['option_id' => 1]], $nextTwoFourOne, 'wp%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourOne rejects non scalar option name'] = static function (TestRunner $t) use ($nextTwoFourOne): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameByteAwareLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $nextTwoFourOne, 'wp%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowKeyByteAwareLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $nextTwoFourOne, 'wp%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourOne rejects multi character escape'] = static function (TestRunner $t) use ($current241, $nextTwoFourOne): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::optionRowNameByteAwareLikePlan($current241, $nextTwoFourOne, 'wp!!_%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::keyValueRowKeyByteAwareLikePlan($current241, $nextTwoFourOne, 'wp!!_%', '!!'));
 };
 
 return $tests;

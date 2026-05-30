@@ -55,7 +55,7 @@ $plan = static fn (
     bool $caseSensitiveLike = false,
     string $currentSource = 'main.wp_options@cookie10',
     string $nextSource = 'main.wp_options@cookie11',
-): array => SQLiteEncodingLikeGlobSourceSwitchPlan::optionRowNameSourceSwitch(
+): array => SQLiteEncodingLikeGlobSourceSwitchPlan::keyValueRowKeySourceSwitch(
     $currentRows,
     $nextRows,
     $pattern,
@@ -138,12 +138,12 @@ foreach ($cases as $name => $case) {
 
 $tests['encoding like glob source current next86 rejects malformed next source bytes'] = static function (TestRunner $t) use ($currentRows): void {
     $next = [['option_id' => 1, 'option_name_bytes' => "plugin_\xc3", 'text_encoding' => 1]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobSourceSwitchPlan::optionRowNameSourceSwitch($currentRows, $next, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobSourceSwitchPlan::keyValueRowKeySourceSwitch($currentRows, $next, 'plugin%'));
 };
 
 $tests['encoding like glob source current next86 rejects missing current rowid'] = static function (TestRunner $t) use ($nextRows): void {
     $current = [['option_name_bytes' => 'plugin', 'text_encoding' => 1]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobSourceSwitchPlan::optionRowNameSourceSwitch($current, $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobSourceSwitchPlan::keyValueRowKeySourceSwitch($current, $nextRows, 'plugin%'));
 };
 
 return $tests;

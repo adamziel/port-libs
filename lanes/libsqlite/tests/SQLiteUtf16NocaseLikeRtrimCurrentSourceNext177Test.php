@@ -49,7 +49,7 @@ $plan177 = static fn (
     string $nextSource = 'main.wp_options@177',
     int $currentCookie = 176,
     int $nextCookie = 177,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeWildcardPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeWildcardPlan(
     $current ?? $current177,
     $next ?? $nextOneSevenSeven,
     $pattern,
@@ -159,7 +159,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSeven invalidation re
 
 $tests['utf16 nocase like rtrim current source nextOneSevenSeven stable unicode wildcard is reusable after recheck'] = static function (TestRunner $t) use ($row177): void {
     $rows = [$row177(1, 'plugin_cache😀  ', 2), $row177(2, 'plugin_cacheAB', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeWildcardPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeWildcardPlan(
         $rows,
         $rows,
         'plugin!_cache_',
@@ -179,7 +179,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSeven stable unicode 
 
 $tests['utf16 nocase like rtrim current source nextOneSevenSeven ascii wildcard has no byte mismatch'] = static function (TestRunner $t) use ($row177): void {
     $rows = [$row177(1, 'plugin_cacheA', 2), $row177(2, 'plugin_cacheZ  ', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeWildcardPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeWildcardPlan(
         $rows,
         $rows,
         'plugin!_cache_',
@@ -198,7 +198,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSeven ascii wildcard 
 
 $tests['utf16 nocase like rtrim current source nextOneSevenSeven percent wildcard still accepts unicode suffix'] = static function (TestRunner $t) use ($row177): void {
     $rows = [$row177(1, 'plugin_cache😀extra', 2), $row177(2, 'plugin_cache', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeWildcardPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeWildcardPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSeven percent wildcar
 
 $tests['utf16 nocase like rtrim current source nextOneSevenSeven non ascii prefix remains unplanned'] = static function (TestRunner $t) use ($row177): void {
     $rows = [$row177(1, 'éclair😀', 2), $row177(2, 'ÉclairA', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeWildcardPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeWildcardPlan(
         $rows,
         $rows,
         'éclair_',
@@ -232,7 +232,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenSeven non ascii prefi
 
 $tests['utf16 nocase like rtrim current source nextOneSevenSeven rejects bad row shape'] = static function (TestRunner $t) use ($enc177): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc177('plugin_cacheA', 2)]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeWildcardPlan($rows, $rows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeWildcardPlan($rows, $rows, 'plugin%'));
 };
 
 return $tests;

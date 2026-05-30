@@ -38,7 +38,7 @@ $plan = static fn (
     string $collation = 'NOCASE',
     string $currentSource = 'main.wp_options@cookie118',
     string $nextSource = 'main.wp_options@cookie119',
-): array => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNamePlan(
+): array => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan(
     $currentRows,
     $nextRows,
     $pattern,
@@ -115,28 +115,28 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['rtrim nocase glob current source nextOneOneNine stable unchanged binary cursor is not invalidated'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNamePlan($currentRows, $currentRows, 'plugin_*', 'BINARY', 'stable', 'stable');
+    $plan = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $currentRows, 'plugin_*', 'BINARY', 'stable', 'stable');
     $t->same(false, $plan['cursorInvalidated']);
     $t->same([], $plan['invalidationReasons']);
 };
 
 $tests['rtrim nocase glob current source nextOneOneNine leading wildcard has no range candidates'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $plan = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, '*cache', 'NOCASE');
+    $plan = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, '*cache', 'NOCASE');
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentCandidateRowids']);
     $t->same([], $plan['currentMatchedRowids']);
 };
 
 $tests['rtrim nocase glob current source nextOneOneNine rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, 'plugin_*', 'UNICODE_NOCASE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, 'plugin_*', 'UNICODE_NOCASE'));
 };
 
 $tests['rtrim nocase glob current source nextOneOneNine rejects missing rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNamePlan([['option_name' => 'plugin_cache']], $nextRows, 'plugin_*', 'NOCASE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_name' => 'plugin_cache']], $nextRows, 'plugin_*', 'NOCASE'));
 };
 
 $tests['rtrim nocase glob current source nextOneOneNine rejects non text option name'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name' => 42]], $nextRows, 'plugin_*', 'NOCASE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name' => 42]], $nextRows, 'plugin_*', 'NOCASE'));
 };
 
 return $tests;

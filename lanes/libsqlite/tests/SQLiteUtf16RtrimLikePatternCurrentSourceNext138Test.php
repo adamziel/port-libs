@@ -69,7 +69,7 @@ $plan = static fn (
     bool $caseSensitiveLike = true,
     string $currentSource = 'main.wp_options@137',
     string $nextSource = 'main.wp_options@138',
-): array => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan(
+): array => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan(
     $currentRows,
     $nextRows,
     $bytes($pattern, $patternEncoding),
@@ -158,43 +158,43 @@ foreach ($cases as $name => [$pattern, $patternEncoding, $escape, $escapeEncodin
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight stable unchanged still records rtrim full scan'] = static function (TestRunner $t) use ($row, $bytes): void {
     $rows = [$row(1, 'plugin_cache ', 'UTF-16LE'), $row(2, 'theme_cache', 'UTF-16BE')];
-    $plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan($rows, $rows, $bytes('plugin_cache%', 'UTF-16LE'), 'UTF-16LE', null, null, true, 'stable', 'stable');
+    $plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan($rows, $rows, $bytes('plugin_cache%', 'UTF-16LE'), 'UTF-16LE', null, null, true, 'stable', 'stable');
     $t->same(['full-scan-rtrim-like'], $plan['invalidationReasons']);
     $t->same([1], $plan['currentRowids']);
     $t->same([1], $plan['nextRowids']);
 };
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight accepts utf16 alias'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, $bytes('plugin_cache%', 'UTF-16LE'), 'UTF-16');
+    $plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, $bytes('plugin_cache%', 'UTF-16LE'), 'UTF-16');
     $t->same('UTF-16LE', $plan['patternEncoding']);
 };
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight rejects invalid pattern encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, $bytes('plugin%', 'UTF-16LE'), 'UTF-32'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, $bytes('plugin%', 'UTF-16LE'), 'UTF-32'));
 };
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight rejects malformed pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, "\x00\xd8", 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, "\x00\xd8", 'UTF-16LE'));
 };
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight rejects malformed escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, $bytes('plugin!_%', 'UTF-16LE'), 'UTF-16LE', "\x00\xd8", 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, $bytes('plugin!_%', 'UTF-16LE'), 'UTF-16LE', "\x00\xd8", 'UTF-16LE'));
 };
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight rejects multi character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, $bytes('plugin!!_%', 'UTF-16LE'), 'UTF-16LE', $bytes('!!', 'UTF-16LE'), 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, $bytes('plugin!!_%', 'UTF-16LE'), 'UTF-16LE', $bytes('!!', 'UTF-16LE'), 'UTF-16LE'));
 };
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight rejects missing option id'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
 };
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight rejects missing bytes'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
 };
 
 $tests['utf16 rtrim like pattern current source nextOneThreeEight rejects missing encoding'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
 };
 
 return $tests;

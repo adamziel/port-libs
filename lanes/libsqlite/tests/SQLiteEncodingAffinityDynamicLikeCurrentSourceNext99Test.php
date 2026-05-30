@@ -50,7 +50,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options',
     int $currentSchemaCookie = 99,
     int $nextSchemaCookie = 100,
-): array => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan(
+): array => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -143,7 +143,7 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['encoding affinity dynamic like current source next99 stable cursor reusable'] = static function (TestRunner $t) use ($currentRows): void {
-    $stable = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan(
+    $stable = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan(
         $currentRows,
         $currentRows,
         'option_value',
@@ -161,7 +161,7 @@ $tests['encoding affinity dynamic like current source next99 stable cursor reusa
 };
 
 $tests['encoding affinity dynamic like current source next99 source switch invalidates first'] = static function (TestRunner $t) use ($currentRows): void {
-    $switched = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan(
+    $switched = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan(
         $currentRows,
         $currentRows,
         'option_value',
@@ -179,22 +179,22 @@ $tests['encoding affinity dynamic like current source next99 source switch inval
 };
 
 $tests['encoding affinity dynamic like current source next99 case sensitive like excludes plugin alpha'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $caseSensitive = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan($currentRows, $nextRows, 'option_value', 'like_pattern', 'like_escape', true);
+    $caseSensitive = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan($currentRows, $nextRows, 'option_value', 'like_pattern', 'like_escape', true);
     $t->same(false, in_array(6, $caseSensitive['currentRowids'], true));
 };
 
 $tests['encoding affinity dynamic like current source next99 rejects missing pattern column'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan([['option_id' => 1, 'option_value' => 'x']], $nextRows, 'option_value', 'like_pattern'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan([['option_id' => 1, 'option_value' => 'x']], $nextRows, 'option_value', 'like_pattern'));
 };
 
 $tests['encoding affinity dynamic like current source next99 rejects malformed pattern'] = static function (TestRunner $t) use ($nextRows): void {
     $current = [['option_id' => 1, 'option_value' => 'plugin_alpha', 'like_pattern' => "plugin_\xc3%"]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan($current, $nextRows, 'option_value', 'like_pattern'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan($current, $nextRows, 'option_value', 'like_pattern'));
 };
 
 $tests['encoding affinity dynamic like current source next99 rejects multi char escape after affinity'] = static function (TestRunner $t) use ($nextRows): void {
     $current = [['option_id' => 1, 'option_value' => 'plugin_100%', 'like_pattern' => 'plugin!!_100!!%%', 'like_escape' => '!!']];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan($current, $nextRows, 'option_value', 'like_pattern', 'like_escape'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan($current, $nextRows, 'option_value', 'like_pattern', 'like_escape'));
 };
 
 return $tests;

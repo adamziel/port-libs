@@ -150,7 +150,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceCursor
      * @param list<array<string,mixed>> $rows
      * @return list<array{rowid:int,text:string,originalStorage:string,bytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int}>
      */
-    public static function optionRowValueScan(
+    public static function keyValueRowValueScan(
         array $rows,
         string $column,
         string $pattern,

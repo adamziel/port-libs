@@ -11,7 +11,7 @@ final class SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValuePlan(
+    public static function keyValueRowValuePlan(
         array $currentRows,
         array $nextRows,
         string $column,
@@ -48,7 +48,7 @@ final class SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan
             }
         }
 
-        $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan(
+        $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan(
             $currentRows,
             $nextRows,
             $column,

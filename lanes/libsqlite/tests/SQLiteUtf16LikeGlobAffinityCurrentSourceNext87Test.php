@@ -151,7 +151,7 @@ $tests['utf16 like glob affinity current source nextEightSeven application value
         ['option_id' => 103, 'option_name' => 'theme_mods', 'option_value' => 'plugin_éclair', 'autoload' => 'yes'],
         ['option_id' => 104, 'option_name' => 'binary_payload', 'option_value' => new SQLiteBlobValue('plugin_blob'), 'autoload' => 'no'],
     ];
-    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan($rows, 'option_value', '1%', 'LIKE', 'BINARY', null, true, 'UTF-16LE');
+    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan($rows, 'option_value', '1%', 'LIKE', 'BINARY', null, true, 'UTF-16LE');
     $t->same([101, 102], array_column($matched, 'rowid'));
 };
 
@@ -161,7 +161,7 @@ $tests['utf16 like glob affinity current source nextEightSeven application value
         ['option_id' => 202, 'option_name' => 'theme_mods_old', 'option_value' => 'plugin_alpha'],
         ['option_id' => 203, 'option_name' => 'theme_mods_emoji', 'option_value' => 'plugin_😀_cache'],
     ];
-    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan($rows, 'option_value', 'plugin_[À-ÿ]*', 'GLOB', 'BINARY', null, false, 'UTF-16BE');
+    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan($rows, 'option_value', 'plugin_[À-ÿ]*', 'GLOB', 'BINARY', null, false, 'UTF-16BE');
     $t->same([201], array_column($matched, 'rowid'));
     $t->same('UTF-16BE', $matched[0]['textEncoding']);
 };
@@ -199,7 +199,7 @@ $tests['utf16 like glob affinity current source nextEightSeven rejects non array
 };
 
 $tests['utf16 like glob affinity current source nextEightSeven application scan rejects missing column'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::optionRowValueScan([['option_id' => 1, 'option_name' => 'siteurl']], 'option_value', 's%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan([['option_id' => 1, 'option_name' => 'siteurl']], 'option_value', 's%'));
 };
 
 return $tests;

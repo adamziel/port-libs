@@ -32,7 +32,7 @@ final class SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan
      *   dependencies:list<string>
      * }
      */
-    public static function optionRowNameLikeRange(
+    public static function keyValueRowKeyLikeRange(
         array $currentRows,
         array $nextRows,
         string $pattern,

@@ -11,7 +11,7 @@ final class SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameValuePlan(
+    public static function keyValueRowKeyValuePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -24,7 +24,7 @@ final class SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan
         int $currentCollationVersion = 14,
         int $nextCollationVersion = 15,
     ): array {
-        $plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::optionRowNameValuePlan(
+        $plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan(
             $currentRows,
             $nextRows,
             $pattern,

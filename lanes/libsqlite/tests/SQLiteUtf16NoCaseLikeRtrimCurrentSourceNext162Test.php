@@ -56,7 +56,7 @@ $plan = static function (
     int $currentSchemaCookie = 7,
     int $nextSchemaCookie = 7,
 ) use ($stableRows, $enc, $code): array {
-    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNormalizedPatternPlan(
+    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNormalizedPatternPlan(
         $currentRows ?? $stableRows,
         $nextRows ?? $stableRows,
         $enc($currentPattern, $currentPatternEncoding),
@@ -200,7 +200,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixTwo no escape keeps wil
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixTwo malformed pattern bytes throw before planning'] = static function (TestRunner $t) use ($stableRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNormalizedPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNormalizedPatternPlan(
         $stableRows,
         $stableRows,
         "p\0x",
@@ -211,7 +211,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixTwo malformed pattern b
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixTwo multi-character escape bytes throw before planning'] = static function (TestRunner $t) use ($stableRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNormalizedPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNormalizedPatternPlan(
         $stableRows,
         $stableRows,
         $enc('plugin%', 'UTF-8'),

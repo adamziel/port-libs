@@ -52,7 +52,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options',
     int $currentSchemaCookie = 41,
     int $nextSchemaCookie = 42,
-): array => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan(
+): array => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -159,24 +159,24 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['encoding affinity like current source next94 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $nextRows, 'option_value', 'plugin%', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'option_value', 'plugin%', 'REGEXP'));
 };
 
 $tests['encoding affinity like current source next94 rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $nextRows, 'option_value', 'plugin_*', 'GLOB', 'BINARY', '\\'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'option_value', 'plugin_*', 'GLOB', 'BINARY', '\\'));
 };
 
 $tests['encoding affinity like current source next94 rejects missing column'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan([['option_id' => 1, 'option_name' => 'siteurl']], $nextRows, 'option_value', 's%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1, 'option_name' => 'siteurl']], $nextRows, 'option_value', 's%'));
 };
 
 $tests['encoding affinity like current source next94 rejects malformed utf8 text before encoding'] = static function (TestRunner $t) use ($nextRows): void {
     $current = [['option_id' => 1, 'option_name' => 'broken', 'option_value' => "plugin_\xc3"]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan($current, $nextRows, 'option_value', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValuePlan($current, $nextRows, 'option_value', 'plugin%'));
 };
 
 $tests['encoding affinity like current source next94 rejects unsupported encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan($currentRows, $nextRows, 'option_value', 'plugin%', 'LIKE', 'NOCASE', null, false, 4));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'option_value', 'plugin%', 'LIKE', 'NOCASE', null, false, 4));
 };
 
 return $tests;

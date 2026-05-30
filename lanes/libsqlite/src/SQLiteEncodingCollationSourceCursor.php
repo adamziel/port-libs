@@ -186,7 +186,7 @@ final class SQLiteEncodingCollationSourceCursor
      * @param list<array<string,mixed>> $rows
      * @return list<array{rowid:int,key:string,keyBytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int}>
      */
-    public static function optionRowNameScan(
+    public static function keyValueRowKeyScan(
         array $rows,
         string $pattern,
         string $operator = 'LIKE',
@@ -220,7 +220,7 @@ final class SQLiteEncodingCollationSourceCursor
      * @param list<array<string,mixed>> $rows
      * @return list<array{rowid:int,key:string,keyBytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int,residualMatch:bool}>
      */
-    public static function optionRowNameRangeScan(
+    public static function keyValueRowKeyRangeScan(
         array $rows,
         string $pattern,
         string $operator = 'LIKE',

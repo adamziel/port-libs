@@ -6,14 +6,14 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteUtf16NocaseLikeCurrentSourceNextPlan
 {
-    public static function optionRowNameLikePlan(mixed ...$args): array
+    public static function keyValueRowKeyLikePlan(mixed ...$args): array
     {
-        return SQLiteUtf16NocaseLikeRangeBytesPlan::optionRowNameLikePlan(...$args);
+        return SQLiteUtf16NocaseLikeRangeBytesPlan::keyValueRowKeyLikePlan(...$args);
     }
 
-    public static function optionRowNameResidualPlan(mixed ...$args): array
+    public static function keyValueRowKeyResidualPlan(mixed ...$args): array
     {
-        return SQLiteUtf16NocaseLikeResidualPlan::optionRowNameLikePlan(...$args);
+        return SQLiteUtf16NocaseLikeResidualPlan::keyValueRowKeyLikePlan(...$args);
     }
 
 }
@@ -25,7 +25,7 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameLikePlan(
+    public static function keyValueRowKeyLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -44,7 +44,7 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
         $nextEncoding = self::normalizeUtf16Encoding($nextDatabaseEncoding);
         $rangePlan = SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, $caseSensitiveLike);
 
-        $currentScan = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
+        $currentScan = SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan(
             self::assertUtf16Rows($currentRows, 'current'),
             $pattern,
             'LIKE',
@@ -52,7 +52,7 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
             $escape,
             $caseSensitiveLike,
         );
-        $nextScan = SQLiteEncodingCollationSourceCursor::optionRowNameScan(
+        $nextScan = SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan(
             self::assertUtf16Rows($nextRows, 'next'),
             $pattern,
             'LIKE',
@@ -283,7 +283,7 @@ final class SQLiteUtf16NocaseLikeResidualPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameLikePlan(
+    public static function keyValueRowKeyLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,

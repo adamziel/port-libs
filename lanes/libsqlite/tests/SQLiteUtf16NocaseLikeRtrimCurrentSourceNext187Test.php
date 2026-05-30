@@ -52,7 +52,7 @@ $plan187 = static fn (
     string $nextSource = 'main.wp_options@187',
     int $currentCookie = 186,
     int $nextCookie = 187,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDanglingEscapePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDanglingEscapePlan(
     $current ?? $current187,
     $next ?? $nextOneEightSeven,
     $pattern,
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightSeven stable source s
         $row187(2, 'Plugin  ', 'UTF-16BE'),
         $row187(3, 'plugin_extra', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDanglingEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDanglingEscapePlan(
         $rows,
         $rows,
         'plugin!',
@@ -173,7 +173,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightSeven escaped bang be
         $row187(2, 'plugin!alpha', 'UTF-16BE'),
         $row187(3, 'plugin', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDanglingEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDanglingEscapePlan(
         $rows,
         $rows,
         'plugin!!%',
@@ -197,7 +197,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightSeven no escape treat
         $row187(2, 'Plugin!  ', 'UTF-16BE'),
         $row187(3, 'plugin', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDanglingEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDanglingEscapePlan(
         $rows,
         $rows,
         'plugin!',
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightSeven no escape treat
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightSeven invalid escape length rejected by base planner'] = static function (TestRunner $t) use ($current187, $nextOneEightSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDanglingEscapePlan($current187, $nextOneEightSeven, 'plugin!!', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDanglingEscapePlan($current187, $nextOneEightSeven, 'plugin!!', '!!'));
 };
 
 return $tests;

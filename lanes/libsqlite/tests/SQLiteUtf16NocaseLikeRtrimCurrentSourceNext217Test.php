@@ -58,7 +58,7 @@ $plan217 = static fn (
     string $nextSource = 'main.wp_options@217',
     int $currentCookie = 216,
     int $nextCookie = 217,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternSpacePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedPatternSpacePlan(
     $current ?? $currentRows217,
     $next ?? $nextRows217,
     $enc217($currentPattern, $currentPatternEncoding),
@@ -181,7 +181,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneSeven stable pattern sp
         $row217(2, 'Plugin_Cache alpha  ', 'UTF-16BE'),
         $row217(3, 'plugin_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternSpacePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedPatternSpacePlan(
         $rows,
         $rows,
         $enc217('plugin!_cache %', 'UTF-16LE'),
@@ -219,7 +219,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneSeven escaped wildcard 
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneSeven rejects malformed prepared pattern bytes'] = static function (TestRunner $t) use ($currentRows217, $nextRows217, $enc217): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternSpacePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedPatternSpacePlan(
         $currentRows217,
         $nextRows217,
         "\x00\xd8",
@@ -230,7 +230,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneSeven rejects malformed
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneSeven rejects invalid encoding label'] = static function (TestRunner $t) use ($currentRows217, $nextRows217, $enc217): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedPatternSpacePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedPatternSpacePlan(
         $currentRows217,
         $nextRows217,
         $enc217('plugin!_cache %', 'UTF-16LE'),

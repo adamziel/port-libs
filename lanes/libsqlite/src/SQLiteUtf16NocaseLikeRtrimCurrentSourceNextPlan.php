@@ -8,19 +8,19 @@ require_once __DIR__ . '/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextPlan.php';
 
 final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
 {
-    public static function optionRowNameNoCasePlan(mixed ...$args): array
+    public static function keyValueRowKeyNoCasePlan(mixed ...$args): array
     {
-        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl::optionRowNamePlan(...$args);
+        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl::keyValueRowKeyPlan(...$args);
     }
 
-    public static function optionRowNameUtf16NocaseRtrimPlan(mixed ...$args): array
+    public static function keyValueRowKeyUtf16NocaseRtrimPlan(mixed ...$args): array
     {
-        return self::optionRowNameNoCasePlan(...$args);
+        return self::keyValueRowKeyNoCasePlan(...$args);
     }
 
-    public static function optionRowNameNormalizedPatternPlan(mixed ...$args): array
+    public static function keyValueRowKeyNormalizedPatternPlan(mixed ...$args): array
     {
-        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl::optionRowNameNormalizedPatternPlan(...$args);
+        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl::keyValueRowKeyNormalizedPatternPlan(...$args);
     }
 
     /* Consolidated from SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php. */
@@ -30,7 +30,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNamePlan(
+    public static function keyValueRowKeyPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -43,7 +43,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         self::assertUtf16ByteOrderRows($currentRows);
         self::assertUtf16ByteOrderRows($nextRows);
 
-        $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePlan(
+        $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -143,7 +143,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameSourceDeltaPlan(
+    public static function keyValueRowKeySourceDeltaPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -441,7 +441,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameGenerationPlan(
+    public static function keyValueRowKeyGenerationPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -455,7 +455,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         string $currentLikeGeneration = 'like@160',
         string $nextLikeGeneration = 'like@161',
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceDeltaPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceDeltaPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -580,7 +580,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameYieldPlan(
+    public static function keyValueRowKeyYieldPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -596,7 +596,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         string $currentPreparedStatement = 'select-rtrim-nocase-like@163',
         string $nextPreparedStatement = 'select-rtrim-nocase-like@164',
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameGenerationPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -786,7 +786,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameResumePlan(
+    public static function keyValueRowKeyResumePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -805,7 +805,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     ): array {
         self::v165_assertLastYielded($lastYielded);
 
-        $base = self::optionRowNameNormalizedPatternPlan(
+        $base = self::keyValueRowKeyNormalizedPatternPlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -1014,7 +1014,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameFallbackPlan(
+    public static function keyValueRowKeyFallbackPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -1314,7 +1314,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameCaseSensitiveLikePlan(
+    public static function keyValueRowKeyCaseSensitiveLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -1669,7 +1669,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameYieldReplayPlan(
+    public static function keyValueRowKeyYieldReplayPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -1691,7 +1691,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixNine yield page size must be positive');
         }
 
-        $resume = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumePlan(
+        $resume = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumePlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -1879,7 +1879,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameDuplicateKeyReplayPlan(
+    public static function keyValueRowKeyDuplicateKeyReplayPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -2203,7 +2203,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameYieldTokenPlan(
+    public static function keyValueRowKeyYieldTokenPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -2220,7 +2220,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 171,
         int $nextSchemaCookie = 172,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameResumePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyResumePlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -2337,7 +2337,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameSourcePlan(
+    public static function keyValueRowKeySourcePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -2656,7 +2656,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameTokenFingerprintPlan(
+    public static function keyValueRowKeyTokenFingerprintPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -2667,7 +2667,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 174,
         int $nextSchemaCookie = 175,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDuplicateKeyReplayPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDuplicateKeyReplayPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -2779,7 +2779,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNamePeerYieldPlan(
+    public static function keyValueRowKeyPeerYieldPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -3165,7 +3165,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameUnicodeWildcardPlan(
+    public static function keyValueRowKeyUnicodeWildcardPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -3550,7 +3550,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string,keyBytes?:string,keyEncoding?:int|string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameCanonicalTokenPlan(
+    public static function keyValueRowKeyCanonicalTokenPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -3562,7 +3562,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $nextSchemaCookie = 178,
     ): array {
         $token = self::v178_canonicalizeToken($lastYielded);
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameTokenFingerprintPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyTokenFingerprintPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -3763,7 +3763,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameNonAsciiPrefixPlan(
+    public static function keyValueRowKeyNonAsciiPrefixPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4069,7 +4069,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string,keyBytes?:string,keyEncoding?:int|string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNamePeerReplayPlan(
+    public static function keyValueRowKeyPeerReplayPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4080,7 +4080,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 180,
         int $nextSchemaCookie = 181,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCanonicalTokenPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalTokenPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -4301,7 +4301,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameAsciiPrefixRangePlan(
+    public static function keyValueRowKeyAsciiPrefixRangePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache',
@@ -4311,7 +4311,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 182,
         int $nextSchemaCookie = 183,
     ): array {
-        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameNonAsciiPrefixPlan(
+        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyNonAsciiPrefixPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -4389,7 +4389,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string,keyBytes?:string,keyEncoding?:int|string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameEscapedPeerReplayPlan(
+    public static function keyValueRowKeyEscapedPeerReplayPlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4400,7 +4400,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 183,
         int $nextSchemaCookie = 184,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePeerReplayPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPeerReplayPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -4565,7 +4565,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameDeletedTokenResumePlan(
+    public static function keyValueRowKeyDeletedTokenResumePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4846,7 +4846,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameResumeBoundaryPlan(
+    public static function keyValueRowKeyResumeBoundaryPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -4857,7 +4857,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $nextSchemaCookie = 186,
         ?array $resumeToken = null,
     ): array {
-        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5021,7 +5021,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameDanglingEscapePlan(
+    public static function keyValueRowKeyDanglingEscapePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!',
@@ -5031,7 +5031,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 186,
         int $nextSchemaCookie = 187,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5162,7 +5162,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int,bytesHex?:string,encoding?:string}|null $lastYielded
      * @return array<string,mixed>
      */
-    public static function optionRowNameReusedRowidResumePlan(
+    public static function keyValueRowKeyReusedRowidResumePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -5173,7 +5173,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 187,
         int $nextSchemaCookie = 188,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameDeletedTokenResumePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyDeletedTokenResumePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5318,7 +5318,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function optionRowNamePeerWindowPlan(
+    public static function keyValueRowKeyPeerWindowPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -5329,7 +5329,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 188,
         int $nextSchemaCookie = 189,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5522,7 +5522,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameAsciiSpaceTrimBoundaryPlan(
+    public static function keyValueRowKeyAsciiSpaceTrimBoundaryPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin%',
@@ -5532,7 +5532,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 189,
         int $nextSchemaCookie = 190,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -5679,7 +5679,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNamePreparedPatternRebindPlan(
+    public static function keyValueRowKeyPreparedPatternRebindPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -5704,7 +5704,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             ? null
             : self::v191_decodePreparedText($nextEscapeBytes, $nextEscapeEncoding ?? $nextPatternEncoding, 'escape');
 
-        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $currentRows,
             $currentPattern,
@@ -5714,7 +5714,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $nextRows,
             $nextRows,
             $nextPattern,
@@ -5892,7 +5892,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function optionRowNameCandidateTokenPlan(
+    public static function keyValueRowKeyCandidateTokenPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache',
@@ -5903,7 +5903,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 191,
         int $nextSchemaCookie = 192,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6091,7 +6091,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameLimitOffsetPlan(
+    public static function keyValueRowKeyLimitOffsetPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -6110,7 +6110,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneNineThree OFFSET must be non-negative');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6259,7 +6259,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameEscapedWildcardPrefixPlan(
+    public static function keyValueRowKeyEscapedWildcardPrefixPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!%%',
@@ -6269,7 +6269,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 193,
         int $nextSchemaCookie = 194,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6460,7 +6460,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameEscapedLiteralTailPlan(
+    public static function keyValueRowKeyEscapedLiteralTailPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_!%!_cache',
@@ -6470,7 +6470,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 194,
         int $nextSchemaCookie = 195,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6595,7 +6595,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function optionRowNameDuplicatePeerResumePlan(
+    public static function keyValueRowKeyDuplicatePeerResumePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache',
@@ -6606,7 +6606,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 195,
         int $nextSchemaCookie = 196,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCandidateTokenPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCandidateTokenPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -6811,7 +6811,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameEscapeRebindPlan(
+    public static function keyValueRowKeyEscapeRebindPlan(
         array $currentRows,
         array $nextRows,
         string $currentPattern = 'plugin!_%',
@@ -7083,7 +7083,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<string,mixed> $nextPatternRow
      * @return array<string,mixed>
      */
-    public static function optionRowNameSourcePatternPlan(
+    public static function keyValueRowKeySourcePatternPlan(
         array $currentRows,
         array $nextRows,
         array $currentPatternRow,
@@ -7097,7 +7097,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentPattern = self::v202_decodePatternRow($currentPatternRow, 'current');
         $nextPattern = self::v202_decodePatternRow($nextPatternRow, 'next');
 
-        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $currentRows,
             $currentRows,
             $currentPattern,
@@ -7107,7 +7107,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameAsciiPrefixRangePlan(
+        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiPrefixRangePlan(
             $nextRows,
             $nextRows,
             $nextPattern,
@@ -7284,7 +7284,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameFullScanPlan(
+    public static function keyValueRowKeyFullScanPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = '%cache',
@@ -7554,7 +7554,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameNonAsciiFullScanPlan(
+    public static function keyValueRowKeyNonAsciiFullScanPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plüg!_%',
@@ -7776,7 +7776,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNamePreparedBomPatternPlan(
+    public static function keyValueRowKeyPreparedBomPatternPlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -7796,7 +7796,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentHadBom = $currentDecoded !== $currentPattern;
         $nextHadBom = $nextDecoded !== $nextPattern;
 
-        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $current = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $currentRows,
             $currentPattern,
@@ -7808,7 +7808,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $next = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $nextRows,
             $nextRows,
             $nextPattern,
@@ -7820,7 +7820,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $nextSchemaCookie,
             $nextSchemaCookie,
         );
-        $nextWithoutBomStrip = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $nextWithoutBomStrip = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $nextRows,
             $nextRows,
             $nextDecoded,
@@ -7981,7 +7981,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameRtrimCollationRebindPlan(
+    public static function keyValueRowKeyRtrimCollationRebindPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -8233,7 +8233,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNamePreparedEscapePlan(
+    public static function keyValueRowKeyPreparedEscapePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -8258,7 +8258,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentPattern = self::v208_rewritePatternEscape($pattern, '!', $currentEscape);
         $nextPattern = self::v208_rewritePatternEscape($pattern, '!', $nextEscape);
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $currentPattern,
@@ -8274,7 +8274,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $rawNext = null;
         $rawNextError = null;
         try {
-            $rawNext = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+            $rawNext = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
                 $nextRows,
                 $nextRows,
                 $nextPattern,
@@ -8438,7 +8438,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameAsciiSpaceRtrimPlan(
+    public static function keyValueRowKeyAsciiSpaceRtrimPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin%',
@@ -8448,7 +8448,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 208,
         int $nextSchemaCookie = 209,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -8676,7 +8676,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameEmbeddedNulPlan(
+    public static function keyValueRowKeyEmbeddedNulPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = "plugin\0cache%",
@@ -8690,7 +8690,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneZero expects an embedded-NUL LIKE pattern');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -8912,7 +8912,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameSourceRefreshPlan(
+    public static function keyValueRowKeySourceRefreshPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -9235,7 +9235,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameUnicodeEscapePlan(
+    public static function keyValueRowKeyUnicodeEscapePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -9256,7 +9256,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentEscape = self::v212_decodePreparedText($currentEscapeBytes, $currentEscapeEncoding, 'current escape');
         $nextEscape = self::v212_decodePreparedText($nextEscapeBytes, $nextEscapeEncoding, 'next escape');
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $currentPattern,
@@ -9271,7 +9271,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
 
         $currentAsciiEscape = self::v212_replaceEscapeCharacter($currentPattern, $currentEscape, '!');
         $nextAsciiEscape = self::v212_replaceEscapeCharacter($nextPattern, $nextEscape, '!');
-        $currentAscii = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $currentAscii = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $currentRows,
             $currentAsciiEscape,
@@ -9283,7 +9283,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $nextAscii = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $nextAscii = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $nextRows,
             $nextRows,
             $nextAsciiEscape,
@@ -9461,7 +9461,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameSelfEscapedEscapePlan(
+    public static function keyValueRowKeySelfEscapedEscapePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -9480,7 +9480,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneThree ESCAPE must decode to one SQLite text character');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeEscapePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeEscapePlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -9689,7 +9689,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNamePreparedPatternSpacePlan(
+    public static function keyValueRowKeyPreparedPatternSpacePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -9707,7 +9707,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentSpace = self::v217_spaceBeforeFirstWildcard($currentPattern, $escape);
         $nextSpace = self::v217_spaceBeforeFirstWildcard($nextPattern, $escape);
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $currentPattern,
@@ -9722,7 +9722,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
 
         $currentWithoutSpace = self::v217_removeSpaceBeforeFirstWildcard($currentPattern, $escape);
         $nextWithoutSpace = self::v217_removeSpaceBeforeFirstWildcard($nextPattern, $escape);
-        $currentWithoutSpacePlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $currentWithoutSpacePlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $currentRows,
             $currentWithoutSpace,
@@ -9734,7 +9734,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $nextWithoutSpacePlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $nextWithoutSpacePlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $nextRows,
             $nextRows,
             $nextWithoutSpace,
@@ -9982,7 +9982,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<string,mixed>|null $cursor
      * @return array<string,mixed>
      */
-    public static function optionRowNameYieldPagePlan(
+    public static function keyValueRowKeyYieldPagePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -10005,7 +10005,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneEight OFFSET must be non-negative');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedEscapePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -10206,7 +10206,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameSupplementaryWildcardPlan(
+    public static function keyValueRowKeySupplementaryWildcardPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache_',
@@ -10585,7 +10585,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNamePreparedByteSignaturePlan(
+    public static function keyValueRowKeyPreparedByteSignaturePlan(
         array $currentRows,
         array $nextRows,
         string $currentPatternBytes,
@@ -10606,7 +10606,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $currentEscape = self::decodePreparedLikeText($currentEscapeBytes, $currentEscapeEncoding, 'current escape');
         $nextEscape = self::decodePreparedLikeText($nextEscapeBytes, $nextEscapeEncoding, 'next escape');
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEscapeRebindPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEscapeRebindPlan(
             $currentRows,
             $nextRows,
             $currentPattern,
@@ -10762,7 +10762,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<string,mixed>|null $cursor
      * @return array<string,mixed>
      */
-    public static function optionRowNameDescYieldPagePlan(
+    public static function keyValueRowKeyDescYieldPagePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -10785,7 +10785,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoThree OFFSET must be non-negative');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameYieldPagePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPagePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -10999,7 +10999,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array<string,mixed>|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function optionRowNameKeysetResumePlan(
+    public static function keyValueRowKeyKeysetResumePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -11020,7 +11020,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoFour page size must be positive');
         }
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedEscapePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedEscapePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -11242,7 +11242,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameSourceBytePlan(
+    public static function keyValueRowKeySourceBytePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -11252,7 +11252,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 224,
         int $nextSchemaCookie = 225,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSupplementaryWildcardPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySupplementaryWildcardPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -11472,7 +11472,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameCombiningMarkPlan(
+    public static function keyValueRowKeyCombiningMarkPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_caf_',
@@ -11843,7 +11843,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameAsciiSpaceBoundaryPlan(
+    public static function keyValueRowKeyAsciiSpaceBoundaryPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_cache',
@@ -12173,7 +12173,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameHeaderEncodingFencePlan(
+    public static function keyValueRowKeyHeaderEncodingFencePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -12190,7 +12190,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $nextEncoding = self::v228_encodingName($nextDatabaseEncoding);
         $statementEncoding = self::v228_encodingName($preparedEncoding);
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceRefreshPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceRefreshPlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -12324,7 +12324,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameUnicodeSpaceRtrimPlan(
+    public static function keyValueRowKeyUnicodeSpaceRtrimPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',
@@ -12338,7 +12338,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 228,
         int $nextSchemaCookie = 229,
     ): array {
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameKeysetResumePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyKeysetResumePlan(
             $currentRows,
             $nextRows,
             $pattern,
@@ -12541,7 +12541,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameLineBreakBoundaryPlan(
+    public static function keyValueRowKeyLineBreakBoundaryPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_cache',
@@ -12895,7 +12895,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameAsciiOnlyNocasePlan(
+    public static function keyValueRowKeyAsciiOnlyNocasePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin_cafÉ%',
@@ -13223,7 +13223,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameCanonicalUnicodePlan(
+    public static function keyValueRowKeyCanonicalUnicodePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_caf_',
@@ -13655,7 +13655,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameNullPatternRebindPlan(
+    public static function keyValueRowKeyNullPatternRebindPlan(
         array $currentRows,
         array $nextRows,
         ?string $currentPattern = 'plugin!_cache%',
@@ -13906,7 +13906,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameNonAsciiPrefixFullScanPlan(
+    public static function keyValueRowKeyNonAsciiPrefixFullScanPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_é%',
@@ -14187,7 +14187,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param array{key:string,rowid:int}|null $resumeToken
      * @return array<string,mixed>
      */
-    public static function optionRowNameEmbeddedNulTokenPlan(
+    public static function keyValueRowKeyEmbeddedNulTokenPlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_cache%',

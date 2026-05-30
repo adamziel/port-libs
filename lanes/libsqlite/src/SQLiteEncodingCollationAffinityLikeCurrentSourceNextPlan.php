@@ -12,7 +12,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueMalformedByteLikePlan(
+    public static function keyValueRowValueMalformedByteLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -260,7 +260,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueNotLikePlan(
+    public static function keyValueRowValueNotLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -555,7 +555,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameEscapedLikePlan(
+    public static function keyValueRowKeyEscapedLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -778,7 +778,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueEscapePlan(
+    public static function keyValueRowValueEscapePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'plugin!_%!%%',
@@ -1344,7 +1344,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowValueNumericLikePlan(
+    public static function keyValueRowValueNumericLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -1558,7 +1558,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameByteAwareLikePlan(
+    public static function keyValueRowKeyByteAwareLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -2535,7 +2535,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      */
     private static function nextTwoFourFour_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, string $collation): array
     {
-        return SQLiteEncodingCollationSourceCursor::optionRowNameRangeScan(
+        return SQLiteEncodingCollationSourceCursor::keyValueRowKeyRangeScan(
             self::nextTwoFourFour_normalizeRows($rows),
             $pattern,
             'LIKE',
@@ -6039,7 +6039,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function optionRowNameNumericAffinityLikePlan(
+    public static function keyValueRowKeyNumericAffinityLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = '2024%',
