@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:21 UTC):
+  Latest accepted libsqlite source is `0adb243fdd`
+  (`libsqlite: add mega corpus throughput batch`). This batch accepts 8
+  compatible current-base handoffs on top of `1be884bec`, covering complete
+  date4 generated strftime range coverage, window7/window8 dynamic
+  RANGE/GROUPS behavior, select9 compound UNION ALL LIMIT/OFFSET behavior,
+  UPSERT5 full matrix coverage, WAL noop-checkpoint behavior, trigger/FK action
+  matrices, VFS atomic pager-cache behavior, and indexA partial-index affinity
+  behavior. Focused verification passed `9 files / 153655 assertions / 0
+  failures / 47482 PASS lines`; the accepted-base comparison over existing
+  selected files passed `5 files / 18708 assertions / 0 failures / 4084 PASS
+  lines`, so the honest selected PASS-line delta is `+43398`. Public libsqlite
+  should move to `287773 pass / 0 fail`; mapped coverage remains `1189 / 1589`.
+  Worker throughput is now healthy; the next pressure point is mapped
+  denominator/full-suite closure once clean PASS-line batches thin out.
+
 - 2026-05-30 supervisor continuation (integration sample 18:18 UTC):
   Latest accepted libsqlite source is `2c0ba1564c`
   (`libsqlite: add high-yield corpus throughput batch`). This batch accepts 11
