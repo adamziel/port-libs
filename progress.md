@@ -43,10 +43,29 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 33G available, 93% used after bounded inactive-worktree cleanup; `/tmp` has about 8.3G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 47G available, 90% used after bounded inactive-worktree cleanup; `/tmp` has about 8.5G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (shell samples 01:13 UTC):
+  Latest libsqlite consolidation is integrated and pushed as `158b12e19`
+  (`libsqlite: consolidate pager stat4 compound suffixes`). The batch accepts
+  8 current-base-applicable handoffs covering compound recursive-limit
+  `Next207` helper names, pager reader-cache `Next167`, `Next213`, and
+  `Next250` entry/test/example naming, pager `Next342` through `Next349`
+  dispatch cleanup, and STAT4 prepared-handoff/final-handoff naming.
+  Validation passed PHP lint for changed PHP files, changed WordPress/self-test
+  examples, `git diff --check -- lanes/libsqlite`, focused tests `12 files /
+  1161 assertions / 0 failures`, pager reader-cache family `149 files / 9989
+  assertions / 0 failures`, STAT4 expression partial family `133 files / 7539
+  assertions / 0 failures`, and compound family `78 files / 29418 assertions /
+  0 failures`. Public pass/mapped counters remain `154019 pass / 0 fail` and
+  `830 / 1589` because this is consolidation-only. A bounded cleanup archived
+  and removed 120 inactive non-Dolt worktrees under
+  `.tmux-team/archives/inactive-worktrees-20260530T0112Z`, moving
+  `/home/claude` from roughly `30G` free to roughly `47G` free while preserving
+  dirty evidence as status/diff/untracked archives.
 
 - 2026-05-30 supervisor continuation (shell samples 00:57 UTC):
   Latest libsqlite consolidation is integrated and pushed as `2c61f3b03`
