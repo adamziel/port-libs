@@ -48,6 +48,30 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 00:06 UTC):
+  Latest libsqlite consolidation is integrated and pushed as `c5032d245`
+  (`libsqlite: consolidate pager stat4 json wal vfs utf helpers`). The batch
+  accepts 7 current-base handoffs covering pager reader-cache `variantNext366`
+  through `variantNext573` dynamic dispatch, STAT4 next238/239/240/241/242/243/
+  244/246/248 plus next638-669 helper consolidation, JSON indexed-regression
+  stable naming, WAL restart/truncate helper naming, VFS next158-161 helper
+  naming, and UTF-16 NOCASE LIKE RTRIM v201 helper naming. Validation passed
+  PHP lint for 24 changed PHP files, 9 changed libsqlite WordPress/self-tests,
+  `git diff --check -- lanes/libsqlite`, the pager reader-cache family
+  `146 files / 9867 assertions / 0 failures`, STAT4 expression partial family
+  `133 files / 7537 assertions / 0 failures`, JSON table family `306 files /
+  20229 assertions / 0 failures`, and the WAL/VFS/UTF focused family gate
+  `2 files / 25815 assertions / 0 failures`. The broad exploratory
+  `php -d memory_limit=1024M tools/run-tests.php lanes/libsqlite/tests`
+  command still reports `76` failures; representative failures reproduce at
+  clean `b88d9dbd7`, so they are recorded as pre-existing broad-suite debt and
+  not accepted as regressions from this consolidation batch. Public pass/mapped
+  counters remain `154019 pass / 0 fail` and `830 / 1589` because this is
+  consolidation-only. Visible tmux pool remains in the requested band with
+  `11` isolated libsqlite workers, `10` active Codex workers, and `0` long
+  sleepers; disk is tight at roughly `22G` free and should stay under bounded
+  cleanup/watch.
+
 - 2026-05-29 supervisor continuation (shell samples 20:35 UTC):
   Eighty-first safe consolidation follow-up is integrated and pushed as
   `d91ea1012`. The batch accepts 6 clean handoffs while excluding stale or
