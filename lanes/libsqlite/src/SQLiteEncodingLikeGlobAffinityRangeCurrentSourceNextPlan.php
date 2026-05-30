@@ -173,7 +173,7 @@ final class SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan
             }
 
             $matched[] = [
-                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'rowid' => is_int($row['setting_id'] ?? null) ? $row['setting_id'] : $index + 1,
                 'text' => $text,
                 'storage' => SQLiteAffinityComparison::storageClass($row[$column]),
                 'rangeClass' => self::rangeClass($text, $range, $collation),
@@ -220,7 +220,7 @@ final class SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan
             return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
         }
 
-        throw new \InvalidArgumentException('SQLite LIKE/GLOB affinity range requires scalar option values');
+        throw new \InvalidArgumentException('SQLite LIKE/GLOB affinity range requires scalar setting values');
     }
 
     /**

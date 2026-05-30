@@ -115,6 +115,81 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         return (string) (int) $value;
     }
 
+    /**
+     * @param list<array{id:int,apr:int|float|string}> $aprRows
+     * @return list<array{id:int,apr_divided:float,apr_type:string,view:string,automatic_index:bool}>
+     */
+    public static function affinity3AprViewRows(array $aprRows, string $viewName, bool $automaticIndex): array
+    {
+        $validViews = ['v1', 'v1rj', 'v2', 'v2rj', 'v2rjrj'];
+        if (!in_array($viewName, $validViews, true)) {
+            throw new \InvalidArgumentException("SQLite affinity3 view {$viewName} is not supported");
+        }
+
+        $rows = self::applyInsertAffinities($aprRows, ['id' => 'INTEGER', 'apr' => 'REAL']);
+        $out = [];
+        foreach ($rows as $row) {
+            $apr = $row['apr'];
+            if (!is_int($apr) && !is_float($apr)) {
+                continue;
+            }
+
+            $out[] = [
+                'id' => (int) $row['id'],
+                'apr_divided' => $apr / 100.0,
+                'apr_type' => self::storageClass($apr),
+                'view' => $viewName,
+                'automatic_index' => $automaticIndex,
+            ];
+        }
+
+        usort($out, static fn (array $a, array $b): int => $a['id'] <=> $b['id']);
+
+        return $out;
+    }
+
+    /**
+     * @param list<array{id:int|string,name:string}> $dataRows
+     * @param list<array{id:int|string,name:string,affinity:string}> $mapRows
+     * @return list<array{id:string,name:string,mapped_name:string,source:string,automatic_index:bool}>
+     */
+    public static function affinity3UsingIdJoinRows(array $dataRows, array $mapRows, string $sourceName, bool $automaticIndex): array
+    {
+        if (!in_array($sourceName, ['idmap', 'mzed'], true)) {
+            throw new \InvalidArgumentException("SQLite affinity3 source {$sourceName} is not supported");
+        }
+
+        $data = self::applyInsertAffinities($dataRows, ['id' => 'TEXT', 'name' => 'TEXT']);
+        $maps = [];
+        foreach ($mapRows as $row) {
+            $affinity = strtoupper((string) $row['affinity']);
+            $coerced = self::applyInsertAffinities([
+                ['id' => $row['id'], 'name' => $row['name']],
+            ], ['id' => $sourceName === 'mzed' ? 'BLOB' : $affinity, 'name' => 'TEXT']);
+            $maps[] = $coerced[0];
+        }
+
+        $out = [];
+        foreach ($data as $dataRow) {
+            foreach ($maps as $mapRow) {
+                $comparison = self::compareExpression($dataRow['id'], $mapRow['id'], '=', 'NONE', 'NONE');
+                if ($comparison['result'] !== true) {
+                    continue;
+                }
+
+                $out[] = [
+                    'id' => (string) $dataRow['id'],
+                    'name' => (string) $dataRow['name'],
+                    'mapped_name' => (string) $mapRow['name'],
+                    'source' => $sourceName,
+                    'automatic_index' => $automaticIndex,
+                ];
+            }
+        }
+
+        return $out;
+    }
+
     public static function storageClass(mixed $value): string
     {
         return SQLiteAffinityComparison::storageClass($value);

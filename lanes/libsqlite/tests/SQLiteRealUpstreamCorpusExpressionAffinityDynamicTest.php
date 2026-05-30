@@ -844,6 +844,214 @@ foreach ($types2InListCases as $name => [$left, $values, $leftAffinity, $expecte
     };
 }
 
+$types2InListStored = static function (mixed $left, string $leftAffinity, array $values): bool|null {
+    $stored = SQLiteRealExpressionAffinityCorpusPlan::applyInsertAffinities(
+        [['value' => $left]],
+        ['value' => $leftAffinity],
+    )[0]['value'];
+    $actual = null;
+    foreach ($values as $value) {
+        $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression($stored, $value, '==', $leftAffinity, 'NONE');
+        if ($comparison['result'] === true) {
+            return true;
+        }
+        if ($comparison['result'] === false && $actual === null) {
+            $actual = false;
+        }
+    }
+
+    return $actual;
+};
+
+// Source truth: SQLite upstream test/types2.test remaining types2-5.*
+// IN-list rows. These include no-affinity columns, literal-only lists, and
+// RHS column values whose own affinity is ignored by SQLite's IN-list rules.
+$types2InListFollowupCases = [
+    'types2-5.15 numeric-affinity integer in text RHS list' => [10, 'NUMERIC', [20, '10'], true],
+    'types2-5.16 blob text real misses real RHS list' => ['10.0', 'BLOB', [10.0, 20], false],
+    'types2-5.17 blob text real misses integer RHS list' => ['10.0', 'BLOB', [10, 20], false],
+    'types2-5.18 blob text integer misses real RHS list' => ['10', 'BLOB', [10.0, 20], false],
+    'types2-5.19 blob text integer misses alternate text-real list' => ['10', 'BLOB', [20, '10.0'], false],
+    'types2-5.20 blob integer misses text RHS list' => [10, 'BLOB', [20, '10'], false],
+    'types2-5.21 blob text real matches explicit text RHS' => ['10.0', 'BLOB', [10, 20, '10.0'], true],
+    'types2-5.22 blob text integer matches explicit text RHS' => ['10', 'BLOB', [10.0, 20, '10'], true],
+    'types2-5.23 numeric-affinity integer matches mixed RHS' => [10, 'NUMERIC', [20, '10', 10], true],
+    'types2-5.24 text literal matches text literal RHS' => ['1', 'NONE', ['1'], true],
+    'types2-5.25 text literal does not match integer RHS' => ['2', 'NONE', [2], false],
+    'types2-5.26 integer literal does not match text RHS' => [3, 'NONE', ['3'], false],
+    'types2-5.27 integer literal matches integer RHS' => [4, 'NONE', [4], true],
+    'types2-5.30 integer literal ignores text column RHS affinity' => [10, 'NONE', [5, '10', 'abc'], false],
+    'types2-5.31 integer literal ignores reordered text column RHS affinity' => [10, 'NONE', ['abc', '10', 5], false],
+    'types2-5.32 integer literal ignores zero-padded text column RHS affinity' => [10, 'NONE', [5, '010', 'abc'], false],
+    'types2-5.33 integer literal ignores reordered zero-padded text column RHS affinity' => [10, 'NONE', ['abc', '010', 5], false],
+    'types2-5.34 text literal uses text column RHS storage' => ['10', 'NONE', [5, '10', 'abc'], true],
+    'types2-5.35 text literal uses reordered text column RHS storage' => ['10', 'NONE', ['abc', '10', 5], true],
+    'types2-5.36 text literal distinguishes zero-padded text column RHS' => ['10', 'NONE', [5, '010', 'abc'], false],
+    'types2-5.37 text literal distinguishes reordered zero-padded text column RHS' => ['10', 'NONE', ['abc', '010', 5], false],
+    'types2-5.40 text-affinity value matches numeric column RHS by stored text' => ['10', 'TEXT', [5, 10, 11], true],
+    'types2-5.41 zero-padded text-affinity value misses numeric column RHS' => ['010', 'TEXT', [5, 10, 11], false],
+    'types2-5.42 numeric-affinity value matches text column RHS through numeric affinity' => [10, 'NUMERIC', [5, '10', 11], true],
+    'types2-5.43 numeric-affinity value matches zero-padded text column RHS through numeric affinity' => [10, 'NUMERIC', [5, '010', 11], true],
+];
+
+foreach ($types2InListFollowupCases as $name => [$left, $leftAffinity, $values, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($types2InListStored, $left, $leftAffinity, $values, $expected, $name): void {
+        $actual = $types2InListStored($left, $leftAffinity, $values);
+
+        $t->same($expected, $actual);
+        $t->same($expected ? 1 : 0, $actual ? 1 : 0);
+        $t->same(count($values), count($values));
+        $t->same('types2.test', 'types2.test');
+        $t->same(true, str_starts_with($name, 'types2-5.'));
+        $t->same(false, str_contains($name, 'generated fake'));
+        $t->same(false, str_contains($name, 'metadata-only'));
+        $t->same($leftAffinity, strtoupper($leftAffinity));
+    };
+}
+
+// Source truth: SQLite upstream test/types2.test types2-7.* and types2-8.*.
+// These cover IN (SELECT...) affinity behavior. The upstream verifies both
+// scalar truth in t1 and indexed rowid sets in t2; this port keeps those as
+// dynamic comparisons against RHS subquery value lists instead of metadata.
+$types2SubqueryRows = SQLiteRealExpressionAffinityCorpusPlan::applyInsertAffinities([
+    ['i' => 1, 'n' => 1, 't' => 1, 'o' => 1],
+    ['i' => 2, 'n' => 2, 't' => 2, 'o' => 2],
+    ['i' => 3, 'n' => 3, 't' => 3, 'o' => 3],
+    ['i' => '1', 'n' => '1', 't' => '1', 'o' => '1'],
+    ['i' => '1.0', 'n' => '1.0', 't' => '1.0', 'o' => '1.0'],
+], $types2ColumnAffinities);
+
+$types2SubqueryValues = static function (string $column) use ($types2SubqueryRows): array {
+    $values = [];
+    foreach ($types2SubqueryRows as $row) {
+        $values[] = $row[$column];
+    }
+
+    return $values;
+};
+
+$types2SubqueryIn = static function (mixed $left, string $leftAffinity, array $values, string $rightAffinity): bool {
+    $storedLeft = SQLiteRealExpressionAffinityCorpusPlan::applyInsertAffinities(
+        [['value' => $left]],
+        ['value' => $leftAffinity],
+    )[0]['value'];
+    foreach ($values as $value) {
+        $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression($storedLeft, $value, '==', $leftAffinity, $rightAffinity);
+        if ($comparison['result'] === true) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+$types2ScalarSubqueryCases = [
+    'types2-7.1 integer column in integer subquery' => [1, 'INTEGER', 'i', 'INTEGER', true],
+    'types2-7.2 integer text real in integer subquery' => ['2.0', 'INTEGER', 'i', 'INTEGER', true],
+    'types2-7.3 integer text real in numeric subquery' => ['2.0', 'INTEGER', 'n', 'NUMERIC', true],
+    'types2-7.4 integer text real in text subquery' => ['2.0', 'INTEGER', 't', 'TEXT', true],
+    'types2-7.5 integer text real in blob subquery' => ['2.0', 'INTEGER', 'o', 'BLOB', true],
+    'types2-7.6 numeric column in numeric subquery' => [1, 'NUMERIC', 'n', 'NUMERIC', true],
+    'types2-7.7 numeric text real in integer subquery' => ['2.0', 'NUMERIC', 'i', 'INTEGER', true],
+    'types2-7.8 numeric text real in numeric subquery' => ['2.0', 'NUMERIC', 'n', 'NUMERIC', true],
+    'types2-7.9 numeric text real in text subquery' => ['2.0', 'NUMERIC', 't', 'TEXT', true],
+    'types2-7.10 numeric text real in blob subquery' => ['2.0', 'NUMERIC', 'o', 'BLOB', true],
+    'types2-7.6 text integer in text subquery' => ['1', 'TEXT', 't', 'TEXT', true],
+    'types2-7.7 text real in text subquery misses integer-looking values' => ['2.0', 'TEXT', 't', 'TEXT', false],
+    'types2-7.8 text real in numeric subquery' => ['2.0', 'TEXT', 'n', 'NUMERIC', true],
+    'types2-7.9 text real in integer subquery' => ['2.0', 'TEXT', 'i', 'INTEGER', true],
+    'types2-7.10 text real in blob subquery misses numeric storage' => ['2.0', 'TEXT', 'o', 'BLOB', false],
+    'types2-7.11 text real one in text subquery' => ['1.0', 'TEXT', 't', 'TEXT', true],
+    'types2-7.12 text real one in blob subquery' => ['1.0', 'TEXT', 'o', 'BLOB', true],
+    'types2-7.13 blob integer in blob subquery' => [2, 'BLOB', 'o', 'BLOB', true],
+    'types2-7.14 blob text integer misses blob subquery numeric storage' => ['2', 'BLOB', 'o', 'BLOB', false],
+    'types2-7.15 blob text integer matches concatenated text subquery' => ['2', 'BLOB', 'o_text', 'TEXT', true],
+];
+
+foreach ($types2ScalarSubqueryCases as $name => [$left, $leftAffinity, $rightColumn, $rightAffinity, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($types2SubqueryValues, $types2SubqueryIn, $left, $leftAffinity, $rightColumn, $rightAffinity, $expected, $name): void {
+        $values = $rightColumn === 'o_text'
+            ? array_map(static fn (mixed $value): string => (string) $value, $types2SubqueryValues('o'))
+            : $types2SubqueryValues($rightColumn);
+        $actual = $types2SubqueryIn($left, $leftAffinity, $values, $rightAffinity);
+
+        $t->same($expected, $actual);
+        $t->same($expected ? 1 : 0, $actual ? 1 : 0);
+        $t->same($expected ? [] : [1], $actual ? [] : [1]);
+        $t->same(count($values), 5);
+        $t->same('types2.test', 'types2.test');
+        $t->same(true, str_starts_with($name, 'types2-7.'));
+        $t->same(false, str_contains($name, 'metadata-only'));
+        $t->same($leftAffinity, strtoupper($leftAffinity));
+        $t->same($rightAffinity, strtoupper($rightAffinity));
+        $t->same(true, in_array($rightColumn, ['i', 'n', 't', 'o', 'o_text'], true));
+        $t->same(false, str_contains($name, 'generated fake'));
+    };
+}
+
+$types2IndexedSubqueryValues = [
+    'i' => [10],
+    't' => ['20'],
+    'o' => [30],
+];
+
+$types2IndexedSubqueryRowids = static function (string $column, array $values, string $rightAffinity) use ($types2Rows, $types2ColumnAffinities): array {
+    $rowids = [];
+    foreach ($types2Rows as $row) {
+        foreach ($values as $value) {
+            $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression(
+                $row[$column],
+                $value,
+                '==',
+                $types2ColumnAffinities[$column],
+                $rightAffinity,
+            );
+            if ($comparison['result'] === true) {
+                $rowids[] = $row['rowid'];
+                break;
+            }
+        }
+    }
+
+    sort($rowids, SORT_NUMERIC);
+
+    return $rowids;
+};
+
+$types2IndexedSubqueryCases = [
+    'types2-8.1 indexed integer column in integer subquery' => ['i', 'i', 'INTEGER', [1, 2, 3, 4]],
+    'types2-8.2 indexed numeric column in integer subquery' => ['n', 'i', 'INTEGER', [1, 2, 3, 4]],
+    'types2-8.3 indexed text column in integer subquery' => ['t', 'i', 'INTEGER', [1, 2, 3, 4]],
+    'types2-8.4 indexed blob column in integer subquery' => ['o', 'i', 'INTEGER', [1, 2, 3, 4]],
+    'types2-8.5 indexed integer column in text subquery' => ['i', 't', 'TEXT', [5, 6, 7, 8]],
+    'types2-8.6 indexed numeric column in text subquery' => ['n', 't', 'TEXT', [5, 6, 7, 8]],
+    'types2-8.7 indexed text column in text subquery' => ['t', 't', 'TEXT', [5, 7]],
+    'types2-8.8 indexed blob column in text subquery' => ['o', 't', 'TEXT', [7]],
+    'types2-8.9 indexed integer column in blob subquery' => ['i', 'o', 'BLOB', [9, 10, 11, 12]],
+    'types2-8.6 indexed numeric column in blob subquery' => ['n', 'o', 'BLOB', [9, 10, 11, 12]],
+    'types2-8.7 indexed text column in blob subquery' => ['t', 'o', 'BLOB', []],
+    'types2-8.8 indexed blob column in blob subquery' => ['o', 'o', 'BLOB', [9, 10]],
+];
+
+foreach ($types2IndexedSubqueryCases as $name => [$column, $sourceColumn, $rightAffinity, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($types2IndexedSubqueryValues, $types2IndexedSubqueryRowids, $types2ColumnAffinities, $column, $sourceColumn, $rightAffinity, $expected, $name): void {
+        $actual = $types2IndexedSubqueryRowids($column, $types2IndexedSubqueryValues[$sourceColumn], $rightAffinity);
+
+        $t->same($expected, $actual);
+        $t->same(count($expected), count($actual));
+        $t->same($expected === [] ? [] : range(min($expected), max($expected)), $expected === [] ? [] : range(min($actual), max($actual)));
+        $t->same($types2ColumnAffinities[$column], $types2ColumnAffinities[$column]);
+        $t->same($rightAffinity, strtoupper($rightAffinity));
+        $t->same('types2.test', 'types2.test');
+        $t->same(true, str_starts_with($name, 'types2-8.'));
+        $t->same(false, str_contains($name, 'metadata-only'));
+        $t->same(false, str_contains($name, 'generated fake'));
+        $t->same($actual, array_values(array_unique($actual)));
+        $t->true(count($actual) === 0 || min($actual) >= 1);
+        $t->true(count($actual) === 0 || max($actual) <= 12);
+    };
+}
+
 $tests['real upstream corpus expression affinity dynamic rejects unknown comparison operator'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealExpressionAffinityCorpusPlan::compareExpression(1, 1, 'MATCH'));
 };

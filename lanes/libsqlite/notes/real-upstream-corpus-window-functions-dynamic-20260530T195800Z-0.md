@@ -1,0 +1,25 @@
+# real-upstream-corpus-window-functions-dynamic-20260530T195800Z-0
+
+- Slice: `real-upstream-corpus-window-functions-dynamic-20260530T195800Z-0`
+- Base accepted HEAD: `688b5b5b02ee30d2a82f4468b5b909f17254ae0e`
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/window7.test`
+- Ported scenarios:
+  - `window7.test:1.2` generated 100-row `GROUPS BETWEEN CURRENT ROW AND CURRENT ROW` frame sums.
+  - `window7.test:1.3` generated 100-row `GROUPS BETWEEN 0 PRECEDING AND 0 FOLLOWING` frame sums.
+  - `window7.test:1.4` generated 100-row `GROUPS BETWEEN 2 PRECEDING AND 2 FOLLOWING` frame sums.
+  - `window7.test:1.5` generated 100-row `RANGE BETWEEN 0 PRECEDING AND 0 FOLLOWING` peer sums.
+  - `window7.test:1.6` generated 100-row `RANGE BETWEEN 2 PRECEDING AND 2 FOLLOWING` peer sums.
+  - `window7.test:1.7` generated 100-row `RANGE BETWEEN 2 PRECEDING AND 1 FOLLOWING` peer sums.
+  - `window7.test:1.8.1` generated 100-row ascending `RANGE BETWEEN 0 PRECEDING AND 1 FOLLOWING` peer sums.
+  - `window7.test:1.8.2` generated 100-row descending `RANGE BETWEEN 0 PRECEDING AND 1 FOLLOWING` peer sums.
+- Focused PHP coverage:
+  - New test file: `lanes/libsqlite/tests/SQLiteRealUpstreamWindow7DynamicFramesTest.php`
+  - Focused command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamWindow7DynamicFramesTest.php`
+  - Result: `1 test files, 1601 assertions, 0 failures`.
+- Non-overlap:
+  - This extends the earlier dynamic window-function corpus beyond the accepted `window3.test`, `window4.test`, and `window6.test` slices. It covers generated `window7.test` peer-group `GROUPS`/`RANGE` frame behavior and descending RANGE semantics, not SQL text metadata rows, fake upstream IDs, JSON/WAL/B-tree/VFS behavior, or the root-gate no-order guard family.
+- Dependency closure:
+  - No new support component is needed. The slice reuses native `SQLiteWindowFunction::aggregateFrameBetweenValues()` and independent lane-local expected group-sum calculations.
+- Dashboard movement:
+  - Countable as focused PHP TestRunner PASS-line growth: 1601 PASS cases from one new real-upstream corpus test file. Mapped denominator remains unchanged.

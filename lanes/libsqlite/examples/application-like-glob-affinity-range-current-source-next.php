@@ -7,25 +7,25 @@ use PortLibs\LibSqlite\SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'wp_plugin_alpha', 'option_value' => 'plugin:alpha'],
-    ['option_id' => 2, 'option_name' => 'wp_plugin_beta', 'option_value' => 'plugin:beta'],
-    ['option_id' => 3, 'option_name' => 'wp_option_42', 'option_value' => 42],
-    ['option_id' => 4, 'option_name' => 'wp_plugin_literal', 'option_value' => 'plugin:%literal'],
+    ['setting_id' => 1, 'key_name' => 'extension_alpha', 'key_value' => 'plugin:alpha'],
+    ['setting_id' => 2, 'key_name' => 'extension_beta', 'key_value' => 'plugin:beta'],
+    ['setting_id' => 3, 'key_name' => 'setting_42', 'key_value' => 42],
+    ['setting_id' => 4, 'key_name' => 'extension_literal', 'key_value' => 'plugin:%literal'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'wp_plugin_alpha', 'option_value' => 'plugin:alpha'],
-    ['option_id' => 2, 'option_name' => 'wp_plugin_beta', 'option_value' => 'plugin:beta2'],
-    ['option_id' => 3, 'option_name' => 'wp_option_42', 'option_value' => '42'],
-    ['option_id' => 4, 'option_name' => 'wp_plugin_literal', 'option_value' => 'plugin:%literal'],
-    ['option_id' => 5, 'option_name' => 'wp_plugin_new', 'option_value' => 'plugin:fresh'],
+    ['setting_id' => 1, 'key_name' => 'extension_alpha', 'key_value' => 'plugin:alpha'],
+    ['setting_id' => 2, 'key_name' => 'extension_beta', 'key_value' => 'plugin:beta2'],
+    ['setting_id' => 3, 'key_name' => 'setting_42', 'key_value' => '42'],
+    ['setting_id' => 4, 'key_name' => 'extension_literal', 'key_value' => 'plugin:%literal'],
+    ['setting_id' => 5, 'key_name' => 'extension_new', 'key_value' => 'plugin:fresh'],
 ];
 
 echo json_encode([
-    'likePluginPrefix' => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan(
+    'likePluginPrefix' => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan(
         $currentRows,
         $nextRows,
-        'option_value',
+        'key_value',
         'plugin:%',
         'LIKE',
         'TEXT',
@@ -33,19 +33,19 @@ echo json_encode([
         null,
         true,
     ),
-    'globPluginPrefix' => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan(
+    'globPluginPrefix' => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan(
         $currentRows,
         $nextRows,
-        'option_value',
+        'key_value',
         'plugin:*',
         'GLOB',
         'TEXT',
         'BINARY',
     ),
-    'numericTextAffinity' => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::optionRowValuePlan(
+    'numericTextAffinity' => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan(
         $currentRows,
         $nextRows,
-        'option_value',
+        'key_value',
         '4%',
         'LIKE',
         'NUMERIC',

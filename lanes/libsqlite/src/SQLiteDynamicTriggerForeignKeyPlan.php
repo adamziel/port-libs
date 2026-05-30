@@ -891,6 +891,52 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<string> $triggerStatements
+     * @return array<string,mixed>
+     */
+    public static function triggerProgramVariableUseRejection(array $triggerStatements, string $timing, string $event, string $targetTable): array
+    {
+        $timing = strtolower($timing);
+        $event = strtolower($event);
+        $targetTable = self::identifier($targetTable, 'trigger target table');
+        if (!in_array($timing, ['before', 'after', 'instead of'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger variable timing is unsupported');
+        }
+        if (!in_array($event, ['insert', 'update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger variable event is unsupported');
+        }
+
+        $badStatements = [];
+        foreach ($triggerStatements as $index => $statement) {
+            if (preg_match('/(?<![A-Za-z0-9_])(?:\\?[0-9]*|[:@$][A-Za-z_][A-Za-z0-9_]*)/', $statement) === 1) {
+                $badStatements[] = [
+                    'index' => $index,
+                    'statement' => $statement,
+                ];
+            }
+        }
+
+        return [
+            'source' => 'trigger2.test trigger2-11.1..11.2',
+            'operation' => 'trigger-program-variable-use-rejection',
+            'status' => $badStatements === [] ? 'commit-ok' : 'parse-error',
+            'error' => $badStatements === [] ? null : 'trigger cannot use variables',
+            'timing' => $timing,
+            'event' => $event,
+            'target_table' => $targetTable,
+            'statement_count' => count($triggerStatements),
+            'bad_statement_count' => count($badStatements),
+            'bad_statement_indexes' => array_column($badStatements, 'index'),
+            'bad_statements' => $badStatements,
+            'dependencies' => [
+                'sqlite-trigger2-trigger-program-rejects-qmark-parameters',
+                'sqlite-trigger2-trigger-program-rejects-named-parameters',
+                'sqlite-trigger2-trigger-parse-error-before-install',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param array<string,mixed> $incoming
      * @param list<string> $parentColumns

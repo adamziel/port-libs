@@ -1,0 +1,4 @@
+[2026-05-30T19:56:23Z] bulk-upstream-veryquick-shard-expansion-dynamic-20260530T195535Z-0 start
+[2026-05-30T19:56:23Z] copy SQLite source and build cache
+[2026-05-30T19:56:23Z] run SQLite testrunner testset=veryquick jobs=1 timeout=600
+[2026-05-30T19:56:45Z] bulk-upstream-veryquick-shard-expansion-dynamic-20260530T195535Z-0 complete audit=/home/claude/port-libs/lanes/libsqlite/fixtures/bulk-upstream-veryquick-shard-expansion-dynamic-20260530T195535Z-0.audit.md exit=0 summary=0 errors out of 113596 tests

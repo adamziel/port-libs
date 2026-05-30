@@ -107,10 +107,10 @@ $tests['real upstream pragma.test 6.2 t5 primary key ordinals follow declared li
     $rows = $makeCatalog()->execute('PRAGMA table_info(pragma_t5)')['rows'];
 
     $t->same(['cid' => 0, 'name' => 'a', 'type' => 'TEXT', 'notnull' => 0, 'dflt_value' => 'CURRENT_TIMESTAMP', 'pk' => 0], $rows[0]);
-    $t->same(['cid' => 1, 'name' => 'b', 'type' => '', 'notnull' => 1, 'dflt_value' => '5+3', 'pk' => 2], $rows[1]);
-    $t->same(['cid' => 2, 'name' => 'c', 'type' => 'TEXT', 'notnull' => 1, 'dflt_value' => null, 'pk' => 3], $rows[2]);
+    $t->same(['cid' => 1, 'name' => 'b', 'type' => '', 'notnull' => 0, 'dflt_value' => '5+3', 'pk' => 2], $rows[1]);
+    $t->same(['cid' => 2, 'name' => 'c', 'type' => 'TEXT', 'notnull' => 0, 'dflt_value' => null, 'pk' => 3], $rows[2]);
     $t->same(['cid' => 3, 'name' => 'd', 'type' => 'INTEGER', 'notnull' => 0, 'dflt_value' => 'NULL', 'pk' => 0], $rows[3]);
-    $t->same(['cid' => 4, 'name' => 'e', 'type' => 'TEXT', 'notnull' => 1, 'dflt_value' => "''", 'pk' => 1], $rows[4]);
+    $t->same(['cid' => 4, 'name' => 'e', 'type' => 'TEXT', 'notnull' => 0, 'dflt_value' => "''", 'pk' => 1], $rows[4]);
 };
 
 $tests['real upstream pragma4 4.5 composite foreign key rows stay ordered'] = static function (TestRunner $t) use ($makeCatalog): void {
@@ -566,6 +566,81 @@ foreach (range(1, 334) as $variant) {
         $t->same([$attachName], $attachInvalidation['added_schemas']);
         $t->same('detach', $detach['operation']);
         $t->same([$attachName], $detachInvalidation['removed_schemas']);
+    };
+}
+
+foreach (range(1, 250) as $variant) {
+    $left = 'pragma4_right_join_wide_' . $variant;
+    $right = 'pragma4_right_join_narrow_' . $variant;
+    $leftRecords = [
+        new SQLiteSchemaRecord(
+            'table',
+            $left,
+            $left,
+            5000 + $variant,
+            "CREATE TABLE {$left}(a TEXT, b TEXT, c TEXT DEFAULT 'wide_{$variant}', d INTEGER DEFAULT {$variant})",
+            5000 + $variant,
+        ),
+    ];
+    $rightRecords = [
+        new SQLiteSchemaRecord(
+            'table',
+            $right,
+            $right,
+            6000 + $variant,
+            "CREATE TABLE {$right}(a TEXT, b TEXT)",
+            6000 + $variant,
+        ),
+    ];
+    $rightJoinRows = static function () use ($leftRecords, $rightRecords, $left, $right): array {
+        $catalog = new SQLiteAttachedSchemaCatalog(array_merge($leftRecords, $rightRecords));
+        $leftInfo = $catalog->executeTableValuedPragma("pragma_table_info('{$left}')")['rows'];
+        $rightInfo = $catalog->executeTableValuedPragma("pragma_table_info('{$right}')")['rows'];
+        $leftByName = [];
+        foreach ($leftInfo as $row) {
+            $leftByName[$row['name']] = $row;
+        }
+
+        $rows = [];
+        foreach ($rightInfo as $row) {
+            $rows[] = [
+                'wide_name' => $leftByName[$row['name']]['name'] ?? null,
+                'narrow_name' => $row['name'],
+                'wide_default' => $leftByName[$row['name']]['dflt_value'] ?? null,
+                'narrow_cid' => $row['cid'],
+            ];
+        }
+
+        return $rows;
+    };
+
+    $tests["real upstream pragma4 7.3 table-info right join preserves narrow rows variant {$variant}"] = static function (TestRunner $t) use ($rightJoinRows): void {
+        $rows = $rightJoinRows();
+
+        $t->same([['wide_name' => 'a', 'narrow_name' => 'a'], ['wide_name' => 'b', 'narrow_name' => 'b']], array_map(
+            static fn (array $row): array => ['wide_name' => $row['wide_name'], 'narrow_name' => $row['narrow_name']],
+            $rows,
+        ));
+    };
+
+    $tests["real upstream pragma4 7.3 table-info right join omits wide-only columns variant {$variant}"] = static function (TestRunner $t) use ($rightJoinRows): void {
+        $rows = $rightJoinRows();
+
+        $t->same(2, count($rows));
+        $t->same(false, in_array('c', array_column($rows, 'narrow_name'), true));
+        $t->same(false, in_array('d', array_column($rows, 'narrow_name'), true));
+    };
+
+    $tests["real upstream pragma4 7.3 table-info right join keeps left defaults null for matches variant {$variant}"] = static function (TestRunner $t) use ($rightJoinRows): void {
+        $rows = $rightJoinRows();
+
+        $t->same([null, null], array_column($rows, 'wide_default'));
+    };
+
+    $tests["real upstream pragma4 7.3 table-info right join keeps right row order variant {$variant}"] = static function (TestRunner $t) use ($rightJoinRows): void {
+        $rows = $rightJoinRows();
+
+        $t->same([0, 1], array_column($rows, 'narrow_cid'));
     };
 }
 

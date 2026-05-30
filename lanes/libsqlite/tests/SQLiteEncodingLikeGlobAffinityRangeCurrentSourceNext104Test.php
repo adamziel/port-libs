@@ -7,32 +7,32 @@ use PortLibs\LibSqlite\SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'wp_plugin_alpha', 'option_value' => 'plugin:alpha'],
-    ['option_id' => 2, 'option_name' => 'wp_plugin_beta', 'option_value' => 'plugin:beta'],
-    ['option_id' => 3, 'option_name' => 'wp_plugin_cache', 'option_value' => 'Plugin:Cache'],
-    ['option_id' => 4, 'option_name' => 'wp_theme_alpha', 'option_value' => 'theme:alpha'],
-    ['option_id' => 5, 'option_name' => 'wp_option_42', 'option_value' => 42],
-    ['option_id' => 6, 'option_name' => 'wp_option_4_5', 'option_value' => 4.5],
-    ['option_id' => 7, 'option_name' => 'wp_bool_yes', 'option_value' => true],
-    ['option_id' => 8, 'option_name' => 'wp_null', 'option_value' => null],
-    ['option_id' => 9, 'option_name' => 'wp_plugin_literal', 'option_value' => 'plugin:%literal'],
-    ['option_id' => 10, 'option_name' => 'wp_plugin_emoji', 'option_value' => 'plugin:😀'],
-    ['option_id' => 11, 'option_name' => 'wp_plugin_accent', 'option_value' => 'plugin:éclair'],
+    ['setting_id' => 1, 'key_name' => 'extension_alpha', 'key_value' => 'plugin:alpha'],
+    ['setting_id' => 2, 'key_name' => 'extension_beta', 'key_value' => 'plugin:beta'],
+    ['setting_id' => 3, 'key_name' => 'extension_cache', 'key_value' => 'Plugin:Cache'],
+    ['setting_id' => 4, 'key_name' => 'theme_alpha', 'key_value' => 'theme:alpha'],
+    ['setting_id' => 5, 'key_name' => 'setting_42', 'key_value' => 42],
+    ['setting_id' => 6, 'key_name' => 'setting_4_5', 'key_value' => 4.5],
+    ['setting_id' => 7, 'key_name' => 'flag_yes', 'key_value' => true],
+    ['setting_id' => 8, 'key_name' => 'null_entry', 'key_value' => null],
+    ['setting_id' => 9, 'key_name' => 'extension_literal', 'key_value' => 'plugin:%literal'],
+    ['setting_id' => 10, 'key_name' => 'extension_emoji', 'key_value' => 'plugin:😀'],
+    ['setting_id' => 11, 'key_name' => 'extension_accent', 'key_value' => 'plugin:éclair'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'wp_plugin_alpha', 'option_value' => 'plugin:alpha'],
-    ['option_id' => 2, 'option_name' => 'wp_plugin_beta', 'option_value' => 'plugin:beta2'],
-    ['option_id' => 3, 'option_name' => 'wp_plugin_cache', 'option_value' => 'Plugin:Cache'],
-    ['option_id' => 4, 'option_name' => 'wp_theme_alpha', 'option_value' => 'theme:alpha'],
-    ['option_id' => 5, 'option_name' => 'wp_option_42', 'option_value' => '42'],
-    ['option_id' => 6, 'option_name' => 'wp_option_4_5', 'option_value' => 4.5],
-    ['option_id' => 7, 'option_name' => 'wp_bool_yes', 'option_value' => false],
-    ['option_id' => 8, 'option_name' => 'wp_null', 'option_value' => null],
-    ['option_id' => 9, 'option_name' => 'wp_plugin_literal', 'option_value' => 'plugin:%literal'],
-    ['option_id' => 10, 'option_name' => 'wp_plugin_emoji', 'option_value' => 'plugin:😀'],
-    ['option_id' => 11, 'option_name' => 'wp_plugin_accent', 'option_value' => 'plugin:éclair'],
-    ['option_id' => 12, 'option_name' => 'wp_plugin_new', 'option_value' => 'plugin:fresh'],
+    ['setting_id' => 1, 'key_name' => 'extension_alpha', 'key_value' => 'plugin:alpha'],
+    ['setting_id' => 2, 'key_name' => 'extension_beta', 'key_value' => 'plugin:beta2'],
+    ['setting_id' => 3, 'key_name' => 'extension_cache', 'key_value' => 'Plugin:Cache'],
+    ['setting_id' => 4, 'key_name' => 'theme_alpha', 'key_value' => 'theme:alpha'],
+    ['setting_id' => 5, 'key_name' => 'setting_42', 'key_value' => '42'],
+    ['setting_id' => 6, 'key_name' => 'setting_4_5', 'key_value' => 4.5],
+    ['setting_id' => 7, 'key_name' => 'flag_yes', 'key_value' => false],
+    ['setting_id' => 8, 'key_name' => 'null_entry', 'key_value' => null],
+    ['setting_id' => 9, 'key_name' => 'extension_literal', 'key_value' => 'plugin:%literal'],
+    ['setting_id' => 10, 'key_name' => 'extension_emoji', 'key_value' => 'plugin:😀'],
+    ['setting_id' => 11, 'key_name' => 'extension_accent', 'key_value' => 'plugin:éclair'],
+    ['setting_id' => 12, 'key_name' => 'extension_new', 'key_value' => 'plugin:fresh'],
 ];
 
 $plan = static fn (
@@ -49,7 +49,7 @@ $plan = static fn (
 ): array => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
-    'option_value',
+    'key_value',
     $pattern,
     $operator,
     $affinity,
@@ -65,7 +65,7 @@ $plan = static fn (
 $cases = [
     'records operator' => ['plugin:%', 'LIKE', 'TEXT', 'BINARY', null, true, 'operator', 'LIKE'],
     'records pattern' => ['plugin:%', 'LIKE', 'TEXT', 'BINARY', null, true, 'pattern', 'plugin:%'],
-    'records column' => ['plugin:%', 'LIKE', 'TEXT', 'BINARY', null, true, 'column', 'option_value'],
+    'records column' => ['plugin:%', 'LIKE', 'TEXT', 'BINARY', null, true, 'column', 'key_value'],
     'records affinity' => ['plugin:%', 'LIKE', 'TEXT', 'BINARY', null, true, 'affinity', 'TEXT'],
     'records collation' => ['plugin:%', 'LIKE', 'TEXT', 'BINARY', null, true, 'collation', 'BINARY'],
     'records case sensitive flag' => ['plugin:%', 'LIKE', 'TEXT', 'BINARY', null, true, 'caseSensitiveLike', true],
@@ -129,23 +129,23 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['encoding like glob affinity range current source next104 stable identical sources reusable'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'option_value', 'plugin:%');
+    $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'key_value', 'plugin:%');
     $t->same(true, $plan['cursorReusable']);
     $t->same([], $plan['invalidationReasons']);
 };
 
 $tests['encoding like glob affinity range current source next104 leading wildcard is residual only'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'option_value', '%alpha');
+    $plan = SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'key_value', '%alpha');
     $t->same(false, $plan['rangeUsable']);
     $t->same('residual-only', $plan['currentRows'][0]['rangeClass']);
 };
 
 $tests['encoding like glob affinity range current source next104 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'option_value', 'x', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'key_value', 'x', 'REGEXP'));
 };
 
 $tests['encoding like glob affinity range current source next104 rejects glob escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'option_value', 'plugin:*', 'GLOB', 'TEXT', 'BINARY', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'key_value', 'plugin:*', 'GLOB', 'TEXT', 'BINARY', '!'));
 };
 
 $tests['encoding like glob affinity range current source next104 rejects missing column'] = static function (TestRunner $t) use ($currentRows): void {
@@ -154,14 +154,14 @@ $tests['encoding like glob affinity range current source next104 rejects missing
 
 $tests['encoding like glob affinity range current source next104 rejects nonscalar value'] = static function (TestRunner $t) use ($currentRows): void {
     $rows = $currentRows;
-    $rows[] = ['option_id' => 20, 'option_value' => ['plugin']];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'option_value', 'plugin:%'));
+    $rows[] = ['setting_id' => 20, 'key_value' => ['plugin']];
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'key_value', 'plugin:%'));
 };
 
 $tests['encoding like glob affinity range current source next104 rejects malformed utf8'] = static function (TestRunner $t) use ($currentRows): void {
     $rows = $currentRows;
-    $rows[] = ['option_id' => 21, 'option_value' => "plugin:\xc3"];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'option_value', 'plugin:%'));
+    $rows[] = ['setting_id' => 21, 'key_value' => "plugin:\xc3"];
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'key_value', 'plugin:%'));
 };
 
 return $tests;
