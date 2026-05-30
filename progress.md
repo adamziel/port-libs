@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 19:22 UTC):
+  Latest accepted libsqlite source is `72af86241`
+  (`libsqlite: add broad safe corpus batch`). This batch accepts 87 clean
+  handoffs on top of `c4ee31e99` after rejecting an aggressive 186-handoff
+  candidate that introduced focused failures in window RANGE/GROUPS,
+  suite-evidence, header, planner STAT4, and no-domain guard coverage, plus a
+  suffix patch that added a new `wp_plugin...` source literal. Accepted
+  coverage adds/repairs B-tree overflow/freeblock pointer-map coverage,
+  recursive DML current-source behavior, row-value nested savepoint RETURNING
+  behavior, WAL hot-journal savepoint checkpoint publication coverage, planner
+  STAT4 consolidation, select/expression/upsert/text aggregate updates,
+  veryquick shard evidence, runner map closure coverage, and source-neutral
+  encoding defaults. Focused verification passed `42 files / 125964
+  assertions / 0 failures / 20233 PASS lines`; the accepted-base comparison
+  passed `42 files / 100822 assertions / 0 failures / 17148 PASS lines`, so
+  the honest selected PASS-line delta is `+3085`. Public libsqlite should move
+  to `389246 pass / 0 fail`; mapped coverage remains `1472 / 1589`. This is a
+  smaller-than-target bump, and the reason is now explicit: the immediate ready
+  queue is overlap-heavy and stale red window-range/suite-evidence/expression
+  shards need quarantine while new workers refill from latest source.
+
 - 2026-05-30 supervisor continuation (integration sample 19:09 UTC):
   Latest accepted libsqlite source is `ba4a45f8b`
   (`libsqlite: add current corpus throughput batch`). This batch accepts 30
