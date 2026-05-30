@@ -48,7 +48,27 @@
 
 ## Current Coordination Snapshot
 
-- 2026-05-30 supervisor continuation (integration sample 17:42 UTC):
+- 2026-05-30 supervisor continuation (integration sample 17:31 UTC):
+  Latest accepted libsqlite source is `0bcc6fa83`
+  (`libsqlite: add current-base corpus followups`). Together with the preceding
+  accelerated corpus batch, public libsqlite moved from `208305` to `218357
+  pass / 0 fail`: `+7841` focused PASS lines at source `3f92ca2579`, then
+  `+2211` focused PASS lines at source `0bcc6fa83`. The current follow-up
+  batch accepted 13 compatible handoffs covering date2 deterministic behavior,
+  trigger/FK recursive/deferred behavior, SELECT derived tables, JSON
+  array-insert behavior, PRAGMA schema follow-ups, expression numcast
+  behavior, WAL persistence and lock-race behavior, UPSERT/RETURNING dynamic
+  arms, CREATE INDEX schema behavior, VFS I/O follow-up, window dynamic
+  frames, and JSONB CHECK source-neutral cleanup. Verification passed PHP lint
+  for 23 changed/new PHP files, `git diff --check -- lanes/libsqlite`,
+  focused gate `15 files / 13060 assertions / 0 failures / 6064 PASS lines`,
+  accepted-base comparison at `3c71f3e7` of `6 files / 7497 assertions / 0
+  failures / 3853 PASS lines`, changed-file domain-neutral scans, no numbered
+  production-source suffix scan, and the focused no-domain API guard. Mapped
+  coverage remains `958 / 1589`; the live worker pool remains 10-11 visible
+  libsqlite Codex workers in tmux `main` with no long sleepers.
+
+- 2026-05-30 supervisor continuation (integration sample 17:19 UTC):
   Latest accepted libsqlite source is `b75ed6b00`
   (`libsqlite: add upsert and focused corpus followups`). The batch accepted
   nine compatible current-base handoffs on top of `fb248c9dc`, centered on
@@ -67,7 +87,7 @@
   smaller queue-drain batch; the next cycle needs larger expression/date/json/
   btree/pager deltas to stay near the `10k+` PASS/hour target.
 
-- 2026-05-30 supervisor continuation (integration sample 17:35 UTC):
+- 2026-05-30 supervisor continuation (integration sample 17:15 UTC):
   Latest accepted libsqlite source is `fb248c9dc`
   (`libsqlite: add focused followup corpus batch`). The batch accepted eleven
   compatible current-base handoffs on top of `7ad48fe68`, covering
