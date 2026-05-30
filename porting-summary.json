@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 11:13:48 UTC",
-    "sourceCommit": "a154a7799cee6012e6c28aec0863775a09462f12",
-    "sourceCommitShort": "a154a7799cee",
+    "generated": "2026-05-30 11:31:37 UTC",
+    "sourceCommit": "035362104d32831136fef4ca29f76b54940cfb75",
+    "sourceCommitShort": "035362104d32",
     "sourceBranch": "main",
-    "dashboardCommit": "a154a7799cee6012e6c28aec0863775a09462f12",
-    "dashboardCommitShort": "a154a7799cee",
+    "dashboardCommit": "035362104d32831136fef4ca29f76b54940cfb75",
+    "dashboardCommitShort": "035362104d32",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "830",
             "coverage": "830 / 1589",
-            "php": "188317 pass / 0 fail",
+            "php": "188324 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, behavior fixes, numbered suffix cons...",
-            "audit": "Accepted source commit a154a7799cee6012e6...",
-            "currentWork": "Committed libsqlite source a154a7799 consolidating current-source helper surfaces on top...",
-            "nextTarget": "Publish and live-verify the dashboard snapshot for a154a7799, refill 10-11 libsqlite work...",
+            "audit": "Accepted source commit 035362104d32831136...",
+            "currentWork": "Committed libsqlite source 035362104 tightening suite-evidence and window-frame guard sur...",
+            "nextTarget": "Publish and live-verify the dashboard snapshot for 035362104, refill 10-11 libsqlite work...",
             "blocker": "Root/no-arg and full libsqlite lane gates pass under explicit 1024M PHP m...",
-            "commit": "a154a77"
+            "commit": "0353621"
         },
         {
             "library": "LightningCSS",
