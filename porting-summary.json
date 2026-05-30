@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 05:55:53 UTC",
-    "sourceCommit": "57c03e1954dcc326e9c966475a552a95fed13432",
-    "sourceCommitShort": "57c03e1954dc",
+    "generated": "2026-05-30 07:17:56 UTC",
+    "sourceCommit": "83fdf2feb16ac7d24203e1b464691d9c8f2acf53",
+    "sourceCommitShort": "83fdf2feb16a",
     "sourceBranch": "main",
-    "dashboardCommit": "57c03e1954dcc326e9c966475a552a95fed13432",
-    "dashboardCommitShort": "57c03e1954dc",
+    "dashboardCommit": "83fdf2feb16ac7d24203e1b464691d9c8f2acf53",
+    "dashboardCommitShort": "83fdf2feb16a",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "830",
             "coverage": "830 / 1589",
-            "php": "154019 pass / 0 fail",
+            "php": "188079 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "numbered production helper consolidation",
-            "audit": "Accepted source commit 57c03e195 after re...",
-            "currentWork": "Verified and committed libsqlite consolidation source 57c03e195; worker pool remains acti...",
-            "nextTarget": "Score and integrate the next current-base non-overlapping libsqlite suffix-consolidation...",
-            "blocker": "Broad no-argument/root-style libsqlite execution still has pre-existing f...",
-            "commit": "57c03e1"
+            "phase": "blocker burn-down and numbered suffix consolidation",
+            "audit": "Accepted source commit 83fdf2feb16ac7d242...",
+            "currentWork": "Committed libsqlite source 83fdf2feb clearing suite-evidence current-next and window GROU...",
+            "nextTarget": "Consume the accepted suite-evidence/windowrange handoffs, push source/status/dashboard co...",
+            "blocker": "The prior root blockers for suite-evidence current-next78-103 statuses/de...",
+            "commit": "83fdf2f"
         },
         {
             "library": "LightningCSS",

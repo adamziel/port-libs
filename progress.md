@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 07:16 UTC):
+  Latest libsqlite source is integrated as `83fdf2feb`
+  (`libsqlite: clear suite evidence window blockers`). The batch accepts
+  current-base suite-evidence and windowrange root-gate handoffs from
+  `e91c5c4f`, fixes current-next78 through current-next103 suite-evidence
+  status/dependency-closure accounting while preserving legacy generic status
+  expectations for next93/next98, and rejects explicit `RANGE`/`GROUPS`
+  aggregate window frames without a window `ORDER BY`. Verification passed PHP
+  lint for the two changed source files, `git diff --check`, focused blocker
+  gate `28 files / 1129 assertions / 0 failures`, related suite/window family
+  `34 files / 1452 assertions / 0 failures`, root/no-arg gate `2 files /
+  782568 assertions / 0 failures`, and full libsqlite lane gate `2 files /
+  758100 assertions / 0 failures / 188079 PASS lines`. Public counters should
+  move to `188079 pass / 0 fail`; mapped coverage remains `830 / 1589` until a
+  fresh denominator-mapped SQLite suite row is accepted. The worker pool remains
+  visible in tmux `main` and has been refilled back into the requested 10-11
+  active Codex worker band.
+
 - 2026-05-30 supervisor continuation (integration sample 05:55 UTC):
   Latest libsqlite consolidation source is integrated as `57c03e195`
   (`libsqlite: consolidate vfs stat4 suite suffix helpers`). The batch accepts
