@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:07 UTC):
+  Latest accepted libsqlite source is `70e9bfd9c`
+  (`libsqlite: add date expr window corpus batch`). This batch accepts five
+  clean high-yield handoffs on top of `70cbf38e`: date2 deterministic
+  schema-use guards, `expr.test` bulk expression coverage, window3/window4
+  dynamic window-function coverage, VFS checksum/WAL VFS additions, and UPSERT
+  trigger lifecycle coverage. Focused verification passed `8 files / 13253
+  assertions / 0 failures / 5079 PASS lines`; the accepted-base comparison
+  over existing selected files was `5 files / 4336 assertions / 1 pre-existing
+  failure / 772 PASS lines`, so the honest selected PASS-line delta is `+4307`
+  and the old window frame-plan failure is fixed in current source. Public
+  libsqlite should move to `233897 pass / 0 fail`; mapped coverage remains
+  `1189 / 1589`. Pager/WAL NOOP checkpoint and the runner-map-to-1589 patch
+  did not apply cleanly on this head, so they remain separate conflict
+  resolution candidates rather than blocking this clean high-yield publication.
+
 - 2026-05-30 supervisor continuation (integration sample 18:03 UTC):
   Latest accepted libsqlite source is `14be09444`
   (`libsqlite: add accelerated real corpus batch`). This follow-up accepts 13
