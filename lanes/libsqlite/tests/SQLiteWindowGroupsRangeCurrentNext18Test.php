@@ -191,6 +191,43 @@ $tests['upstream corpus window groups range current next18 direct query rejects 
     ]));
 };
 
+$tests['upstream corpus window groups range current next18 direct query rejects partitioned groups frame without order'] = static function (TestRunner $t) use ($options): void {
+    try {
+        SQLiteSelectQuery::execute([
+            'from' => $options,
+            'select' => [[
+                'type' => 'window',
+                'function' => 'sum',
+                'arguments' => [['type' => 'column', 'name' => 'bytes']],
+                'partitionBy' => [['type' => 'column', 'name' => 'autoload']],
+                'frame' => ['unit' => 'GROUPS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+                'alias' => 'window_sum',
+            ]],
+        ]);
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite SELECT query RANGE/GROUPS window frame needs ORDER BY', $exception->getMessage());
+        return;
+    }
+
+    throw new RuntimeException('Expected direct partitioned GROUPS frame without ORDER BY to be rejected');
+};
+
+$tests['upstream corpus window groups range current next18 direct query accepts partitioned rows frame without order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectQuery::execute([
+        'from' => $options,
+        'select' => [[
+            'type' => 'window',
+            'function' => 'sum',
+            'arguments' => [['type' => 'column', 'name' => 'bytes']],
+            'partitionBy' => [['type' => 'column', 'name' => 'autoload']],
+            'frame' => ['unit' => 'ROWS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+            'alias' => 'window_sum',
+        ]],
+    ]);
+
+    $t->same([20, 10, 50, 60, 70, 40], array_column($rows, 'window_sum'));
+};
+
 $tests['upstream corpus window groups range current next18 reports direct frame without order'] = static function (TestRunner $t) use ($options): void {
     try {
         SQLiteSelectQuery::execute([

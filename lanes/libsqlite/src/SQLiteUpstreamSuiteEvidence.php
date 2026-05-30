@@ -20047,26 +20047,15 @@ final class SQLiteUpstreamSuiteEvidence
 
         $blocked = $blockers !== [];
         $mappedDelta = count($advanced) > 0 ? 1 : 0;
-        $extractCurrentNextIds = static function (string $text): array {
-            $ids = [];
-            if (preg_match_all('/(?:current[\s_-]*next|(?<=-)next)(\d+)/i', $text, $matches) > 0) {
-                foreach ($matches[1] as $id) {
-                    $ids[(int) $id] = 'current-next' . $id;
-                }
-            }
-
-            return $ids;
-        };
-
         $currentNextIds = [];
         foreach (array_merge($advanced, $preserved, $blockedUnits) as $unit) {
-            $currentNextIds += $extractCurrentNextIds($unit);
+            $currentNextIds += self::extractSuiteEvidenceCurrentNextIds($unit);
         }
         foreach ($entries as $entry) {
             $entryText = (string) $entry['unit'] . ' ' . (string) $entry['artifact_path'] . ' ' . implode(' ', $entry['scripts']);
-            $currentNextIds += $extractCurrentNextIds($entryText);
+            $currentNextIds += self::extractSuiteEvidenceCurrentNextIds($entryText);
         }
-        $currentNextIds += $extractCurrentNextIds($nonOverlapNote);
+        $currentNextIds += self::extractSuiteEvidenceCurrentNextIds($nonOverlapNote);
         ksort($currentNextIds, SORT_NUMERIC);
         $primaryCurrentNext = null;
         foreach ($advanced as $unit) {
@@ -20144,6 +20133,21 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return $record;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function extractSuiteEvidenceCurrentNextIds(string $text): array
+    {
+        $ids = [];
+        if (preg_match_all('/(?:current[\s_-]*next|(?<=-)next)(\d+)/i', $text, $matches) > 0) {
+            foreach ($matches[1] as $id) {
+                $ids[(int) $id] = 'current-next' . $id;
+            }
+        }
+
+        return $ids;
     }
 
     /**
