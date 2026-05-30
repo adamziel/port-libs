@@ -48,6 +48,31 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 21:16 UTC):
+  Latest accepted libsqlite source is `46bf62ac`
+  (`libsqlite: add tenth rapid current corpus sweep`). This tenth rapid
+  current-base batch was replayed on dashboard head `bbccc1d8`; fourteen
+  behavior-producing real upstream corpus handoffs were accepted: B-tree
+  dynamic corpus and autoindex coverage, expression affinity real-oracle and
+  types2 subquery coverage, JSON append/reverse-index coverage, pager/WAL
+  setlk blocking coverage, PRAGMA schema fourth-thousand and wide-batch
+  follow-up coverage, trigger/FK trigger2 program coverage, UPSERT/RETURNING
+  trigger and dynamic coverage, VFS IO expanded corpus coverage, and window C
+  separator / windowE dynamic range coverage. Four handoffs were rejected or
+  parked: one SELECT apply conflict plus JSON, pager, and date no-delta
+  blocker-note handoffs. Focused verification passed `16 files / 325216
+  assertions / 0 failures / 30495 PASS lines`; the accepted-base comparison
+  over existing selected tests passed `3 files / 215511 assertions / 0
+  failures / 15146 PASS lines`, so the honest selected PASS-line delta is
+  `+15349`. Public libsqlite should move to `748004 pass / 0 fail`; mapped
+  coverage remains `1589 / 1589`. This preserves complete mapped inventory
+  coverage, but it still does not claim full SQLite release/all runner parity.
+  Gates also passed PHP lint for 21 changed/new PHP files, `git diff --check
+  -- lanes/libsqlite`, added-lines source-neutral guards, and
+  `SQLiteNoDomainSpecificApiTest`. A broad grep still finds pre-existing
+  WordPress-shaped source debt in accepted head, so source-neutral cleanup
+  remains real work rather than a completed invariant.
+
 - 2026-05-30 supervisor continuation (integration sample 21:09 UTC):
   Latest accepted libsqlite source is `86030f3d`
   (`libsqlite: add ninth rapid current corpus sweep`). This ninth rapid
