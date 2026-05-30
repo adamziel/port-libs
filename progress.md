@@ -58,15 +58,15 @@
   files / 50074 assertions / 0 failures / 4474 PASS lines`; the accepted-base
   comparison on the same selected files passed `4 files / 30491 assertions / 0
   failures / 2373 PASS lines`, so the honest selected PASS-line delta is
-  `+2101`. Public libsqlite should move to `345493 pass / 0 fail`; mapped
-  coverage remains `1189 / 1589`. The latest accepted batch is below the
-  `10000+` PASS-line/hour target because the ready queue has become
-  overlap-heavy, not because the worker pool collapsed: the visible `main`
-  tmux session still has 10-11 active libsqlite workers and no long sleepers.
-  The next throughput decision is to score fresh current-base bulk-suite,
-  veryquick, and suite-evidence handoffs first, quarantine duplicate/low-yield
-  shards immediately, and publish smaller high-yield batches as soon as focused
-  tests pass.
+  `+2101`. Public libsqlite moved to `345493 pass / 0 fail`; mapped coverage
+  jumped from `1189 / 1589` to `1472 / 1589`, leaving 117 mapped rows. The
+  latest accepted batch is below the `10000+` PASS-line/hour target because the
+  ready queue has become overlap-heavy, not because the worker pool collapsed:
+  the visible `main` tmux session still has 10-11 active libsqlite workers and
+  no long sleepers. The next throughput decision is to score fresh current-base
+  bulk-suite, veryquick, suite-evidence, and the remaining mapped-row closure
+  handoffs first, quarantine duplicate/low-yield shards immediately, and
+  publish smaller high-yield batches as soon as focused tests pass.
 
 - 2026-05-30 supervisor continuation (integration sample 18:47 UTC):
   Latest accepted libsqlite source is `325bbff80e`
