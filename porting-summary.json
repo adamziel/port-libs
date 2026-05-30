@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-26 12:41:52 UTC",
-    "sourceCommit": "8ab0375ac9e72382750dc8fb8f4b96a2913e777a",
-    "sourceCommitShort": "8ab0375ac9e7",
-    "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "6dcd8f36dd72196f6d8f12887908a9a68953c98e",
-    "dashboardCommitShort": "6dcd8f36dd72",
-    "averageProgressPercent": "86.2",
+    "generated": "2026-05-30 03:15:46 UTC",
+    "sourceCommit": "5daf221fae04df75aa27b0bd9c8f2f8291bbf750",
+    "sourceCommitShort": "5daf221fae04",
+    "sourceBranch": "main",
+    "dashboardCommit": "5daf221fae04df75aa27b0bd9c8f2f8291bbf750",
+    "dashboardCommitShort": "5daf221fae04",
+    "averageProgressPercent": "86.3",
     "lanes": [
         {
             "library": "difftastic",
@@ -22,7 +22,7 @@
             "currentWork": "C# syntax highlighting now maps upstream-style keyword/operator/type captures to keyword/...",
             "nextTarget": "Expand the next upstream-query-backed syntax highlight boundary outside the already mappe...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "pending"
+            "commit": "5daf221"
         },
         {
             "library": "dolt",
@@ -39,7 +39,7 @@
             "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-k...",
             "nextTarget": "Implementation worker: map the next bounded SQL merge visibility edge after allow-commit,...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "pending"
+            "commit": "5daf221"
         },
         {
             "library": "esbuild",
@@ -56,7 +56,7 @@
             "currentWork": "Added a bounded output-format preview slice for named ESM re-export clauses. The graph no...",
             "nextTarget": "After integrator/root acceptance, the next best lane task is a tiny bounded output-format...",
             "blocker": "Release-extra upstream `make test-all` coverage remains static-only.",
-            "commit": "6cb369f"
+            "commit": "5daf221"
         },
         {
             "library": "gitoxide",
@@ -64,33 +64,33 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1482",
-            "coverage": "1482 / 2886",
-            "php": "2838 pass / 0 fail",
+            "mapped": "1485",
+            "coverage": "1485 / 2886",
+            "php": "2841 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "isolated micro-slice 2026-05-25 continuou...",
+            "audit": "isolated micro-slice 2026-05-27 port-impl...",
             "currentWork": "SmartHttpReceivePackTransport rejects unsafe receive-pack POST redirects before resolving...",
             "nextTarget": "Run a controlled protocol/transport crate probe, deepen SSH channel/auth integration with...",
             "blocker": "cargo runner not executed",
-            "commit": "pending"
+            "commit": "5daf221"
         },
         {
             "library": "libsqlite",
-            "progressPercent": "98.0",
+            "progressPercent": "99.0",
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "328",
-            "coverage": "328 / 1589",
-            "php": "330 pass / 0 fail",
+            "mapped": "830",
+            "coverage": "830 / 1589",
+            "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated upstream-suite hydrated-runner f...",
-            "currentWork": "Latest upstream-runner work preserves accepted veryquick, runner ledgers, release-tier, c...",
-            "nextTarget": "Run or parse the focused ext/fts5/test/fts5aux.test repro gate from the accepted integrat...",
-            "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "pending"
+            "phase": "numbered production helper consolidation",
+            "audit": "Source commit 5daf221fa accepted 8 curren...",
+            "currentWork": "Verified libsqlite JSON table, WAL hot-journal checkpoint, STAT4 expression partial, JSON...",
+            "nextTarget": "Keep the worker pool in the 10-11 active band, integrate the next current-base libsqlite...",
+            "blocker": "Broad directory-mode libsqlite test execution still has pre-existing fail...",
+            "commit": "5daf221"
         },
         {
             "library": "LightningCSS",
@@ -98,16 +98,16 @@
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "926",
-            "coverage": "926 / 3532",
-            "php": "1087 pass / 0 fail",
+            "mapped": "927",
+            "coverage": "927 / 3532",
+            "php": "1088 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "audited 2026-05-25",
+            "audit": "audited 2026-05-26",
             "currentWork": "Native custom-media transformation now treats CSS comments as inert while collecting, del...",
             "nextTarget": "Continue custom-media transformer parity around remaining preserve-mode and diagnostic ed...",
             "blocker": "No current LightningCSS implementation blocker for this slice.",
-            "commit": "pending"
+            "commit": "5daf221"
         },
         {
             "library": "markerPDF",
@@ -124,7 +124,7 @@
             "currentWork": "Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor now maps high-bit WinAnsiEn...",
             "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely a small remaining PDF conte...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "pending"
+            "commit": "5daf221"
         },
         {
             "library": "pandoc",
@@ -132,16 +132,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "659",
-            "coverage": "659 / 2276",
-            "php": "238 pass / 0 fail",
+            "mapped": "660",
+            "coverage": "660 / 2276",
+            "php": "239 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory plus native Markdown/HTML reader and M...",
-            "audit": "updated 2026-05-25: continuous-dev-202605...",
+            "audit": "updated 2026-05-26: continuous-dev-202605...",
             "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, under...",
-            "nextTarget": "Map another bounded Markdown writer branch after unsafe link destinations, such as additi...",
-            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 238 test...",
-            "commit": "pending"
+            "nextTarget": "Map another bounded Markdown writer branch after block-start list-marker escaping, such a...",
+            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 239 test...",
+            "commit": "5daf221"
         },
         {
             "library": "quadrable",
@@ -158,7 +158,7 @@
             "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStor...",
             "nextTarget": "If accepted, continue reducing any remaining command-surface parity gaps only where upstr...",
             "blocker": "No current quadrable-specific upstream runner or focused PHP blocker.",
-            "commit": "pending"
+            "commit": "5daf221"
         },
         {
             "library": "rclone",
@@ -166,16 +166,16 @@
             "suite": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "benchmark": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "denominator": "2553",
-            "mapped": "511",
-            "coverage": "511 / 2553",
-            "php": "511 pass / 0 fail",
+            "mapped": "512",
+            "coverage": "512 / 2553",
+            "php": "512 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus bounded upstream Go runner...",
             "audit": "verified 2026-05-26 isolated continuous-d...",
             "currentWork": "Native PHP maps OneDrive CleanUp/no-versions command and RC wiring locally on top of acce...",
             "nextTarget": "Map another bounded credential-free OneDrive/provider lifecycle cluster, such as a featur...",
             "blocker": "No rclone-local PHP blocker after this slice.",
-            "commit": "pending"
+            "commit": "5daf221"
         },
         {
             "library": "Readability/content rewrite engine",
@@ -188,11 +188,11 @@
             "php": "154 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream npm runner eviden...",
-            "audit": "verified 2026-05-25 isolated micro-slice:...",
-            "currentWork": "The copied Mozilla style-tags-removal and remove-script-tags fixtures now have focused Wo...",
+            "audit": "verified 2026-05-26 isolated micro-slice:...",
+            "currentWork": "The copied Mozilla base URL fixture family now has focused WordPress block evidence provi...",
             "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted...",
             "blocker": "No focused readability blocker.",
-            "commit": "pending"
+            "commit": "5daf221"
         },
         {
             "library": "syncthing",
@@ -200,16 +200,16 @@
             "suite": "verified-cloned-static-test-inventory-plus-focused-runner",
             "benchmark": "verified-cloned-static-test-inventory-plus-focused-runner",
             "denominator": "658",
-            "mapped": "349",
-            "coverage": "349 / 658",
-            "php": "349 pass / 0 fail",
+            "mapped": "350",
+            "coverage": "350 / 658",
+            "php": "350 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "verified cloned static upstream test inventory plus bou...",
             "audit": "audited 2026-05-26",
             "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now exposes `GET /syncthing/db/scan/status...",
             "nextTarget": "Map the next Syncthing closure edge: audit remaining route/status surfaces for acceptance...",
             "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused route-r...",
-            "commit": "55605cb"
+            "commit": "5daf221"
         }
     ],
     "dependencyBacklog": {
