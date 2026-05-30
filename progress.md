@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 03:15 UTC):
+  Latest libsqlite consolidation is integrated as `5daf221fa`
+  (`libsqlite: consolidate json stat4 wal upstream suffix names`). The batch
+  accepts 8 current-base-compatible handoffs covering JSON table plan/helper
+  cleanup, WAL hot-journal reader-cache and hot-journal checkpoint stable
+  names, STAT4 duplicate-sample fanout and expression-payload covering-fence
+  stable names, JSON indexed-constraint cleanup, upstream runner admission
+  stable naming, and upstream veryquick current-source evidence cleanup.
+  Validation passed PHP lint for 36 changed PHP files, 14 changed
+  WordPress/self-test examples, changed tests `16 files / 2339 assertions / 0
+  failures`, JSON table family `304 files / 20128 assertions / 0 failures`,
+  STAT4 expression partial family `134 files / 7613 assertions / 0 failures`,
+  WAL hot-journal savepoint checkpoint family `2 files / 11757 assertions / 0
+  failures`, upstream suite evidence/admission focused family `16 files / 9538
+  assertions / 0 failures`, upstream veryquick current-source family `292
+  files / 368550 assertions / 0 failures`, and `git diff --check --
+  lanes/libsqlite`. Public pass/mapped counters remain `154019 pass / 0 fail`
+  and `830 / 1589` because this is consolidation-only. Disk cleanup remains
+  bounded to inactive worktrees and disposable caches after evidence is
+  preserved; the live pool remains in the requested 10-11 isolated libsqlite
+  worker band with 0 long sleepers.
+
 - 2026-05-30 supervisor continuation (shell samples 02:57 UTC):
   Latest libsqlite consolidation is integrated as `bee212fdc`
   (`libsqlite: consolidate json pager wal upstream suffix names`). The batch
