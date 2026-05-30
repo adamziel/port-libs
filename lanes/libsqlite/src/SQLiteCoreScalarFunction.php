@@ -94,10 +94,36 @@ final class SQLiteCoreScalarFunction
             'zeroblob' => self::zeroblob($arguments),
             'random' => self::random($arguments),
             'randomblob' => self::randomblob($arguments),
+            'current_date', 'current_time', 'current_timestamp' => self::currentDateTime($normalized, $arguments),
             'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'timediff' => self::dateTime($normalized, $arguments),
             'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used' => self::introspection($normalized, $arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
+    }
+
+    /**
+     * @param list<array{function:string, arguments?:list<mixed>}> $calls
+     * @return list<mixed>
+     */
+    public static function statementDateTimeResults(array $calls, ?\DateTimeImmutable $stepNow = null): array
+    {
+        $stepNow ??= new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $stepNow = $stepNow->setTimezone(new \DateTimeZone('UTC'));
+        $results = [];
+
+        foreach ($calls as $call) {
+            if (!isset($call['function']) || !is_string($call['function'])) {
+                throw new \InvalidArgumentException('SQLite statement date/time calls require a function name');
+            }
+            $arguments = $call['arguments'] ?? [];
+            if (!is_array($arguments) || array_is_list($arguments) === false) {
+                throw new \InvalidArgumentException('SQLite statement date/time call arguments must be a list');
+            }
+
+            $results[] = self::sqlFunctionArgumentsWithStepNow($call['function'], $arguments, $stepNow);
+        }
+
+        return $results;
     }
 
     /**
@@ -1214,6 +1240,58 @@ final class SQLiteCoreScalarFunction
             'strftime' => self::strftimeSql(self::coerceText('strftime', $arguments[0], 'format'), $instant),
             default => throw new \InvalidArgumentException("Unsupported SQLite date/time function: {$functionName}"),
         };
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function currentDateTime(string $functionName, array $arguments): string
+    {
+        self::assertArity($functionName, $arguments, 0, 0);
+
+        return match ($functionName) {
+            'current_date' => self::dateTime('date', ['now']),
+            'current_time' => self::dateTime('time', ['now']),
+            'current_timestamp' => self::dateTime('datetime', ['now']),
+            default => throw new \InvalidArgumentException("Unsupported SQLite current date/time function: {$functionName}"),
+        };
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function sqlFunctionArgumentsWithStepNow(string $functionName, array $arguments, \DateTimeImmutable $stepNow): mixed
+    {
+        $normalized = strtolower($functionName);
+        $instant = self::formatDateTime($stepNow->setTimezone(new \DateTimeZone('UTC')), true);
+
+        return match ($normalized) {
+            'current_date' => self::dateTime('date', [$instant]),
+            'current_time' => self::dateTime('time', [$instant]),
+            'current_timestamp' => self::dateTime('datetime', [$instant]),
+            'date', 'time', 'datetime', 'julianday', 'unixepoch' => self::dateTime($normalized, self::replaceStatementNowArgument($arguments, 0, $instant, $normalized === 'unixepoch')),
+            'strftime' => self::dateTime('strftime', self::replaceStatementNowArgument($arguments, 1, $instant, false)),
+            default => self::sqlFunctionArguments($functionName, $arguments),
+        };
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     * @return list<mixed>
+     */
+    private static function replaceStatementNowArgument(array $arguments, int $timeValueIndex, string $instant, bool $preserveSubsecond): array
+    {
+        $replaced = [];
+        foreach ($arguments as $index => $argument) {
+            if ($index === $timeValueIndex && is_string($argument) && strcasecmp(trim($argument), 'now') === 0) {
+                $replaced[] = $preserveSubsecond ? $instant : substr($instant, 0, 19);
+                continue;
+            }
+
+            $replaced[] = $argument;
+        }
+
+        return $replaced;
     }
 
     private static function isDateTimeInSQLiteRange(\DateTimeImmutable $instant): bool

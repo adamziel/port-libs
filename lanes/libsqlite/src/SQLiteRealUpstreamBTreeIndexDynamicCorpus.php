@@ -75,6 +75,78 @@ final class SQLiteRealUpstreamBTreeIndexDynamicCorpus
     }
 
     /**
+     * @return array{
+     *   source:string,
+     *   t1:list<array{a:int|null,b:int,c:int,in_t1a:bool,in_t1b:bool}>,
+     *   t1_stats:list<array{upstream:string,t1:int,t1a:int,t1b:int,t1c:int|null,integrity:string}>,
+     *   t2_initial:list<array{a:int|null,b:int,in_t2a1:bool}>,
+     *   t2_range:list<array{a:int,b:int,in_t2a2:bool}>,
+     *   t3:list<array{a:int,b:int,in_unique_index:bool}>,
+     *   t3_duplicate_error:string,
+     *   t3_permitted_duplicate_count:int
+     * }
+     */
+    public static function withoutRowid7PartialIndexScenario(): array
+    {
+        $t1 = [];
+        for ($value = 1; $value <= 20; $value++) {
+            $a = $value % 3 === 0 ? null : $value;
+            $t1[] = [
+                'a' => $a,
+                'b' => $value,
+                'c' => $value,
+                'in_t1a' => $a !== null,
+                'in_t1b' => $value > 10,
+            ];
+        }
+
+        $t1Stats = [
+            ['upstream' => 'index7-1.10', 't1' => 20, 't1a' => 14, 't1b' => 10, 't1c' => null, 'integrity' => 'ok'],
+            ['upstream' => 'index7-1.11', 't1' => 20, 't1a' => 20, 't1b' => 10, 't1c' => null, 'integrity' => 'ok'],
+            ['upstream' => 'index7-1.11b', 't1' => 20, 't1a' => 6, 't1b' => 20, 't1c' => null, 'integrity' => 'ok'],
+            ['upstream' => 'index7-1.12', 't1' => 20, 't1a' => 13, 't1b' => 10, 't1c' => null, 'integrity' => 'ok'],
+            ['upstream' => 'index7-1.13', 't1' => 15, 't1a' => 10, 't1b' => 8, 't1c' => null, 'integrity' => 'ok'],
+            ['upstream' => 'index7-1.14', 't1' => 15, 't1a' => 10, 't1b' => 8, 't1c' => null, 'integrity' => 'ok'],
+            ['upstream' => 'index7-1.15', 't1' => 15, 't1a' => 10, 't1b' => 8, 't1c' => 15, 'integrity' => 'ok'],
+        ];
+
+        $t2Initial = [];
+        $t2Range = [];
+        for ($value = 1; $value < 1000; $value++) {
+            $t2Initial[] = [
+                'a' => $value % 5 === 0 ? null : $value,
+                'b' => $value,
+                'in_t2a1' => $value % 5 !== 0,
+            ];
+            $t2Range[] = [
+                'a' => $value,
+                'b' => $value + 10000,
+                'in_t2a2' => $value < 100 || $value > 200,
+            ];
+        }
+
+        $t3 = [];
+        for ($value = 1; $value < 200; $value++) {
+            $t3[] = [
+                'a' => $value % 5 !== 0 ? 999 : $value,
+                'b' => $value,
+                'in_unique_index' => $value % 5 === 0,
+            ];
+        }
+
+        return [
+            'source' => 'index7.test index7-1.1 through index7-5.0 WITHOUT ROWID partial-index behavior',
+            't1' => $t1,
+            't1_stats' => $t1Stats,
+            't2_initial' => $t2Initial,
+            't2_range' => $t2Range,
+            't3' => $t3,
+            't3_duplicate_error' => 'UNIQUE constraint failed: t3.a',
+            't3_permitted_duplicate_count' => 162,
+        ];
+    }
+
+    /**
      * @return list<array{upstream:string,join:string,probe_y:int,matched_c:int|null,overflow_payload_length:int,overflow_page_count:int,source:string}>
      */
     public static function btree01WithoutRowidOverflowJoinCases(): array

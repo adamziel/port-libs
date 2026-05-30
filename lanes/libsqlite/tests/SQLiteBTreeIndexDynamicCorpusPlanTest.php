@@ -188,27 +188,97 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index5SequentialWriteCases() as $cas
     };
 }
 
+// Source truth: SQLite upstream test/index3.test section 2. The upstream
+// script verifies quoted identifiers, generated autoindex names, sort order,
+// collation, and indexed lookup compatibility across equivalent declarations.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index3QuotedIdentifierCompatibilityCases() as $case) {
+    $tests['real upstream index3 quoted identifier compatibility case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index3.test index3-2.1 through index3-2.5', $case['source']);
+        $t->true($case['case'] >= 1);
+        $t->true(in_array($case['quote_style'], ['single-string', 'double-quoted', 'bracket-quoted', 'bare'], true));
+        $t->true(in_array($case['column'], ['a', 'b', 'c', 'd'], true));
+        $t->true(in_array($case['collation'], ['binary', 'nocase'], true));
+        $t->true(in_array($case['sort'], ['ASC', 'DESC'], true));
+        $t->true(str_contains($case['declared_column'], $case['column']));
+        $t->same(sprintf('ab%03xxy', $case['lookup_value']), $case['lookup_literal']);
+        $t->same($case['column'] === 'b' || $case['column'] === 'c' || $case['column'] === 'd', $case['uses_index']);
+        if ($case['uses_index'] || str_starts_with($case['index_name'], 'sqlite_autoindex_')) {
+            $t->true(in_array($case['index_name'], $case['catalog_names'], true));
+        }
+        if ($case['column'] === 'b') {
+            $t->same('sqlite_autoindex_t1_2', $case['index_name']);
+            $t->same('nocase', $case['collation']);
+            $t->same('DESC', $case['sort']);
+        }
+        if ($case['upstream_section'] === 'index3-2.4') {
+            $t->true(str_starts_with($case['table'], 't2'));
+        }
+    };
+}
+
+// Source truth: SQLite upstream test/indexexpr1.test sections 110-260 and
+// test/indexexpr2.test sections 3.4 and 4.110-4.130. These cases cover
+// expression-index lookup, range, ORDER BY, collation, WITHOUT ROWID parity,
+// and index-entry recomputation during UPDATE.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases() as $case) {
+    $tests['real upstream expression index dynamic corpus case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->true(str_starts_with($case['source'], 'indexexpr'));
+        $t->true($case['case'] >= 1);
+        $t->true(in_array($case['storage'], ['rowid', 'without-rowid'], true));
+        $t->true($case['index_name'] !== '');
+        $t->true($case['expression'] !== '');
+        $t->true($case['predicate'] !== '');
+        $t->true($case['detail'] !== '');
+        $t->true(is_array($case['result_rows']));
+        $t->true(in_array($case['collation'], ['binary', 'nocase'], true));
+        $t->true($case['order'] !== '');
+        $t->same($case['uses_index'], str_contains($case['detail'], 'INDEX') || str_contains($case['detail'], 'index entry'));
+        if ($case['storage'] === 'without-rowid' && str_starts_with($case['source'], 'indexexpr1.test')) {
+            $t->true(str_contains($case['upstream_section'], '-2') || $case['upstream_section'] === 'indexexpr1-170');
+        }
+        if ($case['mutation_column'] === null) {
+            $t->same(false, $case['recomputes_index']);
+            $t->same(null, $case['expected_refcount']);
+        } elseif ($case['mutation_column'] === 'b') {
+            $t->same(true, $case['recomputes_index']);
+            $t->same(2, $case['expected_refcount']);
+        } elseif ($case['mutation_column'] === 'd') {
+            $t->same(false, $case['recomputes_index']);
+            $t->same(0, $case['expected_refcount']);
+        }
+        if ($case['collation'] === 'nocase') {
+            $t->true(str_contains(strtolower($case['expression'] . ' ' . $case['order']), 'nocase'));
+        }
+    };
+}
+
 $tests['real upstream btree index dynamic corpus source files are explicit'] = static function (TestRunner $t): void {
     $t->same([
         'btree01.test',
         'btree02.test',
         'index.test',
+        'index3.test',
         'index5.test',
         'index6.test',
         'index7.test',
         'index9.test',
         'indexA.test',
         'indexedby.test',
+        'indexexpr1.test',
+        'indexexpr2.test',
     ], [
         'btree01.test',
         'btree02.test',
         'index.test',
+        'index3.test',
         'index5.test',
         'index6.test',
         'index7.test',
         'index9.test',
         'indexA.test',
         'indexedby.test',
+        'indexexpr1.test',
+        'indexexpr2.test',
     ]);
 };
 
@@ -222,10 +292,12 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(999, count(SQLiteBTreeIndexDynamicCorpusPlan::index7WithoutRowidPartialIndexCases()));
     $t->same(1080, count(SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases()));
     $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::index5SequentialWriteCases()));
+    $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::index3QuotedIdentifierCompatibilityCases()));
+    $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases()));
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {
-    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, write-order, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, write-order, and cursor-case helpers');
+    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, write-order, expression-index, quoted-identifier, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, write-order, expression-index, quoted-identifier, and cursor-case helpers');
 };
 
 return $tests;

@@ -15,8 +15,22 @@ function libsqlite_bulk_denominator_blocked_evidence(): SQLiteUpstreamSuiteEvide
 function libsqlite_bulk_denominator_hydrated_test_scripts(): array
 {
     $scripts = [];
-    foreach (glob('/home/claude/port-libs/.upstream-cache/libsqlite/test/*.test') ?: [] as $path) {
-        $scripts[] = basename($path);
+    $root = '/home/claude/port-libs/.upstream-cache/libsqlite';
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getExtension() !== 'test') {
+            continue;
+        }
+
+        $relative = str_replace($root . '/', '', $file->getPathname());
+        if (str_starts_with($relative, 'test/')) {
+            $relative = substr($relative, 5);
+        }
+
+        $scripts[] = $relative;
     }
 
     sort($scripts, SORT_STRING);
@@ -45,14 +59,14 @@ function libsqlite_bulk_denominator_blocked_record(): array
     return libsqlite_bulk_denominator_blocked_evidence()->upstreamRunnerHydratedScriptMapGapClosure(
         $scripts,
         $scripts,
-        1189,
+        1472,
         1589,
-        'f66597de21a7c168178b6eec67c6e12b5daf324d',
-        'bulk-upstream-suite-denominator-burnup-dynamic-20260530T175933Z-0',
-        223524,
+        'a5d711ea245dda1130ca2ff1ba1b791f9a863c2b',
+        'bulk-upstream-suite-denominator-burnup-dynamic-20260530T202736Z-0',
+        573146,
         'lanes/libsqlite/tests/SQLiteBulkUpstreamSuiteDenominatorBurnupDynamicBlockedTest.php',
         libsqlite_bulk_denominator_blocked_output(),
-        'bulk-upstream-suite-denominator-burnup-dynamic-20260530T175933Z-0 rebases after accepted hydrated script map closure and does not repeat stale next965-980 rows, invented .test ids, metadata-only PASS inflation, release/all parity claims, or source-neutral cleanup'
+        'bulk-upstream-suite-denominator-burnup-dynamic-20260530T202736Z-0 confirms accepted hydrated script map closure at 1472 / 1589 and does not repeat stale next965-980 rows, invented .test ids, metadata-only PASS inflation, release/all parity claims, or source-neutral cleanup'
     );
 }
 
@@ -63,13 +77,13 @@ $tests['bulk denominator burnup is blocked after all hydrated test scripts are m
 
     $t->same('hydrated-script-map-gap-preserved', $record['status']);
     $t->same(1589, $record['denominator_total']);
-    $t->same(1189, $record['current_mapped']);
-    $t->same(1189, $record['next_mapped']);
+    $t->same(1472, $record['current_mapped']);
+    $t->same(1472, $record['next_mapped']);
     $t->same(0, $record['mapped_delta']);
-    $t->same(400, $record['remaining_denominator_before']);
-    $t->same(400, $record['remaining_denominator_after']);
-    $t->same(1189, $record['hydrated_script_count']);
-    $t->same(1189, $record['already_mapped_script_count']);
+    $t->same(117, $record['remaining_denominator_before']);
+    $t->same(117, $record['remaining_denominator_after']);
+    $t->same(1472, $record['hydrated_script_count']);
+    $t->same(1472, $record['already_mapped_script_count']);
     $t->same(0, $record['missing_script_count']);
     $t->same(0, $record['admitted_script_count']);
     $t->same(false, $record['counts_mapped_denominator_growth']);
@@ -81,12 +95,9 @@ $tests['bulk denominator burnup identifies remaining non test script blocker'] =
     $summary = libsqlite_bulk_denominator_blocked_evidence()->denominatorSummary();
     $inventory = $summary['inventory_units'];
     $remainingNonTestDirectoryUnits =
-        $inventory['extensionTclTests']
-        + $inventory['extensionNestedTclTests']
-        + $inventory['testDirectoryTclHarnessFiles']
+        $inventory['testDirectoryTclHarnessFiles']
         + $inventory['testDirectoryCPrograms']
         + $inventory['srcTestCOrHeaderHelpers']
-        + $inventory['mptestFiles']
         + $inventory['toolTestPrograms']
         + $inventory['toolTestishFiles'];
 
@@ -99,18 +110,22 @@ $tests['bulk denominator burnup identifies remaining non test script blocker'] =
     $t->same(6, $inventory['mptestFiles']);
     $t->same(4, $inventory['toolTestPrograms']);
     $t->same(76, $inventory['toolTestishFiles']);
-    $t->same(622, $remainingNonTestDirectoryUnits);
-    $t->true($remainingNonTestDirectoryUnits >= 400, 'Remaining mapped capacity is entirely outside hydrated test/*.test script admission.');
+    $t->same(192, $remainingNonTestDirectoryUnits);
+    $summary = libsqlite_bulk_denominator_blocked_evidence()->denominatorSummary();
+    $t->same(117, $summary['total'] - $summary['mapped']);
+    $t->true($remainingNonTestDirectoryUnits >= 117, 'Remaining mapped capacity is entirely outside hydrated .test script admission.');
 };
 
 $tests['bulk denominator burnup keeps real script samples only'] = static function (TestRunner $t): void {
     $scripts = libsqlite_bulk_denominator_hydrated_test_scripts();
     $record = libsqlite_bulk_denominator_blocked_record();
 
-    $t->same(1189, count($scripts));
+    $t->same(1472, count($scripts));
     $t->same('8_3_names.test', $scripts[0]);
     $t->true(in_array('wal.test', $scripts, true), 'Expected real wal.test from the hydrated upstream checkout');
     $t->true(in_array('json101.test', $scripts, true), 'Expected real json101.test from the hydrated upstream checkout');
+    $t->true(in_array('ext/fts5/test/fts5aux.test', $scripts, true), 'Expected real extension .test script from the accepted hydrated closure');
+    $t->true(in_array('mptest/config01.test', $scripts, true), 'Expected real mptest .test script from the accepted hydrated closure');
     $t->same([], $record['admitted_scripts']);
     $t->same([], $record['held_back_scripts']);
     $t->same([], $record['sample_admitted_scripts']);

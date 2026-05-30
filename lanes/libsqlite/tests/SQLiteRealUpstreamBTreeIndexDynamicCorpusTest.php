@@ -238,10 +238,10 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index6PartialIndexRegressionCases() 
 // upstream script repeats the same partial-index affinity matrix for rowid and
 // WITHOUT ROWID tables; the batches below keep those dynamic combinations
 // distinct without adding generated fake script ids.
-foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases(50) as $case) {
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases(80) as $case) {
     $tests['real upstream indexA partial affinity matrix ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
         $t->same('indexA.test sections 2.1 and 3.1', $case['source']);
-        $t->true($case['batch'] >= 1 && $case['batch'] <= 50);
+        $t->true($case['batch'] >= 1 && $case['batch'] <= 80);
         $t->true($case['storage'] === 'rowid' || $case['storage'] === 'without-rowid');
         $t->true(in_array($case['affinity'], ['TEXT', 'NUMERIC', 'REAL'], true));
         $t->true($case['index_setup'] >= 0 && $case['index_setup'] <= 4);

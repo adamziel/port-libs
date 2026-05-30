@@ -682,6 +682,95 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{id:int|string,label?:string}> $parents
+     * @param list<array{id:int|string,parent_id:int|string|null,label?:string}> $children
+     * @param array{operation:string,target?:int|string,repair_trigger?:bool,pragma_defer?:bool,transaction?:string,action?:string} $statement
+     * @return array<string,mixed>
+     */
+    public static function deferForeignKeysPragmaTransaction(array $parents, array $children, array $statement): array
+    {
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $operation = strtolower(trim((string) ($statement['operation'] ?? 'delete')));
+        $transaction = strtolower(trim((string) ($statement['transaction'] ?? 'commit')));
+        $action = strtolower(trim((string) ($statement['action'] ?? 'no action')));
+        $pragmaDefer = (bool) ($statement['pragma_defer'] ?? false);
+        $repairTrigger = (bool) ($statement['repair_trigger'] ?? false);
+        $target = $statement['target'] ?? ($parents[0]['id'] ?? null);
+
+        if (!in_array($operation, ['delete', 'update'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey6 defer-foreign-keys operation is unsupported');
+        }
+        if (!in_array($transaction, ['commit', 'rollback', 'statement'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey6 defer-foreign-keys transaction boundary is unsupported');
+        }
+        if (!in_array($action, ['no action', 'restrict'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey6 defer-foreign-keys action is unsupported');
+        }
+
+        $originalParents = $parents;
+        $originalChildren = $children;
+        $immediateFailure = !$pragmaDefer && $action === 'restrict';
+        $triggerRows = [];
+        $changedParentIds = [];
+
+        if (!$immediateFailure) {
+            foreach ($parents as $index => $parent) {
+                if (($parent['id'] ?? null) !== $target) {
+                    continue;
+                }
+                $changedParentIds[] = $target;
+                if ($operation === 'delete') {
+                    unset($parents[$index]);
+                    if ($repairTrigger) {
+                        $triggerRows[] = $parent + ['label' => $parent['label'] ?? 'repaired'];
+                    }
+                    continue;
+                }
+                $parents[$index]['id'] = (string) $target . '-moved';
+            }
+            $parents = array_values($parents);
+            foreach ($triggerRows as $row) {
+                $parents[] = $row;
+            }
+        }
+
+        $violations = self::foreignKeyViolations($parents, $children, 'id', 'parent_id');
+        $deferredOutstanding = $pragmaDefer && $violations !== [];
+        $commitFails = $deferredOutstanding && $transaction === 'commit';
+        $rolledBack = $transaction === 'rollback' || $commitFails || $immediateFailure;
+        $finalParents = $rolledBack ? $originalParents : $parents;
+        $finalChildren = $rolledBack ? $originalChildren : $children;
+
+        return [
+            'source' => 'fkey6.test fkey6-1.0..4.2',
+            'operation' => 'pragma-defer-foreign-keys-transaction-boundary',
+            'status' => $immediateFailure || $commitFails ? 'constraint-failed' : 'commit-ok',
+            'pragma_defer_foreign_keys' => $pragmaDefer,
+            'deferred_fk_dbstatus' => $deferredOutstanding ? 1 : 0,
+            'transaction_boundary' => $transaction,
+            'pragma_reset_after_boundary' => $transaction !== 'statement',
+            'action' => $action,
+            'immediate_restrict_failed_before_trigger' => $immediateFailure,
+            'commit_failed_with_deferred_violation' => $commitFails,
+            'rolled_back' => $rolledBack,
+            'repair_trigger_fired' => $repairTrigger && $triggerRows !== [] && !$immediateFailure,
+            'changed_parent_ids' => $changedParentIds,
+            'trigger_repaired_parent_ids' => array_values(array_column($triggerRows, 'id')),
+            'violations' => $violations,
+            'violation_count' => count($violations),
+            'parent_ids' => array_values(array_column(self::sortRows($finalParents), 'id')),
+            'child_parent_ids' => array_values(array_column(self::sortRows($finalChildren), 'parent_id')),
+            'dependencies' => [
+                'sqlite-fkey6-defer-foreign-keys-delays-all-actions-to-outer-commit',
+                'sqlite-fkey6-defer-foreign-keys-resets-after-commit-or-rollback',
+                'sqlite-fkey6-defer-foreign-keys-disables-restrict-until-commit',
+                'sqlite-fkey6-deferred-dbstatus-tracks-outstanding-violations',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int}> $rows
      * @return array<string,mixed>
      */

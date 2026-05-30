@@ -138,6 +138,12 @@ final class SQLiteSelectSql
         if ($namedWindows !== []) {
             $selectSql = self::expandNamedWindowReferences($selectSql, $namedWindows);
         }
+        $orderBySql = isset($clauseOffsets['ORDER BY'])
+            ? self::clauseText($tail, $clauseOffsets, 'ORDER BY')
+            : null;
+        if ($namedWindows !== [] && $orderBySql !== null) {
+            $orderBySql = self::expandNamedWindowReferences($orderBySql, $namedWindows);
+        }
         $select = self::selectList($selectSql, $tables);
         $select = self::annotateWildcardColumns($select, $source['from']);
         $plan = [
@@ -167,8 +173,8 @@ final class SQLiteSelectSql
         if ($having !== null) {
             array_push($aggregateExpressions, ...self::predicateExpressions($having));
         }
-        if (isset($clauseOffsets['ORDER BY'])) {
-            array_push($aggregateExpressions, ...self::orderByExpressions(self::clauseText($tail, $clauseOffsets, 'ORDER BY'), $tables));
+        if ($orderBySql !== null) {
+            array_push($aggregateExpressions, ...self::orderByExpressions($orderBySql, $tables));
         }
 
         if ($groupBySql !== null) {
@@ -192,9 +198,9 @@ final class SQLiteSelectSql
             $plan['groupBy'] = $groupBy;
             $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn']);
         }
-        if (isset($clauseOffsets['ORDER BY'])) {
+        if ($orderBySql !== null) {
             $plan['orderBy'] = self::orderBy(
-                self::clauseText($tail, $clauseOffsets, 'ORDER BY'),
+                $orderBySql,
                 $plan['select'],
                 isset($plan['groupBy']) ? $plan['groupBy']['valueColumn'] : null,
                 isset($plan['groupBy']),
@@ -5174,9 +5180,6 @@ final class SQLiteSelectSql
             $body = self::unwrapParenthesizedExpression(trim($match[2]));
             if ($body === trim($match[2])) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL WINDOW definition must be parenthesized');
-            }
-            if ($body === '') {
-                throw new \InvalidArgumentException('SQLite SELECT SQL WINDOW definition cannot be empty');
             }
             if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\b/i', $body, $baseMatch) === 1
                 && !in_array(strtoupper($baseMatch[1]), ['PARTITION', 'ORDER', 'ROWS', 'RANGE', 'GROUPS'], true)) {

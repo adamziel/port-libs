@@ -6,9 +6,11 @@ use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $tests = [];
 
-// Upstream source: SQLite test/window1.test 1.1-1.5, 4.1-4.10 and
-// test/window2.test 1.1-1.3, 2.1-2.25.  The table/column names are made
-// generic for the libsqlite port while preserving the upstream row shapes.
+// Upstream source: SQLite test/window1.test 1.1-1.5, 4.1-4.10,
+// test/window2.test 1.1-1.3, 2.1-2.25, test/window6.test 1.1-1.6,
+// 5.0-5.5, 8.1-9.4 and test/windowE.test 4.1-5.2. The table/column
+// names are made generic for the libsqlite port while preserving the
+// upstream row shapes.
 $basicRows = [
     ['a' => 1, 'b' => 2, 'c' => 3, 'd' => 4],
     ['a' => 5, 'b' => 6, 'c' => 7, 'd' => 8],
@@ -34,9 +36,33 @@ $textRows = [
     ['a' => 6, 'b' => 'even', 'c' => 'six', 'd' => 6],
 ];
 
+$reservedRows = [
+    ['x' => 1, 'over' => 2, 'window' => 2],
+    ['x' => 3, 'over' => 4, 'window' => 4],
+    ['x' => 5, 'over' => 6, 'window' => 6],
+];
+
+$sampleRows = [
+    ['id' => 1, 'counter' => 1, 'value' => 10.0],
+    ['id' => 2, 'counter' => 1, 'value' => 20.0],
+    ['id' => 3, 'counter' => 2, 'value' => 1.0],
+    ['id' => 4, 'counter' => 2, 'value' => 3.0],
+    ['id' => 5, 'counter' => 3, 'value' => 100.0],
+];
+
+$wideNumberRows = [
+    ['id' => 1, 'x' => -1],
+    ['id' => 2, 'x' => 9223372036854775807],
+    ['id' => 3, 'x' => 1],
+    ['id' => 4, 'x' => 0.5],
+];
+
 $queryBasic = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_basic' => $basicRows]);
 $queryEvents = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_events' => $eventRows]);
 $queryText = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_text' => $textRows]);
+$queryReserved = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_reserved' => $reservedRows]);
+$querySample = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_sample' => $sampleRows]);
+$queryWideNumbers = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_wide_numbers' => $wideNumberRows]);
 $column = static fn (array $rows, string $name): array => array_column($rows, $name);
 $pairs = static fn (array $rows, string $left, string $right): array => array_map(
     static fn (array $row): array => [$row[$left], $row[$right]],
@@ -264,7 +290,93 @@ $cases = [
         static fn (): mixed => $pairs($queryText('SELECT a, sum(d) OVER (ORDER BY d ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING EXCLUDE TIES) AS s FROM app_text'), 'a', 's'),
         [[1, 3], [2, 6], [3, 9], [4, 12], [5, 15], [6, 11]],
     ],
+    'window6 1.1 group concat keyword-like names' => [
+        static fn (): mixed => $column($queryReserved('SELECT group_concat(x) OVER (ORDER BY window) AS trace FROM app_reserved'), 'trace'),
+        ['1', '1,3', '1,3,5'],
+    ],
+    'window6 1.2 named window with keyword-like name' => [
+        static fn (): mixed => $column($queryReserved('SELECT sum(x) OVER win AS running_x FROM app_reserved WINDOW win AS (ORDER BY window)'), 'running_x'),
+        [1, 4, 9],
+    ],
+    'window6 1.3 qualified column through named window' => [
+        static fn (): mixed => $column($queryReserved('SELECT sum(app_reserved.x) OVER win AS running_x FROM app_reserved WINDOW win AS (ORDER BY window)'), 'running_x'),
+        [1, 4, 9],
+    ],
+    'window6 5.1 empty named window definition' => [
+        static fn (): mixed => $column($queryReserved('SELECT sum(x) OVER over_name AS total_x FROM app_reserved WINDOW over_name AS ()'), 'total_x'),
+        [9, 9, 9],
+    ],
+    'window6 5.5 following-only frame count' => [
+        static fn (): mixed => $column($queryReserved('SELECT count(*) OVER win AS future_count FROM app_reserved WINDOW win AS (ORDER BY x ROWS BETWEEN 2 FOLLOWING AND 3 FOLLOWING)'), 'future_count'),
+        [1, 0, 0],
+    ],
+    'window6 8.1 rank reused in final order by' => [
+        static fn (): mixed => array_map(static fn (array $row): array => [$row['counter'], $row['value'], $row['rank']], $querySample('SELECT counter, value, rank() OVER w AS rank FROM app_sample WINDOW w AS (PARTITION BY counter ORDER BY value DESC) ORDER BY counter, rank() OVER w')),
+        [[1, 20.0, 1], [1, 10.0, 2], [2, 3.0, 1], [2, 1.0, 2], [3, 100.0, 1]],
+    ],
+    'window6 8.2 rows two preceding shorthand' => [
+        static fn (): mixed => array_map(static fn (array $row): array => [$row['counter'], $row['value'], $row['rolling']], $querySample('SELECT counter, value, sum(value) OVER (ORDER BY id ROWS 2 PRECEDING) AS rolling FROM app_sample ORDER BY id')),
+        [[1, 10.0, 10.0], [1, 20.0, 30.0], [2, 1.0, 31.0], [2, 3.0, 24.0], [3, 100.0, 104.0]],
+    ],
+    'window6 8.3 explicit rows two preceding to current' => [
+        static fn (): mixed => $column($querySample('SELECT sum(value) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling FROM app_sample ORDER BY id'), 'rolling'),
+        [10.0, 30.0, 31.0, 24.0, 104.0],
+    ],
+    'windowE 4.1 total over unbounded following with integer max' => [
+        static fn (): mixed => $pairs($queryWideNumbers('SELECT id, total(x) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS total_x FROM app_wide_numbers'), 'id', 'total_x'),
+        [[1, 9.223372036854776E+18], [2, 9.223372036854776E+18], [3, 1.5], [4, 0.5]],
+    ],
+    'windowE 5.1 id sum over current row two following' => [
+        static fn (): mixed => $pairs($queryWideNumbers('SELECT id, sum(id) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS id_sum FROM app_wide_numbers'), 'id', 'id_sum'),
+        [[1, 6], [2, 9], [3, 7], [4, 4]],
+    ],
+    'windowE 5.2 numeric sum over current row two following' => [
+        static fn (): mixed => $pairs($queryWideNumbers('SELECT id, sum(x) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS x_sum FROM app_wide_numbers'), 'id', 'x_sum'),
+        [[1, 9223372036854775807], [2, 9.223372036854776E+18], [3, 1.5], [4, 0.5]],
+    ],
 ];
+
+$window6IdentifierMaps = [
+    'plain identifiers' => ['table' => 'app_w6_plain', 'x' => 'x', 'y' => 'y', 'w' => 'w', 'alias' => 'alias'],
+    'over table name' => ['table' => 'over_table', 'x' => 'x', 'y' => 'y', 'w' => 'w', 'alias' => 'alias'],
+    'window table name' => ['table' => 'window_table', 'x' => 'x', 'y' => 'y', 'w' => 'w', 'alias' => 'alias'],
+    'following value column' => ['table' => 'app_w6_following', 'x' => 'following_value', 'y' => 'y', 'w' => 'w', 'alias' => 'alias'],
+    'preceding order column' => ['table' => 'app_w6_preceding', 'x' => 'x', 'y' => 'preceding_value', 'w' => 'w', 'alias' => 'alias'],
+    'current named window' => ['table' => 'app_w6_current', 'x' => 'x', 'y' => 'y', 'w' => 'current_window', 'alias' => 'alias'],
+];
+
+foreach ($window6IdentifierMaps as $name => $map) {
+    $rows = [];
+    foreach ([1 => 'a', 2 => 'b', 3 => 'c', 4 => 'd', 5 => 'e'] as $x => $y) {
+        $rows[] = [$map['x'] => $x, $map['y'] => $y];
+    }
+    $tables = [$map['table'] => $rows];
+    $table = $map['table'];
+    $x = $map['x'];
+    $y = $map['y'];
+    $w = $map['w'];
+    $alias = $map['alias'];
+
+    $tests['real upstream window functions dynamic window6 1.' . $name . ' group concat mapped identifiers'] = static function (TestRunner $t) use ($tables, $table, $x, $y): void {
+        $actual = array_column(SQLiteSelectSql::execute("SELECT group_concat({$x}, '.') OVER (ORDER BY {$y}) AS trace FROM {$table}", $tables), 'trace');
+        $t->same(['1', '1.2', '1.2.3', '1.2.3.4', '1.2.3.4.5'], $actual);
+    };
+
+    $tests['real upstream window functions dynamic window6 1.' . $name . ' named running sum mapped identifiers'] = static function (TestRunner $t) use ($tables, $table, $x, $y, $w): void {
+        $actual = array_column(SQLiteSelectSql::execute("SELECT sum({$x}) OVER {$w} AS running_x FROM {$table} WINDOW {$w} AS (ORDER BY {$y})", $tables), 'running_x');
+        $t->same([1, 3, 6, 10, 15], $actual);
+    };
+
+    $tests['real upstream window functions dynamic window6 1.' . $name . ' qualified named running sum'] = static function (TestRunner $t) use ($tables, $table, $x, $y, $w): void {
+        $actual = array_column(SQLiteSelectSql::execute("SELECT sum({$table}.{$x}) OVER {$w} AS running_x FROM {$table} WINDOW {$w} AS (ORDER BY {$y})", $tables), 'running_x');
+        $t->same([1, 3, 6, 10, 15], $actual);
+    };
+
+    $tests['real upstream window functions dynamic window6 1.' . $name . ' ordinary aggregate alias'] = static function (TestRunner $t) use ($tables, $table, $x, $alias): void {
+        $actual = array_column(SQLiteSelectSql::execute("SELECT sum({$x}) AS {$alias} FROM {$table}", $tables), $alias);
+        $t->same([15], $actual);
+    };
+}
 
 foreach ($cases as $name => [$callback, $expected]) {
     $tests['real upstream window functions dynamic ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {

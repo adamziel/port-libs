@@ -356,6 +356,212 @@ foreach ($versionCases as [$name, $callback, $expected]) {
     };
 }
 
+// Upstream pragma4.test sections 4.2 through 4.6 exercise table-valued
+// PRAGMAs through dynamic schema lookup. Keep this matrix generic and varied
+// so each generated case has distinct schema, index, and FK metadata.
+$makeVariantCatalog = static function (int $seed) use ($record): SQLiteAttachedSchemaCatalog {
+    $mainTable = sprintf('app_main_%03d', $seed);
+    $tempTable = sprintf('app_temp_%03d', $seed);
+    $auxTable = sprintf('app_aux_%03d', $seed);
+    $mainChild = sprintf('app_main_child_%03d', $seed);
+    $tempChild = sprintf('app_temp_child_%03d', $seed);
+    $auxChild = sprintf('app_aux_child_%03d', $seed);
+    $mainIndex = sprintf('app_main_%03d_b_c', $seed);
+    $tempIndex = sprintf('app_temp_%03d_e_f', $seed);
+    $auxIndex = sprintf('app_aux_%03d_e_f', $seed);
+
+    $catalog = new SQLiteAttachedSchemaCatalog(
+        [
+            $record('table', $mainTable, $mainTable, 2, "CREATE TABLE {$mainTable}(a INT PRIMARY KEY, b TEXT DEFAULT 'm{$seed}', c TEXT)", 1),
+            $record('index', "sqlite_autoindex_{$mainTable}_1", $mainTable, 3, null, 2),
+            $record('index', $mainIndex, $mainTable, 4, "CREATE INDEX {$mainIndex} ON {$mainTable}(b, c)", 3),
+            $record('table', $mainChild, $mainChild, 5, "CREATE TABLE {$mainChild}(x INT, y TEXT, z INT REFERENCES {$mainTable}(a))", 4),
+        ],
+        [
+            $record('table', $tempTable, $tempTable, 6, "CREATE TABLE {$tempTable}(d INT PRIMARY KEY, e TEXT DEFAULT 't{$seed}', f TEXT)", 1),
+            $record('index', "sqlite_autoindex_{$tempTable}_1", $tempTable, 7, null, 2),
+            $record('index', $tempIndex, $tempTable, 8, "CREATE INDEX {$tempIndex} ON {$tempTable}(e, f)", 3),
+            $record('table', $tempChild, $tempChild, 9, "CREATE TABLE {$tempChild}(d INT, e TEXT, r INT REFERENCES {$tempTable}(d))", 4),
+        ],
+    );
+    $catalog->attach('aux', "/tmp/app-pragma4-{$seed}.sqlite", [
+        $record('table', $auxTable, $auxTable, 10, "CREATE TABLE {$auxTable}(d INT PRIMARY KEY, e TEXT DEFAULT 'a{$seed}', f TEXT)", 1),
+        $record('index', "sqlite_autoindex_{$auxTable}_1", $auxTable, 11, null, 2),
+        $record('index', $auxIndex, $auxTable, 12, "CREATE INDEX {$auxIndex} ON {$auxTable}(e, f)", 3),
+        $record('table', $auxChild, $auxChild, 13, "CREATE TABLE {$auxChild}(d INT, e TEXT, r INT REFERENCES {$auxTable}(d))", 4),
+    ]);
+
+    return $catalog;
+};
+
+for ($seed = 1; $seed <= 80; $seed++) {
+    $mainTable = sprintf('app_main_%03d', $seed);
+    $tempTable = sprintf('app_temp_%03d', $seed);
+    $auxTable = sprintf('app_aux_%03d', $seed);
+    $mainChild = sprintf('app_main_child_%03d', $seed);
+    $tempChild = sprintf('app_temp_child_%03d', $seed);
+    $auxChild = sprintf('app_aux_child_%03d', $seed);
+    $mainIndex = sprintf('app_main_%03d_b_c', $seed);
+    $tempIndex = sprintf('app_temp_%03d_e_f', $seed);
+    $auxIndex = sprintf('app_aux_%03d_e_f', $seed);
+
+    $tests[sprintf('real upstream pragma4.test 4.2 dynamic table_info schema matrix seed %03d', $seed)] = static function (TestRunner $t) use ($makeVariantCatalog, $seed, $mainTable, $tempTable, $auxTable): void {
+        $catalog = $makeVariantCatalog($seed);
+        $main = $catalog->executeTableValuedPragma("pragma_table_info('{$mainTable}','main')");
+        $temp = $catalog->executeTableValuedPragma("pragma_table_info('{$tempTable}')");
+        $aux = $catalog->executeTableValuedPragma("pragma_table_info('{$auxTable}','aux')");
+
+        $t->same('main', $main['schema']);
+        $t->same($mainTable, $main['target']);
+        $t->same(['a', 'b', 'c'], array_column($main['rows'], 'name'));
+        $t->same(1, $main['rows'][0]['pk']);
+        $t->same("'m{$seed}'", $main['rows'][1]['dflt_value']);
+        $t->same('temp', $temp['schema']);
+        $t->same(['d', 'e', 'f'], array_column($temp['rows'], 'name'));
+        $t->same("'t{$seed}'", $temp['rows'][1]['dflt_value']);
+        $t->same('aux', $aux['schema']);
+        $t->same("'a{$seed}'", $aux['rows'][1]['dflt_value']);
+    };
+
+    $tests[sprintf('real upstream pragma4.test 4.3 dynamic index_info schema matrix seed %03d', $seed)] = static function (TestRunner $t) use ($makeVariantCatalog, $seed, $mainIndex, $tempIndex, $auxIndex): void {
+        $catalog = $makeVariantCatalog($seed);
+        $main = $catalog->executeTableValuedPragma("pragma_index_info('{$mainIndex}','main')");
+        $temp = $catalog->executeTableValuedPragma("pragma_index_info('{$tempIndex}')");
+        $aux = $catalog->executeTableValuedPragma("pragma_index_info('{$auxIndex}','aux')");
+
+        $t->same('main', $main['schema']);
+        $t->same($mainIndex, $main['target']);
+        $t->same([0, 1], array_column($main['rows'], 'seqno'));
+        $t->same([1, 2], array_column($main['rows'], 'cid'));
+        $t->same(['b', 'c'], array_column($main['rows'], 'name'));
+        $t->same('temp', $temp['schema']);
+        $t->same(['e', 'f'], array_column($temp['rows'], 'name'));
+        $t->same('aux', $aux['schema']);
+        $t->same(['e', 'f'], array_column($aux['rows'], 'name'));
+        $t->same($auxIndex, $aux['target']);
+    };
+
+    $tests[sprintf('real upstream pragma4.test 4.4 dynamic index_list schema matrix seed %03d', $seed)] = static function (TestRunner $t) use ($makeVariantCatalog, $seed, $mainTable, $tempTable, $auxTable, $mainIndex, $tempIndex, $auxIndex): void {
+        $catalog = $makeVariantCatalog($seed);
+        $main = $catalog->executeTableValuedPragma("pragma_index_list('{$mainTable}','main')");
+        $temp = $catalog->executeTableValuedPragma("pragma_index_list('{$tempTable}')");
+        $aux = $catalog->executeTableValuedPragma("pragma_index_list('{$auxTable}','aux')");
+
+        $t->same('main', $main['schema']);
+        $t->same(["sqlite_autoindex_{$mainTable}_1", $mainIndex], array_column($main['rows'], 'name'));
+        $t->same(['u', 'c'], array_column($main['rows'], 'origin'));
+        $t->same([1, 0], array_column($main['rows'], 'unique'));
+        $t->same('temp', $temp['schema']);
+        $t->same(["sqlite_autoindex_{$tempTable}_1", $tempIndex], array_column($temp['rows'], 'name'));
+        $t->same('aux', $aux['schema']);
+        $t->same(["sqlite_autoindex_{$auxTable}_1", $auxIndex], array_column($aux['rows'], 'name'));
+        $t->same(2, count($aux['rows']));
+        $t->same(2, count($temp['rows']));
+    };
+
+    $tests[sprintf('real upstream pragma4.test 4.5 dynamic foreign_key_list schema matrix seed %03d', $seed)] = static function (TestRunner $t) use ($makeVariantCatalog, $seed, $mainTable, $tempTable, $auxTable, $mainChild, $tempChild, $auxChild): void {
+        $catalog = $makeVariantCatalog($seed);
+        $main = $catalog->executeTableValuedPragma("pragma_foreign_key_list('{$mainChild}','main')");
+        $temp = $catalog->executeTableValuedPragma("pragma_foreign_key_list('{$tempChild}')");
+        $aux = $catalog->executeTableValuedPragma("pragma_foreign_key_list('{$auxChild}','aux')");
+
+        $t->same('main', $main['schema']);
+        $t->same($mainTable, $main['rows'][0]['table']);
+        $t->same('z', $main['rows'][0]['from']);
+        $t->same('a', $main['rows'][0]['to']);
+        $t->same('temp', $temp['schema']);
+        $t->same($tempTable, $temp['rows'][0]['table']);
+        $t->same('r', $temp['rows'][0]['from']);
+        $t->same('aux', $aux['schema']);
+        $t->same($auxTable, $aux['rows'][0]['table']);
+        $t->same('d', $aux['rows'][0]['to']);
+    };
+
+    $tests[sprintf('real upstream pragma4.test 4.6 dynamic detach invalidation matrix seed %03d', $seed)] = static function (TestRunner $t) use ($makeVariantCatalog, $seed, $auxTable, $auxIndex, $auxChild): void {
+        $catalog = $makeVariantCatalog($seed);
+        $beforeIndex = $catalog->executeTableValuedPragma("pragma_index_info('{$auxIndex}','aux')");
+        $beforeFk = $catalog->executeTableValuedPragma("pragma_foreign_key_list('{$auxChild}','aux')");
+        $catalog->detach('aux');
+        $afterList = $catalog->executeTableValuedPragma("pragma_table_list('{$auxTable}')");
+        $afterFk = $catalog->executeTableValuedPragma("pragma_foreign_key_list('{$auxChild}')");
+
+        $t->same('aux', $beforeIndex['schema']);
+        $t->same(['e', 'f'], array_column($beforeIndex['rows'], 'name'));
+        $t->same('aux', $beforeFk['schema']);
+        $t->same(1, count($beforeFk['rows']));
+        $t->same(0, count($afterList['rows']));
+        $t->same(0, count($afterFk['rows']));
+        $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_index_info('{$auxIndex}','aux')"));
+        $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_table_info('{$auxTable}','aux')"));
+        $t->same(['temp', 'main'], $catalog->searchOrder());
+        $t->same(2, count($catalog->databaseList()));
+    };
+
+    $tests[sprintf('real upstream pragma4.test 6.0 dynamic table_list schema matrix seed %03d', $seed)] = static function (TestRunner $t) use ($makeVariantCatalog, $seed, $mainTable, $tempTable, $auxTable): void {
+        $catalog = $makeVariantCatalog($seed);
+        $all = $catalog->executeTableValuedPragma('pragma_table_list()');
+        $main = $catalog->executeTableValuedPragma("pragma_table_list('{$mainTable}','main')");
+        $temp = $catalog->executeTableValuedPragma("pragma_table_list('{$tempTable}')");
+        $aux = $catalog->executeTableValuedPragma("pragma_table_list('{$auxTable}','aux')");
+
+        $t->same('table_list', $all['pragma']);
+        $t->same(true, count($all['rows']) >= 6);
+        $t->same('main', $main['schema']);
+        $t->same($mainTable, $main['rows'][0]['name']);
+        $t->same('table', $main['rows'][0]['type']);
+        $t->same(3, $main['rows'][0]['ncol']);
+        $t->same('temp', $temp['rows'][0]['schema']);
+        $t->same($tempTable, $temp['rows'][0]['name']);
+        $t->same('aux', $aux['rows'][0]['schema']);
+        $t->same($auxTable, $aux['rows'][0]['name']);
+    };
+
+    $tests[sprintf('real upstream pragma4.test 7.3 dynamic pragma table join inputs seed %03d', $seed)] = static function (TestRunner $t) use ($makeVariantCatalog, $seed, $mainTable, $auxTable): void {
+        $catalog = $makeVariantCatalog($seed);
+        $left = $catalog->executeTableValuedPragma("pragma_table_info('{$auxTable}','aux')")['rows'];
+        $right = $catalog->executeTableValuedPragma("pragma_table_info('{$mainTable}','main')")['rows'];
+        $joined = [];
+        foreach ($right as $rightRow) {
+            $match = null;
+            foreach ($left as $leftRow) {
+                if ($leftRow['name'] === $rightRow['name']) {
+                    $match = $leftRow['name'];
+                    break;
+                }
+            }
+            $joined[] = [$match, $rightRow['name']];
+        }
+
+        $t->same([[null, 'a'], [null, 'b'], [null, 'c']], $joined);
+        $t->same(['d', 'e', 'f'], array_column($left, 'name'));
+        $t->same(['a', 'b', 'c'], array_column($right, 'name'));
+        $t->same(3, count($left));
+        $t->same(3, count($right));
+        $t->same(0, count(array_filter($joined, static fn (array $row): bool => $row[0] !== null)));
+        $t->same('a', $joined[0][1]);
+        $t->same('b', $joined[1][1]);
+        $t->same('c', $joined[2][1]);
+        $t->same(null, $joined[2][0]);
+    };
+
+    $tests[sprintf('real upstream pragma4.test table-valued cursor snapshot schema matrix seed %03d', $seed)] = static function (TestRunner $t) use ($makeVariantCatalog, $seed, $auxTable): void {
+        $catalog = $makeVariantCatalog($seed);
+        $cursor = $catalog->executeTableValuedPragmaCursor("pragma_table_info('{$auxTable}','aux')");
+        $catalog->detach('aux');
+
+        $t->same('table_info', $cursor->metadata()['pragma']);
+        $t->same('aux', $cursor->metadata()['schema']);
+        $t->same($auxTable, $cursor->metadata()['target']);
+        $t->same(3, $cursor->metadata()['row_count']);
+        $t->same('d', $cursor->current()['name']);
+        $t->same('e', $cursor->next()['name']);
+        $t->same('f', $cursor->next()['name']);
+        $t->same(null, $cursor->next());
+        $t->same(2, count($catalog->databaseList()));
+        $t->same(['temp', 'main'], $catalog->searchOrder());
+    };
+}
+
 $tests['real upstream pragma schema dynamic pragma-8.2 transaction rollback requires begin'] = static function (TestRunner $t) use ($versionState): void {
     $t->throws(InvalidArgumentException::class, static fn () => $versionState()->rollbackTransaction());
 };
