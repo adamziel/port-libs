@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 21:48 UTC):
+  Latest libsqlite source is being advanced from dashboard head `551608c47`
+  through a thirteenth rapid current-base corpus sweep. The scratch batch
+  accepted 23 behavior-producing real upstream corpus handoffs across
+  trigger/FK, JSON1/JSONB, VFS, PRAGMA, pager/WAL, B-tree/index, SELECT,
+  UPSERT/RETURNING, window, expression-affinity, and date-affinity coverage;
+  seven handoffs were rejected, including six note-only/blocker handoffs and
+  one overlapping PRAGMA apply conflict. Verification passed PHP lint for 33
+  changed/new PHP files, `git diff --check -- lanes/libsqlite`, added-lines
+  source-neutral guards, and focused selected tests with `24 test files /
+  512340 assertions / 0 failures / 87692 PASS lines`. The accepted-base
+  comparison over the six pre-existing selected files reported `26387` prior
+  PASS lines plus 47 pre-existing JSON failures; the scratch selected gate has
+  zero failures, so selected corpus throughput moves by `+61305` to `844276
+  pass / 0 fail`. A broad full-directory exploratory run reached `775075`
+  PASS lines and `715` pre-existing failures before the pre-existing
+  `SQLiteRowValueNestedSavepointReturningTest` fatal; sampled application
+  failures and that fatal reproduce in the accepted base. Mapped coverage
+  remains `1589 / 1589`; full SQLite release/all-runner parity is still not
+  claimed and now has concrete failing files to assign.
+
 - 2026-05-30 supervisor continuation (integration sample 21:24 UTC):
   Latest accepted libsqlite source is `8ed4e4fc`
   (`libsqlite: add twelfth rapid current corpus sweep`). This twelfth rapid

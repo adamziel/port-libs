@@ -19,15 +19,16 @@ final class SQLiteUpsertReturningSql
             throw new \InvalidArgumentException("SQLite UPSERT RETURNING target table {$target} is missing");
         }
 
-        self::validateConflictTarget($parsed['conflict_target'], $uniqueConstraints);
+        $conflictTarget = self::effectiveConflictTarget($parsed['conflict_target'], $uniqueConstraints);
+        self::validateConflictTarget($conflictTarget, $uniqueConstraints);
 
         if ($parsed['action'] === 'nothing') {
-            $result = self::executeDoNothing($tables[$target], $parsed['incoming_rows'], $parsed['conflict_target'], $uniqueConstraints);
+            $result = self::executeDoNothing($tables[$target], $parsed['incoming_rows'], $conflictTarget, $uniqueConstraints);
         } else {
             $result = SQLiteUpsertDoUpdateWherePlan::execute(
                 $tables[$target],
                 $parsed['incoming_rows'],
-                $parsed['conflict_target'],
+                $conflictTarget,
                 self::assignmentCallbacks($target, $parsed['assignments']),
                 self::wherePredicate($target, $parsed['where']),
                 $uniqueConstraints,
@@ -36,7 +37,7 @@ final class SQLiteUpsertReturningSql
 
         return [
             'target' => $target,
-            'conflict_target' => $parsed['conflict_target'],
+            'conflict_target' => $conflictTarget,
             'columns' => $parsed['columns'],
             'incoming_rows' => $parsed['incoming_rows'],
             'before' => $result['before'],
@@ -123,11 +124,11 @@ final class SQLiteUpsertReturningSql
 
         $offset = $conflictOffset + strlen('ON CONFLICT');
         $offset = self::skipWhitespace($sql, $offset);
-        if (($sql[$offset] ?? null) !== '(') {
-            throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires a conflict target');
+        $conflictTarget = [];
+        if (($sql[$offset] ?? null) === '(') {
+            [$conflictSql, $offset] = self::consumeParenthesized($sql, $offset);
+            $conflictTarget = self::identifierList($conflictSql, 'SQLite UPSERT RETURNING conflict target');
         }
-        [$conflictSql, $offset] = self::consumeParenthesized($sql, $offset);
-        $conflictTarget = self::identifierList($conflictSql, 'SQLite UPSERT RETURNING conflict target');
 
         $offset = self::skipWhitespace($sql, $offset);
         $action = 'update';
@@ -178,6 +179,27 @@ final class SQLiteUpsertReturningSql
             'where' => $whereSql,
             'returning' => $returning,
         ];
+    }
+
+    /**
+     * @param list<string> $conflictTarget
+     * @param list<list<string>>|null $uniqueConstraints
+     * @return list<string>
+     */
+    private static function effectiveConflictTarget(array $conflictTarget, ?array $uniqueConstraints): array
+    {
+        if ($conflictTarget !== []) {
+            return $conflictTarget;
+        }
+        if ($uniqueConstraints === null || $uniqueConstraints === []) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING without a conflict target requires a UNIQUE constraint');
+        }
+        $first = $uniqueConstraints[0];
+        if (!is_array($first) || $first === [] || !array_is_list($first)) {
+            throw new \InvalidArgumentException('SQLite UPSERT unique constraint must be a non-empty column list');
+        }
+
+        return array_values($first);
     }
 
     /**

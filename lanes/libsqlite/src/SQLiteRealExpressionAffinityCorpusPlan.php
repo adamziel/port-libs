@@ -257,7 +257,7 @@ final class SQLiteRealExpressionAffinityCorpusPlan
             return $value;
         }
 
-        return self::castInteger($numeric);
+        return $numeric;
     }
 
     private static function applyRealColumnAffinity(mixed $value): mixed

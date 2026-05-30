@@ -209,15 +209,22 @@ final class SQLiteSelectPredicate
             ?? self::expressionCollation($predicate['left'] ?? null)
             ?? self::expressionCollation($predicate['lower'] ?? null)
             ?? self::expressionCollation($predicate['upper'] ?? null);
+        $leftAffinity = self::operandAffinity($row, $predicate['left'] ?? null);
+        $lowerAffinity = self::operandAffinity($row, $predicate['lower'] ?? null);
+        $upperAffinity = self::operandAffinity($row, $predicate['upper'] ?? null);
         $lowerMatched = null;
         if ($lower !== null) {
-            $lowerComparison = self::compareValues($value, $lower, false, $collation);
+            $lowerComparison = $leftAffinity !== null || $lowerAffinity !== null
+                ? SQLiteAffinityComparison::compare($value, $lower, $leftAffinity ?? 'NONE', $lowerAffinity ?? 'NONE', is_string($collation) ? $collation : 'BINARY')
+                : self::compareValues($value, $lower, false, $collation);
             $lowerMatched = $lowerComparison === null ? null : $lowerComparison >= 0;
         }
 
         $upperMatched = null;
         if ($upper !== null) {
-            $upperComparison = self::compareValues($value, $upper, false, $collation);
+            $upperComparison = $leftAffinity !== null || $upperAffinity !== null
+                ? SQLiteAffinityComparison::compare($value, $upper, $leftAffinity ?? 'NONE', $upperAffinity ?? 'NONE', is_string($collation) ? $collation : 'BINARY')
+                : self::compareValues($value, $upper, false, $collation);
             $upperMatched = $upperComparison === null ? null : $upperComparison <= 0;
         }
 

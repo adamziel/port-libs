@@ -2547,6 +2547,447 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,join_type:string,on_clause:string,where_clause:string,automatic_index_enabled:bool,optimization_enabled:bool,uses_automatic_partial_index:bool,result_rows:list<array{a:int|null,b:int|null,x:int|null,y:int|null}>,null_extended_rows:int,matched_rows:int,integrity:string}>
+     */
+    public static function autoindex4PartialJoinCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite autoindex4 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'autoindex4-1.0',
+                'cross join with equality filters builds a transient partial index and preserves ORDER BY +b',
+                'JOIN',
+                'a=234 AND x=987',
+                '',
+                true,
+                true,
+                [
+                    [234, 2, 987, 3],
+                    [234, 2, 987, 1],
+                    [234, 3, 987, 3],
+                    [234, 3, 987, 1],
+                ],
+            ],
+            [
+                'autoindex4-1.1',
+                'cross join with impossible filtered right side returns no rows',
+                'JOIN',
+                'a=234 AND x=555',
+                '',
+                true,
+                true,
+                [],
+            ],
+            [
+                'autoindex4-1.2',
+                'left join keeps null-extended rows when ON clause is impossible',
+                'LEFT JOIN',
+                'a=234 AND x=555',
+                '',
+                true,
+                true,
+                [
+                    [123, 1, null, null],
+                    [234, 2, null, null],
+                    [234, 3, null, null],
+                    [345, 4, null, null],
+                ],
+            ],
+            [
+                'autoindex4-1.3',
+                'left join applies WHERE after preserving ON-clause null extension',
+                'LEFT JOIN',
+                'x=555',
+                'a=234',
+                true,
+                true,
+                [
+                    [234, 2, null, null],
+                    [234, 3, null, null],
+                ],
+            ],
+            [
+                'autoindex4-1.4',
+                'left join WHERE clause rejects null-extended right side',
+                'LEFT JOIN',
+                '1',
+                'a=234 AND x=555',
+                true,
+                true,
+                [],
+            ],
+            [
+                'autoindex4-2.0',
+                'correlated scalar subquery counts join matches through automatic partial indexes',
+                'SCALAR SUBQUERY',
+                'a=e AND x=f',
+                '',
+                true,
+                true,
+                [
+                    [123, 654, 1, null],
+                    [555, 444, 0, null],
+                    [234, 987, 4, null],
+                ],
+            ],
+            [
+                'autoindex4-3.0',
+                'left join with ORDER BY keeps parent rows when partial-index term is false',
+                'LEFT JOIN',
+                "A.Name = Items.ItemName AND Items.ItemName = 'dummy'",
+                "Items.Name = 'Parent'",
+                true,
+                true,
+                [
+                    [null, null, null, null],
+                    [null, null, null, null],
+                ],
+            ],
+            [
+                'autoindex4-4.1',
+                'left join WHERE y=4 OR y IS NULL keeps only matching and null-extended rows',
+                'LEFT JOIN',
+                'a=x',
+                'y=4 OR y IS NULL',
+                true,
+                true,
+                [
+                    [3, 4, 3, 4],
+                ],
+            ],
+            [
+                'autoindex4-4.2',
+                'left join coalesce predicate preserves null-extension and matching row',
+                'LEFT JOIN',
+                'a=x AND y=4',
+                'coalesce(y,4)==4',
+                true,
+                true,
+                [
+                    [1, 2, null, null],
+                    [3, 4, 3, 4],
+                ],
+            ],
+            [
+                'autoindex4-4.3',
+                'inner join y=4 OR y IS NULL returns only matching row',
+                'JOIN',
+                'a=x',
+                'y=4 OR y IS NULL',
+                true,
+                true,
+                [
+                    [3, 4, 3, 4],
+                ],
+            ],
+            [
+                'autoindex4-4.5.1',
+                'left join with NULL left key preserves null-extended row',
+                'LEFT JOIN',
+                'a=x',
+                'y=4 OR y IS NULL',
+                true,
+                true,
+                [
+                    [3, 4, 3, 4],
+                    [null, 4, null, null],
+                ],
+            ],
+            [
+                'autoindex4-4.5.2',
+                'empty NOT IN predicate admits both matched and null-extended left rows',
+                'LEFT JOIN',
+                'a=x',
+                'y NOT IN ()',
+                true,
+                true,
+                [
+                    [1, 2, 1, 2],
+                    [3, 4, 3, 4],
+                    [null, 4, null, null],
+                ],
+            ],
+            [
+                'autoindex4-4.5.3',
+                'empty subquery NOT IN predicate admits both matched and null-extended left rows',
+                'LEFT JOIN',
+                'a=x',
+                'y NOT IN (SELECT 1 WHERE false)',
+                true,
+                true,
+                [
+                    [1, 2, 1, 2],
+                    [3, 4, 3, 4],
+                    [null, 4, null, null],
+                ],
+            ],
+            [
+                'autoindex4-4.6',
+                'left join with nullable right side and coalesce predicate preserves null-extension',
+                'LEFT JOIN',
+                'a=x AND y=4',
+                'coalesce(y,4)==4',
+                true,
+                true,
+                [
+                    [1, 2, null, null],
+                    [3, 4, 3, 4],
+                ],
+            ],
+            [
+                'autoindex4-4.7',
+                'inner join with NULL keys does not match NULL to NULL',
+                'JOIN',
+                'a=x',
+                'y=4 OR y IS NULL',
+                true,
+                true,
+                [
+                    [3, 4, 3, 4],
+                ],
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $joinType, $onClause, $whereClause, $automaticIndexEnabled, $optimizationEnabled, $resultRows] = $templates[($case - 1) % count($templates)];
+            $nullExtendedRows = 0;
+            $matchedRows = 0;
+            foreach ($resultRows as $row) {
+                if ($row[2] === null && $row[3] === null) {
+                    $nullExtendedRows++;
+                } else {
+                    $matchedRows++;
+                }
+            }
+
+            $rows[] = [
+                'source' => 'autoindex4.test autoindex4-1.0 through autoindex4-4.8',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'join_type' => $joinType,
+                'on_clause' => $onClause,
+                'where_clause' => $whereClause,
+                'automatic_index_enabled' => $automaticIndexEnabled,
+                'optimization_enabled' => $optimizationEnabled,
+                'uses_automatic_partial_index' => $automaticIndexEnabled && $optimizationEnabled && $resultRows !== [],
+                'result_rows' => array_map(
+                    static fn (array $row): array => ['a' => $row[0], 'b' => $row[1], 'x' => $row[2], 'y' => $row[3]],
+                    $resultRows,
+                ),
+                'null_extended_rows' => $nullExtendedRows,
+                'matched_rows' => $matchedRows,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table:string,primary_key:list<string>,redundant_primary_key:list<string>,unique_constraints:list<list<string>>,index_info:list<array{seqno:int,cid:int,name:string,key:int,collation:string}>,index_list:list<array{name:string,unique:int,origin:string}>,query:string,result_rows:list<array<int,mixed>>,detail:string,error:string|null,integrity:string,target_a:int|null,target_b:int|null,expected_c:string|null}>
+     */
+    public static function withoutRowidRedundantPrimaryKeyCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite WITHOUT ROWID dynamic corpus requires at least one case');
+        }
+
+        $baseIndexInfo = [
+            ['seqno' => 0, 'cid' => 0, 'name' => 'a', 'key' => 1, 'collation' => 'BINARY'],
+            ['seqno' => 1, 'cid' => 1, 'name' => 'b', 'key' => 1, 'collation' => 'BINARY'],
+            ['seqno' => 2, 'cid' => 2, 'name' => 'c', 'key' => 1, 'collation' => 'BINARY'],
+            ['seqno' => 3, 'cid' => 3, 'name' => 'd', 'key' => 1, 'collation' => 'BINARY'],
+            ['seqno' => 4, 'cid' => 4, 'name' => 'e', 'key' => 0, 'collation' => 'BINARY'],
+        ];
+        $baseIndexList = [['name' => 'sqlite_autoindex_t1_1', 'unique' => 1, 'origin' => 'pk'], ['name' => 't1a', 'unique' => 0, 'origin' => 'c']];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $a = (($case - 1) % 1000) + 1;
+            $b = $a + 1000;
+            $c = 'x' . $a . 'y';
+            $rows[] = [
+                'source' => 'without_rowid6.test',
+                'case' => $case,
+                'upstream_section' => 'without_rowid6-100/140',
+                'scenario' => 'redundant PRIMARY KEY columns are collapsed in WITHOUT ROWID storage and duplicate-column auxiliary indexes remain usable for row ' . $a,
+                'table' => 't1',
+                'primary_key' => ['a', 'b', 'c', 'd'],
+                'redundant_primary_key' => ['a', 'b', 'c', 'a', 'b', 'c', 'd', 'a', 'b', 'c'],
+                'unique_constraints' => [['b', 'b']],
+                'index_info' => $baseIndexInfo,
+                'index_list' => $baseIndexList,
+                'query' => 'SELECT c FROM t1 WHERE a=' . $a . '; SELECT c FROM t1 WHERE b=' . $b,
+                'result_rows' => [[$c], [$c]],
+                'detail' => 'SEARCH t1 USING PRIMARY KEY (a=?); SEARCH t1 USING INDEX t1a (b=?)',
+                'error' => null,
+                'integrity' => 'ok',
+                'target_a' => $a,
+                'target_b' => $b,
+                'expected_c' => $c,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{source:string,upstream_section:string,scenario:string,table:string,primary_key:list<string>,redundant_primary_key:list<string>,unique_constraints:list<list<string>>,index_info:list<array{seqno:int,cid:int,name:string,key:int,collation:string}>,index_list:list<array{name:string,unique:int,origin:string}>,query:string,result_rows:list<array<int,mixed>>,detail:string,error:string|null,integrity:string}>
+     */
+    public static function withoutRowidRedundantPrimaryKeySectionCases(): array
+    {
+        $templates = [
+            [
+                'without_rowid6-200/220',
+                'UNIQUE column promoted to PRIMARY KEY keeps the second autoindex as pk and preserves b-range order',
+                't1',
+                ['b'],
+                ['b'],
+                [['a'], ['b'], ['c']],
+                [
+                    ['seqno' => 0, 'cid' => 1, 'name' => 'b', 'key' => 1, 'collation' => 'BINARY'],
+                    ['seqno' => 1, 'cid' => 0, 'name' => 'a', 'key' => 0, 'collation' => 'BINARY'],
+                    ['seqno' => 2, 'cid' => 2, 'name' => 'c', 'key' => 0, 'collation' => 'BINARY'],
+                ],
+                [['name' => 'sqlite_autoindex_t1_2', 'unique' => 1, 'origin' => 'pk']],
+                'SELECT a FROM t1 WHERE b>3 ORDER BY b',
+                [[4], [1]],
+                'SEARCH t1 USING PRIMARY KEY (b>?)',
+                null,
+            ],
+            [
+                'without_rowid6-300/320',
+                'explicit UNIQUE(b) duplicate is coalesced when b is the WITHOUT ROWID primary key',
+                't1',
+                ['b'],
+                ['b'],
+                [['a'], ['c'], ['b']],
+                [
+                    ['seqno' => 0, 'cid' => 1, 'name' => 'b', 'key' => 1, 'collation' => 'BINARY'],
+                    ['seqno' => 1, 'cid' => 0, 'name' => 'a', 'key' => 0, 'collation' => 'BINARY'],
+                    ['seqno' => 2, 'cid' => 2, 'name' => 'c', 'key' => 0, 'collation' => 'BINARY'],
+                ],
+                [['name' => 'sqlite_autoindex_t1_2', 'unique' => 1, 'origin' => 'pk']],
+                'SELECT a FROM t1 WHERE b>3 ORDER BY b',
+                [[4], [1]],
+                'SEARCH t1 USING PRIMARY KEY (b>?)',
+                null,
+            ],
+            [
+                'without_rowid6-500/520',
+                'composite UNIQUE(b,c) duplicate is coalesced into the WITHOUT ROWID primary key',
+                't1',
+                ['b', 'c'],
+                ['b', 'c'],
+                [['b', 'c']],
+                [
+                    ['seqno' => 0, 'cid' => 1, 'name' => 'b', 'key' => 1, 'collation' => 'BINARY'],
+                    ['seqno' => 1, 'cid' => 2, 'name' => 'c', 'key' => 1, 'collation' => 'BINARY'],
+                    ['seqno' => 2, 'cid' => 0, 'name' => 'a', 'key' => 0, 'collation' => 'BINARY'],
+                ],
+                [['name' => 'sqlite_autoindex_t1_1', 'unique' => 1, 'origin' => 'pk']],
+                'SELECT a FROM t1 WHERE b>3 ORDER BY b',
+                [[4], [1]],
+                'SEARCH t1 USING PRIMARY KEY (b>?)',
+                null,
+            ],
+            [
+                'without_rowid6-600',
+                'rowid is not a valid primary-key column name in WITHOUT ROWID declarations',
+                't6',
+                ['a', 'rowid', 'b'],
+                ['a', 'rowid', 'b'],
+                [],
+                [],
+                [],
+                'CREATE TABLE t6(a,b,c,PRIMARY KEY(a,rowid,b)) WITHOUT ROWID',
+                [],
+                'parse primary key column list',
+                'no such column: rowid',
+            ],
+            [
+                'without_rowid7-1.0/1.1',
+                'redundant primary-key columns with NOCASE collation reject duplicate logical keys',
+                't1',
+                ['a', 'b'],
+                ['a', 'a', 'b'],
+                [],
+                [
+                    ['seqno' => 0, 'cid' => 0, 'name' => 'a', 'key' => 1, 'collation' => 'BINARY'],
+                    ['seqno' => 1, 'cid' => 1, 'name' => 'b', 'key' => 1, 'collation' => 'NOCASE'],
+                ],
+                [['name' => 'sqlite_autoindex_t1_1', 'unique' => 1, 'origin' => 'pk']],
+                "INSERT INTO t1 VALUES(1, 'one'), (1, 'ONE')",
+                [],
+                'PRIMARY KEY(a,b COLLATE nocase)',
+                'UNIQUE constraint failed: t1.a, t1.b',
+            ],
+            [
+                'without_rowid7-2.0/2.4',
+                'collated duplicate primary-key expression exposes both key slots in pragma index metadata',
+                't2',
+                ['a', 'a'],
+                ['a COLLATE nocase', 'a'],
+                [],
+                [
+                    ['seqno' => 0, 'cid' => 0, 'name' => 'a', 'key' => 1, 'collation' => 'NOCASE'],
+                    ['seqno' => 1, 'cid' => 0, 'name' => 'a', 'key' => 1, 'collation' => 'BINARY'],
+                    ['seqno' => 2, 'cid' => 1, 'name' => 'b', 'key' => 0, 'collation' => 'BINARY'],
+                ],
+                [['name' => 'sqlite_autoindex_t2_1', 'unique' => 1, 'origin' => 'pk']],
+                'PRAGMA index_info(t2); PRAGMA index_xinfo(t2)',
+                [['one']],
+                'PRIMARY KEY(a COLLATE nocase, a)',
+                null,
+            ],
+            [
+                'without_rowid7-3.1/3.6',
+                'missing custom collations surface while reading and creating indexes on WITHOUT ROWID tables',
+                't1',
+                ['a'],
+                ['a COLLATE mysort'],
+                [['b COLLATE mysort2'], ['1']],
+                [
+                    ['seqno' => 0, 'cid' => 0, 'name' => 'a', 'key' => 1, 'collation' => 'mysort'],
+                    ['seqno' => 1, 'cid' => 1, 'name' => 'b', 'key' => 0, 'collation' => 'mysort2'],
+                ],
+                [['name' => 'sqlite_autoindex_t1_1', 'unique' => 1, 'origin' => 'pk']],
+                'SELECT * FROM t1 WHERE a=1; CREATE UNIQUE INDEX i1 ON t1(b); CREATE UNIQUE INDEX i1 ON t1(1)',
+                [],
+                'collation lookup during WITHOUT ROWID primary-key/index access',
+                'no such collation sequence',
+            ],
+        ];
+
+        $rows = [];
+        foreach ($templates as [$section, $scenario, $table, $primaryKey, $redundantPrimaryKey, $uniqueConstraints, $indexInfo, $indexList, $query, $resultRows, $detail, $error]) {
+            $rows[] = [
+                'source' => str_starts_with($section, 'without_rowid6-') ? 'without_rowid6.test' : 'without_rowid7.test',
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'table' => $table,
+                'primary_key' => $primaryKey,
+                'redundant_primary_key' => $redundantPrimaryKey,
+                'unique_constraints' => $uniqueConstraints,
+                'index_info' => $indexInfo,
+                'index_list' => $indexList,
+                'query' => $query,
+                'result_rows' => $resultRows,
+                'detail' => $detail,
+                'error' => $error,
+                'integrity' => $error === null ? 'ok' : 'expected-error',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

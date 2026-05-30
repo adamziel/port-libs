@@ -118,6 +118,91 @@ final class SQLiteVfsIoTransactionSequencePlan
     }
 
     /**
+     * @param list<array<string, mixed>> $writes
+     * @param list<string> $deviceFlags
+     * @return array{status:string,script:string,scenario:string,transaction:string,cache_size:int,database_pages:int,mmap_size:int,writes:list<array<string, mixed>>,atomic_device:bool,cache_warmed:bool,cache_holds_database:bool,requires_journal:bool,pager_cache_flushed:bool,corruption_visible:bool,integrity_check:string,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function pagerCacheAtomicCommitOutcome(
+        string $transaction,
+        array $writes,
+        array $deviceFlags = ['atomic'],
+        int $cacheSize = 2000,
+        int $databasePages = 96,
+        int $mmapSize = 0
+    ): array {
+        $transaction = trim($transaction);
+        if ($transaction === '') {
+            throw new \InvalidArgumentException('SQLite VFS I/O pager-cache transaction name is required');
+        }
+        if ($writes === []) {
+            throw new \InvalidArgumentException('SQLite VFS I/O pager-cache transaction requires at least one write');
+        }
+        if ($cacheSize <= 0) {
+            throw new \InvalidArgumentException('SQLite VFS I/O pager-cache cache size must be positive');
+        }
+        if ($databasePages <= 0) {
+            throw new \InvalidArgumentException('SQLite VFS I/O pager-cache database page count must be positive');
+        }
+        if ($mmapSize < 0) {
+            throw new \InvalidArgumentException('SQLite VFS I/O pager-cache mmap size must not be negative');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $normalizedWrites = [];
+        $touchedPages = [];
+
+        foreach ($writes as $write) {
+            $table = trim((string) ($write['table'] ?? ''));
+            if ($table === '') {
+                throw new \InvalidArgumentException('SQLite VFS I/O pager-cache write table is required');
+            }
+            $pagesTouched = self::positiveInt($write, 'pages_touched', 1);
+            $rowCount = self::positiveInt($write, 'row_count', 1);
+            $normalizedWrites[] = [
+                'table' => $table,
+                'pages_touched' => $pagesTouched,
+                'row_count' => $rowCount,
+            ];
+            $touchedPages[$table] = ($touchedPages[$table] ?? 0) + $pagesTouched;
+        }
+
+        $atomicDevice = in_array('atomic', $flags, true);
+        $cacheWarmed = true;
+        $cacheHoldsDatabase = $cacheSize >= $databasePages;
+        $requiresJournal = !$atomicDevice || count($touchedPages) > 1 || array_sum($touchedPages) > 1;
+        $pagerCacheFlushed = !$cacheWarmed || !$cacheHoldsDatabase || $mmapSize > 0;
+        $corruptionVisible = $pagerCacheFlushed;
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'scenario' => 'io-6.1 and io-6.2.*',
+            'transaction' => $transaction,
+            'cache_size' => $cacheSize,
+            'database_pages' => $databasePages,
+            'mmap_size' => $mmapSize,
+            'writes' => $normalizedWrites,
+            'atomic_device' => $atomicDevice,
+            'cache_warmed' => $cacheWarmed,
+            'cache_holds_database' => $cacheHoldsDatabase,
+            'requires_journal' => $requiresJournal,
+            'pager_cache_flushed' => $pagerCacheFlushed,
+            'corruption_visible' => $corruptionVisible,
+            'integrity_check' => $corruptionVisible ? 'corruption visible after cache flush' : 'ok',
+            'dependencies' => [
+                'vfs-io-pager-cache-atomic-commit',
+                'vfs-io-transaction-sequence',
+                'real-upstream-corpus-io-test',
+            ],
+            'upstream' => [
+                'io.test io-6.1 pager-cache warm setup',
+                'io.test io-6.2.1 two-table atomic-device commit keeps warmed cache',
+                'io.test io-6.2.2 one-table atomic-device commit keeps warmed cache',
+            ],
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $scenario
      * @return array{status:string,script:string,scenario:string,operation:string,failpoint:int,persistent:bool,phase:string,expected_rc:string,recovery_action:string,dirty_pages_preserved:bool,database_image_stable:bool,open_file_count:int,refcount_check:bool,checksum_check:bool,excluded:bool,exclude_reason:string|null,dependencies:list<string>,upstream:list<string>}
      */

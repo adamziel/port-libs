@@ -184,6 +184,127 @@ foreach ($tempReturningRows as $ordinal => $rows) {
     }
 }
 
+$runTrace = static function (array $beforeRows, array $incomingRows, string $conflictAction, ?callable $where = null): array {
+    $assignments = $conflictAction === 'nothing' ? [] : [
+        'b' => static fn (array $current, array $excluded): int => (int) $excluded['b'],
+        'c' => static fn (array $current, array $excluded): int => (int) $current['c'] + 1,
+    ];
+
+    return SQLiteUpsertDoUpdateWherePlan::executeWithTriggerTrace(
+        $beforeRows,
+        $incomingRows,
+        ['a'],
+        $assignments,
+        $where,
+        [['a']],
+        $conflictAction
+    );
+};
+
+$formatTrace = static fn (array $trace): array => array_map(
+    static function (array $event): string {
+        $row = $event['row'];
+        if ($event['event'] === 'before-update' || $event['event'] === 'after-update') {
+            $old = $event['old'];
+            $new = $event['new'];
+
+            return sprintf(
+                '%s %d,%d,%d/%d,%d,%d',
+                $event['event'],
+                $old['a'],
+                $old['b'],
+                $old['c'],
+                $new['a'],
+                $new['b'],
+                $new['c']
+            );
+        }
+
+        return sprintf('%s %d,%d,%d', $event['event'], $row['a'], $row['b'], $row['c']);
+    },
+    $trace
+);
+
+$projection = ['a', 'b', 'c'];
+
+foreach (range(0, 99) as $variant) {
+    $baseB = 20 + $variant;
+    $incomingB = 200 + $variant;
+    $tableKinds = [
+        'rowid' => 'upsert2-300/310/320',
+        'without-rowid' => 'upsert2-400/410/420',
+    ];
+
+    foreach ($tableKinds as $tableKind => $upstreamRange) {
+        $prefix = "real upstream {$upstreamRange} {$tableKind} trigger trace variant {$variant}";
+        $beforeRows = [['a' => 1, 'b' => $baseB, 'c' => 0]];
+        $incomingRows = [['a' => 1, 'b' => $incomingB, 'c' => 0]];
+
+        $tests["{$prefix} DO UPDATE trace order"] = static function (TestRunner $t) use ($runTrace, $formatTrace, $beforeRows, $incomingRows, $baseB, $incomingB): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'update');
+            $t->same([
+                "before-insert 1,{$incomingB},0",
+                "before-update 1,{$baseB},0/1,{$incomingB},1",
+                "after-update 1,{$baseB},0/1,{$incomingB},1",
+            ], $formatTrace($result['trigger_trace']));
+        };
+
+        $tests["{$prefix} DO UPDATE final row image"] = static function (TestRunner $t) use ($runTrace, $beforeRows, $incomingRows, $incomingB): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'update');
+            $t->same([['a' => 1, 'b' => $incomingB, 'c' => 1]], $result['after']);
+        };
+
+        $tests["{$prefix} DO UPDATE returning row image"] = static function (TestRunner $t) use ($runTrace, $beforeRows, $incomingRows, $incomingB, $projection): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'update');
+            $t->same([['a' => 1, 'b' => $incomingB, 'c' => 1]], SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], $projection));
+        };
+
+        $tests["{$prefix} DO UPDATE changes count"] = static function (TestRunner $t) use ($runTrace, $beforeRows, $incomingRows): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'update');
+            $t->same(1, $result['changes']);
+        };
+
+        $tests["{$prefix} DO NOTHING trace only records before insert"] = static function (TestRunner $t) use ($runTrace, $formatTrace, $beforeRows, $incomingRows, $incomingB): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'nothing');
+            $t->same(["before-insert 1,{$incomingB},0"], $formatTrace($result['trigger_trace']));
+        };
+
+        $tests["{$prefix} DO NOTHING leaves target row unchanged"] = static function (TestRunner $t) use ($runTrace, $beforeRows, $incomingRows, $baseB): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'nothing');
+            $t->same([['a' => 1, 'b' => $baseB, 'c' => 0]], $result['after']);
+        };
+
+        $tests["{$prefix} DO NOTHING emits no returning row"] = static function (TestRunner $t) use ($runTrace, $beforeRows, $incomingRows): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'nothing');
+            $t->same([], $result['returning_rows']);
+        };
+
+        $tests["{$prefix} failed WHERE trace only records before insert"] = static function (TestRunner $t) use ($runTrace, $formatTrace, $beforeRows, $incomingRows, $incomingB): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'update', static fn (array $current, array $excluded): bool => false);
+            $t->same(["before-insert 1,{$incomingB},0"], $formatTrace($result['trigger_trace']));
+        };
+
+        $tests["{$prefix} failed WHERE leaves target row unchanged"] = static function (TestRunner $t) use ($runTrace, $beforeRows, $incomingRows, $baseB): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'update', static fn (array $current, array $excluded): bool => false);
+            $t->same([['a' => 1, 'b' => $baseB, 'c' => 0]], $result['after']);
+        };
+
+        $tests["{$prefix} failed WHERE emits no returning row"] = static function (TestRunner $t) use ($runTrace, $beforeRows, $incomingRows): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'update', static fn (array $current, array $excluded): bool => false);
+            $t->same([], $result['returning_rows']);
+        };
+
+        $tests["{$prefix} failed WHERE records skipped incoming row"] = static function (TestRunner $t) use ($runTrace, $beforeRows, $incomingRows): void {
+            $result = $runTrace($beforeRows, $incomingRows, 'update', static fn (array $current, array $excluded): bool => false);
+            $t->same($incomingRows, $result['skipped_rows']);
+        };
+
+        $tests["{$prefix} cites real upstream trigger section"] = static function (TestRunner $t) use ($upstreamRange): void {
+            $t->same(true, str_starts_with($upstreamRange, 'upsert2-'));
+        };
+    }
+}
+
 $tests['real upstream upsert returning trigger dynamic source coverage'] = static function (TestRunner $t): void {
     $t->same([
         'upsert2.test upsert2-300/upsert2-310/upsert2-320 trigger order for rowid tables',

@@ -473,6 +473,79 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal2CheckpointFullSyncCases(): array
+    {
+        $scenarios = [
+            [
+                'upstream' => 'wal2.test wal2-14.1',
+                'source_file' => 'wal2.test',
+                'checkpoint_fullfsync' => null,
+                'initial_sync_counts' => [10, 0],
+                'large_insert_sync_counts' => [4, 0],
+                'close_sync_counts' => [6, 0],
+            ],
+            [
+                'upstream' => 'wal2.test wal2-14.2',
+                'source_file' => 'wal2.test',
+                'checkpoint_fullfsync' => true,
+                'initial_sync_counts' => [10, 6],
+                'large_insert_sync_counts' => [4, 3],
+                'close_sync_counts' => [6, 3],
+            ],
+            [
+                'upstream' => 'wal2.test wal2-14.3',
+                'source_file' => 'wal2.test',
+                'checkpoint_fullfsync' => false,
+                'initial_sync_counts' => [10, 0],
+                'large_insert_sync_counts' => [4, 0],
+                'close_sync_counts' => [6, 0],
+            ],
+        ];
+        $checkpointModes = ['passive', 'full', 'restart', 'truncate'];
+        $syncModes = ['full', 'extra'];
+        $pageSizes = [1024, 2048, 4096, 8192];
+        $autoCheckpointPages = [10, 20, 1000, 4096];
+
+        $cases = [];
+        for ($i = 0; $i < 1000; $i++) {
+            $scenario = $scenarios[$i % count($scenarios)];
+            $checkpointMode = $checkpointModes[$i % count($checkpointModes)];
+            $syncMode = $syncModes[intdiv($i, 4) % count($syncModes)];
+            $pageSize = $pageSizes[intdiv($i, 8) % count($pageSizes)];
+            $autoCheckpoint = $autoCheckpointPages[intdiv($i, 32) % count($autoCheckpointPages)];
+            $initial = $scenario['initial_sync_counts'];
+            $largeInsert = $scenario['large_insert_sync_counts'];
+            $close = $scenario['close_sync_counts'];
+
+            $cases[] = $scenario + [
+                'case' => $i + 1,
+                'checkpoint_mode' => $checkpointMode,
+                'synchronous' => $syncMode,
+                'page_size' => $pageSize,
+                'wal_autocheckpoint' => $autoCheckpoint,
+                'checkpoint_results' => [[0, 3, 3], [0, 1, 1]],
+                'sync_sequence' => [
+                    ['phase' => 'initial-ddl-insert-checkpoint-commit-checkpoint', 'sync' => $initial[0], 'fullsync' => $initial[1]],
+                    ['phase' => 'large-zeroblob-autocheckpoint', 'sync' => $largeInsert[0], 'fullsync' => $largeInsert[1]],
+                    ['phase' => 'close-after-deferred-autocheckpoint', 'sync' => $close[0], 'fullsync' => $close[1]],
+                ],
+                'total_syncs' => $initial[0] + $largeInsert[0] + $close[0],
+                'total_fullsyncs' => $initial[1] + $largeInsert[1] + $close[1],
+                'uses_checkpoint_fullfsync' => $scenario['checkpoint_fullfsync'] === true,
+                'dependencies' => [
+                    'sqlite-real-upstream-pager-wal-dynamic',
+                    'sqlite-upstream-wal2-checkpoint-fullfsync',
+                    'sqlite-vfs-sync-plan',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<array<string, mixed>> $locks
      */
     private static function countLocks(array $locks, string $op, string $level): int

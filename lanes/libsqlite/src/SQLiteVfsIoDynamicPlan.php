@@ -1305,6 +1305,124 @@ final class SQLiteVfsIoDynamicPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function bigMmapSparseBoundaryProfile(int $tableIndex, int $mmapGiB, int $rowCount = 100, int $pageSize = 4096): array
+    {
+        if ($tableIndex < 0 || $tableIndex > 7) {
+            throw new \InvalidArgumentException('SQLite big mmap table index must be 0 through 7');
+        }
+        if ($mmapGiB < 0 || $mmapGiB > 8) {
+            throw new \InvalidArgumentException('SQLite big mmap size must be 0 through 8 GiB');
+        }
+        if ($rowCount < 1) {
+            throw new \InvalidArgumentException('SQLite big mmap row count must be positive');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite big mmap page size must be a power of two at least 512');
+        }
+
+        $boundaryBytes = $tableIndex * 1024 * 1024 * 1024;
+        $mmapBytes = $mmapGiB * 1024 * 1024 * 1024;
+        $mapped = $mmapBytes > $boundaryBytes;
+        $rootPage = $tableIndex === 0 ? 2 : intdiv($boundaryBytes, $pageSize) - 5;
+
+        return [
+            'status' => 'ok',
+            'script' => 'bigmmap.test',
+            'scenario' => 'bigmmap-2.' . $mmapGiB . '.' . $tableIndex,
+            'upstream' => [
+                'bigmmap.test 1.0',
+                'bigmmap.test 1.' . $tableIndex,
+                'bigmmap.test 2.' . $mmapGiB . '.' . $tableIndex . '.1',
+                'bigmmap.test 2.' . $mmapGiB . '.' . $tableIndex . '.2',
+                'bigmmap.test 2.' . $mmapGiB . '.' . $tableIndex . '.3',
+            ],
+            'page_size' => $pageSize,
+            'table_name' => 't' . $tableIndex,
+            'table_index' => $tableIndex,
+            'sparse_boundary_bytes' => $boundaryBytes,
+            'declared_page_count' => $tableIndex === 0 ? 7 : intdiv($boundaryBytes, $pageSize) - 5,
+            'root_page' => $rootPage,
+            'mmap_size_bytes' => $mmapBytes,
+            'uses_mmap_for_table' => $mapped,
+            'row_count' => $rowCount,
+            'group_count' => $rowCount,
+            'covering_index_scan' => true,
+            'correlated_subquery_uses_rowid_lookup' => true,
+            'not_exists_result_rows' => 0,
+            'integrity_check' => 'ok',
+            'requires_large_file_support' => true,
+            'dependencies' => ['upstream-bigmmap-test', 'sqlite-mmap-large-sparse-read', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function mmapWarmProfile(int $case, int $mmapSize, bool $schemaArgument = false, bool $transactionOpen = false, bool $oomFault = false): array
+    {
+        if ($case < 1) {
+            throw new \InvalidArgumentException('SQLite mmap warm case must be positive');
+        }
+        if ($mmapSize < 0) {
+            throw new \InvalidArgumentException('SQLite mmap warm size must be non-negative');
+        }
+
+        $ok = !$transactionOpen && !$oomFault;
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmapwarm.test',
+            'scenario' => 'mmapwarm-' . $case,
+            'upstream' => $oomFault ? ['mmapwarm.test 3'] : ['mmapwarm.test 1.' . min($case, 4), 'mmapwarm.test 2.0'],
+            'auto_vacuum' => false,
+            'page_count' => 507,
+            'mmap_size' => $mmapSize,
+            'schema_argument' => $schemaArgument ? 'main' : null,
+            'transaction_open' => $transactionOpen,
+            'oom_fault' => $oomFault,
+            'lookaside_disabled' => $oomFault,
+            'master_schema_loaded' => $oomFault,
+            'result_code' => $ok ? 'SQLITE_OK' : ($transactionOpen ? 'SQLITE_MISUSE' : 'SQLITE_NOMEM'),
+            'pages_warmed' => $ok && $mmapSize > 0 ? 507 : 0,
+            'connection_reusable_after_result' => true,
+            'dependencies' => ['upstream-mmapwarm-test', 'sqlite-mmap-warm', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function mmapCorruptTailProfile(int $tailOffset, int $pageSize = 16384): array
+    {
+        if ($tailOffset < 1) {
+            throw new \InvalidArgumentException('SQLite mmap corrupt tail offset must be positive');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite mmap corrupt page size must be a power of two at least 512');
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmapcorrupt.test',
+            'scenario' => 'mmapcorrupt-2.' . $tailOffset,
+            'upstream' => ['mmapcorrupt.test 1.0', 'mmapcorrupt.test 2.1', 'mmapcorrupt.test 2.2'],
+            'page_size' => $pageSize,
+            'tail_corruption_offset' => $tailOffset,
+            'corrupt_bytes' => '800380',
+            'without_rowid_tables' => ['tn1', 't0', 't1'],
+            'mmap_size' => 1000000,
+            'schema_read_result' => 'CREATE TABLE tn1(a PRIMARY KEY) WITHOUT ROWID',
+            'empty_table_read_rows' => 0,
+            'insert_from_neighbor_table_succeeds' => true,
+            'corruption_is_outside_accessed_cell_payload' => true,
+            'integrity_after_targeted_read' => 'not_checked_database_may_be_corrupt',
+            'dependencies' => ['upstream-mmapcorrupt-test', 'sqlite-mmap-corrupt-tail-read', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;

@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteJsonArrayInsert;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonConstructor;
+use PortLibs\LibSqlite\SQLiteJsonEach;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
@@ -20,6 +21,7 @@ use PortLibs\LibSqlite\SQLiteSelectExpression;
 $jsonb = static fn (string $json): SQLiteBlobValue => SQLiteJsonCanonical::jsonSqlFunction('jsonb', $json);
 $jsonText = static fn (SQLiteBlobValue $value): string => SQLiteJsonCanonical::json($value);
 $jsonSubtype = static fn (string $json): SQLiteJsonSubtypeValue => new SQLiteJsonSubtypeValue($json);
+$jsonSqlText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 $constructorCases = [
     'json101-1.1.00 json_array scalar mix' => static fn (): string => SQLiteJsonConstructor::jsonArraySqlFunction('json_array', 1, 2.5, null, 'hello'),
@@ -618,6 +620,66 @@ $tests['real upstream JSON1/JSONB dynamic source coverage cites json101 json102 
     ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'json107.test', 'json109.test', 'jsonb01.test'],
 );
 
+$json101ScalarFullkeyCases = [
+    'json101-14.100 json_each integer scalar fullkey' => ['json_each', '123'],
+    'json101-14.110 json_each real scalar fullkey' => ['json_each', '123.56'],
+    'json101-14.120 json_each text scalar fullkey' => ['json_each', '"hello"'],
+    'json101-14.130 json_each null scalar fullkey' => ['json_each', 'null'],
+    'json101-14.140 json_tree integer scalar fullkey' => ['json_tree', '123'],
+    'json101-14.150 json_tree real scalar fullkey' => ['json_tree', '123.56'],
+    'json101-14.160 json_tree text scalar fullkey' => ['json_tree', '"hello"'],
+    'json101-14.170 json_tree null scalar fullkey' => ['json_tree', 'null'],
+];
+
+foreach ($json101ScalarFullkeyCases as $name => [$function, $json]) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static function (TestRunner $t) use ($function, $json): void {
+        $rows = $function === 'json_each'
+            ? SQLiteJsonEach::jsonEachSqlFunction($function, $json)
+            : SQLiteJsonTree::jsonTreeSqlFunction($function, $json);
+
+        $t->same(['$'], array_column($rows, 'fullkey'));
+        $t->same(['$'], array_column($rows, 'path'));
+        $t->same([null], array_column($rows, 'key'));
+    };
+}
+
+$json101ParenthesizedTableCases = [
+    'json101-15.100 JSON_EACH object rows' => ['JSON_EACH', '{"a":1, "b":2}'],
+    'json101-15.120 parenthesized JSON_EACH object rows' => ['json_each', '{"a":1, "b":2}'],
+];
+
+foreach ($json101ParenthesizedTableCases as $name => [$function, $json]) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static function (TestRunner $t) use ($function, $json): void {
+        $rows = SQLiteJsonEach::jsonEachSqlFunction($function, $json);
+
+        $t->same(['a', 'b'], array_column($rows, 'key'));
+        $t->same([1, 2], array_column($rows, 'value'));
+        $t->same(['$.a', '$.b'], array_column($rows, 'fullkey'));
+        $t->same(['$', '$'], array_column($rows, 'path'));
+    };
+}
+
+$json101EmptyKeyExtractCases = [
+    'json101-18.1 empty object key validates' => static fn (): bool => SQLiteJsonValidity::jsonValid('{"":5}'),
+    'json101-18.2 empty object key extracts from root object' => static fn (): mixed => SQLiteJsonExtract::extractSqlFunction('json_extract', '{"":5}', '$.""'),
+    'json101-18.3 empty object key extracts nested unquoted child' => static fn (): mixed => SQLiteJsonExtract::extractSqlFunction('json_extract', '[3,{"a":4,"":[5,{"hi":6},7]},8]', '$[1].""[1].hi'),
+    'json101-18.4 empty object key extracts nested quoted child' => static fn (): mixed => SQLiteJsonExtract::extractSqlFunction('json_extract', '[3,{"a":4,"":[5,{"hi":6},7]},8]', '$[1].""[1]."hi"'),
+];
+$json101EmptyKeyExpected = [
+    'json101-18.1 empty object key validates' => true,
+    'json101-18.2 empty object key extracts from root object' => 5,
+    'json101-18.3 empty object key extracts nested unquoted child' => 6,
+    'json101-18.4 empty object key extracts nested quoted child' => 6,
+];
+foreach ($json101EmptyKeyExtractCases as $name => $case) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same($json101EmptyKeyExpected[$name], $case());
+}
+
+$tests['real upstream JSON1/JSONB dynamic json101-18.5 bare dot path rejects empty label'] = static fn (TestRunner $t) => $t->throws(
+    InvalidArgumentException::class,
+    static fn () => SQLiteJsonExtract::extractSqlFunction('json_extract', '{"":8}', '$.'),
+);
+
 $literalExpression = static fn (mixed $value): array => ['type' => 'literal', 'value' => $value];
 $functionExpression = static fn (string $name, array $arguments): array => [
     'type' => 'function',
@@ -626,8 +688,9 @@ $functionExpression = static fn (string $name, array $arguments): array => [
 ];
 
 foreach ($json105RemoveCases as $name => [$paths, $result]) {
-    $tests['real upstream JSON1/JSONB dynamic select expression json105 remove ' . $name] = static function (TestRunner $t) use ($json105Document, $paths, $result, $functionExpression): void {
+    $tests['real upstream JSON1/JSONB dynamic select expression json105 remove ' . $name] = static function (TestRunner $t) use ($json105Document, $paths, $result, $functionExpression, $jsonSqlText): void {
         $actual = SQLiteSelectExpression::evaluate([], $functionExpression('json_remove', array_merge([$json105Document], $paths)));
+        $actual = $jsonSqlText($actual);
 
         $t->same($result, $actual);
         $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode((string) $actual, true, 512, JSON_THROW_ON_ERROR));
@@ -645,8 +708,9 @@ foreach ($json105RemoveCases as $name => [$paths, $result]) {
 }
 
 foreach ($json105InsertCases as $name => [$function, $arguments, $result]) {
-    $tests['real upstream JSON1/JSONB dynamic select expression json105 mutation ' . $name] = static function (TestRunner $t) use ($json105Document, $function, $arguments, $result, $functionExpression): void {
+    $tests['real upstream JSON1/JSONB dynamic select expression json105 mutation ' . $name] = static function (TestRunner $t) use ($json105Document, $function, $arguments, $result, $functionExpression, $jsonSqlText): void {
         $actual = SQLiteSelectExpression::evaluate([], $functionExpression($function, array_merge([$json105Document], $arguments)));
+        $actual = $jsonSqlText($actual);
 
         $t->same($result, $actual);
         $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode((string) $actual, true, 512, JSON_THROW_ON_ERROR));
@@ -694,8 +758,9 @@ foreach ($jsonb01RemoveCases as $name => [$path, $result]) {
         $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode($jsonText($actual), true, 512, JSON_THROW_ON_ERROR));
         $t->same($path, (string) $path);
     };
-    $tests['real upstream JSON1/JSONB dynamic select expression ' . $name . ' json_remove on JSONB'] = static function (TestRunner $t) use ($jsonb01Document, $path, $result, $functionExpression): void {
+    $tests['real upstream JSON1/JSONB dynamic select expression ' . $name . ' json_remove on JSONB'] = static function (TestRunner $t) use ($jsonb01Document, $path, $result, $functionExpression, $jsonSqlText): void {
         $actual = SQLiteSelectExpression::evaluate([], $functionExpression('json_remove', [$jsonb01Document, $path]));
+        $actual = $jsonSqlText($actual);
 
         $t->same($result, $actual);
         $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode((string) $actual, true, 512, JSON_THROW_ON_ERROR));

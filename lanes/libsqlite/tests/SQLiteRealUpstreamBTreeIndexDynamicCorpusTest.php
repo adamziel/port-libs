@@ -494,6 +494,66 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::autoindex5CoroutineSubqueryCases(100
     };
 }
 
+// Source truth: SQLite upstream test/autoindex4.test autoindex4-1.0 through
+// 4.8. These cases preserve automatic partial-index join behavior across
+// impossible predicates, LEFT/RIGHT JOIN null-extension equivalents,
+// correlated subqueries, ORDER BY regressions, empty NOT IN predicates, and
+// optimization toggles.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::autoindex4PartialJoinCases(1200) as $case) {
+    $tests['real upstream autoindex4 automatic partial join case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('autoindex4.test autoindex4-1.0 through autoindex4-4.8', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1200);
+        $t->true(str_starts_with($case['upstream_section'], 'autoindex4-'));
+        $t->true($case['scenario'] !== '');
+        $t->true(in_array($case['join_type'], ['JOIN', 'LEFT JOIN', 'SCALAR SUBQUERY'], true));
+        $t->true($case['on_clause'] !== '');
+        $t->true(is_bool($case['automatic_index_enabled']));
+        $t->true(is_bool($case['optimization_enabled']));
+        $t->same($case['result_rows'] !== [] && $case['automatic_index_enabled'] && $case['optimization_enabled'], $case['uses_automatic_partial_index']);
+        $t->same('ok', $case['integrity']);
+        $t->same($case['matched_rows'] + $case['null_extended_rows'], count($case['result_rows']));
+
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_key_exists('a', $row));
+            $t->true(array_key_exists('b', $row));
+            $t->true(array_key_exists('x', $row));
+            $t->true(array_key_exists('y', $row));
+            if ($row['x'] === null) {
+                $t->same(null, $row['y']);
+            }
+        }
+
+        if ($case['upstream_section'] === 'autoindex4-1.1' || $case['upstream_section'] === 'autoindex4-1.4') {
+            $t->same([], $case['result_rows']);
+            $t->same(false, $case['uses_automatic_partial_index']);
+        }
+        if ($case['upstream_section'] === 'autoindex4-1.2') {
+            $t->same(4, $case['null_extended_rows']);
+            $t->same(0, $case['matched_rows']);
+        }
+        if ($case['upstream_section'] === 'autoindex4-2.0') {
+            $t->same([1, 0, 4], array_column($case['result_rows'], 'x'));
+            $t->same('SCALAR SUBQUERY', $case['join_type']);
+        }
+        if ($case['upstream_section'] === 'autoindex4-3.0') {
+            $t->same(2, count($case['result_rows']));
+            $t->same(2, $case['null_extended_rows']);
+            $t->true(str_contains($case['scenario'], 'ORDER BY'));
+        }
+        if ($case['upstream_section'] === 'autoindex4-4.5.2' || $case['upstream_section'] === 'autoindex4-4.5.3') {
+            $t->same(3, count($case['result_rows']));
+            $t->same(1, $case['null_extended_rows']);
+            $t->true(str_contains($case['where_clause'], 'NOT IN'));
+        }
+        if ($case['join_type'] === 'JOIN') {
+            $t->same(0, $case['null_extended_rows']);
+        }
+        if ($case['join_type'] === 'LEFT JOIN') {
+            $t->true($case['null_extended_rows'] >= 0);
+        }
+    };
+}
+
 // Source truth: SQLite upstream test/indexfault.test indexfault-1.1 through
 // 3.5. The Tcl script repeatedly restores a saved database, injects CREATE
 // INDEX faults, and verifies that successful retries leave the b-tree intact.

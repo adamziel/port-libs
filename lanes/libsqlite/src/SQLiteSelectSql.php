@@ -734,20 +734,34 @@ final class SQLiteSelectSql
         $sql = self::unquoteIdentifier($sql) ?? $sql;
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
             foreach ($selectArms as $select) {
-                foreach ($select as $index => $term) {
+                $ordinal = 1;
+                foreach ($select as $term) {
                     if (!is_array($term)) {
                         continue;
                     }
-                    $column = self::compoundArmOutputColumn($term, $index + 1);
-                    if ($column === $sql && isset($columns[$index + 1])) {
-                        return $columns[$index + 1];
+                    $termColumns = self::compoundProjectionColumns($term, $ordinal);
+                    $outputColumn = self::compoundArmOutputColumn($term, $ordinal);
+                    foreach ($termColumns as $column) {
+                        if ($column === $sql && in_array($column, $columns, true)) {
+                            return $column;
+                        }
+                        if (str_contains($sql, '.') && substr($sql, strrpos($sql, '.') + 1) === $column && in_array($column, $columns, true)) {
+                            return $column;
+                        }
+                        if (str_contains($column, '.') && substr($column, strrpos($column, '.') + 1) === $sql && in_array($column, $columns, true)) {
+                            return $column;
+                        }
                     }
-                    if (str_contains($sql, '.') && substr($sql, strrpos($sql, '.') + 1) === $column && isset($columns[$index + 1])) {
-                        return $columns[$index + 1];
+                    if ($outputColumn === $sql && isset($columns[$ordinal])) {
+                        return $columns[$ordinal];
                     }
-                    if (str_contains($column, '.') && substr($column, strrpos($column, '.') + 1) === $sql && isset($columns[$index + 1])) {
-                        return $columns[$index + 1];
+                    if (str_contains($sql, '.') && substr($sql, strrpos($sql, '.') + 1) === $outputColumn && isset($columns[$ordinal])) {
+                        return $columns[$ordinal];
                     }
+                    if (str_contains($outputColumn, '.') && substr($outputColumn, strrpos($outputColumn, '.') + 1) === $sql && isset($columns[$ordinal])) {
+                        return $columns[$ordinal];
+                    }
+                    $ordinal += count($termColumns);
                 }
             }
 

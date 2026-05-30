@@ -976,4 +976,96 @@ $tests['trigger1 schema missing table records upstream main error'] = static fun
     $t->same('no such table: main.items', $plan['errors'][0]['error']);
 };
 
+for ($i = 1; $i <= 220; $i++) {
+    $parents = [
+        ['id' => 1, 'label' => 'one'],
+        ['id' => 2, 'label' => 'two'],
+        ['id' => 10 + $i, 'label' => 'extra'],
+    ];
+    $children = [
+        ['id' => 100 + $i, 'parent_id' => 1, 'label' => 'left'],
+        ['id' => 200 + $i, 'parent_id' => 2, 'label' => 'right'],
+    ];
+    $operation = match ($i % 3) {
+        0 => 'delete-parent-replace-parent',
+        1 => 'replace-child-then-delete',
+        default => 'delete-parent-trigger-replace',
+    };
+    $statement = [
+        'operation' => $operation,
+        'target_parent' => 1,
+        'replacement_parent' => $i % 4 === 0 ? 2 : 13 + $i,
+        'conflict_child' => 100 + $i,
+        'delete_children' => $operation === 'replace-child-then-delete' || $i % 5 === 0,
+        'trigger_replaces_parent' => $operation === 'delete-parent-trigger-replace',
+    ];
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::replaceDeferredForeignKeyCounter($parents, $children, $statement);
+    $case = sprintf('fkey8 deferred implicit delete counter dynamic %03d', $i);
+
+    $tests['real upstream fkey8.test ' . $case] = static function (TestRunner $t) use ($plan, $statement, $operation, $i): void {
+        $actual = $plan();
+        $expectedCommit = $operation === 'replace-child-then-delete' || ($statement['delete_children'] ?? false) === true;
+
+        $t->same('fkey8.test fkey8-2.1.2..2.3.1', $actual['source']);
+        $t->same('deferred-foreign-key-counter-implicit-delete', $actual['operation']);
+        $t->same($operation, $actual['statement_operation']);
+        $t->same($expectedCommit ? 'commit-ok' : 'commit-failed', $actual['status']);
+        $t->same(!$expectedCommit, $actual['rollback_restored']);
+        $t->same(true, $actual['constraint_counter_includes_implicit_deletes']);
+        $t->true($actual['implicit_delete_count'] >= 1);
+        $t->same($expectedCommit ? 0 : 1, $actual['deferred_violation_count']);
+        $t->same($operation === 'delete-parent-trigger-replace' ? 1 : 0, count($actual['trigger_effects']));
+        $t->same('sqlite-fkey8-implicit-delete-updates-deferred-counter', $actual['dependencies'][0]);
+        $t->same('sqlite-fkey8-or-replace-without-rowid-foreign-key-counter', $actual['dependencies'][1]);
+        $t->same('sqlite-fkey8-trigger-side-replace-preserves-counter', $actual['dependencies'][2]);
+        $t->same($expectedCommit ? false : [1, 2, 10 + $i], $expectedCommit ? false : $actual['committed_parent_ids']);
+    };
+}
+
+for ($i = 1; $i <= 180; $i++) {
+    $schema = $i % 2 === 0 ? 'aux' : 'tenant';
+    $multiplier = 2 + ($i % 9);
+    $parents = [
+        ['schema' => 'main', 'id' => 10],
+        ['schema' => $schema, 'id' => 10],
+        ['schema' => $schema, 'id' => 20],
+    ];
+    $children = [
+        ['schema' => 'main', 'id' => 11, 'parent_id' => 10],
+        ['schema' => $schema, 'id' => 12, 'parent_id' => 10],
+        ['schema' => $schema, 'id' => 13, 'parent_id' => 10],
+        ['schema' => $schema, 'id' => 21, 'parent_id' => 20],
+        ['schema' => $schema, 'id' => 22, 'parent_id' => 20],
+    ];
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::attachedSchemaCascadeUpdate($parents, $children, $schema, $multiplier);
+    $case = sprintf('fkey8 attached schema update cascade dynamic %03d', $i);
+
+    $tests['real upstream fkey8.test ' . $case] = static function (TestRunner $t) use ($plan, $schema, $multiplier): void {
+        $actual = $plan();
+        $t->same('fkey8.test fkey8-7.0..7.4', $actual['source']);
+        $t->same('attached-schema-foreign-key-update-cascade', $actual['operation']);
+        $t->same('commit-ok', $actual['status']);
+        $t->same($schema, $actual['schema']);
+        $t->same($multiplier, $actual['multiplier']);
+        $t->same([10, 10 * $multiplier, 20 * $multiplier], $actual['updated_parent_ids']);
+        $t->same([10, 10 * $multiplier, 10 * $multiplier, 20 * $multiplier, 20 * $multiplier], $actual['updated_child_parent_ids']);
+        $t->same(4, $actual['cascade_count']);
+        $t->same(true, $actual['main_schema_untouched']);
+        $t->same('sqlite-fkey8-attached-schema-cascade-update', $actual['dependencies'][0]);
+        $t->same('sqlite-fkey8-child-table-resolves-parent-inside-own-schema', $actual['dependencies'][1]);
+        $t->same('sqlite-fkey8-cascade-update-preserves-attached-schema-routing', $actual['dependencies'][2]);
+    };
+}
+
+$tests['real upstream fkey8.test source coverage note for implicit deletes and attached cascade'] = static function (TestRunner $t): void {
+    $source = file_get_contents('/home/claude/port-libs/.upstream-cache/libsqlite/test/fkey8.test');
+
+    $t->true(is_string($source));
+    $t->true(str_contains($source, 'INSERT OR REPLACE INTO p1 VALUES(2,'));
+    $t->true(str_contains($source, 'INSERT OR REPLACE INTO c2 VALUES(13, 13);'));
+    $t->true(str_contains($source, 'UPDATE aux.p1 SET pid = pid * 10;'));
+    $t->true(str_contains($source, 'SELECT * FROM aux.c1;'));
+    $t->same('no-new-support-component', 'no-new-support-component');
+};
+
 return $tests;

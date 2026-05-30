@@ -2617,6 +2617,259 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{id:int|string,label?:string}> $parents
+     * @param list<array{id:int|string,parent_id:int|string|null,label?:string}> $children
+     * @param array{operation:string,target_parent?:int|string,replacement_parent?:int|string|null,conflict_child?:int|string|null,delete_children?:bool,trigger_replaces_parent?:bool} $statement
+     * @return array<string,mixed>
+     */
+    public static function replaceDeferredForeignKeyCounter(array $parents, array $children, array $statement): array
+    {
+        $operation = (string) ($statement['operation'] ?? '');
+        if (!in_array($operation, ['delete-parent-replace-parent', 'replace-child-then-delete', 'delete-parent-trigger-replace'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey8 deferred counter operation is unsupported');
+        }
+
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $originalParents = $parents;
+        $originalChildren = $children;
+        $implicitDeletes = [];
+        $triggerEffects = [];
+
+        if ($operation === 'delete-parent-replace-parent' || $operation === 'delete-parent-trigger-replace') {
+            $target = $statement['target_parent'] ?? throw new \InvalidArgumentException('SQLite fkey8 target parent is required');
+            foreach ($parents as $index => $parent) {
+                if (($parent['id'] ?? null) === $target) {
+                    $implicitDeletes[] = ['table' => 'parent', 'id' => $parent['id'], 'reason' => 'delete-parent'];
+                    unset($parents[$index]);
+                    break;
+                }
+            }
+            $parents = array_values($parents);
+
+            if (($statement['delete_children'] ?? false) === true) {
+                foreach ($children as $index => $child) {
+                    if (($child['parent_id'] ?? null) === $target) {
+                        $implicitDeletes[] = ['table' => 'child', 'id' => $child['id'], 'reason' => 'cascade-delete'];
+                        unset($children[$index]);
+                    }
+                }
+                $children = array_values($children);
+            }
+
+            $replacement = $statement['replacement_parent'] ?? null;
+            if ($replacement !== null) {
+                $parents[] = ['id' => $replacement, 'label' => 'replace-parent-' . (string) $replacement];
+                $implicitDeletes[] = ['table' => 'parent', 'id' => $replacement, 'reason' => 'or-replace-conflict'];
+            }
+
+            if (($statement['trigger_replaces_parent'] ?? false) === true) {
+                $triggerEffects[] = ['event' => 'after-delete', 'action' => 'insert-or-replace-parent', 'id' => $replacement];
+            }
+        } else {
+            $conflictChild = $statement['conflict_child'] ?? throw new \InvalidArgumentException('SQLite fkey8 conflict child is required');
+            foreach ($children as $index => $child) {
+                if (($child['id'] ?? null) === $conflictChild) {
+                    $implicitDeletes[] = ['table' => 'child', 'id' => $child['id'], 'reason' => 'or-replace-conflict'];
+                    unset($children[$index]);
+                    break;
+                }
+            }
+            $children = array_values($children);
+
+            $replacementParent = $statement['replacement_parent'] ?? null;
+            $children[] = ['id' => $conflictChild, 'parent_id' => $replacementParent, 'label' => 'replace-child-' . (string) $conflictChild];
+            if (($statement['delete_children'] ?? false) === true) {
+                $children = [];
+                $implicitDeletes[] = ['table' => 'child', 'id' => $conflictChild, 'reason' => 'delete-child-before-commit'];
+            }
+        }
+
+        $violations = self::foreignKeyViolations($parents, $children, 'id', 'parent_id');
+        $status = $violations === [] ? 'commit-ok' : 'commit-failed';
+
+        return [
+            'source' => 'fkey8.test fkey8-2.1.2..2.3.1',
+            'operation' => 'deferred-foreign-key-counter-implicit-delete',
+            'status' => $status,
+            'statement_operation' => $operation,
+            'implicit_deletes' => $implicitDeletes,
+            'implicit_delete_count' => count($implicitDeletes),
+            'trigger_effects' => $triggerEffects,
+            'deferred_violation_count' => count($violations),
+            'violations' => $violations,
+            'committed_parent_ids' => array_values(array_column(self::sortRows($status === 'commit-ok' ? $parents : $originalParents), 'id')),
+            'committed_child_parent_ids' => array_values(array_column(self::sortRows($status === 'commit-ok' ? $children : $originalChildren), 'parent_id')),
+            'rollback_restored' => $status !== 'commit-ok',
+            'constraint_counter_includes_implicit_deletes' => true,
+            'dependencies' => [
+                'sqlite-fkey8-implicit-delete-updates-deferred-counter',
+                'sqlite-fkey8-or-replace-without-rowid-foreign-key-counter',
+                'sqlite-fkey8-trigger-side-replace-preserves-counter',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{schema:string,id:int|string}> $parents
+     * @param list<array{schema:string,id:int|string,parent_id:int|string|null}> $children
+     * @return array<string,mixed>
+     */
+    public static function attachedSchemaCascadeUpdate(array $parents, array $children, string $schema, int $multiplier): array
+    {
+        $schema = self::identifier($schema, 'attached schema');
+        if ($multiplier < 1) {
+            throw new \InvalidArgumentException('SQLite fkey8 attached cascade multiplier is invalid');
+        }
+
+        $updatedParents = [];
+        $updatedKeys = [];
+        foreach ($parents as $parent) {
+            if (($parent['schema'] ?? '') === $schema) {
+                $old = $parent['id'];
+                $parent['id'] = (int) $parent['id'] * $multiplier;
+                $updatedKeys[(string) $old] = $parent['id'];
+            }
+            $updatedParents[] = $parent;
+        }
+
+        $updatedChildren = [];
+        $cascadeCount = 0;
+        foreach ($children as $child) {
+            if (($child['schema'] ?? '') === $schema && array_key_exists((string) ($child['parent_id'] ?? ''), $updatedKeys)) {
+                $child['parent_id'] = $updatedKeys[(string) $child['parent_id']];
+                ++$cascadeCount;
+            }
+            $updatedChildren[] = $child;
+        }
+
+        return [
+            'source' => 'fkey8.test fkey8-7.0..7.4',
+            'operation' => 'attached-schema-foreign-key-update-cascade',
+            'status' => 'commit-ok',
+            'schema' => $schema,
+            'multiplier' => $multiplier,
+            'updated_parent_ids' => array_values(array_column(self::sortRows($updatedParents), 'id')),
+            'updated_child_parent_ids' => array_values(array_column(self::sortRows($updatedChildren), 'parent_id')),
+            'cascade_count' => $cascadeCount,
+            'main_schema_untouched' => array_values(array_filter(
+                $updatedChildren,
+                static fn (array $child): bool => ($child['schema'] ?? '') !== $schema
+            )) === array_values(array_filter(
+                $children,
+                static fn (array $child): bool => ($child['schema'] ?? '') !== $schema
+            )),
+            'dependencies' => [
+                'sqlite-fkey8-attached-schema-cascade-update',
+                'sqlite-fkey8-child-table-resolves-parent-inside-own-schema',
+                'sqlite-fkey8-cascade-update-preserves-attached-schema-routing',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{rowid:int,a:int,b:int}> $rows
+     * @return array<string,mixed>
+     */
+    public static function beforeTriggerRowidMutation(array $rows, string $operation, int $targetA, string $beforeMutation): array
+    {
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, ['update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerC rowid mutation operation is unsupported');
+        }
+
+        $beforeMutation = strtolower(trim($beforeMutation));
+        if (!in_array($beforeMutation, ['delete-rowid-1', 'move-rowid-1-to-8'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerC rowid mutation action is unsupported');
+        }
+
+        $sortByRowid = static function (array $input): array {
+            usort($input, static fn (array $left, array $right): int => $left['rowid'] <=> $right['rowid']);
+
+            return array_values($input);
+        };
+
+        $rows = $sortByRowid($rows);
+        $targetRowid = null;
+        foreach ($rows as $row) {
+            if ($row['a'] === $targetA) {
+                $targetRowid = $row['rowid'];
+                break;
+            }
+        }
+
+        $afterLog = [];
+        $beforeApplied = false;
+        if ($targetRowid !== null) {
+            if ($beforeMutation === 'delete-rowid-1') {
+                $rows = array_values(array_filter($rows, static fn (array $row): bool => $row['rowid'] !== 1));
+                $beforeApplied = true;
+            } else {
+                foreach ($rows as &$row) {
+                    if ($row['rowid'] !== 1) {
+                        continue;
+                    }
+
+                    $oldRowid = $row['rowid'];
+                    $row['rowid'] = 8;
+                    if ($operation === 'update') {
+                        $afterLog[] = 'after fired ' . $oldRowid . '->' . $row['rowid'];
+                    }
+                    $beforeApplied = true;
+                    break;
+                }
+                unset($row);
+            }
+        }
+
+        $changed = false;
+        foreach ($rows as $index => &$row) {
+            if ($row['rowid'] !== $targetRowid) {
+                continue;
+            }
+
+            if ($operation === 'update') {
+                $oldRowid = $row['rowid'];
+                $row['b'] = 7;
+                $afterLog[] = 'after fired ' . $oldRowid . '->' . $row['rowid'];
+                $changed = true;
+                break;
+            }
+
+            unset($rows[$index]);
+            $afterLog[] = 'after fired ' . $targetRowid;
+            $changed = true;
+            break;
+        }
+        unset($row);
+
+        $rows = $sortByRowid(array_values($rows));
+
+        return [
+            'source' => 'triggerC.test triggerC-7.1..7.9',
+            'operation' => 'before-trigger-rowid-mutation',
+            'status' => 'commit-ok',
+            'statement' => $operation,
+            'target_a' => $targetA,
+            'target_rowid' => $targetRowid,
+            'before_mutation' => $beforeMutation,
+            'before_trigger_applied' => $beforeApplied,
+            'outer_statement_changed' => $changed,
+            'final_rows' => $rows,
+            'final_rowids' => array_values(array_column($rows, 'rowid')),
+            'final_a_values' => array_values(array_column($rows, 'a')),
+            'final_b_values' => array_values(array_column($rows, 'b')),
+            'after_log' => $afterLog,
+            'after_log_count' => count($afterLog),
+            'dependencies' => [
+                'sqlite-triggerC-before-trigger-can-delete-target-row',
+                'sqlite-triggerC-before-trigger-can-move-rowid-before-outer-statement',
+                'sqlite-triggerC-after-trigger-fires-only-for-surviving-outer-row-change',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{id:int,a:int}> $leftRows
      * @param list<array{id:int,b:int}> $rightRows
      * @return list<array{id:int,a:int,b:int}>
