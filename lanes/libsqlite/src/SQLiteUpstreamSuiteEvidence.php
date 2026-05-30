@@ -20484,16 +20484,45 @@ final class SQLiteUpstreamSuiteEvidence
 
         $blocked = $blockers !== [];
         $mappedDelta = count($advanced) > 0 ? 1 : 0;
+        $currentNextIds = [];
+        foreach (array_merge($advanced, $preserved, $blockedUnits) as $unit) {
+            if (preg_match_all('/(?:current-next|(?<=-)next)(\d+)/', $unit, $matches) > 0) {
+                foreach ($matches[1] as $id) {
+                    $currentNextIds[(int) $id] = 'current-next' . $id;
+                }
+            }
+        }
+        if (preg_match_all('/(?:current-next|(?<=-)next)(\d+)/', $nonOverlapNote, $matches) > 0) {
+            foreach ($matches[1] as $id) {
+                $currentNextIds[(int) $id] = 'current-next' . $id;
+            }
+        }
+        ksort($currentNextIds, SORT_NUMERIC);
+        $primaryCurrentNext = null;
+        foreach ($advanced as $unit) {
+            if (preg_match('/current-next(\d+)/', $unit, $matches) === 1) {
+                $primaryCurrentNext = 'current-next' . $matches[1];
+                break;
+            }
+        }
+        if ($primaryCurrentNext === null && preg_match('/current-next(\d+)/', $nonOverlapNote, $matches) === 1) {
+            $primaryCurrentNext = 'current-next' . $matches[1];
+        }
+
         $status = 'blocked';
         if (!$blocked && $mappedDelta > 0) {
             $status = 'suite-evidence-countable';
         } elseif (!$blocked) {
             $status = 'suite-evidence-preserved';
         }
+        $legacyGenericStatusIds = ['current-next93' => true, 'current-next98' => true];
+        if ($primaryCurrentNext !== null && $status !== 'blocked' && !isset($legacyGenericStatusIds[$primaryCurrentNext])) {
+            $status = $primaryCurrentNext . '-' . $status;
+        }
 
         $record = [
             'status' => $status,
-            'countable' => $status === 'suite-evidence-countable',
+            'countable' => !$blocked && $mappedDelta > 0,
             'accepted_repository_head' => $acceptedRepositoryHead,
             'current_mapped' => $currentMapped,
             'next_mapped' => $blocked ? $currentMapped : $currentMapped + $mappedDelta,
@@ -20519,14 +20548,17 @@ final class SQLiteUpstreamSuiteEvidence
             'php_pass_admission' => $phpAdmission,
             'blocker_count' => count($blockers),
             'blockers' => $blockers,
-            'counts_suite_evidence' => $status === 'suite-evidence-countable',
+            'counts_suite_evidence' => !$blocked && $mappedDelta > 0,
             'counts_release_parity' => false,
             'non_overlap_note' => trim($nonOverlapNote),
-            'next_gate' => $status === 'suite-evidence-countable'
+            'next_gate' => (!$blocked && $mappedDelta > 0)
                 ? 'publish this bounded suite-evidence countability slice; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
                 : 'keep suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear',
-            'dependency_closure' => 'no new support component needed; suite evidence composes lane-local artifact metadata, guarded runner commands, active-runner gates, and focused TestRunner PASS-line output only',
+            'dependency_closure' => 'no new support component needed; ' . ($primaryCurrentNext !== null ? $primaryCurrentNext . ' suite evidence ' : '') . 'composes lane-local artifact metadata, guarded runner commands, active-runner gates, and focused TestRunner PASS-line output only',
         ];
+        foreach ($currentNextIds as $currentNextId) {
+            $record['counts_suite_evidence_' . str_replace('-', '_', $currentNextId)] = !$blocked && $mappedDelta > 0 && $currentNextId === $primaryCurrentNext;
+        }
 
         return $record;
     }

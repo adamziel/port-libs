@@ -261,6 +261,9 @@ final class SQLiteSelectQuery
             throw new \InvalidArgumentException("SQLite SELECT query DISTINCT window aggregate is not supported for {$function}");
         }
         if ($frame !== null && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
+            if ($orderBy === [] && in_array($frame['unit'], ['RANGE', 'GROUPS'], true)) {
+                throw new \InvalidArgumentException('SQLite SELECT query RANGE/GROUPS window frame needs ORDER BY');
+            }
             if ($function === 'count' && (($arguments[0]['type'] ?? null) === 'wildcard')) {
                 $values = array_fill(0, count($orderedRows), 1);
             } elseif ($arguments === []) {
