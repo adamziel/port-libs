@@ -105,7 +105,7 @@ $valueTerms241 = static fn (): array => [
     $eq241('blog_id', 1),
     $like241('option_value', '%copy%'),
 ];
-$plan241 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext241(
+$plan241 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceResidualWhereValidation(
     $prepared ?? $prepared241(),
     $current ?? $current241(),
     $terms ?? $terms241(),

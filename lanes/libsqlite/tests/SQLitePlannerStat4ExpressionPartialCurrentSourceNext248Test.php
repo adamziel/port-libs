@@ -93,7 +93,7 @@ $terms248 = static fn (): array => [
     $like248('option_name', 'plugin_%'),
 ];
 
-$plan248 = static fn (?array $samples = null, ?array $rows = null, int $limit = 8, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext248(
+$plan248 = static fn (?array $samples = null, ?array $rows = null, int $limit = 8, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceDuplicateRunValidation(
     $prepared248(),
     $current248($samples, $rows),
     $terms248(),

@@ -90,7 +90,7 @@ $terms242 = static fn (): array => [
     $like242('option_name', 'plugin_%'),
 ];
 
-$plan242 = static fn (?array $samples = null, ?array $rows = null, int $limit = 6, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext242(
+$plan242 = static fn (?array $samples = null, ?array $rows = null, int $limit = 6, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceHistogramValidation(
     $prepared242(),
     $current242($samples, $rows),
     $terms242(),

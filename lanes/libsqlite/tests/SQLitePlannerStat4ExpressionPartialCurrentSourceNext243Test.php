@@ -113,7 +113,7 @@ $terms243 = static fn (): array => [
     $eq243('blog_id', 1),
     $like243('option_name', 'plugin_%'),
 ];
-$plan243 = static fn (string $variant = 'ready', int $limit = 5, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext243(
+$plan243 = static fn (string $variant = 'ready', int $limit = 5, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceSampleTapeValidation(
     $prepared243(),
     $current243($variant),
     $terms243(),

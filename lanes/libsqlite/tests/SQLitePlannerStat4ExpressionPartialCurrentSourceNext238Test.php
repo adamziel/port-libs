@@ -100,7 +100,7 @@ $terms238 = static fn (): array => [
     $eq238('blog_id', 1),
     $like238('option_name', 'plugin_%'),
 ];
-$plan238 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext238(
+$plan238 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceCoveringPayloadValidation(
     $prepared ?? $prepared238(),
     $current ?? $current238(),
     $terms ?? $terms238(),

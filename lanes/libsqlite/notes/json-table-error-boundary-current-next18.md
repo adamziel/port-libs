@@ -14,7 +14,7 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableErrorBoundaryCurren
 Focused test run: 1 selected test files (root lock skipped)
 25 PASS lines, 29 assertions, 0 failures
 
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableErrorBoundaryCurrentNext18Test.php lanes/libsqlite/tests/SQLiteJsonEachIndexedRegressionNext12Test.php lanes/libsqlite/tests/SQLiteJsonTableIndexedConstraintCorpusTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableErrorBoundaryCurrentNext18Test.php lanes/libsqlite/tests/SQLiteJsonEachIndexedRegressionTest.php lanes/libsqlite/tests/SQLiteJsonTableIndexedConstraintCorpusTest.php
 Focused test run: 3 selected test files (root lock skipped)
 81 PASS lines, 119 assertions, 0 failures
 

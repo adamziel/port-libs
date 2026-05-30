@@ -72,7 +72,7 @@ $prepared['stat4Generation'] = 244;
 $prepared['indexes'][0]['rootPage'] = 24401;
 $prepared['indexes'][0]['stat4Samples'] = array_slice($source['indexes'][0]['stat4Samples'], 0, 3);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext244(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceLimitOffsetWindowValidation(
     $prepared,
     $source,
     [

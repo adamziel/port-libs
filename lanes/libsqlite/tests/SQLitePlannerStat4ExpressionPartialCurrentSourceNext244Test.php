@@ -99,7 +99,7 @@ $terms244 = static fn (): array => [
     $like244('option_name', 'plugin_%'),
 ];
 
-$plan244 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext244(
+$plan244 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceLimitOffsetWindowValidation(
     $prepared ?? $prepared244(),
     $current ?? $current244(),
     $terms ?? $terms244(),

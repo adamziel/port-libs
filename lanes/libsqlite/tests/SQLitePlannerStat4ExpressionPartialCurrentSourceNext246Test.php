@@ -118,7 +118,7 @@ $terms246 = static fn (): array => [
     $eq246('blog_id', 1),
     $like246('option_name', 'plugin_%'),
 ];
-$plan246 = static fn (string $variant = 'ready', int $limit = 6, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext246(
+$plan246 = static fn (string $variant = 'ready', int $limit = 6, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceDuplicateCardinalityValidation(
     $prepared246(),
     $current246($variant),
     $terms246(),

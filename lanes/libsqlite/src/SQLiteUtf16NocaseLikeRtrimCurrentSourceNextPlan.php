@@ -13661,12 +13661,12 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $currentSchemaCookie = 200,
         int $nextSchemaCookie = 201,
     ): array {
-        $current = self::v201_scan($currentRows, $currentPattern, $escape);
-        $next = self::v201_scan($nextRows, $nextPattern, $escape);
-        $currentMatched = self::v201_rowids($current['matched']);
-        $nextMatched = self::v201_rowids($next['matched']);
-        $currentCandidates = self::v201_rowids($current['candidates']);
-        $nextCandidates = self::v201_rowids($next['candidates']);
+        $current = self::scanNullPatternRebindRows($currentRows, $currentPattern, $escape);
+        $next = self::scanNullPatternRebindRows($nextRows, $nextPattern, $escape);
+        $currentMatched = self::nullPatternRebindRowids($current['matched']);
+        $nextMatched = self::nullPatternRebindRowids($next['matched']);
+        $currentCandidates = self::nullPatternRebindRowids($current['candidates']);
+        $nextCandidates = self::nullPatternRebindRowids($next['candidates']);
 
         $reasons = [];
         if ($currentSource !== $nextSource) {
@@ -13727,20 +13727,20 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextMatchedRowids' => $nextMatched,
             'matchedExitedRowids' => array_values(array_diff($currentMatched, $nextMatched)),
             'matchedEnteredRowids' => array_values(array_diff($nextMatched, $currentMatched)),
-            'currentFalsePositiveRowids' => self::v201_rowids($current['falsePositive']),
-            'nextFalsePositiveRowids' => self::v201_rowids($next['falsePositive']),
-            'currentExcludedDecodedRowids' => array_values(array_diff(self::v201_rowids($current['decoded']), $currentCandidates)),
-            'nextExcludedDecodedRowids' => array_values(array_diff(self::v201_rowids($next['decoded']), $nextCandidates)),
+            'currentFalsePositiveRowids' => self::nullPatternRebindRowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::nullPatternRebindRowids($next['falsePositive']),
+            'currentExcludedDecodedRowids' => array_values(array_diff(self::nullPatternRebindRowids($current['decoded']), $currentCandidates)),
+            'nextExcludedDecodedRowids' => array_values(array_diff(self::nullPatternRebindRowids($next['decoded']), $nextCandidates)),
             'currentMalformedRowids' => $current['malformedRowids'],
             'nextMalformedRowids' => $next['malformedRowids'],
             'currentErrors' => $current['errors'],
             'nextErrors' => $next['errors'],
-            'currentRtrimTexts' => self::v201_map($current['decoded'], 'rtrimText'),
-            'nextRtrimTexts' => self::v201_map($next['decoded'], 'rtrimText'),
-            'currentNocaseKeys' => self::v201_map($current['decoded'], 'nocaseKey'),
-            'nextNocaseKeys' => self::v201_map($next['decoded'], 'nocaseKey'),
-            'currentMatchedTexts' => self::v201_selectMap(self::v201_map($current['decoded'], 'rtrimText'), $currentMatched),
-            'nextMatchedTexts' => self::v201_selectMap(self::v201_map($next['decoded'], 'rtrimText'), $nextMatched),
+            'currentRtrimTexts' => self::mapNullPatternRebindRows($current['decoded'], 'rtrimText'),
+            'nextRtrimTexts' => self::mapNullPatternRebindRows($next['decoded'], 'rtrimText'),
+            'currentNocaseKeys' => self::mapNullPatternRebindRows($current['decoded'], 'nocaseKey'),
+            'nextNocaseKeys' => self::mapNullPatternRebindRows($next['decoded'], 'nocaseKey'),
+            'currentMatchedTexts' => self::selectNullPatternRebindMap(self::mapNullPatternRebindRows($current['decoded'], 'rtrimText'), $currentMatched),
+            'nextMatchedTexts' => self::selectNullPatternRebindMap(self::mapNullPatternRebindRows($next['decoded'], 'rtrimText'), $nextMatched),
             'mustReprepareForNullPattern' => $currentPattern !== $nextPattern && ($currentPattern === null || $nextPattern === null),
             'nullPatternDisablesPrefixRange' => $currentPattern === null || $nextPattern === null,
             'nullPatternMatchesNoRows' => $currentPattern === null || $nextPattern === null,
@@ -13765,7 +13765,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array{likePlan:array<string,mixed>,decoded:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,malformedRowids:list<int>,errors:array<int,string>}
      */
-    private static function v201_scan(array $rows, ?string $pattern, ?string $escape): array
+    private static function scanNullPatternRebindRows(array $rows, ?string $pattern, ?string $escape): array
     {
         $like = $pattern === null
             ? [
@@ -13779,7 +13779,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $malformed = [];
         $errors = [];
         foreach ($rows as $row) {
-            self::v201_assertRow($row);
+            self::assertNullPatternRebindRow($row);
             try {
                 $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
@@ -13787,7 +13787,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
                     'rowid' => $row['option_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
-                    'nocaseKey' => self::v201_asciiLower($rtrim),
+                    'nocaseKey' => self::asciiLowerNullPatternRebindKey($rtrim),
                     'bytesHex' => bin2hex($row['option_name_bytes']),
                 ];
             } catch (\InvalidArgumentException $exception) {
@@ -13796,7 +13796,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             }
         }
 
-        usort($decoded, self::v201_sortRows(...));
+        usort($decoded, self::sortNullPatternRebindRows(...));
         sort($malformed);
         ksort($errors);
 
@@ -13804,7 +13804,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $matched = [];
         $falsePositive = [];
         foreach ($decoded as $entry) {
-            if ($pattern === null || !self::v201_inRange($entry['nocaseKey'], $like['range'])) {
+            if ($pattern === null || !self::nullPatternRebindKeyInRange($entry['nocaseKey'], $like['range'])) {
                 continue;
             }
             $entry['residualMatch'] = SQLiteDatabase::likeMatches($entry['rtrimText'], $pattern, $escape, false);
@@ -13828,7 +13828,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $row */
-    private static function v201_assertRow(array $row): void
+    private static function assertNullPatternRebindRow(array $row): void
     {
         if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoZeroOne rows require integer option_id');
@@ -13842,7 +13842,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
-    private static function v201_inRange(string $key, ?array $range): bool
+    private static function nullPatternRebindKeyInRange(string $key, ?array $range): bool
     {
         if ($range === null || strcmp($key, $range['lowerInclusive']) < 0) {
             return false;
@@ -13852,7 +13852,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param array{nocaseKey:string,rowid:int} $left @param array{nocaseKey:string,rowid:int} $right */
-    private static function v201_sortRows(array $left, array $right): int
+    private static function sortNullPatternRebindRows(array $left, array $right): int
     {
         $comparison = strcmp($left['nocaseKey'], $right['nocaseKey']);
 
@@ -13860,13 +13860,13 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array{rowid:int}> $rows @return list<int> */
-    private static function v201_rowids(array $rows): array
+    private static function nullPatternRebindRowids(array $rows): array
     {
         return array_map(static fn (array $row): int => $row['rowid'], $rows);
     }
 
     /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
-    private static function v201_map(array $rows, string $key): array
+    private static function mapNullPatternRebindRows(array $rows, string $key): array
     {
         $mapped = [];
         foreach ($rows as $row) {
@@ -13877,7 +13877,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param array<int,string> $values @param list<int> $rowids @return array<int,string> */
-    private static function v201_selectMap(array $values, array $rowids): array
+    private static function selectNullPatternRebindMap(array $values, array $rowids): array
     {
         $selected = [];
         foreach ($rowids as $rowid) {
@@ -13889,7 +13889,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return $selected;
     }
 
-    private static function v201_asciiLower(string $value): string
+    private static function asciiLowerNullPatternRebindKey(string $value): string
     {
         return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
     }

@@ -67,7 +67,7 @@ $current = [
     'indexes' => [$index],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext242(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceHistogramValidation(
     $prepared,
     $current,
     [

@@ -90,7 +90,7 @@ $terms239 = static fn (): array => [
     $like239('option_name', 'plugin_%'),
 ];
 
-$plan239 = static fn (int|string|null $estimate = 6, ?array $rows = null, int $limit = 6, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext239(
+$plan239 = static fn (int|string|null $estimate = 6, ?array $rows = null, int $limit = 6, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourcePartialEstimateFence(
     $prepared239(),
     $current239($estimate, $rows),
     $terms239(),

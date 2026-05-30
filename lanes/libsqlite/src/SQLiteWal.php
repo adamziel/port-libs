@@ -970,7 +970,7 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source reader boundary requires restart or truncate mode');
         }
 
-        $source = $this->assertCurrentWalBytes86($walBytes);
+        $source = $this->assertRestartTruncateCurrentWalBytes($walBytes);
         $currentEndFrame = $currentReaderEndFrame ?? $this->frameCount();
         if ($currentEndFrame < 0 || $currentEndFrame > $this->frameCount()) {
             throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source reader frame is outside the WAL frame range');
@@ -1047,7 +1047,7 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL truncate reader current-source next88 requires at least one page number');
         }
 
-        $source = $this->assertCurrentWalBytes86($walBytes);
+        $source = $this->assertRestartTruncateCurrentWalBytes($walBytes);
         if ($currentReaderEndFrame !== null && ($currentReaderEndFrame < 0 || $currentReaderEndFrame > $source->frameCount())) {
             throw new \InvalidArgumentException('SQLite WAL truncate reader current-source next88 reader frame is outside the WAL frame range');
         }
@@ -2181,7 +2181,7 @@ final class SQLiteWal
         array $pageNumbers,
         string $mode = 'restart'
     ): array {
-        $source = $this->assertCurrentWalBytes86($walBytes);
+        $source = $this->assertRestartTruncateCurrentWalBytes($walBytes);
         if ($source->toBytes() !== $this->toBytes()) {
             throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart current-source bytes mismatch');
         }
@@ -2266,7 +2266,7 @@ final class SQLiteWal
         array $pageNumbers,
         string $mode = 'restart'
     ): array {
-        $source = $this->assertCurrentWalBytes86($walBytes);
+        $source = $this->assertRestartTruncateCurrentWalBytes($walBytes);
         if ($source->toBytes() !== $this->toBytes()) {
             throw new \InvalidArgumentException('SQLite WAL checkpoint restart/truncate next93 current source bytes mismatch');
         }
@@ -2348,7 +2348,7 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next97 requires at least one page number');
         }
 
-        $source = $this->assertCurrentWalBytes86($walBytes);
+        $source = $this->assertRestartTruncateCurrentWalBytes($walBytes);
         if ($source->toBytes() !== $this->toBytes()) {
             throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next97 bytes mismatch');
         }
@@ -2444,7 +2444,7 @@ final class SQLiteWal
         SQLiteShmIndex $allReleasedShm,
         array $pageNumbers
     ): array {
-        $source = $this->assertCurrentWalBytes86($walBytes);
+        $source = $this->assertRestartTruncateCurrentWalBytes($walBytes);
         if ($source->toBytes() !== $this->toBytes()) {
             throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next102 bytes mismatch');
         }
@@ -2667,7 +2667,7 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL restart/truncate reader-pin current-source next119 requires at least one page number');
         }
 
-        $source = $this->assertCurrentWalBytes86($walBytes);
+        $source = $this->assertRestartTruncateCurrentWalBytes($walBytes);
         if ($source->toBytes() !== $this->toBytes()) {
             throw new \InvalidArgumentException('SQLite WAL restart/truncate reader-pin current-source next119 bytes mismatch');
         }
@@ -3037,7 +3037,7 @@ final class SQLiteWal
         return $errors;
     }
 
-    private function assertCurrentWalBytes86(string $walBytes): self
+    private function assertRestartTruncateCurrentWalBytes(string $walBytes): self
     {
         $source = self::parse($walBytes, $this->header->pageSize, $this->checksumsValidated);
         if ($source->header->pageSize !== $this->header->pageSize) {

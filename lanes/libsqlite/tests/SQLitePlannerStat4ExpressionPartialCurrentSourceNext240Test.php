@@ -108,7 +108,7 @@ $terms240 = static fn (): array => [
     $eq240('blog_id', 1),
     $like240('option_name', 'plugin_%'),
 ];
-$plan240 = static fn (int $limit = 4, int $offset = 0, ?array $prepared = null, ?array $current = null, ?array $terms = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext240(
+$plan240 = static fn (int $limit = 4, int $offset = 0, ?array $prepared = null, ?array $current = null, ?array $terms = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourcePartialPredicateValidation(
     $prepared ?? $prepared240(),
     $current ?? $current240(),
     $terms ?? $terms240(),

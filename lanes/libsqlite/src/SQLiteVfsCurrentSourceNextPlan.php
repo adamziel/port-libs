@@ -798,22 +798,22 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             throw new \InvalidArgumentException('SQLite VFS current-source next158-161 requires operations');
         }
 
-        $state = self::hydrate158161($options['current'] ?? []);
-        $current = self::summary158161($state);
+        $state = self::hydrateMmapSharedMemory($options['current'] ?? []);
+        $current = self::mmapSharedMemorySummary($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation158161($operation);
-            $before = self::snapshot158161($state);
+            $op = self::operationMmapSharedMemory($operation);
+            $before = self::mmapSharedMemorySnapshot($state);
 
             if ($op['kind'] === 'source') {
-                $source = self::sourceName158161((string) $op['source']);
+                $source = self::mmapSharedMemorySourceName((string) $op['source']);
                 if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                    $events[] = self::event158161('source', 'missing-source', $source, $before, self::snapshot158161($state), []);
+                    $events[] = self::mmapSharedMemoryEvent('source', 'missing-source', $source, $before, self::mmapSharedMemorySnapshot($state), []);
                     continue;
                 }
                 $state['current_source'] = $source;
-                $events[] = self::event158161('source', 'ok', $source, $before, self::snapshot158161($state), [
+                $events[] = self::mmapSharedMemoryEvent('source', 'ok', $source, $before, self::mmapSharedMemorySnapshot($state), [
                     'handle' => $state['sources'][$source]['handle'],
                     'generation' => $state['sources'][$source]['generation'],
                 ]);
@@ -821,11 +821,11 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'open') {
-                $source = self::sourceName158161((string) $op['source']);
-                $path = self::pathName158161((string) $op['path']);
+                $source = self::mmapSharedMemorySourceName((string) $op['source']);
+                $path = self::mmapSharedMemoryPathName((string) $op['path']);
                 if (isset($state['sources'][$source]) && $state['sources'][$source]['closed'] !== true) {
                     $state['current_source'] = $source;
-                    $events[] = self::event158161('open', 'reused-current-source', $source, $before, self::snapshot158161($state), [
+                    $events[] = self::mmapSharedMemoryEvent('open', 'reused-current-source', $source, $before, self::mmapSharedMemorySnapshot($state), [
                         'handle' => $state['sources'][$source]['handle'],
                         'generation' => $state['sources'][$source]['generation'],
                     ]);
@@ -833,30 +833,30 @@ private static function runMmapSharedMemory(array $operations, array $options = 
                 }
 
                 $state['sequence']++;
-                $owner = self::owner158161($path);
+                $owner = self::mmapSharedMemoryOwner($path);
                 $state['owner_generations'][$owner] = (int) ($state['owner_generations'][$owner] ?? 0) + 1;
-                $state['sources'][$source] = self::sourceState158161(
+                $state['sources'][$source] = self::sourceStateMmapSharedMemory(
                     'vfs158161-' . $state['sequence'],
                     $path,
                     (bool) ($op['readonly'] ?? false),
                     $state['owner_generations'][$owner],
-                    self::nonNegativeInt158161($op['size'] ?? 0, 'source size')
+                    self::mmapSharedMemoryNonNegativeInt($op['size'] ?? 0, 'source size')
                 );
                 $state['current_source'] = $source;
-                $events[] = self::event158161('open', 'open', $source, $before, self::snapshot158161($state), $state['sources'][$source]);
+                $events[] = self::mmapSharedMemoryEvent('open', 'open', $source, $before, self::mmapSharedMemorySnapshot($state), $state['sources'][$source]);
                 continue;
             }
 
-            $source = self::sourceFor158161($state, $op['source'] ?? null);
+            $source = self::sourceForMmapSharedMemory($state, $op['source'] ?? null);
             if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                $events[] = self::event158161($op['kind'], 'missing-source', $source, $before, self::snapshot158161($state), []);
+                $events[] = self::mmapSharedMemoryEvent($op['kind'], 'missing-source', $source, $before, self::mmapSharedMemorySnapshot($state), []);
                 continue;
             }
 
             if ($op['kind'] === 'mmap') {
-                $limit = self::nonNegativeInt158161($op['limit'] ?? $op['size'] ?? null, 'mmap limit');
+                $limit = self::mmapSharedMemoryNonNegativeInt($op['limit'] ?? $op['size'] ?? null, 'mmap limit');
                 $state['sources'][$source]['mmap_limit'] = $limit;
-                $events[] = self::event158161('mmap', 'ok', $source, $before, self::snapshot158161($state), [
+                $events[] = self::mmapSharedMemoryEvent('mmap', 'ok', $source, $before, self::mmapSharedMemorySnapshot($state), [
                     'mmap_limit' => $limit,
                     'mapped' => min($limit, $state['sources'][$source]['size']),
                 ]);
@@ -864,11 +864,11 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'fetch') {
-                $offset = self::nonNegativeInt158161($op['offset'] ?? null, 'fetch offset');
-                $amount = self::positiveInt158161($op['amount'] ?? $op['bytes'] ?? null, 'fetch amount');
+                $offset = self::mmapSharedMemoryNonNegativeInt($op['offset'] ?? null, 'fetch offset');
+                $amount = self::mmapSharedMemoryPositiveInt($op['amount'] ?? $op['bytes'] ?? null, 'fetch amount');
                 $limit = (int) $state['sources'][$source]['mmap_limit'];
                 if ($limit === 0 || $offset + $amount > min($limit, $state['sources'][$source]['size'])) {
-                    $events[] = self::event158161('fetch', 'blocked', $source, $before, self::snapshot158161($state), [
+                    $events[] = self::mmapSharedMemoryEvent('fetch', 'blocked', $source, $before, self::mmapSharedMemorySnapshot($state), [
                         'offset' => $offset,
                         'amount' => $amount,
                         'reason' => 'fetch range exceeds current-source mmap window',
@@ -876,7 +876,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
                     continue;
                 }
                 $state['sources'][$source]['fetches'][] = ['offset' => $offset, 'amount' => $amount];
-                $events[] = self::event158161('fetch', 'ok', $source, $before, self::snapshot158161($state), [
+                $events[] = self::mmapSharedMemoryEvent('fetch', 'ok', $source, $before, self::mmapSharedMemorySnapshot($state), [
                     'offset' => $offset,
                     'amount' => $amount,
                     'fetch_count' => count($state['sources'][$source]['fetches']),
@@ -886,7 +886,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
 
             if ($op['kind'] === 'unfetch') {
                 $released = array_pop($state['sources'][$source]['fetches']);
-                $events[] = self::event158161('unfetch', $released === null ? 'noop' : 'ok', $source, $before, self::snapshot158161($state), [
+                $events[] = self::mmapSharedMemoryEvent('unfetch', $released === null ? 'noop' : 'ok', $source, $before, self::mmapSharedMemorySnapshot($state), [
                     'released' => $released,
                     'fetch_count' => count($state['sources'][$source]['fetches']),
                 ]);
@@ -894,11 +894,11 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'shmmap') {
-                $page = self::nonNegativeInt158161($op['page'] ?? null, 'shm page');
-                $size = self::positiveInt158161($op['size'] ?? 32768, 'shm page size');
+                $page = self::mmapSharedMemoryNonNegativeInt($op['page'] ?? null, 'shm page');
+                $size = self::mmapSharedMemoryPositiveInt($op['size'] ?? 32768, 'shm page size');
                 $extend = (bool) ($op['extend'] ?? false);
                 if ($state['sources'][$source]['readonly'] === true && $extend === true) {
-                    $events[] = self::event158161('shm_map', 'blocked', $source, $before, self::snapshot158161($state), [
+                    $events[] = self::mmapSharedMemoryEvent('shm_map', 'blocked', $source, $before, self::mmapSharedMemorySnapshot($state), [
                         'page' => $page,
                         'size' => $size,
                         'reason' => 'readonly current-source cannot extend shared memory',
@@ -906,7 +906,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
                     continue;
                 }
                 $state['sources'][$source]['shm_pages'][$page] = ['size' => $size, 'extended' => $extend];
-                $events[] = self::event158161('shm_map', 'ok', $source, $before, self::snapshot158161($state), [
+                $events[] = self::mmapSharedMemoryEvent('shm_map', 'ok', $source, $before, self::mmapSharedMemorySnapshot($state), [
                     'page' => $page,
                     'size' => $size,
                     'extended' => $extend,
@@ -916,11 +916,11 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'shmlock') {
-                $offset = self::nonNegativeInt158161($op['offset'] ?? null, 'shm lock offset');
-                $count = self::positiveInt158161($op['count'] ?? 1, 'shm lock count');
-                $mode = self::shmMode158161((string) ($op['mode'] ?? 'shared'));
+                $offset = self::mmapSharedMemoryNonNegativeInt($op['offset'] ?? null, 'shm lock offset');
+                $count = self::mmapSharedMemoryPositiveInt($op['count'] ?? 1, 'shm lock count');
+                $mode = self::sharedMemoryLockMode((string) ($op['mode'] ?? 'shared'));
                 if ($state['sources'][$source]['readonly'] === true && $mode === 'exclusive') {
-                    $events[] = self::event158161('shm_lock', 'blocked', $source, $before, self::snapshot158161($state), [
+                    $events[] = self::mmapSharedMemoryEvent('shm_lock', 'blocked', $source, $before, self::mmapSharedMemorySnapshot($state), [
                         'offset' => $offset,
                         'count' => $count,
                         'mode' => $mode,
@@ -929,7 +929,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
                     continue;
                 }
                 $state['sources'][$source]['shm_locks'][] = ['offset' => $offset, 'count' => $count, 'mode' => $mode];
-                $events[] = self::event158161('shm_lock', 'ok', $source, $before, self::snapshot158161($state), [
+                $events[] = self::mmapSharedMemoryEvent('shm_lock', 'ok', $source, $before, self::mmapSharedMemorySnapshot($state), [
                     'offset' => $offset,
                     'count' => $count,
                     'mode' => $mode,
@@ -942,7 +942,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
                 $delete = (bool) ($op['delete'] ?? false);
                 $state['sources'][$source]['shm_pages'] = [];
                 $state['sources'][$source]['shm_locks'] = [];
-                $events[] = self::event158161('shm_unmap', 'ok', $source, $before, self::snapshot158161($state), [
+                $events[] = self::mmapSharedMemoryEvent('shm_unmap', 'ok', $source, $before, self::mmapSharedMemorySnapshot($state), [
                     'delete' => $delete,
                     'released_pages' => count($before['sources'][$source]['shm_pages'] ?? []),
                     'released_locks' => count($before['sources'][$source]['shm_locks'] ?? []),
@@ -955,9 +955,9 @@ private static function runMmapSharedMemory(array $operations, array $options = 
                 $state['sources'][$source]['shm_locks'] = [];
                 $state['sources'][$source]['closed'] = true;
                 if ($state['current_source'] === $source) {
-                    $state['current_source'] = self::firstOpenSource158161($state);
+                    $state['current_source'] = self::firstOpenMmapSharedMemorySource($state);
                 }
-                $events[] = self::event158161('close', 'closed', $source, $before, self::snapshot158161($state), [
+                $events[] = self::mmapSharedMemoryEvent('close', 'closed', $source, $before, self::mmapSharedMemorySnapshot($state), [
                     'released_fetches' => count($before['sources'][$source]['fetches'] ?? []),
                     'released_shm_locks' => count($before['sources'][$source]['shm_locks'] ?? []),
                 ]);
@@ -970,7 +970,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary158161($state),
+            'next' => self::mmapSharedMemorySummary($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-io-methods-next154-157',
@@ -979,31 +979,31 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function hydrate158161(mixed $current): array
+    private static function hydrateMmapSharedMemory(mixed $current): array
     {
         $state = ['sequence' => 0, 'current_source' => null, 'owner_generations' => [], 'sources' => []];
         if (!is_array($current)) {
             return $state;
         }
         foreach (is_array($current['owner_generations'] ?? null) ? $current['owner_generations'] : [] as $owner => $generation) {
-            $state['owner_generations'][self::pathName158161((string) $owner)] = self::positiveInt158161($generation, 'owner generation');
+            $state['owner_generations'][self::mmapSharedMemoryPathName((string) $owner)] = self::mmapSharedMemoryPositiveInt($generation, 'owner generation');
         }
         foreach (is_array($current['sources'] ?? null) ? $current['sources'] : [] as $name => $source) {
             if (!is_array($source)) {
                 continue;
             }
-            $sourceName = self::sourceName158161((string) $name);
-            $path = self::pathName158161((string) ($source['path'] ?? ''));
-            $owner = self::owner158161($path);
-            $generation = self::positiveInt158161($source['generation'] ?? ($state['owner_generations'][$owner] ?? 1), 'source generation');
+            $sourceName = self::mmapSharedMemorySourceName((string) $name);
+            $path = self::mmapSharedMemoryPathName((string) ($source['path'] ?? ''));
+            $owner = self::mmapSharedMemoryOwner($path);
+            $generation = self::mmapSharedMemoryPositiveInt($source['generation'] ?? ($state['owner_generations'][$owner] ?? 1), 'source generation');
             $state['owner_generations'][$owner] = max((int) ($state['owner_generations'][$owner] ?? 0), $generation);
-            $state['sources'][$sourceName] = self::sourceState158161(
-                self::handleName158161((string) ($source['handle'] ?? '')),
+            $state['sources'][$sourceName] = self::sourceStateMmapSharedMemory(
+                self::mmapSharedMemoryHandleName((string) ($source['handle'] ?? '')),
                 $path,
                 (bool) ($source['readonly'] ?? false),
                 $generation,
-                self::nonNegativeInt158161($source['size'] ?? 0, 'source size'),
-                self::nonNegativeInt158161($source['mmap_limit'] ?? 0, 'mmap limit'),
+                self::mmapSharedMemoryNonNegativeInt($source['size'] ?? 0, 'source size'),
+                self::mmapSharedMemoryNonNegativeInt($source['mmap_limit'] ?? 0, 'mmap limit'),
                 is_array($source['fetches'] ?? null) ? array_values($source['fetches']) : [],
                 is_array($source['shm_pages'] ?? null) ? $source['shm_pages'] : [],
                 is_array($source['shm_locks'] ?? null) ? array_values($source['shm_locks']) : [],
@@ -1011,7 +1011,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             );
         }
         if (isset($current['current_source'])) {
-            $currentSource = self::sourceName158161((string) $current['current_source']);
+            $currentSource = self::mmapSharedMemorySourceName((string) $current['current_source']);
             if (!isset($state['sources'][$currentSource])) {
                 throw new \InvalidArgumentException('SQLite VFS hydrated current source has no handle');
             }
@@ -1021,7 +1021,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $state;
     }
 
-    private static function operation158161(string|array $operation): array
+    private static function operationMmapSharedMemory(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -1057,7 +1057,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         throw new \InvalidArgumentException('SQLite VFS current-source next158-161 operation is unsupported');
     }
 
-    private static function sourceState158161(
+    private static function sourceStateMmapSharedMemory(
         string $handle,
         string $path,
         bool $readonly,
@@ -1071,7 +1071,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
     ): array {
         return [
             'handle' => $handle,
-            'owner' => self::owner158161($path),
+            'owner' => self::mmapSharedMemoryOwner($path),
             'path' => $path,
             'readonly' => $readonly,
             'generation' => $generation,
@@ -1084,10 +1084,10 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function sourceFor158161(array $state, mixed $source): string
+    private static function sourceForMmapSharedMemory(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::sourceName158161((string) $source);
+            return self::mmapSharedMemorySourceName((string) $source);
         }
         if (!is_string($state['current_source'])) {
             throw new \InvalidArgumentException('SQLite VFS current-source next158-161 has no selected source');
@@ -1095,7 +1095,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $state['current_source'];
     }
 
-    private static function firstOpenSource158161(array $state): ?string
+    private static function firstOpenMmapSharedMemorySource(array $state): ?string
     {
         foreach ($state['sources'] as $name => $source) {
             if ($source['closed'] !== true) {
@@ -1105,7 +1105,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return null;
     }
 
-    private static function sourceName158161(string $source): string
+    private static function mmapSharedMemorySourceName(string $source): string
     {
         $source = strtolower(trim($source));
         if ($source === '' || preg_match('/^[a-z0-9_.:-]+$/', $source) !== 1) {
@@ -1114,7 +1114,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $source;
     }
 
-    private static function pathName158161(string $path): string
+    private static function mmapSharedMemoryPathName(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -1123,12 +1123,12 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $path;
     }
 
-    private static function owner158161(string $path): string
+    private static function mmapSharedMemoryOwner(string $path): string
     {
         return preg_replace('/-(?:wal|shm|journal)$/', '', $path) ?? $path;
     }
 
-    private static function handleName158161(string $handle): string
+    private static function mmapSharedMemoryHandleName(string $handle): string
     {
         $handle = trim($handle);
         if ($handle === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $handle) !== 1) {
@@ -1137,7 +1137,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $handle;
     }
 
-    private static function positiveInt158161(mixed $value, string $label): int
+    private static function mmapSharedMemoryPositiveInt(mixed $value, string $label): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException("SQLite VFS current-source next158-161 {$label} must be positive");
@@ -1149,7 +1149,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $int;
     }
 
-    private static function nonNegativeInt158161(mixed $value, string $label): int
+    private static function mmapSharedMemoryNonNegativeInt(mixed $value, string $label): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException("SQLite VFS current-source next158-161 {$label} must be non-negative");
@@ -1161,7 +1161,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $int;
     }
 
-    private static function shmMode158161(string $mode): string
+    private static function sharedMemoryLockMode(string $mode): string
     {
         $mode = strtolower(trim($mode));
         if (!in_array($mode, ['shared', 'exclusive', 'unlock'], true)) {
@@ -1170,7 +1170,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $mode;
     }
 
-    private static function summary158161(array $state): array
+    private static function mmapSharedMemorySummary(array $state): array
     {
         $open = 0;
         foreach ($state['sources'] as $source) {
@@ -1185,12 +1185,12 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function snapshot158161(array $state): array
+    private static function mmapSharedMemorySnapshot(array $state): array
     {
-        return self::summary158161($state);
+        return self::mmapSharedMemorySummary($state);
     }
 
-    private static function event158161(string $operation, string $status, string $source, array $before, array $next, array $extra): array
+    private static function mmapSharedMemoryEvent(string $operation, string $status, string $source, array $before, array $next, array $extra): array
     {
         return array_merge([
             'operation' => $operation,
@@ -6194,7 +6194,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
                 'vfs-current-source-ready-next210-213',
                 'vfs-current-source-snapshot-reuse-publish-next214-217',
             ],
-            'non_overlap' => 'next214-217 validates publication tickets for already-ready VFS current-source snapshots after next210-213; it does not repeat snapshot capture/reuse/publish mechanics from snapshot reuse publication, ready publication from next202-205, or dirty flush/checkpoint behavior.',
+            'non_overlap' => 'next214-217 validates publication tickets for already-ready VFS current-source snapshots after next210-213; it does not repeat snapshot capture/reuse/publish mechanics from next206-209, ready publication from next202-205, or dirty flush/checkpoint behavior.',
         ];
     }
 
