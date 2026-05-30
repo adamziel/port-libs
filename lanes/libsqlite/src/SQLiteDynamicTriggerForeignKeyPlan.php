@@ -143,6 +143,93 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{c34:string,c35:string,label?:string}> $parents
+     * @param list<array{c38:string,c39:string,label?:string}> $children
+     * @return array<string,mixed>
+     */
+    public static function compositeCascadeRestrictCycle(
+        array $parents,
+        array $children,
+        string $oldC34,
+        string $oldC35,
+        string $newC34,
+        bool $attemptRestrictDelete = true
+    ): array {
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $updatedParents = [];
+        $cascadeUpdates = [];
+
+        foreach ($parents as $index => $parent) {
+            self::identifier((string) ($parent['c34'] ?? ''), 'parent c34');
+            self::identifier((string) ($parent['c35'] ?? ''), 'parent c35');
+            if ($parent['c34'] !== $oldC34 || $parent['c35'] !== $oldC35) {
+                continue;
+            }
+
+            $old = $parent;
+            $parents[$index]['c34'] = $newC34;
+            $updatedParents[] = ['old' => $old, 'new' => $parents[$index]];
+            foreach ($children as $childIndex => $child) {
+                self::identifier((string) ($child['c39'] ?? ''), 'child c39');
+                self::identifier((string) ($child['c38'] ?? ''), 'child c38');
+                if ($child['c39'] === $oldC34 && $child['c38'] === $oldC35) {
+                    $children[$childIndex]['c39'] = $newC34;
+                    $cascadeUpdates[] = [
+                        'old_child' => $child,
+                        'new_child' => $children[$childIndex],
+                    ];
+                }
+            }
+        }
+
+        $restrictBlocked = false;
+        $deletedParents = [];
+        if ($attemptRestrictDelete) {
+            foreach ($parents as $index => $parent) {
+                if ($parent['c34'] !== $oldC34 || $parent['c35'] !== $oldC35) {
+                    continue;
+                }
+                foreach ($children as $child) {
+                    if ($child['c39'] === $oldC34 && $child['c38'] === $oldC35) {
+                        $restrictBlocked = true;
+                        break 2;
+                    }
+                }
+                $deletedParents[] = $parent;
+                unset($parents[$index]);
+            }
+            $parents = array_values($parents);
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-12.3.1..12.3.5',
+            'operation' => 'composite-foreign-key-cascade-update-restrict-delete',
+            'status' => $restrictBlocked ? 'constraint-failed' : 'commit-ok',
+            'parent_key_columns' => ['c34', 'c35'],
+            'child_key_columns' => ['c39', 'c38'],
+            'updated_parent_keys' => array_values(array_map(
+                static fn (array $change): array => [$change['old']['c34'], $change['old']['c35'], $change['new']['c34'], $change['new']['c35']],
+                $updatedParents
+            )),
+            'cascade_child_keys' => array_values(array_map(
+                static fn (array $change): array => [$change['old_child']['c39'], $change['old_child']['c38'], $change['new_child']['c39'], $change['new_child']['c38']],
+                $cascadeUpdates
+            )),
+            'deleted_parent_keys' => array_values(array_map(static fn (array $row): array => [$row['c34'], $row['c35']], $deletedParents)),
+            'restrict_delete_blocked' => $restrictBlocked,
+            'parent_keys' => array_values(array_map(static fn (array $row): array => [$row['c34'], $row['c35']], self::sortRows($parents))),
+            'child_keys' => array_values(array_map(static fn (array $row): array => [$row['c39'], $row['c38']], self::sortRows($children))),
+            'violation_count' => self::compositeForeignKeyViolationCount($parents, $children),
+            'dependencies' => [
+                'sqlite-fkey2-composite-parent-column-order',
+                'sqlite-fkey2-composite-on-update-cascade',
+                'sqlite-fkey2-composite-delete-restrict',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param array{event:string,match_column:string,match_value:mixed,delete_column:string,delete_value:mixed,name?:string} $trigger
      * @return array<string,mixed>
@@ -1443,6 +1530,27 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         $violations = 0;
         foreach ($children as $child) {
             if (!in_array(strtolower((string) ($child['parent_key'] ?? '')), $keys, true)) {
+                ++$violations;
+            }
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param list<array{c34:string,c35:string,label?:string}> $parents
+     * @param list<array{c38:string,c39:string,label?:string}> $children
+     */
+    private static function compositeForeignKeyViolationCount(array $parents, array $children): int
+    {
+        $keys = [];
+        foreach ($parents as $parent) {
+            $keys[$parent['c34'] . "\0" . $parent['c35']] = true;
+        }
+
+        $violations = 0;
+        foreach ($children as $child) {
+            if (!isset($keys[$child['c39'] . "\0" . $child['c38']])) {
                 ++$violations;
             }
         }

@@ -33,6 +33,7 @@ final class SQLiteIndexBuildPlan
         array $rows,
         array $indexColumns,
         bool $unique = false,
+        array $affinities = [],
     ): array {
         self::assertIdentifier($table, 'table');
         self::assertIdentifier($index, 'index');
@@ -55,7 +56,7 @@ final class SQLiteIndexBuildPlan
         foreach (array_values($rows) as $rowIndex => $row) {
             $key = [];
             foreach ($indexColumns as $column) {
-                $key[] = $row[$column] ?? null;
+                $key[] = self::applyAffinity($row[$column] ?? null, (string) ($affinities[$column] ?? ''));
             }
 
             $encodedKey = json_encode($key);
@@ -108,7 +109,7 @@ final class SQLiteIndexBuildPlan
             'integrity' => 'ok',
             'schema_residue' => false,
             'non_overlap' => 'real upstream index build key materialization; does not repeat INDEXED BY forcing, expression-index range costs, page relocation, root collapse, or overflow freelist release',
-            'dependency_closure' => 'no new support component needed; uses PHP row arrays to model SQLite index key extraction and uniqueness checks from upstream CREATE INDEX tests',
+            'dependency_closure' => 'no new support component needed; uses PHP row arrays to model SQLite index key extraction, affinity normalization, and uniqueness checks from upstream CREATE INDEX tests',
         ];
     }
 
@@ -152,10 +153,49 @@ final class SQLiteIndexBuildPlan
         if ($right === null) {
             return 1;
         }
-        if (is_int($left) || is_float($left) || is_int($right) || is_float($right)) {
+        $leftNumeric = is_int($left) || is_float($left);
+        $rightNumeric = is_int($right) || is_float($right);
+        if ($leftNumeric && !$rightNumeric) {
+            return -1;
+        }
+        if (!$leftNumeric && $rightNumeric) {
+            return 1;
+        }
+        if ($leftNumeric && $rightNumeric) {
             return $left <=> $right;
         }
 
         return strcmp((string) $left, (string) $right);
+    }
+
+    private static function applyAffinity(mixed $value, string $affinity): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $affinity = strtoupper($affinity);
+        if ($affinity !== 'NUMERIC' && $affinity !== 'INTEGER' && $affinity !== 'REAL') {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $value;
+        }
+        if (!is_string($value) || !self::isNumericLiteral($value)) {
+            return $value;
+        }
+
+        $number = (float) $value;
+        if ($affinity !== 'REAL' && is_finite($number) && floor($number) === $number) {
+            return (int) $number;
+        }
+
+        return $number;
+    }
+
+    private static function isNumericLiteral(string $value): bool
+    {
+        return preg_match('/^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?$/', trim($value)) === 1;
     }
 }

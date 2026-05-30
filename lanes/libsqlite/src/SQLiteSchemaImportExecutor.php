@@ -507,18 +507,63 @@ final class SQLiteSchemaImportExecutor
     private static function autoIndexCount(string $body): int
     {
         $count = 0;
+        $signatures = [];
         foreach (self::splitCommaTerms($body) as $term) {
             $lower = strtolower($term);
             if (preg_match('/^\s*(constraint\s+(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+)?(primary\s+key|unique)\b/', $lower) === 1) {
-                $count++;
+                $signature = self::tableConstraintSignature($term);
+                if (!isset($signatures[$signature])) {
+                    $signatures[$signature] = true;
+                    $count++;
+                }
                 continue;
             }
             if (preg_match('/\b(unique|primary\s+key)\b/', $lower) === 1 && preg_match('/^\s*(constraint\b|check\b|foreign\b)/', $lower) !== 1) {
-                $count++;
+                $signature = self::columnConstraintSignature($term);
+                if (!isset($signatures[$signature])) {
+                    $signatures[$signature] = true;
+                    $count++;
+                }
             }
         }
 
         return $count;
+    }
+
+    private static function tableConstraintSignature(string $term): string
+    {
+        $constraint = trim(preg_replace('/^\s*constraint\s+(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+/i', '', $term) ?? $term);
+        if (preg_match('/^(?:primary\s+key|unique)\s*\((?<columns>.*)\)/is', $constraint, $matches) !== 1) {
+            return strtolower(preg_replace('/\s+/', ' ', $constraint) ?? $constraint);
+        }
+
+        return 'columns:' . implode(',', self::constraintColumnNames($matches['columns']));
+    }
+
+    private static function columnConstraintSignature(string $term): string
+    {
+        $name = self::leadingIdentifier($term);
+        if ($name === null) {
+            return strtolower(preg_replace('/\s+/', ' ', trim($term)) ?? trim($term));
+        }
+
+        return 'columns:' . strtolower($name);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function constraintColumnNames(string $columns): array
+    {
+        $names = [];
+        foreach (self::splitCommaTerms($columns) as $term) {
+            $name = self::leadingIdentifier($term);
+            if ($name !== null) {
+                $names[] = strtolower($name);
+            }
+        }
+
+        return $names;
     }
 
     /**

@@ -7,53 +7,53 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteInsertDefaultValuesSql;
 
 $schema = <<<'SQL'
-CREATE TABLE wp_option_defaults(
-    option_id INTEGER PRIMARY KEY,
-    option_name TEXT NOT NULL DEFAULT 'blogname',
-    option_value TEXT DEFAULT (upper('example site')),
-    autoload TEXT NOT NULL DEFAULT 'yes',
+CREATE TABLE app_setting_defaults(
+    setting_id INTEGER PRIMARY KEY,
+    key_name TEXT NOT NULL DEFAULT 'display_name',
+    key_value TEXT DEFAULT (upper('example site')),
+    load_policy TEXT NOT NULL DEFAULT 'yes',
     touched_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    option_name_lc TEXT GENERATED ALWAYS AS (lower(option_name)) VIRTUAL,
-    option_value_len INTEGER GENERATED ALWAYS AS (length(option_value)) STORED,
-    option_cache_key TEXT AS (option_name || ':' || autoload) VIRTUAL
+    key_name_lc TEXT GENERATED ALWAYS AS (lower(key_name)) VIRTUAL,
+    key_value_len INTEGER GENERATED ALWAYS AS (length(key_value)) STORED,
+    setting_cache_key TEXT AS (key_name || ':' || load_policy) VIRTUAL
 )
 SQL;
 
 $rows = [
     [
-        'option_id' => 41,
-        'option_name' => 'siteurl',
-        'option_value' => 'https://example.test',
-        'autoload' => 'yes',
+        'setting_id' => 41,
+        'key_name' => 'service_url',
+        'key_value' => 'https://example.test',
+        'load_policy' => 'yes',
         'touched_at' => '2026-05-26 00:00:00',
-        'option_name_lc' => 'siteurl',
-        'option_value_len' => 20,
-        'option_cache_key' => 'siteurl:yes',
+        'key_name_lc' => 'service_url',
+        'key_value_len' => 20,
+        'setting_cache_key' => 'service_url:yes',
     ],
 ];
 
 $result = SQLiteInsertDefaultValuesSql::execute(
-    'INSERT INTO wp_option_defaults DEFAULT VALUES',
-    ['wp_option_defaults' => $rows],
-    ['wp_option_defaults' => $schema],
+    'INSERT INTO app_setting_defaults DEFAULT VALUES',
+    ['app_setting_defaults' => $rows],
+    ['app_setting_defaults' => $schema],
     '2026-05-27 06:30:45',
 );
 
 $payload = [
-    'applicationUse' => 'Preview INSERT DEFAULT VALUES for copied wp_options-style defaults and generated columns without requiring ext/sqlite.',
+    'applicationUse' => 'Preview INSERT DEFAULT VALUES for copied application settings-style defaults and generated columns without requiring ext/sqlite.',
     'insertedRow' => $result['inserted_row'],
     'changes' => $result['changes'],
     'afterCount' => count($result['after']),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($payload['insertedRow']['option_id'] !== 42) {
-        throw new RuntimeException('Expected next option_id 42');
+    if ($payload['insertedRow']['setting_id'] !== 42) {
+        throw new RuntimeException('Expected next setting_id 42');
     }
-    if ($payload['insertedRow']['option_name_lc'] !== 'blogname') {
-        throw new RuntimeException('Expected generated lower-case option name');
+    if ($payload['insertedRow']['key_name_lc'] !== 'display_name') {
+        throw new RuntimeException('Expected generated lower-case key name');
     }
-    if ($payload['insertedRow']['option_cache_key'] !== 'blogname:yes') {
+    if ($payload['insertedRow']['setting_cache_key'] !== 'display_name:yes') {
         throw new RuntimeException('Expected generated cache key');
     }
 }

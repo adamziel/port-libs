@@ -159,6 +159,72 @@ foreach ($dynamicCases as $name => [$arms, $incoming, $expectedB, $expectedTarge
     };
 }
 
+$caseNames = array_keys($dynamicCases);
+foreach ($caseNames as $leftIndex => $leftName) {
+    foreach ($caseNames as $rightIndex => $rightName) {
+        [$leftArms, $leftIncoming, $leftExpectedB, $leftExpectedTarget, $leftExpectedAction, $leftExpectedChanges, $leftExpectedSkipped] = $dynamicCases[$leftName];
+        [$rightArms, $rightIncoming, $rightExpectedB, $rightExpectedTarget, $rightExpectedAction, $rightExpectedChanges, $rightExpectedSkipped] = $dynamicCases[$rightName];
+        if ($leftArms !== $rightArms) {
+            continue;
+        }
+
+        $caseLabel = sprintf(
+            'real upstream corpus dynamic UPSERT returning yield pair %02d %02d %s then %s',
+            $leftIndex,
+            $rightIndex,
+            strtok($leftName, ' '),
+            strtok($rightName, ' '),
+        );
+
+        $tests[$caseLabel . ' final row follows last changing arm'] = static function (TestRunner $t) use ($baseRow, $leftIncoming, $rightIncoming, $leftArms, $uniqueConstraints, $leftExpectedB, $rightExpectedB, $leftExpectedChanges, $rightExpectedChanges): void {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($baseRow(), [$leftIncoming, $rightIncoming], $leftArms, $uniqueConstraints);
+            $expectedFinalB = $rightExpectedChanges === 1 ? $rightExpectedB : ($leftExpectedChanges === 1 ? $leftExpectedB : 2);
+
+            $t->same($expectedFinalB, $result['after'][0]['b']);
+            $t->same($leftExpectedChanges + $rightExpectedChanges, $result['changes']);
+        };
+
+        $tests[$caseLabel . ' RETURNING stream yields only insert or update rows'] = static function (TestRunner $t) use ($baseRow, $leftIncoming, $rightIncoming, $leftArms, $uniqueConstraints, $leftExpectedB, $rightExpectedB, $leftExpectedChanges, $rightExpectedChanges): void {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($baseRow(), [$leftIncoming, $rightIncoming], $leftArms, $uniqueConstraints);
+            $projected = SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], [
+                'a',
+                'b',
+                'c',
+                'd',
+                'e',
+                'yield_marker' => static fn (array $row): string => 'yield:' . (string) $row['b'],
+            ]);
+            $expected = [];
+            if ($leftExpectedChanges === 1) {
+                $expected[] = ['a' => 1, 'b' => $leftExpectedB, 'c' => 3, 'd' => 4, 'e' => 5, 'yield_marker' => 'yield:' . (string) $leftExpectedB];
+            }
+            if ($rightExpectedChanges === 1) {
+                $expected[] = ['a' => 1, 'b' => $rightExpectedB, 'c' => 3, 'd' => 4, 'e' => 5, 'yield_marker' => 'yield:' . (string) $rightExpectedB];
+            }
+
+            $t->same($expected, $projected);
+            $t->same(count($expected), count($result['returning_rows']));
+        };
+
+        $tests[$caseLabel . ' conflict arm stream preserves statement order'] = static function (TestRunner $t) use ($baseRow, $leftIncoming, $rightIncoming, $leftArms, $uniqueConstraints, $leftExpectedTarget, $rightExpectedTarget, $leftExpectedAction, $rightExpectedAction, $leftExpectedSkipped, $rightExpectedSkipped): void {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($baseRow(), [$leftIncoming, $rightIncoming], $leftArms, $uniqueConstraints);
+            $actualTargets = array_map(
+                static fn (array $match): ?string => $match['target'] === null ? null : implode(',', $match['target']),
+                $result['matched_arms'],
+            );
+            $actualActions = array_column($result['matched_arms'], 'action');
+            $expectedTargets = [
+                $leftExpectedTarget === null ? null : implode(',', $leftExpectedTarget),
+                $rightExpectedTarget === null ? null : implode(',', $rightExpectedTarget),
+            ];
+
+            $t->same($expectedTargets, $actualTargets);
+            $t->same([$leftExpectedAction, $rightExpectedAction], $actualActions);
+            $t->same($leftExpectedSkipped + $rightExpectedSkipped, count($result['skipped_rows']));
+        };
+    }
+}
+
 $tests['real upstream corpus returning1-4.2 conflict update returns updated row'] = static function (TestRunner $t) use ($mixedReturning): void {
     $t->same([['a' => 2, 'b' => 3, 'c' => 4], ['a' => 4, 'b' => 100, 'c' => 6], ['a' => 5, 'b' => 6, 'c' => 7]], $mixedReturning()['returning_rows']);
 };
