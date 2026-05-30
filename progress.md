@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:56 UTC):
+  Latest accepted libsqlite source is `4a90dd9c4`
+  (`libsqlite: add high yield corpus coverage batch`). This batch accepts 19
+  fresh real/bulk handoffs on top of `0eff666a6` and skips 3
+  stale/overlapping handoffs. It adds date3 auto-boundary coverage,
+  expression-affinity corpus coverage, PRAGMA introspection/schema3 coverage,
+  trigger RAISE behavior coverage, UPSERT/RETURNING priority-matrix coverage,
+  windowA ordered RANGE and window value coverage, VFS ioerr2 coverage, and
+  select WHERE/GROUP corpus coverage. Focused verification passed `9 files /
+  56710 assertions / 0 failures / 37592 PASS lines`; the accepted-base
+  comparison over existing selected files passed `7 files / 44490 assertions /
+  0 failures / 27481 PASS lines`, so the honest selected PASS-line delta is
+  `+10111`. Public libsqlite should move to `355604 pass / 0 fail`; mapped
+  coverage remains `1472 / 1589`. This confirms the path to `10000+` more
+  passed tests/hour: filter for fresh real/bulk handoffs, set intent-to-add
+  before scoring so new tests are counted, reject overlapping patches quickly,
+  and publish immediately after focused gates pass.
+
 - 2026-05-30 supervisor continuation (integration sample 18:51 UTC):
   Latest accepted libsqlite source is `f876e883a4`
   (`libsqlite: add speed batch corpus coverage`). This batch accepts 30 clean
