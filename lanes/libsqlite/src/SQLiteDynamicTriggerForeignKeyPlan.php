@@ -125,6 +125,74 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $rows
+     * @param array{event:string,match_column:string,match_value:mixed,delete_column:string,delete_value:mixed,name?:string} $trigger
+     * @param array<string,mixed> $assignments
+     * @return array<string,mixed>
+     */
+    public static function updateWithAfterTrigger(array $rows, string $whereColumn, mixed $whereValue, array $assignments, array $trigger): array
+    {
+        $whereColumn = self::identifier($whereColumn, 'WHERE column');
+        $matchColumn = self::identifier((string) ($trigger['match_column'] ?? ''), 'trigger match column');
+        $deleteColumn = self::identifier((string) ($trigger['delete_column'] ?? ''), 'trigger delete column');
+        $triggerName = self::identifier((string) ($trigger['name'] ?? 'audit_update'), 'trigger name');
+        $rows = array_values($rows);
+        $outerUpdated = [];
+        $triggerDeleted = [];
+
+        foreach ($assignments as $column => $_) {
+            self::identifier((string) $column, 'assignment column');
+        }
+
+        foreach ($rows as $index => $row) {
+            if (($row[$whereColumn] ?? null) !== $whereValue) {
+                continue;
+            }
+            $old = $row;
+            foreach ($assignments as $column => $value) {
+                $row[(string) $column] = is_callable($value) ? $value($old, $row) : $value;
+            }
+            $rows[$index] = $row;
+            $outerUpdated[] = ['old' => $old, 'new' => $row];
+        }
+
+        foreach ($outerUpdated as $change) {
+            $old = $change['old'];
+            if (($old[$matchColumn] ?? null) !== $trigger['match_value']) {
+                continue;
+            }
+            foreach ($rows as $index => $row) {
+                if (($row[$deleteColumn] ?? null) === $trigger['delete_value'] && ($row['id'] ?? null) !== ($change['new']['id'] ?? null)) {
+                    $triggerDeleted[] = $row + ['trigger' => $triggerName];
+                    unset($rows[$index]);
+                }
+            }
+            $rows = array_values($rows);
+        }
+
+        $updatedIds = array_values(array_map(static fn (array $change): mixed => $change['new']['id'] ?? null, $outerUpdated));
+
+        return [
+            'source' => 'trigger1.test trigger1-1.11',
+            'operation' => 'update-statement-with-after-update-trigger',
+            'status' => 'commit-ok',
+            'trigger' => $triggerName,
+            'outer_updated_ids' => $updatedIds,
+            'trigger_deleted_ids' => array_values(array_column($triggerDeleted, 'id')),
+            'remaining_ids' => array_values(array_column(self::sortRows($rows), 'id')),
+            'updated_rows' => array_values(array_map(static fn (array $change): array => $change['new'], $outerUpdated)),
+            'outer_update_count' => count($outerUpdated),
+            'trigger_delete_count' => count($triggerDeleted),
+            'total_changes' => count($outerUpdated) + count($triggerDeleted),
+            'statement_update_preserved' => $outerUpdated !== [],
+            'dependencies' => [
+                'sqlite-trigger1-update-trigger-does-not-corrupt-outer-update',
+                'sqlite-row-trigger-old-row-scope',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{name:string,object_type:string,target?:string,temp?:bool}> $objects
      * @return array<string,mixed>
      */

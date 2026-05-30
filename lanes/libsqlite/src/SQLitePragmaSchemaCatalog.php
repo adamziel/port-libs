@@ -164,20 +164,18 @@ final class SQLitePragmaSchemaCatalog
 
         $columns = self::columnsFromCreateTable($record->sql);
         $rows = [];
-        $pkOrdinal = 0;
         foreach ($columns as $cid => $column) {
             if ($column['hidden'] !== 0 && !$includeHidden) {
                 continue;
             }
 
-            $pk = $column['primaryKey'] ? ++$pkOrdinal : 0;
             $row = [
                 'cid' => $cid,
                 'name' => $column['name'],
                 'type' => $column['type'],
                 'notnull' => $column['notNull'] ? 1 : 0,
                 'dflt_value' => $column['default'],
-                'pk' => $pk,
+                'pk' => $column['primaryKey'],
             ];
             if ($includeHidden) {
                 $row['hidden'] = $column['hidden'];
@@ -502,7 +500,7 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: bool, hidden: int}>
+     * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}>
      */
     private static function columnsFromCreateTable(string $sql): array
     {
@@ -546,15 +544,16 @@ final class SQLitePragmaSchemaCatalog
                 'type' => $type,
                 'notNull' => self::containsTopLevelKeyword($tail, 'NOT NULL') || self::containsTopLevelKeyword($tail, 'PRIMARY KEY'),
                 'default' => self::defaultValue($tail),
-                'primaryKey' => self::containsTopLevelKeyword($tail, 'PRIMARY KEY'),
+                'primaryKey' => self::containsTopLevelKeyword($tail, 'PRIMARY KEY') ? 1 : 0,
                 'hidden' => self::generatedHiddenCode($tail),
             ];
         }
 
         if ($tablePrimaryKeys !== []) {
             foreach ($columns as &$column) {
-                $column['primaryKey'] = in_array(strtolower($column['name']), $tablePrimaryKeys, true);
-                if ($column['primaryKey']) {
+                $primaryKeyOrdinal = $tablePrimaryKeys[strtolower($column['name'])] ?? 0;
+                $column['primaryKey'] = $primaryKeyOrdinal;
+                if ($primaryKeyOrdinal !== 0) {
                     $column['notNull'] = true;
                 }
             }
@@ -694,7 +693,7 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return list<string>
+     * @return array<string, int>
      */
     private static function tablePrimaryKeyColumns(string $list): array
     {
@@ -702,7 +701,7 @@ final class SQLitePragmaSchemaCatalog
         foreach (self::splitTopLevel($list, ',') as $part) {
             $identifier = self::readIdentifier(trim($part), 0);
             if ($identifier !== null) {
-                $columns[] = strtolower($identifier['identifier']);
+                $columns[strtolower($identifier['identifier'])] = count($columns) + 1;
             }
         }
 
@@ -901,7 +900,7 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: bool, hidden: int}>
+     * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}>
      */
     private function tableColumns(string $tableName): array
     {

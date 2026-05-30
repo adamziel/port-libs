@@ -167,6 +167,79 @@ for ($id = 1; $id <= 40; $id++) {
     }
 }
 
+for ($id = 1; $id <= 50; $id++) {
+    $rows = [
+        ['id' => 1, 'kind' => 'update', 'bucket' => 'a', 'label' => 'alpha'],
+        ['id' => 2, 'kind' => 'keep', 'bucket' => 'b', 'label' => 'bravo'],
+        ['id' => 3, 'kind' => 'update', 'bucket' => 'b', 'label' => 'charlie'],
+        ['id' => 4, 'kind' => 'side', 'bucket' => 'c', 'label' => 'delta'],
+        ['id' => 5, 'kind' => 'keep', 'bucket' => 'c', 'label' => 'echo'],
+        ['id' => 6, 'kind' => 'side', 'bucket' => 'd', 'label' => 'foxtrot'],
+    ];
+    $whereValue = $id % 2 === 0 ? 'update' : 'keep';
+    $deleteValue = match ($id % 4) {
+        0 => 'c',
+        1 => 'b',
+        2 => 'd',
+        default => 'a',
+    };
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::updateWithAfterTrigger(
+        $rows,
+        'kind',
+        $whereValue,
+        [
+            'label' => static fn (array $old): string => 'x-' . $old['label'],
+            'bucket' => static fn (array $old): string => (string) $old['bucket'],
+        ],
+        [
+            'name' => 'audit_update_' . $id,
+            'event' => 'update',
+            'match_column' => 'kind',
+            'match_value' => $whereValue,
+            'delete_column' => 'bucket',
+            'delete_value' => $deleteValue,
+        ]
+    );
+    $outerUpdated = array_values(array_column(array_filter($rows, static fn (array $row): bool => $row['kind'] === $whereValue), 'id'));
+    $triggerRows = $rows;
+    $triggerDeleted = [];
+    foreach ($outerUpdated as $updatedId) {
+        foreach ($triggerRows as $index => $row) {
+            if (($row['bucket'] ?? null) === $deleteValue && ($row['id'] ?? null) !== $updatedId) {
+                $triggerDeleted[] = $row['id'];
+                unset($triggerRows[$index]);
+            }
+        }
+        $triggerRows = array_values($triggerRows);
+    }
+    $remaining = array_values(array_diff(array_column($rows, 'id'), $triggerDeleted));
+    sort($remaining);
+    $case = 'trigger1-1.11 after update trigger preserves outer update ' . $id;
+    foreach ([
+        'source' => 'trigger1.test trigger1-1.11',
+        'operation' => 'update-statement-with-after-update-trigger',
+        'status' => 'commit-ok',
+        'trigger' => 'audit_update_' . $id,
+        'outer_updated_ids' => $outerUpdated,
+        'trigger_deleted_ids' => $triggerDeleted,
+        'remaining_ids' => $remaining,
+        'outer_update_count' => count($outerUpdated),
+        'trigger_delete_count' => count($triggerDeleted),
+        'total_changes' => count($outerUpdated) + count($triggerDeleted),
+        'statement_update_preserved' => true,
+        'dependencies.0' => 'sqlite-trigger1-update-trigger-does-not-corrupt-outer-update',
+    ] as $path => $expected) {
+        $tests[$case . ' ' . $path] = static function (TestRunner $t) use ($plan, $path, $expected, $value): void {
+            $t->same($expected, $value($plan(), (string) $path));
+        };
+    }
+    $tests[$case . ' updated labels keep outer rows'] = static function (TestRunner $t) use ($plan): void {
+        foreach ($plan()['updated_rows'] as $row) {
+            $t->same(0, strpos((string) $row['label'], 'x-'));
+        }
+    };
+}
+
 for ($i = 1; $i <= 26; $i++) {
     $objects = [
         ['name' => 'main_items', 'object_type' => 'table'],

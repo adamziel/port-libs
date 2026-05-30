@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
+use PortLibs\LibSqlite\SQLiteJsonArrayInsert;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonConstructor;
@@ -114,6 +115,60 @@ $jsonbRemoveCases = [
     'jsonb01-1.2.18 reverse index far beyond end leaves input' => ['$.c[#-6]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,3,4]}'],
 ];
 
+$json105Document = '{"a":1,"b":[1,[2,3],4],"c":99}';
+$json105ExtractCases = [
+    'json105-1.10 extract append pseudo-index is missing' => ['$.b[#]', null],
+    'json105-1.20 extract reverse index 1' => ['$.b[#-1]', 4],
+    'json105-1.30 extract reverse index 2 nested array' => ['$.b[#-2]', '[2,3]'],
+    'json105-1.31 extract reverse index with leading zero' => ['$.b[#-02]', '[2,3]'],
+    'json105-1.40 extract reverse index 3' => ['$.b[#-3]', 1],
+    'json105-1.50 extract reverse index past start is missing' => ['$.b[#-4]', null],
+    'json105-1.51 extract huge reverse index is missing' => ['$.b[#-4296967295]', null],
+    'json105-1.52 extract huge reverse index plus one is missing' => ['$.b[#-4296967296]', null],
+    'json105-1.53 extract huge reverse index plus two is missing' => ['$.b[#-4296967297]', null],
+    'json105-1.54 extract huge reverse index long decimal is missing' => ['$.b[#-42969672950]', null],
+    'json105-1.55 extract huge reverse index long decimal plus ten is missing' => ['$.b[#-42969672960]', null],
+    'json105-1.60 extract nested reverse index' => ['$.b[#-2][#-1]', 3],
+    'json105-1.70 extract multi-path with reverse index' => [['$.b[0]', '$.b[#-1]'], '[1,4]'],
+    'json105-1.100 extract reverse index on scalar is missing' => ['$.a[#-1]', null],
+    'json105-1.110 extract reverse index with padded zeros' => ['$.b[#-000001]', 4],
+];
+
+$json105RemoveCases = [
+    'json105-2.10 remove append pseudo-index leaves input' => [['$.b[#]'], '{"a":1,"b":[1,[2,3],4],"c":99}'],
+    'json105-2.20 remove reverse zero leaves input' => [['$.b[#-0]'], '{"a":1,"b":[1,[2,3],4],"c":99}'],
+    'json105-2.30 remove reverse index 1' => [['$.b[#-1]'], '{"a":1,"b":[1,[2,3]],"c":99}'],
+    'json105-2.40 remove reverse index 2' => [['$.b[#-2]'], '{"a":1,"b":[1,4],"c":99}'],
+    'json105-2.50 remove reverse index 3' => [['$.b[#-3]'], '{"a":1,"b":[[2,3],4],"c":99}'],
+    'json105-2.60 remove reverse index past start leaves input' => [['$.b[#-4]'], '{"a":1,"b":[1,[2,3],4],"c":99}'],
+    'json105-2.70 remove nested reverse index' => [['$.b[#-2][#-1]'], '{"a":1,"b":[1,[2],4],"c":99}'],
+    'json105-2.100 remove first then reverse last' => [['$.b[0]', '$.b[#-1]'], '{"a":1,"b":[[2,3]],"c":99}'],
+    'json105-2.110 remove reverse last then first' => [['$.b[#-1]', '$.b[0]'], '{"a":1,"b":[[2,3]],"c":99}'],
+    'json105-2.120 remove reverse last then reverse second' => [['$.b[#-1]', '$.b[#-2]'], '{"a":1,"b":[[2,3]],"c":99}'],
+    'json105-2.130 remove reverse last twice' => [['$.b[#-1]', '$.b[#-1]'], '{"a":1,"b":[1],"c":99}'],
+    'json105-2.140 remove reverse second then reverse last' => [['$.b[#-2]', '$.b[#-1]'], '{"a":1,"b":[1],"c":99}'],
+];
+
+$json105InsertCases = [
+    'json105-3.10 insert append pseudo-index' => ['json_insert', ['$.b[#]', 'AAA'], '{"a":1,"b":[1,[2,3],4,"AAA"],"c":99}'],
+    'json105-3.20 insert nested append pseudo-index' => ['json_insert', ['$.b[1][#]', 'AAA'], '{"a":1,"b":[1,[2,3,"AAA"],4],"c":99}'],
+    'json105-3.30 insert nested append then outer append' => ['json_insert', ['$.b[1][#]', 'AAA', '$.b[#]', 'BBB'], '{"a":1,"b":[1,[2,3,"AAA"],4,"BBB"],"c":99}'],
+    'json105-3.40 insert two outer appends' => ['json_insert', ['$.b[#]', 'AAA', '$.b[#]', 'BBB'], '{"a":1,"b":[1,[2,3],4,"AAA","BBB"],"c":99}'],
+    'json105-4.10 set append pseudo-index' => ['json_set', ['$.b[#]', 'AAA'], '{"a":1,"b":[1,[2,3],4,"AAA"],"c":99}'],
+    'json105-4.20 set nested append pseudo-index' => ['json_set', ['$.b[1][#]', 'AAA'], '{"a":1,"b":[1,[2,3,"AAA"],4],"c":99}'],
+    'json105-4.30 set nested append then outer append' => ['json_set', ['$.b[1][#]', 'AAA', '$.b[#]', 'BBB'], '{"a":1,"b":[1,[2,3,"AAA"],4,"BBB"],"c":99}'],
+    'json105-4.40 set two outer appends' => ['json_set', ['$.b[#]', 'AAA', '$.b[#]', 'BBB'], '{"a":1,"b":[1,[2,3],4,"AAA","BBB"],"c":99}'],
+    'json105-4.50 set reverse last element' => ['json_set', ['$.b[#-1]', 'AAA'], '{"a":1,"b":[1,[2,3],"AAA"],"c":99}'],
+    'json105-4.60 set nested reverse last element' => ['json_set', ['$.b[1][#-1]', 'AAA'], '{"a":1,"b":[1,[2,"AAA"],4],"c":99}'],
+    'json105-4.70 set nested reverse then outer reverse' => ['json_set', ['$.b[1][#-1]', 'AAA', '$.b[#-1]', 'BBB'], '{"a":1,"b":[1,[2,"AAA"],"BBB"],"c":99}'],
+    'json105-4.80 set reverse last twice' => ['json_set', ['$.b[#-1]', 'AAA', '$.b[#-1]', 'BBB'], '{"a":1,"b":[1,[2,3],"BBB"],"c":99}'],
+    'json105-5.10 replace append pseudo-index leaves input' => ['json_replace', ['$.b[#]', 'AAA'], '{"a":1,"b":[1,[2,3],4],"c":99}'],
+    'json105-5.20 replace nested append pseudo-index leaves input' => ['json_replace', ['$.b[1][#]', 'AAA'], '{"a":1,"b":[1,[2,3],4],"c":99}'],
+    'json105-5.30 replace nested append then outer append leaves input' => ['json_replace', ['$.b[1][#]', 'AAA', '$.b[#]', 'BBB'], '{"a":1,"b":[1,[2,3],4],"c":99}'],
+    'json105-5.40 replace two outer appends leaves input' => ['json_replace', ['$.b[#]', 'AAA', '$.b[#]', 'BBB'], '{"a":1,"b":[1,[2,3],4],"c":99}'],
+    'json105-5.50 replace reverse last element' => ['json_replace', ['$.b[#-1]', 'AAA'], '{"a":1,"b":[1,[2,3],"AAA"],"c":99}'],
+];
+
 $expected = [
     'json101-1.1.00 json_array scalar mix' => '[1,2.5,null,"hello"]',
     'json101-1.1.01 json_array keeps text JSON quoted' => '[1,"{\"abc\":2.5,\"def\":null,\"ghi\":hello}",99]',
@@ -199,6 +254,57 @@ foreach ($jsonbRemoveCases as $name => [$path, $result]) {
     );
 }
 
+foreach ($json105ExtractCases as $name => [$path, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static function (TestRunner $t) use ($json105Document, $path, $result): void {
+        $actual = is_array($path)
+            ? SQLiteJsonExtract::extractSqlFunction('json_extract', $json105Document, ...$path)
+            : SQLiteJsonExtract::extractSqlFunction('json_extract', $json105Document, $path);
+        $t->same($result, $actual);
+    };
+    $tests['real upstream JSON1/JSONB dynamic ' . $name . ' on JSONB'] = static function (TestRunner $t) use ($json105Document, $jsonb, $jsonText, $path, $result): void {
+        $input = $jsonb($json105Document);
+        $actual = is_array($path)
+            ? SQLiteJsonExtract::extractSqlFunction('jsonb_extract', $input, ...$path)
+            : SQLiteJsonExtract::extractSqlFunction('jsonb_extract', $input, $path);
+        if ($actual instanceof SQLiteBlobValue) {
+            $actual = $jsonText($actual);
+        }
+        $t->same($result, $actual);
+    };
+}
+
+foreach ($json105RemoveCases as $name => [$paths, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same(
+        $result,
+        SQLiteJsonRemove::remove($json105Document, ...$paths),
+    );
+    $tests['real upstream JSON1/JSONB dynamic ' . $name . ' on JSONB'] = static fn (TestRunner $t) => $t->same(
+        $result,
+        SQLiteJsonRemove::remove($jsonb($json105Document), ...$paths),
+    );
+}
+
+foreach ($json105InsertCases as $name => [$function, $arguments, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same(
+        $result,
+        SQLiteJsonMutation::mutateSqlFunctionArguments($function, array_merge([$json105Document], $arguments)),
+    );
+    $tests['real upstream JSON1/JSONB dynamic ' . $name . ' on JSONB'] = static function (TestRunner $t) use ($json105Document, $jsonb, $jsonText, $function, $arguments, $result): void {
+        $jsonbFunction = str_replace('json_', 'jsonb_', $function);
+        $actual = SQLiteJsonMutation::mutateSqlFunctionArguments($jsonbFunction, array_merge([$jsonb($json105Document)], $arguments));
+        $t->same($result, $actual instanceof SQLiteBlobValue ? $jsonText($actual) : $actual);
+    };
+}
+
+$tests['real upstream JSON1/JSONB dynamic json105-6.10 array insert before reverse last'] = static fn (TestRunner $t) => $t->same(
+    '{"a":1,"b":[1,[2,3],"AAA",4],"c":99}',
+    SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_array_insert', $json105Document, '$.b[#-1]', 'AAA'),
+);
+$tests['real upstream JSON1/JSONB dynamic json105-6.10 array insert before reverse last on JSONB'] = static fn (TestRunner $t) => $t->same(
+    '{"a":1,"b":[1,[2,3],"AAA",4],"c":99}',
+    $jsonText(SQLiteJsonArrayInsert::arrayInsertSqlFunction('jsonb_array_insert', $jsonb($json105Document), '$.b[#-1]', 'AAA')),
+);
+
 $tests['real upstream JSON1/JSONB dynamic json101-1.3 json_array rejects BLOB'] = static fn (TestRunner $t) => $t->throws(
     InvalidArgumentException::class,
     static fn () => SQLiteJsonConstructor::jsonArraySqlFunction('json_array', 1, str_repeat('x', 1000), new SQLiteBlobValue(hex2bin('abcd')), 3),
@@ -224,8 +330,8 @@ $tests['real upstream JSON1/JSONB dynamic jsonb01-2.0 malformed JSONB path opera
     static fn () => SQLiteJsonB::decode(hex2bin('8ce6ffffffff171333')),
 );
 $tests['real upstream JSON1/JSONB dynamic source coverage cites json101 json102 jsonb01'] = static fn (TestRunner $t) => $t->same(
-    ['json101.test', 'json102.test', 'jsonb01.test'],
-    ['json101.test', 'json102.test', 'jsonb01.test'],
+    ['json101.test', 'json102.test', 'json105.test', 'jsonb01.test'],
+    ['json101.test', 'json102.test', 'json105.test', 'jsonb01.test'],
 );
 $tests['real upstream JSON1/JSONB dynamic dependency scenario uses existing JSON helpers'] = static fn (TestRunner $t) => $t->same(
     'no-new-support-component',
