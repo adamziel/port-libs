@@ -12,6 +12,8 @@ final class SQLitePdoFetchTarget
     public mixed $qty = null;
 }
 
+$sqlitePdoNativeAvailable = static fn (): bool => in_array('sqlite', PDO::getAvailableDrivers(), true);
+
 return [
     'SQLitePDO extends native PDO classes' => static function (TestRunner $t): void {
         $pdo = new SQLitePDO('sqlite::memory:');
@@ -36,6 +38,9 @@ return [
 
         $statement = $pdo->query('SELECT name FROM users ORDER BY id');
         $t->same(['Ada', 'Linus'], $statement->fetchAll(PDO::FETCH_COLUMN));
+
+        $statement = $pdo->query('SELECT id, name FROM users ORDER BY id', PDO::FETCH_COLUMN, 1);
+        $t->same(['Ada', 'Linus'], $statement->fetchAll());
     },
 
     'SQLitePDO prepared statements bind positional named and referenced parameters' => static function (TestRunner $t): void {
@@ -93,6 +98,7 @@ return [
         $t->true($pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION));
         $t->throws(PDOException::class, static fn () => $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT));
         $t->throws(PDOException::class, static fn () => $pdo->getAttribute(PDO::ATTR_AUTOCOMMIT));
+        $t->same('sqlite', $pdo->getAttribute(PDO::ATTR_DRIVER_NAME));
         $t->throws(PDOException::class, static fn () => $pdo->exec('VACUUM'));
         $t->same('HY000', $pdo->errorCode());
         $t->same('HY000', $pdo->errorInfo()[0]);
@@ -183,5 +189,45 @@ return [
         $t->throws(PDOException::class, static fn () => $bad->execute());
         $t->same('HY000', $bad->errorCode());
         $t->same('HY000', $bad->errorInfo()[0]);
+    },
+
+    'SQLitePDO matches native PDO sqlite for common query prepare exec and transaction flows when available' => static function (TestRunner $t) use ($sqlitePdoNativeAvailable): void {
+        if (!$sqlitePdoNativeAvailable()) {
+            return;
+        }
+
+        $polyfill = new SQLitePDO('sqlite::memory:', options: [PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+        $native = new PDO('sqlite::memory:', options: [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+
+        foreach ([$polyfill, $native] as $pdo) {
+            $t->same(0, $pdo->exec('CREATE TABLE records (id INTEGER PRIMARY KEY, label TEXT, amount INTEGER)'));
+            $insert = $pdo->prepare('INSERT INTO records (label, amount) VALUES (:label, :amount)');
+            $t->true($insert->execute(['label' => 'alpha', 'amount' => 3]));
+            $t->true($insert->execute(['label' => 'beta', 'amount' => 5]));
+        }
+
+        $sql = 'SELECT id, label, amount FROM records WHERE amount >= :minimum ORDER BY id';
+        $polyfillStatement = $polyfill->prepare($sql);
+        $nativeStatement = $native->prepare($sql);
+        $t->true($polyfillStatement->execute(['minimum' => 3]));
+        $t->true($nativeStatement->execute(['minimum' => 3]));
+        $t->same($nativeStatement->fetchAll(), $polyfillStatement->fetchAll());
+        $polyfillPositional = $polyfill->prepare('SELECT label FROM records WHERE amount = ?');
+        $nativePositional = $native->prepare('SELECT label FROM records WHERE amount = ?');
+        $t->true($polyfillPositional->execute([5]));
+        $t->true($nativePositional->execute([5]));
+        $t->same($nativePositional->fetchColumn(), $polyfillPositional->fetchColumn());
+        $t->same('alpha', $polyfill->query('SELECT id, label FROM records ORDER BY id', PDO::FETCH_COLUMN, 1)->fetch());
+
+        $polyfill->beginTransaction();
+        $native->beginTransaction();
+        $polyfill->exec("INSERT INTO records (label, amount) VALUES ('discarded', 9)");
+        $native->exec("INSERT INTO records (label, amount) VALUES ('discarded', 9)");
+        $polyfill->rollBack();
+        $native->rollBack();
+        $t->same(
+            $native->query('SELECT count(*) AS c FROM records')->fetchColumn(),
+            $polyfill->query('SELECT count(*) AS c FROM records')->fetchColumn()
+        );
     },
 ];

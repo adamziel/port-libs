@@ -38,6 +38,7 @@ final class SQLitePDOStatement extends \PDOStatement
     private int $cursor = 0;
     private int $rowCount = 0;
     private ?int $fetchMode = null;
+    private int $fetchColumnIndex = 0;
     private string $fetchClass = 'stdClass';
     private ?object $fetchInto = null;
     private string $errorCode = '00000';
@@ -98,7 +99,7 @@ final class SQLitePDOStatement extends \PDOStatement
     {
         $mode = $this->effectiveFetchMode($mode);
         if ($mode === \PDO::FETCH_COLUMN) {
-            $column = isset($args[0]) ? (int) $args[0] : 0;
+            $column = isset($args[0]) ? (int) $args[0] : $this->fetchColumnIndex;
             $values = [];
             while (($value = $this->fetchColumn($column)) !== false) {
                 $values[] = $value;
@@ -184,6 +185,14 @@ final class SQLitePDOStatement extends \PDOStatement
                 throw new \PDOException('SQLitePDOStatement FETCH_CLASS needs an existing class name');
             }
             $this->fetchClass = $class;
+        } elseif ($mode === \PDO::FETCH_COLUMN) {
+            if (isset($args[0])) {
+                $column = (int) $args[0];
+                if ($column < 0) {
+                    throw new \PDOException('SQLitePDOStatement column index cannot be negative');
+                }
+                $this->fetchColumnIndex = $column;
+            }
         } elseif ($mode === \PDO::FETCH_INTO) {
             if (!isset($args[0]) || !is_object($args[0])) {
                 throw new \PDOException('SQLitePDOStatement FETCH_INTO needs an object');
@@ -207,7 +216,7 @@ final class SQLitePDOStatement extends \PDOStatement
             return array_values($row);
         }
         if ($mode === \PDO::FETCH_COLUMN) {
-            return array_values($row)[0] ?? false;
+            return array_values($row)[$this->fetchColumnIndex] ?? false;
         }
         if ($mode === \PDO::FETCH_OBJ) {
             return (object) $row;

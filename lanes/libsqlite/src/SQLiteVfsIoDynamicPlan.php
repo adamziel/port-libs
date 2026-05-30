@@ -425,6 +425,74 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function pageroptCacheReuseProfile(
+        int $pageSize,
+        int $payloadBytes,
+        int $cachePages,
+        bool $externalReader,
+        bool $externalWriter,
+        bool $mmapPermutation = false
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite pageropt cache reuse page size must be a power of two at least 512');
+        }
+        if ($payloadBytes < 1 || $cachePages < 1) {
+            throw new \InvalidArgumentException('SQLite pageropt cache reuse requires positive payload and cache counts');
+        }
+
+        $payloadPages = max(1, (int) ceil($payloadBytes / max(1, $pageSize - 35)));
+        $schemaPages = 1;
+        $tableRootPages = 1;
+        $pageReadCount = 0;
+        $cacheRetained = true;
+        $reason = 'pager_cache_reused_without_disk_read';
+
+        if ($externalWriter) {
+            $pageReadCount = $mmapPermutation ? 1 : $schemaPages + $tableRootPages + $payloadPages;
+            $cacheRetained = false;
+            $reason = 'external_writer_invalidates_pager_cache';
+        } elseif ($externalReader) {
+            $reason = 'external_reader_preserves_valid_pager_cache';
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'pageropt.test',
+            'upstream' => [
+                'pageropt.test pageropt-1.3',
+                'pageropt.test pageropt-1.4',
+                'pageropt.test pageropt-1.5',
+                'pageropt.test pageropt-1.6',
+            ],
+            'page_size' => $pageSize,
+            'payload_bytes' => $payloadBytes,
+            'cache_pages' => $cachePages,
+            'payload_pages' => $payloadPages,
+            'external_reader' => $externalReader,
+            'external_writer' => $externalWriter,
+            'mmap_permutation' => $mmapPermutation,
+            'initial_insert_database_writes' => $schemaPages + $tableRootPages + $payloadPages,
+            'initial_insert_journal_writes' => max(0, $payloadPages - 1),
+            'same_connection_read_db_reads' => 0,
+            'same_connection_read_db_writes' => 0,
+            'same_connection_read_journal_writes' => 0,
+            'external_reader_read_db_reads' => 0,
+            'post_external_change_read_db_reads' => $pageReadCount,
+            'post_external_change_read_db_writes' => 0,
+            'post_external_change_journal_writes' => 0,
+            'second_read_db_reads' => 0,
+            'cache_retained_after_external_reader' => $externalReader && !$externalWriter,
+            'cache_invalidated_by_external_writer' => $externalWriter,
+            'cache_retained' => $cacheRetained,
+            'selected_value_length' => $payloadBytes,
+            'reason' => $reason,
+            'dependencies' => ['upstream-pageropt-cache-reuse', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @param list<array<string, mixed>> $committedRows
      * @param list<array<string, mixed>> $pendingRows

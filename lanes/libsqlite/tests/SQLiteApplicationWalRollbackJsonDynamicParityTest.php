@@ -5,11 +5,23 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 
-$scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(16);
+$scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(24);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
-        $t->same(16, count($scenarios));
+        $t->same(24, count($scenarios));
+    },
+    'sqlite application wal rollback json dynamic parity covers both page sizes' => static function (TestRunner $t) use ($scenarios): void {
+        $pageSizes = array_values(array_unique(array_column($scenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity covers json text and jsonb rows' => static function (TestRunner $t) use ($scenarios): void {
+        $t->same([false, true], array_values(array_unique(array_column($scenarios, 'jsonb_mode'))));
+    },
+    'sqlite application wal rollback json dynamic parity has unique tenant streams' => static function (TestRunner $t) use ($scenarios): void {
+        $tenantIds = array_column($scenarios, 'tenant_id');
+        $t->same(count($tenantIds), count(array_unique($tenantIds)));
     },
 ];
 
@@ -105,6 +117,13 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero scenari
     }
 
     $t->same('rejected', 'accepted');
+};
+
+$tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
+    $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
+    $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
+    $t->same([6, 7, 8], array_column($smallBatch, 'wal_frames_before'));
 };
 
 return $tests;

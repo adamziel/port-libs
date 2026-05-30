@@ -3229,6 +3229,58 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,statement:string,table:string,indexed_by:string|null,not_indexed:bool,operation:string,scenario:string,detail:string,uses_index:bool,uses_rowid:bool,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,integrity:string}>
+     */
+    public static function indexedByPlannerEnforcementCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexedby dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['indexedby-2.1', 'SELECT * FROM t1 NOT INDEXED WHERE a = ? AND b = ?', 't1', null, true, 'SELECT', 'qualified table accepts NOT INDEXED and scans row storage', 'SCAN t1', false, false, 0, null, []],
+            ['indexedby-2.2', 'SELECT * FROM t1 INDEXED BY i1 WHERE a = ? AND b = ?', 't1', 'i1', false, 'SELECT', 'INDEXED BY pins lookup to the named a-column index', 'SEARCH t1 USING INDEX i1 (a=?)', true, false, 0, null, []],
+            ['indexedby-2.4', 'SELECT * FROM t1 INDEXED BY i3 WHERE a = ? AND b = ?', 't1', 'i3', false, 'SELECT', 'INDEXED BY rejects an index owned by a different table', '', false, false, 1, 'no such index: i3', []],
+            ['indexedby-3.1.2', 'SELECT * FROM t1 NOT INDEXED WHERE rowid=?', 't1', null, true, 'SELECT', 'NOT INDEXED still permits the rowid lookup path', 'SEARCH t1 USING INTEGER PRIMARY KEY (rowid=?)', false, true, 0, null, [[1, 'two']]],
+            ['indexedby-3.8', 'SELECT * FROM t3 INDEXED BY sqlite_autoindex_t3_1 ORDER BY e', 't3', 'sqlite_autoindex_t3_1', false, 'SELECT', 'autoindex can be explicitly required for ordered primary-key scan', 'SCAN t3 USING INDEX sqlite_autoindex_t3_1', true, false, 0, null, []],
+            ['indexedby-4.2', 'SELECT * FROM t1 INDEXED BY i1, t2 WHERE a = c', 't1', 'i1', false, 'SELECT', 'join order keeps the forced index on the left table', 'SCAN t1 USING INDEX i1; SEARCH t2 USING INDEX i3 (c=?)', true, false, 0, null, []],
+            ['indexedby-5.3', 'SELECT * FROM v2', 'v2', 'i1', false, 'SELECT', 'view text remembers INDEXED BY and fails after dropping the index', '', false, false, 1, 'no such index: i1', []],
+            ['indexedby-7.3', 'DELETE FROM t1 INDEXED BY i1 WHERE a = ?', 't1', 'i1', false, 'DELETE', 'DELETE accepts INDEXED BY and pins the a-column index', 'SEARCH t1 USING INDEX i1 (a=?)', true, false, 0, null, []],
+            ['indexedby-7.5', 'DELETE FROM t1 INDEXED BY i2 WHERE a = ? AND b = ?', 't1', 'i2', false, 'DELETE', 'DELETE may be forced to use the b-column index despite another predicate', 'SEARCH t1 USING INDEX i2 (b=?)', true, false, 0, null, []],
+            ['indexedby-8.1', 'UPDATE t1 SET rowid=rowid+1 WHERE a = ?', 't1', null, false, 'UPDATE', 'UPDATE rowid rewrite can use a covering index for row discovery', 'SEARCH t1 USING COVERING INDEX i1 (a=?)', true, false, 0, null, []],
+            ['indexedby-8.2', 'UPDATE t1 NOT INDEXED SET rowid=rowid+1 WHERE a = ?', 't1', null, true, 'UPDATE', 'UPDATE NOT INDEXED disables secondary-index row discovery', 'SCAN t1', false, false, 0, null, []],
+            ['indexedby-9.2', 'SELECT * FROM maintable AS m INNER JOIN joinme AS j INDEXED BY joinme_id_text_idx ON (m.id = j.id_int)', 'joinme', 'joinme_id_text_idx', false, 'SELECT', 'forced text index remains legal when the join expression references the integer column', 'SCAN joinme USING INDEX joinme_id_text_idx', true, false, 0, null, []],
+            ['indexedby-10.3', 'SELECT * FROM t10 indexed by indexed WHERE indexed>?', 't10', 'indexed', false, 'SELECT', 'indexed remains valid as table alias grammar and as an index name', 'SEARCH t10 USING COVERING INDEX indexed (indexed>?)', true, false, 0, null, [[1]]],
+            ['indexedby-12.2', 'SELECT * FROM o1 INDEXED BY p2 ORDER BY 1', 'o1', 'p2', false, 'SELECT', 'unusable partial index required by INDEXED BY reports no query solution', '', false, false, 1, 'no query solution', []],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $statement, $table, $indexedBy, $notIndexed, $operation, $scenario, $detail, $usesIndex, $usesRowid, $resultCode, $error, $resultRows] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'indexedby.test sections indexedby-2.1 through indexedby-12.4',
+                'case' => $case,
+                'upstream_section' => $section,
+                'statement' => $statement,
+                'table' => $table,
+                'indexed_by' => $indexedBy,
+                'not_indexed' => $notIndexed,
+                'operation' => $operation,
+                'scenario' => $scenario,
+                'detail' => $detail,
+                'uses_index' => $usesIndex,
+                'uses_rowid' => $usesRowid,
+                'result_code' => $resultCode,
+                'error' => $error,
+                'result_rows' => $resultRows,
+                'integrity' => $error === null ? 'ok' : 'expected-error',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

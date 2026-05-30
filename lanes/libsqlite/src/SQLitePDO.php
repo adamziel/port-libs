@@ -44,11 +44,10 @@ final class SQLitePDO extends \PDO
 
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): \PDOStatement|false
     {
-        unset($fetchModeArgs);
         $statement = $this->prepare($query);
         $statement->execute();
         if ($fetchMode !== null) {
-            $statement->setFetchMode($fetchMode);
+            $statement->setFetchMode($fetchMode, ...$fetchModeArgs);
         }
 
         return $statement;
@@ -110,6 +109,9 @@ final class SQLitePDO extends \PDO
         }
         if ($attribute === \PDO::ATTR_DEFAULT_FETCH_MODE) {
             return $this->defaultFetchMode;
+        }
+        if ($attribute === \PDO::ATTR_DRIVER_NAME) {
+            return 'sqlite';
         }
 
         throw new \PDOException("SQLitePDO attribute {$attribute} is not supported");

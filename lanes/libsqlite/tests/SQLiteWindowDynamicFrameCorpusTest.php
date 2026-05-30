@@ -184,4 +184,64 @@ $tests['upstream corpus window dynamic frames expanded row-level assertions'] = 
     }
 };
 
+$tests['real upstream window8 dynamic frame matrix offsets preserve aggregate and value frames'] = static function (TestRunner $t) use ($frameIndexes): void {
+    $frameCases = [
+        ['GROUPS', 'UNBOUNDED PRECEDING', '1 PRECEDING'],
+        ['GROUPS', '2 PRECEDING', 'CURRENT ROW'],
+        ['GROUPS', 'CURRENT ROW', '2 FOLLOWING'],
+        ['GROUPS', '1 FOLLOWING', 'UNBOUNDED FOLLOWING'],
+        ['RANGE', '1 PRECEDING', 'CURRENT ROW'],
+        ['RANGE', 'CURRENT ROW', '2 FOLLOWING'],
+        ['ROWS', '2 PRECEDING', '1 FOLLOWING'],
+        ['ROWS', '1 FOLLOWING', '2 FOLLOWING'],
+    ];
+    $functions = ['sum', 'count', 'total', 'avg', 'min', 'max', 'group_concat'];
+
+    for ($offset = 0; $offset < 20; $offset++) {
+        $values = array_map(
+            static fn (int $value): int => $value + ($offset * 3),
+            [10, 20, 30, 40, 50, 60, 70, 80],
+        );
+        $keys = [1, 1, 2, 3, 3, 3, 5, 8];
+        foreach ($frameCases as [$unit, $start, $end]) {
+            $frames = $frameIndexes($keys, $unit, $start, $end);
+            $firstValues = SQLiteWindowFunction::valueFrameBetweenValues('first_value', $values, $keys, $unit, $start, $end);
+            $lastValues = SQLiteWindowFunction::valueFrameBetweenValues('last_value', $values, $keys, $unit, $start, $end);
+            $secondValues = SQLiteWindowFunction::valueFrameBetweenValues('nth_value', $values, $keys, $unit, $start, $end, 'NO OTHERS', 2);
+
+            foreach ($functions as $function) {
+                $actual = SQLiteWindowFunction::aggregateFrameBetweenValues($function, $values, $keys, $unit, $start, $end);
+                foreach ($actual as $row => $value) {
+                    $frameValues = array_map(static fn (int $frameRow): int => $values[$frameRow], $frames[$row]);
+                    $expected = match ($function) {
+                        'sum' => $frameValues === [] ? null : array_sum($frameValues),
+                        'count' => count($frameValues),
+                        'total' => (float) array_sum($frameValues),
+                        'avg' => $frameValues === [] ? null : array_sum($frameValues) / count($frameValues),
+                        'min' => $frameValues === [] ? null : min($frameValues),
+                        'max' => $frameValues === [] ? null : max($frameValues),
+                        'group_concat' => $frameValues === [] ? null : implode(',', $frameValues),
+                    };
+                    $message = "window8.test dynamic matrix offset {$offset} {$function} {$unit} {$start} {$end} row " . ($row + 1);
+                    if ($function === 'avg' || $function === 'total') {
+                        $t->same($expected === null ? null : (float) $expected, $value === null ? null : (float) $value, $message);
+                    } else {
+                        $t->same($expected, $value, $message);
+                    }
+                }
+            }
+
+            foreach ($frames as $row => $frameRows) {
+                $expectedFirst = $frameRows === [] ? null : $values[$frameRows[0]];
+                $expectedLast = $frameRows === [] ? null : $values[$frameRows[count($frameRows) - 1]];
+                $expectedSecond = isset($frameRows[1]) ? $values[$frameRows[1]] : null;
+                $label = "window8.test dynamic value matrix offset {$offset} {$unit} {$start} {$end} row " . ($row + 1);
+                $t->same($expectedFirst, $firstValues[$row], $label . ' first_value');
+                $t->same($expectedLast, $lastValues[$row], $label . ' last_value');
+                $t->same($expectedSecond, $secondValues[$row], $label . ' nth_value');
+            }
+        }
+    }
+};
+
 return $tests;

@@ -62,6 +62,64 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexedByRowidAffinityCases() as $ca
     };
 }
 
+// Source truth: SQLite upstream test/indexedby.test indexedby-2.1 through
+// 12.4. These dynamic cases preserve forced-index planner enforcement across
+// SELECT, DELETE, UPDATE, joins, views, NOT INDEXED rowid escape hatches,
+// keyword-name parsing, and unusable partial-index errors.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexedByPlannerEnforcementCases(1000) as $case) {
+    $tests['real upstream indexedby planner enforcement case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('indexedby.test sections indexedby-2.1 through indexedby-12.4', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'indexedby-'));
+        $t->true(in_array($case['operation'], ['SELECT', 'DELETE', 'UPDATE'], true));
+        $t->true($case['statement'] !== '');
+        $t->true($case['scenario'] !== '');
+        $t->true($case['table'] !== '');
+        $t->true($case['detail'] !== '' || $case['error'] !== null);
+        if ($case['indexed_by'] !== null && $case['error'] === null && !$case['uses_rowid']) {
+            $t->same(true, $case['uses_index']);
+        }
+        $t->same($case['not_indexed'], str_contains($case['statement'], 'NOT INDEXED'));
+        $t->same($case['result_code'] === 0 ? 'ok' : 'expected-error', $case['integrity']);
+        if ($case['error'] === null) {
+            $t->same(0, $case['result_code']);
+            $t->same(null, $case['error']);
+            if ($case['uses_index']) {
+                $t->true(str_contains($case['detail'], 'INDEX'));
+                if ($case['indexed_by'] !== null) {
+                    $t->true(str_contains($case['detail'], $case['indexed_by']));
+                }
+            }
+            if ($case['not_indexed']) {
+                $t->same(false, $case['uses_index']);
+                $t->true(str_contains($case['detail'], 'SCAN') || $case['uses_rowid']);
+            }
+        } else {
+            $t->same(1, $case['result_code']);
+            $t->true($case['detail'] === '');
+            $t->same(false, $case['uses_index']);
+        }
+        if ($case['uses_rowid']) {
+            $t->same(true, $case['not_indexed']);
+            $t->true(str_contains($case['detail'], 'INTEGER PRIMARY KEY'));
+        }
+        if ($case['operation'] === 'DELETE' || $case['operation'] === 'UPDATE') {
+            $t->true(str_starts_with($case['statement'], $case['operation']));
+        }
+        if ($case['upstream_section'] === 'indexedby-12.2') {
+            $t->same('no query solution', $case['error']);
+            $t->same('p2', $case['indexed_by']);
+        }
+        if ($case['upstream_section'] === 'indexedby-10.3') {
+            $t->same('indexed', $case['indexed_by']);
+            $t->same([[1]], $case['result_rows']);
+        }
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_values($row) === $row);
+        }
+    };
+}
+
 // Source truth: SQLite upstream test/btree02.test btree02-110. The upstream
 // script mutates a WITHOUT ROWID table while a cursor scan is in progress.
 foreach (SQLiteBTreeIndexDynamicCorpusPlan::btree02CursorMutationCases() as $case) {

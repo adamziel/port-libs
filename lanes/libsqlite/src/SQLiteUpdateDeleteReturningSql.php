@@ -619,14 +619,150 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function parseLimit(string $sql): array
     {
-        if (preg_match('/^(-?\d+)(?:\s+OFFSET\s+(-?\d+))?$/i', $sql, $match) === 1) {
-            return [(int) $match[1], isset($match[2]) ? (int) $match[2] : 0];
+        $commaParts = self::splitComma($sql);
+        if (count($commaParts) === 2) {
+            return [self::limitInteger($commaParts[1]), self::limitInteger($commaParts[0])];
         }
-        if (preg_match('/^(-?\d+)\s*,\s*(-?\d+)$/', $sql, $match) === 1) {
-            return [(int) $match[2], (int) $match[1]];
+        if (preg_match('/^(.+?)(?:\s+OFFSET\s+(.+))?$/i', $sql, $match) === 1) {
+            $limit = self::limitInteger(trim($match[1]));
+            $offset = isset($match[2]) ? self::limitInteger(trim($match[2])) : 0;
+
+            return [$limit, $offset];
         }
 
-        throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT must be an integer, integer OFFSET integer, or offset,count');
+        throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT must be an integer expression, integer OFFSET integer, or offset,count');
+    }
+
+    private static function limitInteger(string $expression): int
+    {
+        $value = self::limitExpressionValue($expression);
+        if (is_string($value)) {
+            if (preg_match('/^-?\d+$/', $value) === 1) {
+                $value = (int) $value;
+            } elseif (preg_match('/^-?(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $value) === 1) {
+                $value = (float) $value;
+            }
+        }
+        if (is_float($value) && floor($value) === $value) {
+            $value = (int) $value;
+        }
+        if (!is_int($value)) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT expressions must evaluate to an integer');
+        }
+
+        return $value;
+    }
+
+    private static function limitExpressionValue(string $expression): int|float|string|null
+    {
+        $expression = trim($expression);
+        if ($expression === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT expression must not be empty');
+        }
+        while (($stripped = self::stripEnclosingParentheses($expression)) !== null) {
+            $expression = $stripped;
+        }
+        if (preg_match("/^'.*'$/s", $expression) === 1) {
+            return self::literal($expression);
+        }
+        if (strcasecmp($expression, 'NULL') === 0 || preg_match('/^X\'[0-9A-F]*\'$/i', $expression) === 1) {
+            return null;
+        }
+        if (preg_match('/^-?\d+$/', $expression) === 1) {
+            return (int) $expression;
+        }
+        if (preg_match('/^-?(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $expression) === 1) {
+            return (float) $expression;
+        }
+
+        foreach (['+', '-'] as $operator) {
+            $parts = self::splitLimitOperator($expression, $operator);
+            if (count($parts) > 1) {
+                $value = self::limitNumericValue(array_shift($parts));
+                foreach ($parts as $part) {
+                    $right = self::limitNumericValue($part);
+                    $value = $operator === '+' ? $value + $right : $value - $right;
+                }
+
+                return $value;
+            }
+        }
+        foreach (['*', '/'] as $operator) {
+            $parts = self::splitLimitOperator($expression, $operator);
+            if (count($parts) > 1) {
+                $value = self::limitNumericValue(array_shift($parts));
+                foreach ($parts as $part) {
+                    $right = self::limitNumericValue($part);
+                    if ($operator === '/' && $right == 0) {
+                        throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT division by zero');
+                    }
+                    $value = $operator === '*' ? $value * $right : $value / $right;
+                }
+
+                return $value;
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT expression is not supported');
+    }
+
+    private static function limitNumericValue(string $expression): int|float
+    {
+        $value = self::limitExpressionValue($expression);
+        if (!is_int($value) && !is_float($value)) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT arithmetic terms must be numeric');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitLimitOperator(string $sql, string $operator): array
+    {
+        $parts = [];
+        $buffer = '';
+        $inString = false;
+        $depth = 0;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $buffer .= $char;
+                if ($inString && ($sql[$i + 1] ?? null) === "'") {
+                    $buffer .= "'";
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString && $char === '(') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $depth === 0 && $char === $operator) {
+                $previous = $buffer === '' ? '' : substr(rtrim($buffer), -1);
+                if (($operator === '+' || $operator === '-') && ($previous === '' || in_array($previous, ['+', '-', '*', '/', '('], true))) {
+                    $buffer .= $char;
+                    continue;
+                }
+                $parts[] = trim($buffer);
+                $buffer = '';
+                continue;
+            }
+            $buffer .= $char;
+        }
+        $parts[] = trim($buffer);
+
+        return count($parts) > 1 ? $parts : [$sql];
     }
 
     /**
