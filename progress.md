@@ -3649,3 +3649,23 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Worker pool remains active at 10-11 visible libsqlite panes, no long
   sleepers observed, and disk remains healthy at roughly 402G free on
   `/home/claude`.
+
+## Supervisor Integration 2026-05-30T08:40Z Libsqlite Behavior Batch
+
+- Integrated the current 14-handoff libsqlite behavior batch as source commit
+  `645a0610a libsqlite: integrate current behavior batch`, then fixed the
+  broad gate regression as `1e69d503e libsqlite: preserve text RANGE window
+  peers`.
+- The regression was an over-strict SQL-level RANGE precheck: native SQLite
+  allows text ORDER BY keys in RANGE frames and treats them as peer groups.
+  The supervisor removed the precheck and updated the new window test to assert
+  native peer-group JSON behavior instead of an exception.
+- Verification passed PHP lint for changed PHP files, focused gate 17 files /
+  1,276 assertions / 0 failures, `git diff --check`, high-memory root/no-arg
+  gate 2 files / 782,790 assertions / 0 failures, and high-memory full
+  libsqlite lane gate 2 files / 758,322 assertions / 0 failures / 188,257 PASS
+  lines.
+- Disk cleanup during supervision compressed old worker logs/prompts and
+  superseded evidence, then archived and removed one inactive dirty isolated
+  worktree without losing its diff. `/home/claude` remains healthy at roughly
+  421G free.
