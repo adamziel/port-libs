@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 22:23:45 UTC",
-    "sourceCommit": "476e72d58d9575645dda1408eeddd70445b21bd9",
-    "sourceCommitShort": "476e72d58d95",
-    "sourceBranch": "main",
-    "dashboardCommit": "476e72d58d9575645dda1408eeddd70445b21bd9",
-    "dashboardCommitShort": "476e72d58d95",
+    "generated": "2026-05-30 22:34:53 UTC",
+    "sourceCommit": "5edef466b51589c0dc908db73b1730c0ddd04d86",
+    "sourceCommitShort": "5edef466b515",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "5edef466b51589c0dc908db73b1730c0ddd04d86",
+    "dashboardCommitShort": "5edef466b515",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "948261 pass / 0 fail",
+            "php": "980934 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted sixteenth current-corpus batch a...",
-            "currentWork": "Published source f5bdff4f with a sixteenth rapid current-base libsqlite sweep. Selected a...",
-            "nextTarget": "Continue integrating verified current-base real-corpus handoffs or parity fixes with acce...",
-            "blocker": "Selected sixteenth corpus gates pass.",
-            "commit": "f5bdff4"
+            "audit": "Accepted seventeenth current-corpus batch...",
+            "currentWork": "Published source e933ee5 with a seventeenth rapid current-base libsqlite sweep. Selected...",
+            "nextTarget": "Continue integrating verified current-base real-corpus handoffs from the fresh ready queu...",
+            "blocker": "Selected seventeenth corpus gates pass.",
+            "commit": "e933ee5"
         },
         {
             "library": "LightningCSS",
