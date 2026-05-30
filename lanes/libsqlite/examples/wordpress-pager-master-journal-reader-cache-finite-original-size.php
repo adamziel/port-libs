@@ -45,7 +45,7 @@ $journalDigest = hash('sha256', implode('|', [
     hash('sha256', $journalBytes),
 ]));
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext185(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planFiniteOriginalSizeTruncationFence(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -85,7 +85,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext185
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next185',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-finite-original-size',
     'status' => $plan['status'],
     'initialDatabasePageCount' => $plan['initial_database_page_count'],
     'truncatedPages' => $plan['truncated_page_numbers'],
@@ -105,9 +105,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['retainedCachePages'] !== [1]
     || $summary['activePluginsBeforeWrite'] !== 'wp next185 recovered active_plugins after finite journal'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next185 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-finite-original-size self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next185 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-finite-original-size self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

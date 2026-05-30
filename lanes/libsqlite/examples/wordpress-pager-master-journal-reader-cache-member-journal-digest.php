@@ -61,7 +61,7 @@ $recovered = [
 ];
 $currentRecoveredDigest = $recoveredDigest($recovered);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext189(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planMemberJournalDigestFence(
     $database,
     $master,
     $masterBytes,
@@ -87,7 +87,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext189
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next189',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-member-journal-digest',
     'status' => $plan['status'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
     'refreshedCachePages' => $plan['refreshed_cache_page_numbers'],
@@ -105,9 +105,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['optionsReadPrefix'] !== 'wp next189 recovered options page after member digest'
     || $summary['usersCacheHit'] !== false
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next189 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-member-journal-digest self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next189 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-member-journal-digest self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

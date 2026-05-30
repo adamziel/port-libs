@@ -30,7 +30,7 @@ $current = [
     3 => $page('wp next187 plugin settings after attached metadata recovery'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext187(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planCompleteMasterReadMembershipFence(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -48,7 +48,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext187
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next187',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-complete-master-read',
     'status' => $plan['status'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
     'refreshedCachePages' => $plan['refreshed_cache_page_numbers'],
@@ -70,9 +70,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['prefixReadCacheHit'] !== false
     || $summary['settingsPrefix'] !== 'wp next187 plugin settings after attached metadata recovery'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next187 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-complete-master-read self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next187 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-complete-master-read self-test passed\n";

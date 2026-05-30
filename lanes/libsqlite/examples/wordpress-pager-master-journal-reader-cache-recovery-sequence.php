@@ -53,7 +53,7 @@ $recovered = [
 ];
 $currentRecoveredDigest = $recoveredDigest($recovered);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext186(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planRecoverySequenceFence(
     $database,
     $master,
     $masterBytes,
@@ -78,7 +78,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext186
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next186',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-recovery-sequence',
     'status' => $plan['status'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
     'refreshedCachePages' => $plan['refreshed_cache_page_numbers'],
@@ -96,9 +96,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['optionsReadPrefix'] !== 'wp next186 recovered options page after recovery set'
     || $summary['activePluginsCacheHit'] !== false
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next186 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-recovery-sequence self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next186 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-recovery-sequence self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

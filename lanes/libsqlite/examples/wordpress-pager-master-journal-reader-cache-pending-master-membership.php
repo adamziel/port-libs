@@ -54,7 +54,7 @@ $journalDigest = hash('sha256', implode('|', [
 ]));
 $sourceId = 'wp-next181-before-rollback-source';
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext181(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planPendingMasterJournalMembershipFence(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -74,7 +74,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext181
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next181',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-pending-master-membership',
     'status' => $plan['status'],
     'pendingMasterMembers' => $plan['pending_members'],
     'pendingMasterAdded' => $plan['pending_members_added'],
@@ -97,9 +97,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['pendingMasterCacheHit'] !== false
     || $summary['nextWriteBeforePrefix'] !== 'wp next181 recovered active_plugins from rollback journal source'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next181 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-pending-master-membership self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next181 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-pending-master-membership self-test passed\n";

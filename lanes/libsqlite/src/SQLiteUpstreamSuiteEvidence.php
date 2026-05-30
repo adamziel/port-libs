@@ -8546,7 +8546,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext382(
+    public function upstreamVeryquickShardCurrentSourceVdbeLiteralBranchAdmission(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -8601,7 +8601,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext383(
+    public function upstreamVeryquickShardCurrentSourceVdbeLiteralBranchFollowup(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,

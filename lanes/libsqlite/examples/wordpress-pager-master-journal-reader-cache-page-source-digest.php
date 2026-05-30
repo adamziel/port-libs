@@ -35,7 +35,7 @@ $sources = [
 $beforeSource = 'database-image-before-master-journal-recovery-next190';
 $currentDigest = static fn (int $pageNumber): string => $digest($pageNumber, $current[$pageNumber] ?? $before[$pageNumber], $sources[$pageNumber] ?? $beforeSource);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext190(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planPageSourceDigestFence(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -58,7 +58,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext190
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next190',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-page-source-digest',
     'status' => $plan['status'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
     'refreshedCachePages' => $plan['refreshed_cache_page_numbers'],
@@ -78,9 +78,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['activePluginsCacheHit'] !== false
     || $summary['settingsPrefix'] !== 'wp next190 plugin settings after master recovery'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next190 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-page-source-digest self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next190 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-page-source-digest self-test passed\n";

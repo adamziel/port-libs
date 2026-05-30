@@ -102,7 +102,7 @@ $plan = static fn (
     ?int $sequence = null,
     ?string $bytes = null,
     ?int $size = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext186(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planRecoverySequenceFence(
     $database,
     $master,
     $masterBytes,

@@ -38,7 +38,7 @@ $current = [
 ];
 $sourceId = 'wp-next184-current-master-token-source';
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext184(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planMasterReadTokenFence(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -57,7 +57,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext184
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next184',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-master-read-token',
     'status' => $plan['status'],
     'masterReadToken' => $plan['current_master_read_token'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
@@ -78,9 +78,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['recreatedMasterCacheHit'] !== false
     || $summary['refreshedSettingsPrefix'] !== 'wp next184 plugin settings after recreated master source'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next184 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-master-read-token self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next184 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-master-read-token self-test passed\n";

@@ -44,7 +44,7 @@ $journalDigest = hash('sha256', implode('|', [
     hash('sha256', $journalBytes),
 ]));
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext182(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planChecksumValidatedUnknownCountFence(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -84,7 +84,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext182
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next182',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-checksum-unknown-count',
     'status' => $plan['status'],
     'unknownPageCount' => $plan['unknown_page_count'],
     'checksumNonce' => $plan['checksum_nonce'],
@@ -101,9 +101,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['invalidatedCachePages'] !== [2]
     || $summary['activePluginsBeforeWrite'] !== 'wp next182 recovered active_plugins from checksum journal'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next182 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-checksum-unknown-count self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next182 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-checksum-unknown-count self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

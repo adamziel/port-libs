@@ -59,7 +59,7 @@ $cache = [
     ],
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext188(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planNulPaddedMemberBytesFence(
     $database,
     $master,
     $masterBytes,
@@ -82,7 +82,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['invalidated_page_numbers'] === [3, 4]);
     assert($plan['next_reads'][1]['cache_hit'] === true);
     assert($plan['next_reads'][2]['reason'] === 'next_read_reopens_after_nul_master_journal_parse');
-    echo "wordpress-pager-master-journal-reader-cache-current-source-next188 self-test passed\n";
+    echo "wordpress-pager-master-journal-reader-cache-nul-padded-members self-test passed\n";
     return;
 }
 
