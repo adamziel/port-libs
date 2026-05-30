@@ -8,8 +8,13 @@ use InvalidArgumentException;
 
 final class SQLitePragmaSchemaDataVersion
 {
-    /** @var array<string, array{schema_version:int, data_version:int, change_counter:int, schema_dirty:bool, data_dirty:bool}> */
+    /** @var array<string, array{schema_version:int, data_version:int, change_counter:int, user_version:int, schema_dirty:bool, data_dirty:bool, user_dirty:bool}> */
     private array $schemas = [];
+
+    /** @var array<string, array{schema_version:int, data_version:int, change_counter:int, user_version:int, schema_dirty:bool, data_dirty:bool, user_dirty:bool}>|null */
+    private ?array $transactionSnapshot = null;
+
+    private bool $defensive = false;
 
     /**
      * @param array<string, array<string, int|bool>> $schemas
@@ -25,8 +30,10 @@ final class SQLitePragmaSchemaDataVersion
                 'schema_version' => self::intOption($state, 'schema_version', 0),
                 'data_version' => self::intOption($state, 'data_version', self::intOption($state, 'change_counter', 1)),
                 'change_counter' => self::intOption($state, 'change_counter', self::intOption($state, 'data_version', 1)),
+                'user_version' => self::signedIntOption($state, 'user_version', 0),
                 'schema_dirty' => (bool) ($state['schema_dirty'] ?? false),
                 'data_dirty' => (bool) ($state['data_dirty'] ?? false),
+                'user_dirty' => (bool) ($state['user_dirty'] ?? false),
             ];
         }
     }
@@ -61,8 +68,24 @@ final class SQLitePragmaSchemaDataVersion
             return $this->row($schema, $name, false, 'current');
         }
 
+        if ($name === 'user_version') {
+            if ($value === null) {
+                return $this->row($schema, $name, false, 'current');
+            }
+
+            $old = $this->schemas[$schema]['user_version'];
+            $this->schemas[$schema]['user_version'] = $value;
+            $this->schemas[$schema]['user_dirty'] = $old !== $value;
+
+            return $this->row($schema, $name, $old !== $value, 'assigned');
+        }
+
         if ($value === null) {
             return $this->row($schema, $name, false, 'current');
+        }
+
+        if ($this->defensive) {
+            return $this->row($schema, $name, false, 'defensive_schema_version_ignored');
         }
 
         $old = $this->schemas[$schema]['schema_version'];
@@ -134,6 +157,68 @@ final class SQLitePragmaSchemaDataVersion
     }
 
     /**
+     * @return array{status:string, operation:string, schema_count:int}
+     */
+    public function beginTransaction(): array
+    {
+        if ($this->transactionSnapshot !== null) {
+            throw new InvalidArgumentException('SQLite PRAGMA version transaction is already active');
+        }
+
+        $this->transactionSnapshot = $this->schemas;
+
+        return [
+            'status' => 'ok',
+            'operation' => 'begin',
+            'schema_count' => count($this->schemas),
+        ];
+    }
+
+    /**
+     * @return array{status:string, operation:string, restored:bool, schema_count:int}
+     */
+    public function rollbackTransaction(): array
+    {
+        if ($this->transactionSnapshot === null) {
+            throw new InvalidArgumentException('SQLite PRAGMA version transaction is not active');
+        }
+
+        $this->schemas = $this->transactionSnapshot;
+        $this->transactionSnapshot = null;
+
+        return [
+            'status' => 'ok',
+            'operation' => 'rollback',
+            'restored' => true,
+            'schema_count' => count($this->schemas),
+        ];
+    }
+
+    /**
+     * @return array{status:string, operation:string, committed:bool, schema_count:int}
+     */
+    public function commitTransaction(): array
+    {
+        if ($this->transactionSnapshot === null) {
+            throw new InvalidArgumentException('SQLite PRAGMA version transaction is not active');
+        }
+
+        $this->transactionSnapshot = null;
+
+        return [
+            'status' => 'ok',
+            'operation' => 'commit',
+            'committed' => true,
+            'schema_count' => count($this->schemas),
+        ];
+    }
+
+    public function setDefensive(bool $defensive): void
+    {
+        $this->defensive = $defensive;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function observeHeader(string $schema, int $schemaVersion, int $changeCounter, string $reason = 'header_observed'): array
@@ -186,14 +271,20 @@ final class SQLitePragmaSchemaDataVersion
         $identifier = '[A-Za-z_][A-Za-z0-9_]*';
         $number = '[-+]?\d+';
 
-        if (!preg_match('/^PRAGMA\s+(?:(?<schema>' . $identifier . ')\.)?(?<pragma>schema_version|data_version)\s*(?:(?:=|\()\s*(?<value>' . $number . ')\s*\)?)?$/i', $trimmed, $matches)) {
+        if (!preg_match('/^PRAGMA\s+(?:(?<schema>' . $identifier . ')\.)?(?<pragma>schema_version|data_version|user_version)\s*(?:(?:=|\()\s*(?<value>' . $number . ')\s*\)?)?$/i', $trimmed, $matches)) {
             throw new InvalidArgumentException("Unsupported PRAGMA schema/data version SQL: {$sql}");
         }
 
-        $value = array_key_exists('value', $matches) && $matches['value'] !== '' ? self::normalizeVersion((int) $matches['value']) : null;
+        $pragma = strtolower($matches['pragma']);
+        $value = null;
+        if (array_key_exists('value', $matches) && $matches['value'] !== '') {
+            $value = $pragma === 'user_version'
+                ? self::normalizeSignedVersion((int) $matches['value'])
+                : self::normalizeVersion((int) $matches['value']);
+        }
 
         return [
-            'pragma' => strtolower($matches['pragma']),
+            'pragma' => $pragma,
             'schema' => self::normalizeSchemaName($matches['schema'] !== '' ? $matches['schema'] : 'main'),
             'value' => $value,
         ];
@@ -209,8 +300,10 @@ final class SQLitePragmaSchemaDataVersion
             'schema_version' => 0,
             'data_version' => 1,
             'change_counter' => 1,
+            'user_version' => 0,
             'schema_dirty' => false,
             'data_dirty' => false,
+            'user_dirty' => false,
         ];
     }
 
@@ -241,10 +334,27 @@ final class SQLitePragmaSchemaDataVersion
         return self::normalizeVersion((int) ($state[$name] ?? $default));
     }
 
+    /**
+     * @param array<string, int|bool> $state
+     */
+    private static function signedIntOption(array $state, string $name, int $default): int
+    {
+        return self::normalizeSignedVersion((int) ($state[$name] ?? $default));
+    }
+
     private static function normalizeVersion(int $value): int
     {
         if ($value < 0 || $value > 0x7fffffff) {
             throw new InvalidArgumentException('SQLite PRAGMA version values must be signed 32-bit non-negative integers');
+        }
+
+        return $value;
+    }
+
+    private static function normalizeSignedVersion(int $value): int
+    {
+        if ($value < -0x80000000 || $value > 0x7fffffff) {
+            throw new InvalidArgumentException('SQLite PRAGMA user_version values must be signed 32-bit integers');
         }
 
         return $value;

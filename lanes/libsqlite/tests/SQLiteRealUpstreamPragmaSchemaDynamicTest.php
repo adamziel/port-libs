@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
+use PortLibs\LibSqlite\SQLitePragmaSchemaDataVersion;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (
@@ -181,6 +182,192 @@ $tests['real upstream pragma schema dynamic table-list tolerates invalid view SQ
     $t->same(1, $viewRows[0]['ncol']);
     $t->same(true, array_key_exists('wr', $viewRows[0]));
     $t->same('app_parent_view', $viewRows[0]['name']);
+};
+
+$versionState = static fn (): SQLitePragmaSchemaDataVersion => new SQLitePragmaSchemaDataVersion([
+    'main' => ['schema_version' => 105, 'data_version' => 1, 'change_counter' => 1, 'user_version' => 0],
+    'aux' => ['schema_version' => 0, 'data_version' => 1, 'change_counter' => 1, 'user_version' => 0],
+]);
+
+$value = static fn (array $result): int => (int) $result['value'];
+$rowValue = static fn (array $result, string $name): int => (int) $result['rows'][0][$name];
+
+$versionCases = [
+    ['pragma-8.1.1 schema version assign reports assigned', static function () use ($versionState): mixed {
+        return $versionState()->execute('PRAGMA schema_version = 105;')['reason'];
+    }, 'assigned'],
+    ['pragma-8.1.2 schema version reads assigned row', static function () use ($versionState, $rowValue): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA schema_version = 105');
+        return $rowValue($state->execute('PRAGMA schema_version'), 'schema_version');
+    }, 105],
+    ['pragma-8.1.3 defensive schema assignment is ignored', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->setDefensive(true);
+        $state->execute('PRAGMA schema_version = 106');
+        return $value($state->execute('PRAGMA schema_version'));
+    }, 105],
+    ['pragma-8.1.3 defensive schema assignment reports unchanged', static function () use ($versionState): mixed {
+        $state = $versionState();
+        $state->setDefensive(true);
+        return $state->execute('PRAGMA schema_version = 106')['changed'];
+    }, false],
+    ['pragma-8.1.3 defensive schema assignment reason', static function () use ($versionState): mixed {
+        $state = $versionState();
+        $state->setDefensive(true);
+        return $state->execute('PRAGMA schema_version = 106')['reason'];
+    }, 'defensive_schema_version_ignored'],
+    ['pragma-8.1.4 nondefensive schema assignment takes effect', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->setDefensive(false);
+        $state->execute('PRAGMA schema_version = 106');
+        return $value($state->execute('PRAGMA schema_version'));
+    }, 106],
+    ['pragma-8.1.5 create table style schema change increments', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->recordSchemaChange('main', 2, 'create_table');
+        return $value($state->execute('PRAGMA schema_version'));
+    }, 107],
+    ['pragma-8.1.6 schema change header cookie follows version', static function () use ($versionState): mixed {
+        $state = $versionState();
+        $result = $state->recordSchemaChange('main', 2, 'create_table');
+        return $result['header']['schema_cookie'];
+    }, 107],
+    ['pragma-8.1.8 manual schema bump prepares stale reader', static function () use ($versionState): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA schema_version = 108');
+        return $state->state()['main']['schema_dirty'];
+    }, true],
+    ['pragma-8.1.11 attached schema version assignment', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA aux.schema_version = 205');
+        return $value($state->execute('PRAGMA aux.schema_version'));
+    }, 205],
+    ['pragma-8.1.13 main schema version isolated from aux', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA schema_version = 108');
+        $state->execute('PRAGMA aux.schema_version = 205');
+        return $value($state->execute('PRAGMA schema_version'));
+    }, 108],
+    ['pragma-8.1.15 attached schema bump is dirty', static function () use ($versionState): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA aux.schema_version = 206');
+        return $state->state()['aux']['schema_dirty'];
+    }, true],
+    ['pragma-8.2.1 default user version row', static function () use ($versionState, $rowValue): mixed {
+        return $rowValue($versionState()->execute('PRAGMA user_version'), 'user_version');
+    }, 0],
+    ['pragma-8.2.2 user version assignment reports assigned', static function () use ($versionState): mixed {
+        return $versionState()->execute('PRAGMA user_version = 2')['reason'];
+    }, 'assigned'],
+    ['pragma-8.2.3 user version reads assigned', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA user_version = 2');
+        return $value($state->execute('PRAGMA user_version'));
+    }, 2],
+    ['pragma-8.2.4 user version does not change schema version', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA schema_version = 108');
+        $state->execute('PRAGMA user_version = 2');
+        return $value($state->execute('PRAGMA schema_version'));
+    }, 108],
+    ['pragma-8.2.5 attached user version defaults zero', static function () use ($versionState, $value): mixed {
+        return $value($versionState()->execute('PRAGMA aux.user_version'));
+    }, 0],
+    ['pragma-8.2.7 attached user version reads assigned', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA aux.user_version = 3');
+        return $value($state->execute('PRAGMA aux.user_version'));
+    }, 3],
+    ['pragma-8.2.8 main user version isolated from aux', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA user_version = 2');
+        $state->execute('PRAGMA aux.user_version = 3');
+        return $value($state->execute('PRAGMA main.user_version'));
+    }, 2],
+    ['pragma-8.2.9 transaction begin captures versions', static function () use ($versionState): mixed {
+        return $versionState()->beginTransaction()['operation'];
+    }, 'begin'],
+    ['pragma-8.2.10 transaction sees aux user version update', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA aux.user_version = 3');
+        $state->beginTransaction();
+        $state->execute('PRAGMA aux.user_version = 10');
+        $state->execute('PRAGMA user_version = 11');
+        return $value($state->execute('PRAGMA aux.user_version'));
+    }, 10],
+    ['pragma-8.2.11 transaction sees main user version update', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA user_version = 2');
+        $state->beginTransaction();
+        $state->execute('PRAGMA aux.user_version = 10');
+        $state->execute('PRAGMA user_version = 11');
+        return $value($state->execute('PRAGMA main.user_version'));
+    }, 11],
+    ['pragma-8.2.12 rollback restores aux user version', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA aux.user_version = 3');
+        $state->execute('PRAGMA user_version = 2');
+        $state->beginTransaction();
+        $state->execute('PRAGMA aux.user_version = 10');
+        $state->execute('PRAGMA user_version = 11');
+        $state->rollbackTransaction();
+        return $value($state->execute('PRAGMA aux.user_version'));
+    }, 3],
+    ['pragma-8.2.13 rollback restores main user version', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA aux.user_version = 3');
+        $state->execute('PRAGMA user_version = 2');
+        $state->beginTransaction();
+        $state->execute('PRAGMA aux.user_version = 10');
+        $state->execute('PRAGMA user_version = 11');
+        $state->rollbackTransaction();
+        return $value($state->execute('PRAGMA main.user_version'));
+    }, 2],
+    ['pragma-8.2.14 negative user version accepted', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA user_version = -450');
+        return $value($state->execute('PRAGMA user_version'));
+    }, -450],
+    ['pragma-8.2 commit preserves user version', static function () use ($versionState, $value): mixed {
+        $state = $versionState();
+        $state->beginTransaction();
+        $state->execute('PRAGMA user_version = 12');
+        $state->commitTransaction();
+        return $value($state->execute('PRAGMA user_version'));
+    }, 12],
+    ['pragma-8.2 user dirty flag set by assignment', static function () use ($versionState): mixed {
+        $state = $versionState();
+        $state->execute('PRAGMA user_version = 2');
+        return $state->state()['main']['user_dirty'];
+    }, true],
+    ['pragma-8.2 parse attached user version assignment', static fn (): mixed => SQLitePragmaSchemaDataVersion::parse('PRAGMA aux.user_version=-450'), ['pragma' => 'user_version', 'schema' => 'aux', 'value' => -450]],
+    ['pragma-8.2 user version max signed accepted', static function () use ($versionState, $value): mixed {
+        return $value($versionState()->execute('PRAGMA user_version = 2147483647'));
+    }, 2147483647],
+    ['pragma-8.2 user version min signed accepted', static function () use ($versionState, $value): mixed {
+        return $value($versionState()->execute('PRAGMA user_version = -2147483648'));
+    }, -2147483648],
+];
+
+foreach ($versionCases as [$name, $callback, $expected]) {
+    $tests['real upstream pragma schema dynamic ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        $t->same($expected, $callback());
+    };
+}
+
+$tests['real upstream pragma schema dynamic pragma-8.2 transaction rollback requires begin'] = static function (TestRunner $t) use ($versionState): void {
+    $t->throws(InvalidArgumentException::class, static fn () => $versionState()->rollbackTransaction());
+};
+
+$tests['real upstream pragma schema dynamic pragma-8.2 nested begin rejected'] = static function (TestRunner $t) use ($versionState): void {
+    $state = $versionState();
+    $state->beginTransaction();
+    $t->throws(InvalidArgumentException::class, static fn () => $state->beginTransaction());
+};
+
+$tests['real upstream pragma schema dynamic pragma-8.2 user version signed overflow rejected'] = static function (TestRunner $t) use ($versionState): void {
+    $t->throws(InvalidArgumentException::class, static fn () => $versionState()->execute('PRAGMA user_version = 2147483648'));
 };
 
 return $tests;

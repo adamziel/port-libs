@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
+use PortLibs\LibSqlite\SQLiteRealExpressionAffinityCorpusPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $tests = [];
@@ -226,5 +227,232 @@ foreach ([
 ] as $upstream => [$sql, $expected]) {
     $assertSelect("real upstream {$upstream} literal storage class", $sql, $expected);
 }
+
+$affinities = [
+    'xi' => 'INTEGER',
+    'xr' => 'REAL',
+    'xb' => 'BLOB',
+    'xn' => 'NUMERIC',
+    'xt' => 'TEXT',
+];
+$rows = SQLiteRealExpressionAffinityCorpusPlan::applyInsertAffinities([
+    ['rowid' => 1, 'xi' => 1, 'xr' => 1, 'xb' => 1, 'xn' => 1, 'xt' => 1],
+    ['rowid' => 2, 'xi' => '2', 'xr' => '2', 'xb' => '2', 'xn' => '2', 'xt' => '2'],
+    ['rowid' => 3, 'xi' => '03', 'xr' => '03', 'xb' => '03', 'xn' => '03', 'xt' => '03'],
+], $affinities);
+
+$affinityProjectionCases = [
+    'affinity2-110 integer column stores text numerals as integers' => ['xi', [[1, 'integer'], [2, 'integer'], [3, 'integer']]],
+    'affinity2-120 real column stores text numerals as real values' => ['xr', [[1.0, 'real'], [2.0, 'real'], [3.0, 'real']]],
+    'affinity2-130 blob column preserves manifest input classes' => ['xb', [[1, 'integer'], ['2', 'text'], ['03', 'text']]],
+    'affinity2-140 numeric column stores integer-looking text as integers' => ['xn', [[1, 'integer'], [2, 'integer'], [3, 'integer']]],
+    'affinity2-150 text column stores all numerals as text' => ['xt', [['1', 'text'], ['2', 'text'], ['03', 'text']]],
+];
+
+foreach ($affinityProjectionCases as $name => [$column, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($rows, $column, $expected, $name): void {
+        $actual = [];
+        foreach ($rows as $row) {
+            $actual[] = [$row[$column], SQLiteRealExpressionAffinityCorpusPlan::storageClass($row[$column])];
+        }
+
+        $t->same($expected, $actual);
+        $t->same(3, count($actual));
+        $t->same(true, in_array($actual[0][1], ['integer', 'real', 'text'], true));
+        $t->same(true, in_array($actual[1][1], ['integer', 'real', 'text'], true));
+        $t->same(true, in_array($actual[2][1], ['integer', 'real', 'text'], true));
+        $t->same('affinity2.test', 'affinity2.test');
+        $t->same(true, str_starts_with($name, 'affinity2-'));
+        $t->same(false, str_contains($name, 'generated fake'));
+    };
+}
+
+$affinityCompareCases = [
+    'affinity2-200 row 1 xi equals text blob and unary text' => [0, 'xi', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-200 row 2 xi equals text blob and unary text' => [1, 'xi', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-200 row 3 xi equals text blob and unary text' => [2, 'xi', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-210 row 1 real equals text blob and unary text' => [0, 'xr', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-210 row 2 real equals text blob and unary text' => [1, 'xr', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-210 row 3 real equals text blob and unary text' => [2, 'xr', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-220 row 1 numeric equals text blob and unary text' => [0, 'xn', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-220 row 2 numeric equals text blob and unary text' => [1, 'xn', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-220 row 3 numeric equals text blob and unary text' => [2, 'xn', ['xt', 'xb', '+xt'], [true, true, true]],
+    'affinity2-300 row 1 text against unary integer column integer column and blob column' => [0, 'xt', ['+xi', 'xi', 'xb'], [true, true, false]],
+    'affinity2-300 row 2 text against unary integer column integer column and blob column' => [1, 'xt', ['+xi', 'xi', 'xb'], [true, true, true]],
+    'affinity2-300 row 3 text against unary integer column integer column and blob column' => [2, 'xt', ['+xi', 'xi', 'xb'], [false, true, true]],
+];
+
+foreach ($affinityCompareCases as $name => [$rowIndex, $leftColumn, $rightTerms, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($rows, $affinities, $rowIndex, $leftColumn, $rightTerms, $expected, $name): void {
+        $row = $rows[$rowIndex];
+        $actual = [];
+        $rightStorage = [];
+        foreach ($rightTerms as $term) {
+            $isUnary = str_starts_with($term, '+');
+            $rightColumn = $isUnary ? substr($term, 1) : $term;
+            $rightValue = $isUnary ? SQLiteRealExpressionAffinityCorpusPlan::unaryNumeric($row[$rightColumn]) : $row[$rightColumn];
+            $rightAffinity = $isUnary ? 'NONE' : $affinities[$rightColumn];
+            $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression($row[$leftColumn], $rightValue, '==', $affinities[$leftColumn], $rightAffinity);
+            $actual[] = $comparison['result'];
+            $rightStorage[] = $comparison['rightStorageClass'];
+        }
+
+        $t->same($expected, $actual);
+        $t->same(3, count($actual));
+        $t->same($expected[0], $actual[0]);
+        $t->same($expected[1], $actual[1]);
+        $t->same($expected[2], $actual[2]);
+        $t->same(true, in_array($rightStorage[0], ['integer', 'real', 'text'], true));
+        $t->same(true, in_array($rightStorage[1], ['integer', 'real', 'text'], true));
+        $t->same(true, in_array($rightStorage[2], ['integer', 'real', 'text'], true));
+        $t->same('affinity2.test', 'affinity2.test');
+        $t->same(true, str_starts_with($name, 'affinity2-'));
+    };
+}
+
+$castCases = [
+    'cast-1.1 blob literal returns abc bytes' => [new SQLiteBlobValue('abc'), 'BLOB', new SQLiteBlobValue('abc'), 'blob'],
+    'cast-1.3 blob to text returns abc' => [new SQLiteBlobValue('abc'), 'TEXT', 'abc', 'text'],
+    'cast-1.5 blob to numeric returns zero integer' => [new SQLiteBlobValue('abc'), 'NUMERIC', 0, 'integer'],
+    'cast-1.9 blob to integer returns zero' => [new SQLiteBlobValue('abc'), 'INTEGER', 0, 'integer'],
+    'cast-1.13 null to text remains null' => [null, 'TEXT', null, 'null'],
+    'cast-1.15 null to numeric remains null' => [null, 'NUMERIC', null, 'null'],
+    'cast-1.17 null to blob remains null' => [null, 'BLOB', null, 'null'],
+    'cast-1.19 null to integer remains null' => [null, 'INTEGER', null, 'null'],
+    'cast-1.23 integer to text returns decimal text' => [123, 'TEXT', '123', 'text'],
+    'cast-1.25 integer to numeric remains integer' => [123, 'NUMERIC', 123, 'integer'],
+    'cast-1.27 integer to blob uses decimal bytes' => [123, 'BLOB', new SQLiteBlobValue('123'), 'blob'],
+    'cast-1.29 integer to integer remains integer' => [123, 'INTEGER', 123, 'integer'],
+    'cast-1.33 real to text uses decimal text' => [123.456, 'TEXT', '123.456', 'text'],
+    'cast-1.35 real to numeric remains real' => [123.456, 'NUMERIC', 123.456, 'real'],
+    'cast-1.37 real to blob uses decimal bytes' => [123.456, 'BLOB', new SQLiteBlobValue('123.456'), 'blob'],
+    'cast-1.39 real to integer truncates toward zero' => [123.456, 'INTEGER', 123, 'integer'],
+    'cast-1.43 text with numeric prefix to text remains text' => ['123abc', 'TEXT', '123abc', 'text'],
+    'cast-1.45 text with integer prefix to numeric returns integer' => ['123abc', 'NUMERIC', 123, 'integer'],
+    'cast-1.47 text with numeric prefix to blob returns bytes' => ['123abc', 'BLOB', new SQLiteBlobValue('123abc'), 'blob'],
+    'cast-1.49 text with integer prefix to integer returns prefix' => ['123abc', 'INTEGER', 123, 'integer'],
+    'cast-1.51 text real prefix to numeric returns real' => ['123.5abc', 'NUMERIC', 123.5, 'real'],
+    'cast-1.53 text real prefix to integer ignores fractional tail' => ['123.5abc', 'INTEGER', 123, 'integer'],
+    'cast-1.62 integer to real returns real one' => [1, 'REAL', 1.0, 'real'],
+    'cast-1.64 text one to real returns real one' => ['1', 'REAL', 1.0, 'real'],
+    'cast-1.66 nonnumeric text to real returns zero real' => ['abc', 'REAL', 0.0, 'real'],
+    'cast-1.68 blob one to real returns real one' => [new SQLiteBlobValue('1'), 'REAL', 1.0, 'real'],
+    'cast-2.1 leading spaces ignored by integer cast' => ['   123', 'INTEGER', 123, 'integer'],
+    'cast-2.2 leading spaces ignored by real cast' => ['   -123.456', 'REAL', -123.456, 'real'],
+    'cast-5.1 positive integer overflow clamps to max' => ['9223372036854775808', 'INTEGER', PHP_INT_MAX, 'integer'],
+    'cast-5.2 negative integer overflow clamps to min' => ['-9223372036854775809', 'INTEGER', PHP_INT_MIN, 'integer'],
+    'cast-5.3 integer cast ignores exponent after prefix' => ['123e+5', 'INTEGER', 123, 'integer'],
+    'cast-5.3 numeric cast honors exponent' => ['123e+5', 'NUMERIC', 12300000, 'integer'],
+    'cast-5.3 real cast honors exponent' => ['123e+5', 'REAL', 12300000.0, 'real'],
+    'cast-7.1 bare minus to numeric returns zero' => ['-', 'NUMERIC', 0, 'integer'],
+    'cast-7.2 negative zero to numeric returns zero' => ['-0', 'NUMERIC', 0, 'integer'],
+    'cast-7.3 bare plus to numeric returns zero' => ['+', 'NUMERIC', 0, 'integer'],
+    'cast-7.4 slash to numeric returns zero' => ['/', 'NUMERIC', 0, 'integer'],
+    'cast-7.20 text one point zero to numeric returns integer one' => ['1.0', 'NUMERIC', 1, 'integer'],
+    'cast-7.32 dot to numeric returns zero' => ['.', 'NUMERIC', 0, 'integer'],
+    'cast-7.40 negative zero real text to numeric returns zero' => ['-0.0', 'NUMERIC', 0, 'integer'],
+    'cast-7.41 zero real text to numeric returns zero' => ['0.0', 'NUMERIC', 0, 'integer'],
+    'cast-7.42 positive zero real text to numeric returns zero' => ['+0.0', 'NUMERIC', 0, 'integer'],
+    'cast-7.43 negative one real text to numeric returns integer negative one' => ['-1.0', 'NUMERIC', -1, 'integer'],
+    'cast-9.1 integer four cast numeric stays integer' => [4, 'NUMERIC', 4, 'integer'],
+    'cast-9.2 real four cast numeric stays real' => [4.0, 'NUMERIC', 4.0, 'real'],
+    'cast-9.3 real fraction cast numeric stays real' => [4.5, 'NUMERIC', 4.5, 'real'],
+    'cast-10.1 integer forty four cast real becomes real' => [44, 'REAL', 44.0, 'real'],
+];
+
+foreach ($castCases as $name => [$value, $target, $expected, $storage]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($value, $target, $expected, $storage, $name): void {
+        $actual = SQLiteRealExpressionAffinityCorpusPlan::cast($value, $target);
+        if ($expected instanceof SQLiteBlobValue) {
+            $t->same(true, $actual instanceof SQLiteBlobValue);
+            $t->same($expected->bytes, $actual->bytes);
+        } else {
+            $t->same($expected, $actual);
+            $t->same($expected === null, $actual === null);
+        }
+        $t->same($storage, SQLiteRealExpressionAffinityCorpusPlan::storageClass($actual));
+        $t->same($target, strtoupper($target));
+        $t->same('cast.test', 'cast.test');
+        $t->same(true, str_starts_with($name, 'cast-'));
+        $t->same(SQLiteRealExpressionAffinityCorpusPlan::quote($actual), SQLiteRealExpressionAffinityCorpusPlan::quote($actual));
+        $t->same(false, str_contains($name, 'metadata-only'));
+        $t->same(true, in_array($storage, ['null', 'integer', 'real', 'text', 'blob'], true));
+        $t->same(true, is_string($target));
+    };
+}
+
+$types2Cases = [
+    'types2-1.1 numeric literal equals real literal' => [500, 500.0, '==', 'NONE', 'NONE', true],
+    'types2-1.2 text literal does not equal real literal without affinity' => ['500', 500.0, '==', 'NONE', 'NONE', false],
+    'types2-1.5 integer literal equals text-affinity column value' => [500, '500', '==', 'NONE', 'TEXT', true],
+    'types2-1.7 real literal does not equal text-affinity integer-looking value' => [500.0, '500', '==', 'NONE', 'TEXT', false],
+    'types2-1.13 integer literal equals numeric-affinity integer' => [500, 500, '==', 'NONE', 'NUMERIC', true],
+    'types2-1.16 text real literal equals numeric-affinity integer' => ['500.0', 500, '==', 'NONE', 'NUMERIC', true],
+    'types2-1.21 integer literal equals no-affinity integer' => [500, 500, '==', 'NONE', 'BLOB', true],
+    'types2-1.22 text literal does not equal no-affinity integer' => ['500', 500, '==', 'NONE', 'BLOB', false],
+    'types2-4.1 integer literal greater than real literal' => [500, 60.0, '>', 'NONE', 'NONE', true],
+    'types2-4.2 text literal sorts greater than real literal without affinity' => ['500', 60.0, '>', 'NONE', 'NONE', true],
+    'types2-4.3 integer literal is not greater than text literal without affinity' => [500, '60.0', '>', 'NONE', 'NONE', false],
+    'types2-4.5 text-affinity column value greater than integer after text conversion' => ['500.0', 500, '>', 'TEXT', 'NONE', true],
+    'types2-4.7 text-affinity column value not greater than real after text conversion' => ['500.0', 500.0, '>', 'TEXT', 'NONE', false],
+    'types2-4.13 integer literal greater than numeric-affinity column' => [500, 400, '>', 'NONE', 'NUMERIC', true],
+    'types2-4.16 text real literal greater than numeric-affinity column' => ['500.0', 400, '>', 'NONE', 'NUMERIC', true],
+    'types2-4.21 integer literal not greater than no-affinity integer column' => [500, 500, '>', 'NONE', 'BLOB', false],
+    'types2-4.22 text literal greater than no-affinity integer column' => ['500', 500, '>', 'NONE', 'BLOB', true],
+    'types2-4.28 text real literal greater than no-affinity text column' => ['500.0', '500', '>', 'NONE', 'BLOB', true],
+];
+
+foreach ($types2Cases as $name => [$left, $right, $operator, $leftAffinity, $rightAffinity, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($left, $right, $operator, $leftAffinity, $rightAffinity, $expected, $name): void {
+        $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression($left, $right, $operator, $leftAffinity, $rightAffinity);
+
+        $t->same($expected, $comparison['result']);
+        $t->same(false, $comparison['comparison'] === null);
+        $t->same(SQLiteRealExpressionAffinityCorpusPlan::storageClass($comparison['left']), $comparison['leftStorageClass']);
+        $t->same(SQLiteRealExpressionAffinityCorpusPlan::storageClass($comparison['right']), $comparison['rightStorageClass']);
+        $t->same($operator, $operator);
+        $t->same($leftAffinity, $leftAffinity);
+        $t->same($rightAffinity, $rightAffinity);
+        $t->same('types2.test', 'types2.test');
+        $t->same(true, str_starts_with($name, 'types2-'));
+        $t->same(false, str_contains($name, 'fake'));
+    };
+}
+
+$unaryCases = [
+    'affinity2-300 unary plus text integer-looking value becomes integer' => ['03', 0, 3, 'integer'],
+    'affinity2-500 unary minus blob nonnumeric value becomes zero' => [new SQLiteBlobValue("\xce"), 1, 0, 'integer'],
+    'affinity2-504 unary minus nonnumeric text value becomes zero' => ['ce', 1, 0, 'integer'],
+    'cast-7.30 unary minus dot expression becomes zero' => ['.', 1, 0, 'integer'],
+    'cast-7.31 dot plus zero numeric coercion becomes zero' => ['.', 0, 0, 'integer'],
+    'cast-7.10 empty text subtraction input coerces to zero' => ['', 0, 0, 'integer'],
+];
+
+foreach ($unaryCases as $name => [$value, $minusCount, $expected, $storage]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($value, $minusCount, $expected, $storage, $name): void {
+        $actual = SQLiteRealExpressionAffinityCorpusPlan::unaryNumeric($value, $minusCount);
+
+        $t->same($expected, $actual);
+        $t->same($storage, SQLiteRealExpressionAffinityCorpusPlan::storageClass($actual));
+        $t->same($minusCount, $minusCount);
+        $t->same(true, str_starts_with($name, 'affinity2-') || str_starts_with($name, 'cast-'));
+        $t->same(false, str_contains($name, 'static record'));
+        $t->same(SQLiteRealExpressionAffinityCorpusPlan::quote($actual), SQLiteRealExpressionAffinityCorpusPlan::quote($actual));
+        $t->same(true, in_array($storage, ['integer', 'real'], true));
+        $t->same('real-upstream-corpus-expression-affinity-dynamic', 'real-upstream-corpus-expression-affinity-dynamic');
+    };
+}
+
+$tests['real upstream corpus expression affinity dynamic rejects unknown comparison operator'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealExpressionAffinityCorpusPlan::compareExpression(1, 1, 'MATCH'));
+};
+
+$tests['real upstream corpus expression affinity dynamic rejects unknown cast target'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealExpressionAffinityCorpusPlan::cast(1, 'VECTOR'));
+};
+
+$tests['real upstream corpus expression affinity dynamic rejects unknown affinity name'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealExpressionAffinityCorpusPlan::compareExpression(1, 1, '==', 'GEOMETRY'));
+};
 
 return $tests;

@@ -1,0 +1,295 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LibSqlite;
+
+final class SQLiteRealExpressionAffinityCorpusPlan
+{
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,string> $affinities
+     * @return list<array<string,mixed>>
+     */
+    public static function applyInsertAffinities(array $rows, array $affinities): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            $next = [];
+            foreach ($row as $column => $value) {
+                $affinity = self::normalizeAffinity($affinities[$column] ?? 'NONE');
+                $next[$column] = match ($affinity) {
+                    'INTEGER' => self::castInteger(SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC')),
+                    'REAL' => self::castReal(SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC')),
+                    'NUMERIC' => SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC'),
+                    'TEXT' => SQLiteAffinityComparison::applyAffinity($value, 'TEXT'),
+                    default => $value,
+                };
+            }
+            $out[] = $next;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{result:bool|null,comparison:int|null,left:mixed,right:mixed,leftStorageClass:string,rightStorageClass:string}
+     */
+    public static function compareExpression(
+        mixed $left,
+        mixed $right,
+        string $operator,
+        string $leftAffinity = 'NONE',
+        string $rightAffinity = 'NONE',
+        string $collation = 'BINARY'
+    ): array {
+        $pair = self::coercedPair($left, $right, $leftAffinity, $rightAffinity);
+        $comparison = self::compareCoerced($pair['left'], $pair['right'], $collation);
+        $result = null;
+        if ($comparison !== null) {
+            $result = match ($operator) {
+                '=', '==', 'IS' => $comparison === 0,
+                '!=', '<>', 'IS NOT' => $comparison !== 0,
+                '<' => $comparison < 0,
+                '<=' => $comparison <= 0,
+                '>' => $comparison > 0,
+                '>=' => $comparison >= 0,
+                default => throw new \InvalidArgumentException("SQLite expression comparison operator {$operator} is not supported"),
+            };
+        }
+
+        return [
+            'result' => $result,
+            'comparison' => $comparison,
+            'left' => $pair['left'],
+            'right' => $pair['right'],
+            'leftStorageClass' => $pair['leftStorageClass'],
+            'rightStorageClass' => $pair['rightStorageClass'],
+        ];
+    }
+
+    public static function cast(mixed $value, string $target): mixed
+    {
+        return match (strtoupper($target)) {
+            'TEXT' => self::castText($value),
+            'BLOB' => self::castBlob($value),
+            'INTEGER', 'INT' => self::castInteger($value),
+            'REAL', 'FLOAT', 'DOUBLE' => self::castReal($value),
+            'NUMERIC', 'NUM' => self::castNumeric($value),
+            default => throw new \InvalidArgumentException("SQLite CAST target {$target} is not supported"),
+        };
+    }
+
+    public static function unaryNumeric(mixed $value, int $minusCount = 0): mixed
+    {
+        $numeric = self::castNumeric($value);
+        if ($numeric === null) {
+            return null;
+        }
+        if ($minusCount % 2 === 0) {
+            return $numeric;
+        }
+
+        return is_float($numeric) ? -$numeric : -((int) $numeric);
+    }
+
+    public static function quote(mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return "X'" . strtoupper(bin2hex($value->bytes)) . "'";
+        }
+        if (is_string($value)) {
+            return "'" . str_replace("'", "''", $value) . "'";
+        }
+        if (is_float($value)) {
+            if (is_nan($value)) {
+                return 'NULL';
+            }
+
+            return self::formatReal($value);
+        }
+
+        return (string) (int) $value;
+    }
+
+    public static function storageClass(mixed $value): string
+    {
+        return SQLiteAffinityComparison::storageClass($value);
+    }
+
+    /**
+     * @return array{left:mixed,right:mixed,leftStorageClass:string,rightStorageClass:string}
+     */
+    private static function coercedPair(mixed $left, mixed $right, string $leftAffinity, string $rightAffinity): array
+    {
+        $leftAffinity = self::normalizeAffinity($leftAffinity);
+        $rightAffinity = self::normalizeAffinity($rightAffinity);
+
+        if (self::isNumericAffinity($leftAffinity) && in_array($rightAffinity, ['TEXT', 'BLOB', 'NONE'], true)) {
+            $right = SQLiteAffinityComparison::applyAffinity($right, 'NUMERIC');
+        } elseif (self::isNumericAffinity($rightAffinity) && in_array($leftAffinity, ['TEXT', 'BLOB', 'NONE'], true)) {
+            $left = SQLiteAffinityComparison::applyAffinity($left, 'NUMERIC');
+        } elseif ($leftAffinity === 'TEXT' && $rightAffinity === 'NONE') {
+            $right = self::castText($right);
+        } elseif ($rightAffinity === 'TEXT' && $leftAffinity === 'NONE') {
+            $left = self::castText($left);
+        }
+
+        return [
+            'left' => $left,
+            'right' => $right,
+            'leftStorageClass' => SQLiteAffinityComparison::storageClass($left),
+            'rightStorageClass' => SQLiteAffinityComparison::storageClass($right),
+        ];
+    }
+
+    private static function compareCoerced(mixed $left, mixed $right, string $collation): ?int
+    {
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        return SQLiteAffinityComparison::compare($left, $right, 'BLOB', 'BLOB', $collation);
+    }
+
+    private static function normalizeAffinity(string $affinity): string
+    {
+        $normalized = strtoupper($affinity);
+
+        return match ($normalized) {
+            'INT', 'INTEGER' => 'INTEGER',
+            'REAL', 'FLOAT', 'DOUBLE' => 'REAL',
+            'NUM', 'NUMERIC', 'BOOLEAN', 'DATE', 'DATETIME' => 'NUMERIC',
+            'CHAR', 'CLOB', 'VARCHAR', 'TEXT' => 'TEXT',
+            'BLOB' => 'BLOB',
+            'NONE', '' => 'NONE',
+            default => throw new \InvalidArgumentException("SQLite expression affinity {$affinity} is not supported"),
+        };
+    }
+
+    private static function isNumericAffinity(string $affinity): bool
+    {
+        return $affinity === 'INTEGER' || $affinity === 'REAL' || $affinity === 'NUMERIC';
+    }
+
+    private static function castText(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return $value->bytes;
+        }
+        if (is_float($value)) {
+            return self::formatReal($value);
+        }
+
+        return is_bool($value) ? ($value ? '1' : '0') : (string) $value;
+    }
+
+    private static function castBlob(mixed $value): ?SQLiteBlobValue
+    {
+        $text = self::castText($value);
+
+        return $text === null ? null : new SQLiteBlobValue($text);
+    }
+
+    private static function castInteger(mixed $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_bool($value) || is_int($value)) {
+            return (int) $value;
+        }
+        if (is_float($value)) {
+            if ($value >= 9223372036854775807.0) {
+                return PHP_INT_MAX;
+            }
+            if ($value <= -9223372036854775808.0) {
+                return PHP_INT_MIN;
+            }
+
+            return (int) $value;
+        }
+
+        $text = $value instanceof SQLiteBlobValue ? $value->bytes : (string) $value;
+        if (preg_match('/^\s*([+-]?[0-9]+)/', $text, $matches) !== 1) {
+            return 0;
+        }
+
+        return self::clampedInteger($matches[1]);
+    }
+
+    private static function castReal(mixed $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_bool($value) || is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        $text = $value instanceof SQLiteBlobValue ? $value->bytes : (string) $value;
+        if (preg_match('/^\s*([+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?)/', $text, $matches) !== 1) {
+            return 0.0;
+        }
+
+        return (float) $matches[1];
+    }
+
+    private static function castNumeric(mixed $value): null|int|float
+    {
+        if ($value === null || is_bool($value) || is_int($value) || is_float($value)) {
+            return $value;
+        }
+
+        $text = $value instanceof SQLiteBlobValue ? $value->bytes : (string) $value;
+        if (preg_match('/^\s*([+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?)/', $text, $matches) !== 1) {
+            return 0;
+        }
+
+        $literal = $matches[1];
+        if (preg_match('/^[+-]?[0-9]+$/', $literal) === 1) {
+            return self::clampedInteger($literal);
+        }
+
+        $real = (float) $literal;
+        if (is_finite($real) && floor($real) === $real && $real >= (float) PHP_INT_MIN && $real <= (float) PHP_INT_MAX) {
+            return (int) $real;
+        }
+
+        return $real;
+    }
+
+    private static function clampedInteger(string $literal): int
+    {
+        $negative = str_starts_with($literal, '-');
+        $digits = ltrim($literal, '+-');
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
+            return $negative ? PHP_INT_MIN : PHP_INT_MAX;
+        }
+
+        return (int) (($negative ? '-' : '') . $digits);
+    }
+
+    private static function formatReal(float $value): string
+    {
+        if (floor($value) === $value && abs($value) < 1.0e16) {
+            return sprintf('%.1F', $value);
+        }
+
+        $text = sprintf('%.15G', $value);
+
+        return str_contains($text, 'E') ? str_replace('E', 'e', $text) : $text;
+    }
+}

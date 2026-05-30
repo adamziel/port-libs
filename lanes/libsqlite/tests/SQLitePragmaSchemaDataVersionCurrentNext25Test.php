@@ -144,7 +144,7 @@ $cases = [
     'overflow schema assignment rejected' => [static fn (TestRunner $t): mixed => $t->throws(InvalidArgumentException::class, static fn () => $state()->execute('PRAGMA schema_version=2147483648')), null],
     'invalid data version bump rejected' => [static fn (TestRunner $t): mixed => $t->throws(InvalidArgumentException::class, static fn () => $state()->bumpDataVersion('main', 0)), null],
     'quoted schema rejected' => [static fn (TestRunner $t): mixed => $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaSchemaDataVersion::parse('PRAGMA "main".schema_version')), null],
-    'unsupported pragma rejected' => [static fn (TestRunner $t): mixed => $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaSchemaDataVersion::parse('PRAGMA user_version')), null],
+    'parse user version query' => [static fn (): mixed => SQLitePragmaSchemaDataVersion::parse('PRAGMA user_version'), ['pragma' => 'user_version', 'schema' => 'main', 'value' => null]],
     'empty schema name rejected by constructor' => [static fn (TestRunner $t): mixed => $t->throws(InvalidArgumentException::class, static fn () => new SQLitePragmaSchemaDataVersion(['' => []])), null],
 ];
 

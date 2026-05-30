@@ -193,6 +193,73 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:int}> $initialRows
+     * @param list<array{a:int,b:int}> $insertRows
+     * @return array<string,mixed>
+     */
+    public static function rowTriggerExecutionOrder(array $initialRows, array $insertRows = []): array
+    {
+        $rows = array_values($initialRows);
+        $updateLog = [];
+        $conditionalLog = [];
+        $index = 1;
+
+        foreach ($rows as $rowIndex => $old) {
+            $new = [
+                'a' => $old['a'] * 10,
+                'b' => $old['b'] * 10,
+            ];
+            $updateLog[] = self::rowTriggerOrderLogEntry($index++, $old, self::sumRows($rows), $new);
+            $rows[$rowIndex] = $new;
+            $afterEntry = self::rowTriggerOrderLogEntry($index++, $old, self::sumRows($rows), $new);
+            $updateLog[] = $afterEntry;
+            if ($old['a'] === $initialRows[0]['a']) {
+                $conditionalLog[] = $afterEntry;
+            }
+        }
+
+        $deleteRows = array_values($rows);
+        $deleteLog = [];
+        $index = 1;
+        foreach ($deleteRows as $row) {
+            $deleteLog[] = self::rowTriggerOrderLogEntry($index++, $row, self::sumRows($deleteRows), ['a' => 0, 'b' => 0]);
+            $deleteRows = array_values(array_filter($deleteRows, static fn (array $candidate): bool => $candidate !== $row));
+            $deleteLog[] = self::rowTriggerOrderLogEntry($index++, $row, self::sumRows($deleteRows), ['a' => 0, 'b' => 0]);
+        }
+
+        $insertedRows = [];
+        $insertLog = [];
+        $index = 1;
+        foreach ($insertRows as $new) {
+            $insertLog[] = self::rowTriggerOrderLogEntry($index++, ['a' => 0, 'b' => 0], self::sumRows($insertedRows), $new);
+            $insertedRows[] = $new;
+            $insertLog[] = self::rowTriggerOrderLogEntry($index++, ['a' => 0, 'b' => 0], self::sumRows($insertedRows), $new);
+        }
+
+        return [
+            'source' => 'trigger2.test trigger2-1.1..1.3',
+            'operation' => 'row-trigger-before-after-execution-order',
+            'status' => 'commit-ok',
+            'initial_rows' => $initialRows,
+            'updated_rows' => $rows,
+            'update_log' => $updateLog,
+            'conditional_update_log' => $conditionalLog,
+            'delete_log' => $deleteLog,
+            'insert_log' => $insertLog,
+            'final_insert_rows' => $insertedRows,
+            'update_log_count' => count($updateLog),
+            'conditional_update_log_count' => count($conditionalLog),
+            'delete_log_count' => count($deleteLog),
+            'insert_log_count' => count($insertLog),
+            'dependencies' => [
+                'sqlite-trigger2-before-trigger-sees-prestatement-rowset',
+                'sqlite-trigger2-after-trigger-sees-current-row-change',
+                'sqlite-trigger2-when-clause-uses-old-row-image',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{name:string,object_type:string,target?:string,temp?:bool}> $objects
      * @return array<string,mixed>
      */
@@ -433,6 +500,41 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         usort($rows, static fn (array $a, array $b): int => ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0)));
 
         return array_values($rows);
+    }
+
+    /**
+     * @param list<array{a:int,b:int}> $rows
+     * @return array{a:int,b:int}
+     */
+    private static function sumRows(array $rows): array
+    {
+        $sumA = 0;
+        $sumB = 0;
+        foreach ($rows as $row) {
+            $sumA += $row['a'];
+            $sumB += $row['b'];
+        }
+
+        return ['a' => $sumA, 'b' => $sumB];
+    }
+
+    /**
+     * @param array{a:int,b:int} $old
+     * @param array{a:int,b:int} $sums
+     * @param array{a:int,b:int} $new
+     * @return array{idx:int,old_a:int,old_b:int,db_sum_a:int,db_sum_b:int,new_a:int,new_b:int}
+     */
+    private static function rowTriggerOrderLogEntry(int $index, array $old, array $sums, array $new): array
+    {
+        return [
+            'idx' => $index,
+            'old_a' => $old['a'],
+            'old_b' => $old['b'],
+            'db_sum_a' => $sums['a'],
+            'db_sum_b' => $sums['b'],
+            'new_a' => $new['a'],
+            'new_b' => $new['b'],
+        ];
     }
 
     /**

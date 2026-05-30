@@ -400,6 +400,78 @@ for ($i = 1; $i <= 36; $i++) {
     };
 }
 
+for ($i = 1; $i <= 45; $i++) {
+    $firstA = $i;
+    $firstB = $i + 1;
+    $secondA = $i + 2;
+    $secondB = $i + 3;
+    $insertA = $i + 4;
+    $insertB = $i + 5;
+    $initialRows = [
+        ['a' => $firstA, 'b' => $firstB],
+        ['a' => $secondA, 'b' => $secondB],
+    ];
+    if ($i % 3 === 0) {
+        $initialRows[] = ['a' => $i + 6, 'b' => $i + 7];
+    }
+    $insertRows = [
+        ['a' => $insertA, 'b' => $insertB],
+    ];
+    if ($i % 4 === 0) {
+        $insertRows[] = ['a' => $i + 8, 'b' => $i + 9];
+    }
+    $originalSumA = array_sum(array_column($initialRows, 'a'));
+    $originalSumB = array_sum(array_column($initialRows, 'b'));
+    $firstAfterSumA = $originalSumA - $firstA + ($firstA * 10);
+    $firstAfterSumB = $originalSumB - $firstB + ($firstB * 10);
+    $updatedRows = array_map(static fn (array $row): array => ['a' => $row['a'] * 10, 'b' => $row['b'] * 10], $initialRows);
+    $updatedSumA = array_sum(array_column($updatedRows, 'a'));
+    $updatedSumB = array_sum(array_column($updatedRows, 'b'));
+    $deleteSecondBeforeSumA = $updatedSumA - ($firstA * 10);
+    $deleteSecondBeforeSumB = $updatedSumB - ($firstB * 10);
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::rowTriggerExecutionOrder($initialRows, $insertRows);
+    $case = 'trigger2-1 row trigger before after order dynamic ' . $i;
+
+    $tests[$case] = static function (TestRunner $t) use ($plan, $initialRows, $insertRows, $firstA, $firstB, $secondA, $secondB, $insertA, $insertB, $originalSumA, $originalSumB, $firstAfterSumA, $firstAfterSumB, $updatedSumA, $updatedSumB, $deleteSecondBeforeSumA, $deleteSecondBeforeSumB): void {
+        $actual = $plan();
+
+        $t->same('trigger2.test trigger2-1.1..1.3', $actual['source']);
+        $t->same('row-trigger-before-after-execution-order', $actual['operation']);
+        $t->same('commit-ok', $actual['status']);
+        $t->same(count($initialRows) * 2, $actual['update_log_count']);
+        $t->same(1, $actual['conditional_update_log_count']);
+        $t->same(count($initialRows) * 2, $actual['delete_log_count']);
+        $t->same(count($insertRows) * 2, $actual['insert_log_count']);
+        $t->same($firstA, $actual['update_log'][0]['old_a']);
+        $t->same($firstB, $actual['update_log'][0]['old_b']);
+        $t->same($originalSumA, $actual['update_log'][0]['db_sum_a']);
+        $t->same($originalSumB, $actual['update_log'][0]['db_sum_b']);
+        $t->same($firstA * 10, $actual['update_log'][0]['new_a']);
+        $t->same($firstB * 10, $actual['update_log'][0]['new_b']);
+        $t->same($firstAfterSumA, $actual['update_log'][1]['db_sum_a']);
+        $t->same($firstAfterSumB, $actual['update_log'][1]['db_sum_b']);
+        $t->same($actual['update_log'][1], $actual['conditional_update_log'][0]);
+        $t->same($secondA, $actual['update_log'][2]['old_a']);
+        $t->same($secondB, $actual['update_log'][2]['old_b']);
+        $t->same($updatedSumA, $actual['delete_log'][0]['db_sum_a']);
+        $t->same($updatedSumB, $actual['delete_log'][0]['db_sum_b']);
+        $t->same($deleteSecondBeforeSumA, $actual['delete_log'][2]['db_sum_a']);
+        $t->same($deleteSecondBeforeSumB, $actual['delete_log'][2]['db_sum_b']);
+        $t->same(0, $actual['delete_log'][count($initialRows) * 2 - 1]['db_sum_a']);
+        $t->same(0, $actual['delete_log'][count($initialRows) * 2 - 1]['db_sum_b']);
+        $t->same(0, $actual['insert_log'][0]['db_sum_a']);
+        $t->same(0, $actual['insert_log'][0]['db_sum_b']);
+        $t->same($insertA, $actual['insert_log'][0]['new_a']);
+        $t->same($insertB, $actual['insert_log'][0]['new_b']);
+        $t->same($insertA, $actual['insert_log'][1]['db_sum_a']);
+        $t->same($insertB, $actual['insert_log'][1]['db_sum_b']);
+        $t->same($insertRows, $actual['final_insert_rows']);
+        $t->same('sqlite-trigger2-before-trigger-sees-prestatement-rowset', $actual['dependencies'][0]);
+        $t->same('sqlite-trigger2-after-trigger-sees-current-row-change', $actual['dependencies'][1]);
+        $t->same('sqlite-trigger2-when-clause-uses-old-row-image', $actual['dependencies'][2]);
+    };
+}
+
 $tests['trigger1 schema duplicate trigger records upstream error'] = static function (TestRunner $t): void {
     $plan = SQLiteDynamicTriggerForeignKeyPlan::schemaLifecycle(
         [['name' => 'items', 'object_type' => 'table']],

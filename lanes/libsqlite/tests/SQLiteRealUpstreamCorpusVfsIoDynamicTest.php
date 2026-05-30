@@ -103,6 +103,67 @@ $tests['real upstream corpus vfs io dynamic io rejects unsupported traffic optio
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::ioTrafficPlan([], 1, 'delete', 'extra'));
 };
 
+$atomicVisibilityCases = [];
+foreach (range(1, 42) as $case) {
+    $committedRows = [
+        ['a' => 1, 'b' => 2],
+        ['a' => 3, 'b' => 4],
+    ];
+    $pendingRows = [
+        ['a' => 5 + ($case * 2), 'b' => 6 + ($case * 2)],
+    ];
+    $atomicVisibilityCases[] = [
+        'case' => $case,
+        'committed' => $committedRows,
+        'pending' => $pendingRows,
+        'commit' => $case % 7 !== 0,
+    ];
+}
+
+$tests['real upstream corpus vfs io dynamic atomic transaction visibility matches io 2 4'] = static function (TestRunner $t) use ($atomicVisibilityCases): void {
+    foreach ($atomicVisibilityCases as $case) {
+        $plan = SQLiteVfsIoDynamicPlan::atomicTransactionVisibility(['atomic'], $case['committed'], $case['pending'], $case['commit']);
+
+        $t->same('ok', $plan['status']);
+        $t->same(['atomic'], $plan['device_flags']);
+        $t->same(true, $plan['atomic_write_optimization']);
+        $t->same(false, $plan['rollback_journal_exists_during_transaction']);
+        $t->same(true, $plan['change_counter_pending']);
+        $t->same($case['committed'], $plan['pre_commit_reader_rows']);
+        $t->same(true, $plan['reader_snapshot_unchanged_before_commit']);
+        $t->same(false, $plan['pending_visible_before_commit']);
+        $t->same($case['commit'], $plan['pending_visible_after_commit']);
+        $t->same($case['commit'], $plan['commit_applied']);
+        $t->same($case['commit'] ? array_values(array_merge($case['committed'], $case['pending'])) : $case['committed'], $plan['post_commit_reader_rows']);
+        $t->same(['database'], $plan['database_syncs']);
+        $t->same(1, $plan['write_count']);
+        $t->same(true, in_array('io.test io-2.4.1', $plan['upstream'], true));
+        $t->same(true, in_array('io.test io-2.4.2', $plan['upstream'], true));
+        $t->same(true, in_array('io.test io-2.4.3', $plan['upstream'], true));
+        $t->same(true, in_array('upstream-io-atomic-visibility', $plan['dependencies'], true));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $plan['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic atomic transaction visibility non atomic keeps rollback journal'] = static function (TestRunner $t): void {
+    $committedRows = [['a' => 1, 'b' => 2], ['a' => 3, 'b' => 4]];
+    $pendingRows = [['a' => 5, 'b' => 6]];
+    $plan = SQLiteVfsIoDynamicPlan::atomicTransactionVisibility([], $committedRows, $pendingRows, true);
+
+    $t->same(false, $plan['atomic_write_optimization']);
+    $t->same(true, $plan['rollback_journal_exists_during_transaction']);
+    $t->same(false, $plan['change_counter_pending']);
+    $t->same($committedRows, $plan['pre_commit_reader_rows']);
+    $t->same(array_values(array_merge($committedRows, $pendingRows)), $plan['post_commit_reader_rows']);
+    $t->same(['directory', 'journal-pages', 'journal-header', 'database'], $plan['database_syncs']);
+};
+
+$tests['real upstream corpus vfs io dynamic atomic transaction visibility rejects empty rowsets'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicTransactionVisibility(['atomic'], [], [['a' => 5, 'b' => 6]], true));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicTransactionVisibility(['atomic'], [['a' => 1, 'b' => 2]], [], true));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicTransactionVisibility(['bad-device'], [['a' => 1]], [['a' => 2]], true));
+};
+
 $nolockCases = [
     ['file:/srv/app/data/app.sqlite?nolock=0', true, false, false, ['xLock' => 7, 'xUnlock' => 5, 'xCheckReservedLock' => 0, 'xAccess' => 0]],
     ['file:/srv/app/data/app.sqlite?nolock=1', true, true, false, ['xLock' => 0, 'xUnlock' => 0, 'xCheckReservedLock' => 0, 'xAccess' => 0]],

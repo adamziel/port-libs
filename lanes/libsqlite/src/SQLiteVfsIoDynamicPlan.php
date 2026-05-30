@@ -108,6 +108,47 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param list<string> $deviceFlags
+     * @param list<array<string, mixed>> $committedRows
+     * @param list<array<string, mixed>> $pendingRows
+     * @return array<string, mixed>
+     */
+    public static function atomicTransactionVisibility(array $deviceFlags, array $committedRows, array $pendingRows, bool $commit): array
+    {
+        if ($committedRows === []) {
+            throw new \InvalidArgumentException('SQLite atomic VFS visibility requires committed rows');
+        }
+        if ($pendingRows === []) {
+            throw new \InvalidArgumentException('SQLite atomic VFS visibility requires pending rows');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $atomic = in_array('atomic', $flags, true) || in_array('batch_atomic', $flags, true);
+        $rollbackJournalExists = !$atomic;
+        $preCommitReaderRows = $committedRows;
+        $postCommitReaderRows = $commit ? array_values(array_merge($committedRows, $pendingRows)) : $committedRows;
+        $writePlan = self::ioTrafficPlan($flags, 1, 'delete', 'full');
+
+        return [
+            'status' => 'ok',
+            'device_flags' => $flags,
+            'atomic_write_optimization' => $atomic,
+            'rollback_journal_exists_during_transaction' => $rollbackJournalExists,
+            'change_counter_pending' => $atomic,
+            'pre_commit_reader_rows' => $preCommitReaderRows,
+            'post_commit_reader_rows' => $postCommitReaderRows,
+            'reader_snapshot_unchanged_before_commit' => $preCommitReaderRows === $committedRows,
+            'pending_visible_before_commit' => false,
+            'pending_visible_after_commit' => $commit,
+            'commit_applied' => $commit,
+            'database_syncs' => $writePlan['sync_sequence'],
+            'write_count' => $writePlan['database_page_writes'],
+            'upstream' => ['io.test io-2.4.1', 'io.test io-2.4.2', 'io.test io-2.4.3'],
+            'dependencies' => ['upstream-io-atomic-visibility', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function nolockProbe(string $filename, bool $writeTransaction = false): array
