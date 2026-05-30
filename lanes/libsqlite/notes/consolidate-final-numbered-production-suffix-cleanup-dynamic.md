@@ -28,3 +28,17 @@ Verification for this handoff:
 
 Dependency closure: no new support component is needed; this only removes
 numbered production method exposure in an existing canonical pager class.
+
+## Compound Recursive LIMIT Boundary Cleanup
+
+Consolidated the compound SELECT recursive/window LIMIT boundary `Next188`
+production entry and private helpers into stable descriptive method names on
+`SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`.
+
+The direct focused test was renamed from the numbered current-source filename
+to `SQLiteCompoundSelectWindowRecursiveLimitBoundaryTest.php` and migrated to
+the canonical method name. The returned status and dependency strings keep the
+accepted `next188` proof keys so downstream evidence remains observable.
+
+Dependency closure: no new support component is needed; this is source/test
+helper consolidation only.

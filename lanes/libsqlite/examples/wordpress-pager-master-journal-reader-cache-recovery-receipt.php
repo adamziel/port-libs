@@ -125,7 +125,7 @@ $read = static fn (int $pageNumber, string $token): array => [
     'master_journal_recovery_receipt_token' => $token,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext254(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalRecoveryReceipt(
     $database,
     $master,
     $masterBytes,

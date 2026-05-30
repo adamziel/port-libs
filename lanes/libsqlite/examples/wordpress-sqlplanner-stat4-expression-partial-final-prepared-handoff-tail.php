@@ -108,7 +108,7 @@ if (in_array('--self-test', $argv, true)) {
 
 echo json_encode([
     'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-final-prepared-handoff',
-    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next958-973 current-source STAT4 handoff into final-prepared-handoff only when projected current rows still match.',
+    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the terminal prepared current-source STAT4 handoff into final-prepared-handoff only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
     'preparedSlices' => $plan['stat4FinalPreparedHandoffPreparationFence']['preparedSlices'],

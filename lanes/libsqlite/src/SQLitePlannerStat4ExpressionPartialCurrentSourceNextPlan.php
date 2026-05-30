@@ -34913,7 +34913,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-final-prepared-handoff-prep"],
             ))),
             "dependency_closure" => "no new support component needed; final prepared handoff preparation extends the accepted current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares final prepared current-source handoff slices only; avoids changing terminal prepared handoff windows, next958-973 handoff windows, penultimate prepared, advanced prepared, continuation, prepared, payload row-image validation, page anchor, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares final prepared current-source handoff slices only; avoids changing terminal prepared handoff windows, legacy next958-973 handoff windows alias, penultimate prepared, advanced prepared, continuation, prepared, payload row-image validation, page anchor, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " FINAL PREPARED HANDOFF"),
         ]);
     }

@@ -112,7 +112,7 @@ $plan974989 = static fn (?array $rows = null, ?array $samples = null): array => 
 
 $tests = [
     'planner stat4 expression partial current source finalPreparedHandoff status prepared' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-final-prepared-handoff-prepared', $plan974989()['status']),
-    'planner stat4 expression partial current source finalPreparedHandoff inherits next958973' => static fn (TestRunner $t) => $t->same(true, $plan974989()['selectedPlan']['next958973Prepared']),
+    'planner stat4 expression partial current source finalPreparedHandoff inherits terminal prepared handoff' => static fn (TestRunner $t) => $t->same(true, $plan974989()['selectedPlan']['terminalPreparedHandoffPrepared']),
     'planner stat4 expression partial current source finalPreparedHandoff ready flag' => static fn (TestRunner $t) => $t->same(true, $plan974989()['selectedPlan']['finalPreparedHandoffPrepared']),
     'planner stat4 expression partial current source finalPreparedHandoff prior ready' => static fn (TestRunner $t) => $t->same(true, $plan974989()['stat4FinalPreparedHandoffPreparationFence']['previousFenceReady']),
     'planner stat4 expression partial current source finalPreparedHandoff slice range' => static fn (TestRunner $t) => $t->same([990, 1005], $plan974989()['stat4FinalPreparedHandoffPreparationFence']['sliceRange']),
@@ -125,14 +125,14 @@ $tests = [
     'planner stat4 expression partial current source finalPreparedHandoff signature length' => static fn (TestRunner $t) => $t->same(64, strlen($plan974989()['stat4FinalPreparedHandoffPreparationFence']['handoffSignature'])),
     'planner stat4 expression partial current source finalPreparedHandoff selected signature' => static fn (TestRunner $t) => $t->same($plan974989()['stat4FinalPreparedHandoffPreparationFence']['handoffSignature'], $plan974989()['selectedPlan']['finalPreparedHandoffHandoffSignature']),
     'planner stat4 expression partial current source finalPreparedHandoff stat4 signature' => static fn (TestRunner $t) => $t->same($plan974989()['stat4FinalPreparedHandoffPreparationFence']['handoffSignature'], $plan974989()['stat4Fence']['finalPreparedHandoffHandoffSignature']),
-    'planner stat4 expression partial current source finalPreparedHandoff prior signature threaded' => static fn (TestRunner $t) => $t->same($plan974989()['stat4Next958973PreparationFence']['handoffSignature'], $plan974989()['selectedPlan']['finalPreparedHandoffPriorHandoffSignature']),
-    'planner stat4 expression partial current source finalPreparedHandoff preserves next958973 fence' => static fn (TestRunner $t) => $t->same(range(958, 973), $plan974989()['stat4Next958973PreparationFence']['preparedSlices']),
+    'planner stat4 expression partial current source finalPreparedHandoff prior signature threaded' => static fn (TestRunner $t) => $t->same($plan974989()['stat4TerminalPreparedHandoffPreparationFence']['handoffSignature'], $plan974989()['selectedPlan']['finalPreparedHandoffPriorHandoffSignature']),
+    'planner stat4 expression partial current source finalPreparedHandoff preserves terminal prepared fence' => static fn (TestRunner $t) => $t->same(range(958, 973), $plan974989()['stat4TerminalPreparedHandoffPreparationFence']['preparedSlices']),
     'planner stat4 expression partial current source finalPreparedHandoff cursor appended' => static fn (TestRunner $t) => $t->same('PrepareStat4ExpressionPartialFinalPreparedHandoffHandoff', $plan974989()['cursorProgram'][array_key_last($plan974989()['cursorProgram'])]['opcode']),
     'planner stat4 expression partial current source finalPreparedHandoff cursor mode' => static fn (TestRunner $t) => $t->same('final prepared handoff-current-source-stat4-expression-partial-prep', $plan974989()['cursorProgram'][array_key_last($plan974989()['cursorProgram'])]['mode']),
     'planner stat4 expression partial current source finalPreparedHandoff detail' => static fn (TestRunner $t) => $t->contains('FINAL PREPARED HANDOFF', $plan974989()['detail']),
     'planner stat4 expression partial current source finalPreparedHandoff dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-sqlplanner-stat4-expression-partial-final-prepared-handoff-prep', $plan974989()['dependencies'], true)),
     'planner stat4 expression partial current source finalPreparedHandoff dependency closure' => static fn (TestRunner $t) => $t->contains('final prepared handoff preparation extends', $plan974989()['dependency_closure']),
-    'planner stat4 expression partial current source finalPreparedHandoff non overlap' => static fn (TestRunner $t) => $t->contains('next958-973 handoff windows', $plan974989()['non_overlap']),
+    'planner stat4 expression partial current source finalPreparedHandoff non overlap' => static fn (TestRunner $t) => $t->contains('terminal prepared handoff windows', $plan974989()['non_overlap']),
     'planner stat4 expression partial current source finalPreparedHandoff malformed needed column' => static function (TestRunner $t) use ($prepared974989, $current974989, $terms974989): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeFinalPreparedHandoff($prepared974989(), $current974989(), $terms974989(), ['option_name', ''], 6));
     },

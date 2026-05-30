@@ -7533,14 +7533,14 @@ final class SQLiteJsonTablePlan
         }
 
         $function = self::normalizeFunction($function);
-        $currentConstraints = self::constraintsFromSource102($currentSource, $constraintSources);
-        $nextConstraints = self::constraintsFromSource102($nextSource, $constraintSources);
-        $current = self::sourceConstraintPlan102($function, $currentSource, $currentConstraints, $constraintSources, $orderBy);
-        $next = self::sourceConstraintPlan102($function, $nextSource, $nextConstraints, $constraintSources, $orderBy);
+        $currentConstraints = self::constraintsFromSource($currentSource, $constraintSources);
+        $nextConstraints = self::constraintsFromSource($nextSource, $constraintSources);
+        $current = self::sourceConstraintPlanFromConstraintSources($function, $currentSource, $currentConstraints, $constraintSources, $orderBy);
+        $next = self::sourceConstraintPlanFromConstraintSources($function, $nextSource, $nextConstraints, $constraintSources, $orderBy);
         $argumentTransitions = self::argumentTransitions($current['filterArguments'], $next['filterArguments']);
         $usageTransitions = self::usageTransitions($current['constraintUsage'], $next['constraintUsage']);
-        $constraintValueTransitions = self::constraintValueTransitions102($current['constraintSources'], $next['constraintSources']);
-        $replanReasons = self::constraintSourceReplanReasons102($current, $next, $constraintValueTransitions, $argumentTransitions, $usageTransitions);
+        $constraintValueTransitions = self::constraintValueTransitionsFromSources($current['constraintSources'], $next['constraintSources']);
+        $replanReasons = self::constraintSourceReplanReasons($current, $next, $constraintValueTransitions, $argumentTransitions, $usageTransitions);
 
         return [
             'function' => $function,
@@ -7876,8 +7876,8 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table lateral hidden keyed planner join type must be inner or left');
         }
 
-        $currentIndex = self::keyedHostRows103($currentHostRows, $hostKeyColumn, $jsonColumn, $rootColumn, 'current');
-        $nextIndex = self::keyedHostRows103($nextHostRows, $hostKeyColumn, $jsonColumn, $rootColumn, 'next');
+        $currentIndex = self::keyedLateralHiddenHostRows($currentHostRows, $hostKeyColumn, $jsonColumn, $rootColumn, 'current');
+        $nextIndex = self::keyedLateralHiddenHostRows($nextHostRows, $hostKeyColumn, $jsonColumn, $rootColumn, 'next');
         $hostKeys = array_values(array_unique(array_merge($currentIndex['keys'], $nextIndex['keys'])));
 
         $current = [];
@@ -8029,11 +8029,11 @@ final class SQLiteJsonTablePlan
 
         $currentByHost = [];
         foreach ($plan['current'] as $hostPlan) {
-            $currentByHost[self::hostKeyToken103($hostPlan['hostKey'])] = self::lateralHiddenRowidHostSummary105($hostPlan);
+            $currentByHost[self::stableHostKeyToken($hostPlan['hostKey'])] = self::lateralHiddenRowidHostSummary($hostPlan);
         }
         $nextByHost = [];
         foreach ($plan['next'] as $hostPlan) {
-            $nextByHost[self::hostKeyToken103($hostPlan['hostKey'])] = self::lateralHiddenRowidHostSummary105($hostPlan);
+            $nextByHost[self::stableHostKeyToken($hostPlan['hostKey'])] = self::lateralHiddenRowidHostSummary($hostPlan);
         }
 
         $rowidReasons = [];
@@ -8042,7 +8042,7 @@ final class SQLiteJsonTablePlan
             $hostKeyToken = (string) $transition['hostKeyToken'];
             $currentSummary = $currentByHost[$hostKeyToken] ?? null;
             $nextSummary = $nextByHost[$hostKeyToken] ?? null;
-            $rowidTransition = self::lateralHiddenRowidTransition105($transition, $currentSummary, $nextSummary);
+            $rowidTransition = self::lateralHiddenRowidTransition($transition, $currentSummary, $nextSummary);
             $rowidTransitions[] = $rowidTransition;
             foreach ($rowidTransition['rowTransitions'] as $rowTransition) {
                 if ($rowTransition['reason'] !== 'stable-hidden-rowid-source-row') {
@@ -18968,7 +18968,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,sourceColumn?:string,value?:mixed,operator?:string,usable?:bool}> $constraintSources
      * @return list<array{column:string,operator:string,value:mixed,usable?:bool,sourceColumn:string|null,literal:bool}>
      */
-    private static function constraintsFromSource102(array $source, array $constraintSources): array
+    private static function constraintsFromSource(array $source, array $constraintSources): array
     {
         $constraints = [];
         foreach ($constraintSources as $constraint) {
@@ -19016,7 +19016,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    private static function sourceConstraintPlan102(
+    private static function sourceConstraintPlanFromConstraintSources(
         string $function,
         array $source,
         array $constraints,
@@ -19055,7 +19055,7 @@ final class SQLiteJsonTablePlan
 
         return [
             'source' => $source,
-            'constraintSources' => self::constraintSourceMetadata102($constraints),
+            'constraintSources' => self::constraintSourceMetadata($constraints),
             'runnable' => $indexPlan['runnable'],
             'idxNum' => $indexPlan['idxNum'],
             'idxStr' => $indexPlan['idxStr'],
@@ -19077,7 +19077,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool,sourceColumn:string|null,literal:bool}> $constraints
      * @return list<array{index:int,column:string,operator:string,value:mixed,sourceColumn:string|null,literal:bool,hidden:bool,usable:bool}>
      */
-    private static function constraintSourceMetadata102(array $constraints): array
+    private static function constraintSourceMetadata(array $constraints): array
     {
         $metadata = [];
         foreach ($constraints as $index => $constraint) {
@@ -19102,7 +19102,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $next
      * @return list<array{index:int,column:string,sourceColumn:string|null,current:mixed,next:mixed,changed:bool,hidden:bool}>
      */
-    private static function constraintValueTransitions102(array $current, array $next): array
+    private static function constraintValueTransitionsFromSources(array $current, array $next): array
     {
         $count = max(count($current), count($next));
         $transitions = [];
@@ -19133,7 +19133,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}> $usageTransitions
      * @return list<string>
      */
-    private static function constraintSourceReplanReasons102(
+    private static function constraintSourceReplanReasons(
         array $current,
         array $next,
         array $constraintValueTransitions,
@@ -19408,7 +19408,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $hostPlan
      * @return array{hostKey:mixed,hostIndex:int,rowids:list<int>,firstRowid:int|null,lastRowid:int|null,rowCount:int,rowidResidualColumns:list<string>,nullExtended:bool,sourceKind:string,root:mixed,rows:list<array<string,mixed>>}
      */
-    private static function lateralHiddenRowidHostSummary105(array $hostPlan): array
+    private static function lateralHiddenRowidHostSummary(array $hostPlan): array
     {
         $rows = $hostPlan['rows'] ?? [];
         $rowids = self::rowidsFromRows($rows);
@@ -19434,7 +19434,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed>|null $nextSummary
      * @return array<string,mixed>
      */
-    private static function lateralHiddenRowidTransition105(
+    private static function lateralHiddenRowidTransition(
         array $transition,
         ?array $currentSummary,
         ?array $nextSummary,
@@ -19463,7 +19463,7 @@ final class SQLiteJsonTablePlan
             'rowidResidualChanged' => $currentResiduals !== $nextResiduals,
             'rowTransitions' => $rowTransitions,
             'changed' => $transition['changed'] || $currentRowids !== $nextRowids || $currentResiduals !== $nextResiduals,
-            'reason' => self::lateralHiddenRowidTransitionReason105($transition, $currentRowids, $nextRowids, $currentResiduals, $nextResiduals),
+            'reason' => self::lateralHiddenRowidTransitionReason($transition, $currentRowids, $nextRowids, $currentResiduals, $nextResiduals),
         ];
     }
 
@@ -19474,7 +19474,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $currentResiduals
      * @param list<string> $nextResiduals
      */
-    private static function lateralHiddenRowidTransitionReason105(
+    private static function lateralHiddenRowidTransitionReason(
         array $transition,
         array $currentRowids,
         array $nextRowids,
@@ -19518,10 +19518,10 @@ final class SQLiteJsonTablePlan
             if (!array_key_exists($hostKeyColumn, $row)) {
                 throw new \InvalidArgumentException("SQLite JSON table lateral hidden current-source {$side} host row is missing {$hostKeyColumn}");
             }
-            self::constraintsFromSource102($row, $constraintSources);
+            self::constraintsFromSource($row, $constraintSources);
 
             $value = $row[$hostKeyColumn];
-            $token = self::hostKeyToken103($value);
+            $token = self::stableHostKeyToken($value);
             if (isset($rows[$token])) {
                 throw new \InvalidArgumentException("SQLite JSON table lateral hidden current-source {$side} host key column {$hostKeyColumn} must be unique");
             }
@@ -19604,7 +19604,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $hostRows
      * @return array{keys:list<string>,values:list<mixed>,rows:array<string,array{ordinal:int,row:array<string,mixed>,value:mixed}>}
      */
-    private static function keyedHostRows103(
+    private static function keyedLateralHiddenHostRows(
         array $hostRows,
         string $hostKeyColumn,
         string $jsonColumn,
@@ -19626,7 +19626,7 @@ final class SQLiteJsonTablePlan
             }
 
             $value = $hostRow[$hostKeyColumn];
-            $key = self::hostKeyToken103($value);
+            $key = self::stableHostKeyToken($value);
             if (isset($rows[$key])) {
                 throw new \InvalidArgumentException("SQLite JSON table lateral hidden {$side} host key column {$hostKeyColumn} must be unique");
             }
@@ -19647,7 +19647,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function hostKeyToken103(mixed $value): string
+    private static function stableHostKeyToken(mixed $value): string
     {
         if ($value === null) {
             return 'null:';
