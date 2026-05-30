@@ -49,21 +49,29 @@
 ## Current Coordination Snapshot
 
 - 2026-05-30 supervisor continuation (shell samples 04:31 UTC):
-  Latest libsqlite consolidation is integrated as `b5e9b79b8e`
-  (`libsqlite: consolidate suffix cleanup batch`). The batch accepts 6
-  current-base-compatible handoffs covering B-tree overflow freeblock coalesce,
-  skipscan expression range recheck, JSON generated-path rowid cost early/late,
-  release-runner suite burnup stable naming, production GLOB cursor stable
-  naming, and STAT4 expression-partial range/order fence stable naming.
+  Latest libsqlite consolidation source is integrated as `3ab73a6aa4`
+  (`libsqlite: fix root suite consolidation collisions`) on top of
+  `b5e9b79b8e` (`libsqlite: consolidate suffix cleanup batch`). The batch
+  accepts 6 current-base-compatible handoffs covering B-tree overflow freeblock
+  coalesce, skipscan expression range recheck, JSON generated-path rowid cost
+  early/late, release-runner suite burnup stable naming, production GLOB cursor
+  stable naming, and STAT4 expression-partial range/order fence stable naming.
+  The follow-up source fix addresses root-suite broad execution by making the
+  release burnup helper names unique and treating non-comparable foreign-key
+  values as non-matches instead of hard failures.
   Verification passed PHP lint for 33 changed PHP files, focused changed tests
   `15 files / 5332 assertions / 0 failures`, skipscan family `2 files / 120
   assertions / 0 failures`, B-tree freeblock family `188 files / 118687
   assertions / 0 failures`, GLOB/UTF-16 glob family `8 files / 436 assertions
   / 0 failures`, STAT4 expression partial family `133 files / 7547 assertions
   / 0 failures`, JSON table family `304 files / 20264 assertions / 0
-  failures`, and `git diff --check -- lanes/libsqlite`. Public pass/mapped
-  counters remain `154019 pass / 0 fail` and `830 / 1589` because this is
-  consolidation-only. Disk cleanup compressed old worker logs, pruned exact
+  failures`, release burnup pair `2 files / 797 assertions / 0 failures`,
+  foreign-key check corpus `1 file / 81 assertions / 0 failures`, and
+  `git diff --check -- lanes/libsqlite`. Public pass/mapped counters remain
+  `154019 pass / 0 fail` and `830 / 1589` because this is consolidation-only.
+  A first root no-argument harness attempt reached 103721 output lines before
+  exposing the release helper collision; rerun is pending after `3ab73a6aa4`.
+  Disk cleanup compressed old worker logs, pruned exact
   patch-matched inactive ready worktrees, and removed non-priority upstream
   caches after skipping registered dirty worktree parents; evidence is under
   `.tmux-team/tmp/cleanup-evidence/log-compress-20260530T0410Z`,
