@@ -75,7 +75,7 @@ $terms180 = static fn (): array => [
     $eq180('autoload', 'yes'),
     $notNull180('option_name'),
 ];
-$plan180 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext180(
+$plan180 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4DescendingBoundaryFence(
     $prepared ?? $prepared180(),
     $current ?? $current180(),
     $terms ?? $terms180(),

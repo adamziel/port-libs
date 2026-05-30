@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteGlobCurrentNextCursor;
+use PortLibs\LibSqlite\SQLiteGlobCursor;
 
 $entries = [
     ['key' => 'Plugin_Alpha', 'rowid' => 1, 'payload' => ['option_name' => 'Plugin_Alpha', 'autoload' => 'yes']],
@@ -14,8 +14,8 @@ $entries = [
     ['key' => 'theme_alpha', 'rowid' => 5, 'payload' => ['option_name' => 'theme_alpha', 'autoload' => 'yes']],
 ];
 
-$pluginCursor = new SQLiteGlobCurrentNextCursor($entries, 'plugin_*', 'NOCASE');
-$unicodeCursor = new SQLiteGlobCurrentNextCursor($entries, 'plugin_[À-ÿ]*', 'BINARY');
+$pluginCursor = new SQLiteGlobCursor($entries, 'plugin_*', 'NOCASE');
+$unicodeCursor = new SQLiteGlobCursor($entries, 'plugin_[À-ÿ]*', 'BINARY');
 
 echo json_encode(
     [

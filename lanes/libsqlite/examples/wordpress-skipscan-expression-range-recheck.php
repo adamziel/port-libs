@@ -20,7 +20,7 @@ $prepared = [
     'skippedColumn' => 'autoload',
     'rangeColumn' => 'option_name',
     'rangeExpression' => 'lower(option_name)',
-    'rangeExpressionColumn' => '__expr_lower_option_name_next149',
+    'rangeExpressionColumn' => '__expr_lower_option_name_range_recheck',
     'lowerInclusive' => 'plugin_',
     'upperBound' => 'plugin_t',
     'upperInclusive' => false,
@@ -47,7 +47,7 @@ $current = array_replace($prepared, [
     'rows' => [
         ['rowid' => 1, 'autoload' => 'auto', 'option_name' => 'plugin_delta', 'option_value' => 'a:3', 'kind' => 'plugin'],
         ['rowid' => 2, 'autoload' => 'no', 'option_name' => 'plugin_zeta', 'option_value' => 'a:4', 'kind' => 'plugin'],
-        ['rowid' => 3, 'autoload' => 'yes', 'option_name' => 'plugin_delta', 'option_value' => 'stale', 'kind' => 'plugin', '__expr_lower_option_name_next149' => 'theme_mods_old_cache'],
+        ['rowid' => 3, 'autoload' => 'yes', 'option_name' => 'plugin_delta', 'option_value' => 'stale', 'kind' => 'plugin', '__expr_lower_option_name_range_recheck' => 'theme_mods_old_cache'],
     ],
     'stat4Samples' => [
         ['prefix' => 'auto', 'suffix' => 'plugin_delta', 'nEq' => 1, 'nLt' => 0, 'nDLt' => 0],
@@ -61,7 +61,7 @@ $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
     new SQLiteIndexPredicate('option_name', SQLiteIndexPredicate::IS_NOT_NULL),
 ]);
 
-$plan = SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan::materializeNext149(
+$plan = SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan::materializeExpressionRangeRecheck(
     $prepared,
     $current,
     $partial,

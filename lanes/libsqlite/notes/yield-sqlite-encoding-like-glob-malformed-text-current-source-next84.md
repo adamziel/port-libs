@@ -8,12 +8,12 @@
 
 ## Verification
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteLikeGlobMalformedTextCurrentSourceNext84Test.php`: `1 test files, 65 assertions, 0 failures`, `51` PASS lines.
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteLikeCurrentNextCursorCurrentNext68Test.php lanes/libsqlite/tests/SQLiteLikeGlobMalformedTextCurrentSourceNext84Test.php`: `2 test files, 121 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-option-name-like-glob-malformed-current-next84.php`: emits valid JSON with `likeBinaryRowids` `[2,3]`, GLOB parity rowids `[2,3]`, and default NOCASE rejection `nocase_like_prefix_must_be_ascii_for_range`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteLikeGlobMalformedTextCursorTest.php`: `1 test files, 65 assertions, 0 failures`, `51` PASS lines.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteLikeCurrentNextCursorCurrentNext68Test.php lanes/libsqlite/tests/SQLiteLikeGlobMalformedTextCursorTest.php`: `2 test files, 121 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-option-name-like-glob-malformed-cursor.php`: emits valid JSON with `likeBinaryRowids` `[2,3]`, GLOB parity rowids `[2,3]`, and default NOCASE rejection `nocase_like_prefix_must_be_ascii_for_range`.
 - `php -l lanes/libsqlite/src/SQLiteLikeCurrentNextCursor.php`: no syntax errors.
-- `php -l lanes/libsqlite/tests/SQLiteLikeGlobMalformedTextCurrentSourceNext84Test.php`: no syntax errors.
-- `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob-malformed-current-next84.php`: no syntax errors.
+- `php -l lanes/libsqlite/tests/SQLiteLikeGlobMalformedTextCursorTest.php`: no syntax errors.
+- `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob-malformed-cursor.php`: no syntax errors.
 - `php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status valid JSON\n";'`: valid JSON.
 - `git diff --check -- lanes/libsqlite`: clean.
 

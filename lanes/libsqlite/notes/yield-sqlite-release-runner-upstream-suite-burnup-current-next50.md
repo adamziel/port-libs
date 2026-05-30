@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Added `SQLiteUpstreamSuiteEvidence::releaseRunnerUpstreamSuiteBurnupCurrentNext50()` for lane-local current/next accepted-source suite burnup evidence.
+- Added `SQLiteUpstreamSuiteEvidence::releaseRunnerUpstreamSuiteBurnup()` for lane-local current/next accepted-source suite burnup evidence.
 - The helper classifies suite rows by tier, artifact label, current/next countability, test-count movement, blockers, and focused PHP admission.
 - This does not launch a broad upstream runner and does not claim release/all parity. It keeps open, regressed, under-threshold, and invalid rows uncounted.
 
@@ -11,7 +11,7 @@
 Command:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteReleaseRunnerSuiteBurnupCurrentNext50Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteReleaseRunnerSuiteBurnupTest.php
 ```
 
 Result:

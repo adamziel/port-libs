@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteGlobCurrentNextCursor;
+use PortLibs\LibSqlite\SQLiteGlobCursor;
 use PortLibs\LibSqlite\SQLiteLikeCurrentNextCursor;
 
 $tests = [];
@@ -34,7 +34,7 @@ $likeCursor = static fn (string $pattern, string $collation = 'BINARY', ?string 
     $escape,
     $caseSensitive,
 );
-$globCursor = static fn (string $pattern, string $collation = 'BINARY'): SQLiteGlobCurrentNextCursor => new SQLiteGlobCurrentNextCursor($entries, $pattern, $collation);
+$globCursor = static fn (string $pattern, string $collation = 'BINARY'): SQLiteGlobCursor => new SQLiteGlobCursor($entries, $pattern, $collation);
 
 $planCases = [
     'like c3 malformed lower bound is raw prefix' => ['like', "plugin\_\xc3%", 'BINARY', '\\', true, 0, 'range.lowerInclusive', "plugin_\xc3"],

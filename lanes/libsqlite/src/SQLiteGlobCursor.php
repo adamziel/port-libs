@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteGlobCurrentNextCursor
+final class SQLiteGlobCursor
 {
     /** @var list<array{key:string,rowid:int,payload:array<string,mixed>}> */
     private array $entries = [];

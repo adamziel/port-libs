@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteUtf16GlobCurrentNextCursor
 {
-    private SQLiteGlobCurrentNextCursor $cursor;
+    private SQLiteGlobCursor $cursor;
     private int $encoding;
 
     /**
@@ -46,7 +46,7 @@ final class SQLiteUtf16GlobCurrentNextCursor
             ];
         }
 
-        $this->cursor = new SQLiteGlobCurrentNextCursor(
+        $this->cursor = new SQLiteGlobCursor(
             array_map(
                 static fn (array $entry): array => [
                     'key' => $entry['key'],

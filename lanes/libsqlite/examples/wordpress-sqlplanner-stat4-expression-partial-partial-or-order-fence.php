@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
-require __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
@@ -62,7 +61,7 @@ $terms = [
     ['left' => ['column' => 'option_name'], 'operator' => 'IS NOT NULL'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext181(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4PartialOrOrderFence(
     $prepared,
     $source,
     $terms,

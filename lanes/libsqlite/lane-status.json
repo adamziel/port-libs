@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "libsqlite",
     "estimatedProgress": 99,
-    "suiteProgress": "Accepted JSON table rowid-alias projection and XColumn cache helper stable names plus release-runner admission/rebase-admission stable names at cd2e8a089; phpPass remains 154019 / 0 fail and mapped coverage remains 830 / 1589 because this batch removes numbered production/test/note names without claiming fresh denominator rows.",
+    "suiteProgress": "Consolidated the production GLOB current/next cursor into stable SQLiteGlobCursor naming on base c7f3b81db; phpPass remains 154019 / 0 fail and mapped coverage remains 830 / 1589 because this batch removes numbered production/test/example names without claiming fresh denominator rows.",
     "phpPass": 154019,
     "phpFail": 0,
     "wordpressScenarios": "Functional batches add WordPress/self-test examples for B-tree index mutation, JSON path operator precedence, JSON table ranked alternative planning, pager WAL recovery, schema PRAGMA DDL state, SELECT join fences, datetime scalar functions, UPSERT DO NOTHING RETURNING, VFS transaction locks, current WordPress option-import smoke, attach temp WAL schema cache routing, JSON aggregate window frames, pager rollback-journal admission, PRAGMA integrity scoped execution, schema foreign-key single-quoted identifiers, SELECT aggregate windows, WAL SHM lock routing, and UPDATE FROM CTE/order-limit behavior.",
     "phase": "numbered production helper consolidation",
-    "audit": "Source commit cd2e8a089 accepted 3 current-base-compatible handoffs covering JSON generated-path rowid-alias projection helper cleanup, JSON generated-path XColumn cache helper cleanup, and release-runner admission/rebase-admission method/test/note stable naming. Verification passed PHP lint for changed PHP files, the JSON rowid-alias projection WordPress self-test, focused changed tests 5 files / 2762 assertions / 0 failures, JSON table family 304 files / 20136 assertions / 0 failures, release-runner focused family 6 files / 6396 assertions / 0 failures, and git diff --check -- lanes/libsqlite. Public pass/mapped counters unchanged because this is consolidation-only.",
-    "currentWork": "Verified libsqlite JSON table and release-runner helper/test/note suffix consolidation at cd2e8a089; worker pool remains active while the supervisor scores fresh current-base handoffs by behavior/failure value first and consolidation value second.",
+    "audit": "Current consolidation patch renames the generated production GLOB cursor file to SQLiteGlobCursor.php, updates direct tests/examples/notes, and preserves observable current/next cursor payloads and dependency strings. Verification passed PHP lint for changed PHP files, focused glob/UTF-16 glob family tests at 6 files / 331 assertions / 0 failures, four WordPress example smokes, and git diff --check -- lanes/libsqlite. Public pass/mapped counters unchanged because this is consolidation-only.",
+    "currentWork": "Verified libsqlite GLOB cursor production/test/example suffix consolidation on c7f3b81db; worker pool remains active while the supervisor scores fresh current-base handoffs by behavior/failure value first and consolidation value second.",
     "blocker": "Broad directory-mode libsqlite test execution still has pre-existing failures that reproduce at clean b88d9dbd7. No blocker for accepted source commit cd2e8a089; continue focused/family gates for consolidation acceptance while assigning separate behavior slices to burn those failures down.",
     "nextTask": "Keep the worker pool in the 10-11 active band, integrate the next current-base libsqlite handoff with clean focused/family evidence, supersede old-base patches that collide with already-renamed files, and keep pruning inactive artifacts only after preserving diffs/status/untracked content.",
-    "wordpressScenarioLatest": "JSON table generated rowid/constraint/window scenarios and release-runner admission/rebase-admission scenarios remain green after suffix consolidation.",
-    "latestCommit": "cd2e8a08979c2d2609f75c5a693aa1f8d31eb976 (libsqlite: consolidate json release helper suffix names)",
-    "commit": "cd2e8a08979c2d2609f75c5a693aa1f8d31eb976"
+    "wordpressScenarioLatest": "GLOB cursor WordPress option-name, malformed UTF-8, LIKE/GLOB malformed, and RTRIM collation smokes remain green after suffix consolidation.",
+    "latestCommit": "c7f3b81db430795abd82f70c37fc7e1eff4a07a0 plus local GLOB cursor stable-name consolidation",
+    "commit": "c7f3b81db430795abd82f70c37fc7e1eff4a07a0"
 }

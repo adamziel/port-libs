@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteGlobCurrentNextCursor;
+use PortLibs\LibSqlite\SQLiteGlobCursor;
 
 $tests = [];
 
@@ -26,7 +26,7 @@ $entries = array_map(
     static fn (array $row): array => ['key' => $row['option_name'], 'rowid' => $row['option_id'], 'payload' => $row],
     $rows,
 );
-$cursor = static fn (string $pattern, string $collation = 'BINARY'): SQLiteGlobCurrentNextCursor => new SQLiteGlobCurrentNextCursor($entries, $pattern, $collation);
+$cursor = static fn (string $pattern, string $collation = 'BINARY'): SQLiteGlobCursor => new SQLiteGlobCursor($entries, $pattern, $collation);
 $rowids = static fn (array $rows): array => array_column($rows, 'rowid');
 
 $planCases = [

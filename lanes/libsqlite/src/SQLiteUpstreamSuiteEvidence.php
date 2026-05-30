@@ -16812,7 +16812,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $suiteRows
      * @return array<string, mixed>
      */
-    public function releaseRunnerUpstreamSuiteBurnupCurrentNext50(
+    public function releaseRunnerUpstreamSuiteBurnup(
         array $suiteRows,
         string $currentAcceptedHead,
         string $nextAcceptedHead,

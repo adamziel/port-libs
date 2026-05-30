@@ -79,7 +79,7 @@ $terms178 = static fn (): array => [
 ];
 $order178 = ['expression' => 'LOWER( option_name )', 'direction' => 'DESC', 'collation' => 'BINARY'];
 $needed178 = ['option_name', 'option_value', 'updated_at'];
-$plan178 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null, ?array $order = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext178(
+$plan178 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null, ?array $order = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4OrderFence(
     $prepared ?? $prepared178(),
     $current ?? $current178(),
     $terms ?? $terms178(),

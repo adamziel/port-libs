@@ -68,7 +68,7 @@ $plan = SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan::fromDatabaseD
 
 echo json_encode([
     'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient, coalesce the leaf freeblock fragments and release obsolete overflow pages into the freelist in one materialized page-image update.',
-    'overflowFreeblockCoalesceCurrentSourceNext89' => $plan->toArray(),
+    'overflowFreeblockCoalesceCurrentSource' => $plan->toArray(),
     'freelistAfterDelete' => $plan->database->freelistPageNumbers(),
     'pointerMapTypes' => [
         5 => $plan->database->pointerMapEntryForPage(5)->typeName(),

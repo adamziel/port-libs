@@ -19,10 +19,10 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteAffinityComparison.php`
 - `php -l lanes/libsqlite/src/SQLiteSelectExpression.php`
 - `php -l lanes/libsqlite/src/SQLiteLikeCurrentNextCursor.php`
-- `php -l lanes/libsqlite/tests/SQLiteRtrimCollationCurrentNext76Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rtrim-collation-current-next76.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRtrimCollationCurrentNext76Test.php`
-- `php lanes/libsqlite/examples/wordpress-rtrim-collation-current-next76.php --self-test`
+- `php -l lanes/libsqlite/tests/SQLiteRtrimCollationGlobCursorTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-rtrim-collation-glob-cursor.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRtrimCollationGlobCursorTest.php`
+- `php lanes/libsqlite/examples/wordpress-rtrim-collation-glob-cursor.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Non-overlap:

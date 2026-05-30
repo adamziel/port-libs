@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAffinityComparison;
-use PortLibs\LibSqlite\SQLiteGlobCurrentNextCursor;
+use PortLibs\LibSqlite\SQLiteGlobCursor;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -22,7 +22,7 @@ $caseRows = SQLiteSelectSql::execute(
     ['wp_options' => $rows],
 );
 
-$cursor = new SQLiteGlobCurrentNextCursor(
+$cursor = new SQLiteGlobCursor(
     array_map(
         static fn (array $row): array => [
             'key' => $row['option_name'],

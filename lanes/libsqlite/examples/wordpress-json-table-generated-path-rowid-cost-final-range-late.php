@@ -44,6 +44,9 @@ $payload = [
     'scenario' => 'wordpress-json-table-generated-path-rowid-cost-final-range-late',
     'wordpressUse' => 'Generated wp_options JSON path scans keep rowid point-cost admission stable across this accepted follow-on range while changed copied source rows force a next reader reprepare.',
     'dependency' => 'sqlite-json-table-generated-path-rowid-cost-current-source-next1048',
+    'canonicalDependency' => 'sqlite-json-table-generated-path-rowid-cost-current-source-selection',
+    'canonicalCurrentReaderPolicy' => $plan['canonicalCurrentReaderPolicy'],
+    'canonicalNextReaderPolicy' => $plan['canonicalNextReaderPolicy'],
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
     'currentCostClass' => $plan['currentGeneratedPathRowidCurrentSourceCostSelection1048']['costClass'],
@@ -56,6 +59,14 @@ $payload = [
 if (($argv[1] ?? null) === '--self-test') {
     if (!in_array($payload['dependency'], $plan['dependencies'], true)) {
         fwrite(STDERR, "missing next1048 dependency\n");
+        exit(1);
+    }
+    if (!in_array($payload['canonicalDependency'], $plan['dependencies'], true)) {
+        fwrite(STDERR, "missing stable cost-selection dependency\n");
+        exit(1);
+    }
+    if ($payload['canonicalNextReaderPolicy'] !== 'reprepare-cost-select-next-json-table-generated-path-rowid') {
+        fwrite(STDERR, "unexpected canonical next reader policy\n");
         exit(1);
     }
     if ($payload['currentEstimatedCost'] !== 1) {

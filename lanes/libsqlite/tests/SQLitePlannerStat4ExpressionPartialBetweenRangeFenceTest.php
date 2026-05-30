@@ -72,7 +72,7 @@ $terms177 = static fn (): array => [
     $eq177('autoload', 'yes'),
     $notNull177('option_name'),
 ];
-$plan177 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext177(
+$plan177 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4BetweenRangeFence(
     $prepared ?? $prepared177(),
     $current ?? $current177(),
     $terms ?? $terms177(),

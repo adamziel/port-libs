@@ -3820,14 +3820,22 @@ final class SQLiteJsonTablePlan
         $plan[$nextKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['nextGeneratedPathRowidCurrentSourceCostSelection'], $next);
         $plan[$transitionKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['generatedPathRowidCurrentSourceCostSelectionTransitions'], $next);
         $plan[$reasonKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['generatedPathRowidCurrentSourceCostSelectionReplanReasons'], $next);
+        $plan['replanReasons'] = $plan['generatedPathRowidCurrentSourceCostSelectionReplanReasons'];
         $plan['replanRequired'] = $plan[$reasonKey] !== [];
+        $plan['canonicalCurrentReaderPolicy'] = 'cost-select-current-json-table-generated-path-rowid';
+        $plan['canonicalNextReaderPolicy'] = $plan['nextGeneratedPathRowidCurrentSourceCostSelection']['currentSourceCostReusable']
+            ? 'reuse-cost-select-current-json-table-generated-path-rowid'
+            : 'reprepare-cost-select-next-json-table-generated-path-rowid';
         $plan['currentReaderPolicy'] = "cost-select-current-json-table-generated-path-rowid-next{$next}";
         $plan['nextReaderPolicy'] = $plan[$nextKey]['currentSourceCostReusable']
             ? "reuse-cost-select-current-json-table-generated-path-rowid-next{$next}"
             : "reprepare-cost-select-next-json-table-generated-path-rowid-next{$next}";
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            [$dependency],
+            [
+                'sqlite-json-table-generated-path-rowid-cost-current-source-selection',
+                $dependency,
+            ],
         )));
 
         return $plan;

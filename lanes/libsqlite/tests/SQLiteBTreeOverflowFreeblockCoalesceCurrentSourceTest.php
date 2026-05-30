@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
-$makeFirstPage89 = static function (int $pageSize, int $pageCount): string {
+$makeFirstPage = static function (int $pageSize, int $pageCount): string {
     $page = str_repeat("\0", $pageSize);
     $page = substr_replace($page, "SQLite format 3\0", 0, 16);
     $page = substr_replace($page, pack('n', $pageSize), 16, 2);
@@ -25,7 +25,7 @@ $makeFirstPage89 = static function (int $pageSize, int $pageCount): string {
     return $page;
 };
 
-$makeLeafPage89 = static function (string $pageType = "\x0d"): string {
+$makeLeafPage = static function (string $pageType = "\x0d"): string {
     $page = str_repeat("\xcc", 512);
     $page[0] = $pageType;
     $page = substr_replace($page, pack('n', 400), 1, 2);
@@ -41,21 +41,21 @@ $makeLeafPage89 = static function (string $pageType = "\x0d"): string {
     return $page;
 };
 
-$putPointerMapEntry89 = static function (string &$pointerMapPage, int $pageNumber, int $type, int $parentPageNumber): void {
+$putPointerMapEntry = static function (string &$pointerMapPage, int $pageNumber, int $type, int $parentPageNumber): void {
     $pointerMapPage = substr_replace($pointerMapPage, chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - 3), 5);
 };
 
-$fixture89 = static function (bool $secureDelete = true, bool $clearCoalescedFragments = true, string $pageType = "\x0d") use ($makeFirstPage89, $makeLeafPage89, $putPointerMapEntry89): array {
+$fixture = static function (bool $secureDelete = true, bool $clearCoalescedFragments = true, string $pageType = "\x0d") use ($makeFirstPage, $makeLeafPage, $putPointerMapEntry): array {
     $pageSize = 512;
     $pointerMapPage = str_repeat("\0", $pageSize);
-    $putPointerMapEntry89($pointerMapPage, 3, SQLitePointerMapEntry::ROOT_PAGE, 0);
-    $putPointerMapEntry89($pointerMapPage, 5, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
-    $putPointerMapEntry89($pointerMapPage, 6, SQLitePointerMapEntry::OVERFLOW_PAGE, 5);
+    $putPointerMapEntry($pointerMapPage, 3, SQLitePointerMapEntry::ROOT_PAGE, 0);
+    $putPointerMapEntry($pointerMapPage, 5, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
+    $putPointerMapEntry($pointerMapPage, 6, SQLitePointerMapEntry::OVERFLOW_PAGE, 5);
 
     $database = SQLiteDatabase::fromBytes(
-        $makeFirstPage89($pageSize, 6)
+        $makeFirstPage($pageSize, 6)
         . $pointerMapPage
-        . $makeLeafPage89($pageType)
+        . $makeLeafPage($pageType)
         . str_repeat("\0", $pageSize)
         . pack('N', 6) . str_repeat('O', $pageSize - 4)
         . pack('N', 0) . str_repeat('P', $pageSize - 4),
@@ -78,7 +78,7 @@ $fixture89 = static function (bool $secureDelete = true, bool $clearCoalescedFra
     return [$database, $plan];
 };
 
-$afterHeader89 = static fn (array $fx): SQLiteBTreePageHeader => SQLiteBTreePageHeader::parsePage($fx[1]->database->page(3), 512);
+$afterHeader = static fn (array $fx): SQLiteBTreePageHeader => SQLiteBTreePageHeader::parsePage($fx[1]->database->page(3), 512);
 
 $cases = [
     'action label' => static fn (array $fx): mixed => $fx[1]->toArray()['action'],
@@ -117,10 +117,10 @@ $cases = [
     'materialized database page count' => static fn (array $fx): mixed => $fx[1]->database->pageCount(),
     'materialized header freelist count' => static fn (array $fx): mixed => $fx[1]->database->header->freelistPageCount,
     'materialized header first trunk' => static fn (array $fx): mixed => $fx[1]->database->header->firstFreelistTrunkPage,
-    'materialized leaf fragment report ok' => static fn (array $fx): mixed => $afterHeader89($fx)->freeblockCurrentNextFragmentReport($fx[1]->database->page(3))['status'],
-    'materialized leaf has no current next fragments' => static fn (array $fx): mixed => $afterHeader89($fx)->freeblockCurrentNextFragmentReport($fx[1]->database->page(3))['current_next_fragment_bytes'],
-    'materialized leaf integrity ok' => static fn (array $fx): mixed => $afterHeader89($fx)->freeblockIntegrityReport($fx[1]->database->page(3))['status'],
-    'materialized leaf secure-delete zeroed' => static fn (array $fx): mixed => $afterHeader89($fx)->freeblockSecureDeleteReport($fx[1]->database->page(3))['secure_delete_payload_zeroed'],
+    'materialized leaf fragment report ok' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockCurrentNextFragmentReport($fx[1]->database->page(3))['status'],
+    'materialized leaf has no current next fragments' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockCurrentNextFragmentReport($fx[1]->database->page(3))['current_next_fragment_bytes'],
+    'materialized leaf integrity ok' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockIntegrityReport($fx[1]->database->page(3))['status'],
+    'materialized leaf secure-delete zeroed' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockSecureDeleteReport($fx[1]->database->page(3))['secure_delete_payload_zeroed'],
     'materialized overflow page 5 is freelist trunk' => static fn (array $fx): mixed => unpack('N', substr($fx[1]->database->page(5), 4, 4))[1],
     'materialized overflow page 6 zeroed' => static fn (array $fx): mixed => trim(substr($fx[1]->database->page(6), 4), "\0") === '',
     'materialized page 5 pointer map type' => static fn (array $fx): mixed => $fx[1]->database->pointerMapEntryForPage(5)->typeName(),
@@ -131,12 +131,12 @@ $cases = [
     'materialized allocation order' => static fn (array $fx): mixed => $fx[1]->database->freelistAllocationOrder(),
     'page image leaf matches database' => static fn (array $fx): mixed => $fx[1]->pageImages[3] === $fx[1]->database->page(3),
     'page image first page matches header' => static fn (array $fx): mixed => SQLiteHeader::parse($fx[1]->pageImages[1])->freelistPageCount,
-    'index leaf page type accepted' => static fn (): mixed => $fixture89(true, true, "\x0a")[1]->coalescePlan->pageType,
-    'index leaf releases same pages' => static fn (): mixed => $fixture89(true, true, "\x0a")[1]->releasePlan->releasedOverflowPages,
-    'without clear leaves coalesced payload bytes' => static fn (): mixed => strpos($fixture89(true, false)[1]->database->page(3), str_repeat("\xcc", 4)) !== false,
-    'without secure delete keeps overflow leaf payload' => static fn (): mixed => substr($fixture89(false, true)[1]->database->page(6), 4, 1),
-    'throws on empty delete results' => static function () use ($fixture89): string {
-        [$database] = $fixture89();
+    'index leaf page type accepted' => static fn (): mixed => $fixture(true, true, "\x0a")[1]->coalescePlan->pageType,
+    'index leaf releases same pages' => static fn (): mixed => $fixture(true, true, "\x0a")[1]->releasePlan->releasedOverflowPages,
+    'without clear leaves coalesced payload bytes' => static fn (): mixed => strpos($fixture(true, false)[1]->database->page(3), str_repeat("\xcc", 4)) !== false,
+    'without secure delete keeps overflow leaf payload' => static fn (): mixed => substr($fixture(false, true)[1]->database->page(6), 4, 1),
+    'throws on empty delete results' => static function () use ($fixture): string {
+        [$database] = $fixture();
         try {
             SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan::fromDatabaseDeleteResults($database, 3, []);
         } catch (InvalidArgumentException $exception) {
@@ -145,8 +145,8 @@ $cases = [
 
         return 'not rejected';
     },
-    'throws on invalid leaf page' => static function () use ($fixture89): string {
-        [$database] = $fixture89();
+    'throws on invalid leaf page' => static function () use ($fixture): string {
+        [$database] = $fixture();
         try {
             SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan::fromDatabaseDeleteResults($database, 9, [['obsolete_overflow_page_numbers' => [5]]]);
         } catch (InvalidArgumentException $exception) {
@@ -158,7 +158,7 @@ $cases = [
 ];
 
 $expected = [
-    'action label' => 'btree-overflow-freeblock-coalesce-current-source-next89',
+    'action label' => 'btree-overflow-freeblock-coalesce-current-source',
     'leaf page number' => 3,
     'leaf page type' => 'table-leaf',
     'fragmented bytes before' => 6,
@@ -218,14 +218,14 @@ $expected = [
 
 $tests = [];
 foreach ($cases as $name => $read) {
-    $tests['btree overflow freeblock coalesce current source next89 ' . $name] = static function (TestRunner $t) use ($fixture89, $read, $expected, $name): void {
-        $t->same($expected[$name], $read($fixture89()));
+    $tests['btree overflow freeblock coalesce current source ' . $name] = static function (TestRunner $t) use ($fixture, $read, $expected, $name): void {
+        $t->same($expected[$name], $read($fixture()));
     };
 }
 
 foreach (range(1, 16) as $index) {
-    $tests['btree overflow freeblock coalesce current source next89 invariant ' . $index] = static function (TestRunner $t) use ($fixture89, $index): void {
-        [, $plan] = $fixture89($index % 2 === 0, $index % 3 !== 0, $index % 4 === 0 ? "\x0a" : "\x0d");
+    $tests['btree overflow freeblock coalesce current source invariant ' . $index] = static function (TestRunner $t) use ($fixture, $index): void {
+        [, $plan] = $fixture($index % 2 === 0, $index % 3 !== 0, $index % 4 === 0 ? "\x0a" : "\x0d");
         $header = SQLiteBTreePageHeader::parsePage($plan->database->page(3), 512);
 
         $t->same('ok', $header->freeblockIntegrityReport($plan->database->page(3))['status']);

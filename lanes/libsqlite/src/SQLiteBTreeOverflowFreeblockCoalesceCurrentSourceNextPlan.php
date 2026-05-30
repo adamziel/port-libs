@@ -62,7 +62,7 @@ final class SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan
     public function toArray(): array
     {
         return [
-            'action' => 'btree-overflow-freeblock-coalesce-current-source-next89',
+            'action' => 'btree-overflow-freeblock-coalesce-current-source',
             'leaf_page' => $this->coalescePlan->pageNumber,
             'coalesced_fragment_bytes' => $this->coalescePlan->coalescedFragmentBytes,
             'fragmented_bytes_before' => $this->coalescePlan->fragmentedBytesBefore,

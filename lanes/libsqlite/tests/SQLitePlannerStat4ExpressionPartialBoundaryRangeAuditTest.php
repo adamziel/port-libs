@@ -71,7 +71,7 @@ $terms176 = static fn (): array => [
     $notNull176('option_name'),
 ];
 $needed176 = ['option_name', 'option_value'];
-$plan176 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext176(
+$plan176 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4BoundaryRangeAudit(
     $prepared ?? $prepared176(),
     $current ?? $current176(),
     $terms ?? $terms176(),

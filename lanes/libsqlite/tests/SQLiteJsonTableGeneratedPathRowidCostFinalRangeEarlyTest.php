@@ -45,6 +45,15 @@ foreach (range(1017, 1032) as $next) {
     $tests["json table generated path rowid cost final early range records dependency {$next}"] = static function (TestRunner $t) use ($finalRangeEarlyPlan, $next): void {
         $t->true(in_array("sqlite-json-table-generated-path-rowid-cost-current-source-next{$next}", $finalRangeEarlyPlan($next)['dependencies'], true));
     };
+    $tests["json table generated path rowid cost final early range records stable dependency {$next}"] = static function (TestRunner $t) use ($finalRangeEarlyPlan, $next): void {
+        $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-selection', $finalRangeEarlyPlan($next)['dependencies'], true));
+    };
+    $tests["json table generated path rowid cost final early range exposes canonical reader policy {$next}"] = static function (TestRunner $t) use ($finalRangeEarlyPlan, $next): void {
+        $t->same('cost-select-current-json-table-generated-path-rowid', $finalRangeEarlyPlan($next)['canonicalCurrentReaderPolicy']);
+    };
+    $tests["json table generated path rowid cost final early range exposes canonical reprepare policy {$next}"] = static function (TestRunner $t) use ($finalRangeEarlyPlan, $next): void {
+        $t->same('reprepare-cost-select-next-json-table-generated-path-rowid', $finalRangeEarlyPlan($next)['canonicalNextReaderPolicy']);
+    };
     $tests["json table generated path rowid cost final early range pins reader policy {$next}"] = static function (TestRunner $t) use ($finalRangeEarlyPlan, $next): void {
         $t->same("cost-select-current-json-table-generated-path-rowid-next{$next}", $finalRangeEarlyPlan($next)['currentReaderPolicy']);
     };
@@ -59,6 +68,9 @@ foreach (range(1017, 1032) as $next) {
     };
     $tests["json table generated path rowid cost final early range aliases reason {$next}"] = static function (TestRunner $t) use ($finalRangeEarlyPlan, $next): void {
         $t->true(in_array("json-table-generated-path-rowid-cost-selection-source-changed-next{$next}", $finalRangeEarlyPlan($next)["next{$next}ReplanReasons"], true));
+    };
+    $tests["json table generated path rowid cost final early range exposes stable reason {$next}"] = static function (TestRunner $t) use ($finalRangeEarlyPlan, $next): void {
+        $t->true(in_array('json-table-generated-path-rowid-cost-selection-source-changed', $finalRangeEarlyPlan($next)['replanReasons'], true));
     };
     $tests["json table generated path rowid cost final early range preserves rowid cost {$next}"] = static function (TestRunner $t) use ($finalRangeEarlyPlan, $next): void {
         $t->same(1, $finalRangeEarlyPlan($next)["currentGeneratedPathRowidCurrentSourceCostSelection{$next}"]['estimatedCost']);

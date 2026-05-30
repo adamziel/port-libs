@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteGlobCurrentNextCursor;
-use PortLibs\LibSqlite\SQLiteLikeCurrentNextCursor;
+use PortLibs\LibSqlite\SQLiteGlobCursor;
 
 $entries = [
     ['key' => 'plugin_alpha', 'rowid' => 1, 'payload' => ['option_name' => 'plugin_alpha', 'autoload' => 'yes']],
@@ -16,19 +15,17 @@ $entries = [
     ['key' => 'theme_alpha', 'rowid' => 6, 'payload' => ['option_name' => 'theme_alpha', 'autoload' => 'yes']],
 ];
 
-$like = new SQLiteLikeCurrentNextCursor($entries, "plugin\_\xc3%", 'BINARY', '\\', true);
-$glob = new SQLiteGlobCurrentNextCursor($entries, "plugin_\xc3*", 'BINARY');
-$defaultLike = new SQLiteLikeCurrentNextCursor($entries, "plugin\_\xc3%", 'NOCASE', '\\');
+$malformedPrefix = new SQLiteGlobCursor($entries, "plugin_\xc3*", 'BINARY');
+$unicodeClass = new SQLiteGlobCursor($entries, 'plugin_[À-ÿ]*', 'BINARY');
 
 echo json_encode(
     [
-        'scenario' => 'wordpress-option-name-like-glob-malformed-current-next84',
-        'likeBinaryPlan' => $like->currentNextPlan(),
-        'likeBinaryRowids' => array_column($like->matchedRows(), 'rowid'),
-        'likeBinaryMalformedRows' => array_column($like->matchedRows(), 'malformedUtf8'),
-        'globBinaryRowids' => array_column($glob->matchedRows(), 'rowid'),
-        'defaultLikeRejectedReason' => $defaultLike->currentNextPlan()['rejectedReason'],
-        'dependencies' => ['sqlite-like-current-next-cursor', 'sqlite-glob-current-next-cursor'],
+        'scenario' => 'wordpress-option-name-glob-malformed-utf-current-next74',
+        'malformedPrefixPlan' => $malformedPrefix->currentNextPlan(),
+        'malformedPrefixRowids' => array_column($malformedPrefix->matchedRows(), 'rowid'),
+        'malformedPrefixDamagedRows' => array_column($malformedPrefix->matchedRows(), 'malformedUtf8'),
+        'unicodeClassRowids' => array_column($unicodeClass->matchedRows(), 'rowid'),
+        'dependencies' => ['sqlite-glob-current-next-cursor'],
     ],
     JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE,
 ) . "\n";

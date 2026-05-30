@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAffinityComparison;
-use PortLibs\LibSqlite\SQLiteGlobCurrentNextCursor;
+use PortLibs\LibSqlite\SQLiteGlobCursor;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $tests = [];
@@ -111,7 +111,7 @@ $entries = [
     ['key' => 'sitevalue', 'rowid' => 7, 'payload' => ['option_name' => 'sitevalue']],
 ];
 
-$cursor = static fn (string $pattern = 'siteurl'): SQLiteGlobCurrentNextCursor => new SQLiteGlobCurrentNextCursor($entries, $pattern, 'RTRIM');
+$cursor = static fn (string $pattern = 'siteurl'): SQLiteGlobCursor => new SQLiteGlobCursor($entries, $pattern, 'RTRIM');
 
 $cursorCases = [
     'first exact current is unpadded row' => [0, 'currentRowid', 1],

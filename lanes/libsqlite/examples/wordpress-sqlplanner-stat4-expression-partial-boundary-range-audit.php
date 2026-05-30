@@ -57,7 +57,7 @@ $current['rows'] = [
     ['rowid' => 100, 'autoload' => 'no', 'option_name' => 'plugin_tail', 'option_value' => 'lazy'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext176(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4BoundaryRangeAudit(
     $prepared,
     $current,
     [

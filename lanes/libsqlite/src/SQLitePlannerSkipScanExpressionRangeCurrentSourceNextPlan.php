@@ -6,9 +6,6 @@ namespace PortLibs\LibSqlite;
 
 final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
 {
-
-    /* Variant formerly implemented by SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan. */
-
     /**
          * @param array<string,mixed> $preparedSource
          * @param array<string,mixed> $currentSource
@@ -72,7 +69,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
                     'sqlite-sqlplanner-skipscan-expression-range-recheck',
                 ],
                 'dependency_closure' => 'no new support component needed; current-source-expression-range-recheck reuses native PHP expression skip-scan range fences and adds current-source residual expression-range rechecks',
-                'non_overlap' => 'avoids accepted next143 range-fence selection, next145 STAT4 prefix programs, expression-index range cost, SQL expression ORDER BY, and partial predicate change surfaces; this slice verifies selected skip-scan row expression values against current-source lower/upper range bounds before cursor yield',
+                'non_overlap' => 'avoids accepted range-fence selection, STAT4 prefix programs, expression-index range cost, SQL expression ORDER BY, and partial predicate change surfaces; this slice verifies selected skip-scan row expression values against current-source lower/upper range bounds before cursor yield',
             ]);
         }
 

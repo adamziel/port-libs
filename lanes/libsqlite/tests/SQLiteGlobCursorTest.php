@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteGlobCurrentNextCursor;
+use PortLibs\LibSqlite\SQLiteGlobCursor;
 
 $tests = [];
 
@@ -19,7 +19,7 @@ $entries = [
     ['key' => 'theme_alpha', 'rowid' => 9, 'payload' => ['option_name' => 'theme_alpha', 'autoload' => 'yes']],
 ];
 
-$makeCursor = static fn (string $pattern = 'plugin_*', string $collation = 'BINARY'): SQLiteGlobCurrentNextCursor => new SQLiteGlobCurrentNextCursor(
+$makeCursor = static fn (string $pattern = 'plugin_*', string $collation = 'BINARY'): SQLiteGlobCursor => new SQLiteGlobCursor(
     $entries,
     $pattern,
     $collation,
@@ -105,19 +105,19 @@ $tests['glob current next72 database residual proves leading class would match w
 };
 
 $tests['glob current next72 rejects malformed entry payload'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteGlobCurrentNextCursor([['key' => 'plugin_alpha', 'rowid' => 1]], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteGlobCursor([['key' => 'plugin_alpha', 'rowid' => 1]], 'plugin_*'));
 };
 
 $tests['glob current next72 rejects non text key'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteGlobCurrentNextCursor([['key' => 10, 'rowid' => 1, 'payload' => []]], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteGlobCursor([['key' => 10, 'rowid' => 1, 'payload' => []]], 'plugin_*'));
 };
 
 $tests['glob current next72 rejects non integer rowid'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteGlobCurrentNextCursor([['key' => 'plugin_alpha', 'rowid' => '1', 'payload' => []]], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteGlobCursor([['key' => 'plugin_alpha', 'rowid' => '1', 'payload' => []]], 'plugin_*'));
 };
 
 $tests['glob current next72 rejects unsupported collation'] = static function (TestRunner $t) use ($entries): void {
-    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteGlobCurrentNextCursor($entries, 'plugin_*', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteGlobCursor($entries, 'plugin_*', 'WP_LOCALE'));
 };
 
 return $tests;
