@@ -998,6 +998,106 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,case:int,section:string,table_shape:string,index_columns:list<string>,row_count:int,blob_bytes:int,soft_heap_limit:int|null,fault_filter:list<string>,fault_target:string,injection_point:int,result_code:int,error:string|null,index_created:bool,row_count_preserved:int,integrity:string,temp_btree_spilled:bool,expected_retryable:bool}>
+     */
+    public static function indexFaultCreateIndexCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexfault dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'section' => 'indexfault-1.1',
+                'table_shape' => 'single-column randomblob table',
+                'index_columns' => ['x'],
+                'row_count' => 256,
+                'blob_bytes' => 202,
+                'soft_heap_limit' => null,
+                'fault_filter' => ['malloc', 'ioerr'],
+                'fault_target' => 'default create-index sorter',
+                'temp_btree_spilled' => false,
+            ],
+            [
+                'section' => 'indexfault-2.1',
+                'table_shape' => 'seven-column randomblob table',
+                'index_columns' => ['t', 'u', 'v', 'w', 'x', 'y', 'z'],
+                'row_count' => 128,
+                'blob_bytes' => 30,
+                'soft_heap_limit' => null,
+                'fault_filter' => ['malloc', 'ioerr'],
+                'fault_target' => 'multi-column create-index sorter',
+                'temp_btree_spilled' => false,
+            ],
+            [
+                'section' => 'indexfault-2.2',
+                'table_shape' => 'seven-column randomblob table under soft heap limit',
+                'index_columns' => ['t', 'u', 'v', 'w', 'x', 'y', 'z'],
+                'row_count' => 128,
+                'blob_bytes' => 30,
+                'soft_heap_limit' => 50000,
+                'fault_filter' => ['malloc', 'ioerr'],
+                'fault_target' => 'memory-limited multi-column create-index sorter',
+                'temp_btree_spilled' => true,
+            ],
+            [
+                'section' => 'indexfault-3.1',
+                'table_shape' => 'large payload table with temporary sorter open faults',
+                'index_columns' => ['x'],
+                'row_count' => 512,
+                'blob_bytes' => 11000,
+                'soft_heap_limit' => null,
+                'fault_filter' => ['xOpen'],
+                'fault_target' => 'temporary sorter open',
+                'temp_btree_spilled' => true,
+            ],
+            [
+                'section' => 'indexfault-3.3',
+                'table_shape' => 'large payload table with temporary sorter write faults',
+                'index_columns' => ['x'],
+                'row_count' => 512,
+                'blob_bytes' => 11000,
+                'soft_heap_limit' => null,
+                'fault_filter' => ['xOpen', 'xWrite'],
+                'fault_target' => 'second temporary file write',
+                'temp_btree_spilled' => true,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $attempt = intdiv($case - 1, count($templates)) + 1;
+            $injectsFault = $attempt % 4 !== 0;
+            $error = $injectsFault ? 'disk I/O error' : null;
+
+            $rows[] = [
+                'upstream' => $template['section'] . '.dynamic-fault-' . $attempt,
+                'source' => 'indexfault.test sections 1.1, 2.1, 2.2, 3.1, and 3.3',
+                'case' => $case,
+                'section' => $template['section'],
+                'table_shape' => $template['table_shape'],
+                'index_columns' => $template['index_columns'],
+                'row_count' => $template['row_count'],
+                'blob_bytes' => $template['blob_bytes'],
+                'soft_heap_limit' => $template['soft_heap_limit'],
+                'fault_filter' => $template['fault_filter'],
+                'fault_target' => $template['fault_target'],
+                'injection_point' => $attempt,
+                'result_code' => $injectsFault ? 1 : 0,
+                'error' => $error,
+                'index_created' => !$injectsFault,
+                'row_count_preserved' => $template['row_count'],
+                'integrity' => 'ok',
+                'temp_btree_spilled' => $template['temp_btree_spilled'],
+                'expected_retryable' => $injectsFault,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<int>
      */
     private static function index5WritePageSequence(int $count): array

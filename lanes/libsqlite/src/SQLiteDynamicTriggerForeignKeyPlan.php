@@ -518,6 +518,90 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<int> $indexedValues
+     * @return array<string,mixed>
+     */
+    public static function recursiveOnceTriggerSelectPlan(
+        int $seed,
+        array $indexedValues,
+        int $recursiveLimit = 5,
+        bool $recursiveTriggers = true,
+        bool $crossJoin = false
+    ): array {
+        if ($recursiveLimit < $seed) {
+            throw new \InvalidArgumentException('SQLite triggerG recursive limit must not be less than seed');
+        }
+        foreach ($indexedValues as $value) {
+            if (!is_int($value)) {
+                throw new \InvalidArgumentException('SQLite triggerG indexed values must be integers');
+            }
+        }
+
+        $indexedValues = array_values($indexedValues);
+        $t3 = [];
+        $t2 = [];
+        $triggerFirings = [];
+        $queue = [$seed];
+
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            $t3[] = $current;
+            $triggerFirings[] = $current;
+
+            $nextValue = $current + 1;
+            if ($recursiveTriggers && $current < $recursiveLimit) {
+                $queue[] = $nextValue;
+            }
+
+            if ($crossJoin) {
+                foreach ($indexedValues as $left) {
+                    if ($left < 1 || $left > 4) {
+                        continue;
+                    }
+                    foreach ($indexedValues as $right) {
+                        if ($right < 2 || $right > 5) {
+                            continue;
+                        }
+                        $t2[] = ($current * 10000) + ($left * 100) + $right;
+                    }
+                }
+                continue;
+            }
+
+            foreach ($indexedValues as $value) {
+                if ($value >= 1 && $value <= 4) {
+                    $t2[] = ($current * 100) + $value;
+                }
+            }
+        }
+
+        sort($t2);
+        sort($t3);
+
+        return [
+            'source' => 'triggerG.test triggerG-100..200',
+            'operation' => 'recursive-trigger-select-subprogram-once-reset',
+            'status' => 'commit-ok',
+            'recursive_triggers' => $recursiveTriggers,
+            'seed' => $seed,
+            'recursive_limit' => $recursiveLimit,
+            'cross_join' => $crossJoin,
+            'indexed_values' => $indexedValues,
+            'trigger_firings' => $triggerFirings,
+            'trigger_fire_count' => count($triggerFirings),
+            't3_values' => $t3,
+            't2_values' => $t2,
+            't2_count' => count($t2),
+            'once_subprogram_reset_per_firing' => true,
+            'dependencies' => [
+                'sqlite-triggerG-recursive-trigger-subprogram-select',
+                'sqlite-triggerG-op-once-resets-for-each-trigger-invocation',
+                'sqlite-triggerG-indexed-in-filter-inside-recursive-trigger',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int,d:int}> $rows
      * @param list<array{columns:list<string>,where?:callable(array<string,mixed>):bool}> $updates
      * @param list<array{a:int,b:int,c:int,d:int}> $insertRows

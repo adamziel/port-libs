@@ -1001,6 +1001,104 @@ $tests['real upstream corpus vfs io dynamic pagerfault2 large savepoint profiles
     $t->same(true, in_array('upstream-pagerfault2-test', $blob['dependencies'], true));
 };
 
+$atomicPagerCacheCases = [];
+foreach ([1024, 2048, 4096] as $pageSize) {
+    foreach ([256, 1024, 2000, 4096] as $cacheSize) {
+        foreach ([1, 2, 3] as $tablesModified) {
+            foreach ([
+                'atomic' => ['atomic'],
+                'atomic2k' => ['atomic2k'],
+                'ordinary' => [],
+            ] as $label => $flags) {
+                $atomicPagerCacheCases[] = [$label, $pageSize, $cacheSize, 4096, 100, $tablesModified, $flags];
+            }
+        }
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic atomic pager cache retention follows io 6'] = static function (TestRunner $t) use ($atomicPagerCacheCases): void {
+    foreach ($atomicPagerCacheCases as [$label, $pageSize, $cacheSize, $indexedRows, $payloadBytes, $tablesModified, $flags]) {
+        $profile = SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(
+            $pageSize,
+            $cacheSize,
+            $indexedRows,
+            $payloadBytes,
+            $tablesModified,
+            $flags
+        );
+        $atomicAllowed = $profile['atomic_write_allowed'];
+        $databaseFitsCache = $profile['database_fits_cache'];
+        $singleTableAtomic = $atomicAllowed && $tablesModified === 1;
+
+        $t->same('ok', $profile['status']);
+        $t->same('io.test', $profile['script']);
+        $t->same($pageSize, $profile['page_size']);
+        $t->same($cacheSize, $profile['cache_size']);
+        $t->same($indexedRows, $profile['indexed_rows']);
+        $t->same($payloadBytes, $profile['payload_bytes']);
+        $t->same($tablesModified, $profile['tables_modified']);
+        $t->same($flags, $profile['device_flags']);
+        $t->same(true, $profile['database_pages'] > 0);
+        $t->same($profile['database_pages'] <= $cacheSize, $databaseFitsCache);
+        $t->same($singleTableAtomic ? 'single_page_atomic_write' : 'rollback_journal_transaction', $profile['commit_path']);
+        $t->same('ok', $profile['pre_commit_integrity']);
+        $t->same($databaseFitsCache && $atomicAllowed ? 'ok' : 'corruption-visible', $profile['post_commit_integrity']);
+        $t->same(!$databaseFitsCache || !$atomicAllowed, $profile['pager_cache_flushed_by_commit']);
+        $t->same($databaseFitsCache && !$profile['pager_cache_flushed_by_commit'], $profile['post_commit_integrity'] === 'ok');
+        $t->same(2, $profile['corrupt_disk_pages']);
+        $t->same($pageSize * 5, $profile['corrupt_offset']);
+        $t->same(true, $profile['mmap_disabled']);
+        $t->same(['rowid', 'index'], $profile['ordered_cache_warmup']);
+        $t->same(true, in_array('io.test io-6.1', $profile['upstream'], true));
+        $t->same(true, in_array('io.test io-6.2.1.1-6.2.1.3', $profile['upstream'], true));
+        $t->same(true, in_array('io.test io-6.2.2.1-6.2.2.3', $profile['upstream'], true));
+        $t->same(true, in_array('upstream-io-atomic-pager-cache-retention', $profile['dependencies'], true));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $profile['dependencies'], true));
+        $t->same(true, in_array($label, ['atomic', 'atomic2k', 'ordinary'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic atomic pager cache retention distinguishes single and multi table commits'] = static function (TestRunner $t): void {
+    $single = SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, 2000, 4096, 100, 1, ['atomic']);
+    $multi = SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, 2000, 4096, 100, 2, ['atomic']);
+    $ordinary = SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, 2000, 4096, 100, 1, []);
+
+    $t->same(true, $single['atomic_write_allowed']);
+    $t->same('single_page_atomic_write', $single['commit_path']);
+    $t->same(false, $single['pager_cache_flushed_by_commit']);
+    $t->same('ok', $single['post_commit_integrity']);
+    $t->same(true, $multi['atomic_write_allowed']);
+    $t->same('rollback_journal_transaction', $multi['commit_path']);
+    $t->same(false, $multi['pager_cache_flushed_by_commit']);
+    $t->same('ok', $multi['post_commit_integrity']);
+    $t->same(false, $ordinary['atomic_write_allowed']);
+    $t->same('rollback_journal_transaction', $ordinary['commit_path']);
+    $t->same(true, $ordinary['pager_cache_flushed_by_commit']);
+    $t->same('corruption-visible', $ordinary['post_commit_integrity']);
+};
+
+$tests['real upstream corpus vfs io dynamic atomic pager cache retention reports visible corruption when cache is too small'] = static function (TestRunner $t): void {
+    foreach ([16, 64, 128] as $cacheSize) {
+        $profile = SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, $cacheSize, 4096, 100, 1, ['atomic']);
+
+        $t->same(false, $profile['database_fits_cache']);
+        $t->same(true, $profile['pager_cache_flushed_by_commit']);
+        $t->same('corruption-visible', $profile['post_commit_integrity']);
+        $t->same(true, $profile['atomic_write_allowed']);
+        $t->same('single_page_atomic_write', $profile['commit_path']);
+        $t->same(true, in_array('io.test io-6.2.1.1-6.2.1.3', $profile['upstream'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic atomic pager cache retention rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1000, 2000, 4096, 100, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, 0, 4096, 100, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, 2000, 0, 100, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, 2000, 4096, 0, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, 2000, 4096, 100, 0));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicPagerCacheRetentionProfile(1024, 2000, 4096, 100, 1, ['networked']));
+};
+
 $tests['real upstream corpus vfs io dynamic pagerfault large rollback rejects malformed inputs'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('', 1, 1024, 1, 1, 1));
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::pagerFaultLargeRollbackProfile('large-savepoint-rollback', 0, 1024, 1, 1, 1));
