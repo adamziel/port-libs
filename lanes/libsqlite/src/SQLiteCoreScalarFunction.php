@@ -103,6 +103,45 @@ final class SQLiteCoreScalarFunction
     /**
      * @param list<mixed> $arguments
      */
+    public static function isDeterministicSqlFunctionCall(string $functionName, array $arguments): bool
+    {
+        $normalized = strtolower($functionName);
+        if (!in_array($normalized, ['date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime'], true)) {
+            return true;
+        }
+
+        $minimum = $normalized === 'strftime' ? 2 : 0;
+        self::assertArity($normalized, $arguments, $minimum, null);
+        $timeValueIndex = $normalized === 'strftime' ? 1 : 0;
+        $timeValue = array_key_exists($timeValueIndex, $arguments) ? $arguments[$timeValueIndex] : 'now';
+        if (self::isNonDeterministicDateTimeValue($timeValue)) {
+            return false;
+        }
+
+        foreach (array_slice($arguments, $timeValueIndex + 1) as $modifier) {
+            if (self::isNonDeterministicDateTimeModifier($modifier)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    public static function assertDeterministicSqlFunctionCall(string $functionName, array $arguments, string $schemaContext): void
+    {
+        if (!self::isDeterministicSqlFunctionCall($functionName, $arguments)) {
+            throw new \InvalidArgumentException(
+                'non-deterministic use of ' . strtolower($functionName) . '() in ' . $schemaContext
+            );
+        }
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
     private static function introspection(string $functionName, array $arguments): string|int|null
     {
         return match ($functionName) {
@@ -1311,6 +1350,21 @@ final class SQLiteCoreScalarFunction
         }
 
         throw new \InvalidArgumentException("Unsupported SQLite date/time value: {$text}");
+    }
+
+    private static function isNonDeterministicDateTimeValue(mixed $value): bool
+    {
+        return is_string($value) && strcasecmp(trim($value), 'now') === 0;
+    }
+
+    private static function isNonDeterministicDateTimeModifier(mixed $modifier): bool
+    {
+        if ($modifier === null) {
+            return false;
+        }
+        $text = strtolower(trim($modifier instanceof SQLiteBlobValue ? $modifier->bytes : (string) $modifier));
+
+        return $text === 'localtime' || $text === 'utc';
     }
 
     private static function normalizeDateTimeText(string $text): string

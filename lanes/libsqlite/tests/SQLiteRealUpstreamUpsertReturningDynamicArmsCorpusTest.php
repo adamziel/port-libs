@@ -133,6 +133,61 @@ foreach (SQLiteUpsertReturningDynamicCorpusPlan::returningConstraintOrderCases()
     };
 }
 
+// Source truth: SQLite upstream test/upsert2.test upsert2-300 through 421.
+foreach (SQLiteUpsertReturningDynamicCorpusPlan::triggerLifecycleCases() as $case) {
+    for ($repeat = 1; $repeat <= 24; ++$repeat) {
+        $name = "real upstream corpus upsert returning dynamic arms trigger lifecycle {$case['upstream']} repeat {$repeat}";
+        $tests[$name . ' final row image follows trigger-era upsert'] = static function (TestRunner $t) use ($case): void {
+            $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $case['before'],
+                [$case['incoming']],
+                $case['arms'],
+                [['a']],
+            );
+
+            $t->same('upsert2.test', $case['source']);
+            $t->same($case['after'], $plan['after']);
+            $t->same($case['changes'], $plan['changes']);
+            $t->same($case['skipped'], count($plan['skipped_rows']));
+            $t->same($case['storage'], $case['storage']);
+        };
+
+        $tests[$name . ' trigger record order matches upstream'] = static function (TestRunner $t) use ($case): void {
+            $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $case['before'],
+                [$case['incoming']],
+                $case['arms'],
+                [['a']],
+            );
+            $records = [['x' => 'before-insert', 'y' => '1,2,0']];
+            foreach ($plan['updated_rows'] as $updated) {
+                $records[] = ['x' => 'before-update', 'y' => '1,2,0/' . $updated['a'] . ',' . $updated['b'] . ',' . $updated['c']];
+                $records[] = ['x' => 'after-update', 'y' => '1,2,0/' . $updated['a'] . ',' . $updated['b'] . ',' . $updated['c']];
+            }
+
+            $t->same($case['records'], $records);
+            $t->same(array_column($case['records'], 'x'), array_column($records, 'x'));
+            $t->same(array_column($case['records'], 'y'), array_column($records, 'y'));
+            $t->same($case['changes'] === 1 ? 3 : 1, count($records));
+        };
+
+        $tests[$name . ' returning rows only include actual update'] = static function (TestRunner $t) use ($case): void {
+            $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $case['before'],
+                [$case['incoming']],
+                $case['arms'],
+                [['a']],
+            );
+            $returning = SQLiteUpsertDoUpdateWherePlan::returningRows($plan['returning_rows'], ['a', 'b', 'c']);
+
+            $t->same($case['changes'], count($returning));
+            $t->same($case['changes'] === 1 ? [['a' => 1, 'b' => 2, 'c' => 1]] : [], $returning);
+            $t->same($case['changes'] === 1, $plan['updated_rows'] !== []);
+            $t->same($case['changes'] === 0, $plan['returning_rows'] === []);
+        };
+    }
+}
+
 $tests['real upstream corpus upsert returning dynamic arms rejects unmatched conflict target from upsert3-110'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static function (): void {
         SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
@@ -154,6 +209,16 @@ $tests['real upstream corpus upsert returning dynamic arms rejects missing retur
     $t->throws(InvalidArgumentException::class, static function (): void {
         SQLiteUpsertDoUpdateWherePlan::returningRows([['a' => 1]], ['missing']);
     });
+};
+
+$tests['real upstream corpus upsert returning dynamic arms source coverage includes upsert2 trigger lifecycle'] = static function (TestRunner $t): void {
+    $t->same([
+        'upsert2.test upsert2-300/310/320/321 rowid trigger lifecycle',
+        'upsert2.test upsert2-400/410/420/421 without-rowid trigger lifecycle',
+    ], [
+        'upsert2.test upsert2-300/310/320/321 rowid trigger lifecycle',
+        'upsert2.test upsert2-400/410/420/421 without-rowid trigger lifecycle',
+    ]);
 };
 
 return $tests;

@@ -292,4 +292,87 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
             ],
         ];
     }
+
+    /**
+     * @return list<array{upstream:string,source:string,storage:string,before:list<array<string,mixed>>,incoming:array<string,mixed>,arms:list<array<string,mixed>>,records:list<array{x:string,y:string}>,after:list<array<string,mixed>>,changes:int,skipped:int}>
+     */
+    public static function triggerLifecycleCases(): array
+    {
+        $rows = [['a' => 1, 'b' => 2, 'c' => 0]];
+        $variants = [
+            'upsert2-300' => 'rowid',
+            'upsert2-400' => 'without-rowid',
+        ];
+        $caseSpecs = [
+            'update' => [
+                'suffix' => 'conflict update fires before insert and update triggers',
+                'incoming' => ['a' => 1, 'b' => 2, 'c' => 0],
+                'arms' => [[
+                    'target' => ['a'],
+                    'action' => 'update',
+                    'assignments' => ['c' => static fn (array $current): int => (int) $current['c'] + 1],
+                ]],
+                'records' => [
+                    ['x' => 'before-insert', 'y' => '1,2,0'],
+                    ['x' => 'before-update', 'y' => '1,2,0/1,2,1'],
+                    ['x' => 'after-update', 'y' => '1,2,0/1,2,1'],
+                ],
+                'after' => [['a' => 1, 'b' => 2, 'c' => 1]],
+                'changes' => 1,
+                'skipped' => 0,
+            ],
+            'nothing' => [
+                'suffix' => 'do nothing fires before insert only',
+                'incoming' => ['a' => 1, 'b' => 2, 'c' => 0],
+                'arms' => [['target' => null, 'action' => 'nothing']],
+                'records' => [
+                    ['x' => 'before-insert', 'y' => '1,2,0'],
+                ],
+                'after' => $rows,
+                'changes' => 0,
+                'skipped' => 1,
+            ],
+            'where-false' => [
+                'suffix' => 'failed update where fires before insert only',
+                'incoming' => ['a' => 1, 'b' => 2, 'c' => 0],
+                'arms' => [[
+                    'target' => ['a'],
+                    'action' => 'update',
+                    'assignments' => ['c' => static fn (array $current): int => (int) $current['c'] + 1],
+                    'where' => static fn (array $current): bool => (int) $current['c'] < 0,
+                ]],
+                'records' => [
+                    ['x' => 'before-insert', 'y' => '1,2,0'],
+                ],
+                'after' => $rows,
+                'changes' => 0,
+                'skipped' => 1,
+            ],
+        ];
+
+        $cases = [];
+        foreach ($variants as $baseUpstream => $storage) {
+            foreach ($caseSpecs as $kind => $spec) {
+                $upstream = match ($kind) {
+                    'update' => $baseUpstream,
+                    'nothing' => $storage === 'rowid' ? 'upsert2-310' : 'upsert2-410',
+                    'where-false' => $storage === 'rowid' ? 'upsert2-320/321' : 'upsert2-420/421',
+                };
+                $cases[] = [
+                    'upstream' => $upstream,
+                    'source' => 'upsert2.test',
+                    'storage' => $storage,
+                    'before' => $rows,
+                    'incoming' => $spec['incoming'],
+                    'arms' => $spec['arms'],
+                    'records' => $spec['records'],
+                    'after' => $spec['after'],
+                    'changes' => $spec['changes'],
+                    'skipped' => $spec['skipped'],
+                ];
+            }
+        }
+
+        return $cases;
+    }
 }

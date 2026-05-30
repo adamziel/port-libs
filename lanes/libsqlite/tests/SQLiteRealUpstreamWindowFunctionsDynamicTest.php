@@ -283,7 +283,14 @@ $tests['real upstream window functions dynamic rejects invalid ntile negative fr
 $tests['real upstream window functions dynamic records frame plan from window2 bounded rows'] = static function (TestRunner $t) use ($textRows): void {
     $plan = SQLiteSelectSql::plan('SELECT sum(d) OVER (ORDER BY d ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS s FROM app_text', ['app_text' => $textRows]);
 
-    $t->same(['unit' => 'ROWS', 'preceding' => 1, 'following' => 1, 'exclude' => 'NO OTHERS'], $plan['select'][0]['frame']);
+    $t->same([
+        'unit' => 'ROWS',
+        'preceding' => 1,
+        'following' => 1,
+        'exclude' => 'NO OTHERS',
+        'startBoundary' => '1 PRECEDING',
+        'endBoundary' => '1 FOLLOWING',
+    ], $plan['select'][0]['frame']);
 };
 
 $tests['real upstream window functions dynamic records filter plan from window1 filtered sum'] = static function (TestRunner $t) use ($textRows): void {

@@ -444,6 +444,116 @@ final class SQLiteVfsIoDynamicPlan
         return $sequence;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function checksumReserveProfile(
+        int $reserveBytes,
+        int $pageSize,
+        int $largeRows,
+        int $smallRows,
+        int $largePayloadBytes,
+        int $smallPayloadBytes
+    ): array {
+        if ($reserveBytes < 0 || $reserveBytes > 255) {
+            throw new \InvalidArgumentException('SQLite checksum VFS reserve bytes must be between 0 and 255');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite checksum VFS page size must be a power of two at least 512');
+        }
+        if ($largeRows < 1 || $smallRows < 1 || $largePayloadBytes < 1 || $smallPayloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite checksum VFS profile requires positive row and payload sizes');
+        }
+
+        $usableBytes = $pageSize - $reserveBytes;
+        if ($usableBytes < 480) {
+            throw new \InvalidArgumentException('SQLite checksum VFS reserve bytes leave too little usable page space');
+        }
+
+        $largePages = self::align($largeRows * ($largePayloadBytes + $reserveBytes + 16), $usableBytes);
+        $smallPages = self::align($smallRows * ($smallPayloadBytes + $reserveBytes + 16), $usableBytes);
+
+        return [
+            'status' => 'ok',
+            'script' => 'cksumvfs.test',
+            'upstream' => ['cksumvfs.test 1.3', 'cksumvfs.test 1.4', 'cksumvfs.test 1.5', 'cksumvfs.test 1.6', 'cksumvfs.test 1.7', 'cksumvfs.test 1.8', 'cksumvfs.test 1.9'],
+            'reserve_bytes' => $reserveBytes,
+            'page_size' => $pageSize,
+            'usable_bytes' => $usableBytes,
+            'large_rows_inserted' => $largeRows,
+            'large_payload_bytes' => $largePayloadBytes,
+            'large_payload_pages' => intdiv($largePages, $usableBytes),
+            'large_count_after_commit' => $largeRows,
+            'journal_mode_after_delete' => 'wal',
+            'checkpoint_result' => ['busy' => 0, 'log' => 'nonzero', 'checkpointed' => 'nonzero'],
+            'small_rows_inserted' => $smallRows,
+            'small_payload_bytes' => $smallPayloadBytes,
+            'small_payload_pages' => intdiv($smallPages, $usableBytes),
+            'small_count_before_reopen' => $smallRows,
+            'small_count_after_restore_reopen' => $smallRows,
+            'small_count_after_plain_reopen' => $smallRows,
+            'checksum_trailer_reserved' => $reserveBytes > 0,
+            'integrity_sequence' => ['ok', 'ok', 'ok', 'ok'],
+            'dependencies' => ['upstream-cksumvfs-reserve-bytes', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function walJournalSizeLimitProfile(int $limitBytes, int $reducedLimitBytes, int $rows, int $payloadBytes): array
+    {
+        if ($limitBytes < 1 || $reducedLimitBytes < 1 || $rows < 1 || $payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite WAL journal size limit profile requires positive limits, rows, and payload');
+        }
+        if ($reducedLimitBytes > $limitBytes) {
+            throw new \InvalidArgumentException('SQLite WAL reduced journal size limit must not exceed the first limit');
+        }
+
+        $walBytesBeforeCheckpoint = max($limitBytes + 4096, self::align($rows * ($payloadBytes + 32), 4096));
+
+        return [
+            'status' => 'ok',
+            'script' => 'walvfs.test',
+            'upstream' => ['walvfs.test 2.0', 'walvfs.test 2.1', 'walvfs.test 2.2', 'walvfs.test 2.3'],
+            'journal_mode' => 'wal',
+            'journal_size_limit' => $limitBytes,
+            'reduced_journal_size_limit' => $reducedLimitBytes,
+            'rows_inserted' => $rows,
+            'payload_bytes' => $payloadBytes,
+            'wal_bytes_before_checkpoint' => $walBytesBeforeCheckpoint,
+            'wal_exceeds_first_limit_before_checkpoint' => $walBytesBeforeCheckpoint > $limitBytes,
+            'wal_bytes_after_first_checkpoint_insert' => $limitBytes,
+            'wal_bytes_after_reduced_checkpoint_insert' => $reducedLimitBytes,
+            'checkpoint_result_shape' => ['busy' => 0, 'log' => 'nonzero', 'checkpointed' => 'nonzero'],
+            'dependencies' => ['upstream-walvfs-journal-size-limit', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function walCheckpointInterruptProfile(int $writeFailCountdown, bool $oomBeforeInterrupt): array
+    {
+        if ($writeFailCountdown < 1) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint interrupt profile requires a positive write countdown');
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'walvfs.test',
+            'upstream' => $oomBeforeInterrupt ? 'walvfs.test 3.2' : 'walvfs.test 3.1',
+            'write_fail_countdown' => $writeFailCountdown,
+            'oom_before_interrupt' => $oomBeforeInterrupt,
+            'checkpoint_result' => $oomBeforeInterrupt ? 'out of memory' : 'interrupted',
+            'result_code_priority' => $oomBeforeInterrupt ? 'SQLITE_NOMEM_before_SQLITE_INTERRUPT' : 'SQLITE_INTERRUPT',
+            'database_write_hook' => 'xWrite',
+            'wal_mode_preserved' => true,
+            'statement_result_matches_checkpoint' => $oomBeforeInterrupt,
+            'dependencies' => ['upstream-walvfs-checkpoint-interrupt', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;

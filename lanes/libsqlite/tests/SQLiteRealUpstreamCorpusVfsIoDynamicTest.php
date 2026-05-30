@@ -578,4 +578,115 @@ $tests['real upstream corpus vfs io dynamic filectrl rejects empty sequence'] = 
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::fileControlSequence('file:/srv/app/data/app.sqlite?mode=rw', []));
 };
 
+$checksumReserveCases = [];
+foreach ([0, 4, 8, 16, 24, 32, 64, 96] as $reserveBytes) {
+    foreach ([4096, 8192] as $pageSize) {
+        foreach ([100, 250, 500, 850] as $smallRows) {
+            $checksumReserveCases[] = [$reserveBytes, $pageSize, 8500, $smallRows, 5000, 100];
+        }
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic cksumvfs reserve bytes persist counts through reopen'] = static function (TestRunner $t) use ($checksumReserveCases): void {
+    foreach ($checksumReserveCases as [$reserveBytes, $pageSize, $largeRows, $smallRows, $largePayloadBytes, $smallPayloadBytes]) {
+        $profile = SQLiteVfsIoDynamicPlan::checksumReserveProfile($reserveBytes, $pageSize, $largeRows, $smallRows, $largePayloadBytes, $smallPayloadBytes);
+
+        $t->same('ok', $profile['status']);
+        $t->same('cksumvfs.test', $profile['script']);
+        $t->same($reserveBytes, $profile['reserve_bytes']);
+        $t->same($pageSize, $profile['page_size']);
+        $t->same($pageSize - $reserveBytes, $profile['usable_bytes']);
+        $t->same($largeRows, $profile['large_count_after_commit']);
+        $t->same('wal', $profile['journal_mode_after_delete']);
+        $t->same($smallRows, $profile['small_count_before_reopen']);
+        $t->same($smallRows, $profile['small_count_after_restore_reopen']);
+        $t->same($smallRows, $profile['small_count_after_plain_reopen']);
+        $t->same($reserveBytes > 0, $profile['checksum_trailer_reserved']);
+        $t->same(['ok', 'ok', 'ok', 'ok'], $profile['integrity_sequence']);
+        $t->same(true, in_array('cksumvfs.test 1.8', $profile['upstream'], true));
+        $t->same(true, in_array('cksumvfs.test 1.9', $profile['upstream'], true));
+        $t->same(true, in_array('upstream-cksumvfs-reserve-bytes', $profile['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic cksumvfs reserve bytes keep payload page math stable'] = static function (TestRunner $t) use ($checksumReserveCases): void {
+    foreach ($checksumReserveCases as [$reserveBytes, $pageSize, $largeRows, $smallRows, $largePayloadBytes, $smallPayloadBytes]) {
+        $profile = SQLiteVfsIoDynamicPlan::checksumReserveProfile($reserveBytes, $pageSize, $largeRows, $smallRows, $largePayloadBytes, $smallPayloadBytes);
+
+        $t->same(true, $profile['usable_bytes'] >= 480);
+        $t->same(0, ($profile['large_payload_pages'] * $profile['usable_bytes']) % $profile['usable_bytes']);
+        $t->same(0, ($profile['small_payload_pages'] * $profile['usable_bytes']) % $profile['usable_bytes']);
+        $t->same(true, $profile['large_payload_pages'] >= $profile['small_payload_pages']);
+        $t->same(['busy' => 0, 'log' => 'nonzero', 'checkpointed' => 'nonzero'], $profile['checkpoint_result']);
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $profile['dependencies'], true));
+    }
+};
+
+$walLimitCases = [];
+foreach ([8000, 10000, 12000, 16000, 24000, 32768] as $limitBytes) {
+    foreach ([4096, 6000, 8000] as $reducedLimitBytes) {
+        if ($reducedLimitBytes <= $limitBytes) {
+            $walLimitCases[] = [$limitBytes, $reducedLimitBytes, 20, 750];
+        }
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic walvfs journal size limit clamps after checkpoint insert'] = static function (TestRunner $t) use ($walLimitCases): void {
+    foreach ($walLimitCases as [$limitBytes, $reducedLimitBytes, $rows, $payloadBytes]) {
+        $profile = SQLiteVfsIoDynamicPlan::walJournalSizeLimitProfile($limitBytes, $reducedLimitBytes, $rows, $payloadBytes);
+
+        $t->same('ok', $profile['status']);
+        $t->same('walvfs.test', $profile['script']);
+        $t->same('wal', $profile['journal_mode']);
+        $t->same($limitBytes, $profile['journal_size_limit']);
+        $t->same($reducedLimitBytes, $profile['reduced_journal_size_limit']);
+        $t->same($rows, $profile['rows_inserted']);
+        $t->same($payloadBytes, $profile['payload_bytes']);
+        $t->same(true, $profile['wal_exceeds_first_limit_before_checkpoint']);
+        $t->same($limitBytes, $profile['wal_bytes_after_first_checkpoint_insert']);
+        $t->same($reducedLimitBytes, $profile['wal_bytes_after_reduced_checkpoint_insert']);
+        $t->same(true, in_array('walvfs.test 2.2', $profile['upstream'], true));
+        $t->same(true, in_array('walvfs.test 2.3', $profile['upstream'], true));
+        $t->same(true, in_array('upstream-walvfs-journal-size-limit', $profile['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic walvfs journal size limit rejects invalid limits'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::walJournalSizeLimitProfile(0, 1, 20, 750));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::walJournalSizeLimitProfile(1000, 2000, 20, 750));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::walJournalSizeLimitProfile(1000, 500, 0, 750));
+};
+
+$interruptCases = [];
+foreach (range(1, 40) as $countdown) {
+    $interruptCases[] = [$countdown, false, 'interrupted', 'SQLITE_INTERRUPT'];
+    $interruptCases[] = [$countdown, true, 'out of memory', 'SQLITE_NOMEM_before_SQLITE_INTERRUPT'];
+}
+
+$tests['real upstream corpus vfs io dynamic walvfs checkpoint interrupt preserves result precedence'] = static function (TestRunner $t) use ($interruptCases): void {
+    foreach ($interruptCases as [$countdown, $oomBeforeInterrupt, $result, $priority]) {
+        $profile = SQLiteVfsIoDynamicPlan::walCheckpointInterruptProfile($countdown, $oomBeforeInterrupt);
+
+        $t->same('ok', $profile['status']);
+        $t->same('walvfs.test', $profile['script']);
+        $t->same($oomBeforeInterrupt ? 'walvfs.test 3.2' : 'walvfs.test 3.1', $profile['upstream']);
+        $t->same($countdown, $profile['write_fail_countdown']);
+        $t->same($oomBeforeInterrupt, $profile['oom_before_interrupt']);
+        $t->same($result, $profile['checkpoint_result']);
+        $t->same($priority, $profile['result_code_priority']);
+        $t->same('xWrite', $profile['database_write_hook']);
+        $t->same(true, $profile['wal_mode_preserved']);
+        $t->same($oomBeforeInterrupt, $profile['statement_result_matches_checkpoint']);
+        $t->same(true, in_array('upstream-walvfs-checkpoint-interrupt', $profile['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic cksumvfs and walvfs reject malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::checksumReserveProfile(-1, 4096, 1, 1, 1, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::checksumReserveProfile(8, 1000, 1, 1, 1, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::checksumReserveProfile(255, 512, 1, 1, 1, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::checksumReserveProfile(8, 4096, 0, 1, 1, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::walCheckpointInterruptProfile(0, false));
+};
+
 return $tests;

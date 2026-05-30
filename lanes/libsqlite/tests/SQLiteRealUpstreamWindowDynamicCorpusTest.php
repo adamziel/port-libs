@@ -281,12 +281,12 @@ $tests['real upstream window6.test 10.1 rejects negative nth_value'] = static fu
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::nthValue([2, 3, 4], -1));
 };
 
-$tests['real upstream window4.test lead zero offset rejected by bounded helper'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lead([1, 2, 3], 0));
+$tests['real upstream window4.test lead zero offset returns current row'] = static function (TestRunner $t): void {
+    $t->same([1, 2, 3], SQLiteWindowFunction::lead([1, 2, 3], 0));
 };
 
-$tests['real upstream window4.test lag zero offset rejected by bounded helper'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lag([1, 2, 3], 0));
+$tests['real upstream window4.test lag zero offset returns current row'] = static function (TestRunner $t): void {
+    $t->same([1, 2, 3], SQLiteWindowFunction::lag([1, 2, 3], 0));
 };
 
 return $tests;

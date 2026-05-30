@@ -990,11 +990,6 @@ final class SQLiteWindowFunction
      */
     private static function offsetValue(iterable $values, int $relativeOffset, mixed $default, string $functionName): array
     {
-        $offset = abs($relativeOffset);
-        if ($offset <= 0) {
-            throw new \InvalidArgumentException("SQLite {$functionName}() offset must be positive");
-        }
-
         $rows = self::rows($values);
         $result = [];
         foreach (array_keys($rows) as $index) {
