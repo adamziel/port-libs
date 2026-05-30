@@ -118,7 +118,11 @@ if [[ "$LANE" == "libsqlite" ]]; then
       printf 'libsqlite handoff guard failed: numbered production source class remains. No ready marker written.\n' >&2
       exit 4
     fi
-    if rg -n '^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:WordPress|wordpress|WP|Wp|wp_)\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:WordPress|wordpress|WP|Wp|wp_)\w*\s*\(' lanes/libsqlite --glob '*.php'; then
+    if find lanes/libsqlite/src \( -name '*WordPress*.php' -o -name '*wordpress*.php' -o -name '*WP*.php' -o -name '*wp_*.php' -o -name '*OptionRow*.php' -o -name '*Multisite*.php' -o -name '*Network*.php' \) -print -quit | rg .; then
+      printf 'libsqlite handoff guard failed: WordPress-specific source filename remains. No ready marker written.\n' >&2
+      exit 4
+    fi
+    if rg -n '^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:WordPress|wordpress|WP|Wp|wp_|OptionRow|Multisite|Network)\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:WordPress|wordpress|WP|Wp|wp_|OptionRow|Multisite|Network|Autoload)\w*\s*\(' lanes/libsqlite --glob '*.php'; then
       printf 'libsqlite handoff guard failed: WordPress-specific PHP declaration remains. No ready marker written.\n' >&2
       exit 4
     fi
@@ -146,7 +150,7 @@ if [[ "$LANE" == "libsqlite" ]] &&
 fi
 
 if [[ "$LANE" == "libsqlite" ]] &&
-  grep -E '^\+.*((class|interface|trait)[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_)|function[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_)[[:alnum:]_]*[[:space:]]*\()' "$PATCH_FILE" >/dev/null; then
+  grep -E '^\+.*((class|interface|trait)[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_|OptionRow|Multisite|Network)|function[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_|OptionRow|Multisite|Network|Autoload)[[:alnum:]_]*[[:space:]]*\()' "$PATCH_FILE" >/dev/null; then
   printf 'libsqlite handoff guard failed: patch adds a WordPress-specific PHP declaration. No ready marker written.\n' >&2
   printf 'Patch: %s\n' "$PATCH_FILE" >&2
   exit 4

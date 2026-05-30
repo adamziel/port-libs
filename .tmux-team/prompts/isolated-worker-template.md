@@ -12,11 +12,12 @@ Current supervisor override, 2026-05-30 13:20 UTC:
 
 - User rule: the libsqlite port must have zero WordPress-specific classes,
   interfaces, traits, functions, or methods. Do not create declarations whose
-  names contain `WordPress`, `wordpress`, `WP`, `Wp`, or `wp_`.
+  names contain `WordPress`, `wordpress`, `WP`, `Wp`, `wp_`, `OptionRow`,
+  `Multisite`, `Network`, or `Autoload`.
 - Do not add or require WordPress-specific libsqlite smokes/examples for new
   handoffs. Use generic application scenario names. Existing fixture data
   strings such as `wp_options` are not permission to expose WordPress-named
-  APIs.
+  or WordPress-shaped APIs.
 - A valid libsqlite handoff must pass
   `php tools/run-tests.php lanes/libsqlite/tests/SQLiteNoWordPressSpecificApiTest.php`
   when that guard exists, plus the focused tests for the assigned slice.
@@ -60,8 +61,8 @@ Current supervisor override, 2026-05-29 11:20 UTC:
   production names.
 - If your slice is not a consolidation slice, work on the assigned libsqlite
   functional/test-coverage slice immediately. Add behavior-backed PHP
-  implementation, direct tests, and a WordPress example or smoke path where
-  appropriate.
+  implementation, direct tests, and a generic application example or smoke path
+  where appropriate.
 - Do not create any production class, production file, or production helper
   whose name differs only by a numeric suffix such as `Next123`,
   `CurrentNext123`, or `CurrentSourceNext123`. Use stable descriptive names.
