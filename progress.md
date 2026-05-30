@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 23:36 UTC):
+  Latest libsqlite source is integrated as `33ca1e7bc`
+  (`libsqlite: add schemafault pragma corpus slice`). The batch accepted one
+  current-base PRAGMA/schemafault handoff on top of `d7c5d7f50` and deliberately
+  left the simultaneous window handoff out because it was note-only blocked
+  overlap evidence with no runnable behavior movement. Verification passed PHP
+  lint for the new PHP source/test files, `git diff --cached --check --
+  lanes/libsqlite`, `SQLiteNoDomainSpecificApiTest.php` with `1 file / 3
+  assertions / 0 failures`, and focused
+  `SQLiteRealUpstreamPragmaSchemaFaultDynamicTest.php` with `1 file / 10008
+  assertions / 0 failures / 1003 PASS lines`. Honest selected movement is
+  `+1003`, so the public row should move from `1157667 pass / 0 fail` to
+  `1158670 pass / 0 fail` with coverage still `1589 / 1589`. App-WAL parity,
+  newer SELECT/expression source changes, and window work remain parked for
+  clean related gates. The live pool remains at 10-11 visible libsqlite workers
+  with no long sleepers.
+
 - 2026-05-30 supervisor continuation (integration sample 23:33 UTC):
   Latest libsqlite source is integrated as `a597a155`
   (`libsqlite: add twenty-third current corpus sweep`). The batch accepted 13
