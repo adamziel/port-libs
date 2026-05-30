@@ -49,8 +49,10 @@
 ## Current Coordination Snapshot
 
 - 2026-05-30 supervisor continuation (integration sample 20:14 UTC):
-  Accepted a third rapid current-base libsqlite batch replayed on dashboard
-  head `c1a0d2c8`. Fourteen handoffs applied cleanly after excluding stale
+  Latest accepted libsqlite source is `45227d403`
+  (`libsqlite: add third rapid current corpus sweep`). This third rapid
+  current-base batch was replayed on dashboard head `c1a0d2c8`; 14 handoffs
+  applied cleanly after excluding stale
   status/dashboard hunks; one duplicate window handoff was rejected because it
   tried to add a test already supplied by this batch. Accepted coverage adds
   bulk runner/suite/veryquick evidence plus real upstream date floor/ceiling
