@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 23:16:13 UTC",
-    "sourceCommit": "2d9f4826d8e3b5af0175face78cf146329bb3801",
-    "sourceCommitShort": "2d9f4826d8e3",
+    "generated": "2026-05-30 23:31:56 UTC",
+    "sourceCommit": "89b782e56e8e6930ffedcd48265ff8146d346bda",
+    "sourceCommitShort": "89b782e56e8e",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2d9f4826d8e3b5af0175face78cf146329bb3801",
-    "dashboardCommitShort": "2d9f4826d8e3",
+    "dashboardCommit": "89b782e56e8e6930ffedcd48265ff8146d346bda",
+    "dashboardCommitShort": "89b782e56e8e",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "1110235 pass / 0 fail",
+            "php": "1157667 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted twenty-second current-corpus bat...",
-            "currentWork": "Published source 91d79cbbec9488c8a85f67f950ba1fd9e6d70056 with a twenty-second rapid curr...",
+            "audit": "Accepted twenty-third current-corpus batc...",
+            "currentWork": "Published source a597a1559757a3592359b7c79336940ab85499e8 with a twenty-third rapid curre...",
             "nextTarget": "Continue integrating fresh current-base high-yield handoffs from the live 10-11 worker po...",
-            "blocker": "Selected twenty-second corpus gates pass.",
-            "commit": "91d79cb"
+            "blocker": "Selected twenty-third corpus gates pass.",
+            "commit": "a597a15"
         },
         {
             "library": "LightningCSS",
