@@ -49,7 +49,7 @@
 ## Current Coordination Snapshot
 
 - 2026-05-30 supervisor continuation (integration sample 09:25 UTC):
-  Latest libsqlite source is integrated as `70f6f27ba`
+  Latest libsqlite source is integrated as `e5390996f`
   (`libsqlite: integrate planner suite helper batch`). The batch accepts six
   handoffs that still applied cleanly to the latest integration head:
   release-countability current-next70 stable naming, release-runner denominator

@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 09:09:43 UTC",
-    "sourceCommit": "1d9d039483b5dffff6527222de459456ef8464c3",
-    "sourceCommitShort": "1d9d039483b5",
+    "generated": "2026-05-30 09:27:14 UTC",
+    "sourceCommit": "e5390996ffbbd0275d186108dd4bc6742b43cb06",
+    "sourceCommitShort": "e5390996ffbb",
     "sourceBranch": "main",
-    "dashboardCommit": "1d9d039483b5dffff6527222de459456ef8464c3",
-    "dashboardCommitShort": "1d9d039483b5",
+    "dashboardCommit": "e5390996ffbbd0275d186108dd4bc6742b43cb06",
+    "dashboardCommitShort": "e5390996ffbb",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "188257 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, behavior fixes, and numbered suffix...",
-            "audit": "Accepted source commit 1d9d039483b5dffff6...",
-            "currentWork": "Committed libsqlite source 1d9d03948 consolidating current B-tree, VFS, WAL, suite-eviden...",
-            "nextTarget": "Keep 10-11 libsqlite workers active, prune inactive worktrees, integrate the next high-yi...",
+            "audit": "Accepted source commit e5390996ffbbd0275d...",
+            "currentWork": "Committed libsqlite source e5390996f integrating planner/suite helper cleanup while retai...",
+            "nextTarget": "Publish and live-verify the dashboard snapshot for e5390996f, consume accepted handoff ar...",
             "blocker": "Root/no-arg and full libsqlite lane gates pass under explicit 1024M PHP m...",
-            "commit": "1d9d039"
+            "commit": "e539099"
         },
         {
             "library": "LightningCSS",
