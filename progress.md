@@ -43,10 +43,27 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 270G available after bounded inactive-worktree cleanup; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 267G available while workers and verification are active; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (shell samples 03:39 UTC):
+  Latest libsqlite consolidation is integrated as `cd2e8a089`
+  (`libsqlite: consolidate json release helper suffix names`). The batch
+  accepts 3 current-base-compatible handoffs covering JSON generated-path
+  rowid-alias projection helper cleanup, JSON generated-path XColumn cache
+  helper cleanup, and release-runner admission/rebase-admission method, test,
+  and note stable naming. Validation passed PHP lint for changed PHP files,
+  the JSON rowid-alias projection WordPress self-test, focused changed tests
+  `5 files / 2762 assertions / 0 failures`, JSON table family `304 files /
+  20136 assertions / 0 failures`, release-runner focused family `6 files /
+  6396 assertions / 0 failures`, and `git diff --check -- lanes/libsqlite`.
+  Public pass/mapped counters remain `154019 pass / 0 fail` and `830 / 1589`
+  because this is consolidation-only. Several overlapping STAT4 like-prefix
+  handoffs from the previous base were rejected as stale after `0d1836f8b`
+  renamed those files. Live worker pool remained in the requested band during
+  verification with 11 isolated libsqlite Codex workers and 0 long sleepers.
 
 - 2026-05-30 supervisor continuation (shell samples 03:30 UTC):
   Latest libsqlite consolidation is integrated as `0d1836f8b`
