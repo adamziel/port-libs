@@ -19794,7 +19794,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function suiteReleaseRunnerUpstreamCurrentNext81(
+    public function suiteReleaseRunnerUpstreamAdmission(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,

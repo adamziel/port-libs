@@ -82,7 +82,7 @@ function libsqlite_suite81_record(
     ?int $expected = 93,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite81_evidence()->suiteReleaseRunnerUpstreamCurrentNext81(
+    return libsqlite_suite81_evidence()->suiteReleaseRunnerUpstreamAdmission(
         $rows,
         464,
         29984,
@@ -282,10 +282,10 @@ $tests['current next81 blocks pass line inflation'] = static function (TestRunne
 $tests['current next81 rejects invalid setup'] = static function (TestRunner $t): void {
     $evidence = libsqlite_suite81_evidence();
 
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerUpstreamCurrentNext81([], 464, 29984, LIBSQLITE_SUITE81_HEAD, LIBSQLITE_SUITE81_SQLITE, LIBSQLITE_SUITE81_UUID, 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerUpstreamCurrentNext81Test.php', libsqlite_suite81_output(), 'non-overlap', 93));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerUpstreamCurrentNext81(libsqlite_suite81_rows(), -1, 29984, LIBSQLITE_SUITE81_HEAD, LIBSQLITE_SUITE81_SQLITE, LIBSQLITE_SUITE81_UUID, 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerUpstreamCurrentNext81Test.php', libsqlite_suite81_output(), 'non-overlap', 93));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerUpstreamCurrentNext81(libsqlite_suite81_rows(), 464, 29984, '', LIBSQLITE_SUITE81_SQLITE, LIBSQLITE_SUITE81_UUID, 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerUpstreamCurrentNext81Test.php', libsqlite_suite81_output(), 'non-overlap', 93));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerUpstreamCurrentNext81(libsqlite_suite81_rows(), 464, 29984, LIBSQLITE_SUITE81_HEAD, '', LIBSQLITE_SUITE81_UUID, 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerUpstreamCurrentNext81Test.php', libsqlite_suite81_output(), 'non-overlap', 93));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerUpstreamAdmission([], 464, 29984, LIBSQLITE_SUITE81_HEAD, LIBSQLITE_SUITE81_SQLITE, LIBSQLITE_SUITE81_UUID, 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerUpstreamCurrentNext81Test.php', libsqlite_suite81_output(), 'non-overlap', 93));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerUpstreamAdmission(libsqlite_suite81_rows(), -1, 29984, LIBSQLITE_SUITE81_HEAD, LIBSQLITE_SUITE81_SQLITE, LIBSQLITE_SUITE81_UUID, 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerUpstreamCurrentNext81Test.php', libsqlite_suite81_output(), 'non-overlap', 93));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerUpstreamAdmission(libsqlite_suite81_rows(), 464, 29984, '', LIBSQLITE_SUITE81_SQLITE, LIBSQLITE_SUITE81_UUID, 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerUpstreamCurrentNext81Test.php', libsqlite_suite81_output(), 'non-overlap', 93));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseRunnerUpstreamAdmission(libsqlite_suite81_rows(), 464, 29984, LIBSQLITE_SUITE81_HEAD, '', LIBSQLITE_SUITE81_UUID, 'lanes/libsqlite/tests/SQLiteSuiteReleaseRunnerUpstreamCurrentNext81Test.php', libsqlite_suite81_output(), 'non-overlap', 93));
 };
 
 $tests['current next81 records dependency closure and next gate'] = static function (TestRunner $t): void {

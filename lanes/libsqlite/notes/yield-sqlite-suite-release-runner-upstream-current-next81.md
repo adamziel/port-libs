@@ -2,7 +2,7 @@
 
 Status: focused upstream-runner countability blocker removal.
 
-This slice adds `SQLiteUpstreamSuiteEvidence::suiteReleaseRunnerUpstreamCurrentNext81()` as a bounded admission gate for release/all runner artifacts whose countability depends on the current upstream source identity. A zero-error artifact can move mapped evidence only when all of these are true:
+This slice adds `SQLiteUpstreamSuiteEvidence::suiteReleaseRunnerUpstreamAdmission()` as a bounded admission gate for release/all runner artifacts whose countability depends on the current upstream source identity. A zero-error artifact can move mapped evidence only when all of these are true:
 
 - the artifact repository HEAD matches launcher base `8170714ed6c9fe68a85cc98f050b32864eb598a3`;
 - the SQLite commit matches manifest commit `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`;
