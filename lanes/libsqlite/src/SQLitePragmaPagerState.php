@@ -8,7 +8,7 @@ use InvalidArgumentException;
 
 final class SQLitePragmaPagerState
 {
-    /** @var array<string, array{cache_size:int, default_cache_size:int, synchronous:int, dirty_default:bool}> */
+    /** @var array<string, array{cache_size:int, default_cache_size:int, synchronous:int, page_size:int, cache_spill:int, dirty_default:bool}> */
     private array $schemas = [];
 
     private int $builtInDefaultCacheSize;
@@ -37,6 +37,8 @@ final class SQLitePragmaPagerState
                 'cache_size' => (int) ($state['cache_size'] ?? $default),
                 'default_cache_size' => $default,
                 'synchronous' => self::normalizeSynchronous($state['synchronous'] ?? 2),
+                'page_size' => self::normalizePageSize((int) ($state['page_size'] ?? 4096)),
+                'cache_spill' => self::normalizeCacheSpill($state['cache_spill'] ?? $default, (int) ($state['cache_size'] ?? $default), (int) ($state['page_size'] ?? 4096)),
                 'dirty_default' => (bool) ($state['dirty_default'] ?? false),
             ];
         }
@@ -60,8 +62,38 @@ final class SQLitePragmaPagerState
         if ($pragma === 'cache_size') {
             $old = $this->schemas[$schema]['cache_size'];
             $this->schemas[$schema]['cache_size'] = self::normalizeCacheSize($value);
+            if ($this->schemas[$schema]['cache_spill'] > 0) {
+                $this->schemas[$schema]['cache_spill'] = $this->schemas[$schema]['cache_size'];
+            }
 
             return $this->row($schema, $pragma, $old !== $this->schemas[$schema]['cache_size'], 'assigned_connection_local');
+        }
+
+        if ($pragma === 'page_size') {
+            $old = $this->schemas[$schema]['page_size'];
+            $this->schemas[$schema]['page_size'] = self::normalizePageSize((int) $value);
+
+            return $this->row($schema, $pragma, $old !== $this->schemas[$schema]['page_size'], 'assigned_connection_local');
+        }
+
+        if ($pragma === 'cache_spill') {
+            $cacheSize = $this->schemas[$schema]['cache_size'];
+            $pageSize = $this->schemas[$schema]['page_size'];
+            $old = $this->schemas[$schema]['cache_spill'];
+            $next = self::normalizeCacheSpill($value, $cacheSize, $pageSize);
+            if ($schema === 'main' && !str_contains(rtrim(trim($sql), ';'), '.')) {
+                foreach (array_keys($this->schemas) as $schemaName) {
+                    $this->schemas[$schemaName]['cache_spill'] = self::normalizeCacheSpill(
+                        $value,
+                        $this->schemas[$schemaName]['cache_size'],
+                        $this->schemas[$schemaName]['page_size'],
+                    );
+                }
+            } else {
+                $this->schemas[$schema]['cache_spill'] = $next;
+            }
+
+            return $this->row($schema, $pragma, $old !== $next, 'assigned_connection_local');
         }
 
         if ($pragma === 'default_cache_size') {
@@ -69,6 +101,9 @@ final class SQLitePragmaPagerState
             $default = self::normalizeDefaultCacheSize((int) $value, $this->builtInDefaultCacheSize);
             $this->schemas[$schema]['default_cache_size'] = $default;
             $this->schemas[$schema]['cache_size'] = $default;
+            if ($this->schemas[$schema]['cache_spill'] > 0) {
+                $this->schemas[$schema]['cache_spill'] = $default;
+            }
             $this->schemas[$schema]['dirty_default'] = $old !== $default;
 
             return $this->row($schema, $pragma, $old !== $default, $value === '0' || $value === 0 ? 'reset_to_builtin_default' : 'assigned_persistent_default');
@@ -87,6 +122,11 @@ final class SQLitePragmaPagerState
     {
         $schema = self::normalizeSchemaName($schema);
         $this->ensureSchema($schema);
+        if (!$inheritCacheSpill) {
+            $this->schemas[$schema]['cache_spill'] = $this->schemas[$schema]['cache_size'];
+        } elseif (isset($this->schemas['main']) && $this->schemas['main']['cache_spill'] === 0) {
+            $this->schemas[$schema]['cache_spill'] = 0;
+        }
 
         return [
             'status' => 'ok',
@@ -95,6 +135,7 @@ final class SQLitePragmaPagerState
             'cache_size' => $this->schemas[$schema]['cache_size'],
             'default_cache_size' => $this->schemas[$schema]['default_cache_size'],
             'synchronous' => $this->schemas[$schema]['synchronous'],
+            'cache_spill' => $this->schemas[$schema]['cache_spill'],
         ];
     }
 
@@ -106,6 +147,9 @@ final class SQLitePragmaPagerState
         foreach ($this->schemas as &$state) {
             $state['cache_size'] = $state['default_cache_size'];
             $state['synchronous'] = 2;
+            if ($state['cache_spill'] > 0) {
+                $state['cache_spill'] = $state['cache_size'];
+            }
         }
         unset($state);
 
@@ -131,8 +175,8 @@ final class SQLitePragmaPagerState
     {
         $trimmed = rtrim(trim($sql), ';');
         $identifier = '[A-Za-z_][A-Za-z0-9_]*';
-        $value = '(?:[-+]?\d+|OFF|ON|NORMAL|FULL|EXTRA)';
-        if (!preg_match('/^PRAGMA\s+(?:(?<schema>' . $identifier . ')\.)?(?<pragma>cache_size|default_cache_size|synchronous)\s*(?:(?:=|\()\s*(?<value>' . $value . ')\s*\)?)?$/i', $trimmed, $matches)) {
+        $value = '(?:[-+]?\d+|OFF|ON|NO|YES|FALSE|TRUE|NORMAL|FULL|EXTRA)';
+        if (!preg_match('/^PRAGMA\s+(?:(?<schema>' . $identifier . ')\.)?(?<pragma>cache_size|default_cache_size|synchronous|page_size|cache_spill)\s*(?:(?:=|\()\s*(?<value>' . $value . ')\s*\)?)?$/i', $trimmed, $matches)) {
             throw new InvalidArgumentException("Unsupported pager PRAGMA SQL: {$sql}");
         }
 
@@ -153,6 +197,8 @@ final class SQLitePragmaPagerState
             'cache_size' => $this->builtInDefaultCacheSize,
             'default_cache_size' => $this->builtInDefaultCacheSize,
             'synchronous' => 2,
+            'page_size' => 4096,
+            'cache_spill' => $this->builtInDefaultCacheSize,
             'dirty_default' => false,
         ];
     }
@@ -176,6 +222,8 @@ final class SQLitePragmaPagerState
                 'cache_size' => $this->schemas[$schema]['cache_size'],
                 'default_cache_size' => $this->schemas[$schema]['default_cache_size'],
                 'synchronous' => $this->schemas[$schema]['synchronous'],
+                'page_size' => $this->schemas[$schema]['page_size'],
+                'cache_spill' => $this->schemas[$schema]['cache_spill'],
                 'dirty_default' => $this->schemas[$schema]['dirty_default'],
             ],
         ];
@@ -203,6 +251,37 @@ final class SQLitePragmaPagerState
         }
 
         return $default;
+    }
+
+    private static function normalizePageSize(int $value): int
+    {
+        if ($value < 512 || $value > 65536 || ($value & ($value - 1)) !== 0) {
+            throw new InvalidArgumentException('page_size must be a power of two between 512 and 65536');
+        }
+
+        return $value;
+    }
+
+    private static function normalizeCacheSpill(int|string|bool $value, int $cacheSize, int $pageSize): int
+    {
+        if (is_string($value) && !is_numeric($value)) {
+            return match (strtolower($value)) {
+                'off', 'no', 'false' => 0,
+                'on', 'yes', 'true' => $cacheSize,
+                default => throw new InvalidArgumentException("Unsupported cache_spill value: {$value}"),
+            };
+        }
+
+        $numeric = (int) $value;
+        if ($numeric === 0) {
+            return 0;
+        }
+
+        if ($numeric < 0) {
+            return max(1, intdiv(abs($numeric), max(1, intdiv($pageSize, 1024))));
+        }
+
+        return max($cacheSize, $numeric);
     }
 
     private static function normalizeSynchronous(int|string|bool $value): int

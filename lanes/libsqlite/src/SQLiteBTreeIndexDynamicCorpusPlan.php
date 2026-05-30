@@ -2503,6 +2503,50 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,page_size:int,row_count:int,blob_bytes:int|null,cache_size:int|null,index_name:string,unique:bool,duplicate_value:int|null,expected_error:string|null,integrity:string,sorter_pages:int,spill_batches:int,table_reset:bool}>
+     */
+    public static function index4CreateIndexStressCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index4 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index4-1.2', 'bulk create index over 65536 fixed-width blob rows', 1024, 65536, 102, null, 'i1', false, null, null, 6554, 64, false],
+            ['index4-1.4', 'limited cache create index over existing bulk blob table', 1024, 65536, 102, 10, 'i2', false, null, null, 6554, 128, false],
+            ['index4-1.6', 'create index after mixed text null and growing blob payloads', 1024, 256, 5202, null, 'i1', false, null, null, 1301, 32, true],
+            ['index4-1.7', 'create index on one-row table after transaction reset', 1024, 1, null, null, 'i1', false, null, null, 1, 1, true],
+            ['index4-1.8', 'create index on empty table after transaction reset', 1024, 0, null, null, 'i1', false, null, null, 0, 0, true],
+            ['index4-2.2', 'unique create index rejects duplicate integer key', 1024, 5, null, null, 'i3', true, 35, 'UNIQUE constraint failed: t2.x', 1, 1, false],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $pageSize, $rowCount, $blobBytes, $cacheSize, $indexName, $unique, $duplicateValue, $expectedError, $sorterPages, $spillBatches, $tableReset] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'index4.test index4-1.1 through index4-2.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'page_size' => $pageSize,
+                'row_count' => $rowCount,
+                'blob_bytes' => $blobBytes,
+                'cache_size' => $cacheSize,
+                'index_name' => $indexName,
+                'unique' => $unique,
+                'duplicate_value' => $duplicateValue,
+                'expected_error' => $expectedError,
+                'integrity' => $expectedError === null ? 'ok' : 'unchanged-after-error',
+                'sorter_pages' => $sorterPages,
+                'spill_batches' => $spillBatches,
+                'table_reset' => $tableReset,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

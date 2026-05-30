@@ -334,6 +334,66 @@ final class SQLiteUpsertDoUpdateWherePlan
 
     /**
      * @param list<array<string,mixed>> $rows
+     * @param list<string>|null $projection
+     * @return list<array<string,mixed>>
+     */
+    public static function returningRowsWithScope(
+        array $rows,
+        ?array $projection,
+        string $targetTable,
+        ?string $targetAlias = null,
+    ): array {
+        self::validateRows($rows, 'returning');
+        if ($targetTable === '') {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING target table must be a non-empty string');
+        }
+        if ($targetAlias === '') {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING target alias must be null or a non-empty string');
+        }
+
+        if ($projection === null) {
+            return self::returningRows($rows, null);
+        }
+
+        $normalized = [];
+        foreach ($projection as $expression) {
+            if (!is_string($expression) || $expression === '') {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING projection columns must be non-empty strings');
+            }
+            if ($expression === '*') {
+                $normalized[] = '*';
+                continue;
+            }
+            if (str_ends_with($expression, '.*')) {
+                throw new \InvalidArgumentException('RETURNING may not use "TABLE.*" wildcards');
+            }
+
+            $parts = explode('.', $expression);
+            if (count($parts) > 2 || in_array('', $parts, true)) {
+                throw new \InvalidArgumentException("SQLite UPSERT RETURNING projection column {$expression} is malformed");
+            }
+            if (count($parts) === 1) {
+                $normalized[] = $expression;
+                continue;
+            }
+
+            [$qualifier, $column] = $parts;
+            if ($qualifier === $targetTable) {
+                $normalized[] = $column;
+                continue;
+            }
+            if ($qualifier === 'new' || $qualifier === 'old' || $qualifier === $targetAlias) {
+                throw new \InvalidArgumentException("no such column: {$expression}");
+            }
+
+            throw new \InvalidArgumentException("no such column: {$expression}");
+        }
+
+        return self::returningRows($rows, $normalized);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
      * @param list<string> $uniqueColumns
      */
     private static function findConflictIndex(array $rows, array $incoming, array $uniqueColumns): ?int

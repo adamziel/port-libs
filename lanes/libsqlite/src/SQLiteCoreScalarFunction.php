@@ -128,7 +128,7 @@ final class SQLiteCoreScalarFunction
 
     /**
      * @param list<mixed> $arguments
-     * @param list<array{utcStart:string, offsetMinutes:int}> $localtimeRules
+     * @param list<array{utcStart:string, offsetMinutes:int, failAtUtc?:string}> $localtimeRules
      */
     public static function sqlFunctionArgumentsWithLocaltimeRules(string $functionName, array $arguments, array $localtimeRules): mixed
     {
@@ -1127,7 +1127,7 @@ final class SQLiteCoreScalarFunction
     }
 
     /**
-     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}>|null $localtimeRules
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int, failAtUtc?:\DateTimeImmutable}>|null $localtimeRules
      */
     private static function dateTime(string $functionName, array $arguments, ?array $localtimeRules = null): int|float|string|null
     {
@@ -1296,8 +1296,8 @@ final class SQLiteCoreScalarFunction
     }
 
     /**
-     * @param list<array{utcStart:string, offsetMinutes:int}> $rules
-     * @return list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}>
+     * @param list<array{utcStart:string, offsetMinutes:int, failAtUtc?:string}> $rules
+     * @return list<array{utcStart:\DateTimeImmutable, offsetMinutes:int, failAtUtc?:\DateTimeImmutable}>
      */
     private static function normalizeLocaltimeRules(array $rules): array
     {
@@ -1310,10 +1310,17 @@ final class SQLiteCoreScalarFunction
             if (!isset($rule['utcStart']) || !is_string($rule['utcStart']) || !isset($rule['offsetMinutes']) || !is_int($rule['offsetMinutes'])) {
                 throw new \InvalidArgumentException('SQLite localtime rules require utcStart and offsetMinutes');
             }
-            $normalized[] = [
+            $row = [
                 'utcStart' => new \DateTimeImmutable($rule['utcStart'], $timezone),
                 'offsetMinutes' => $rule['offsetMinutes'],
             ];
+            if (isset($rule['failAtUtc'])) {
+                if (!is_string($rule['failAtUtc'])) {
+                    throw new \InvalidArgumentException('SQLite localtime rules failAtUtc must be a string');
+                }
+                $row['failAtUtc'] = new \DateTimeImmutable($rule['failAtUtc'], $timezone);
+            }
+            $normalized[] = $row;
         }
         usort(
             $normalized,
@@ -1324,15 +1331,21 @@ final class SQLiteCoreScalarFunction
     }
 
     /**
-     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}> $rules
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int, failAtUtc?:\DateTimeImmutable}> $rules
      */
     private static function utcToLocaltime(\DateTimeImmutable $instant, array $rules): \DateTimeImmutable
     {
+        foreach ($rules as $rule) {
+            if (isset($rule['failAtUtc']) && self::formatDateTime($rule['failAtUtc'], true) === self::formatDateTime($instant, true)) {
+                throw new \RuntimeException('local time unavailable');
+            }
+        }
+
         return self::modifyBySeconds($instant, (float) self::localtimeOffsetForUtc($instant, $rules) * 60.0);
     }
 
     /**
-     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}> $rules
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int, failAtUtc?:\DateTimeImmutable}> $rules
      */
     private static function localtimeToUtc(\DateTimeImmutable $local, array $rules): \DateTimeImmutable
     {
@@ -1354,7 +1367,7 @@ final class SQLiteCoreScalarFunction
     }
 
     /**
-     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}> $rules
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int, failAtUtc?:\DateTimeImmutable}> $rules
      */
     private static function localtimeOffsetForUtc(\DateTimeImmutable $instant, array $rules): int
     {
@@ -1370,7 +1383,7 @@ final class SQLiteCoreScalarFunction
     }
 
     /**
-     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}> $rules
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int, failAtUtc?:\DateTimeImmutable}> $rules
      */
     private static function localtimeOffsetForLocal(\DateTimeImmutable $local, array $rules): int
     {
