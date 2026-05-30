@@ -170,7 +170,7 @@ $plan = static fn (
     ?string $currentSchemaToken = null,
     ?string $currentSharedGenerationToken = null,
     ?string $currentStatementSnapshotToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext242(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planStatementSnapshotFence(
     $database,
     $master,
     $masterBytes,

@@ -167,7 +167,7 @@ $reads = static fn (?string $rollbackSourceToken = null, ?string $receiptToken =
     $read(5, $rollbackSourceToken, $receiptToken, $snapshotToken, $generationToken, $sourceToken),
     $read(6, $rollbackSourceToken, $receiptToken, $snapshotToken, $generationToken, $sourceToken),
 ];
-$plan = static fn (?array $readerCache = null, ?array $nextReads = null, ?string $rollbackSourceToken = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext261(
+$plan = static fn (?array $readerCache = null, ?array $nextReads = null, ?string $rollbackSourceToken = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::rollbackJournalReaderSourceFence(
     $database,
     $master,
     $masterBytes,

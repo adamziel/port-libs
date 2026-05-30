@@ -120,7 +120,7 @@ $plan = static fn (
     ?array $memberDigestMap = null,
     ?array $recoveredPages = null,
     ?string $bytes = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext193(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::stableMasterReadTokenFence(
     $database,
     $master,
     $masterBytes,

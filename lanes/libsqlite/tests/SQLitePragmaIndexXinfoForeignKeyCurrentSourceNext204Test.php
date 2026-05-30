@@ -87,8 +87,8 @@ $valueAt204 = static function (mixed $value, string $path): mixed {
 $default204 = static fn (): array => $page204();
 $unique204 = static fn (): array => $page204(nextRecords: $uniqueNextRecords204);
 $blocked204 = static fn (): array => $page204(nextRecords: $badNextRecords204);
-$childCurrent204 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childIndexRows204($currentRecords204);
-$childNext204 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childIndexRows204($nextRecords204, 'next');
+$childCurrent204 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childIndexRows($currentRecords204);
+$childNext204 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childIndexRows($nextRecords204, 'next');
 
 $cases204 = [
     'status ok' => [$default204, 'status', 'ok'],
@@ -175,7 +175,7 @@ $tests['pragma index xinfo foreignkey child index current source next204 rejects
 };
 
 $tests['pragma index xinfo foreignkey child index current source next204 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childIndexRows204([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childIndexRows([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey child index current source next204 rejects invalid bounds'] = static function (TestRunner $t) use ($page204): void {

@@ -164,7 +164,7 @@ $reads = static fn (?string $checksumToken = null, ?string $receiptToken = null,
     $read(5, $checksumToken, $receiptToken, $snapshotToken, $generationToken, $sourceToken),
     $read(6, $checksumToken, $receiptToken, $snapshotToken, $generationToken, $sourceToken),
 ];
-$plan = static fn (?array $readerCache = null, ?array $nextReads = null, ?string $checksumToken = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext257(
+$plan = static fn (?array $readerCache = null, ?array $nextReads = null, ?string $checksumToken = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::recoveredPageChecksumReceiptFence(
     $database,
     $master,
     $masterBytes,

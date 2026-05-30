@@ -65,7 +65,7 @@ $oldHeaders = [
     $usersJournal => hash('sha256', 'wordpress-users-reused-file-old-header'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext196(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::memberJournalHeaderDigestFence(
     $database,
     $masterJournal,
     $mainJournal . "\n" . $usersJournal . "\n",
@@ -155,11 +155,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['optionsCacheHit'] !== false
         || $summary['reopen'] !== ['options-read']
     ) {
-        fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next196 self-test failed\n");
+        fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-member-journal-header-digest-fence self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-pager-master-journal-reader-cache-current-source-next196 self-test passed\n";
+    echo "wordpress-pager-master-journal-reader-cache-member-journal-header-digest-fence self-test passed\n";
     exit(0);
 }
 

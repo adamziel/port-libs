@@ -65,7 +65,7 @@ $cache = [
     ],
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext195(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterMemberTicketFence(
     $database,
     $master,
     $masterBytes,
@@ -92,7 +92,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['refreshed_page_numbers'] === [3]);
     assert($plan['invalidated_page_numbers'] === [2]);
     assert($plan['next_reads'][1]['source_reason'] === 'reader_cache_reopened_after_master_member_ticket_change');
-    echo "wordpress-pager-master-journal-reader-cache-current-source-next195 self-test passed\n";
+    echo "wordpress-pager-master-journal-reader-cache-master-member-ticket-fence self-test passed\n";
     return;
 }
 

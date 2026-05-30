@@ -139,7 +139,7 @@ $read = static fn (int $pageNumber, string $versionToken = null): array => [
     'database_header_version_valid_for_token' => $versionToken ?? $currentDatabaseHeaderVersionValidForToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext259(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::databaseHeaderVersionValidForFence(
     $database,
     $master,
     $masterBytes,

@@ -95,7 +95,7 @@ $read = static fn (int $pageNumber, string $memberPath, string $token): array =>
     'stable_master_read_token' => $token,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext193(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::stableMasterReadTokenFence(
     $database,
     $master,
     $masterBytes,
@@ -146,7 +146,7 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('WordPress pager master-journal reader-cache next193 smoke failed');
     }
 
-    echo "wordpress-pager-master-journal-reader-cache-current-source-next193 self-test passed\n";
+    echo "wordpress-pager-master-journal-reader-cache-stable-master-read-token-fence self-test passed\n";
     return;
 }
 

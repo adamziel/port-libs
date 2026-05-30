@@ -21,7 +21,7 @@ $formatPage = static function (string $label) use ($pageSize): string {
     $page = substr_replace($page, pack('n', 512), 16, 2);
     $page = substr_replace($page, chr(4), 20, 1);
     $page = substr_replace($page, pack('N', 2), 56, 4);
-    $page = substr_replace($page, pack('N', 260), 60, 4);
+    $page = substr_replace($page, pack('N', 257), 60, 4);
 
     return substr_replace($page, $label, 100, strlen($label));
 };
@@ -45,71 +45,69 @@ $recoveredDigest = static function (array $pages): string {
 };
 
 $before = [
-    1 => $formatPage('stale schema before page current-source-reader-ticket'),
-    2 => $page('stale wp_options root before page current-source-reader-ticket'),
-    3 => $page('stale active_plugins cache before page current-source-reader-ticket'),
+    1 => $formatPage('stale schema before page checksum receipt'),
+    2 => $page('stale wp_options root before page checksum receipt'),
+    3 => $page('stale active_plugins cache before page checksum receipt'),
 ];
 $recovered = [
-    1 => $formatPage('current schema after page current-source-reader-ticket'),
-    2 => $page('current wp_options root after page current-source-reader-ticket'),
-    3 => $page('current active_plugins cache after page current-source-reader-ticket'),
+    1 => $formatPage('current schema after page checksum receipt'),
+    2 => $page('current wp_options root after page checksum receipt'),
+    3 => $page('current active_plugins cache after page checksum receipt'),
 ];
 $tokens = [
-    $mainJournal => 'dev=8:ino=2601:size=4096:mtime=26001:generation=main-current',
-    $usersJournal => 'dev=8:ino=2602:size=1024:mtime=26002:generation=users-current',
+    $mainJournal => 'dev=8:ino=2571:size=4096:mtime=25701:generation=main-current',
+    $usersJournal => 'dev=8:ino=2572:size=1024:mtime=25702:generation=users-current',
 ];
 $headers = [
-    $mainJournal => hash('sha256', 'main rollback header next260'),
-    $usersJournal => hash('sha256', 'users rollback header next260'),
+    $mainJournal => hash('sha256', 'main rollback header next257'),
+    $usersJournal => hash('sha256', 'users rollback header next257'),
 ];
-$receipt = 'master-journal-recovery-receipt:epoch=260:members=main,users:cleanup=deleted:dirsync=ok';
-$checksum = 'recovered-page-checksum-receipt:epoch=260:digest=' . $recoveredDigest($recovered);
-$ticket = 'current-source-reader-ticket:epoch=260:digest=' . $recoveredDigest($recovered);
-$oldTicket = 'current-source-reader-ticket:epoch=256:digest=' . $recoveredDigest($before);
-$snapshot = 'reader-snapshot:epoch=260:source=master-current:lease=shared:pages=1,2,3';
-$generation = 'pager-reader-cache-generation:epoch=260:master-current:reset=complete';
-$source = 'current-source:master-journal:epoch=260:members=2:schema=116';
+$receipt = 'master-journal-recovery-receipt:epoch=257:members=main,users:cleanup=deleted:dirsync=ok';
+$checksum = 'recovered-page-checksum-receipt:epoch=257:digest=' . $recoveredDigest($recovered);
+$oldChecksum = 'recovered-page-checksum-receipt:epoch=256:digest=' . $recoveredDigest($before);
+$snapshot = 'reader-snapshot:epoch=257:source=master-current:lease=shared:pages=1,2,3';
+$generation = 'pager-reader-cache-generation:epoch=257:master-current:reset=complete';
+$source = 'current-source:master-journal:epoch=257:members=2:schema=116';
 $base = [
-    'source_id' => 'wordpress-pager-current-source-reader-ticket-receipt-smoke',
-    'epoch' => 260,
-    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 260, 0])),
-    'publication_generation' => 260,
-    'master_source_digest' => hash('sha256', 'wordpress next260 master source'),
-    'recovery_sequence' => 260,
+    'source_id' => 'wordpress-pager-checksum-receipt-smoke',
+    'epoch' => 257,
+    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 257, 0])),
+    'publication_generation' => 257,
+    'master_source_digest' => hash('sha256', 'wordpress next257 master source'),
+    'recovery_sequence' => 257,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
     'member_journal_header_digests' => $headers,
     'master_member_order_digest' => hash('sha256', implode("\n", [$mainJournal, $usersJournal])),
-    'master_journal_file_token' => 'dev=8:ino=2600:size=96:mtime=26000:generation=master-current',
+    'master_journal_file_token' => 'dev=8:ino=2570:size=96:mtime=25700:generation=master-current',
     'master_journal_bytes_digest' => hash('sha256', $masterBytes),
-    'database_file_token' => 'dev=8:ino=2609:size=1536:mtime=26099:generation=database-current',
+    'database_file_token' => 'dev=8:ino=2579:size=1536:mtime=25799:generation=database-current',
     'master_journal_cleanup_token' => 'master-cleanup:deleted:mtime=25800:dirsync=ok',
-    'reader_lease_token' => 'reader-lease:shared-cache:epoch=260:opened-after-master-cleanup',
-    'pager_cache_source_token' => 'pager-cache-source:epoch=260:master-journal-recovery=complete',
-    'read_transaction_token' => 'read-transaction:epoch=260:schema=116:change-counter=260:master-current',
-    'schema_reparse_token' => 'schema-reparse:epoch=260:schema-cookie=116:ddl=master-current',
-    'statement_schema_root_token' => 'statement-schema-root:epoch=260:root=1:cookie=116:sql=wp-options-current',
+    'reader_lease_token' => 'reader-lease:shared-cache:epoch=257:opened-after-master-cleanup',
+    'pager_cache_source_token' => 'pager-cache-source:epoch=257:master-journal-recovery=complete',
+    'read_transaction_token' => 'read-transaction:epoch=257:schema=116:change-counter=257:master-current',
+    'schema_reparse_token' => 'schema-reparse:epoch=257:schema-cookie=116:ddl=master-current',
+    'statement_schema_root_token' => 'statement-schema-root:epoch=257:root=1:cookie=116:sql=wp-options-current',
     'current_source_provenance_token' => $source,
     'pager_reader_cache_generation_token' => $generation,
     'reader_snapshot_token' => $snapshot,
     'master_journal_recovery_receipt_token' => $receipt,
-    'recovered_page_checksum_receipt_token' => $checksum,
 ];
 $cacheEntry = static fn (string $label, string $image, string $token): array => $base + [
     'label' => $label,
     'reader_id' => $label . '-reader',
     'image' => $image,
-    'current_source_reader_ticket_token' => $token,
+    'recovered_page_checksum_receipt_token' => $token,
 ];
 $read = static fn (int $pageNumber, string $token): array => [
     'reader_id' => 'read-' . $pageNumber,
     'page_number' => $pageNumber,
     'source_id' => $base['source_id'],
-    'epoch' => 260,
+    'epoch' => 257,
     'format_signature' => $base['format_signature'],
-    'publication_generation' => 260,
+    'publication_generation' => 257,
     'master_source_digest' => $base['master_source_digest'],
-    'recovery_sequence' => 260,
+    'recovery_sequence' => 257,
     'recovered_page_set_digest' => $base['recovered_page_set_digest'],
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
@@ -127,11 +125,10 @@ $read = static fn (int $pageNumber, string $token): array => [
     'pager_reader_cache_generation_token' => $generation,
     'reader_snapshot_token' => $snapshot,
     'master_journal_recovery_receipt_token' => $receipt,
-    'recovered_page_checksum_receipt_token' => $checksum,
-    'current_source_reader_ticket_token' => $token,
+    'recovered_page_checksum_receipt_token' => $token,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext260(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::recoveredPageChecksumReceiptFence(
     $database,
     $master,
     $masterBytes,
@@ -139,16 +136,16 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext260
     $pageSize,
     $recovered,
     [
-        1 => $cacheEntry('schema-current', $recovered[1], $ticket),
-        2 => $cacheEntry('options-root-stale-current-source-reader-ticket', $recovered[2], $oldTicket),
-        3 => $cacheEntry('active-plugins-current', $recovered[3], $ticket),
+        1 => $cacheEntry('schema-current', $recovered[1], $checksum),
+        2 => $cacheEntry('options-root-stale-checksum', $recovered[2], $oldChecksum),
+        3 => $cacheEntry('active-plugins-current', $recovered[3], $checksum),
     ],
-    [$read(1, $ticket), $read(2, $ticket), $read(3, $ticket)],
+    [$read(1, $checksum), $read(2, $checksum), $read(3, $checksum)],
     $base['source_id'],
-    260,
-    260,
+    257,
+    257,
     $base['master_source_digest'],
-    260,
+    257,
     $tokens,
     $headers,
     $base['master_journal_file_token'],
@@ -164,28 +161,27 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext260
     $snapshot,
     $receipt,
     $checksum,
-    $ticket,
 );
 
 $summary = [
     'status' => $plan['status'],
     'invalidated_cache_page_numbers' => $plan['invalidated_cache_page_numbers'],
-    'current-source-reader-ticket_invalidated_cache_page_numbers' => $plan['current_source_reader_ticket_invalidated_cache_page_numbers'],
+    'checksum_invalidated_cache_page_numbers' => $plan['recovered_page_checksum_receipt_invalidated_cache_page_numbers'],
     'reopen_reader_ids' => $plan['reopen_reader_ids'],
     'read_cache_hits' => $plan['read_cache_hits'],
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-next260'
-        || $summary['current-source-reader-ticket_invalidated_cache_page_numbers'] !== [2]
+    if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-next257'
+        || $summary['checksum_invalidated_cache_page_numbers'] !== [2]
         || $summary['read_cache_hits']['read-2'] !== false
         || $summary['reopen_reader_ids'] !== ['read-2']
     ) {
-        fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next260 self-test failed\n");
+        fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next257 self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-pager-master-journal-reader-cache-current-source-next260 self-test passed\n";
+    echo "wordpress-pager-master-journal-reader-cache-current-source-next257 self-test passed\n";
     exit(0);
 }
 

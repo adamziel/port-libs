@@ -92,7 +92,7 @@ $plan = static fn (
     ?array $pages = null,
     ?array $sources = null,
     ?string $bytes = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext194(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::transactionSnapshotDigestFence(
     $databasePath,
     $masterPath,
     $masterBytes,

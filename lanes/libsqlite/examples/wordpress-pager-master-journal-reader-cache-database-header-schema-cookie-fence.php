@@ -131,7 +131,7 @@ $read = static fn (int $pageNumber, string $sourceToken = null, string $snapshot
     'database_header_schema_cookie_token' => $schemaCookieToken ?? $currentDatabaseHeaderSchemaCookieToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext256(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::databaseHeaderSchemaCookieFence(
     $database,
     $master,
     $masterBytes,

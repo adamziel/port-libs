@@ -100,7 +100,7 @@ $terms235 = static fn (): array => [
     $eq235('blog_id', 1),
     $like235('option_name', 'plugin_%'),
 ];
-$plan235 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext235(
+$plan235 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceStat4VectorCounterFence(
     $prepared ?? $prepared235(),
     $current ?? $current235(),
     $terms ?? $terms235(),

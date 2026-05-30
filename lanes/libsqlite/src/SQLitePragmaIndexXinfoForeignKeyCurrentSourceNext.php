@@ -38126,8 +38126,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             PHP_INT_MAX,
         );
 
-        $currentRows = self::childIndexRows204($currentRecords, 'current');
-        $nextRows = self::childIndexRows204($nextRecords, 'next');
+        $currentRows = self::childIndexRows($currentRecords, 'current');
+        $nextRows = self::childIndexRows($nextRecords, 'next');
         $sourceId = hash('sha256', json_encode([
             'mode' => 'pragma-index-xinfo-foreignkey-current-source-next204',
             'base' => $base['source_id'],
@@ -38198,7 +38198,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
      */
-    public static function childIndexRows204(array $records, string $phase = 'current'): array
+    public static function childIndexRows(array $records, string $phase = 'current'): array
     {
         self::validateRecords204($records);
 

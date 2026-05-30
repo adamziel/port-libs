@@ -3,8 +3,8 @@
 Date: 2026-05-28
 
 This isolated upstream-suite micro-slice does not launch a broad SQLite
-`testfixture`, `make test`, `mptest`, `all`, or `release` run. It adds
-`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceNext308()`,
+`testfixture`, `make test`, `mptest`, `all`, or `release` run. It uses
+`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSource(..., 'next308-veryquick-shard')`,
 which admits one lane-local zero-error guarded veryquick shard row only when
 the launcher Base accepted HEAD, current integration source provenance,
 concrete `.test` selections, duplicate-runner gate, removed-blocker

@@ -155,7 +155,7 @@ $reads = static fn (?string $pageMapToken = null, ?string $snapshotToken = null,
     $read(4, $pageMapToken, $snapshotToken, $sourceToken),
     $read(5, $pageMapToken, $snapshotToken, $sourceToken),
 ];
-$plan = static fn (?array $readerCache = null, ?array $nextReads = null, ?string $pageMapToken = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext255(
+$plan = static fn (?array $readerCache = null, ?array $nextReads = null, ?string $pageMapToken = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::readerPageMapDigestFence(
     $database,
     $master,
     $masterBytes,

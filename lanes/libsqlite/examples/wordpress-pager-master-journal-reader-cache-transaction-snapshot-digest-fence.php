@@ -56,7 +56,7 @@ $oldDigests = [
 $currentSnapshot = $snapshot('wp-options-reader', [2 => $currentDigests[2], 3 => $currentDigests[3]]);
 $oldSnapshot = $snapshot('wp-options-reader', [2 => $oldDigests[2], 3 => $oldDigests[3]]);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext194(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::transactionSnapshotDigestFence(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -79,7 +79,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext194
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next194',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-transaction-snapshot-digest-fence',
     'status' => $plan['status'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
     'invalidatedCachePages' => $plan['invalidated_cache_page_numbers'],
@@ -99,9 +99,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['settingsCacheHit'] !== false
     || $summary['settingsReason'] !== 'reader_transaction_reopened_after_snapshot_source_change'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next194 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-transaction-snapshot-digest-fence self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next194 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-transaction-snapshot-digest-fence self-test passed\n";

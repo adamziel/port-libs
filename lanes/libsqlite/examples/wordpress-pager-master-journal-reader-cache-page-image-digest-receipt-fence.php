@@ -125,7 +125,7 @@ $read = static fn (int $pageNumber, string $digestReceipt = null): array => [
     'page_image_digest_receipt_token' => $digestReceipt ?? $pageImageDigestReceiptToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext244(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planPageImageDigestReceiptFence(
     $database,
     $master,
     $masterBytes,
@@ -153,7 +153,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext244
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next244',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-page-image-digest-receipt-fence',
     'wordpressUse' => 'A copied WordPress database keeps schema/options cache pages only when the reader ticket also carries the current recovered page-image digest receipt; stale active_plugins readers reopen before plugin import resumes.',
     'status' => $plan['status'],
     'pageImageDigestReceiptInvalidatedPages' => $plan['page_image_digest_receipt_invalidated_cache_page_numbers'],
@@ -166,9 +166,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['pageImageDigestReceiptInvalidatedPages'] !== [3]
     || $summary['cacheHits'] !== ['read-1' => true, 'read-2' => true, 'read-3' => false]
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next244 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-page-image-digest-receipt-fence self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next244 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-page-image-digest-receipt-fence self-test passed\n";

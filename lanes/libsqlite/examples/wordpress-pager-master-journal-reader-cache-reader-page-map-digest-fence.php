@@ -133,7 +133,7 @@ $read = static fn (int $pageNumber, ?string $pageMapToken = null): array => [
     'reader_page_map_digest_token' => $pageMapToken ?? $currentReaderPageMapDigestToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext255(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::readerPageMapDigestFence(
     $database,
     $master,
     $masterBytes,

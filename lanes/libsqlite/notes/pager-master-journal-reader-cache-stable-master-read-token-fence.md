@@ -7,13 +7,13 @@ Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext193Plan`, a stable rep
 ## Evidence
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext193Plan.php`
-- `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext193Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next193.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext193Test.php`
+- `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheStableMasterReadTokenFenceTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-stable-master-read-token-fence.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheStableMasterReadTokenFenceTest.php`
   - `1 test files, 51 assertions, 0 failures`
   - 51 focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next193.php --self-test`
-  - `wordpress-pager-master-journal-reader-cache-current-source-next193 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-stable-master-read-token-fence.php --self-test`
+  - `wordpress-pager-master-journal-reader-cache-stable-master-read-token-fence self-test passed`
 
 ## Non-overlap
 

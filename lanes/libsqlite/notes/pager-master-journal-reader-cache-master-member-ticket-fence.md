@@ -8,9 +8,9 @@
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext195Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next195.php --self-test`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMasterMemberTicketFenceTest.php`
+- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-master-member-ticket-fence.php --self-test`
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext195Plan.php`
-- `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext195Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next195.php`
+- `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMasterMemberTicketFenceTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-master-member-ticket-fence.php`
 - `git diff --check -- lanes/libsqlite`

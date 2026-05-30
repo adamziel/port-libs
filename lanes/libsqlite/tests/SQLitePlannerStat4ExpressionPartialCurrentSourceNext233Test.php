@@ -88,7 +88,7 @@ $terms233 = static fn (): array => [
     $like233('option_name', 'plugin_%'),
 ];
 
-$plan233 = static fn (int $limit = 6, int $offset = 0, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext233(
+$plan233 = static fn (int $limit = 6, int $offset = 0, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceSampleRowGuardFence(
     $prepared ?? $prepared233(),
     $current ?? $current233(),
     $terms ?? $terms233(),

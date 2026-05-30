@@ -6,9 +6,9 @@ Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a current-sourc
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext196Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMemberJournalHeaderDigestFenceTest.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next196.php --self-test`
+- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-member-journal-header-digest-fence.php --self-test`
   - WordPress smoke passed
 
 ## Non-Overlap

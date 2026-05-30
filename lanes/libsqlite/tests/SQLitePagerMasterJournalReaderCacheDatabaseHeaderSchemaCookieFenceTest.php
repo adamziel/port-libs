@@ -191,7 +191,7 @@ $plan = static fn (
     ?string $currentSourceToken = null,
     ?string $currentReaderChangeCounterToken = null,
     ?string $currentReaderSchemaCookieToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext256(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::databaseHeaderSchemaCookieFence(
     $database,
     $master,
     $masterBytes,
