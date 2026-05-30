@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:47 UTC):
+  Latest accepted libsqlite source is `325bbff80e`
+  (`libsqlite: add focused corpus followup batch`). This batch accepts 14
+  compatible handoffs plus note-only blockers on top of `3b5859ae0` after
+  rejecting `real-upstream-corpus-expression-affinity-dynamic-20260530T183455Z`
+  because it produced 20 focused real-cast failures. Accepted coverage adds
+  VFS default-page-size coverage, date boundary coverage, expression-affinity
+  large-value coverage, JSON1/JSONB dynamic coverage, PRAGMA schema2 temp
+  coverage, trigger/FK trigger2 batch coverage, UPSERT redundant-conflict
+  coverage, WAL noop-checkpoint coverage, and window3 ranking/distribution
+  coverage. Focused verification passed `10 files / 86632 assertions / 0
+  failures / 14097 PASS lines`; the accepted-base comparison over existing
+  selected files passed `2 files / 1038 assertions / 0 failures / 818 PASS
+  lines`, so the honest selected PASS-line delta is `+13279`. Public libsqlite
+  should move to `343392 pass / 0 fail`; mapped coverage remains `1189 /
+  1589`.
+
 - 2026-05-30 supervisor continuation (integration sample 18:40 UTC):
   Latest accepted libsqlite source is `eb516092fd`
   (`libsqlite: add extended upstream corpus batch`). This batch accepts 27
