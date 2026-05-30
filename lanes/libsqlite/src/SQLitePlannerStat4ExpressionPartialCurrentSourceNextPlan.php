@@ -3521,7 +3521,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext167(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
+        public static function materializePostAnalyzeSampleWindowFence(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
             $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4CurrentRange(
                 $preparedSource,
@@ -5728,7 +5728,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          */
         public static function materializeNext173(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext167(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePostAnalyzeSampleWindowFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -34662,7 +34662,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         $last = (int) ($range[1] ?? 0);
         $metadata = self::preparedHandoffCursorMetadataForRange($first, $last);
 
-        $program[] = [
+        $step = [
             "opcode" => $metadata["opcode"],
             "mode" => $metadata["mode"],
             "sliceRange" => $fence["sliceRange"],
@@ -34671,12 +34671,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             "priorHandoffSignature" => $fence["priorHandoffSignature"],
             "handoffSignature" => $fence["handoffSignature"],
         ];
+        if (isset($metadata["canonicalOpcode"])) {
+            $step["canonicalOpcode"] = $metadata["canonicalOpcode"];
+        }
+        if (isset($metadata["canonicalMode"])) {
+            $step["canonicalMode"] = $metadata["canonicalMode"];
+        }
+        $program[] = $step;
 
         return $program;
     }
 
     /**
-     * @return array{opcode:string,mode:string}
+     * @return array{opcode:string,mode:string,canonicalOpcode?:string,canonicalMode?:string}
      */
     private static function preparedHandoffCursorMetadataForRange(int $first, int $last): array
     {
@@ -34720,6 +34727,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             "990:1005" => [
                 "opcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoffHandoff",
                 "mode" => "final prepared handoff-current-source-stat4-expression-partial-prep",
+                "canonicalOpcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoff",
+                "canonicalMode" => "final-prepared-handoff-current-source-stat4-expression-partial-prep",
             ],
         ];
 

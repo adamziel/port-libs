@@ -26,7 +26,7 @@ $pages = [
     ],
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext172(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantAttachedDatabaseScope(
     $master,
     $masterBytes,
     $pageSize,

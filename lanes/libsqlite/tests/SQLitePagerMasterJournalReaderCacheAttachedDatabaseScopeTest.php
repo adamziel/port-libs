@@ -72,7 +72,7 @@ $plan = static fn (
     ?string $masterPath = null,
     ?string $source = null,
     ?int $sourceEpoch = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext172(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantAttachedDatabaseScope(
     $masterPath ?? $master,
     $masterBytesArg ?? $masterBytes,
     $size ?? $pageSize,

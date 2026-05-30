@@ -34,7 +34,7 @@ $nextPages = [
     3 => $page('wp next176 rewrite rules from next master source'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext176(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalSourceRolloverFence(
     $database,
     $master,
     implode("\n", $currentMembers) . "\n",
@@ -60,7 +60,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext176
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next176',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-master-journal-source-rollover-fence',
     'status' => $plan['status'],
     'schemaCurrentHit' => $plan['read_cache_hits']['schema-current'],
     'schemaNextHit' => $plan['read_cache_hits']['schema-next'],
@@ -79,8 +79,8 @@ if (
     || $summary['rewriteNextPrefix'] !== 'wp next176 rewrite rules from next master source'
     || $summary['reopenReaders'] !== ['schema-next', 'rewrite-next']
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next176 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-master-journal-source-rollover-fence self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next176 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-master-journal-source-rollover-fence self-test passed\n";

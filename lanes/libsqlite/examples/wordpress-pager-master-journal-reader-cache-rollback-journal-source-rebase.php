@@ -43,7 +43,7 @@ $journalDigest = hash('sha256', implode('|', [
     hash('sha256', $journalBytes),
 ]));
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext174(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantRollbackJournalSourceRebase(
     $databasePath,
     $masterPath,
     $networkJournal . "\n" . $mainJournal . "\n",
@@ -70,7 +70,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext174
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next174',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-rollback-journal-source-rebase',
     'status' => $plan['status'],
     'canonicalMembers' => $plan['canonical_members'],
     'retainedCachePages' => $plan['retained_cache_page_numbers'],
@@ -85,9 +85,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['firstReadCacheHit'] !== true
     || $summary['secondWriteBefore'] !== 'wp next174 recovered active_plugins from rollback journal'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next174 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-rollback-journal-source-rebase self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next174 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-rollback-journal-source-rebase self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

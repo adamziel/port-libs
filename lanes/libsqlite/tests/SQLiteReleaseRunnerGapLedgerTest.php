@@ -4,30 +4,30 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_release_gap31_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_release_gap_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_release_gap31_root(string $label): string
+function libsqlite_release_gap_root(string $label): string
 {
-    return sys_get_temp_dir() . '/libsqlite-release-gap31-' . $label . '-' . bin2hex(random_bytes(4));
+    return sys_get_temp_dir() . '/libsqlite-release-gap-' . $label . '-' . bin2hex(random_bytes(4));
 }
 
-function libsqlite_release_gap31_mkdir(string $path): void
+function libsqlite_release_gap_mkdir(string $path): void
 {
     if (!is_dir($path)) {
         mkdir($path, 0777, true);
     }
 }
 
-function libsqlite_release_gap31_write(string $path, string $contents = '# fixture'): void
+function libsqlite_release_gap_write(string $path, string $contents = '# fixture'): void
 {
-    libsqlite_release_gap31_mkdir(dirname($path));
+    libsqlite_release_gap_mkdir(dirname($path));
     file_put_contents($path, $contents);
 }
 
-function libsqlite_release_gap31_cleanup(string $root): void
+function libsqlite_release_gap_cleanup(string $root): void
 {
     if (!is_dir($root)) {
         return;
@@ -48,38 +48,38 @@ function libsqlite_release_gap31_cleanup(string $root): void
     @rmdir($root);
 }
 
-function libsqlite_release_gap31_hydrate(string $label, bool $completePermutations = true): string
+function libsqlite_release_gap_hydrate(string $label, bool $completePermutations = true): string
 {
-    $root = libsqlite_release_gap31_root($label);
+    $root = libsqlite_release_gap_root($label);
     $source = $root . '/.upstream-cache/libsqlite';
     $test = $source . '/test';
     $build = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
 
-    libsqlite_release_gap31_write($test . '/testrunner.tcl');
-    libsqlite_release_gap31_write($build . '/testfixture', "#!/bin/sh\nexit 0\n");
+    libsqlite_release_gap_write($test . '/testrunner.tcl');
+    libsqlite_release_gap_write($build . '/testfixture', "#!/bin/sh\nexit 0\n");
     chmod($build . '/testfixture', 0755);
-    libsqlite_release_gap31_write($build . '/Makefile', "test:\n\t@true\nmptest:\n\t@true\n");
-    libsqlite_release_gap31_mkdir($source . '/mptest');
+    libsqlite_release_gap_write($build . '/Makefile', "test:\n\t@true\nmptest:\n\t@true\n");
+    libsqlite_release_gap_mkdir($source . '/mptest');
 
     $permutations = '';
     $count = $completePermutations ? 58 : 2;
     for ($i = 1; $i <= $count; $i++) {
         $permutations .= 'test_suite suite' . str_pad((string) $i, 2, '0', STR_PAD_LEFT) . "\n";
     }
-    libsqlite_release_gap31_write($test . '/permutations.test', $permutations);
+    libsqlite_release_gap_write($test . '/permutations.test', $permutations);
 
-    foreach (libsqlite_release_gap31_evidence()->runnerCoverageAudit()['pattern_scripts'] as $pattern) {
-        libsqlite_release_gap31_write($test . '/' . str_replace('*', '01', $pattern));
+    foreach (libsqlite_release_gap_evidence()->runnerCoverageAudit()['pattern_scripts'] as $pattern) {
+        libsqlite_release_gap_write($test . '/' . str_replace('*', '01', $pattern));
     }
 
     return $root;
 }
 
-function libsqlite_release_gap31_artifact(string $directory, string $head, string $label, int $tests = 31): void
+function libsqlite_release_gap_artifact(string $directory, string $head, string $label, int $tests = 31): void
 {
-    libsqlite_release_gap31_mkdir($directory);
+    libsqlite_release_gap_mkdir($directory);
     $log = $directory . '/' . $label . '.log';
-    libsqlite_release_gap31_write($directory . '/' . $label . '.md', <<<MD
+    libsqlite_release_gap_write($directory . '/' . $label . '.md', <<<MD
 # SQLite Tcl Bounded Runner Evidence - {$label}
 
 - Repository HEAD: `{$head}`
@@ -99,22 +99,22 @@ function libsqlite_release_gap31_artifact(string $directory, string $head, strin
 - Parsed tests: `{$tests}`
 - Runner time: `00:00:05`
 MD);
-    libsqlite_release_gap31_write($log, "0 errors out of {$tests} tests in 00:00:05\n");
+    libsqlite_release_gap_write($log, "0 errors out of {$tests} tests in 00:00:05\n");
 }
 
-$currentHead31 = '28488284c6b42b08db024e7e34c788f71b24a201';
-$nextHead31 = '51e928e238d8d5d3e25cf7508399227fadad761f';
+$currentHead = '28488284c6b42b08db024e7e34c788f71b24a201';
+$nextHead = '51e928e238d8d5d3e25cf7508399227fadad761f';
 
 return [
-    'current next31 preserves current artifact while next runner gaps remain open' => static function (TestRunner $t) use ($currentHead31, $nextHead31): void {
-        $root = libsqlite_release_gap31_hydrate('current-open', false);
+    'current next preserves current artifact while next runner gaps remain open' => static function (TestRunner $t) use ($currentHead, $nextHead): void {
+        $root = libsqlite_release_gap_hydrate('current-open', false);
         $artifacts = $root . '/artifacts';
-        libsqlite_release_gap31_artifact($artifacts, $currentHead31, 'current', 31);
+        libsqlite_release_gap_artifact($artifacts, $currentHead, 'current', 31);
 
         try {
-            $record = libsqlite_release_gap31_evidence()->releaseRunnerGapLedgerCurrentNext31(
-                $currentHead31,
-                $nextHead31,
+            $record = libsqlite_release_gap_evidence()->releaseRunnerGapLedger(
+                $currentHead,
+                $nextHead,
                 $root,
                 $artifacts,
                 '',
@@ -122,8 +122,8 @@ return [
             );
 
             $t->same('current-artifact-preserved-with-open-gaps', $record['status']);
-            $t->same($currentHead31, $record['current_accepted_head']);
-            $t->same($nextHead31, $record['next_accepted_head']);
+            $t->same($currentHead, $record['current_accepted_head']);
+            $t->same($nextHead, $record['next_accepted_head']);
             $t->same($artifacts, $record['artifact_directory']);
             $t->same(3, $record['jobs']);
             $t->same(7, $record['ledger_count']);
@@ -158,17 +158,17 @@ return [
             $t->same(2, $ledger['permutation-suite-map']['evidence']['mapped_suite_count']);
             $t->contains('no new support component needed', $record['dependency_closure']);
         } finally {
-            libsqlite_release_gap31_cleanup($root);
+            libsqlite_release_gap_cleanup($root);
         }
     },
-    'current next31 marks next artifact countable and suppresses duplicate launches' => static function (TestRunner $t) use ($currentHead31, $nextHead31): void {
-        $root = libsqlite_release_gap31_hydrate('next-countable');
+    'current next marks next artifact countable and suppresses duplicate launches' => static function (TestRunner $t) use ($currentHead, $nextHead): void {
+        $root = libsqlite_release_gap_hydrate('next-countable');
         $artifacts = $root . '/artifacts';
-        libsqlite_release_gap31_artifact($artifacts, $currentHead31, 'current', 31);
-        libsqlite_release_gap31_artifact($artifacts, $nextHead31, 'next', 32);
+        libsqlite_release_gap_artifact($artifacts, $currentHead, 'current', 31);
+        libsqlite_release_gap_artifact($artifacts, $nextHead, 'next', 32);
 
         try {
-            $record = libsqlite_release_gap31_evidence()->releaseRunnerGapLedgerCurrentNext31($currentHead31, $nextHead31, $root, $artifacts);
+            $record = libsqlite_release_gap_evidence()->releaseRunnerGapLedger($currentHead, $nextHead, $root, $artifacts);
 
             $t->same('next-artifact-countable', $record['status']);
             $t->same(1, $record['current_artifact_count']);
@@ -180,16 +180,16 @@ return [
             $t->same([], $record['open_gap_ids']);
             $t->contains('do not launch another broad runner', $record['next_gate']);
         } finally {
-            libsqlite_release_gap31_cleanup($root);
+            libsqlite_release_gap_cleanup($root);
         }
     },
-    'current next31 reports ready launch only when current evidence and all gates are clear' => static function (TestRunner $t) use ($currentHead31, $nextHead31): void {
-        $root = libsqlite_release_gap31_hydrate('ready-launch');
+    'current next reports ready launch only when current evidence and all gates are clear' => static function (TestRunner $t) use ($currentHead, $nextHead): void {
+        $root = libsqlite_release_gap_hydrate('ready-launch');
         $artifacts = $root . '/artifacts';
-        libsqlite_release_gap31_artifact($artifacts, $currentHead31, 'current', 31);
+        libsqlite_release_gap_artifact($artifacts, $currentHead, 'current', 31);
 
         try {
-            $record = libsqlite_release_gap31_evidence()->releaseRunnerGapLedgerCurrentNext31($currentHead31, $nextHead31, $root, $artifacts, '', 4);
+            $record = libsqlite_release_gap_evidence()->releaseRunnerGapLedger($currentHead, $nextHead, $root, $artifacts, '', 4);
 
             $t->same('ready-for-next-guarded-runner', $record['status']);
             $t->same(1, $record['current_artifact_count']);
@@ -200,17 +200,17 @@ return [
             $t->same(['next-accepted-artifact'], $record['open_gap_ids']);
             $t->contains('launch at most one supervisor-approved guarded runner', $record['next_gate']);
         } finally {
-            libsqlite_release_gap31_cleanup($root);
+            libsqlite_release_gap_cleanup($root);
         }
     },
-    'current next31 blocks duplicate active broad runners before next launch' => static function (TestRunner $t) use ($currentHead31, $nextHead31): void {
-        $root = libsqlite_release_gap31_hydrate('active-runner');
+    'current next blocks duplicate active broad runners before next launch' => static function (TestRunner $t) use ($currentHead, $nextHead): void {
+        $root = libsqlite_release_gap_hydrate('active-runner');
         $artifacts = $root . '/artifacts';
-        libsqlite_release_gap31_artifact($artifacts, $currentHead31, 'current', 31);
+        libsqlite_release_gap_artifact($artifacts, $currentHead, 'current', 31);
         $snapshot = "101 100 S 02:14 0.1 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error all\n";
 
         try {
-            $record = libsqlite_release_gap31_evidence()->releaseRunnerGapLedgerCurrentNext31($currentHead31, $nextHead31, $root, $artifacts, $snapshot);
+            $record = libsqlite_release_gap_evidence()->releaseRunnerGapLedger($currentHead, $nextHead, $root, $artifacts, $snapshot);
             $ledger = [];
             foreach ($record['ledger'] as $entry) {
                 $ledger[$entry['id']] = $entry;
@@ -224,23 +224,23 @@ return [
             $t->same(1, $ledger['duplicate-runner']['evidence']['active_count']);
             $t->same(['all'], $ledger['duplicate-runner']['evidence']['active_tiers']);
         } finally {
-            libsqlite_release_gap31_cleanup($root);
+            libsqlite_release_gap_cleanup($root);
         }
     },
-    'current next31 blocks empty head inputs and invalid job counts' => static function (TestRunner $t) use ($currentHead31, $nextHead31): void {
-        $evidence = libsqlite_release_gap31_evidence();
+    'current next blocks empty head inputs and invalid job counts' => static function (TestRunner $t) use ($currentHead, $nextHead): void {
+        $evidence = libsqlite_release_gap_evidence();
 
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $evidence->releaseRunnerGapLedgerCurrentNext31('', $nextHead31)
+            static fn () => $evidence->releaseRunnerGapLedger('', $nextHead)
         );
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $evidence->releaseRunnerGapLedgerCurrentNext31($currentHead31, '')
+            static fn () => $evidence->releaseRunnerGapLedger($currentHead, '')
         );
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $evidence->releaseRunnerGapLedgerCurrentNext31($currentHead31, $nextHead31, null, null, '', 0)
+            static fn () => $evidence->releaseRunnerGapLedger($currentHead, $nextHead, null, null, '', 0)
         );
     },
 ];

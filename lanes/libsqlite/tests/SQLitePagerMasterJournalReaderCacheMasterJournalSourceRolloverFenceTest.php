@@ -82,7 +82,7 @@ $plan = static fn (
     int $currentEpoch = 176,
     ?string $nextId = null,
     int $nextEpoch = 177,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext176(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantMasterJournalSourceRolloverFence(
     $db ?? $database,
     $mj ?? $master,
     $currentMasterArg ?? $currentMaster,

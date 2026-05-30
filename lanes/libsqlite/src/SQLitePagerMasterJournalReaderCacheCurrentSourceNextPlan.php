@@ -5367,7 +5367,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext172(string $masterJournalPath,
+    public static function variantAttachedDatabaseScope(string $masterJournalPath,
         string $currentMasterJournalBytes,
         int $pageSize,
         array $currentPages,
@@ -5742,7 +5742,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext173(string $databasePath,
+    public static function variantFreshMasterMembershipDigest(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         int $pageSize,
@@ -6135,7 +6135,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext174(string $databasePath,
+    public static function variantRollbackJournalSourceRebase(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         string $currentRollbackJournalBytes,
@@ -6607,7 +6607,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext175(string $databasePath,
+    public static function variantRollbackJournalChecksumFence(string $databasePath,
         string $masterJournalPath,
         string $masterJournalBytes,
         string $rollbackJournalBytes,
@@ -6918,7 +6918,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext176(string $databasePath,
+    public static function variantMasterJournalSourceRolloverFence(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         string $nextMasterJournalBytes,

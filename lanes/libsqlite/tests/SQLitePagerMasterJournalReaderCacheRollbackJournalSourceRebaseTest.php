@@ -97,7 +97,7 @@ $plan = static fn (
     ?string $masterJournalPath = null,
     ?string $source = null,
     int $epoch = 12,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext174(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantRollbackJournalSourceRebase(
     $path ?? $databasePath,
     $masterJournalPath ?? $masterPath,
     $master ?? $masterBytes,

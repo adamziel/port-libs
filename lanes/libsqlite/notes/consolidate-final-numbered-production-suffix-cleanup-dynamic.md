@@ -1,44 +1,29 @@
-# Final Numbered Production Suffix Cleanup Dynamic
+# Pager Reader-Cache Numbered Suffix Cleanup
 
-Consolidated two remaining pager master-journal reader-cache production entry
-methods on `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`:
+Consolidated the pager master-journal reader-cache `variantNext172()` through
+`variantNext176()` production entry points into stable descriptive methods on
+`SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`:
 
-- `variantNext192()` is now `attachedMemberJournalTokenFence()`.
-- `variantNext253()` is now `sourceProvenanceChangeCounterFence()`.
-- `variantNext574()` is now `currentSourceVdbeIfBranchFence()`.
-- `variantNext575()` through `variantNext590()` now share
-  `currentSourceVdbeStatementBranchFence()`.
+- `variantAttachedDatabaseScope()`
+- `variantFreshMasterMembershipDigest()`
+- `variantRollbackJournalSourceRebase()`
+- `variantRollbackJournalChecksumFence()`
+- `variantMasterJournalSourceRolloverFence()`
 
-Direct tests and WordPress examples now call the stable descriptive methods.
-Returned status, dependency strings, operation labels, and proof keys are
-preserved so existing generated evidence remains observable-compatible.
+The five direct pager tests and WordPress examples were renamed to match those
+stable helper names and migrated to call the descriptive methods. Existing
+result status keys, dependency strings, operation labels, and non-overlap text
+remain unchanged so accepted evidence consumers keep the same observable
+metadata.
 
-Verification for this handoff:
+Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext192Test.php`
-- `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext253Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next192.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next253.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext192Test.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext253Test.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext*Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next192.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next253.php --self-test`
+- `php -l` for the five renamed pager tests and five renamed examples
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheAttachedDatabaseScopeTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheFreshMasterMembershipDigestTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheRollbackJournalSourceRebaseTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheRollbackJournalChecksumFenceTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMasterJournalSourceRolloverFenceTest.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCache*Test.php`
+- five renamed WordPress examples with `--self-test`
 - `git diff --check -- lanes/libsqlite`
 
-Dependency closure: no new support component is needed; this only removes
-numbered production method exposure in an existing canonical pager class.
-
-## Compound Recursive LIMIT Boundary Cleanup
-
-Consolidated the compound SELECT recursive/window LIMIT boundary `Next188`
-production entry and private helpers into stable descriptive method names on
-`SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`.
-
-The direct focused test was renamed from the numbered current-source filename
-to `SQLiteCompoundSelectWindowRecursiveLimitBoundaryTest.php` and migrated to
-the canonical method name. The returned status and dependency strings keep the
-accepted `next188` proof keys so downstream evidence remains observable.
-
-Dependency closure: no new support component is needed; this is source/test
-helper consolidation only.
+Dependency closure: no new support component is needed; this is a naming
+consolidation over the existing pager reader-cache implementation.

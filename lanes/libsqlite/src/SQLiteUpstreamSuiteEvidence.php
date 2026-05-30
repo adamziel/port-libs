@@ -16301,7 +16301,7 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
-    public function releaseRunnerGapLedgerCurrentNext31(
+    public function releaseRunnerGapLedger(
         string $currentAcceptedHead,
         string $nextAcceptedHead,
         ?string $repoRoot = null,
@@ -16474,7 +16474,7 @@ final class SQLiteUpstreamSuiteEvidence
                 'current-artifact-preserved-with-open-gaps' => 'preserve current artifact evidence and close the listed open gaps before next-source launch or parity counting',
                 default => 'do not count release/all movement until current artifact provenance, hydration, command, and duplicate-runner gaps are closed',
             },
-            'dependency_closure' => 'no new support component needed; current-next31 gap ledger composes existing runner artifact provenance, hydration, command-manifest, wildcard, permutation, and active-runner gates only',
+            'dependency_closure' => 'no new support component needed; current-next gap ledger composes existing runner artifact provenance, hydration, command-manifest, wildcard, permutation, and active-runner gates only',
         ];
     }
 

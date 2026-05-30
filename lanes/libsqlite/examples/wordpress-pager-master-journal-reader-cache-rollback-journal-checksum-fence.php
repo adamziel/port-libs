@@ -48,7 +48,7 @@ $recovered = [
 $journal = $journalBytes($recovered, [3]);
 $journalDigest = hash('sha256', $databasePath . '-journal|' . strlen($journal) . '|' . hash('sha256', $journal));
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext175(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantRollbackJournalChecksumFence(
     $databasePath,
     $masterPath,
     $masterBytes,
@@ -70,7 +70,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext175
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next175',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-rollback-journal-checksum-fence',
     'status' => $plan['status'],
     'validJournalPages' => $plan['valid_journal_page_numbers'],
     'corruptJournalPages' => $plan['corrupt_journal_page_numbers'],
@@ -95,9 +95,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['activeWriteAllowed'] !== true
     || $summary['settingsWriteAllowed'] !== false
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next175 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-rollback-journal-checksum-fence self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next175 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-rollback-journal-checksum-fence self-test passed\n";

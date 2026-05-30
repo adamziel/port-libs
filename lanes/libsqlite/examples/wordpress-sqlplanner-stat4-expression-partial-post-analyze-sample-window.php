@@ -60,7 +60,7 @@ $current['rows'] = [
     ['rowid' => 44, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo', 'updated_at' => 44],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext167(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePostAnalyzeSampleWindowFence(
     $prepared,
     $current,
     [
@@ -76,12 +76,12 @@ if (in_array('--self-test', $argv, true)) {
     assert($plan['status'] === 'stat4-expression-partial-current-source-next167-ready');
     assert($plan['stalePreparedRowidsBlockedBySampleFence'] === [33]);
     assert($plan['currentSourceRowidsAdmittedBySampleFence'] === [55]);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next167 self-test passed\n";
+    echo "wordpress-sqlplanner-stat4-expression-partial-post-analyze-sample-window self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next167',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-post-analyze-sample-window',
     'wordpressUse' => 'Preview copied wp_options plugin scans after ANALYZE changes a partial lower(option_name) STAT4 sample window, blocking stale prepared rowids while admitting the new current plugin row without falling back to a table scan.',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],

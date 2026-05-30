@@ -24,7 +24,7 @@ $pages = [
     3 => $page('wp next173 user roles after fresh master membership'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext173(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantFreshMasterMembershipDigest(
     $database,
     $master,
     implode("\n", $members) . "\n",
@@ -45,7 +45,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext173
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next173',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-fresh-master-membership-digest',
     'status' => $plan['status'],
     'retainedPages' => $plan['retained_page_numbers'],
     'refreshedPages' => $plan['refreshed_page_numbers'],
@@ -66,9 +66,9 @@ if (
     || $summary['schemaCacheHit'] !== true
     || $summary['activePluginsPrefix'] !== 'wp next173 active_plugins after fresh master membership'
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next173 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-fresh-master-membership-digest self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next173 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-fresh-master-membership-digest self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
