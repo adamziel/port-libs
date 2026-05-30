@@ -613,6 +613,97 @@ final class SQLiteVfsIoDynamicPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function walShmFaultProfile(string $scenario, int $busyAttempts = 0, bool $readonlyShmMap = false, bool $ioerrDuringSharedLock = false): array
+    {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['walvfs-4', 'walvfs-5', 'walvfs-6', 'walvfs-7', 'walvfs-8', 'walvfs-9'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL VFS SHM fault scenario is unsupported');
+        }
+        if ($busyAttempts < 0) {
+            throw new \InvalidArgumentException('SQLite WAL VFS SHM fault busy attempts must be non-negative');
+        }
+
+        $status = 'ok';
+        $selectResult = 'ok';
+        $checkpointResult = ['busy' => 0, 'log' => 5, 'checkpointed' => 5];
+        $readMarks = [1 => 24, 2 => 100, 3 => 100, 4 => 100];
+        $recoverableAfterReadmarkReset = false;
+        $protocolRetrySeconds = 0;
+        $cacheFlushedBeforeCheckpoint = false;
+        $visibleRowsAfterCheckpoint = 20;
+        $error = null;
+
+        switch ($scenario) {
+            case 'walvfs-4':
+                $status = 'error';
+                $selectResult = 'attempt to write a readonly database';
+                $error = 'SQLITE_READONLY';
+                $readMarks = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
+                break;
+
+            case 'walvfs-5':
+                $status = ($readonlyShmMap && $busyAttempts > 0) ? 'error' : 'ok';
+                $selectResult = $status === 'ok' ? '20' : 'attempt to write a readonly database';
+                $error = $status === 'ok' ? null : 'SQLITE_READONLY';
+                $readMarks = $status === 'ok'
+                    ? [1 => 24, 2 => 100, 3 => 100, 4 => 100]
+                    : [1 => 100, 2 => 100, 3 => 100, 4 => 100];
+                $recoverableAfterReadmarkReset = $status !== 'ok';
+                break;
+
+            case 'walvfs-6':
+                $status = 'error';
+                $selectResult = 'locking protocol';
+                $error = 'SQLITE_PROTOCOL';
+                $protocolRetrySeconds = 12;
+                $checkpointResult = ['busy' => 0, 'log' => 5, 'checkpointed' => 5];
+                break;
+
+            case 'walvfs-7':
+                $checkpointResult = ['busy' => 1, 'log' => -1, 'checkpointed' => -1];
+                $selectResult = 'checkpoint busy';
+                $error = 'SQLITE_BUSY';
+                break;
+
+            case 'walvfs-8':
+                $cacheFlushedBeforeCheckpoint = true;
+                $visibleRowsAfterCheckpoint = 21;
+                $checkpointResult = ['busy' => 0, 'log' => 5, 'checkpointed' => 5];
+                break;
+
+            case 'walvfs-9':
+                $status = 'error';
+                $selectResult = 'disk I/O error';
+                $error = $ioerrDuringSharedLock ? 'SQLITE_IOERR' : 'SQLITE_READONLY_CANTINIT';
+                break;
+        }
+
+        return [
+            'status' => $status,
+            'script' => 'walvfs.test',
+            'scenario' => $scenario,
+            'upstream' => self::walShmFaultUpstream($scenario),
+            'journal_mode' => 'wal',
+            'page_size' => 1024,
+            'seed_rows' => 20,
+            'busy_attempts' => $busyAttempts,
+            'readonly_shm_map' => $readonlyShmMap,
+            'ioerr_during_shared_lock' => $ioerrDuringSharedLock,
+            'select_result' => $selectResult,
+            'error' => $error,
+            'read_marks' => $readMarks,
+            'recoverable_after_readmark_reset' => $recoverableAfterReadmarkReset,
+            'protocol_retry_seconds' => $protocolRetrySeconds,
+            'checkpoint_result' => $checkpointResult,
+            'cache_flushed_before_checkpoint' => $cacheFlushedBeforeCheckpoint,
+            'visible_rows_after_checkpoint' => $visibleRowsAfterCheckpoint,
+            'dependencies' => ['upstream-walvfs-shm-readmark-faults', 'sqlite-wal-shm-locking', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;
@@ -698,5 +789,20 @@ final class SQLiteVfsIoDynamicPlan
         }
 
         return 'read_only_or_empty_transaction_needs_no_journal';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function walShmFaultUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'walvfs-4' => ['walvfs.test 4.0', 'walvfs.test 4.1', 'walvfs.test 4.2'],
+            'walvfs-5' => ['walvfs.test 5.2', 'walvfs.test 5.3', 'walvfs.test 5.4', 'walvfs.test 5.5', 'walvfs.test 5.6'],
+            'walvfs-6' => ['walvfs.test 6.1', 'walvfs.test 6.2'],
+            'walvfs-7' => ['walvfs.test 7.1'],
+            'walvfs-8' => ['walvfs.test 8.2', 'walvfs.test 8.3'],
+            'walvfs-9' => ['walvfs.test 9.1'],
+        };
     }
 }

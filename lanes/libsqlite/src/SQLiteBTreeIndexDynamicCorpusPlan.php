@@ -697,6 +697,42 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,value:int,initial_a:int|null,initial_b:int,partial_not_null_member:bool,post_update_a:int,post_update_b:int,or_partial_member:bool,lookup_before:list<int>,lookup_after:list<int>,detail_before:string,detail_after:string,integrity:string}>
+     */
+    public static function index7WithoutRowidPartialIndexCases(): array
+    {
+        $cases = [];
+        for ($value = 1; $value < 1000; $value++) {
+            $initialA = $value % 5 === 0 ? null : $value;
+            $partialNotNullMember = $initialA !== null;
+            $orPartialMember = $value < 100 || $value > 200;
+
+            $cases[] = [
+                'upstream' => 'index7-2.dynamic-' . $value,
+                'source' => 'index7.test index7-2.1 through index7-2.104',
+                'value' => $value,
+                'initial_a' => $initialA,
+                'initial_b' => $value,
+                'partial_not_null_member' => $partialNotNullMember,
+                'post_update_a' => $value,
+                'post_update_b' => $value + 10000,
+                'or_partial_member' => $orPartialMember,
+                'lookup_before' => $partialNotNullMember ? [$value] : [],
+                'lookup_after' => [$value + 10000],
+                'detail_before' => $partialNotNullMember
+                    ? 'SEARCH t2 USING COVERING INDEX t2a1 (a=?)'
+                    : 'SCAN t2',
+                'detail_after' => $orPartialMember
+                    ? 'SEARCH t2 USING COVERING INDEX t2a2 (a=?)'
+                    : 'SCAN t2',
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @return list<array{upstream:string,source:string,batch:int,storage:string,index_setup:int,index_predicate:mixed,index_name:string,table:string,affinity:string,predicate:mixed,selected_rows:list<array{a:mixed,b:string,c:string,type:string}>,uses_partial_index:bool,detail:string,integrity:string}>
      */
     public static function indexAPartialAffinityMatrixCases(int $batches = 9): array

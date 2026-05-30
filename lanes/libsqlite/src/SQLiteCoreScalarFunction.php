@@ -1130,13 +1130,26 @@ final class SQLiteCoreScalarFunction
             }
         }
 
-        $instant = self::parseDateTimeValue($timeValue, $modifiers);
-        if ($instant === null) {
+        $state = self::parseDateTimeState($timeValue, $modifiers);
+        if ($state === null) {
             return null;
         }
+        $instant = $state['instant'];
+        $floorCandidate = $state['floor'];
         foreach ($modifiers as $modifier) {
             $modifierText = strtolower(trim(self::coerceText($functionName, $modifier, 'modifier')));
             if ($modifierText === 'unixepoch' || $modifierText === 'julianday' || $modifierText === 'auto' || $modifierText === 'subsec' || $modifierText === 'subsecond') {
+                continue;
+            }
+            if ($modifierText === 'floor') {
+                if ($floorCandidate !== null) {
+                    $instant = $floorCandidate;
+                }
+                $floorCandidate = null;
+                continue;
+            }
+            if ($modifierText === 'ceiling') {
+                $floorCandidate = null;
                 continue;
             }
             if (preg_match('/\Astart of (day|month|year)\z/', $modifierText, $matches) === 1) {
@@ -1145,6 +1158,7 @@ final class SQLiteCoreScalarFunction
                     'month' => $instant->setDate((int) $instant->format('Y'), (int) $instant->format('m'), 1)->setTime(0, 0, 0),
                     'year' => $instant->setDate((int) $instant->format('Y'), 1, 1)->setTime(0, 0, 0),
                 };
+                $floorCandidate = null;
                 continue;
             }
             if (preg_match('/\Aweekday\s+([0-6])\z/', $modifierText, $matches) === 1) {
@@ -1154,6 +1168,7 @@ final class SQLiteCoreScalarFunction
                 if ($days > 0) {
                     $instant = $instant->modify("+{$days} days");
                 }
+                $floorCandidate = null;
                 continue;
             }
             if (preg_match('/\A([+-]?)(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\z/', $modifierText, $matches) === 1) {
@@ -1162,10 +1177,21 @@ final class SQLiteCoreScalarFunction
                     $seconds *= -1;
                 }
                 $instant = self::modifyBySeconds($instant, (float) $seconds);
+                $floorCandidate = null;
+                continue;
+            }
+            if (preg_match('/\A([+-])(\d{4})-(\d{2})-(\d{2})\z/', $modifierText, $matches) === 1) {
+                [$instant, $floorCandidate] = self::applyDateTimeYearMonthDayModifier(
+                    $instant,
+                    $matches[1] === '-' ? -1 : 1,
+                    (int) $matches[2],
+                    (int) $matches[3],
+                    (int) $matches[4]
+                );
                 continue;
             }
             if (preg_match('/\A([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s+(second|seconds|minute|minutes|hour|hours|day|days|month|months|year|years)\z/', $modifierText, $matches) === 1) {
-                $instant = self::applyDateTimeAmountModifier($instant, (float) $matches[1], $matches[2]);
+                [$instant, $floorCandidate] = self::applyDateTimeAmountModifier($instant, (float) $matches[1], $matches[2]);
                 continue;
             }
 
@@ -1183,18 +1209,29 @@ final class SQLiteCoreScalarFunction
         };
     }
 
-    private static function applyDateTimeAmountModifier(\DateTimeImmutable $instant, float $amount, string $unit): \DateTimeImmutable
+    /**
+     * @return array{0: \DateTimeImmutable, 1: ?\DateTimeImmutable}
+     */
+    private static function applyDateTimeAmountModifier(\DateTimeImmutable $instant, float $amount, string $unit): array
     {
         $normalized = rtrim($unit, 's');
         $whole = (int) ($amount < 0 ? ceil($amount) : floor($amount));
         $fraction = $amount - (float) $whole;
+        $floorCandidate = null;
 
         if ($whole !== 0) {
-            $instant = $instant->modify(sprintf('%+d %s', $whole, $normalized . 's'));
+            if ($normalized === 'month' || $normalized === 'year') {
+                [$instant, $floorCandidate] = self::applyDateTimeMonthShift(
+                    $instant,
+                    $normalized === 'year' ? $whole * 12 : $whole
+                );
+            } else {
+                $instant = $instant->modify(sprintf('%+d %s', $whole, $normalized . 's'));
+            }
         }
 
         if (abs($fraction) < 0.000000001) {
-            return $instant;
+            return [$instant, $floorCandidate];
         }
 
         $seconds = match ($normalized) {
@@ -1207,7 +1244,60 @@ final class SQLiteCoreScalarFunction
             default => throw new \InvalidArgumentException("Unsupported SQLite date/time modifier unit: {$unit}"),
         };
 
-        return self::modifyBySeconds($instant, $seconds);
+        return [self::modifyBySeconds($instant, $seconds), null];
+    }
+
+    /**
+     * @return array{0: \DateTimeImmutable, 1: ?\DateTimeImmutable}
+     */
+    private static function applyDateTimeYearMonthDayModifier(\DateTimeImmutable $instant, int $sign, int $years, int $months, int $days): array
+    {
+        [$instant, $floorCandidate] = self::applyDateTimeMonthShift($instant, $sign * ($years * 12 + $months));
+        if ($days !== 0) {
+            $instant = $instant->modify(sprintf('%+d days', $sign * $days));
+            $floorCandidate = $floorCandidate?->modify(sprintf('%+d days', $sign * $days));
+        }
+
+        return [$instant, $floorCandidate];
+    }
+
+    /**
+     * @return array{0: \DateTimeImmutable, 1: ?\DateTimeImmutable}
+     */
+    private static function applyDateTimeMonthShift(\DateTimeImmutable $instant, int $months): array
+    {
+        if ($months === 0) {
+            return [$instant, null];
+        }
+
+        $year = (int) $instant->format('Y');
+        $month = (int) $instant->format('m');
+        $day = (int) $instant->format('d');
+        $targetMonthIndex = $year * 12 + ($month - 1) + $months;
+        $targetYear = intdiv($targetMonthIndex, 12);
+        $targetMonth = $targetMonthIndex % 12 + 1;
+        if ($targetMonth <= 0) {
+            $targetMonth += 12;
+            $targetYear--;
+        }
+        $daysInTargetMonth = self::daysInGregorianMonth($targetYear, $targetMonth);
+        $floorCandidate = null;
+        if ($day > $daysInTargetMonth) {
+            $floorCandidate = $instant
+                ->setDate($targetYear, $targetMonth, $daysInTargetMonth)
+                ->setTime((int) $instant->format('H'), (int) $instant->format('i'), (int) $instant->format('s'), (int) $instant->format('u'));
+        }
+
+        return [$instant->modify(sprintf('%+d months', $months)), $floorCandidate];
+    }
+
+    private static function daysInGregorianMonth(int $year, int $month): int
+    {
+        if ($month === 2) {
+            return ($year % 4 === 0 && ($year % 100 !== 0 || $year % 400 === 0)) ? 29 : 28;
+        }
+
+        return in_array($month, [4, 6, 9, 11], true) ? 30 : 31;
     }
 
     private static function modifyBySeconds(\DateTimeImmutable $instant, float $seconds): \DateTimeImmutable
@@ -1271,6 +1361,17 @@ final class SQLiteCoreScalarFunction
      */
     private static function parseDateTimeValue(mixed $value, array $modifiers): ?\DateTimeImmutable
     {
+        $state = self::parseDateTimeState($value, $modifiers);
+
+        return $state['instant'] ?? null;
+    }
+
+    /**
+     * @param list<mixed> $modifiers
+     * @return array{instant: \DateTimeImmutable, floor: ?\DateTimeImmutable}|null
+     */
+    private static function parseDateTimeState(mixed $value, array $modifiers): ?array
+    {
         $timezone = new \DateTimeZone('UTC');
         $modifierTexts = array_map(
             static fn (mixed $modifier): string => strtolower(trim($modifier instanceof SQLiteBlobValue ? $modifier->bytes : (string) $modifier)),
@@ -1292,7 +1393,7 @@ final class SQLiteCoreScalarFunction
                 return null;
             }
 
-            return self::dateTimeFromUnixTimestamp($numeric, $timezone);
+            return ['instant' => self::dateTimeFromUnixTimestamp($numeric, $timezone), 'floor' => null];
         }
         $juliandayOffset = array_search('julianday', $modifierTexts, true);
         if ($juliandayOffset !== false) {
@@ -1304,7 +1405,7 @@ final class SQLiteCoreScalarFunction
                 return null;
             }
 
-            return self::dateTimeFromJulianDay($numeric, $timezone);
+            return ['instant' => self::dateTimeFromJulianDay($numeric, $timezone), 'floor' => null];
         }
         $autoOffset = array_search('auto', $modifierTexts, true);
         if ($autoOffset !== false) {
@@ -1313,40 +1414,51 @@ final class SQLiteCoreScalarFunction
             }
             $numeric = self::coerceLosslessNumeric($value);
             if ($numeric === null) {
-                return self::parseDateTimeValue($value, []);
+                return self::parseDateTimeState($value, []);
             }
             if ($numeric >= 0.0 && $numeric <= 5373484.4999999) {
-                return self::dateTimeFromJulianDay($numeric, $timezone);
+                return ['instant' => self::dateTimeFromJulianDay($numeric, $timezone), 'floor' => null];
             }
             if ($numeric < -210866760000 || $numeric > 253402300799) {
                 return null;
             }
 
-            return self::dateTimeFromUnixTimestamp($numeric, $timezone);
+            return ['instant' => self::dateTimeFromUnixTimestamp($numeric, $timezone), 'floor' => null];
         }
         if (is_int($value) || is_float($value)) {
-            return self::dateTimeFromJulianDay((float) $value, $timezone);
+            return ['instant' => self::dateTimeFromJulianDay((float) $value, $timezone), 'floor' => null];
         }
 
         $text = trim(self::coerceText('date/time', $value, 'time-value'));
         if (preg_match('/\A[+-]?(?:\d+(?:\.\d*)?|\.\d+)\z/', $text) === 1) {
-            return self::dateTimeFromJulianDay((float) $text, $timezone);
+            return ['instant' => self::dateTimeFromJulianDay((float) $text, $timezone), 'floor' => null];
         }
         if (strcasecmp($text, 'now') === 0) {
-            return new \DateTimeImmutable('now', $timezone);
+            return ['instant' => new \DateTimeImmutable('now', $timezone), 'floor' => null];
         }
         if (preg_match('/\A\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
             $normalized = self::normalizeDateTimeText('2000-01-01 ' . $text);
 
-            return (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone);
+            return ['instant' => (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone), 'floor' => null];
         }
-        if (preg_match('/\A-?\d{4}-\d{2}-\d{2}\z/', $text) === 1) {
-            return new \DateTimeImmutable($text . ' 00:00:00', $timezone);
+        if (preg_match('/\A(-?\d{4})-(\d{2})-(\d{2})\z/', $text, $matches) === 1) {
+            $year = (int) $matches[1];
+            $month = (int) $matches[2];
+            $day = (int) $matches[3];
+            $floorCandidate = null;
+            if ($month >= 1 && $month <= 12 && $day > self::daysInGregorianMonth($year, $month)) {
+                $floorCandidate = new \DateTimeImmutable(
+                    sprintf('%04d-%02d-%02d 00:00:00', $year, $month, self::daysInGregorianMonth($year, $month)),
+                    $timezone
+                );
+            }
+
+            return ['instant' => new \DateTimeImmutable($text . ' 00:00:00', $timezone), 'floor' => $floorCandidate];
         }
         if (preg_match('/\A-?\d{4}-\d{2}-\d{2}(?:[ T]+)\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
             $normalized = self::normalizeDateTimeText($text);
 
-            return (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone);
+            return ['instant' => (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone), 'floor' => null];
         }
 
         throw new \InvalidArgumentException("Unsupported SQLite date/time value: {$text}");

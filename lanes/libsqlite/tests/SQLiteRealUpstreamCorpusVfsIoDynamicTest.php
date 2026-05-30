@@ -681,6 +681,68 @@ $tests['real upstream corpus vfs io dynamic walvfs checkpoint interrupt preserve
     }
 };
 
+$walShmCases = [];
+foreach (range(0, 39) as $busyAttempts) {
+    $walShmCases[] = ['walvfs-4', $busyAttempts, true, false, 'error', 'attempt to write a readonly database', 'SQLITE_READONLY', [1 => 0, 2 => 0, 3 => 0, 4 => 0], false, 20, ['busy' => 0, 'log' => 5, 'checkpointed' => 5]];
+    $walShmCases[] = ['walvfs-5', $busyAttempts, false, false, 'ok', '20', null, [1 => 24, 2 => 100, 3 => 100, 4 => 100], false, 20, ['busy' => 0, 'log' => 5, 'checkpointed' => 5]];
+    $walShmCases[] = ['walvfs-5', max(1, $busyAttempts), true, false, 'error', 'attempt to write a readonly database', 'SQLITE_READONLY', [1 => 100, 2 => 100, 3 => 100, 4 => 100], true, 20, ['busy' => 0, 'log' => 5, 'checkpointed' => 5]];
+    $walShmCases[] = ['walvfs-6', $busyAttempts, false, false, 'error', 'locking protocol', 'SQLITE_PROTOCOL', [1 => 24, 2 => 100, 3 => 100, 4 => 100], false, 20, ['busy' => 0, 'log' => 5, 'checkpointed' => 5]];
+    $walShmCases[] = ['walvfs-7', $busyAttempts, false, false, 'ok', 'checkpoint busy', 'SQLITE_BUSY', [1 => 24, 2 => 100, 3 => 100, 4 => 100], false, 20, ['busy' => 1, 'log' => -1, 'checkpointed' => -1]];
+    $walShmCases[] = ['walvfs-8', $busyAttempts, false, false, 'ok', 'ok', null, [1 => 24, 2 => 100, 3 => 100, 4 => 100], false, 21, ['busy' => 0, 'log' => 5, 'checkpointed' => 5]];
+    $walShmCases[] = ['walvfs-9', $busyAttempts, true, true, 'error', 'disk I/O error', 'SQLITE_IOERR', [1 => 24, 2 => 100, 3 => 100, 4 => 100], false, 20, ['busy' => 0, 'log' => 5, 'checkpointed' => 5]];
+}
+
+$tests['real upstream corpus vfs io dynamic walvfs shm readmark fault matrix follows sections 4 through 9'] = static function (TestRunner $t) use ($walShmCases): void {
+    foreach ($walShmCases as [$scenario, $busyAttempts, $readonlyShmMap, $ioerrDuringSharedLock, $status, $selectResult, $error, $readMarks, $recoverable, $visibleRows, $checkpointResult]) {
+        $profile = SQLiteVfsIoDynamicPlan::walShmFaultProfile($scenario, $busyAttempts, $readonlyShmMap, $ioerrDuringSharedLock);
+
+        $t->same($status, $profile['status']);
+        $t->same('walvfs.test', $profile['script']);
+        $t->same($scenario, $profile['scenario']);
+        $t->same('wal', $profile['journal_mode']);
+        $t->same(1024, $profile['page_size']);
+        $t->same(20, $profile['seed_rows']);
+        $t->same($busyAttempts, $profile['busy_attempts']);
+        $t->same($readonlyShmMap, $profile['readonly_shm_map']);
+        $t->same($ioerrDuringSharedLock, $profile['ioerr_during_shared_lock']);
+        $t->same($selectResult, $profile['select_result']);
+        $t->same($error, $profile['error']);
+        $t->same($readMarks, $profile['read_marks']);
+        $t->same($recoverable, $profile['recoverable_after_readmark_reset']);
+        $t->same($scenario === 'walvfs-6' ? 12 : 0, $profile['protocol_retry_seconds']);
+        $t->same($checkpointResult, $profile['checkpoint_result']);
+        $t->same($scenario === 'walvfs-8', $profile['cache_flushed_before_checkpoint']);
+        $t->same($visibleRows, $profile['visible_rows_after_checkpoint']);
+        $t->same(true, in_array('upstream-walvfs-shm-readmark-faults', $profile['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-shm-locking', $profile['dependencies'], true));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $profile['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic walvfs shm fault profile cites exact upstream subtests'] = static function (TestRunner $t): void {
+    $expected = [
+        'walvfs-4' => ['walvfs.test 4.0', 'walvfs.test 4.1', 'walvfs.test 4.2'],
+        'walvfs-5' => ['walvfs.test 5.2', 'walvfs.test 5.3', 'walvfs.test 5.4', 'walvfs.test 5.5', 'walvfs.test 5.6'],
+        'walvfs-6' => ['walvfs.test 6.1', 'walvfs.test 6.2'],
+        'walvfs-7' => ['walvfs.test 7.1'],
+        'walvfs-8' => ['walvfs.test 8.2', 'walvfs.test 8.3'],
+        'walvfs-9' => ['walvfs.test 9.1'],
+    ];
+
+    foreach ($expected as $scenario => $upstream) {
+        $profile = SQLiteVfsIoDynamicPlan::walShmFaultProfile($scenario, 3, $scenario === 'walvfs-5', $scenario === 'walvfs-9');
+
+        $t->same($upstream, $profile['upstream']);
+        $t->same(true, str_starts_with($profile['upstream'][0], 'walvfs.test '));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic walvfs shm fault profile rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::walShmFaultProfile('walvfs-3'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::walShmFaultProfile(''));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::walShmFaultProfile('walvfs-5', -1));
+};
+
 $tests['real upstream corpus vfs io dynamic cksumvfs and walvfs reject malformed inputs'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::checksumReserveProfile(-1, 4096, 1, 1, 1, 1));
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::checksumReserveProfile(8, 1000, 1, 1, 1, 1));

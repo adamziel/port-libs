@@ -3450,6 +3450,45 @@ final class SQLiteSelectSql
             return $case;
         }
 
+        if (preg_match('/^(.+?)\s+(not\s+)?between\s+(.+)$/is', $sql, $match) === 1) {
+            $bounds = self::splitTopLevelByKeyword(trim($match[3]), 'AND');
+            if (count($bounds) !== 2 || $bounds[0] === '' || $bounds[1] === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL BETWEEN expression needs lower and upper operands');
+            }
+
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT BETWEEN' : 'BETWEEN',
+                    'left' => self::valueExpression(trim($match[1]), $tables),
+                    'lower' => self::valueExpression($bounds[0], $tables),
+                    'upper' => self::valueExpression($bounds[1], $tables),
+                ],
+            ];
+        }
+
+        $orTerms = self::splitKeyword($sql, 'OR');
+        if (count($orTerms) > 1) {
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => 'OR',
+                    'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $orTerms),
+                ],
+            ];
+        }
+
+        $andTerms = self::splitKeyword($sql, 'AND');
+        if (count($andTerms) > 1) {
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => 'AND',
+                    'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $andTerms),
+                ],
+            ];
+        }
+
         $comparison = self::topLevelComparisonExpressionOperator($sql);
         if ($comparison !== null) {
             [$offset, $operator] = $comparison;
@@ -4300,7 +4339,7 @@ final class SQLiteSelectSql
     {
         $before = $sql[$offset - 1] ?? '';
         $after = $sql[$offset + strlen($operator)] ?? '';
-        if (($operator === '>' || $operator === '<' || $operator === '=') && ($before === '<' || $before === '>' || $before === '!' || $after === '=' || $after === '>')) {
+        if (($operator === '>' || $operator === '<' || $operator === '=') && ($before === '<' || $before === '>' || $before === '!' || $after === '=' || $after === '>' || $after === '<')) {
             return false;
         }
         if (($operator === '>=' || $operator === '<=' || $operator === '<>' || $operator === '!=' || $operator === '==') && ($before === '<' || $before === '>' || $before === '!' || $before === '=' || $after === '=' || $after === '>')) {

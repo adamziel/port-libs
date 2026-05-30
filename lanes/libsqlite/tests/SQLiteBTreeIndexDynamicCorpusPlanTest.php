@@ -101,6 +101,36 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index6PartialJoinAndUpdateCases() as
     };
 }
 
+// Source truth: SQLite upstream test/index7.test section 2. The upstream
+// script populates a WITHOUT ROWID table from the wholenumber virtual table,
+// updates primary-key rows, and verifies partial-index proof decisions.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index7WithoutRowidPartialIndexCases() as $case) {
+    $tests['real upstream index7 without rowid partial index value ' . $case['value']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index7.test index7-2.1 through index7-2.104', $case['source']);
+        $t->same('ok', $case['integrity']);
+        $t->true($case['value'] >= 1);
+        $t->true($case['value'] < 1000);
+        $t->same($case['value'], $case['initial_b']);
+        $t->same($case['value'] % 5 !== 0, $case['partial_not_null_member']);
+        $t->same($case['partial_not_null_member'] ? $case['value'] : null, $case['initial_a']);
+        $t->same($case['partial_not_null_member'] ? [$case['value']] : [], $case['lookup_before']);
+        $t->same($case['value'], $case['post_update_a']);
+        $t->same($case['value'] + 10000, $case['post_update_b']);
+        $t->same([$case['value'] + 10000], $case['lookup_after']);
+        $t->same($case['value'] < 100 || $case['value'] > 200, $case['or_partial_member']);
+        $t->same($case['partial_not_null_member'], str_contains($case['detail_before'], 't2a1'));
+        $t->same($case['or_partial_member'], str_contains($case['detail_after'], 't2a2'));
+    };
+}
+
+$tests['real upstream index7 without rowid partial index dynamic source range'] = static function (TestRunner $t): void {
+    $cases = SQLiteBTreeIndexDynamicCorpusPlan::index7WithoutRowidPartialIndexCases();
+    $t->same('index7-2.dynamic-1', $cases[0]['upstream']);
+    $t->same('index7-2.dynamic-999', $cases[count($cases) - 1]['upstream']);
+    $t->same(999, count($cases));
+    $t->same('index7.test index7-2.1 through index7-2.104', $cases[0]['source']);
+};
+
 // Source truth: SQLite upstream test/indexA.test sections 2.1 and 3.1. The
 // upstream script repeats the same TEXT/NUMERIC/REAL partial-index affinity
 // matrix for rowid and WITHOUT ROWID tables.
@@ -142,6 +172,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'btree02.test',
         'index.test',
         'index6.test',
+        'index7.test',
         'index9.test',
         'indexA.test',
         'indexedby.test',
@@ -150,6 +181,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'btree02.test',
         'index.test',
         'index6.test',
+        'index7.test',
         'index9.test',
         'indexA.test',
         'indexedby.test',
@@ -163,11 +195,12 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(6, count(SQLiteBTreeIndexDynamicCorpusPlan::indexedByRowidAffinityCases()));
     $t->same(10, count(SQLiteBTreeIndexDynamicCorpusPlan::btree02CursorMutationCases()));
     $t->same(10, count(SQLiteBTreeIndexDynamicCorpusPlan::index6PartialJoinAndUpdateCases()));
+    $t->same(999, count(SQLiteBTreeIndexDynamicCorpusPlan::index7WithoutRowidPartialIndexCases()));
     $t->same(1080, count(SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases()));
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {
-    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, and cursor-case helpers');
+    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, and cursor-case helpers');
 };
 
 return $tests;
