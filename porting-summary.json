@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 13:38:58 UTC",
-    "sourceCommit": "63f5b2a67e77c9dd5265cb709507cebce2be8ec8",
-    "sourceCommitShort": "63f5b2a67e77",
+    "generated": "2026-05-30 13:58:43 UTC",
+    "sourceCommit": "6131a7a499a3cf35ff8e7c4bd05c30d9300f6341",
+    "sourceCommitShort": "6131a7a499a3",
     "sourceBranch": "unknown",
-    "dashboardCommit": "63f5b2a67e77c9dd5265cb709507cebce2be8ec8",
-    "dashboardCommitShort": "63f5b2a67e77",
+    "dashboardCommit": "6131a7a499a3cf35ff8e7c4bd05c30d9300f6341",
+    "dashboardCommitShort": "6131a7a499a3",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "188353 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, behavior fixes, numbered suffix cons...",
-            "audit": "Accepted source commit 63f5b2a67e77c9dd52...",
-            "currentWork": "Committed libsqlite source 63f5b2a67 with zero WordPress-specific class/function/method d...",
-            "nextTarget": "Refresh 10-11 libsqlite workers onto origin/main 63f5b2a67, park stale pre-genericization...",
+            "audit": "Accepted source commit 6131a7a499a3cf35ff...",
+            "currentWork": "Committed libsqlite source 6131a7a49 with zero WordPress-specific class/function/method d...",
+            "nextTarget": "Refresh 10-11 libsqlite workers onto origin/main 6131a7a49, park stale pre-genericization...",
             "blocker": "Root/no-arg and full libsqlite lane gates pass under explicit 1024M PHP m...",
-            "commit": "63f5b2a"
+            "commit": "6131a7a"
         },
         {
             "library": "LightningCSS",

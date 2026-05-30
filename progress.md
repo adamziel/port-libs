@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (stricter no-WordPress declarations 14:00 UTC):
+  Latest libsqlite source is integrated and pushed as `6131a7a49`
+  (`libsqlite: remove wordpress-shaped declarations`). This removes the
+  remaining WordPress-shaped class/function declaration names found after the
+  previous cleanup: `optionsTableName`, `mutationOptionName`,
+  `conflictingOptionNameId`, `currentOptionId`, `pageForOptionId`, `wpError`,
+  `*OptionName*` helper names, `decodeOptionValue`, and
+  `optionValueForComparison` are now generic key/value or SQLite error names.
+  The committed no-WordPress API test, worker prompt, and isolated handoff
+  guard now reject `wpError`, `OptionsTable`, `OptionName`, `OptionValue`, and
+  `OptionId` declarations, while explicitly allowing genuine SQLite
+  compile-option helpers. Verification passed PHP lint for the 11 changed PHP
+  files, `bash -n scripts/run-isolated-lane-worker.sh`, `git diff --check`,
+  a token-level declaration audit with `COUNT=0`, focused gate `10 selected
+  files / 666 assertions / 0 failures`, and full libsqlite lane under
+  `php -d memory_limit=1024M`: `2 test files / 759201 assertions / 0 failures /
+  188353 PASS lines`. Public pass/fail remains `188353 pass / 0 fail`; mapped
+  coverage remains `830 / 1589`.
+
 - 2026-05-30 supervisor continuation (strict generic API sample 13:48 UTC):
   Latest libsqlite source is integrated and pushed as `63f5b2a67`
   (`libsqlite: remove wordpress-shaped api declarations`). This follows
