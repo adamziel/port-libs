@@ -16,9 +16,12 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
         $sourceRoot . '/SQLiteEncodingLikeGlobSourceSwitchPlan.php',
         $sourceRoot . '/SQLiteLikeGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteMalformedLikeGlobSourceNextPlan.php',
+        $sourceRoot . '/SQLiteNocaseGlobAffinityCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteNocaseLikeRtrimCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteRtrimNocaseGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16CastGlobCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceCursor.php',
+        $sourceRoot . '/SQLiteUtf16LikeGlobCurrentNextCursor.php',
         $sourceRoot . '/SQLiteUtf16NocaseLikeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan.php',
     ];

@@ -281,6 +281,105 @@ $tests['real upstream corpus vfs io dynamic atomic transaction visibility reject
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicTransactionVisibility(['bad-device'], [['a' => 1]], [['a' => 2]], true));
 };
 
+$atomicAdmissionCases = [
+    'io-2.6 append page defers journal until commit and can fail cantopen' => [
+        ['atomic'], 1024, 512, 1, 1, false, false, false, true,
+        true, false, true, 'SQLITE_CANTOPEN', 'previous_committed_rows', 'deferred_journal_open_failure_rolls_back_transaction',
+    ],
+    'io-2.7 multi file commit forces journal despite atomic device' => [
+        ['atomic'], 1024, 512, 1, 0, true, false, false, true,
+        true, false, true, 'SQLITE_IOERR_ROLLBACK', 'previous_committed_rows', 'multi_file_commit_journal_open_failure_rolls_back_all_files',
+    ],
+    'io-2.8 explicit rollback before journal materialization restores previous rows' => [
+        ['atomic'], 1024, 512, 1, 0, false, true, false, false,
+        true, true, false, 'ok', 'previous_committed_rows', 'explicit_rollback_restores_rows_before_journal_materialization',
+    ],
+    'io-2.9 sector larger than page disables atomic shortcut' => [
+        ['atomic'], 1024, 2048, 1, 0, false, false, false, false,
+        false, false, false, 'ok', 'pending_rows_committed', 'rollback_journal_required_before_commit',
+    ],
+    'io-2.9 page size equal to sector admits atomic shortcut' => [
+        ['atomic'], 2048, 2048, 1, 0, false, false, false, false,
+        true, true, false, 'ok', 'pending_rows_committed', 'single_page_atomic_write_skips_rollback_journal',
+    ],
+    'io-2.10 atomic1k is too small for 2k page' => [
+        ['atomic1k'], 2048, 512, 1, 0, false, false, false, false,
+        false, false, false, 'ok', 'pending_rows_committed', 'rollback_journal_required_before_commit',
+    ],
+    'io-2.10 atomic2k admits 2k page' => [
+        ['atomic2k'], 2048, 512, 1, 0, false, false, false, false,
+        true, true, false, 'ok', 'pending_rows_committed', 'single_page_atomic_write_skips_rollback_journal',
+    ],
+    'io-2.11 exclusive locking keeps journal unlinked after insert' => [
+        ['atomic'], 1024, 512, 1, 1, false, false, true, false,
+        true, false, false, 'ok', 'pending_rows_committed', 'exclusive_locking_keeps_journal_unlinked_after_commit',
+    ],
+];
+
+$tests['real upstream corpus vfs io dynamic atomic journal admission follows io 2 6 through 2 11'] = static function (TestRunner $t) use ($atomicAdmissionCases): void {
+    foreach ($atomicAdmissionCases as $name => [$flags, $pageSize, $sectorSize, $changedPages, $appendedPages, $multiFile, $rollback, $exclusive, $blocked, $atomicAllowed, $atomicOptimization, $deferred, $commitStatus, $rowsVisibleAfter, $reason]) {
+        $plan = SQLiteVfsIoDynamicPlan::atomicJournalAdmission(
+            $flags,
+            $pageSize,
+            $sectorSize,
+            $changedPages,
+            $appendedPages,
+            $multiFile,
+            $rollback,
+            $exclusive,
+            $blocked
+        );
+
+        $t->same('ok', $plan['status']);
+        $t->same('io.test', $plan['script']);
+        $t->same($pageSize, $plan['page_size']);
+        $t->same($sectorSize, $plan['sector_size']);
+        $t->same($changedPages, $plan['changed_pages']);
+        $t->same($appendedPages, $plan['appended_pages']);
+        $t->same($multiFile, $plan['multi_file_commit']);
+        $t->same($rollback, $plan['explicit_rollback']);
+        $t->same($exclusive, $plan['exclusive_locking']);
+        $t->same($blocked, $plan['journal_path_blocked']);
+        $t->same($atomicAllowed, $plan['atomic_write_allowed']);
+        $t->same($atomicOptimization, $plan['atomic_write_optimization']);
+        $t->same($deferred, $plan['journal_deferred_until_commit']);
+        $t->same($commitStatus, $plan['commit_status']);
+        $t->same($rowsVisibleAfter, $plan['rows_visible_after']);
+        $t->same($reason, $plan['reason']);
+        $t->same($commitStatus !== 'ok' || $rollback, $plan['rollback_required']);
+        $t->same(true, in_array('upstream-io-atomic-journal-admission', $plan['dependencies'], true));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $plan['dependencies'], true));
+        $t->same(true, str_starts_with($name, 'io-2.'));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic atomic journal admission cites real upstream ranges'] = static function (TestRunner $t): void {
+    $plan = SQLiteVfsIoDynamicPlan::atomicJournalAdmission(['atomic2k'], 2048, 512, 1);
+
+    foreach ([
+        'io.test io-2.6.1-2.6.4',
+        'io.test io-2.7.1-2.7.6',
+        'io.test io-2.8.1-2.8.3',
+        'io.test io-2.9.1-2.9.3',
+        'io.test io-2.10.1-2.10.3',
+        'io.test io-2.11.1-2.11.2',
+    ] as $upstream) {
+        $t->same(true, in_array($upstream, $plan['upstream'], true));
+    }
+    $t->same(['atomic2k'], $plan['device_flags']);
+    $t->same(false, $plan['journal_required']);
+    $t->same(false, $plan['journal_exists_before_commit']);
+    $t->same(false, $plan['journal_deferred_until_commit']);
+};
+
+$tests['real upstream corpus vfs io dynamic atomic journal admission rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicJournalAdmission(['atomic'], 500, 512, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicJournalAdmission(['atomic'], 1024, 768, 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicJournalAdmission(['atomic'], 1024, 512, -1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicJournalAdmission(['atomic'], 1024, 512, 1, -1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::atomicJournalAdmission(['networked'], 1024, 512, 1));
+};
+
 $nolockCases = [
     ['file:/srv/app/data/app.sqlite?nolock=0', true, false, false, ['xLock' => 7, 'xUnlock' => 5, 'xCheckReservedLock' => 0, 'xAccess' => 0]],
     ['file:/srv/app/data/app.sqlite?nolock=1', true, true, false, ['xLock' => 0, 'xUnlock' => 0, 'xCheckReservedLock' => 0, 'xAccess' => 0]],

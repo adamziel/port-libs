@@ -312,6 +312,80 @@ final class SQLiteVfsIoDynamicPlan
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */
+    public static function atomicJournalAdmission(
+        array $deviceFlags,
+        int $pageSize,
+        int $sectorSize,
+        int $changedPages,
+        int $appendedPages = 0,
+        bool $multiFileCommit = false,
+        bool $explicitRollback = false,
+        bool $exclusiveLocking = false,
+        bool $journalPathBlocked = false
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite atomic journal admission page size must be a power of two at least 512');
+        }
+        if ($sectorSize < 0 || ($sectorSize > 0 && ($sectorSize & ($sectorSize - 1)) !== 0)) {
+            throw new \InvalidArgumentException('SQLite atomic journal admission sector size must be zero or a power of two');
+        }
+        if ($changedPages < 0 || $appendedPages < 0) {
+            throw new \InvalidArgumentException('SQLite atomic journal admission page counts must be non-negative');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $effectiveSectorSize = $sectorSize === 0 ? 512 : $sectorSize;
+        $atomicAllowed = self::atomicWriteAllowed($flags, $pageSize, $effectiveSectorSize);
+        $writesDatabase = $changedPages > 0 || $appendedPages > 0;
+        $singlePageAtomic = $atomicAllowed && $changedPages <= 1 && $appendedPages === 0 && !$multiFileCommit;
+        $journalRequired = $writesDatabase && !$singlePageAtomic && !$exclusiveLocking;
+        $journalDeferredUntilCommit = $atomicAllowed && $writesDatabase && !$singlePageAtomic;
+        $commitStatus = 'ok';
+        if ($journalPathBlocked && $journalRequired && !$explicitRollback) {
+            $commitStatus = $multiFileCommit ? 'SQLITE_IOERR_ROLLBACK' : 'SQLITE_CANTOPEN';
+        }
+
+        $rowsVisibleAfter = $explicitRollback
+            ? 'previous_committed_rows'
+            : ($commitStatus === 'ok' ? 'pending_rows_committed' : 'previous_committed_rows');
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => [
+                'io.test io-2.6.1-2.6.4',
+                'io.test io-2.7.1-2.7.6',
+                'io.test io-2.8.1-2.8.3',
+                'io.test io-2.9.1-2.9.3',
+                'io.test io-2.10.1-2.10.3',
+                'io.test io-2.11.1-2.11.2',
+            ],
+            'device_flags' => $flags,
+            'page_size' => $pageSize,
+            'sector_size' => $sectorSize,
+            'changed_pages' => $changedPages,
+            'appended_pages' => $appendedPages,
+            'multi_file_commit' => $multiFileCommit,
+            'explicit_rollback' => $explicitRollback,
+            'exclusive_locking' => $exclusiveLocking,
+            'journal_path_blocked' => $journalPathBlocked,
+            'atomic_write_allowed' => $atomicAllowed,
+            'atomic_write_optimization' => $singlePageAtomic,
+            'journal_required' => $journalRequired,
+            'journal_exists_before_commit' => $journalRequired && !$journalDeferredUntilCommit,
+            'journal_deferred_until_commit' => $journalRequired && $journalDeferredUntilCommit,
+            'commit_status' => $commitStatus,
+            'rows_visible_after' => $rowsVisibleAfter,
+            'rollback_required' => $commitStatus !== 'ok' || $explicitRollback,
+            'reason' => self::atomicAdmissionReason($singlePageAtomic, $journalRequired, $journalDeferredUntilCommit, $multiFileCommit, $exclusiveLocking, $explicitRollback, $commitStatus),
+            'dependencies' => ['upstream-io-atomic-journal-admission', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
     public static function nolockProbe(string $filename, bool $writeTransaction = false, array $deviceFlags = []): array
     {
         $flags = self::deviceFlags($deviceFlags);
@@ -393,5 +467,67 @@ final class SQLiteVfsIoDynamicPlan
         }
 
         return array_keys($normalized);
+    }
+
+    /**
+     * @param list<string> $flags
+     */
+    private static function atomicWriteAllowed(array $flags, int $pageSize, int $sectorSize): bool
+    {
+        if ($sectorSize > $pageSize) {
+            return false;
+        }
+        if (in_array('atomic', $flags, true) || in_array('batch_atomic', $flags, true)) {
+            return true;
+        }
+
+        $specific = [
+            'atomic512' => 512,
+            'atomic1k' => 1024,
+            'atomic2k' => 2048,
+            'atomic4k' => 4096,
+            'atomic8k' => 8192,
+            'atomic16k' => 16384,
+            'atomic32k' => 32768,
+            'atomic64k' => 65536,
+        ];
+        foreach ($specific as $flag => $bytes) {
+            if (in_array($flag, $flags, true) && $pageSize <= $bytes) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function atomicAdmissionReason(
+        bool $singlePageAtomic,
+        bool $journalRequired,
+        bool $journalDeferredUntilCommit,
+        bool $multiFileCommit,
+        bool $exclusiveLocking,
+        bool $explicitRollback,
+        string $commitStatus
+    ): string {
+        if ($explicitRollback) {
+            return 'explicit_rollback_restores_rows_before_journal_materialization';
+        }
+        if ($commitStatus !== 'ok') {
+            return $multiFileCommit ? 'multi_file_commit_journal_open_failure_rolls_back_all_files' : 'deferred_journal_open_failure_rolls_back_transaction';
+        }
+        if ($exclusiveLocking) {
+            return 'exclusive_locking_keeps_journal_unlinked_after_commit';
+        }
+        if ($singlePageAtomic) {
+            return 'single_page_atomic_write_skips_rollback_journal';
+        }
+        if ($journalDeferredUntilCommit) {
+            return 'atomic_capable_append_or_multifile_transaction_defers_journal_until_commit';
+        }
+        if ($journalRequired) {
+            return 'rollback_journal_required_before_commit';
+        }
+
+        return 'read_only_or_empty_transaction_needs_no_journal';
     }
 }

@@ -8,24 +8,24 @@ use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityCurrentSourceCursor;
 $tests = [];
 
 $entries = [
-    ['key' => null, 'textEncoding' => 'UTF-16LE', 'rowid' => 1, 'payload' => ['option_name' => 'nullish']],
-    ['key' => 1, 'textEncoding' => 'UTF-16LE', 'rowid' => 2, 'payload' => ['option_name' => 'int_one']],
-    ['key' => true, 'textEncoding' => 'UTF-16BE', 'rowid' => 3, 'payload' => ['option_name' => 'bool_one']],
-    ['key' => '10', 'textEncoding' => 'UTF-16LE', 'rowid' => 4, 'payload' => ['option_name' => 'text_ten']],
-    ['key' => 10, 'textEncoding' => 'UTF-16BE', 'rowid' => 5, 'payload' => ['option_name' => 'int_ten']],
-    ['key' => 10.5, 'textEncoding' => 'UTF-16LE', 'rowid' => 6, 'payload' => ['option_name' => 'real_ten_half']],
-    ['key' => 'Plugin-Alpha', 'textEncoding' => 'UTF-16LE', 'rowid' => 7, 'payload' => ['option_name' => 'Plugin-Alpha']],
-    ['key' => 'plugin-alpha', 'textEncoding' => 'UTF-16BE', 'rowid' => 8, 'payload' => ['option_name' => 'plugin-alpha']],
-    ['key' => 'plugin-alpha ', 'textEncoding' => 'UTF-16LE', 'rowid' => 9, 'payload' => ['option_name' => 'plugin-alpha ']],
-    ['key' => 'plugin-beta', 'textEncoding' => 'UTF-16BE', 'rowid' => 10, 'payload' => ['option_name' => 'plugin-beta']],
-    ['key' => 'plugin_100%_enabled', 'textEncoding' => 'UTF-16LE', 'rowid' => 11, 'payload' => ['option_name' => 'plugin_100%_enabled']],
-    ['key' => 'plugin_100x_enabled', 'textEncoding' => 'UTF-16BE', 'rowid' => 12, 'payload' => ['option_name' => 'plugin_100x_enabled']],
-    ['key' => 'plugin_Éclair', 'textEncoding' => 'UTF-16BE', 'rowid' => 13, 'payload' => ['option_name' => 'plugin_Éclair']],
-    ['key' => 'plugin_éclair', 'textEncoding' => 'UTF-16LE', 'rowid' => 14, 'payload' => ['option_name' => 'plugin_éclair']],
-    ['key' => 'plugin_Ωmega', 'textEncoding' => 'UTF-16BE', 'rowid' => 15, 'payload' => ['option_name' => 'plugin_Ωmega']],
-    ['key' => 'plugin_😀_cache', 'textEncoding' => 'UTF-16LE', 'rowid' => 16, 'payload' => ['option_name' => 'plugin_😀_cache']],
-    ['key' => new SQLiteBlobValue('plugin_blob'), 'textEncoding' => 'UTF-16LE', 'rowid' => 17, 'payload' => ['option_name' => 'blob']],
-    ['key' => 'theme-alpha', 'textEncoding' => 'UTF-16LE', 'rowid' => 18, 'payload' => ['option_name' => 'theme-alpha']],
+    ['key' => null, 'textEncoding' => 'UTF-16LE', 'rowid' => 1, 'payload' => ['key_name' => 'nullish']],
+    ['key' => 1, 'textEncoding' => 'UTF-16LE', 'rowid' => 2, 'payload' => ['key_name' => 'int_one']],
+    ['key' => true, 'textEncoding' => 'UTF-16BE', 'rowid' => 3, 'payload' => ['key_name' => 'bool_one']],
+    ['key' => '10', 'textEncoding' => 'UTF-16LE', 'rowid' => 4, 'payload' => ['key_name' => 'text_ten']],
+    ['key' => 10, 'textEncoding' => 'UTF-16BE', 'rowid' => 5, 'payload' => ['key_name' => 'int_ten']],
+    ['key' => 10.5, 'textEncoding' => 'UTF-16LE', 'rowid' => 6, 'payload' => ['key_name' => 'real_ten_half']],
+    ['key' => 'Plugin-Alpha', 'textEncoding' => 'UTF-16LE', 'rowid' => 7, 'payload' => ['key_name' => 'Plugin-Alpha']],
+    ['key' => 'plugin-alpha', 'textEncoding' => 'UTF-16BE', 'rowid' => 8, 'payload' => ['key_name' => 'plugin-alpha']],
+    ['key' => 'plugin-alpha ', 'textEncoding' => 'UTF-16LE', 'rowid' => 9, 'payload' => ['key_name' => 'plugin-alpha ']],
+    ['key' => 'plugin-beta', 'textEncoding' => 'UTF-16BE', 'rowid' => 10, 'payload' => ['key_name' => 'plugin-beta']],
+    ['key' => 'plugin_100%_enabled', 'textEncoding' => 'UTF-16LE', 'rowid' => 11, 'payload' => ['key_name' => 'plugin_100%_enabled']],
+    ['key' => 'plugin_100x_enabled', 'textEncoding' => 'UTF-16BE', 'rowid' => 12, 'payload' => ['key_name' => 'plugin_100x_enabled']],
+    ['key' => 'plugin_Éclair', 'textEncoding' => 'UTF-16BE', 'rowid' => 13, 'payload' => ['key_name' => 'plugin_Éclair']],
+    ['key' => 'plugin_éclair', 'textEncoding' => 'UTF-16LE', 'rowid' => 14, 'payload' => ['key_name' => 'plugin_éclair']],
+    ['key' => 'plugin_Ωmega', 'textEncoding' => 'UTF-16BE', 'rowid' => 15, 'payload' => ['key_name' => 'plugin_Ωmega']],
+    ['key' => 'plugin_😀_cache', 'textEncoding' => 'UTF-16LE', 'rowid' => 16, 'payload' => ['key_name' => 'plugin_😀_cache']],
+    ['key' => new SQLiteBlobValue('plugin_blob'), 'textEncoding' => 'UTF-16LE', 'rowid' => 17, 'payload' => ['key_name' => 'blob']],
+    ['key' => 'theme-alpha', 'textEncoding' => 'UTF-16LE', 'rowid' => 18, 'payload' => ['key_name' => 'theme-alpha']],
 ];
 
 $cursor = static fn (
@@ -136,7 +136,7 @@ $tests['utf16 like glob affinity current source nextEightSeven matched rows pres
 
 $tests['utf16 like glob affinity current source nextEightSeven matched rows preserve payload'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('plugin_😀%', 'LIKE', 'BINARY', null, true)->matchedRows();
-    $t->same('plugin_😀_cache', $rows[0]['payload']['option_name']);
+    $t->same('plugin_😀_cache', $rows[0]['payload']['key_name']);
 };
 
 $tests['utf16 like glob affinity current source nextEightSeven matched rows expose emoji utf16 surrogate bytes'] = static function (TestRunner $t) use ($cursor): void {
@@ -144,24 +144,24 @@ $tests['utf16 like glob affinity current source nextEightSeven matched rows expo
     $t->same('70006c007500670069006e005f003dd800de5f0063006100630068006500', $rows[0]['bytesHex']);
 };
 
-$tests['utf16 like glob affinity current source nextEightSeven application value scan matches numeric-looking autoload values'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven application value scan matches numeric-looking load_policy values'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 101, 'option_name' => 'blog_public', 'option_value' => 1, 'autoload' => 'yes'],
-        ['option_id' => 102, 'option_name' => 'rewrite_rules', 'option_value' => '10-rules', 'autoload' => 'yes'],
-        ['option_id' => 103, 'option_name' => 'theme_mods', 'option_value' => 'plugin_éclair', 'autoload' => 'yes'],
-        ['option_id' => 104, 'option_name' => 'binary_payload', 'option_value' => new SQLiteBlobValue('plugin_blob'), 'autoload' => 'no'],
+        ['setting_id' => 101, 'key_name' => 'blog_public', 'key_value' => 1, 'load_policy' => 'yes'],
+        ['setting_id' => 102, 'key_name' => 'rewrite_rules', 'key_value' => '10-rules', 'load_policy' => 'yes'],
+        ['setting_id' => 103, 'key_name' => 'theme_mods', 'key_value' => 'plugin_éclair', 'load_policy' => 'yes'],
+        ['setting_id' => 104, 'key_name' => 'binary_payload', 'key_value' => new SQLiteBlobValue('plugin_blob'), 'load_policy' => 'no'],
     ];
-    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan($rows, 'option_value', '1%', 'LIKE', 'BINARY', null, true, 'UTF-16LE');
+    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan($rows, 'key_value', '1%', 'LIKE', 'BINARY', null, true, 'UTF-16LE');
     $t->same([101, 102], array_column($matched, 'rowid'));
 };
 
 $tests['utf16 like glob affinity current source nextEightSeven application value scan matches unicode glob values'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 201, 'option_name' => 'theme_mods', 'option_value' => 'plugin_éclair'],
-        ['option_id' => 202, 'option_name' => 'theme_mods_old', 'option_value' => 'plugin_alpha'],
-        ['option_id' => 203, 'option_name' => 'theme_mods_emoji', 'option_value' => 'plugin_😀_cache'],
+        ['setting_id' => 201, 'key_name' => 'theme_mods', 'key_value' => 'plugin_éclair'],
+        ['setting_id' => 202, 'key_name' => 'theme_mods_old', 'key_value' => 'plugin_alpha'],
+        ['setting_id' => 203, 'key_name' => 'theme_mods_emoji', 'key_value' => 'plugin_😀_cache'],
     ];
-    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan($rows, 'option_value', 'plugin_[À-ÿ]*', 'GLOB', 'BINARY', null, false, 'UTF-16BE');
+    $matched = SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan($rows, 'key_value', 'plugin_[À-ÿ]*', 'GLOB', 'BINARY', null, false, 'UTF-16BE');
     $t->same([201], array_column($matched, 'rowid'));
     $t->same('UTF-16BE', $matched[0]['textEncoding']);
 };
@@ -199,7 +199,7 @@ $tests['utf16 like glob affinity current source nextEightSeven rejects non array
 };
 
 $tests['utf16 like glob affinity current source nextEightSeven application scan rejects missing column'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan([['option_id' => 1, 'option_name' => 'siteurl']], 'option_value', 's%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::keyValueRowValueScan([['setting_id' => 1, 'key_name' => 'siteurl']], 'key_value', 's%'));
 };
 
 return $tests;

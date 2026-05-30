@@ -30,7 +30,7 @@ $entries = static function (string $encoding = 'UTF-16LE') use ($names, $utf16):
         $rows[] = [
             'keyBytes' => $utf16($name, $encoding),
             'rowid' => $rowid,
-            'payload' => ['option_id' => $rowid, 'option_name' => $name, 'autoload' => $rowid % 2 === 0 ? 'yes' : 'no'],
+            'payload' => ['setting_id' => $rowid, 'key_name' => $name, 'load_policy' => $rowid % 2 === 0 ? 'yes' : 'no'],
         ];
     }
 
@@ -125,12 +125,12 @@ foreach ($matchCases as $name => [$pattern, $operator, $encoding, $collation, $e
 }
 
 $applicationRows = array_map(static fn (array $entry): array => [
-    'option_id' => $entry['rowid'],
-    'option_name_utf16' => $entry['keyBytes'],
-    'autoload' => $entry['payload']['autoload'],
+    'setting_id' => $entry['rowid'],
+    'key_name_utf16' => $entry['keyBytes'],
+    'load_policy' => $entry['payload']['load_policy'],
 ], $entries('UTF-16LE'));
 
-$tests['utf16 like glob current next75 application helper scans option_name_utf16'] = static function (TestRunner $t) use ($applicationRows): void {
+$tests['utf16 like glob current next75 application helper scans key_name_utf16'] = static function (TestRunner $t) use ($applicationRows): void {
     $rows = SQLiteUtf16LikeGlobCurrentNextCursor::keyValueRowKeyScan($applicationRows, 'plugin\_100\%%', 'LIKE', 'UTF-16LE', 'NOCASE', '\\');
     $t->same([6, 7, 8], array_column($rows, 'rowid'));
 };
@@ -138,7 +138,7 @@ $tests['utf16 like glob current next75 application helper scans option_name_utf1
 $tests['utf16 like glob current next75 matched rows preserve decoded text and payload'] = static function (TestRunner $t) use ($makeCursor): void {
     $rows = $makeCursor('plugin_[😀-😀]*', 'GLOB', 'UTF-16LE', 'BINARY')->matchedRows();
     $t->same('plugin_😀_enabled', $rows[0]['keyText']);
-    $t->same('yes', $rows[0]['payload']['autoload']);
+    $t->same('yes', $rows[0]['payload']['load_policy']);
 };
 
 $tests['utf16 like glob current next75 rejects odd byte payload'] = static function (TestRunner $t): void {
@@ -162,7 +162,7 @@ $tests['utf16 like glob current next75 rejects unsupported operator'] = static f
 };
 
 $tests['utf16 like glob current next75 rejects missing application utf16 column'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobCurrentNextCursor::keyValueRowKeyScan([['option_id' => 1]], 'a%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobCurrentNextCursor::keyValueRowKeyScan([['setting_id' => 1]], 'a%'));
 };
 
 return $tests;

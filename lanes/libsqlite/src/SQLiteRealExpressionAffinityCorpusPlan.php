@@ -19,8 +19,8 @@ final class SQLiteRealExpressionAffinityCorpusPlan
             foreach ($row as $column => $value) {
                 $affinity = self::normalizeAffinity($affinities[$column] ?? 'NONE');
                 $next[$column] = match ($affinity) {
-                    'INTEGER' => self::castInteger(SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC')),
-                    'REAL' => self::castReal(SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC')),
+                    'INTEGER' => self::applyIntegerColumnAffinity($value),
+                    'REAL' => self::applyRealColumnAffinity($value),
                     'NUMERIC' => SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC'),
                     'TEXT' => SQLiteAffinityComparison::applyAffinity($value, 'TEXT'),
                     default => $value,
@@ -173,6 +173,26 @@ final class SQLiteRealExpressionAffinityCorpusPlan
     private static function isNumericAffinity(string $affinity): bool
     {
         return $affinity === 'INTEGER' || $affinity === 'REAL' || $affinity === 'NUMERIC';
+    }
+
+    private static function applyIntegerColumnAffinity(mixed $value): mixed
+    {
+        $numeric = SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC');
+        if (($value instanceof SQLiteBlobValue || is_string($value)) && $numeric === $value) {
+            return $value;
+        }
+
+        return self::castInteger($numeric);
+    }
+
+    private static function applyRealColumnAffinity(mixed $value): mixed
+    {
+        $numeric = SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC');
+        if (($value instanceof SQLiteBlobValue || is_string($value)) && $numeric === $value) {
+            return $value;
+        }
+
+        return self::castReal($numeric);
     }
 
     private static function castText(mixed $value): ?string

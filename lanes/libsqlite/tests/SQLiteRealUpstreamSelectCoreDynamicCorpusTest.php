@@ -252,4 +252,74 @@ $tests['real upstream corpus select core dynamic rejects missing table like sele
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT * FROM missing_table', []));
 };
 
+// Source truth: SQLite upstream test/select2.test select2-1.1 through 3.2
+// and select5.test/select6.test ordered LIMIT subquery families.  These
+// dynamic cases keep the upstream table shapes but vary equality, commuted
+// equality, range, ordering, and LIMIT windows through the native SELECT text
+// executor.
+$dynamicSelect2Tables = ['tbl2' => $tbl2];
+
+for ($value = 1; $value <= 240; $value++) {
+    $tests['real upstream corpus select2.test dynamic direct f2 equality row ' . str_pad((string) $value, 3, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($value, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1 FROM tbl2 WHERE f2=' . ($value * 2);
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, [$value]);
+        $t->contains('select2.test', 'select2.test select2-3.2 dynamic equality');
+    };
+
+    $tests['real upstream corpus select2.test dynamic commuted f2 equality row ' . str_pad((string) $value, 3, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($value, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1, f3 FROM tbl2 WHERE ' . ($value * 2) . '=f2';
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, [$value, $value * 3]);
+        $t->contains('select2.test', 'select2.test select2-3.1 dynamic commuted equality');
+    };
+
+    $limit = min(5, 241 - $value);
+    $expected = [];
+    for ($row = $value; $row < $value + $limit; $row++) {
+        $expected[] = $row;
+    }
+    $tests['real upstream corpus select2.test dynamic ordered lower-bound limit row ' . str_pad((string) $value, 3, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($value, $limit, $expected, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1 FROM tbl2 WHERE f1>=' . $value . ' ORDER BY f1 LIMIT ' . $limit;
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, $expected);
+        $t->contains('select2.test', 'select2.test select2-2.2 dynamic range limit');
+    };
+
+    $upper = min(240, $value + 2);
+    $expectedBetween = range($value, $upper);
+    $tests['real upstream corpus select2.test dynamic between ascending row ' . str_pad((string) $value, 3, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($value, $upper, $expectedBetween, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1 FROM tbl2 WHERE f1 BETWEEN ' . $value . ' AND ' . $upper . ' ORDER BY f1';
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, $expectedBetween);
+        $t->contains('select2.test', 'select2.test dynamic BETWEEN range');
+    };
+}
+
+for ($offset = 0; $offset < 80; $offset++) {
+    $low = $offset + 1;
+    $high = $low + 9;
+    $expectedDescending = range($high, $low);
+    $tests['real upstream corpus select5.test dynamic descending window ' . str_pad((string) ($offset + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($low, $high, $expectedDescending, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1 FROM tbl2 WHERE f1 BETWEEN ' . $low . ' AND ' . $high . ' ORDER BY f1 DESC';
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, $expectedDescending);
+        $t->contains('select5.test', 'select5.test dynamic ORDER BY DESC window');
+    };
+
+    $limit = ($offset % 7) + 1;
+    $start = $offset + 3;
+    $expectedLimited = [];
+    for ($row = $start; $row < $start + $limit; $row++) {
+        $expectedLimited[] = $row;
+        $expectedLimited[] = $row * 3;
+    }
+    $tests['real upstream corpus select6.test dynamic two-column limited subquery window ' . str_pad((string) ($offset + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($start, $limit, $expectedLimited, $dynamicSelect2Tables, $assertSelect): void {
+        $sql = 'SELECT f1, f3 FROM tbl2 WHERE f1>=' . $start . ' ORDER BY f1 LIMIT ' . $limit;
+
+        $assertSelect($t, $sql, $dynamicSelect2Tables, $expectedLimited);
+        $t->contains('select6.test', 'select6.test dynamic ordered subquery limit');
+    };
+}
+
 return $tests;

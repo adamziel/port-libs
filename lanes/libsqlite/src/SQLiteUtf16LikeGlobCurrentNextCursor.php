@@ -186,15 +186,15 @@ final class SQLiteUtf16LikeGlobCurrentNextCursor
     ): array {
         $entries = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 Application option scan requires integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 application setting scan requires integer setting_id');
             }
-            if (!array_key_exists('option_name_utf16', $row) || !is_string($row['option_name_utf16'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 Application option scan requires option_name_utf16 bytes');
+            if (!array_key_exists('key_name_utf16', $row) || !is_string($row['key_name_utf16'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 application setting scan requires key_name_utf16 bytes');
             }
             $entries[] = [
-                'keyBytes' => $row['option_name_utf16'],
-                'rowid' => $row['option_id'],
+                'keyBytes' => $row['key_name_utf16'],
+                'rowid' => $row['setting_id'],
                 'payload' => $row,
             ];
         }

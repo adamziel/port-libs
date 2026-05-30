@@ -269,4 +269,124 @@ foreach (range(0, 14) as $ordinal) {
     };
 }
 
+$numericAffinity = static fn (): array => SQLiteRealUpstreamBTreeIndexDynamicCorpus::numericAffinityIndexScenario();
+
+$tests['real upstream corpus index.test numeric affinity index cites source'] = static function (TestRunner $t) use ($numericAffinity): void {
+    $t->same('index.test index-12.1 through index-12.8 and index-15.2 through index-15.4', $numericAffinity()['source']);
+};
+
+$tests['real upstream corpus index-12 numeric affinity equality before and after index'] = static function (TestRunner $t) use ($numericAffinity): void {
+    $scenario = $numericAffinity();
+    $t->same([1, 2, 6, 7], $scenario['equality_zero_b']);
+    $t->same($scenario['equality_zero_b'], $scenario['indexed_equality_zero_b']);
+};
+
+$tests['real upstream corpus index-12 numeric affinity less-than before and after index'] = static function (TestRunner $t) use ($numericAffinity): void {
+    $scenario = $numericAffinity();
+    $t->same([1, 2, 4, 6, 7], $scenario['less_than_half_b']);
+    $t->same($scenario['less_than_half_b'], $scenario['indexed_less_than_half_b']);
+};
+
+$tests['real upstream corpus index-12 numeric affinity greater-than before and after index'] = static function (TestRunner $t) use ($numericAffinity): void {
+    $scenario = $numericAffinity();
+    $t->same([1, 2, 3, 5, 6, 7], $scenario['greater_than_negative_half_b']);
+    $t->same($scenario['greater_than_negative_half_b'], $scenario['indexed_greater_than_negative_half_b']);
+};
+
+$tests['real upstream corpus index-15 numeric exponent order matches SQLite index scan'] = static function (TestRunner $t) use ($numericAffinity): void {
+    $t->same([13, 14, 15, 12, 8, 5, 2, 1, 3, 6, 10, 11, 9, 4, 7], $numericAffinity()['order_by_a_b']);
+};
+
+$tests['real upstream corpus index-15 numeric exponent typeof filter matches SQLite'] = static function (TestRunner $t) use ($numericAffinity): void {
+    $t->same([1, 2, 3, 5, 6, 8, 10, 11, 12, 13, 14, 15], $numericAffinity()['numeric_type_b']);
+};
+
+foreach (SQLiteRealUpstreamBTreeIndexDynamicCorpus::numericAffinityIndexScenario()['rows'] as $ordinal => $row) {
+    $tests['real upstream corpus index-12/index-15 numeric affinity row ' . str_pad((string) ($ordinal + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($numericAffinity, $ordinal, $row): void {
+        $actual = $numericAffinity()['rows'][$ordinal];
+        $t->same($row['literal'], $actual['literal']);
+        $t->same($row['b'], $actual['b']);
+        $t->same($row['stored'], $actual['stored']);
+        $t->same($row['stored_type'], $actual['stored_type']);
+        $t->true(in_array($actual['stored_type'], ['integer', 'real', 'text'], true));
+    };
+}
+
+$index15Order = SQLiteRealUpstreamBTreeIndexDynamicCorpus::numericAffinityIndexScenario()['order_by_a_b'];
+foreach ($index15Order as $leftPosition => $leftB) {
+    for ($rightPosition = $leftPosition + 1; $rightPosition < count($index15Order); $rightPosition++) {
+        $rightB = $index15Order[$rightPosition];
+        $tests["real upstream corpus index-15 numeric index order pair {$leftB} before {$rightB}"] = static function (TestRunner $t) use ($numericAffinity, $leftPosition, $rightPosition, $leftB, $rightB): void {
+            $order = $numericAffinity()['order_by_a_b'];
+            $t->same($leftB, $order[$leftPosition]);
+            $t->same($rightB, $order[$rightPosition]);
+            $t->true($leftPosition < $rightPosition);
+            $t->same($leftPosition, array_search($leftB, $order, true));
+            $t->same($rightPosition, array_search($rightB, $order, true));
+        };
+    }
+}
+
+$index15NumericSet = SQLiteRealUpstreamBTreeIndexDynamicCorpus::numericAffinityIndexScenario()['numeric_type_b'];
+foreach (range(1, 15) as $bValue) {
+    $tests["real upstream corpus index-15 numeric typeof membership b {$bValue}"] = static function (TestRunner $t) use ($numericAffinity, $index15NumericSet, $bValue): void {
+        $scenario = $numericAffinity();
+        $row = array_values(array_filter($scenario['index15_rows'], static fn (array $candidate): bool => $candidate['b'] === $bValue))[0];
+        $expectedMember = in_array($bValue, $index15NumericSet, true);
+        $t->same($expectedMember, in_array($bValue, $scenario['numeric_type_b'], true));
+        $t->same($expectedMember, $row['stored_type'] === 'integer' || $row['stored_type'] === 'real');
+        $t->same($bValue, $row['b']);
+        $t->same($expectedMember ? false : true, $row['stored_type'] === 'text');
+    };
+}
+
+foreach (SQLiteRealUpstreamBTreeIndexDynamicCorpus::autoindexCatalogConstraintCases() as $case) {
+    $tests['real upstream corpus index.test autoindex catalog ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->true(str_starts_with($case['upstream'], 'index-'));
+        $t->true(str_contains($case['ddl'], 'CREATE TABLE'));
+        $t->same($case['index_count'], count($case['index_names']));
+        $t->same($case['index_names'], array_values($case['index_names']));
+        $t->true($case['index_count'] >= 1);
+        foreach ($case['index_names'] as $position => $name) {
+            $t->same(true, str_starts_with($name, 'sqlite_autoindex_'));
+            $t->same((string) ($position + 1), substr($name, strrpos($name, '_') + 1));
+        }
+    };
+}
+
+foreach (SQLiteRealUpstreamBTreeIndexDynamicCorpus::autoindexCatalogConstraintCases() as $case) {
+    $tests['real upstream corpus index.test autoindex drop guard ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        if ($case['drop_autoindex_error'] === null) {
+            $t->same(null, $case['drop_autoindex_error']);
+            $t->true($case['index_count'] <= 2);
+            return;
+        }
+
+        $t->same('index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped', $case['drop_autoindex_error']);
+        $t->true(in_array($case['upstream'], ['index-13.1/index-13.3', 'index-17.1/index-17.3'], true));
+    };
+}
+
+foreach (SQLiteRealUpstreamBTreeIndexDynamicCorpus::autoindexCatalogConstraintCases() as $case) {
+    foreach ($case['index_names'] as $ordinal => $name) {
+        $tests["real upstream corpus index.test autoindex name {$case['upstream']} #{$ordinal}"] = static function (TestRunner $t) use ($case, $ordinal, $name): void {
+            $t->same($name, $case['index_names'][$ordinal]);
+            $t->same('sqlite_autoindex_', substr($name, 0, 17));
+            $t->same((string) ($ordinal + 1), substr($name, strrpos($name, '_') + 1));
+            $t->true(str_contains($case['ddl'], 'PRIMARY KEY') || str_contains($case['ddl'], 'UNIQUE'));
+            $t->true($ordinal < $case['index_count']);
+        };
+    }
+}
+
+foreach (SQLiteRealUpstreamBTreeIndexDynamicCorpus::reservedSqliteObjectNameCases() as $case) {
+    $tests['real upstream corpus index.test reserved sqlite object name ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->true(str_starts_with($case['upstream'], 'index-18.'));
+        $t->true(str_starts_with($case['object_name'], 'sqlite_'));
+        $t->true(str_contains($case['sql'], $case['object_name']));
+        $t->true(in_array($case['object_type'], ['table', 'index', 'view', 'trigger'], true));
+        $t->same('object name reserved for internal use: ' . $case['object_name'], $case['error']);
+    };
+}
+
 return $tests;

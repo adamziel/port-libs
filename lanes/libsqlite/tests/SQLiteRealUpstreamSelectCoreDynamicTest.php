@@ -217,9 +217,13 @@ $select3Cases = [
     'select3.test select3-2.3.1 grouped average rows' => ['SELECT log, avg(n) FROM t1 GROUP BY log ORDER BY log', [0, 1.0, 1, 2.0, 2, 3.5, 3, 6.5, 4, 12.5, 5, 24.0]],
     'select3.test select3-2.3.2 grouped average expression rows' => ['SELECT log, avg(n)+1 FROM t1 GROUP BY log ORDER BY log', [0, 2.0, 1, 3.0, 2, 4.5, 3, 7.5, 4, 13.5, 5, 25.0]],
     'select3.test select3-2.4 grouped average minus min rows' => ['SELECT log, avg(n)-min(n) FROM t1 GROUP BY log ORDER BY log', [0, 0.0, 1, 0.0, 2, 0.5, 3, 1.5, 4, 3.5, 5, 7.0]],
+    'select3.test select3-2.5 grouped computed key projection' => ['SELECT log*2+1, avg(n)-min(n) FROM t1 GROUP BY log ORDER BY log', [1, 0.0, 3, 0.0, 5, 0.5, 7, 1.5, 9, 3.5, 11, 7.0]],
+    'select3.test select3-2.6 grouped by computed alias' => ['SELECT log*2+1 as x, count(*) FROM t1 GROUP BY x ORDER BY x', [1, 1, 3, 1, 5, 2, 7, 4, 9, 8, 11, 15]],
+    'select3.test select3-2.7 grouped computed aliases ordered by count then key' => ['SELECT log*2+1 AS x, count(*) AS y FROM t1 GROUP BY x ORDER BY y, x', [1, 1, 3, 1, 5, 2, 7, 4, 9, 8, 11, 15]],
     'select3.test select3-4.1 grouped having column predicate' => ['SELECT log, count(*) FROM t1 GROUP BY log HAVING log>=4 ORDER BY log', [4, 8, 5, 15]],
     'select3.test select3-4.2 grouped having count predicate' => ['SELECT log, count(*) FROM t1 GROUP BY log HAVING count(*)>=4 ORDER BY log', [3, 4, 4, 8, 5, 15]],
     'select3.test select3-4.3 grouped having count with aggregate order' => ['SELECT log, count(*) FROM t1 GROUP BY log HAVING count(*)>=4 ORDER BY max(n)+0', [3, 4, 4, 8, 5, 15]],
+    'select3.test select3-4.5 grouped alias projection having aggregate' => ['SELECT log AS x FROM t1 GROUP BY x HAVING count(*)>=4 ORDER BY max(n)+0', [3, 4, 5]],
     'select3.test select3-6.1 grouped min order ascending' => ['SELECT log, min(n) FROM t1 GROUP BY log ORDER BY log', [0, 1, 1, 2, 2, 3, 3, 5, 4, 9, 5, 17]],
     'select3.test select3-6.2 grouped min order descending' => ['SELECT log, min(n) FROM t1 GROUP BY log ORDER BY log DESC', [5, 17, 4, 9, 3, 5, 2, 3, 1, 2, 0, 1]],
     'select3.test select3-6.3 grouped min order by first column' => ['SELECT log, min(n) FROM t1 GROUP BY log ORDER BY 1', [0, 1, 1, 2, 2, 3, 3, 5, 4, 9, 5, 17]],
@@ -259,6 +263,49 @@ foreach ([4, 8, 16, 31] as $limit) {
 
     $select3Cases["select3.test select3-1.0 dynamic first {$limit} ordered rows"] = [
         "SELECT n, log FROM t1 WHERE n<={$limit} ORDER BY n",
+        $expected,
+    ];
+}
+
+$select3Cases['select3.test select3-6.5 indexed grouped min order ascending'] = ['SELECT log, min(n) FROM t1 GROUP BY log ORDER BY log', [0, 1, 1, 2, 2, 3, 3, 5, 4, 9, 5, 17]];
+$select3Cases['select3.test select3-6.6 indexed grouped min order descending'] = ['SELECT log, min(n) FROM t1 GROUP BY log ORDER BY log DESC', [5, 17, 4, 9, 3, 5, 2, 3, 1, 2, 0, 1]];
+$select3Cases['select3.test select3-6.7 indexed grouped min order by first column'] = ['SELECT log, min(n) FROM t1 GROUP BY log ORDER BY 1', [0, 1, 1, 2, 2, 3, 3, 5, 4, 9, 5, 17]];
+$select3Cases['select3.test select3-6.8 indexed grouped min order by first column descending'] = ['SELECT log, min(n) FROM t1 GROUP BY log ORDER BY 1 DESC', [5, 17, 4, 9, 3, 5, 2, 3, 1, 2, 0, 1]];
+
+foreach ([0, 1, 2, 3] as $shift) {
+    $groupRows = [];
+    foreach ($select3Tables()['t1'] as $row) {
+        $key = ($row['log'] * 2) + 1 + $shift;
+        $groupRows[$key] = ($groupRows[$key] ?? 0) + 1;
+    }
+    ksort($groupRows);
+
+    $expected = [];
+    foreach ($groupRows as $key => $count) {
+        $expected[] = $key;
+        $expected[] = $count;
+    }
+
+    $select3Cases["select3.test select3-2.6 dynamic grouped computed alias shift {$shift}"] = [
+        "SELECT log*2+1+{$shift} AS x, count(*) FROM t1 GROUP BY x ORDER BY x",
+        $expected,
+    ];
+}
+
+foreach ([2, 4, 8, 16] as $minimumCount) {
+    $expected = [];
+    $groups = [];
+    foreach ($select3Tables()['t1'] as $row) {
+        $groups[$row['log']] = ($groups[$row['log']] ?? 0) + 1;
+    }
+    foreach ($groups as $log => $count) {
+        if ($count >= $minimumCount) {
+            $expected[] = $log;
+        }
+    }
+
+    $select3Cases["select3.test select3-4.5 dynamic grouped alias having count {$minimumCount}"] = [
+        "SELECT log AS x FROM t1 GROUP BY x HAVING count(*)>={$minimumCount} ORDER BY max(n)+0",
         $expected,
     ];
 }

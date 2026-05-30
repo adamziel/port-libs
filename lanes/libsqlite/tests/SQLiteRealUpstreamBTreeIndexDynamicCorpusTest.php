@@ -170,4 +170,68 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::btree01OverflowJoinCases() as $case)
     };
 }
 
+// Source truth: SQLite upstream test/index2.test index2-1.1 through 2.2.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index2LargeColumnIndexCases() as $case) {
+    $tests['real upstream index2 large column index ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->same(1000, $case['table_columns']);
+        $t->true($case['scenario'] !== '');
+        $t->true($case['row_count'] >= 0);
+        $t->true($case['indexed_columns'] === 0 || $case['indexed_columns'] === 1000);
+        $t->true($case['ordered_columns'] >= 0);
+        $t->true($case['limit'] >= 0);
+        if ($case['upstream'] === 'index2-1.3') {
+            $t->same('c123', $case['result_column']);
+            $t->same([123], $case['result_values']);
+        }
+        if ($case['upstream'] === 'index2-1.4') {
+            $t->same(101, $case['row_count']);
+        }
+        if ($case['upstream'] === 'index2-1.5') {
+            $t->same('c1000', $case['sum_column']);
+            $t->same(50601000.0, $case['rounded_sum']);
+        }
+        if ($case['upstream'] === 'index2-2.2') {
+            $t->same('c9', $case['result_column']);
+            $t->same([9, 10009, 20009, 30009, 40009], $case['result_values']);
+            $t->same(6, $case['ordered_columns']);
+            $t->same(5, $case['limit']);
+        }
+    };
+}
+
+// Source truth: SQLite upstream test/index6.test index6-12.1 through 19.2.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index6PartialIndexRegressionCases() as $case) {
+    $tests['real upstream index6 partial index regression ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->true($case['scenario'] !== '');
+        $t->true($case['detail'] !== '');
+        $t->same('ok', $case['integrity']);
+        $t->true(array_values($case['result_rows']) === $case['result_rows']);
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_values($row) === $row);
+        }
+        if ($case['upstream'] === 'index6-12.2') {
+            $t->same([[1], [2]], $case['result_rows']);
+        }
+        if ($case['upstream'] === 'index6-13.1') {
+            $t->same([[null]], $case['result_rows']);
+            $t->same(false, $case['uses_partial_index']);
+        }
+        if ($case['upstream'] === 'index6-16.1') {
+            $t->same([[1, 0]], $case['result_rows']);
+        }
+        if ($case['upstream'] === 'index6-16.2') {
+            $t->same([], $case['result_rows']);
+            $t->same(true, $case['uses_partial_index']);
+        }
+        if ($case['upstream'] === 'index6-17.1') {
+            $t->same([['ok']], $case['result_rows']);
+        }
+        if ($case['upstream'] === 'index6-19.2') {
+            $t->same([], $case['result_rows']);
+            $t->same(false, $case['uses_partial_index']);
+        }
+        $t->true(str_starts_with($case['upstream'], 'index6-'));
+    };
+}
+
 return $tests;

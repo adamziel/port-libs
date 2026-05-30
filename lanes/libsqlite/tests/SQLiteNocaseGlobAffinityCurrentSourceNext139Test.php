@@ -8,33 +8,33 @@ use PortLibs\LibSqlite\SQLiteNocaseGlobAffinityCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_alpha', 'option_value' => 'a'],
-    ['option_id' => 2, 'option_name' => 'Plugin_Beta', 'option_value' => 'b'],
-    ['option_id' => 3, 'option_name' => 'plugin_beta', 'option_value' => 'c'],
-    ['option_id' => 4, 'option_name' => 'plugin-cache', 'option_value' => 'd'],
-    ['option_id' => 5, 'option_name' => 'theme_alpha', 'option_value' => 'e'],
-    ['option_id' => 6, 'option_name' => 'plugin_éclair', 'option_value' => 'f'],
-    ['option_id' => 7, 'option_name' => 'plugin_😀', 'option_value' => 'g'],
-    ['option_id' => 8, 'option_name' => 'plugin_42', 'option_value' => 'h'],
-    ['option_id' => 9, 'option_name' => 42, 'option_value' => 'i'],
-    ['option_id' => 10, 'option_name' => true, 'option_value' => 'j'],
-    ['option_id' => 11, 'option_name' => 'Plugin_Zed', 'option_value' => 'k'],
-    ['option_id' => 12, 'option_name' => 'plugin_zed', 'option_value' => 'l'],
+    ['setting_id' => 1, 'key_name' => 'plugin_alpha', 'key_value' => 'a'],
+    ['setting_id' => 2, 'key_name' => 'Plugin_Beta', 'key_value' => 'b'],
+    ['setting_id' => 3, 'key_name' => 'plugin_beta', 'key_value' => 'c'],
+    ['setting_id' => 4, 'key_name' => 'plugin-cache', 'key_value' => 'd'],
+    ['setting_id' => 5, 'key_name' => 'theme_alpha', 'key_value' => 'e'],
+    ['setting_id' => 6, 'key_name' => 'plugin_éclair', 'key_value' => 'f'],
+    ['setting_id' => 7, 'key_name' => 'plugin_😀', 'key_value' => 'g'],
+    ['setting_id' => 8, 'key_name' => 'plugin_42', 'key_value' => 'h'],
+    ['setting_id' => 9, 'key_name' => 42, 'key_value' => 'i'],
+    ['setting_id' => 10, 'key_name' => true, 'key_value' => 'j'],
+    ['setting_id' => 11, 'key_name' => 'Plugin_Zed', 'key_value' => 'k'],
+    ['setting_id' => 12, 'key_name' => 'plugin_zed', 'key_value' => 'l'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_alpha', 'option_value' => 'a'],
-    ['option_id' => 2, 'option_name' => 'plugin_Beta', 'option_value' => 'b'],
-    ['option_id' => 3, 'option_name' => 'plugin_beta2', 'option_value' => 'c'],
-    ['option_id' => 4, 'option_name' => 'plugin-cache', 'option_value' => 'd'],
-    ['option_id' => 5, 'option_name' => 'theme_alpha', 'option_value' => 'e'],
-    ['option_id' => 6, 'option_name' => 'plugin_éclair', 'option_value' => 'f'],
-    ['option_id' => 7, 'option_name' => 'plugin_😀', 'option_value' => 'g'],
-    ['option_id' => 8, 'option_name' => 'plugin_43', 'option_value' => 'h'],
-    ['option_id' => 9, 'option_name' => '42', 'option_value' => 'i'],
-    ['option_id' => 10, 'option_name' => false, 'option_value' => 'j'],
-    ['option_id' => 11, 'option_name' => 'Plugin_Zed', 'option_value' => 'k'],
-    ['option_id' => 13, 'option_name' => 'plugin_fresh', 'option_value' => 'm'],
+    ['setting_id' => 1, 'key_name' => 'plugin_alpha', 'key_value' => 'a'],
+    ['setting_id' => 2, 'key_name' => 'plugin_Beta', 'key_value' => 'b'],
+    ['setting_id' => 3, 'key_name' => 'plugin_beta2', 'key_value' => 'c'],
+    ['setting_id' => 4, 'key_name' => 'plugin-cache', 'key_value' => 'd'],
+    ['setting_id' => 5, 'key_name' => 'theme_alpha', 'key_value' => 'e'],
+    ['setting_id' => 6, 'key_name' => 'plugin_éclair', 'key_value' => 'f'],
+    ['setting_id' => 7, 'key_name' => 'plugin_😀', 'key_value' => 'g'],
+    ['setting_id' => 8, 'key_name' => 'plugin_43', 'key_value' => 'h'],
+    ['setting_id' => 9, 'key_name' => '42', 'key_value' => 'i'],
+    ['setting_id' => 10, 'key_name' => false, 'key_value' => 'j'],
+    ['setting_id' => 11, 'key_name' => 'Plugin_Zed', 'key_value' => 'k'],
+    ['setting_id' => 13, 'key_name' => 'plugin_fresh', 'key_value' => 'm'],
 ];
 
 $plan = static fn (
@@ -139,8 +139,8 @@ foreach ($cases as $name => [$pattern, $affinity, $collation, $path, $expected])
 
 $tests['nocase glob affinity current source next139 stable binary source reusable'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 'plugin_alpha'],
-        ['option_id' => 2, 'option_name' => 'plugin_beta'],
+        ['setting_id' => 1, 'key_name' => 'plugin_alpha'],
+        ['setting_id' => 2, 'key_name' => 'plugin_beta'],
     ];
     $plan = SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan($rows, $rows, 'plugin_*', 'TEXT', 'BINARY', 'stable', 'stable', 9, 9);
     $t->same([1, 2], $plan['currentRowids']);
@@ -150,8 +150,8 @@ $tests['nocase glob affinity current source next139 stable binary source reusabl
 
 $tests['nocase glob affinity current source next139 stable nocase still records range rejection'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_name' => 'plugin_alpha'],
-        ['option_id' => 2, 'option_name' => 'Plugin_Beta'],
+        ['setting_id' => 1, 'key_name' => 'plugin_alpha'],
+        ['setting_id' => 2, 'key_name' => 'Plugin_Beta'],
     ];
     $plan = SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan($rows, $rows, 'plugin_*', 'TEXT', 'NOCASE', 'stable', 'stable', 9, 9);
     $t->same([1], $plan['currentRowids']);
@@ -164,23 +164,23 @@ $tests['nocase glob affinity current source next139 rejects unsupported collatio
 };
 
 $tests['nocase glob affinity current source next139 rejects missing option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1]], [], 'plugin_*'));
 };
 
 $tests['nocase glob affinity current source next139 rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => '1', 'option_name' => 'plugin_alpha']], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => '1', 'key_name' => 'plugin_alpha']], [], 'plugin_*'));
 };
 
 $tests['nocase glob affinity current source next139 rejects blob option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name' => new SQLiteBlobValue('plugin_alpha')]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name' => new SQLiteBlobValue('plugin_alpha')]], [], 'plugin_*'));
 };
 
 $tests['nocase glob affinity current source next139 rejects null option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name' => null]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name' => null]], [], 'plugin_*'));
 };
 
 $tests['nocase glob affinity current source next139 rejects malformed utf8'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name' => "plugin_\xc3"]], [], 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name' => "plugin_\xc3"]], [], 'plugin_*'));
 };
 
 return $tests;

@@ -144,14 +144,14 @@ final class SQLiteNocaseGlobAffinityCurrentSourceNextPlan
     {
         $trace = [];
         foreach ($rows as $index => $row) {
-            if (!is_array($row) || !array_key_exists('option_name', $row)) {
-                throw new \InvalidArgumentException('SQLite NOCASE GLOB current-source row is missing option_name');
+            if (!is_array($row) || !array_key_exists('key_name', $row)) {
+                throw new \InvalidArgumentException('SQLite NOCASE GLOB current-source row is missing key_name');
             }
-            $rowid = $row['option_id'] ?? ($index + 1);
+            $rowid = $row['setting_id'] ?? ($index + 1);
             if (!is_int($rowid)) {
-                throw new \InvalidArgumentException('SQLite NOCASE GLOB current-source option_id must be an integer when present');
+                throw new \InvalidArgumentException('SQLite NOCASE GLOB current-source setting_id must be an integer when present');
             }
-            $text = self::coerceText($row['option_name'], $affinity);
+            $text = self::coerceText($row['key_name'], $affinity);
             $candidate = $rangeUsable
                 ? self::inRange($text, $range, $collation)
                 : true;
@@ -159,7 +159,7 @@ final class SQLiteNocaseGlobAffinityCurrentSourceNextPlan
             $trace[] = [
                 'rowid' => $rowid,
                 'text' => $text,
-                'storage' => SQLiteAffinityComparison::storageClass($row['option_name']),
+                'storage' => SQLiteAffinityComparison::storageClass($row['key_name']),
                 'bytesHex' => strtoupper(bin2hex($text)),
                 'candidate' => $candidate,
                 'matched' => $matched,
@@ -200,7 +200,7 @@ final class SQLiteNocaseGlobAffinityCurrentSourceNextPlan
             return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
         }
 
-        throw new \InvalidArgumentException('SQLite NOCASE GLOB current-source requires scalar option_name values');
+        throw new \InvalidArgumentException('SQLite NOCASE GLOB current-source requires scalar key_name values');
     }
 
     /**

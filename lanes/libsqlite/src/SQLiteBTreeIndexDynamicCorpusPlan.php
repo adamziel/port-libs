@@ -473,6 +473,230 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,scenario:string,table_columns:int,row_count:int,indexed_columns:int,ordered_columns:int,limit:int,result_column:string,result_values:list<int>,sum_column:string,rounded_sum:float}>
+     */
+    public static function index2LargeColumnIndexCases(): array
+    {
+        $baseRow = [];
+        for ($column = 1; $column <= 1000; $column++) {
+            $baseRow['c' . $column] = $column;
+        }
+
+        $rows = [$baseRow];
+        for ($j = 1; $j <= 100; $j++) {
+            $row = [];
+            for ($column = 1; $column <= 1000; $column++) {
+                $row['c' . $column] = ($j * 10000) + $column;
+            }
+            $rows[] = $row;
+        }
+
+        $firstFive = array_slice($rows, 0, 5);
+
+        return [
+            [
+                'upstream' => 'index2-1.1',
+                'scenario' => 'creates a table with one thousand columns',
+                'table_columns' => 1000,
+                'row_count' => 0,
+                'indexed_columns' => 0,
+                'ordered_columns' => 0,
+                'limit' => 0,
+                'result_column' => '',
+                'result_values' => [],
+                'sum_column' => '',
+                'rounded_sum' => 0.0,
+            ],
+            [
+                'upstream' => 'index2-1.3',
+                'scenario' => 'projects a high-numbered column from the wide row',
+                'table_columns' => 1000,
+                'row_count' => 1,
+                'indexed_columns' => 0,
+                'ordered_columns' => 0,
+                'limit' => 1,
+                'result_column' => 'c123',
+                'result_values' => [$baseRow['c123']],
+                'sum_column' => '',
+                'rounded_sum' => 0.0,
+            ],
+            [
+                'upstream' => 'index2-1.4',
+                'scenario' => 'bulk inserts one hundred additional wide rows in a transaction',
+                'table_columns' => 1000,
+                'row_count' => count($rows),
+                'indexed_columns' => 0,
+                'ordered_columns' => 0,
+                'limit' => 0,
+                'result_column' => '',
+                'result_values' => [],
+                'sum_column' => '',
+                'rounded_sum' => 0.0,
+            ],
+            [
+                'upstream' => 'index2-1.5',
+                'scenario' => 'sums the final column across all wide rows after bulk insert',
+                'table_columns' => 1000,
+                'row_count' => count($rows),
+                'indexed_columns' => 0,
+                'ordered_columns' => 0,
+                'limit' => 0,
+                'result_column' => '',
+                'result_values' => [],
+                'sum_column' => 'c1000',
+                'rounded_sum' => round(array_sum(array_column($rows, 'c1000'))),
+            ],
+            [
+                'upstream' => 'index2-2.1',
+                'scenario' => 'creates an index spanning all one thousand columns',
+                'table_columns' => 1000,
+                'row_count' => count($rows),
+                'indexed_columns' => 1000,
+                'ordered_columns' => 0,
+                'limit' => 0,
+                'result_column' => '',
+                'result_values' => [],
+                'sum_column' => '',
+                'rounded_sum' => 0.0,
+            ],
+            [
+                'upstream' => 'index2-2.2',
+                'scenario' => 'uses the wide index ordering prefix to return c9 from the first five rows',
+                'table_columns' => 1000,
+                'row_count' => count($rows),
+                'indexed_columns' => 1000,
+                'ordered_columns' => 6,
+                'limit' => 5,
+                'result_column' => 'c9',
+                'result_values' => array_map(static fn (array $row): int => $row['c9'], $firstFive),
+                'sum_column' => '',
+                'rounded_sum' => 0.0,
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array{upstream:string,scenario:string,result_rows:list<array<int,mixed>>,uses_partial_index:bool,integrity:string,detail:string}>
+     */
+    public static function index6PartialIndexRegressionCases(): array
+    {
+        return [
+            [
+                'upstream' => 'index6-12.1',
+                'scenario' => 'NOT IN result remains empty after adding a partial index on the subquery source',
+                'result_rows' => [],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT from t2 WHERE x NOT IN (SELECT a FROM t1)',
+            ],
+            [
+                'upstream' => 'index6-12.2',
+                'scenario' => 'IN subquery still returns both matching rows with the partial index present',
+                'result_rows' => [[1], [2]],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT x FROM t2 WHERE x IN (SELECT a FROM t1) ORDER BY +x',
+            ],
+            [
+                'upstream' => 'index6-13.1',
+                'scenario' => 'partial index theorem prover does not discard NULL row when OR TRUE keeps it visible',
+                'result_rows' => [[null]],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT * FROM t0 WHERE c0 OR 1',
+            ],
+            [
+                'upstream' => 'index6-14.1',
+                'scenario' => 'IS NOT comparison preserves NULL row outside a c0-not-null partial index',
+                'result_rows' => [[null, 'row']],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT * FROM t0 WHERE t0.c0 IS NOT 1',
+            ],
+            [
+                'upstream' => 'index6-14.2',
+                'scenario' => 'CASE truthiness preserves NULL row outside a c0-not-null partial index',
+                'result_rows' => [[null, 'row']],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT * FROM t0 WHERE CASE c0 WHEN 0 THEN 0 ELSE 1 END',
+            ],
+            [
+                'upstream' => 'index6-15.1',
+                'scenario' => 'IS FALSE wrapped in IS FALSE does not imply the partial c0-not-null predicate',
+                'result_rows' => [[1]],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT 1 FROM t0 WHERE (t0.c0 IS FALSE) IS FALSE',
+            ],
+            [
+                'upstream' => 'index6-15.5',
+                'scenario' => 'IN over an IS FALSE expression keeps the NULL row visible',
+                'result_rows' => [[1]],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT 1 FROM t0 WHERE (c0 IS FALSE) IN (FALSE)',
+            ],
+            [
+                'upstream' => 'index6-16.1',
+                'scenario' => 'NOCASE collation makes c1 <= c0 true while c0 >= c1 remains false',
+                'result_rows' => [[1, 0]],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT c1 <= c0, c0 >= c1 FROM t0',
+            ],
+            [
+                'upstream' => 'index6-16.2',
+                'scenario' => 'collation-sensitive partial predicate c0 >= c1 excludes the row',
+                'result_rows' => [],
+                'uses_partial_index' => true,
+                'integrity' => 'ok',
+                'detail' => 'SELECT 2 FROM t0 WHERE c0 >= c1',
+            ],
+            [
+                'upstream' => 'index6-16.3',
+                'scenario' => 'commuted comparison c1 <= c0 returns the row under NOCASE collation',
+                'result_rows' => [[3]],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT 3 FROM t0 WHERE c1 <= c0',
+            ],
+            [
+                'upstream' => 'index6-17.1',
+                'scenario' => 'constant unique index coexists with a partial GLOB index after insert',
+                'result_rows' => [['ok']],
+                'uses_partial_index' => true,
+                'integrity' => 'ok',
+                'detail' => 'PRAGMA integrity_check after partial GLOB and UNIQUE indexes',
+            ],
+            [
+                'upstream' => 'index6-17.3',
+                'scenario' => 'partial GLOB index predicate finds the replacement row',
+                'result_rows' => [[1]],
+                'uses_partial_index' => true,
+                'integrity' => 'ok',
+                'detail' => 'SELECT COUNT(*) FROM t0 WHERE t0.c0 GLOB t0.c0',
+            ],
+            [
+                'upstream' => 'index6-18.1',
+                'scenario' => 'partial unique index with a>NULL does not hide IS NOT NULL table rows',
+                'result_rows' => [[10, 10]],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT * FROM t1 WHERE a IS NOT NULL',
+            ],
+            [
+                'upstream' => 'index6-19.2',
+                'scenario' => 'RIGHT JOIN no-match loop does not scan a left-table partial index and emit extras',
+                'result_rows' => [],
+                'uses_partial_index' => false,
+                'integrity' => 'ok',
+                'detail' => 'SELECT * FROM t2 RIGHT JOIN t3 ON d<>0 LEFT JOIN t1 ON c=3 WHERE t1.a<>0',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

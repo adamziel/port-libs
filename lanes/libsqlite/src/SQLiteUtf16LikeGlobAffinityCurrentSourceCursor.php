@@ -163,12 +163,12 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceCursor
         $entries = [];
         foreach ($rows as $index => $row) {
             if (!array_key_exists($column, $row)) {
-                throw new \InvalidArgumentException("SQLite UTF-16 Application option scan row is missing {$column}");
+                throw new \InvalidArgumentException("SQLite UTF-16 application setting scan row is missing {$column}");
             }
             $entries[] = [
                 'key' => $row[$column],
                 'textEncoding' => $textEncoding,
-                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'rowid' => is_int($row['setting_id'] ?? null) ? $row['setting_id'] : $index + 1,
                 'payload' => $row,
             ];
         }

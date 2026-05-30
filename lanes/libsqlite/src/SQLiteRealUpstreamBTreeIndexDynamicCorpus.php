@@ -268,6 +268,192 @@ final class SQLiteRealUpstreamBTreeIndexDynamicCorpus
     }
 
     /**
+     * @return array{
+     *   source:string,
+     *   index12_rows:list<array{literal:string,stored:mixed,stored_type:string,b:int}>,
+     *   index15_rows:list<array{literal:string,stored:mixed,stored_type:string,b:int}>,
+     *   rows:list<array{literal:string,stored:mixed,stored_type:string,b:int,upstream:string}>,
+     *   order_by_a_b:list<int>,
+     *   numeric_type_b:list<int>,
+     *   equality_zero_b:list<int>,
+     *   less_than_half_b:list<int>,
+     *   greater_than_negative_half_b:list<int>,
+     *   indexed_equality_zero_b:list<int>,
+     *   indexed_less_than_half_b:list<int>,
+     *   indexed_greater_than_negative_half_b:list<int>
+     * }
+     */
+    public static function numericAffinityIndexScenario(): array
+    {
+        $makeRows = static function (array $input, string $upstream): array {
+            $rows = [];
+            foreach ($input as [$literal, $b]) {
+                $stored = self::applyNumericAffinity($literal);
+                $rows[] = [
+                    'literal' => $literal,
+                    'stored' => $stored,
+                    'stored_type' => is_int($stored) ? 'integer' : (is_float($stored) ? 'real' : 'text'),
+                    'b' => $b,
+                    'upstream' => $upstream,
+                ];
+            }
+
+            return $rows;
+        };
+
+        $index12Rows = $makeRows([
+            ['0.0', 1],
+            ['0.00', 2],
+            ['abc', 3],
+            ['-1.0', 4],
+            ['+1.0', 5],
+            ['0', 6],
+            ['00000', 7],
+        ], 'index-12');
+
+        $index15Rows = $makeRows([
+            ['1.234e5', 1],
+            ['12.33e04', 2],
+            ['12.35E4', 3],
+            ['12.34e', 4],
+            ['12.32e+4', 5],
+            ['12.36E+04', 6],
+            ['12.36E+', 7],
+            ['+123.10000E+0003', 8],
+            ['+', 9],
+            ['+12347.E+02', 10],
+            ['+12347E+02', 11],
+            ['+.125E+04', 12],
+            ['-.125E+04', 13],
+            ['.125E+0', 14],
+            ['.125', 15],
+        ], 'index-15');
+
+        $sortRows = $index15Rows;
+        usort($sortRows, static function (array $left, array $right): int {
+            $comparison = SQLiteAffinityComparison::compare($left['stored'], $right['stored'], 'NONE', 'NONE', 'BINARY') ?? 0;
+
+            return $comparison === 0 ? $left['b'] <=> $right['b'] : $comparison;
+        });
+
+        $equalityZero = array_values(array_map(
+            static fn (array $row): int => $row['b'],
+            array_filter($index12Rows, static fn (array $row): bool => (SQLiteAffinityComparison::compare($row['stored'], 0, 'NONE', 'NONE', 'BINARY') ?? 0) === 0),
+        ));
+        sort($equalityZero);
+
+        $lessThanHalf = array_values(array_map(
+            static fn (array $row): int => $row['b'],
+            array_filter($index12Rows, static fn (array $row): bool => (SQLiteAffinityComparison::compare($row['stored'], 0.5, 'NONE', 'NONE', 'BINARY') ?? 0) < 0),
+        ));
+        sort($lessThanHalf);
+
+        $greaterThanNegativeHalf = array_values(array_map(
+            static fn (array $row): int => $row['b'],
+            array_filter($index12Rows, static fn (array $row): bool => (SQLiteAffinityComparison::compare($row['stored'], -0.5, 'NONE', 'NONE', 'BINARY') ?? 0) > 0),
+        ));
+        sort($greaterThanNegativeHalf);
+
+        return [
+            'source' => 'index.test index-12.1 through index-12.8 and index-15.2 through index-15.4',
+            'index12_rows' => $index12Rows,
+            'index15_rows' => $index15Rows,
+            'rows' => array_merge($index12Rows, $index15Rows),
+            'order_by_a_b' => array_map(static fn (array $row): int => $row['b'], $sortRows),
+            'numeric_type_b' => array_values(array_map(
+                static fn (array $row): int => $row['b'],
+                array_filter($index15Rows, static fn (array $row): bool => $row['stored_type'] === 'integer' || $row['stored_type'] === 'real'),
+            )),
+            'equality_zero_b' => $equalityZero,
+            'less_than_half_b' => $lessThanHalf,
+            'greater_than_negative_half_b' => $greaterThanNegativeHalf,
+            'indexed_equality_zero_b' => $equalityZero,
+            'indexed_less_than_half_b' => $lessThanHalf,
+            'indexed_greater_than_negative_half_b' => $greaterThanNegativeHalf,
+        ];
+    }
+
+    /**
+     * @return list<array{upstream:string,ddl:string,index_count:int,index_names:list<string>,drop_autoindex_error:string|null}>
+     */
+    public static function autoindexCatalogConstraintCases(): array
+    {
+        return [
+            [
+                'upstream' => 'index-13.1/index-13.3',
+                'ddl' => 'CREATE TABLE t5(a int UNIQUE, b float PRIMARY KEY, c varchar(10), UNIQUE(a,c))',
+                'index_count' => 3,
+                'index_names' => ['sqlite_autoindex_t5_1', 'sqlite_autoindex_t5_2', 'sqlite_autoindex_t5_3'],
+                'drop_autoindex_error' => 'index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped',
+            ],
+            [
+                'upstream' => 'index-16.1',
+                'ddl' => 'CREATE TABLE t7(c UNIQUE PRIMARY KEY)',
+                'index_count' => 1,
+                'index_names' => ['sqlite_autoindex_t7_1'],
+                'drop_autoindex_error' => null,
+            ],
+            [
+                'upstream' => 'index-16.3',
+                'ddl' => 'CREATE TABLE t7(c PRIMARY KEY, UNIQUE(c))',
+                'index_count' => 1,
+                'index_names' => ['sqlite_autoindex_t7_1'],
+                'drop_autoindex_error' => null,
+            ],
+            [
+                'upstream' => 'index-16.4',
+                'ddl' => 'CREATE TABLE t7(c, d, UNIQUE(c, d), PRIMARY KEY(c, d))',
+                'index_count' => 1,
+                'index_names' => ['sqlite_autoindex_t7_1'],
+                'drop_autoindex_error' => null,
+            ],
+            [
+                'upstream' => 'index-16.5',
+                'ddl' => 'CREATE TABLE t7(c, d, UNIQUE(c), PRIMARY KEY(c, d))',
+                'index_count' => 2,
+                'index_names' => ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2'],
+                'drop_autoindex_error' => null,
+            ],
+            [
+                'upstream' => 'index-17.1/index-17.3',
+                'ddl' => 'CREATE TABLE t7(c, d UNIQUE, UNIQUE(c), PRIMARY KEY(c, d))',
+                'index_count' => 3,
+                'index_names' => ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2', 'sqlite_autoindex_t7_3'],
+                'drop_autoindex_error' => 'index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped',
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array{upstream:string,sql:string,object_name:string,object_type:string,error:string}>
+     */
+    public static function reservedSqliteObjectNameCases(): array
+    {
+        $error = 'object name reserved for internal use';
+
+        return [
+            ['upstream' => 'index-18.1', 'sql' => 'CREATE TABLE sqlite_t1(a, b, c)', 'object_name' => 'sqlite_t1', 'object_type' => 'table', 'error' => $error . ': sqlite_t1'],
+            ['upstream' => 'index-18.2', 'sql' => 'CREATE INDEX sqlite_i1 ON t7(c)', 'object_name' => 'sqlite_i1', 'object_type' => 'index', 'error' => $error . ': sqlite_i1'],
+            ['upstream' => 'index-18.3', 'sql' => 'CREATE VIEW sqlite_v1 AS SELECT * FROM t7', 'object_name' => 'sqlite_v1', 'object_type' => 'view', 'error' => $error . ': sqlite_v1'],
+            ['upstream' => 'index-18.4', 'sql' => 'CREATE TRIGGER sqlite_tr1 BEFORE INSERT ON t7 BEGIN SELECT 1; END', 'object_name' => 'sqlite_tr1', 'object_type' => 'trigger', 'error' => $error . ': sqlite_tr1'],
+        ];
+    }
+
+    private static function applyNumericAffinity(string $literal): int|float|string
+    {
+        if (!preg_match('/^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?$/', $literal)) {
+            return $literal;
+        }
+
+        $value = (float) $literal;
+        if (is_finite($value) && floor($value) === $value && $value >= PHP_INT_MIN && $value <= PHP_INT_MAX) {
+            return (int) $value;
+        }
+
+        return $value;
+    }
+
+    /**
      * @param list<mixed> $left
      * @param list<mixed> $right
      */

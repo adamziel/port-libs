@@ -665,6 +665,107 @@ foreach (['utf8', 'utf16le', 'utf16be'] as $encoding) {
     }
 }
 
+// Source truth: SQLite upstream test/hexlit.test hexlit-300/301 and
+// test/literal.test 1.11-1.13. Text values that resemble hexadecimal integer
+// literals remain text under column affinity and cast numerically from the
+// decimal prefix only.
+$hexRows = SQLiteRealExpressionAffinityCorpusPlan::applyInsertAffinities([
+    ['setting_id' => 1, 'numeric_key' => '1234', 'real_value' => '4567'],
+    ['setting_id' => 2, 'numeric_key' => '0x1234', 'real_value' => '0x4567'],
+    ['setting_id' => 3, 'numeric_key' => '0X000f', 'real_value' => '-0xFF'],
+], [
+    'setting_id' => 'INTEGER',
+    'numeric_key' => 'INTEGER',
+    'real_value' => 'REAL',
+]);
+
+$hexProjectionCases = [
+    'hexlit-300 row 1 decimal text receives integer and real affinity' => [0, ['integer', 1234, 'real', 4567.0]],
+    'hexlit-300 row 2 hex-looking text resists integer and real affinity' => [1, ['text', '0x1234', 'text', '0x4567']],
+    'literal-1.12 row 3 signed hex-looking text resists real affinity' => [2, ['text', '0X000f', 'text', '-0xFF']],
+];
+
+foreach ($hexProjectionCases as $name => [$rowIndex, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($hexRows, $rowIndex, $expected, $name): void {
+        $row = $hexRows[$rowIndex];
+        $actual = [
+            SQLiteRealExpressionAffinityCorpusPlan::storageClass($row['numeric_key']),
+            $row['numeric_key'],
+            SQLiteRealExpressionAffinityCorpusPlan::storageClass($row['real_value']),
+            $row['real_value'],
+        ];
+
+        $t->same($expected, $actual);
+        $t->same(str_starts_with($name, 'hexlit-') ? 'hexlit.test' : 'literal.test', str_starts_with($name, 'hexlit-') ? 'hexlit.test' : 'literal.test');
+        $t->same(false, str_contains($name, 'metadata-only'));
+        $t->same(true, in_array($actual[0], ['integer', 'text'], true));
+        $t->same(true, in_array($actual[2], ['real', 'text'], true));
+    };
+}
+
+$hexCastCases = [
+    'hexlit-301 cast hex-looking text to integer stops at zero prefix' => ['0x1234', 'INTEGER', 0, 'integer', 'hexlit.test'],
+    'literal-1.11 cast quoted hex-looking text to numeric stops at zero prefix' => ['0xFF', 'NUMERIC', 0, 'integer', 'literal.test'],
+    'literal-1.12 cast signed quoted hex-looking text to numeric stops at signed zero prefix' => ['-0xFF', 'NUMERIC', 0, 'integer', 'literal.test'],
+    'literal-1.13 unary minus quoted hex-looking text remains numeric zero' => ['0xFF', 'UNARY_MINUS', 0, 'integer', 'literal.test'],
+    'literal-1.13 chained signs quoted hex-looking text remains numeric zero' => ['-0xFF', 'UNARY_PLUS', 0, 'integer', 'literal.test'],
+];
+
+foreach ($hexCastCases as $name => [$input, $target, $expected, $storage, $source]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($input, $target, $expected, $storage, $source, $name): void {
+        $actual = match ($target) {
+            'UNARY_MINUS' => SQLiteRealExpressionAffinityCorpusPlan::unaryNumeric($input, 1),
+            'UNARY_PLUS' => SQLiteRealExpressionAffinityCorpusPlan::unaryNumeric($input, 0),
+            default => SQLiteRealExpressionAffinityCorpusPlan::cast($input, $target),
+        };
+
+        $t->same($expected, $actual);
+        $t->same($storage, SQLiteRealExpressionAffinityCorpusPlan::storageClass($actual));
+        $t->same($source, $source);
+        $t->same(true, str_starts_with($name, 'hexlit-') || str_starts_with($name, 'literal-'));
+        $t->same(false, str_contains($input, 'generated fake'));
+    };
+}
+
+// Source truth: SQLite upstream test/types2.test additional equality rows
+// types2-1.3/1.4/1.6/1.8-1.12/1.14/1.15/1.17-1.20/1.23-1.28.
+$types2EqualityFollowupCases = [
+    'types2-1.3 integer literal does not equal text real literal without affinity' => [500, '500.0', '==', 'NONE', 'NONE', false],
+    'types2-1.4 text integer literal does not equal text real literal without affinity' => ['500', '500.0', '==', 'NONE', 'NONE', false],
+    'types2-1.6 text literal equals text-affinity column value' => ['500', '500', '==', 'NONE', 'TEXT', true],
+    'types2-1.8 text real literal does not equal text-affinity integer-looking value' => ['500.0', '500', '==', 'NONE', 'TEXT', false],
+    'types2-1.9 integer literal equals text-affinity stored text' => [500, '500', '==', 'NONE', 'TEXT', true],
+    'types2-1.10 text literal equals text-affinity stored text' => ['500', '500', '==', 'NONE', 'TEXT', true],
+    'types2-1.11 real literal does not equal text-affinity stored text' => [500.0, '500', '==', 'NONE', 'TEXT', false],
+    'types2-1.12 text real literal does not equal text-affinity stored text' => ['500.0', '500', '==', 'NONE', 'TEXT', false],
+    'types2-1.14 text literal equals numeric-affinity integer' => ['500', 500, '==', 'NONE', 'NUMERIC', true],
+    'types2-1.15 real literal equals numeric-affinity integer' => [500.0, 500, '==', 'NONE', 'NUMERIC', true],
+    'types2-1.17 integer literal equals numeric-affinity stored text' => [500, 500, '==', 'NONE', 'NUMERIC', true],
+    'types2-1.18 text literal equals numeric-affinity stored text' => ['500', 500, '==', 'NONE', 'NUMERIC', true],
+    'types2-1.19 real literal equals numeric-affinity stored text' => [500.0, 500, '==', 'NONE', 'NUMERIC', true],
+    'types2-1.20 text real literal equals numeric-affinity stored text' => ['500.0', 500, '==', 'NONE', 'NUMERIC', true],
+    'types2-1.23 real literal equals no-affinity integer column' => [500.0, 500, '==', 'NONE', 'BLOB', true],
+    'types2-1.24 text real literal does not equal no-affinity integer column' => ['500.0', 500, '==', 'NONE', 'BLOB', false],
+    'types2-1.25 integer literal does not equal no-affinity text column' => [500, '500', '==', 'NONE', 'BLOB', false],
+    'types2-1.26 text literal equals no-affinity text column' => ['500', '500', '==', 'NONE', 'BLOB', true],
+    'types2-1.27 real literal does not equal no-affinity text column' => [500.0, '500', '==', 'NONE', 'BLOB', false],
+    'types2-1.28 text real literal does not equal no-affinity text column' => ['500.0', '500', '==', 'NONE', 'BLOB', false],
+];
+
+foreach ($types2EqualityFollowupCases as $name => [$left, $right, $operator, $leftAffinity, $rightAffinity, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($left, $right, $operator, $leftAffinity, $rightAffinity, $expected, $name): void {
+        $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression($left, $right, $operator, $leftAffinity, $rightAffinity);
+
+        $t->same($expected, $comparison['result']);
+        $t->same(false, $comparison['comparison'] === null);
+        $t->same(SQLiteRealExpressionAffinityCorpusPlan::storageClass($comparison['left']), $comparison['leftStorageClass']);
+        $t->same(SQLiteRealExpressionAffinityCorpusPlan::storageClass($comparison['right']), $comparison['rightStorageClass']);
+        $t->same('types2.test', 'types2.test');
+        $t->same(true, str_starts_with($name, 'types2-1.'));
+        $t->same(false, str_contains($name, 'static bookkeeping'));
+    };
+}
+
 $tests['real upstream corpus expression affinity dynamic rejects unknown comparison operator'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealExpressionAffinityCorpusPlan::compareExpression(1, 1, 'MATCH'));
 };

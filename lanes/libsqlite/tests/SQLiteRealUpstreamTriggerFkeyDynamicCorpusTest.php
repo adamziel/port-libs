@@ -575,6 +575,98 @@ for ($i = 1; $i <= 52; $i++) {
     };
 }
 
+$replaceConflictCases = [
+    'delete-a2' => [
+        'before' => [['a' => 2, 'b' => 'b', 'count' => 3]],
+        'after' => [['a' => 2, 'b' => 'b', 'count' => 2]],
+        'final' => [['a' => 1, 'b' => 'a'], ['a' => 3, 'b' => 'c']],
+        'direct' => true,
+    ],
+    'insert-replace-rowid' => [
+        'before' => [['a' => 2, 'b' => 'b', 'count' => 3]],
+        'after' => [['a' => 2, 'b' => 'b', 'count' => 2]],
+        'final' => [['a' => 1, 'b' => 'a'], ['a' => 2, 'b' => 'd'], ['a' => 3, 'b' => 'c']],
+        'direct' => false,
+    ],
+    'update-replace-rowid' => [
+        'before' => [['a' => 2, 'b' => 'b', 'count' => 3]],
+        'after' => [['a' => 2, 'b' => 'b', 'count' => 2]],
+        'final' => [['a' => 1, 'b' => 'a'], ['a' => 2, 'b' => 'c']],
+        'direct' => false,
+    ],
+    'insert-replace-unique-b' => [
+        'before' => [['a' => 2, 'b' => 'b', 'count' => 3]],
+        'after' => [['a' => 2, 'b' => 'b', 'count' => 2]],
+        'final' => [['a' => 1, 'b' => 'a'], ['a' => 3, 'b' => 'c'], ['a' => 4, 'b' => 'b']],
+        'direct' => false,
+    ],
+    'update-replace-unique-b' => [
+        'before' => [['a' => 2, 'b' => 'b', 'count' => 3]],
+        'after' => [['a' => 2, 'b' => 'b', 'count' => 2]],
+        'final' => [['a' => 1, 'b' => 'a'], ['a' => 3, 'b' => 'b']],
+        'direct' => false,
+    ],
+    'insert-replace-rowid-and-unique' => [
+        'before' => [['a' => 2, 'b' => 'b', 'count' => 3], ['a' => 3, 'b' => 'c', 'count' => 2]],
+        'after' => [['a' => 2, 'b' => 'b', 'count' => 2], ['a' => 3, 'b' => 'c', 'count' => 1]],
+        'final' => [['a' => 1, 'b' => 'a'], ['a' => 2, 'b' => 'c']],
+        'direct' => false,
+    ],
+    'update-replace-rowid-and-unique' => [
+        'before' => [['a' => 1, 'b' => 'a', 'count' => 3], ['a' => 2, 'b' => 'b', 'count' => 2]],
+        'after' => [['a' => 1, 'b' => 'a', 'count' => 2], ['a' => 2, 'b' => 'b', 'count' => 1]],
+        'final' => [['a' => 1, 'b' => 'b']],
+        'direct' => false,
+    ],
+];
+
+for ($i = 1; $i <= 36; $i++) {
+    foreach ($replaceConflictCases as $operation => $expected) {
+        $before = $i % 2 === 0;
+        $recursive = $i % 3 !== 0;
+        $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::replaceConflictDeleteTrigger($operation, $before, $recursive);
+        $expectedTriggerRows = ($recursive || $expected['direct']) ? $expected[$before ? 'before' : 'after'] : [];
+        $case = 'triggerC-5 replace conflict delete trigger firing ' . $operation . ' matrix ' . $i;
+
+        foreach ([
+            'source' => 'triggerC.test triggerC-5.1..5.3',
+            'operation' => 'or-replace-delete-trigger-firing',
+            'status' => 'commit-ok',
+            'dml' => $operation,
+            'trigger_timing' => $before ? 'before' : 'after',
+            'recursive_triggers' => $recursive,
+            'direct_delete' => $expected['direct'],
+            'conflict_delete_triggers_fire' => $recursive || $expected['direct'],
+            'trigger_rows' => $expectedTriggerRows,
+            'trigger_row_count' => count($expectedTriggerRows),
+            'final_rows' => $expected['final'],
+            'final_row_count' => count($expected['final']),
+            'dependencies.0' => 'sqlite-triggerC-or-replace-delete-triggers',
+            'dependencies.1' => 'sqlite-recursive-triggers-gate-conflict-delete-triggers',
+            'dependencies.2' => 'sqlite-before-after-delete-trigger-row-counts',
+        ] as $path => $expectedValue) {
+            $tests[$case . ' ' . $path] = static function (TestRunner $t) use ($plan, $path, $expectedValue, $value): void {
+                $t->same($expectedValue, $value($plan(), (string) $path));
+            };
+        }
+
+        $tests[$case . ' before count is one larger than after count when trigger fires'] = static function (TestRunner $t) use ($operation, $recursive, $expected): void {
+            if (!$recursive && !$expected['direct']) {
+                $t->same([], SQLiteDynamicTriggerForeignKeyPlan::replaceConflictDeleteTrigger($operation, true, false)['trigger_rows']);
+                return;
+            }
+            $beforeRows = SQLiteDynamicTriggerForeignKeyPlan::replaceConflictDeleteTrigger($operation, true, $recursive)['trigger_rows'];
+            $afterRows = SQLiteDynamicTriggerForeignKeyPlan::replaceConflictDeleteTrigger($operation, false, $recursive)['trigger_rows'];
+            $t->same(count($beforeRows), count($afterRows));
+            foreach ($beforeRows as $index => $row) {
+                $t->same($row['a'], $afterRows[$index]['a']);
+                $t->same($row['b'], $afterRows[$index]['b']);
+                $t->same($row['count'] - 1, $afterRows[$index]['count']);
+            }
+        };
+    }
+}
+
 $tests['trigger1 schema duplicate trigger records upstream error'] = static function (TestRunner $t): void {
     $plan = SQLiteDynamicTriggerForeignKeyPlan::schemaLifecycle(
         [['name' => 'items', 'object_type' => 'table']],

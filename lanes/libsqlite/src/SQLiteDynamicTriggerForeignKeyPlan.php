@@ -605,6 +605,106 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function replaceConflictDeleteTrigger(string $operation, bool $beforeTrigger, bool $recursiveTriggers): array
+    {
+        $rows = [
+            ['a' => 1, 'b' => 'a'],
+            ['a' => 2, 'b' => 'b'],
+            ['a' => 3, 'b' => 'c'],
+        ];
+        $triggerRows = [];
+        $conflictDeletesFire = $recursiveTriggers;
+        $directDelete = false;
+        $insertRow = null;
+        $updateSelector = null;
+        $updateValues = [];
+
+        switch ($operation) {
+            case 'delete-a2':
+                $directDelete = true;
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['a'] === 2, $beforeTrigger, true, $triggerRows);
+                break;
+
+            case 'insert-replace-rowid':
+                $insertRow = ['a' => 2, 'b' => 'd'];
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['a'] === 2, $beforeTrigger, $conflictDeletesFire, $triggerRows);
+                break;
+
+            case 'update-replace-rowid':
+                $updateSelector = static fn (array $row): bool => $row['a'] === 3;
+                $updateValues = ['a' => 2];
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['a'] === 2, $beforeTrigger, $conflictDeletesFire, $triggerRows);
+                break;
+
+            case 'insert-replace-unique-b':
+                $insertRow = ['a' => 4, 'b' => 'b'];
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['b'] === 'b', $beforeTrigger, $conflictDeletesFire, $triggerRows);
+                break;
+
+            case 'update-replace-unique-b':
+                $updateSelector = static fn (array $row): bool => $row['b'] === 'c';
+                $updateValues = ['b' => 'b'];
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['b'] === 'b', $beforeTrigger, $conflictDeletesFire, $triggerRows);
+                break;
+
+            case 'insert-replace-rowid-and-unique':
+                $insertRow = ['a' => 2, 'b' => 'c'];
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['a'] === 2, $beforeTrigger, $conflictDeletesFire, $triggerRows);
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['b'] === 'c', $beforeTrigger, $conflictDeletesFire, $triggerRows);
+                break;
+
+            case 'update-replace-rowid-and-unique':
+                $updateSelector = static fn (array $row): bool => $row['a'] === 3;
+                $updateValues = ['a' => 1, 'b' => 'b'];
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['a'] === 1, $beforeTrigger, $conflictDeletesFire, $triggerRows);
+                $rows = self::deleteRowsWithTrigger($rows, static fn (array $row): bool => $row['b'] === 'b', $beforeTrigger, $conflictDeletesFire, $triggerRows);
+                break;
+
+            default:
+                throw new \InvalidArgumentException('SQLite dynamic trigger FK replace operation is unsupported');
+        }
+
+        if ($insertRow !== null) {
+            $rows[] = $insertRow;
+        }
+        if ($updateSelector !== null) {
+            foreach ($rows as &$row) {
+                if (!$updateSelector($row)) {
+                    continue;
+                }
+                foreach ($updateValues as $column => $value) {
+                    $row[$column] = $value;
+                }
+            }
+            unset($row);
+        }
+
+        $rows = self::sortPairRows($rows);
+
+        return [
+            'source' => 'triggerC.test triggerC-5.1..5.3',
+            'operation' => 'or-replace-delete-trigger-firing',
+            'status' => 'commit-ok',
+            'dml' => $operation,
+            'trigger_timing' => $beforeTrigger ? 'before' : 'after',
+            'recursive_triggers' => $recursiveTriggers,
+            'direct_delete' => $directDelete,
+            'conflict_delete_triggers_fire' => $directDelete || $recursiveTriggers,
+            'trigger_rows' => $triggerRows,
+            'trigger_row_count' => count($triggerRows),
+            'final_rows' => $rows,
+            'final_row_count' => count($rows),
+            'dependencies' => [
+                'sqlite-triggerC-or-replace-delete-triggers',
+                'sqlite-recursive-triggers-gate-conflict-delete-triggers',
+                'sqlite-before-after-delete-trigger-row-counts',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
@@ -667,6 +767,44 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     private static function sortRows(array $rows): array
     {
         usort($rows, static fn (array $a, array $b): int => ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0)));
+
+        return array_values($rows);
+    }
+
+    /**
+     * @param list<array{a:int,b:string}> $rows
+     * @return list<array{a:int,b:string}>
+     */
+    private static function sortPairRows(array $rows): array
+    {
+        usort($rows, static fn (array $left, array $right): int => $left['a'] <=> $right['a']);
+
+        return array_values($rows);
+    }
+
+    /**
+     * @param list<array{a:int,b:string}> $rows
+     * @param callable(array{a:int,b:string}): bool $predicate
+     * @param list<array{a:int,b:string,count:int}> $triggerRows
+     * @return list<array{a:int,b:string}>
+     */
+    private static function deleteRowsWithTrigger(array $rows, callable $predicate, bool $beforeTrigger, bool $fireTrigger, array &$triggerRows): array
+    {
+        foreach ($rows as $index => $row) {
+            if (!$predicate($row)) {
+                continue;
+            }
+            if ($fireTrigger && $beforeTrigger) {
+                $triggerRows[] = ['a' => $row['a'], 'b' => $row['b'], 'count' => count($rows)];
+            }
+            unset($rows[$index]);
+            $rows = array_values($rows);
+            if ($fireTrigger && !$beforeTrigger) {
+                $triggerRows[] = ['a' => $row['a'], 'b' => $row['b'], 'count' => count($rows)];
+            }
+
+            return $rows;
+        }
 
         return array_values($rows);
     }
