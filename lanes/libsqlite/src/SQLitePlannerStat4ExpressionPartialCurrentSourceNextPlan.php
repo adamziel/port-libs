@@ -34041,59 +34041,116 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function preparedHandoffCursorMetadataForRange(int $first, int $last): array
     {
-        $namedRanges = [
-            "830:845" => [
-                "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffWindow",
-                "mode" => "prepared-handoff-window-stat4-expression-partial-prep",
-            ],
-            "846:861" => [
-                "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffContinuationWindow",
-                "mode" => "prepared-handoff-continuation-window-current-source-stat4-expression-partial-prep",
-            ],
-            "862:877" => [
-                "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffResumeWindow",
-                "mode" => "prepared-handoff-resume-window-current-source-stat4-expression-partial-prep",
-            ],
-            "878:893" => [
-                "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffValidationContinuation",
-                "mode" => "prepared-handoff-validation-continuation-current-source-stat4-expression-partial-prep",
-            ],
-            "894:909" => [
-                "opcode" => "PrepareStat4ExpressionPartialLatePreparedHandoffContinuation",
-                "mode" => "late-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
-            ],
-            "910:925" => [
-                "opcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoffContinuation",
-                "mode" => "final-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
-            ],
-            "926:941" => [
-                "opcode" => "PrepareStat4ExpressionPartialAdvancedPreparedHandoffContinuation",
-                "mode" => "advanced-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
-            ],
-            "942:957" => [
-                "opcode" => "PrepareStat4ExpressionPartialPenultimatePreparedHandoff",
-                "mode" => "penultimate-prepared-handoff-current-source-stat4-expression-partial-prep",
-            ],
-            "958:973" => [
-                "opcode" => "PrepareStat4ExpressionPartialTerminalPreparedHandoff",
-                "mode" => "terminal-prepared-handoff-current-source-stat4-expression-partial-prep",
-            ],
-            "990:1005" => [
-                "opcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoff",
-                "mode" => "final-prepared-handoff-current-source-stat4-expression-partial-prep",
-                "canonicalOpcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoff",
-                "canonicalMode" => "final-prepared-handoff-current-source-stat4-expression-partial-prep",
-            ],
-        ];
-
-        $rangeKey = "{$first}:{$last}";
-        if (isset($namedRanges[$rangeKey])) {
-            return $namedRanges[$rangeKey];
+        foreach (self::preparedHandoffCursorMetadataRanges() as $range) {
+            if ($range["firstSlice"] === $first && $range["lastSlice"] === $last) {
+                return $range["metadata"];
+            }
         }
 
         return [
             "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
             "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
+        ];
+    }
+
+    /**
+     * @return list<array{stage:string,firstSlice:int,lastSlice:int,metadata:array{opcode:string,mode:string,canonicalOpcode?:string,canonicalMode?:string,legacyOpcode?:string,legacyMode?:string}}>
+     */
+    private static function preparedHandoffCursorMetadataRanges(): array
+    {
+        return [
+            [
+                "stage" => "prepared-handoff-window",
+                "firstSlice" => 830,
+                "lastSlice" => 845,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffWindow",
+                    "mode" => "prepared-handoff-window-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "prepared-handoff-continuation-window",
+                "firstSlice" => 846,
+                "lastSlice" => 861,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffContinuationWindow",
+                    "mode" => "prepared-handoff-continuation-window-current-source-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "prepared-handoff-resume-window",
+                "firstSlice" => 862,
+                "lastSlice" => 877,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffResumeWindow",
+                    "mode" => "prepared-handoff-resume-window-current-source-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "prepared-handoff-validation-continuation",
+                "firstSlice" => 878,
+                "lastSlice" => 893,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffValidationContinuation",
+                    "mode" => "prepared-handoff-validation-continuation-current-source-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "late-prepared-handoff-continuation",
+                "firstSlice" => 894,
+                "lastSlice" => 909,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialLatePreparedHandoffContinuation",
+                    "mode" => "late-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "final-prepared-handoff-continuation",
+                "firstSlice" => 910,
+                "lastSlice" => 925,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoffContinuation",
+                    "mode" => "final-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "advanced-prepared-handoff-continuation",
+                "firstSlice" => 926,
+                "lastSlice" => 941,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialAdvancedPreparedHandoffContinuation",
+                    "mode" => "advanced-prepared-handoff-continuation-current-source-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "penultimate-prepared-handoff",
+                "firstSlice" => 942,
+                "lastSlice" => 957,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialPenultimatePreparedHandoff",
+                    "mode" => "penultimate-prepared-handoff-current-source-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "terminal-prepared-handoff",
+                "firstSlice" => 958,
+                "lastSlice" => 973,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialTerminalPreparedHandoff",
+                    "mode" => "terminal-prepared-handoff-current-source-stat4-expression-partial-prep",
+                ],
+            ],
+            [
+                "stage" => "final-prepared-handoff",
+                "firstSlice" => 990,
+                "lastSlice" => 1005,
+                "metadata" => [
+                    "opcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoff",
+                    "mode" => "final-prepared-handoff-current-source-stat4-expression-partial-prep",
+                    "canonicalOpcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoff",
+                    "canonicalMode" => "final-prepared-handoff-current-source-stat4-expression-partial-prep",
+                ],
+            ],
         ];
     }
 

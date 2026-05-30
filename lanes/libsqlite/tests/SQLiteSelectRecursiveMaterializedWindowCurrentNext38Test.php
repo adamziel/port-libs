@@ -265,8 +265,8 @@ $tests['select recursive materialized window current next38 rejects nth zero in 
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute($baseSql . "\nSELECT nth_value(slot, 0) OVER (ORDER BY slot ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS bad FROM import_window", []));
 };
 
-$tests['select recursive materialized window current next38 rejects frame without order for value function'] = static function (TestRunner $t) use ($baseSql): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute($baseSql . "\nSELECT last_value(slot) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS bad FROM import_window", []));
+$tests['select recursive materialized window current next38 accepts rows frame without order for value function'] = static function (TestRunner $t) use ($column): void {
+    $t->same([2, 3, 4, 5, 6, 6], $column('SELECT last_value(slot) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS bad FROM import_window', 'bad'));
 };
 
 return $tests;

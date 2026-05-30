@@ -294,9 +294,7 @@ final class SQLiteSelectQuery
             throw new \InvalidArgumentException("SQLite SELECT query aggregate ORDER BY is not supported for {$function}");
         }
         if ($frame !== null && in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
-            if ($orderBy === []) {
-                throw new \InvalidArgumentException('SQLite SELECT query value window frame needs ORDER BY');
-            }
+            self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
 
             return SQLiteWindowFunction::valueFrameValues(
                 $function,

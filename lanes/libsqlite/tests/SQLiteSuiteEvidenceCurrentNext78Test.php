@@ -131,6 +131,21 @@ return [
             'suite-evidence-current-next78-next77-baseline',
         ], $record['preserved_units']);
     },
+    'current next78 blocks changed preserved test totals' => static function (TestRunner $t): void {
+        $rows = libsqlite_suite_evidence78_rows();
+        $rows[0]['current_countable'] = true;
+        $rows[0]['current_tests'] = 777;
+        $rows[0]['next_tests'] = 788;
+
+        $record = libsqlite_suite_evidence78_record($rows);
+        $evidence = implode('; ', array_column($record['blockers'], 'evidence'));
+
+        $t->same('blocked', $record['status']);
+        $t->same(0, $record['mapped_delta']);
+        $t->same(466, $record['next_mapped']);
+        $t->contains('suite-evidence-preserved-test-count-changed', $evidence);
+        $t->same(['suite-evidence-current-next78-focused-artifact'], $record['blocked_units']);
+    },
     'current next78 blocks stale head and non local artifact' => static function (TestRunner $t): void {
         $rows = libsqlite_suite_evidence78_rows(head: '0000000000000000000000000000000000000000');
         $rows[0]['artifact_path'] = '/tmp/sqlite-suite.log';

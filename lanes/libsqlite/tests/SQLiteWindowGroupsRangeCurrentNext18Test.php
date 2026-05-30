@@ -256,6 +256,38 @@ $tests['upstream corpus window groups range current next18 direct query accepts 
     $t->same([20, 10, 50, 60, 70, 40], array_column($rows, 'window_sum'));
 };
 
+$tests['upstream corpus window groups range current next18 sql value rows frame without order remains valid'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT first_value(bytes) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS first_bytes, last_value(bytes) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS last_bytes FROM app_cache_entries ORDER BY option_id', ['app_cache_entries' => $options]);
+
+    $t->same([10, 10, 20, 30, 30, 40], array_column($rows, 'first_bytes'));
+    $t->same([10, 20, 30, 30, 40, 40], array_column($rows, 'last_bytes'));
+};
+
+$tests['upstream corpus window groups range current next18 direct value rows frame without order remains valid'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectQuery::execute([
+        'from' => $options,
+        'select' => [
+            [
+                'type' => 'window',
+                'function' => 'first_value',
+                'arguments' => [['type' => 'column', 'name' => 'bytes']],
+                'frame' => ['unit' => 'ROWS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+                'alias' => 'first_bytes',
+            ],
+            [
+                'type' => 'window',
+                'function' => 'last_value',
+                'arguments' => [['type' => 'column', 'name' => 'bytes']],
+                'frame' => ['unit' => 'ROWS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+                'alias' => 'last_bytes',
+            ],
+        ],
+    ]);
+
+    $t->same([10, 10, 20, 30, 30, 40], array_column($rows, 'first_bytes'));
+    $t->same([10, 20, 30, 30, 40, 40], array_column($rows, 'last_bytes'));
+};
+
 $tests['upstream corpus window groups range current next18 reports direct frame without order'] = static function (TestRunner $t) use ($options): void {
     try {
         SQLiteSelectQuery::execute([
@@ -342,16 +374,23 @@ $tests['upstream corpus window groups range current next18 rejects value range f
 };
 
 $tests['upstream corpus window groups range current next18 direct query rejects value groups frame without order'] = static function (TestRunner $t) use ($options): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute([
-        'from' => $options,
-        'select' => [[
-            'type' => 'window',
-            'function' => 'last_value',
-            'arguments' => [['type' => 'column', 'name' => 'bytes']],
-            'frame' => ['unit' => 'GROUPS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
-            'alias' => 'last_bytes',
-        ]],
-    ]));
+    try {
+        SQLiteSelectQuery::execute([
+            'from' => $options,
+            'select' => [[
+                'type' => 'window',
+                'function' => 'last_value',
+                'arguments' => [['type' => 'column', 'name' => 'bytes']],
+                'frame' => ['unit' => 'GROUPS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+                'alias' => 'last_bytes',
+            ]],
+        ]);
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite SELECT query RANGE/GROUPS window frame needs ORDER BY', $exception->getMessage());
+        return;
+    }
+
+    throw new RuntimeException('Expected direct value GROUPS frame without ORDER BY to be rejected');
 };
 
 return $tests;

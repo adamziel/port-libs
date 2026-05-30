@@ -19838,6 +19838,9 @@ final class SQLiteUpstreamSuiteEvidence
             if ($currentCountable && !$nextCountable) {
                 $rowBlockers[] = 'suite-evidence-countability-regressed';
             }
+            if ($currentCountable && $nextCountable && $nextTests !== $currentTests) {
+                $rowBlockers[] = 'suite-evidence-preserved-test-count-changed';
+            }
             if ($nextTests < $currentTests) {
                 $rowBlockers[] = 'suite-evidence-test-count-regressed';
             }
