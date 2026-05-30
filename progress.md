@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 23:58 UTC):
+  Latest libsqlite source is integrated as `687848e2f`
+  (`libsqlite: add twenty-eighth current corpus sweep`). The batch accepted 6
+  behavior-producing handoffs: trigger rowid alias/stored variable behavior,
+  window pushdown SELECT SQL behavior, pager/WAL hash sidecar behavior, JSON102
+  mutation matrix behavior, date5 Gregorian cycle behavior, and UPSERT4
+  RETURNING conflict behavior. Verification passed PHP lint for `8`
+  changed/new PHP files, `git diff --check -- lanes/libsqlite`,
+  `SQLiteNoDomainSpecificApiTest.php` with `1 file / 3 assertions / 0
+  failures`, focused selected tests `6 files / 58532 assertions / 0 failures /
+  24243 PASS lines`, trigger related tests `44 files / 346040 assertions / 0
+  failures / 282993 PASS lines`, and UPSERT related tests `11 files / 39011
+  assertions / 0 failures / 11774 PASS lines`. Honest selected movement is
+  `+24243`, so the public row should move to `1262570 pass / 0 fail` with
+  coverage still `1589 / 1589`. App-WAL remains parked unless independently
+  proved; mapped inventory is complete, but functional/full-suite/release/all
+  runner parity is still the libsqlite exit gate before moving the team to
+  gitoxide.
+
 - 2026-05-30 supervisor continuation (integration sample 23:57 UTC):
   Latest libsqlite source is integrated as `31404fc63`
   (`libsqlite: route PDO insert syntax through neutral helper`). This focused
