@@ -49,7 +49,7 @@
 ## Current Coordination Snapshot
 
 - 2026-05-30 supervisor continuation (integration sample 19:49 UTC):
-  Latest accepted libsqlite source is `fe9a3a5d7`
+  Latest accepted libsqlite source is `65dea0f8a`
   (`libsqlite: add current corpus source neutral batch`). This batch replays
   8 current-corpus/source-neutral handoffs
   from base `28f29f1b` onto the current integration head. Accepted coverage
