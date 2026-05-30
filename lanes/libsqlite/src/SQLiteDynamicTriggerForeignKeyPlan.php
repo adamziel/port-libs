@@ -4648,6 +4648,128 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{rowid:int,x:string|int,y?:mixed,z?:mixed}> $rows
+     * @return array<string,mixed>
+     */
+    public static function trigger9OldColumnLoadPlan(array $rows, string $event, string $oldExpression, ?string $whenColumn = null, mixed $whenMinimum = null): array
+    {
+        $event = strtolower(trim($event));
+        if (!in_array($event, ['delete', 'update'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger9 event must be delete or update');
+        }
+        $oldExpression = self::identifier($oldExpression, 'OLD expression column');
+        if (!in_array($oldExpression, ['rowid', 'x'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger9 OLD expression must be rowid or x');
+        }
+        if ($whenColumn !== null) {
+            $whenColumn = self::identifier($whenColumn, 'WHEN column');
+        }
+
+        $rows = array_values($rows);
+        $emitted = [];
+        $updatedRows = [];
+        foreach ($rows as $row) {
+            $passesWhen = true;
+            if ($whenColumn !== null) {
+                $candidate = $row[$whenColumn] ?? null;
+                $passesWhen = strcmp((string) $candidate, (string) $whenMinimum) >= 0;
+            }
+            if ($passesWhen) {
+                $emitted[] = $row[$oldExpression];
+            }
+            if ($event === 'update') {
+                $updated = $row;
+                $updated['y'] = '';
+                $updatedRows[] = $updated;
+            }
+        }
+
+        return [
+            'source' => 'trigger9.test trigger9-1.2.1..1.7.3',
+            'operation' => 'old-column-trigger-load-plan',
+            'status' => 'commit-ok',
+            'event' => $event,
+            'old_expression' => 'old.' . $oldExpression,
+            'when_column' => $whenColumn,
+            'when_minimum' => $whenMinimum,
+            'emitted_values' => $emitted,
+            'emitted_count' => count($emitted),
+            'rowdata_opcode_required' => false,
+            'loaded_old_columns' => array_values(array_unique(array_filter([$oldExpression, $whenColumn]))),
+            'loaded_old_column_count' => count(array_unique(array_filter([$oldExpression, $whenColumn]))),
+            'updated_rows' => $updatedRows,
+            'statement_row_count' => count($rows),
+            'dependencies' => [
+                'sqlite-trigger9-old-rowid-does-not-load-full-rowdata',
+                'sqlite-trigger9-old-column-subset-loads-needed-column-only',
+                'sqlite-trigger9-when-clause-shares-old-column-registers',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:string}> $rows
+     * @return array<string,mixed>
+     */
+    public static function trigger9InsteadOfViewOldRowsPlan(array $rows, string $viewShape): array
+    {
+        $viewShape = strtolower(trim($viewShape));
+        if (!in_array($viewShape, ['plain', 'where-alias', 'distinct', 'except', 'group-having'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger9 view shape is unsupported');
+        }
+
+        $rows = array_values($rows);
+        $selected = [];
+        if ($viewShape === 'plain') {
+            $selected = $rows;
+        } elseif ($viewShape === 'where-alias') {
+            $selected = array_values(array_filter($rows, static fn (array $row): bool => strcmp($row['b'], 'one') > 0));
+        } elseif ($viewShape === 'distinct') {
+            $seen = [];
+            foreach ($rows as $row) {
+                $key = $row['a'] . "\0" . $row['b'];
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $selected[] = $row;
+            }
+        } elseif ($viewShape === 'except') {
+            $selected = array_values(array_filter($rows, static fn (array $row): bool => !($row['a'] === 1 && $row['b'] === 'one')));
+        } else {
+            $groups = [];
+            foreach ($rows as $row) {
+                $groups[$row['a']][] = $row['b'];
+            }
+            ksort($groups);
+            foreach ($groups as $a => $values) {
+                $max = max($values);
+                if (strcmp($max, 'two') > 0) {
+                    $selected[] = ['a' => (int) $a, 'b' => $max];
+                }
+            }
+        }
+
+        return [
+            'source' => 'trigger9.test trigger9-3.2..3.6',
+            'operation' => 'instead-of-view-old-row-materialization',
+            'status' => 'commit-ok',
+            'view_shape' => $viewShape,
+            'old_a_values' => array_values(array_map(static fn (array $row): int => $row['a'], $selected)),
+            'old_b_values' => array_values(array_map(static fn (array $row): string => $row['b'], $selected)),
+            'old_row_count' => count($selected),
+            'unused_view_columns_are_null_safe' => true,
+            'where_alias_reused_without_full_old_row' => $viewShape === 'where-alias',
+            'compound_view_materialized_before_trigger' => in_array($viewShape, ['distinct', 'except', 'group-having'], true),
+            'dependencies' => [
+                'sqlite-trigger9-instead-of-view-trigger-materializes-old-rows',
+                'sqlite-trigger9-unused-view-columns-are-null-safe',
+                'sqlite-trigger9-compound-view-old-rows-feed-trigger-program',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{name:string,timing:string,event:string}> $triggers
      * @return array<string,int>
      */

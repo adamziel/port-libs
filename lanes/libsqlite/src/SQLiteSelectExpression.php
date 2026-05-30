@@ -659,7 +659,7 @@ final class SQLiteSelectExpression
         $leftInteger = self::integerOperand($left);
         $rightInteger = self::integerOperand($right);
 
-        if ($rightInteger < 0) {
+        if (($operator === '<<' || $operator === '>>') && $rightInteger < 0) {
             $operator = $operator === '<<' ? '>>' : ($operator === '>>' ? '<<' : $operator);
             $rightInteger = -$rightInteger;
         }

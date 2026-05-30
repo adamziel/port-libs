@@ -79,7 +79,7 @@ final class SQLiteSelectSql
         } else {
             $cteNames = [];
         }
-        if (preg_match('/^values\s+/i', $sql) === 1) {
+        if (preg_match('/^values(?:\s+|\()/i', $sql) === 1) {
             $compound = self::compoundSqlPlan($sql, $tables, $cteNames, $outerRow);
             if ($compound !== null) {
                 return $compound;
@@ -1605,7 +1605,7 @@ final class SQLiteSelectSql
     private static function executeValuesClause(string $sql): array
     {
         $sql = trim($sql);
-        if (preg_match('/^values\s+/i', $sql) !== 1) {
+        if (preg_match('/^values(?:\s+|\()/i', $sql) !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL VALUES clause must start with VALUES');
         }
 
@@ -3719,7 +3719,10 @@ final class SQLiteSelectSql
 
         if (str_starts_with($sql, '(') && str_ends_with($sql, ')')) {
             $subquerySql = trim(substr($sql, 1, -1));
-            if (preg_match('/^select\s+/i', $subquerySql) === 1 && self::unwrapParenthesizedExpression($sql) === $subquerySql) {
+            if (
+                (preg_match('/^select\s+/i', $subquerySql) === 1 && self::unwrapParenthesizedExpression($sql) === $subquerySql)
+                || preg_match('/^values(?:\s+|\()/i', $subquerySql) === 1
+            ) {
                 return [
                     'type' => 'subquery',
                     'subquery' => static fn (array $row): array => self::correlatedSubqueryRows($subquerySql, $tables, $row),

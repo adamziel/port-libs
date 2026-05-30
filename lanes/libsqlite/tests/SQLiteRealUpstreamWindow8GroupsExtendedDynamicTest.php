@@ -122,12 +122,21 @@ $window8FrameIndexes = static function (array $keys, int $position, string $star
         'UNBOUNDED PRECEDING' => 0,
         'CURRENT ROW' => $currentGroup,
         '1 PRECEDING' => $currentGroup - 1,
+        '2 PRECEDING' => $currentGroup - 2,
+        '3 PRECEDING' => $currentGroup - 3,
+        '0 FOLLOWING' => $currentGroup,
+        '1 FOLLOWING' => $currentGroup + 1,
         default => throw new RuntimeException('Unsupported window8 start boundary'),
     };
     $endGroup = match ($end) {
         'UNBOUNDED FOLLOWING' => count($groups) - 1,
         'CURRENT ROW' => $currentGroup,
+        '0 PRECEDING' => $currentGroup,
+        '0 FOLLOWING' => $currentGroup,
         '1 FOLLOWING' => $currentGroup + 1,
+        '5 FOLLOWING' => $currentGroup + 5,
+        '100 FOLLOWING' => $currentGroup + 100,
+        '1 PRECEDING' => $currentGroup - 1,
         '2 PRECEDING' => $currentGroup - 2,
         default => throw new RuntimeException('Unsupported window8 end boundary'),
     };
@@ -138,8 +147,12 @@ $window8FrameIndexes = static function (array $keys, int $position, string $star
     }
 
     return array_values(array_filter($indexes, static function (int $candidate) use ($position, $keys, $exclude): bool {
+        $samePeer = $keys[$candidate] === $keys[$position];
+
         return match ($exclude) {
             'CURRENT ROW' => $candidate !== $position,
+            'GROUP' => !$samePeer,
+            'TIES' => !$samePeer || $candidate === $position,
             'NO OTHERS' => true,
             default => throw new RuntimeException('Unsupported window8 EXCLUDE mode'),
         };
@@ -200,6 +213,19 @@ $window8Scenarios = [
     '1.4 full partition frame' => ['UNBOUNDED PRECEDING', 'UNBOUNDED FOLLOWING'],
     '1.5 inverted previous frame' => ['1 PRECEDING', '2 PRECEDING'],
     '1.6 one preceding through current' => ['1 PRECEDING', 'CURRENT ROW'],
+    '1.7 three preceding through one preceding' => ['3 PRECEDING', '1 PRECEDING'],
+    '1.8 three preceding through zero preceding' => ['3 PRECEDING', '0 PRECEDING'],
+    '1.9 two preceding through current' => ['2 PRECEDING', 'CURRENT ROW'],
+    '1.10 three preceding through zero following' => ['3 PRECEDING', '0 FOLLOWING'],
+    '1.11 two preceding through unbounded following' => ['2 PRECEDING', 'UNBOUNDED FOLLOWING'],
+    '1.12 current through zero following' => ['CURRENT ROW', '0 FOLLOWING'],
+    '1.13 current through one following' => ['CURRENT ROW', '1 FOLLOWING'],
+    '1.14 current through one hundred following' => ['CURRENT ROW', '100 FOLLOWING'],
+    '1.15 current through unbounded following' => ['CURRENT ROW', 'UNBOUNDED FOLLOWING'],
+    '1.16 zero following singleton' => ['0 FOLLOWING', '0 FOLLOWING'],
+    '1.17 inverted following frame' => ['1 FOLLOWING', '0 FOLLOWING'],
+    '1.18 one following through five following' => ['1 FOLLOWING', '5 FOLLOWING'],
+    '1.19 one following through unbounded following' => ['1 FOLLOWING', 'UNBOUNDED FOLLOWING'],
 ];
 $window8MetricScenarios = [
     'sum order by a' => [['a'], 'sum', 'NO OTHERS'],
@@ -209,6 +235,12 @@ $window8MetricScenarios = [
     'min order by a,b' => [['a', 'b'], 'min', 'NO OTHERS'],
     'sum order by a exclude current row' => [['a'], 'sum', 'CURRENT ROW'],
     'sum order by a,b exclude current row' => [['a', 'b'], 'sum', 'CURRENT ROW'],
+    'sum order by a exclude group' => [['a'], 'sum', 'GROUP'],
+    'sum order by a,b exclude group' => [['a', 'b'], 'sum', 'GROUP'],
+    'sum order by a exclude ties' => [['a'], 'sum', 'TIES'],
+    'sum order by a,b exclude ties' => [['a', 'b'], 'sum', 'TIES'],
+    'max order by a,b exclude group' => [['a', 'b'], 'max', 'GROUP'],
+    'min order by a,b exclude ties' => [['a', 'b'], 'min', 'TIES'],
 ];
 
 foreach ($window8Scenarios as $scenarioName => [$start, $end]) {
@@ -235,6 +267,8 @@ $tests['real upstream window8 groups extended dynamic cites exact upstream scena
             'window8.test:1.4 GROUPS UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING',
             'window8.test:1.5 GROUPS 1 PRECEDING TO 2 PRECEDING empty frame',
             'window8.test:1.6 GROUPS 1 PRECEDING TO CURRENT ROW',
+            'window8.test:1.7-1.19 GROUPS bounded preceding/following matrix',
+            'window8.test:1.* EXCLUDE GROUP and EXCLUDE TIES variants',
         ],
         [
             'window8.test:1.2 GROUPS UNBOUNDED PRECEDING TO CURRENT ROW',
@@ -242,6 +276,8 @@ $tests['real upstream window8 groups extended dynamic cites exact upstream scena
             'window8.test:1.4 GROUPS UNBOUNDED PRECEDING TO UNBOUNDED FOLLOWING',
             'window8.test:1.5 GROUPS 1 PRECEDING TO 2 PRECEDING empty frame',
             'window8.test:1.6 GROUPS 1 PRECEDING TO CURRENT ROW',
+            'window8.test:1.7-1.19 GROUPS bounded preceding/following matrix',
+            'window8.test:1.* EXCLUDE GROUP and EXCLUDE TIES variants',
         ],
     );
 };

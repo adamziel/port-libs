@@ -3726,6 +3726,54 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,sql:string,index_name:string,expression:string,where_clause:string|null,order_by:string|null,result_rows:list<array<int,mixed>>,function_opcode_count:int,covering_index:bool,uses_index:bool,detail:string,integrity:string}>
+     */
+    public static function indexExpressionJsonCoveringCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexexpr3 JSON covering corpus requires at least one case');
+        }
+
+        $templates = [
+            ['indexexpr3-1.1', "SELECT json_extract(j, '$.x') FROM t1 ORDER BY 1", 'i1', null, 'json_extract(j,$.x)', [['one'], ['three'], ['two']], 0, true, true, 'SCAN t1 USING INDEX i1; expression value read from index without Function opcode'],
+            ['indexexpr3-1.2', "SELECT json_extract(j, '$.x') FROM t1 WHERE a=2", 'i2', 'a=2', null, [['two']], 0, true, true, 'SEARCH t1 USING COVERING INDEX i2 (a=?); json_extract value is covered by expression-index payload'],
+            ['indexexpr3-1.3', "SELECT coalesce(json_extract(j, '$.x'), 'five') FROM t1 WHERE a=2", 'i2', 'a=2', null, [['two']], 0, true, true, 'SEARCH t1 USING COVERING INDEX i2 (a=?); coalesce consumes covered expression value'],
+            ['indexexpr3-1.4', "SELECT json_extract(j, '$.x') || '.two' FROM t1 WHERE a=2", 'i2', 'a=2', null, [['two.two']], 0, true, true, 'SEARCH t1 USING COVERING INDEX i2 (a=?); concatenation consumes covered expression value'],
+            ['indexexpr3-1.5', "SELECT json_insert('{}', '$.y', json_extract(j, '$.x')) FROM t1 WHERE a=2", 'i2', 'a=2', null, [['{"y":"two"}']], 2, false, true, 'SEARCH t1 USING INDEX i2 (a=?); nested JSON value must execute json_extract and json_insert Function opcodes'],
+            ['indexexpr3-1.6', "SELECT json_insert('{}', '$.y', coalesce(json_extract(j, '$.x'), 'five')) FROM t1 WHERE a=2", 'i2', 'a=2', null, [['{"y":"two"}']], 2, false, true, 'SEARCH t1 USING INDEX i2 (a=?); coalesced nested JSON value still executes Function opcodes'],
+            ['indexexpr3-2.1', "SELECT json_extract(j, '$.x') FROM t1 WHERE a=?", 'i1', 'a=?', null, [], 0, true, true, 't1 USING COVERING INDEX i1'],
+            ['indexexpr3-2.2', "SELECT b, json_extract(j, '$.x') FROM t1 WHERE a=?", 'i1', 'a=?', null, [], 0, false, true, 't1 USING INDEX i1'],
+            ['indexexpr3-2.3', "SELECT json_insert('{}', json_extract(j, '$.x')) FROM t1 WHERE a=?", 'i1', 'a=?', null, [], 1, false, true, 't1 USING INDEX i1'],
+            ['indexexpr3-2.4', "SELECT sum(json_extract(j, '$.x')) FROM t1 WHERE a=?", 'i1', 'a=?', null, [], 0, true, true, 't1 USING COVERING INDEX i1'],
+            ['indexexpr3-2.5', "SELECT json_extract(j, '$.x'), sum(json_extract(j, '$.x')) FROM t1 WHERE a=?", 'i1', 'a=?', null, [], 0, false, true, 't1 USING INDEX i1'],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $sql, $indexName, $where, $orderBy, $resultRows, $functionCount, $covering, $usesIndex, $detail] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'indexexpr3.test sections indexexpr3-1.1 through indexexpr3-2.5',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+                'sql' => $sql,
+                'index_name' => $indexName,
+                'expression' => "json_extract(j, '$.x')",
+                'where_clause' => $where,
+                'order_by' => $orderBy,
+                'result_rows' => $resultRows,
+                'function_opcode_count' => $functionCount,
+                'covering_index' => $covering,
+                'uses_index' => $usesIndex,
+                'detail' => $detail,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

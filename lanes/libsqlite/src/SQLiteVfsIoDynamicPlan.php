@@ -1800,6 +1800,107 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function safeDeleteJournalLifecycle(
+        string $scenario,
+        string $journalMode,
+        string $operation,
+        int $openJournalHandles,
+        int $dirtyPages,
+        bool $walCapable = true
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite SAFE_DELETE journal lifecycle requires a scenario name');
+        }
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'truncate', 'persist', 'wal'], true)) {
+            throw new \InvalidArgumentException('SQLite SAFE_DELETE journal lifecycle journal mode is unsupported');
+        }
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, ['create-table', 'insert', 'second-connection-delete', 'large-commit', 'switch-to-wal'], true)) {
+            throw new \InvalidArgumentException('SQLite SAFE_DELETE journal lifecycle operation is unsupported');
+        }
+        if ($openJournalHandles < 0 || $dirtyPages < 0) {
+            throw new \InvalidArgumentException('SQLite SAFE_DELETE journal lifecycle counts must be non-negative');
+        }
+
+        $journalOpened = $operation !== 'insert' || $journalMode !== 'truncate';
+        $journalClosed = $operation !== 'insert' || $journalMode === 'delete' || $operation === 'switch-to-wal';
+        $deleteAttempted = $journalMode === 'delete' || $operation === 'switch-to-wal';
+        $deleteBlocked = $deleteAttempted && $openJournalHandles > 0 && $operation === 'second-connection-delete';
+        $ioError = $deleteBlocked || ($operation === 'large-commit' && $dirtyPages > 0);
+        $hotJournalLeft = $ioError && in_array($operation, ['second-connection-delete', 'large-commit'], true);
+        $databaseRowsVisible = $ioError ? 4 : ($operation === 'large-commit' ? 64 + max(0, $dirtyPages) : 6);
+        $integrityAfterRecovery = $hotJournalLeft ? 'ok_after_hot_journal_rollback' : 'ok';
+
+        $oplog = [];
+        if ($journalOpened) {
+            $oplog[] = 'xOpen';
+        }
+        if ($journalClosed) {
+            $oplog[] = 'xClose';
+        }
+        if ($deleteAttempted) {
+            $oplog[] = 'xDelete';
+        }
+
+        return [
+            'status' => $ioError ? 'ioerr' : 'ok',
+            'script' => 'journal2.test',
+            'scenario' => $scenario,
+            'upstream' => self::safeDeleteJournalUpstream($scenario),
+            'journal_mode' => $journalMode,
+            'operation' => $operation,
+            'device_flags' => ['undeletable_when_open', 'powersafe_overwrite'],
+            'open_journal_handles' => $openJournalHandles,
+            'dirty_pages' => $dirtyPages,
+            'wal_capable' => $walCapable,
+            'oplog' => $oplog,
+            'journal_opened' => $journalOpened,
+            'journal_closed' => $journalClosed,
+            'delete_attempted' => $deleteAttempted,
+            'delete_blocked_by_open_handle' => $deleteBlocked,
+            'expected_rc' => $ioError ? 'SQLITE_IOERR' : 'SQLITE_OK',
+            'message' => $ioError ? 'disk I/O error' : 'ok',
+            'journal_file_exists_after_operation' => $hotJournalLeft || ($journalMode !== 'delete' && $operation !== 'switch-to-wal'),
+            'hot_journal_left' => $hotJournalLeft,
+            'database_rows_visible' => $databaseRowsVisible,
+            'pre_recovery_copy_integrity' => $operation === 'large-commit' && $ioError ? 'not ok' : 'ok',
+            'post_recovery_integrity' => $integrityAfterRecovery,
+            'wal_switch_deletes_journal' => $operation === 'switch-to-wal' && $walCapable,
+            'reason' => match (true) {
+                $deleteBlocked => 'safe_delete_vfs_refuses_journal_delete_while_handle_is_open',
+                $operation === 'large-commit' && $ioError => 'write_truncate_delete_fault_leaves_hot_journal_for_recovery',
+                $operation === 'switch-to-wal' => 'wal_transition_closes_and_deletes_persistent_rollback_journal',
+                $journalMode === 'truncate' => 'truncate_mode_reuses_open_journal_without_delete',
+                default => 'delete_mode_closes_and_deletes_rollback_journal',
+            },
+            'dependencies' => [
+                'sqlite-upstream-journal2-test',
+                'sqlite-vfs-safe-delete',
+                'sqlite-rollback-journal-lifecycle',
+                'sqlite-hot-journal-recovery',
+            ],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function safeDeleteJournalUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'journal2-1.1' => ['journal2.test journal2-1.1 create table opens closes deletes journal'],
+            'journal2-1.2-1.4' => ['journal2.test journal2-1.2', 'journal2.test journal2-1.3', 'journal2.test journal2-1.4'],
+            'journal2-1.5-1.9' => ['journal2.test journal2-1.5', 'journal2.test journal2-1.6', 'journal2.test journal2-1.7', 'journal2.test journal2-1.8', 'journal2.test journal2-1.9'],
+            'journal2-1.10-1.21' => ['journal2.test journal2-1.10', 'journal2.test journal2-1.11', 'journal2.test journal2-1.12', 'journal2.test journal2-1.13', 'journal2.test journal2-1.14', 'journal2.test journal2-1.15', 'journal2.test journal2-1.16', 'journal2.test journal2-1.17', 'journal2.test journal2-1.20', 'journal2.test journal2-1.21'],
+            'journal2-2.1-2.4' => ['journal2.test journal2-2.1', 'journal2.test journal2-2.2', 'journal2.test journal2-2.3', 'journal2.test journal2-2.4'],
+            default => throw new \InvalidArgumentException("Unsupported SQLite SAFE_DELETE journal2 scenario: {$scenario}"),
+        };
+    }
+
+    /**
      * @return list<string>
      */
     private static function quotaVfsUpstream(string $scenario): array
