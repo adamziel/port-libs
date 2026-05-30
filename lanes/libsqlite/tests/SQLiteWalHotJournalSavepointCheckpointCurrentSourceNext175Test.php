@@ -74,7 +74,7 @@ $fixture = static function (array $sealMutations = [], array $walMutations = [])
     ];
     $checkpointPages = [1, 2, 3, 4, 5, 6];
     $release = ['plugin-import-inner-next175' => [3, 5]];
-    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
+    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenHandoff(
         $databasePath,
         implode('', $database),
         $pageSize,
@@ -131,7 +131,7 @@ $fixture = static function (array $sealMutations = [], array $walMutations = [])
         'synced' => true,
     ], $walMutations);
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next175Plan(
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicResumeAdmission(
         $databasePath,
         implode('', $database),
         $pageSize,

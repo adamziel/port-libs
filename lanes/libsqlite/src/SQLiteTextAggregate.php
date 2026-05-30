@@ -179,6 +179,50 @@ final class SQLiteTextAggregate
         return $frames;
     }
 
+    /**
+     * @param iterable<mixed> $values
+     * @param iterable<mixed> $separators
+     * @return list<?string>
+     */
+    public static function groupConcatWindowSeparators(
+        iterable $values,
+        iterable $separators,
+        int $preceding,
+        int $following = 0,
+    ): array {
+        if ($preceding < 0 || $following < 0) {
+            throw new \InvalidArgumentException('SQLite group_concat window frame bounds must be non-negative');
+        }
+
+        $rows = array_values(is_array($values) ? $values : iterator_to_array($values, false));
+        $separatorRows = array_values(is_array($separators) ? $separators : iterator_to_array($separators, false));
+        if (count($rows) !== count($separatorRows)) {
+            throw new \InvalidArgumentException('SQLite group_concat window separator rows must match value rows');
+        }
+
+        $frames = [];
+        $count = count($rows);
+        for ($index = 0; $index < $count; $index++) {
+            $start = max(0, $index - $preceding);
+            $end = min($count - 1, $index + $following);
+            $parts = [];
+            for ($frameIndex = $start; $frameIndex <= $end; $frameIndex++) {
+                $value = self::valueText($rows[$frameIndex]);
+                if ($value === null) {
+                    continue;
+                }
+                if ($parts !== []) {
+                    $parts[] = self::separatorText($separatorRows[$frameIndex]) ?? '';
+                }
+                $parts[] = $value;
+            }
+
+            $frames[] = $parts === [] ? null : implode('', $parts);
+        }
+
+        return $frames;
+    }
+
     private static function separatorText(mixed $separator): ?string
     {
         if ($separator === null) {

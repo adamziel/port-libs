@@ -95,13 +95,13 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextBaseVariantPl
         bool $clearCoalescedFragments = true,
     ): self {
         if (!$database->isAutoVacuum()) {
-            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map next128 requires an auto-vacuum database');
+            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map current-source requires an auto-vacuum database');
         }
         if ($newOverflowPayload === '') {
-            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map next128 requires replacement overflow payload bytes');
+            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map current-source requires replacement overflow payload bytes');
         }
         if ($parentBtreePageNumber < 2) {
-            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map next128 parent b-tree page must be at page 2 or later');
+            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map current-source parent b-tree page must be at page 2 or later');
         }
 
         $coalescePlan = SQLiteBTreeFreeblockCoalescePlan::fromDatabasePage(
@@ -211,7 +211,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextBaseVariantPl
     public function toArray(): array
     {
         return [
-            'action' => 'btree-overflow-freeblock-pointermap-current-source-next128',
+            'action' => 'btree-overflow-freeblock-pointermap-current-source',
             'leaf_page' => $this->coalescePlan->pageNumber,
             'coalesced_fragment_bytes' => $this->coalescePlan->coalescedFragmentBytes,
             'fragmented_bytes_before' => $this->coalescePlan->fragmentedBytesBefore,
@@ -228,7 +228,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextBaseVariantPl
             'coalesce' => $this->coalescePlan->toArray(),
             'release' => $this->releasePlan->toArray(),
             'allocation' => $this->allocationPlan->toArray(),
-            'btree_overflow_freeblock_pointermap_current_source_next128' => $this->transitionRows,
+            'btree_overflow_freeblock_pointermap_current_source' => $this->transitionRows,
         ];
     }
 
@@ -283,7 +283,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextBaseVariantPl
         }
 
         if ($rows === []) {
-            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map next128 did not reuse an obsolete overflow page');
+            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map current-source did not reuse an obsolete overflow page');
         }
 
         return $rows;
@@ -308,7 +308,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextBaseVariantPl
     {
         $value = unpack('N', substr($bytes, $offset, 4));
         if ($value === false) {
-            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map next128 could not read uint32');
+            throw new \InvalidArgumentException('SQLite overflow freeblock pointer-map current-source could not read uint32');
         }
 
         return $value[1];
@@ -361,16 +361,16 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
         bool $secureDelete = true,
     ): self {
         if (!$database->isAutoVacuum()) {
-            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 requires an auto-vacuum database');
+            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source requires an auto-vacuum database');
         }
         if ($replacementOverflowPayload === '') {
-            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 requires replacement overflow payload bytes');
+            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source requires replacement overflow payload bytes');
         }
         if ($parentBtreePageNumber < 2) {
-            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 parent b-tree page must be at page 2 or later');
+            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source parent b-tree page must be at page 2 or later');
         }
         if (count($deleteResults) < 2) {
-            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 requires table and index delete results');
+            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source requires table and index delete results');
         }
 
         $currentSourceRows = self::buildCurrentSourceRows($database, $currentOverflowChains);
@@ -496,7 +496,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
     public function toArray(): array
     {
         return [
-            'action' => 'btree-overflow-freeblock-pointermap-current-source-next147',
+            'action' => 'btree-overflow-freeblock-pointermap-current-source',
             'leaf_page' => $this->coalescePlan->pageNumber,
             'coalesced_fragment_bytes' => $this->coalescePlan->coalescedFragmentBytes,
             'released_overflow_pages' => $this->releasedOverflowPages(),
@@ -504,7 +504,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
             'reused_released_overflow_pages' => $this->reusedReleasedOverflowPages(),
             'allocated_existing_freelist_pages' => $this->allocatedExistingFreelistPages(),
             'current_source_overflow_chain_rows' => $this->currentSourceRows,
-            'btree_overflow_freeblock_pointermap_current_source_next147' => $this->nextRows,
+            'btree_overflow_freeblock_pointermap_current_source' => $this->nextRows,
             'final_first_freelist_trunk_page' => $this->databaseAfterAllocation->header->firstFreelistTrunkPage,
             'final_freelist_page_count' => $this->databaseAfterAllocation->header->freelistPageCount,
             'final_freelist_page_numbers' => $this->databaseAfterAllocation->freelistPageNumbers(),
@@ -522,7 +522,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
     private static function buildCurrentSourceRows(SQLiteDatabase $database, array $chains): array
     {
         if ($chains === []) {
-            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 requires current-source overflow chains');
+            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source requires current-source overflow chains');
         }
 
         $rows = [];
@@ -530,10 +530,10 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
             $firstPage = $chain['first_page'] ?? null;
             $payloadBytes = $chain['overflow_payload_bytes'] ?? null;
             if (!is_int($firstPage)) {
-                throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 chain is missing a first overflow page');
+                throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source chain is missing a first overflow page');
             }
             if (!is_int($payloadBytes)) {
-                throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 chain is missing an overflow payload byte count');
+                throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source chain is missing an overflow payload byte count');
             }
 
             $source = $chain['source'] ?? "current-overflow-chain-{$chainIndex}";
@@ -554,7 +554,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
         }
 
         if ($rows === []) {
-            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 requires at least one current-source overflow page');
+            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source requires at least one current-source overflow page');
         }
 
         return $rows;
@@ -572,11 +572,11 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
         foreach ($deleteResults as $deleteResult) {
             $pages = $deleteResult['obsolete_overflow_page_numbers'] ?? null;
             if (!is_array($pages)) {
-                throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 delete result is missing obsolete overflow pages');
+                throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source delete result is missing obsolete overflow pages');
             }
             foreach ($pages as $pageNumber) {
                 if (!is_int($pageNumber)) {
-                    throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 obsolete overflow page numbers must be integers');
+                    throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source obsolete overflow page numbers must be integers');
                 }
                 $deletePages[] = $pageNumber;
             }
@@ -584,7 +584,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
         sort($deletePages);
 
         if ($deletePages !== $currentPages) {
-            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 delete results must match current-source overflow pages');
+            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source delete results must match current-source overflow pages');
         }
     }
 
@@ -659,7 +659,7 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVaria
     {
         $value = unpack('N', substr($bytes, $offset, 4));
         if ($value === false) {
-            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map next147 could not read uint32');
+            throw new \InvalidArgumentException('SQLite b-tree overflow freeblock pointer-map current-source could not read uint32');
         }
 
         return $value[1];

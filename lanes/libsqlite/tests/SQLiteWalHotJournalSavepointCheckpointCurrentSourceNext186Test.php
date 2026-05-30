@@ -80,7 +80,7 @@ $completed = [
     'sync_current_checkpoint_before_reader_release_next165',
 ];
 
-$base = static fn (array $completedRows = [], ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+$base = static fn (array $completedRows = [], ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishApply(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -122,7 +122,7 @@ $filesFrom = static function (array $completedRows) use ($base, $databasePath, $
 
 $matching = static fn (array $completedRows = []): array => $base($completedRows, $filesFrom($completedRows));
 $apply = static function (array $resume, array $files) use ($payloadBytesFrom): array {
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::applyAtomicPublishOperations(
         SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume),
         $files,
         $payloadBytesFrom($resume)

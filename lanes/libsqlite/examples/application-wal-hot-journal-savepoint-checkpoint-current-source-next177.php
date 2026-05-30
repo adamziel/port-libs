@@ -66,7 +66,7 @@ $checkpointComplete = [
     'preserve_retained_wal_for_pinned_reader_next165',
     'sync_current_checkpoint_before_reader_release_next165',
 ];
-$probe = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+$probe = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishApply(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -79,7 +79,7 @@ $probe = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Pla
     []
 );
 $payloads = $probe['base_plan']['base_plan']['payloads'];
-$resume = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+$resume = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishApply(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

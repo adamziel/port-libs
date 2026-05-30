@@ -93,7 +93,7 @@ $plan = static fn (
     ?array $cachePages = null,
     ?array $pages = null,
     string $outer = 'plugin-import-outer-next166',
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenHandoff(
     $databasePath,
     $databaseBytes,
     $pageSize,

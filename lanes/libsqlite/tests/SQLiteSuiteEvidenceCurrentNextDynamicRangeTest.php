@@ -77,9 +77,7 @@ return [
             $record = libsqlite_suite_evidence_dynamic_range_record($slice);
             $primaryKey = sprintf('counts_suite_evidence_current_next%d', $slice);
             $previousKey = sprintf('counts_suite_evidence_current_next%d', $slice - 1);
-            $expectedStatus = in_array($slice, [93, 98], true)
-                ? 'suite-evidence-countable'
-                : sprintf('current-next%d-suite-evidence-countable', $slice);
+            $expectedStatus = sprintf('current-next%d-suite-evidence-countable', $slice);
 
             $t->same($expectedStatus, $record['status']);
             $t->same(true, $record['countable']);

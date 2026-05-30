@@ -4,7 +4,175 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
+$numberRows = static function (int $max = 31, int $shift = 0): array {
+    $rows = [];
+    for ($i = 1; $i <= $max; $i++) {
+        $rows[] = [
+            'n' => $i + $shift,
+            'log' => (int) floor(log($i, 2)),
+            'bucket' => 'b' . ((int) floor(log($i, 2))),
+        ];
+    }
+
+    return $rows;
+};
+
+$tables = [
+    'app_numbers' => $numberRows(),
+];
+
+$column = static fn (string $sql, string $column, array $sourceTables = null): array => array_column(
+    SQLiteSelectSql::execute($sql, $sourceTables ?? $tables),
+    $column
+);
+
 $tests = [];
+
+$tests['real upstream select3 aggregate basics over dynamic source rows'] = static function (TestRunner $t) use ($column, $tables): void {
+    $t->same([31], $column('SELECT count(*) AS total FROM app_numbers', 'total'));
+    $t->same([1], $column('SELECT min(n) AS value FROM app_numbers', 'value'));
+    $t->same([31], $column('SELECT max(n) AS value FROM app_numbers', 'value'));
+    $t->same([496], $column('SELECT sum(n) AS value FROM app_numbers', 'value'));
+    $t->same([16.0], $column('SELECT avg(n) AS value FROM app_numbers', 'value'));
+    $t->same([0], $column('SELECT min(log) AS value FROM app_numbers', 'value'));
+    $t->same([4], $column('SELECT max(log) AS value FROM app_numbers', 'value'));
+    $t->same([98], $column('SELECT sum(log) AS value FROM app_numbers', 'value'));
+    $t->same([31 / 16.0], $column('SELECT max(n)/avg(n) AS value FROM app_numbers', 'value'));
+    $t->same([1], $column('SELECT max(log)/4 AS value FROM app_numbers', 'value'));
+    $t->same([0, 1, 2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log', 'log'));
+    $t->same(['b0', 'b1', 'b2', 'b3', 'b4'], $column('SELECT DISTINCT bucket FROM app_numbers ORDER BY bucket', 'bucket'));
+};
+
+$tests['real upstream select3 group by and having dynamic source rows'] = static function (TestRunner $t) use ($column): void {
+    $t->same([0, 1, 2, 3, 4], $column('SELECT log, count(*) AS total FROM app_numbers GROUP BY log ORDER BY log', 'log'));
+    $t->same([1, 2, 4, 8, 16], $column('SELECT log, count(*) AS total FROM app_numbers GROUP BY log ORDER BY log', 'total'));
+    $t->same([1, 2, 4, 8, 16], $column('SELECT log, min(n) AS first_n FROM app_numbers GROUP BY log ORDER BY log', 'first_n'));
+    $t->same([1, 3, 7, 15, 31], $column('SELECT log, max(n) AS last_n FROM app_numbers GROUP BY log ORDER BY log', 'last_n'));
+    $t->same([1.0, 2.5, 5.5, 11.5, 23.5], $column('SELECT log, avg(n) AS mean_n FROM app_numbers GROUP BY log ORDER BY log', 'mean_n'));
+    $t->same([2.0, 3.5, 6.5, 12.5, 24.5], $column('SELECT log, avg(n)+1 AS mean_n FROM app_numbers GROUP BY log ORDER BY log', 'mean_n'));
+    $t->same([0.0, 0.5, 1.5, 3.5, 7.5], $column('SELECT log, avg(n)-min(n) AS spread FROM app_numbers GROUP BY log ORDER BY log', 'spread'));
+    $t->same([1, 3, 5, 7, 9], $column('SELECT log*2+1 AS x, count(*) AS total FROM app_numbers GROUP BY log ORDER BY x', 'x'));
+    $t->same([1, 2, 4, 8, 16], $column('SELECT log*2+1 AS x, count(*) AS total FROM app_numbers GROUP BY log ORDER BY x', 'total'));
+    $t->same([9, 7, 5], $column('SELECT log*2+1 AS x, count(*) AS total FROM app_numbers GROUP BY log HAVING count(*) >= 4 ORDER BY x DESC LIMIT 3', 'x'));
+};
+
+$tests['real upstream select4 distinct limit offset dynamic source rows'] = static function (TestRunner $t) use ($column): void {
+    $t->same([0, 1, 2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log', 'log'));
+    $t->same([0, 1, 2, 3], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT 4', 'log'));
+    $t->same([], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT 0', 'log'));
+    $t->same([0, 1, 2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT -1', 'log'));
+    $t->same([2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT -1 OFFSET 2', 'log'));
+    $t->same([2, 3, 4], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT 3 OFFSET 2', 'log'));
+    $t->same([], $column('SELECT DISTINCT log FROM app_numbers ORDER BY +log LIMIT 3 OFFSET 20', 'log'));
+    $t->same([], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT 0 OFFSET 3', 'log'));
+    $t->same([4, 3], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log DESC LIMIT 2', 'log'));
+    $t->same([3, 2], $column('SELECT DISTINCT log FROM app_numbers ORDER BY log DESC LIMIT 1, 2', 'log'));
+};
+
+$tests['real upstream select core dynamic select3 select4 range matrix'] = static function (TestRunner $t) use ($numberRows): void {
+    for ($seed = 1; $seed <= 64; $seed++) {
+        $max = 18 + ($seed % 14);
+        $tables = ['app_numbers' => $numberRows($max, $seed % 3)];
+
+        $logs = array_values(array_unique(array_column($tables['app_numbers'], 'log')));
+        sort($logs);
+        $offset = $seed % 4;
+        $limit = ($seed % 5) + 1;
+
+        $t->same(
+            array_slice($logs, $offset, $limit),
+            array_column(SQLiteSelectSql::execute(
+                "SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT {$limit} OFFSET {$offset}",
+                $tables
+            ), 'log')
+        );
+
+        $t->same(
+            array_slice($logs, $offset),
+            array_column(SQLiteSelectSql::execute(
+                "SELECT DISTINCT log FROM app_numbers ORDER BY log LIMIT -1 OFFSET {$offset}",
+                $tables
+            ), 'log')
+        );
+
+        $groups = [];
+        foreach ($tables['app_numbers'] as $row) {
+            $groups[$row['log']][] = $row['n'];
+        }
+        ksort($groups);
+
+        $t->same(
+            array_map('count', $groups),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log, count(*) AS total FROM app_numbers GROUP BY log ORDER BY log',
+                $tables
+            ), 'total')
+        );
+
+        $t->same(
+            array_map(static fn (array $values): int => min($values), $groups),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log, min(n) AS first_n FROM app_numbers GROUP BY log ORDER BY log',
+                $tables
+            ), 'first_n')
+        );
+
+        $t->same(
+            array_map(static fn (array $values): int => max($values), $groups),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log, max(n) AS last_n FROM app_numbers GROUP BY log ORDER BY log',
+                $tables
+            ), 'last_n')
+        );
+
+        $t->same(
+            array_values(array_filter($logs, static fn (int $log): bool => $log >= 2)),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log, count(*) AS total FROM app_numbers GROUP BY log HAVING log >= 2 ORDER BY log',
+                $tables
+            ), 'log')
+        );
+
+        $t->same(
+            array_values(array_filter(array_map(static fn (int $log): int => ($log * 2) + 1, $logs), static fn (int $x): bool => $x >= 5)),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT log*2+1 AS x, count(*) AS total FROM app_numbers GROUP BY log HAVING log >= 2 ORDER BY x',
+                $tables
+            ), 'x')
+        );
+
+        $t->same(
+            array_reverse(array_slice($logs, max(0, count($logs) - 3))),
+            array_column(SQLiteSelectSql::execute(
+                'SELECT DISTINCT log FROM app_numbers ORDER BY log DESC LIMIT 3',
+                $tables
+            ), 'log')
+        );
+    }
+};
+
+$tests['real upstream select core dynamic select4 null distinct matrix'] = static function (TestRunner $t): void {
+    for ($seed = 1; $seed <= 32; $seed++) {
+        $rows = [
+            ['k' => null, 'v' => $seed],
+            ['k' => null, 'v' => $seed + 1],
+            ['k' => 'alpha', 'v' => $seed + 2],
+            ['k' => 'alpha', 'v' => $seed + 3],
+            ['k' => 'beta', 'v' => $seed + 4],
+        ];
+        $tables = ['app_terms' => $rows];
+
+        $t->same(
+            [null, 'alpha', 'beta'],
+            array_column(SQLiteSelectSql::execute('SELECT DISTINCT k FROM app_terms ORDER BY k NULLS FIRST', $tables), 'k')
+        );
+
+        $t->same(
+            ['alpha', 'beta', null],
+            array_column(SQLiteSelectSql::execute('SELECT DISTINCT k FROM app_terms ORDER BY k NULLS LAST', $tables), 'k')
+        );
+    }
+};
 
 $flattenRows = static function (array $rows): array {
     $values = [];

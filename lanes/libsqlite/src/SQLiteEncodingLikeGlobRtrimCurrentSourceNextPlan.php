@@ -77,7 +77,7 @@ final class SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan
 
         return [
             'operator' => $operator,
-            'expression' => 'rtrim(option_name)',
+            'expression' => 'rtrim(key_name)',
             'collation' => 'RTRIM',
             'pattern' => $pattern,
             'escape' => $escape,
@@ -144,17 +144,17 @@ final class SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::assertRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $decoded[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'rtrimKey' => rtrim($text, ' '),
                     'encoding' => self::encodingName($row['text_encoding']),
-                    'bytesHex' => bin2hex($row['option_name_bytes']),
+                    'bytesHex' => bin2hex($row['key_name_bytes']),
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -193,11 +193,11 @@ final class SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite RTRIM LIKE/GLOB current-source next140 rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite RTRIM LIKE/GLOB current-source next140 rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite RTRIM LIKE/GLOB current-source next140 rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite RTRIM LIKE/GLOB current-source next140 rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite RTRIM LIKE/GLOB current-source next140 rows require integer text_encoding');

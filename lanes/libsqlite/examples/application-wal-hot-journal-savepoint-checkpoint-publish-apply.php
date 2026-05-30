@@ -36,7 +36,7 @@ $currentWalBytes = $makeWal([[1, 2, 'wp next181 current options commit']], 181, 
 $nextWalBytes = $makeWal([[2, 2, 'wp next181 retry active_plugins']], 182, 0x18200201, 0x18200202);
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCheckpointSourceTransition(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -59,7 +59,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next16
 );
 $current = $bootstrap['current_source_token'];
 $next = $bootstrap['next_source_token'];
-$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
+$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCheckpointSourceTransition(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -99,7 +99,7 @@ try {
     $databaseAfter = (string) file_get_contents($local);
     $journalAfter = is_file($local . '-journal') ? (string) file_get_contents($local . '-journal') : null;
     $walAfter = (string) file_get_contents($local . '-wal');
-    $receipt = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next178Plan($prepared, $applied, $databaseAfter, $journalAfter, $walAfter);
+    $receipt = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::verifyAtomicApplyReceipt($prepared, $applied, $databaseAfter, $journalAfter, $walAfter);
     $reopen = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan(
         $prepared,
         $receipt,

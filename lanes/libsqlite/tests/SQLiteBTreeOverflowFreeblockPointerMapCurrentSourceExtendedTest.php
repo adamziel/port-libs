@@ -89,25 +89,25 @@ $plan147 = static fn (bool $secureDelete = true): SQLiteBTreeOverflowFreeblockPo
     3,
     [
         [
-            'source' => 'wp_options-autoload-value-current-source-next147',
+            'source' => 'app-settings-value-overflow',
             'first_page' => 5,
             'overflow_payload_bytes' => 1016,
         ],
         [
-            'source' => 'wp_options-option-name-index-current-source-next147',
+            'source' => 'app-settings-key-index-overflow',
             'first_page' => 8,
             'overflow_payload_bytes' => 1016,
         ],
     ],
     [
         [
-            'source' => 'wp_options-autoload-value-current-source-next147',
+            'source' => 'app-settings-value-overflow',
             'rowid' => 14701,
             'obsolete_overflow_page_numbers' => [5, 6],
         ],
         [
-            'source' => 'wp_options-option-name-index-current-source-next147',
-            'record_values' => [['_transient_next147', 14701]],
+            'source' => 'app-settings-key-index-overflow',
+            'record_values' => [['_transient_setting', 14701]],
             'obsolete_overflow_page_numbers' => [8, 9],
         ],
     ],
@@ -174,18 +174,18 @@ $cases147 = [
     'without secure delete keeps released table payload before allocation overwrite' => static fn (): mixed => substr($plan147(false)->databaseAfterRelease->page(6), 4, 1),
     'without secure delete keeps released index payload before allocation overwrite' => static fn (): mixed => substr($plan147(false)->databaseAfterRelease->page(9), 4, 1),
     'summary current pages' => static fn (): mixed => array_column($plan147()->toArray()['current_source_overflow_chain_rows'], 'page_number'),
-    'summary next pages' => static fn (): mixed => array_column($plan147()->toArray()['btree_overflow_freeblock_pointermap_current_source_next147'], 'page_number'),
+    'summary next pages' => static fn (): mixed => array_column($plan147()->toArray()['btree_overflow_freeblock_pointermap_current_source'], 'page_number'),
     'source mismatch rejected' => static fn (): mixed => $throws147(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::extendedTableAndIndexFromCurrentSourceDeleteResults($database147(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 1016]], [['obsolete_overflow_page_numbers' => [5, 6]], ['obsolete_overflow_page_numbers' => [8, 9]]], 3, 'x')),
     'single delete rejected' => static fn (): mixed => $throws147(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::extendedTableAndIndexFromCurrentSourceDeleteResults($database147(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 1016]], [['obsolete_overflow_page_numbers' => [5, 6]]], 3, 'x')),
     'empty payload rejected' => static fn (): mixed => $throws147(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::extendedTableAndIndexFromCurrentSourceDeleteResults($database147(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 1016]], [['obsolete_overflow_page_numbers' => [5, 6]], ['obsolete_overflow_page_numbers' => [8, 9]]], 3, '')),
 ];
 
 $expected147 = [
-    'action label' => 'btree-overflow-freeblock-pointermap-current-source-next147',
+    'action label' => 'btree-overflow-freeblock-pointermap-current-source',
     'leaf page' => 3,
     'coalesced fragment bytes' => 2,
     'current source pages' => [5, 6, 8, 9],
-    'current source sources' => ['wp_options-autoload-value-current-source-next147', 'wp_options-autoload-value-current-source-next147', 'wp_options-option-name-index-current-source-next147', 'wp_options-option-name-index-current-source-next147'],
+    'current source sources' => ['app-settings-value-overflow', 'app-settings-value-overflow', 'app-settings-key-index-overflow', 'app-settings-key-index-overflow'],
     'current source chain indexes' => [0, 0, 1, 1],
     'current source chain positions' => [0, 1, 0, 1],
     'current source next pages' => [6, 0, 9, 0],
@@ -198,8 +198,8 @@ $expected147 = [
     'existing freelist pages' => [11],
     'next row pages' => [11, 9, 8, 6, 5],
     'next row origins' => ['existing-freelist-page', 'released-overflow-page', 'released-overflow-page', 'released-overflow-page', 'released-overflow-page'],
-    'next row release sources' => [null, 'wp_options-option-name-index-current-source-next147', 'wp_options-option-name-index-current-source-next147', 'wp_options-autoload-value-current-source-next147', 'wp_options-autoload-value-current-source-next147'],
-    'next row current sources' => [null, 'wp_options-option-name-index-current-source-next147', 'wp_options-option-name-index-current-source-next147', 'wp_options-autoload-value-current-source-next147', 'wp_options-autoload-value-current-source-next147'],
+    'next row release sources' => [null, 'app-settings-key-index-overflow', 'app-settings-key-index-overflow', 'app-settings-value-overflow', 'app-settings-value-overflow'],
+    'next row current sources' => [null, 'app-settings-key-index-overflow', 'app-settings-key-index-overflow', 'app-settings-value-overflow', 'app-settings-value-overflow'],
     'next row current chain indexes' => [null, 1, 1, 0, 0],
     'next row current chain positions' => [null, 1, 0, 1, 0],
     'next row current next pages' => [null, 0, 9, 0, 6],
@@ -225,21 +225,21 @@ $expected147 = [
     'without secure delete keeps released index payload before allocation overwrite' => 'J',
     'summary current pages' => [5, 6, 8, 9],
     'summary next pages' => [11, 9, 8, 6, 5],
-    'source mismatch rejected' => 'SQLite b-tree overflow freeblock pointer-map next147 delete results must match current-source overflow pages',
-    'single delete rejected' => 'SQLite b-tree overflow freeblock pointer-map next147 requires table and index delete results',
-    'empty payload rejected' => 'SQLite b-tree overflow freeblock pointer-map next147 requires replacement overflow payload bytes',
+    'source mismatch rejected' => 'SQLite b-tree overflow freeblock pointer-map current-source delete results must match current-source overflow pages',
+    'single delete rejected' => 'SQLite b-tree overflow freeblock pointer-map current-source requires table and index delete results',
+    'empty payload rejected' => 'SQLite b-tree overflow freeblock pointer-map current-source requires replacement overflow payload bytes',
 ];
 
 $tests = [];
 
 foreach ($cases147 as $name => $callback) {
-    $tests['btree overflow freeblock pointermap current source next147 ' . $name] = static function (TestRunner $t) use ($callback, $expected147, $name): void {
+    $tests['btree overflow freeblock pointermap current source extended ' . $name] = static function (TestRunner $t) use ($callback, $expected147, $name): void {
         $t->same($expected147[$name], $callback());
     };
 }
 
 foreach (range(1, 40) as $index) {
-    $tests['btree overflow freeblock pointermap current source next147 invariant ' . $index] = static function (TestRunner $t) use ($plan147): void {
+    $tests['btree overflow freeblock pointermap current source extended invariant ' . $index] = static function (TestRunner $t) use ($plan147): void {
         $plan = $plan147();
 
         $t->same([5, 6, 8, 9], $plan->releasedOverflowPages());

@@ -1467,7 +1467,11 @@ final class SQLiteCoreScalarFunction
         if (preg_match('/\A\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
             $normalized = self::normalizeDateTimeText('2000-01-01 ' . $text);
 
-            return ['instant' => (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone), 'floor' => null];
+            try {
+                return ['instant' => (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone), 'floor' => null];
+            } catch (\Exception) {
+                return null;
+            }
         }
         if (preg_match('/\A(-?\d{4})-(\d{2})-(\d{2})\z/', $text, $matches) === 1) {
             $year = (int) $matches[1];
@@ -1481,15 +1485,23 @@ final class SQLiteCoreScalarFunction
                 );
             }
 
-            return ['instant' => new \DateTimeImmutable($text . ' 00:00:00', $timezone), 'floor' => $floorCandidate];
+            try {
+                return ['instant' => new \DateTimeImmutable($text . ' 00:00:00', $timezone), 'floor' => $floorCandidate];
+            } catch (\Exception) {
+                return null;
+            }
         }
         if (preg_match('/\A-?\d{4}-\d{2}-\d{2}(?:[ T]+)\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
             $normalized = self::normalizeDateTimeText($text);
 
-            return ['instant' => (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone), 'floor' => null];
+            try {
+                return ['instant' => (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone), 'floor' => null];
+            } catch (\Exception) {
+                return null;
+            }
         }
 
-        throw new \InvalidArgumentException("Unsupported SQLite date/time value: {$text}");
+        return null;
     }
 
     private static function isNonDeterministicDateTimeValue(mixed $value): bool

@@ -77,7 +77,7 @@ $completed = [
     'preserve_retained_wal_for_pinned_reader_next165',
     'sync_current_checkpoint_before_reader_release_next165',
 ];
-$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
+$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishPreparation(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -95,7 +95,7 @@ $files = [
     $walPath => (string) $payloads[$walPath . '#next165-current-reader'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishApply(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

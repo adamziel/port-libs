@@ -145,6 +145,56 @@ foreach (range(1, 101, 2) as $rowNumber) {
     };
 }
 
+foreach (SQLiteRealUpstreamBTreeIndexDynamicCorpus::index2WideOrderByLimitCases() as $case) {
+    $tests['real upstream corpus index2.test wide order by c9 limit ' . $case['limit']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index2.test index2-2.2 SELECT c9 FROM t1 ORDER BY c1,c2,c3,c4,c5,c6 LIMIT 5', $case['source']);
+        $t->same($case['limit'], count($case['result']));
+        $t->same($case['limit'], count($case['ordered_rowids']));
+        $t->same(9, $case['result'][0]);
+        $t->same(1, $case['ordered_rowids'][0]);
+        $t->same($case['limit'] === 1 ? 9 : (($case['limit'] - 1) * 10000) + 9, $case['result'][$case['limit'] - 1]);
+        $t->same($case['limit'], $case['ordered_rowids'][$case['limit'] - 1]);
+        $t->same(range(1, $case['limit']), $case['ordered_rowids']);
+        foreach ($case['result'] as $offset => $value) {
+            $expected = $offset === 0 ? 9 : ($offset * 10000) + 9;
+            $t->same($expected, $value);
+        }
+    };
+}
+
+foreach (range(1, 101) as $rowNumber) {
+    $tests["real upstream corpus index2.test index2-2 full wide c9 order row {$rowNumber}"] = static function (TestRunner $t) use ($rowNumber): void {
+        $case = SQLiteRealUpstreamBTreeIndexDynamicCorpus::index2WideOrderByLimitCases()[9];
+        $expectedC9 = $rowNumber === 1 ? 9 : (($rowNumber - 1) * 10000) + 9;
+        $t->same(101, $case['limit']);
+        $t->same($expectedC9, $case['result'][$rowNumber - 1]);
+        $t->same($rowNumber, $case['ordered_rowids'][$rowNumber - 1]);
+        $t->same(true, $rowNumber === 1 || $case['result'][$rowNumber - 2] < $case['result'][$rowNumber - 1]);
+        $t->same(true, $rowNumber === 101 || $case['result'][$rowNumber - 1] < $case['result'][$rowNumber]);
+    };
+}
+
+foreach (SQLiteRealUpstreamBTreeIndexDynamicCorpus::btree01WithoutRowidOverflowJoinCases() as $case) {
+    $tests['real upstream corpus btree01 without rowid overflow join ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->same('btree01.test btree01-2.1/btree01-2.2 WITHOUT ROWID overflow cursor join', $case['source']);
+        $t->true(in_array($case['join'], ['LEFT JOIN', 'RIGHT JOIN'], true));
+        $t->true(in_array($case['probe_y'], [198, 187, 100], true));
+        if ($case['probe_y'] === 198) {
+            $t->same(99, $case['matched_c']);
+            $t->true($case['overflow_payload_length'] > 0);
+            $t->same(1, $case['overflow_page_count']);
+        } elseif ($case['probe_y'] === 100) {
+            $t->same(50, $case['matched_c']);
+            $t->same(0, $case['overflow_payload_length']);
+            $t->same(0, $case['overflow_page_count']);
+        } else {
+            $t->same(null, $case['matched_c']);
+            $t->same(0, $case['overflow_payload_length']);
+            $t->same(0, $case['overflow_page_count']);
+        }
+    };
+}
+
 $tests['real upstream corpus btree index dynamic rejects missing indexed column'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealUpstreamBTreeIndexDynamicCorpus::buildIndexLeaf([
         ['rowid' => 1, 'cnt' => 1],

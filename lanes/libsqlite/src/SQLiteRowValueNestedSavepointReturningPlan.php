@@ -21,8 +21,8 @@ final class SQLiteRowValueNestedSavepointReturningPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $outerSavepoint = 'app_outer_import',
-        string $innerSavepoint = 'app_inner_plugin',
-        string $rowIdColumn = 'option_id',
+        string $innerSavepoint = 'app_inner_batch',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($innerStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value nested savepoint needs inner statements');

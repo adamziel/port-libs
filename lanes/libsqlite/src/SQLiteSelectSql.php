@@ -4476,11 +4476,7 @@ final class SQLiteSelectSql
                 [$hasAggregate, $valueColumn] = self::mergeAggregateValueColumn($expression, $hasAggregate, $valueColumn);
             }
         }
-        if (!$hasAggregate) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY needs an aggregate value column');
-        }
-
-        return $valueColumn;
+        return $hasAggregate ? $valueColumn : null;
     }
 
     /**

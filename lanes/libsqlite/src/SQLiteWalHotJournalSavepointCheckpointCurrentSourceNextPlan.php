@@ -1367,7 +1367,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $savepoint, $hotJournalPages, $savepointBeforePages, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerCachePages, $checkpointPages, $readers, $mode, $readerEndFrame, $currentSourceEpoch);
     }
 
-    public static function next165Plan(
+    public static function planDurablePublishAdmission(
         string $databasePath,
         string $dirtyDatabaseBytes,
         string $journalBytes,
@@ -1610,7 +1610,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $savepoints, $savepoint, $wal, $walBytes, $pageNumbers, $mode, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next166Plan(
+    public static function planSourceTokenHandoff(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,
@@ -1803,7 +1803,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $innerSavepoint, $outerSavepoint, $hotJournalPages, $savepointBeforePages, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerCachePages, $checkpointPages, $releasedSavepointPages, $mode, $readerEndFrame, $currentSourceEpoch);
     }
 
-    public static function next167Plan(
+    public static function planCheckpointSourceTransition(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,
@@ -2047,7 +2047,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $savepoint, $hotJournalPages, $savepointBeforePages, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerCachePages, $checkpointPages, $readers, $expectedCurrentToken, $expectedNextToken, $expectedPublicationFingerprint, $mode, $readerEndFrame, $currentSourceEpoch);
     }
 
-    public static function next168Plan(
+    public static function planReaderReopenAdmission(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,
@@ -2242,7 +2242,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $savepoint, $hotJournalPages, $savepointBeforePages, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerCachePages, $checkpointPages, $readers, $mode, $readerEndFrame, $currentSourceEpoch, $hotJournalExists, $walSidecarExists, $directorySyncRequested);
     }
 
-    public static function next169Plan(
+    public static function planAtomicPublishPreparation(
         string $databasePath,
         string $dirtyDatabaseBytes,
         string $journalBytes,
@@ -2281,7 +2281,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     bool $requiresSuperJournal = false,
                     ?bool $superJournalExists = null,
                 ): array {
-                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next165Plan(
+                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planDurablePublishAdmission(
                         $databasePath,
                         $dirtyDatabaseBytes,
                         $journalBytes,
@@ -2467,7 +2467,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $savepoints, $savepoint, $wal, $walBytes, $pageNumbers, $completedOperationReasons, $mode, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next170Plan(
+    public static function planHotJournalCheckpointSource(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,
@@ -2806,7 +2806,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $savepoint, $hotJournalPages, $savepointBeforePages, $wal, $walBytes, $readerCachePages, $pageNumbers, $mode, $readerEndFrame);
     }
 
-    public static function next172Plan(
+    public static function planAtomicResumePreparation(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,
@@ -2862,7 +2862,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 ): array {
                     self::assertWriteReceipts($databaseWriteReceipts);
 
-                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
+                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenHandoff(
                         $databasePath,
                         $databaseBytes,
                         $pageSize,
@@ -3257,7 +3257,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($prepared, $databaseBytes, $journalBytes, $walBytes, $expectedDatabaseHash, $expectedJournalHash, $expectedWalHash, $readerDrained);
     }
 
-    public static function next174Plan(
+    public static function planAtomicPublishApply(
         string $databasePath,
         string $dirtyDatabaseBytes,
         string $journalBytes,
@@ -3299,7 +3299,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     bool $requiresSuperJournal = false,
                     ?bool $superJournalExists = null,
                 ): array {
-                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
+                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishPreparation(
                         $databasePath,
                         $dirtyDatabaseBytes,
                         $journalBytes,
@@ -3524,7 +3524,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $savepoints, $savepoint, $wal, $walBytes, $pageNumbers, $completedOperationReasons, $files, $mode, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next175Plan(
+    public static function planAtomicResumeAdmission(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,
@@ -3576,7 +3576,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 ): array {
                     self::assertSealReceipts($pageCacheSealReceipts);
 
-                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next172Plan(
+                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicResumePreparation(
                         $databasePath,
                         $databaseBytes,
                         $pageSize,
@@ -3739,7 +3739,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $innerSavepoint, $outerSavepoint, $hotJournalPages, $savepointBeforePages, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerCachePages, $checkpointPages, $releasedSavepointPages, $databaseWriteReceipts, $walSyncReceipt, $pageCacheSealReceipts, $mode, $readerEndFrame, $currentSourceEpoch);
     }
 
-    public static function next176Plan(
+    public static function planSourceTokenAdmission(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,
@@ -3801,7 +3801,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 ): array {
                     self::assertReaderTickets($readerTickets);
 
-                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next172Plan(
+                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicResumePreparation(
                         $databasePath,
                         $databaseBytes,
                         $pageSize,
@@ -4139,7 +4139,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($resume, $exclusiveLockHeld, $directorySyncAvailable);
     }
 
-    public static function next178Plan(array $prepared, array $applied, string $databaseBytes, ?string $journalBytes, string $walBytes): array
+    public static function verifyAtomicApplyReceipt(array $prepared, array $applied, string $databaseBytes, ?string $journalBytes, string $walBytes): array
     {
         $impl = new class {
                 /**
@@ -4317,7 +4317,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($prepared, $applied, $databaseBytes, $journalBytes, $walBytes);
     }
 
-    public static function next179Plan(array $receipt, array $reopenReads, string $databaseBytes, ?string $journalBytes, string $walBytes): array
+    public static function planReopenReadsAfterReceipt(array $receipt, array $reopenReads, string $databaseBytes, ?string $journalBytes, string $walBytes): array
     {
         $impl = new class {
                 /**
@@ -4447,7 +4447,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($receipt, $reopenReads, $databaseBytes, $journalBytes, $walBytes);
     }
 
-    public static function next180Apply(array $applyPlan, array $files, array $payloadBytes, ?int $failAfterOperation = null): array
+    public static function applyAtomicPublishOperations(array $applyPlan, array $files, array $payloadBytes, ?int $failAfterOperation = null): array
     {
         $impl = new class {
                 /**
@@ -4991,7 +4991,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next182 schema cookies must be non-negative');
                     }
 
-                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
+                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCheckpointSourceTransition(
                         $databasePath,
                         $databaseBytes,
                         $pageSize,

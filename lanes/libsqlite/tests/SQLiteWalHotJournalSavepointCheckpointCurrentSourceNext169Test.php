@@ -73,7 +73,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (array $completed = [], string $mode = 'restart', ?int $reader = null, bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
+$plan = static fn (array $completed = [], string $mode = 'restart', ?int $reader = null, bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishPreparation(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

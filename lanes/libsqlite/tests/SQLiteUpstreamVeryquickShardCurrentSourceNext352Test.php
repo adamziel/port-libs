@@ -96,7 +96,7 @@ function libsqlite_suite_next352_record(
     ?int $expected = 96,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next352_evidence()->upstreamVeryquickShardCurrentSourceNext352(
+    return libsqlite_suite_next352_evidence()->upstreamVeryquickShardCurrentSource(
         $rows,
         727,
         144334,
@@ -109,7 +109,8 @@ function libsqlite_suite_next352_record(
         $output ?? libsqlite_suite_next352_output(),
         'current-source next352 veryquick-shard admission avoids accepted next155 through next324 suite evidence, exact-shard next148, queued runner106/jsonvt104 rebase work, accepted batch224 behavior surfaces, and live B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE work',
         $expected,
-        $snapshot
+        $snapshot,
+        'next352-veryquick-shard'
     );
 }
 

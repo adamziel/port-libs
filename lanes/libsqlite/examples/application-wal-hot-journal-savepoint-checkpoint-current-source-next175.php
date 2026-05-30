@@ -73,7 +73,7 @@ $cache = [
 ];
 $checkpointPages = [1, 2, 3, 4, 5, 6];
 $release = ['plugin-import-inner-next175' => [3, 5]];
-$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
+$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenHandoff(
     $databasePath,
     implode('', $database),
     $pageSize,
@@ -114,7 +114,7 @@ foreach ($base['rows'] as $row) {
     ];
 }
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next175Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicResumeAdmission(
     $databasePath,
     implode('', $database),
     $pageSize,

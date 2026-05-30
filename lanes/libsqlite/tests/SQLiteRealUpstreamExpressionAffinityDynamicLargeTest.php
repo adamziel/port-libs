@@ -217,7 +217,7 @@ $whereLiterals = [
 ];
 
 // Source truth: SQLite upstream test/types2.test types2-2.* through
-// types2-5.*. This ports the literal-vs-column comparison-affinity matrix for
+// types2-4.*. This ports the literal-vs-column comparison-affinity matrix for
 // INTEGER, NUMERIC, TEXT, and no-affinity columns, including casted literal
 // expressions that exercise dynamic expression affinity.
 foreach ($columns as $columnName) {
@@ -228,6 +228,28 @@ foreach ($columns as $columnName) {
                 $t->same($oracleRowids($where), $portRowids($where), $where);
             };
         }
+    }
+}
+
+$blobSafeLiterals = [];
+for ($value = 0; $value <= 149; $value++) {
+    $blobSafeLiterals[] = "'" . str_pad((string) $value, 3, '0', STR_PAD_LEFT) . "'";
+}
+foreach (['09', '10.00', '19.999', '20.00', '29.999', '30.00'] as $value) {
+    $blobSafeLiterals[] = "'{$value}'";
+}
+$blobSafeLiterals = array_values(array_unique($blobSafeLiterals));
+
+// Source truth: SQLite upstream test/types2.test types2-2.* through
+// types2-4.* no-affinity column behavior. This broadens the already accepted
+// `o` column matrix with additional text numerals that do not require the
+// currently missing reverse-side or IN-list expression-affinity fixes.
+foreach ($operators as $operator) {
+    foreach ($blobSafeLiterals as $literal) {
+        $where = "o {$operator} {$literal}";
+        $tests["real upstream expression affinity dynamic large types2 no affinity text {$operator} {$literal}"] = static function (TestRunner $t) use ($portRowids, $oracleRowids, $where): void {
+            $t->same($oracleRowids($where), $portRowids($where), $where);
+        };
     }
 }
 

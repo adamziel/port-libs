@@ -383,13 +383,13 @@ final class SQLiteSelectExpression
 
         $normalized = strtolower($function);
         if ($normalized === 'json' || $normalized === 'jsonb') {
-            return SQLiteJsonCanonical::jsonSqlFunctionArguments($normalized, $evaluated);
+            return self::jsonExpressionResult($normalized, SQLiteJsonCanonical::jsonSqlFunctionArguments($normalized, $evaluated));
         }
         if ($normalized === 'json_array' || $normalized === 'jsonb_array') {
-            return SQLiteJsonConstructor::jsonArraySqlFunctionArguments($normalized, $evaluated);
+            return self::jsonExpressionResult($normalized, SQLiteJsonConstructor::jsonArraySqlFunctionArguments($normalized, $evaluated));
         }
         if ($normalized === 'json_object' || $normalized === 'jsonb_object') {
-            return SQLiteJsonConstructor::jsonObjectSqlFunctionArguments($normalized, $evaluated);
+            return self::jsonExpressionResult($normalized, SQLiteJsonConstructor::jsonObjectSqlFunctionArguments($normalized, $evaluated));
         }
         if ($normalized === 'json_quote') {
             return SQLiteJsonQuote::jsonQuoteSqlFunctionArguments($normalized, $evaluated);
@@ -418,7 +418,13 @@ final class SQLiteSelectExpression
             return SQLiteJsonPretty::jsonPrettySqlFunctionArguments($normalized, $evaluated);
         }
         if ($normalized === 'json_patch' || $normalized === 'jsonb_patch') {
-            return SQLiteJsonPatch::patchSqlFunctionArguments($normalized, $evaluated);
+            foreach ([0, 1] as $jsonArgumentIndex) {
+                if (($evaluated[$jsonArgumentIndex] ?? null) instanceof SQLiteJsonSubtypeValue) {
+                    $evaluated[$jsonArgumentIndex] = $evaluated[$jsonArgumentIndex]->json;
+                }
+            }
+
+            return self::jsonExpressionResult($normalized, SQLiteJsonPatch::patchSqlFunctionArguments($normalized, $evaluated));
         }
         if (
             $normalized === 'json_insert'
@@ -428,10 +434,18 @@ final class SQLiteSelectExpression
             || $normalized === 'json_replace'
             || $normalized === 'jsonb_replace'
         ) {
-            return SQLiteJsonMutation::mutateSqlFunctionArguments($normalized, $evaluated);
+            if (($evaluated[0] ?? null) instanceof SQLiteJsonSubtypeValue) {
+                $evaluated[0] = $evaluated[0]->json;
+            }
+
+            return self::jsonExpressionResult($normalized, SQLiteJsonMutation::mutateSqlFunctionArguments($normalized, $evaluated));
         }
         if ($normalized === 'json_remove' || $normalized === 'jsonb_remove') {
-            return SQLiteJsonRemove::removeSqlFunctionArguments($normalized, $evaluated);
+            if (($evaluated[0] ?? null) instanceof SQLiteJsonSubtypeValue) {
+                $evaluated[0] = $evaluated[0]->json;
+            }
+
+            return self::jsonExpressionResult($normalized, SQLiteJsonRemove::removeSqlFunctionArguments($normalized, $evaluated));
         }
         if ($normalized === 'json_extract' || $normalized === 'jsonb_extract') {
             if ($evaluated === []) {
@@ -439,6 +453,9 @@ final class SQLiteSelectExpression
             }
 
             $value = array_shift($evaluated);
+            if ($value instanceof SQLiteJsonSubtypeValue) {
+                $value = $value->json;
+            }
             if ($value !== null && !is_string($value) && !$value instanceof SQLiteBlobValue) {
                 throw new \InvalidArgumentException('SQLite SELECT expression json_extract() JSON argument must be text, JSONB, or NULL');
             }
@@ -451,7 +468,9 @@ final class SQLiteSelectExpression
                 $paths[] = self::jsonPathText($path, 'json_extract()');
             }
 
-            return SQLiteJsonExtract::extractSqlFunction($normalized, $value, ...$paths);
+            return $normalized === 'json_extract'
+                ? SQLiteJsonExtract::extractJsonArgumentSqlFunction($normalized, $value, ...$paths)
+                : SQLiteJsonExtract::extractSqlFunction($normalized, $value, ...$paths);
         }
         if ($normalized === 'json_type' || $normalized === 'json_array_length') {
             if (count($evaluated) < 1 || count($evaluated) > 2) {
@@ -472,6 +491,15 @@ final class SQLiteSelectExpression
         }
 
         return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
+    }
+
+    private static function jsonExpressionResult(string $function, string|SQLiteBlobValue|null $value): SQLiteJsonSubtypeValue|SQLiteBlobValue|null
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue || str_starts_with($function, 'jsonb_') || $function === 'jsonb') {
+            return $value;
+        }
+
+        return new SQLiteJsonSubtypeValue($value);
     }
 
     /**

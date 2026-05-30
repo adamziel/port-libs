@@ -70,7 +70,7 @@ $databaseFixture128 = static function (string $pageType = "\x0d") use ($makeFirs
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$payload128 = str_repeat('replacement-wp-option-next128-', 28);
+$payload128 = str_repeat('replacement-app-setting-', 28);
 
 $fixture128 = static function (
     bool $secureDelete = true,
@@ -81,7 +81,7 @@ $fixture128 = static function (
         $databaseFixture128($pageType),
         3,
         [[
-            'source' => 'wp_options-transient-overflow-replace-next128',
+            'source' => 'app-settings-transient-overflow-replace',
             'obsolete_overflow_page_numbers' => [5, 6],
             'rowids' => [12801],
         ]],
@@ -157,7 +157,7 @@ $cases128 = [
     'final leaf current next fragment bytes' => static fn (): mixed => $afterHeader128($fixture128())->freeblockFragmentReport($fixture128()->databaseAfterAllocation->page(3))['current_next_fragment_bytes'],
     'final leaf secure delete zeroed' => static fn (): mixed => $afterHeader128($fixture128())->freeblockSecureDeleteReport($fixture128()->databaseAfterAllocation->page(3))['secure_delete_payload_zeroed'],
     'page images keys' => static fn (): mixed => array_keys($fixture128()->pageImages()),
-    'summary row pages' => static fn (): mixed => array_column($fixture128()->toArray()['btree_overflow_freeblock_pointermap_current_source_next128'], 'page_number'),
+    'summary row pages' => static fn (): mixed => array_column($fixture128()->toArray()['btree_overflow_freeblock_pointermap_current_source'], 'page_number'),
     'summary updated pages' => static fn (): mixed => $fixture128()->toArray()['updated_page_numbers'],
     'summary release count' => static fn (): mixed => $fixture128()->toArray()['release']['released_overflow_page_count'],
     'summary allocation pages' => static fn (): mixed => $fixture128()->toArray()['allocation']['allocated_page_numbers'],
@@ -171,7 +171,7 @@ $cases128 = [
 ];
 
 $expected128 = [
-    'action label' => 'btree-overflow-freeblock-pointermap-current-source-next128',
+    'action label' => 'btree-overflow-freeblock-pointermap-current-source',
     'leaf page number' => 3,
     'leaf page type' => 'table-leaf',
     'fragmented bytes before' => 6,
@@ -186,7 +186,7 @@ $expected128 = [
     'released overflow pages' => [5, 6],
     'allocated overflow pages' => [6, 5],
     'reused overflow pages' => [5, 6],
-    'release source' => 'wp_options-transient-overflow-replace-next128',
+    'release source' => 'app-settings-transient-overflow-replace',
     'release source count' => 2,
     'freed page numbers' => [5, 6],
     'freelist leaf pages' => [6],
@@ -198,7 +198,7 @@ $expected128 = [
     'allocation pointer map parents' => [3, 6],
     'row page numbers' => [6, 5],
     'row chain positions' => [0, 1],
-    'row release sources' => ['wp_options-transient-overflow-replace-next128', 'wp_options-transient-overflow-replace-next128'],
+    'row release sources' => ['app-settings-transient-overflow-replace', 'app-settings-transient-overflow-replace'],
     'row allocation sources' => ['freelist-leaf', 'freelist-trunk'],
     'row before pointer types' => ['overflow-page', 'first-overflow-page'],
     'row before pointer parents' => [5, 3],
@@ -207,7 +207,7 @@ $expected128 = [
     'row next pointer types' => ['first-overflow-page', 'overflow-page'],
     'row next pointer parents' => [3, 6],
     'row next overflow pointers' => [5, 0],
-    'row payload prefixes' => ['replacement-wp-o', '8-replacement-wp'],
+    'row payload prefixes' => ['replacement-app-', 'acement-app-sett'],
     'row coalesced bytes' => [4, 4],
     'row freeblock counts before' => [3, 3],
     'row freeblock counts after' => [1, 1],
@@ -230,21 +230,21 @@ $expected128 = [
     'index leaf page type accepted' => 'index-leaf',
     'without secure delete keeps old payload until allocation overwrites first byte' => 'P',
     'without clear leaves current fragments payload' => true,
-    'empty payload rejected' => 'SQLite overflow freeblock pointer-map next128 requires replacement overflow payload bytes',
-    'bad parent rejected' => 'SQLite overflow freeblock pointer-map next128 parent b-tree page must be at page 2 or later',
+    'empty payload rejected' => 'SQLite overflow freeblock pointer-map current-source requires replacement overflow payload bytes',
+    'bad parent rejected' => 'SQLite overflow freeblock pointer-map current-source parent b-tree page must be at page 2 or later',
     'bad leaf rejected' => 'SQLite freeblock coalesce page is outside the database image',
 ];
 
 $tests = [];
 
 foreach ($cases128 as $name => $callback) {
-    $tests['btree overflow freeblock pointermap current source next128 ' . $name] = static function (TestRunner $t) use ($callback, $expected128, $name): void {
+    $tests['btree overflow freeblock pointermap current source base ' . $name] = static function (TestRunner $t) use ($callback, $expected128, $name): void {
         $t->same($expected128[$name], $callback());
     };
 }
 
 foreach (range(1, 18) as $index) {
-    $tests['btree overflow freeblock pointermap current source next128 invariant ' . $index] = static function (TestRunner $t) use ($fixture128, $rows128, $index): void {
+    $tests['btree overflow freeblock pointermap current source base invariant ' . $index] = static function (TestRunner $t) use ($fixture128, $rows128, $index): void {
         $plan = $fixture128($index % 4 !== 0, $index % 3 !== 0, $index % 5 === 0 ? "\x0a" : "\x0d");
         $rows = $rows128($plan);
 
@@ -255,7 +255,7 @@ foreach (range(1, 18) as $index) {
         $t->same(array_column($rows, 'next_pointer_map_type'), ['first-overflow-page', 'overflow-page']);
         $t->same(array_column($rows, 'next_overflow_next_page'), [5, 0]);
         $t->same($plan->databaseAfterAllocation->freelistPageNumbers(), []);
-        $t->same($plan->toArray()['btree_overflow_freeblock_pointermap_current_source_next128'], $rows);
+        $t->same($plan->toArray()['btree_overflow_freeblock_pointermap_current_source'], $rows);
     };
 }
 

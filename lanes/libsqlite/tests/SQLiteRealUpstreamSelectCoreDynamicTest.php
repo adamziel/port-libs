@@ -582,4 +582,122 @@ foreach ($select7AliasGroupCases as $name => [$values, $expected]) {
     };
 }
 
+$selectCTables = static function (): array {
+    return [
+        't1' => [
+            ['a' => 1, 'b' => 'aaa', 'c' => 'bbb'],
+            ['a' => 1, 'b' => 'aaa', 'c' => 'bbb'],
+            ['a' => 2, 'b' => 'ccc', 'c' => 'ddd'],
+        ],
+        'person' => [
+            ['org_id' => 'meyers', 'nickname' => 'jack', 'license' => '2GAT123'],
+            ['org_id' => 'meyers', 'nickname' => 'hill', 'license' => 'V345FMP'],
+            ['org_id' => 'meyers', 'nickname' => 'jim', 'license' => '2GAT138'],
+            ['org_id' => 'smith', 'nickname' => 'maggy', 'license' => ''],
+            ['org_id' => 'smith', 'nickname' => 'jose', 'license' => 'JJZ109'],
+            ['org_id' => 'smith', 'nickname' => 'jack', 'license' => 'THX138'],
+            ['org_id' => 'lakeside', 'nickname' => 'dave', 'license' => '953OKG'],
+            ['org_id' => 'lakeside', 'nickname' => 'amy', 'license' => null],
+            ['org_id' => 'lake-apts', 'nickname' => 'tom', 'license' => null],
+            ['org_id' => 'acorn', 'nickname' => 'hideo', 'license' => 'CQB421'],
+        ],
+        't2' => [
+            ['a' => 'abc', 'b' => 'xxx'],
+            ['a' => 'def', 'b' => 'yyy'],
+        ],
+        't_distinct_bug' => [
+            ['a' => '1', 'b' => '1', 'c' => 'a'],
+            ['a' => '1', 'b' => '2', 'c' => 'b'],
+            ['a' => '1', 'b' => '3', 'c' => 'c'],
+            ['a' => '1', 'b' => '1', 'c' => 'd'],
+            ['a' => '1', 'b' => '2', 'c' => 'e'],
+            ['a' => '1', 'b' => '3', 'c' => 'f'],
+        ],
+        'x1' => [
+            ['a' => 'a'],
+            ['a' => 'b'],
+        ],
+        'x3' => [
+            ['c' => 302],
+            ['c' => 303],
+            ['c' => 301],
+        ],
+        'vvv' => [
+            ['b' => 21],
+            ['b' => 22],
+            ['b' => 23],
+            ['b' => 24],
+            ['b' => 25],
+        ],
+    ];
+};
+
+$selectCCases = [
+    'selectC.test selectC-1.1 distinct alias in where in-list' => ["SELECT DISTINCT a AS x, b||c AS y FROM t1 WHERE y IN ('aaabbb','xxx')", [1, 'aaabbb']],
+    'selectC.test selectC-1.2 distinct expression in where in-list' => ["SELECT DISTINCT a AS x, b||c AS y FROM t1 WHERE b||c IN ('aaabbb','xxx')", [1, 'aaabbb']],
+    'selectC.test selectC-1.3 distinct alias equality in where' => ["SELECT DISTINCT a AS x, b||c AS y FROM t1 WHERE y='aaabbb'", [1, 'aaabbb']],
+    'selectC.test selectC-1.4 distinct expression equality in where' => ["SELECT DISTINCT a AS x, b||c AS y FROM t1 WHERE b||c='aaabbb'", [1, 'aaabbb']],
+    'selectC.test selectC-1.5 distinct numeric alias equality in where' => ['SELECT DISTINCT a AS x, b||c AS y FROM t1 WHERE x=2', [2, 'cccddd']],
+    'selectC.test selectC-1.6 distinct numeric column equality in where' => ['SELECT DISTINCT a AS x, b||c AS y FROM t1 WHERE a=2', [2, 'cccddd']],
+    'selectC.test selectC-1.7 unary alias equality in where' => ["SELECT DISTINCT a AS x, b||c AS y FROM t1 WHERE +y='aaabbb'", [1, 'aaabbb']],
+    'selectC.test selectC-1.8 grouped alias equality in having' => ["SELECT a AS x, b||c AS y FROM t1 GROUP BY x, y HAVING y='aaabbb'", [1, 'aaabbb']],
+    'selectC.test selectC-1.9 grouped expression equality in having' => ["SELECT a AS x, b||c AS y FROM t1 GROUP BY x, y HAVING b||c='aaabbb'", [1, 'aaabbb']],
+    'selectC.test selectC-1.10 alias where before grouped projection' => ["SELECT a AS x, b||c AS y FROM t1 WHERE y='aaabbb' GROUP BY x, y", [1, 'aaabbb']],
+    'selectC.test selectC-1.11 expression where before grouped projection' => ["SELECT a AS x, b||c AS y FROM t1 WHERE b||c='aaabbb' GROUP BY x, y", [1, 'aaabbb']],
+    'selectC.test selectC-1.12.1 distinct upper alias order' => ['SELECT DISTINCT upper(b) AS x FROM t1 ORDER BY x', ['AAA', 'CCC']],
+    'selectC.test selectC-1.13.1 upper alias group order' => ['SELECT upper(b) AS x FROM t1 GROUP BY x ORDER BY x', ['AAA', 'CCC']],
+    'selectC.test selectC-1.14.1 upper alias order descending' => ['SELECT upper(b) AS x FROM t1 ORDER BY x DESC', ['CCC', 'AAA', 'AAA']],
+    'selectC.test selectC-4.2 distinct subquery keeps duplicate projected a rows' => ['SELECT a FROM (SELECT DISTINCT a, b FROM t_distinct_bug)', ['1', '1', '1']],
+    'selectC.test selectC-5.1 compound view rows preserve left order before right arm' => ['SELECT * FROM (SELECT b FROM vvv UNION ALL SELECT c from x3)', [21, 22, 23, 24, 25, 302, 303, 301]],
+    'selectC.test selectC-5.2 cross join materialized compound table' => ['SELECT * FROM x1, (SELECT b FROM vvv UNION ALL SELECT c from x3)', ['a', 21, 'a', 22, 'a', 23, 'a', 24, 'a', 25, 'a', 302, 'a', 303, 'a', 301, 'b', 21, 'b', 22, 'b', 23, 'b', 24, 'b', 25, 'b', 302, 'b', 303, 'b', 301]],
+];
+
+foreach ($selectCCases as $name => [$sql, $expected]) {
+    $tests['real upstream corpus ' . $name] = static function (TestRunner $t) use ($selectCTables, $sql, $expected, $assertFlatValues, $flatValues, $name): void {
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $selectCTables()), $flatValues);
+        $t->contains('selectC.test', $name);
+        $t->contains('SELECT', $sql);
+    };
+}
+
+for ($seed = 1; $seed <= 180; $seed++) {
+    $rows = [];
+    $expectedPairs = [];
+    $targets = [];
+    for ($offset = 0; $offset < 12; $offset++) {
+        $a = ($offset % 6) + 1;
+        $b = 'k' . (($seed + $offset) % 17);
+        $c = 'v' . (($seed * 3 + $offset) % 19);
+        $rows[] = ['a' => $a, 'b' => $b, 'c' => $c];
+        $y = $b . $c;
+        if ($offset % 3 !== 1) {
+            $targets[$y] = true;
+            $expectedPairs[$a . "\0" . $y] = [$a, $y];
+        }
+    }
+    usort($expectedPairs, static fn (array $left, array $right): int => ($left[0] <=> $right[0]) ?: strcmp($left[1], $right[1]));
+    $expected = [];
+    foreach ($expectedPairs as $pair) {
+        $expected[] = $pair[0];
+        $expected[] = $pair[1];
+    }
+    $quotedTargets = implode(',', array_map(static fn (string $value): string => "'" . $value . "'", array_keys($targets)));
+
+    $tests["real upstream corpus selectC.test selectC-1.1 dynamic alias in-list seed {$seed}"] = static function (TestRunner $t) use ($rows, $quotedTargets, $expected, $assertFlatValues, $flatValues, $seed): void {
+        $tables = ['t1' => $rows];
+        $sql = "SELECT DISTINCT a AS x, b||c AS y FROM t1 WHERE y IN ({$quotedTargets}) ORDER BY x, y";
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $tables), $flatValues);
+        $t->contains('selectC-1.1', "selectC.test selectC-1.1 dynamic alias in-list seed {$seed}");
+        $t->true(count($expected) >= 12);
+    };
+
+    $tests["real upstream corpus selectC.test selectC-1.8 dynamic grouped alias having seed {$seed}"] = static function (TestRunner $t) use ($rows, $quotedTargets, $expected, $assertFlatValues, $flatValues, $seed): void {
+        $tables = ['t1' => $rows];
+        $sql = "SELECT a AS x, b||c AS y FROM t1 GROUP BY x, y HAVING y IN ({$quotedTargets}) ORDER BY x, y";
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $tables), $flatValues);
+        $t->contains('selectC-1.8', "selectC.test selectC-1.8 dynamic grouped alias having seed {$seed}");
+        $t->true(count($expected) >= 12);
+    };
+}
+
 return $tests;

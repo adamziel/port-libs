@@ -24,7 +24,7 @@ $receipt = [
     'receipt_digest' => $receiptDigest,
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next178'],
 ];
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next179Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReopenReadsAfterReceipt(
     $receipt,
     [
         ['page' => 1, 'source' => 'database', 'receipt_digest' => $receiptDigest, 'expected_image' => $page('wp next179 checkpointed options'), 'actual_image' => $page('wp next179 checkpointed options')],

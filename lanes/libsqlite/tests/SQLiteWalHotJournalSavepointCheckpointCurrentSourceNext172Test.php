@@ -78,7 +78,7 @@ $fixture = static function (array $receiptMutations = [], array $walReceiptMutat
     $checkpointPages = [1, 2, 3, 4, 5, 6];
     $release = $released ?? ['plugin-import-inner-next172' => [3, 5]];
 
-    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
+    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenHandoff(
         $databasePath,
         $databaseBytes,
         $pageSize,
@@ -129,7 +129,7 @@ $fixture = static function (array $receiptMutations = [], array $walReceiptMutat
         'label' => 'next WAL sidecar sync',
     ], $walReceiptMutations);
 
-    $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next172Plan(
+    $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicResumePreparation(
         $databasePath,
         $databaseBytes,
         $pageSize,
@@ -232,7 +232,7 @@ foreach ($cases as $name => [$callback, $expected]) {
 $throws = [
     'empty receipts rejected' => static function () use ($fixture): void {
         [$plan, $base, $receipts, $walReceipt] = $fixture();
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next172Plan(
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicResumePreparation(
             $plan['database_path'],
             str_repeat('x', 512),
             512,

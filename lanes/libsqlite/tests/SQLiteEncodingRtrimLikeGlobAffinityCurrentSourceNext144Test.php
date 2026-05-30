@@ -8,40 +8,40 @@ use PortLibs\LibSqlite\SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_value' => 'cache  ', 'option_pattern' => 'cache', 'option_escape' => '!'],
-    ['option_id' => 2, 'option_value' => 'cache', 'option_pattern' => 'cache', 'option_escape' => '!'],
-    ['option_id' => 3, 'option_value' => "cache\t", 'option_pattern' => 'cache', 'option_escape' => '!'],
-    ['option_id' => 4, 'option_value' => 42, 'option_pattern' => '4_', 'option_escape' => '!'],
-    ['option_id' => 5, 'option_value' => 4.5, 'option_pattern' => '4._', 'option_escape' => '!'],
-    ['option_id' => 6, 'option_value' => true, 'option_pattern' => '1', 'option_escape' => '!'],
-    ['option_id' => 7, 'option_value' => false, 'option_pattern' => '0', 'option_escape' => '!'],
-    ['option_id' => 8, 'option_value' => new SQLiteBlobValue('plugin:blob'), 'option_pattern' => 'plugin:%', 'option_escape' => '!'],
-    ['option_id' => 9, 'option_value' => 'plugin_100%_enabled  ', 'option_pattern' => 'plugin!_100!%!_enabled', 'option_escape' => '!'],
-    ['option_id' => 10, 'option_value' => 'Plugin_Cache', 'option_pattern' => 'plugin!_cache', 'option_escape' => '!'],
-    ['option_id' => 11, 'option_value' => 'emoji_😀  ', 'option_pattern' => 'emoji_*', 'option_escape' => '!'],
-    ['option_id' => 12, 'option_value' => null, 'option_pattern' => '%', 'option_escape' => '!'],
-    ['option_id' => 13, 'option_value' => "plugin:\xc3", 'option_pattern' => 'plugin:%', 'option_escape' => '!'],
+    ['setting_id' => 1, 'key_value' => 'cache  ', 'key_pattern' => 'cache', 'key_escape' => '!'],
+    ['setting_id' => 2, 'key_value' => 'cache', 'key_pattern' => 'cache', 'key_escape' => '!'],
+    ['setting_id' => 3, 'key_value' => "cache\t", 'key_pattern' => 'cache', 'key_escape' => '!'],
+    ['setting_id' => 4, 'key_value' => 42, 'key_pattern' => '4_', 'key_escape' => '!'],
+    ['setting_id' => 5, 'key_value' => 4.5, 'key_pattern' => '4._', 'key_escape' => '!'],
+    ['setting_id' => 6, 'key_value' => true, 'key_pattern' => '1', 'key_escape' => '!'],
+    ['setting_id' => 7, 'key_value' => false, 'key_pattern' => '0', 'key_escape' => '!'],
+    ['setting_id' => 8, 'key_value' => new SQLiteBlobValue('plugin:blob'), 'key_pattern' => 'plugin:%', 'key_escape' => '!'],
+    ['setting_id' => 9, 'key_value' => 'plugin_100%_enabled  ', 'key_pattern' => 'plugin!_100!%!_enabled', 'key_escape' => '!'],
+    ['setting_id' => 10, 'key_value' => 'Plugin_Cache', 'key_pattern' => 'plugin!_cache', 'key_escape' => '!'],
+    ['setting_id' => 11, 'key_value' => 'emoji_😀  ', 'key_pattern' => 'emoji_*', 'key_escape' => '!'],
+    ['setting_id' => 12, 'key_value' => null, 'key_pattern' => '%', 'key_escape' => '!'],
+    ['setting_id' => 13, 'key_value' => "plugin:\xc3", 'key_pattern' => 'plugin:%', 'key_escape' => '!'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_value' => 'cache', 'option_pattern' => 'cache', 'option_escape' => '!'],
-    ['option_id' => 2, 'option_value' => 'cache  ', 'option_pattern' => 'cache%', 'option_escape' => '!'],
-    ['option_id' => 3, 'option_value' => "cache\t", 'option_pattern' => "cache\t", 'option_escape' => '!'],
-    ['option_id' => 4, 'option_value' => 420, 'option_pattern' => '42_', 'option_escape' => '!'],
-    ['option_id' => 5, 'option_value' => 4.5, 'option_pattern' => '4._', 'option_escape' => '!'],
-    ['option_id' => 6, 'option_value' => true, 'option_pattern' => '1', 'option_escape' => '!'],
-    ['option_id' => 7, 'option_value' => false, 'option_pattern' => '1', 'option_escape' => '!'],
-    ['option_id' => 8, 'option_value' => new SQLiteBlobValue('plugin:blob  '), 'option_pattern' => 'plugin:%', 'option_escape' => '!'],
-    ['option_id' => 9, 'option_value' => 'plugin_100%_enabled', 'option_pattern' => 'plugin!_100!%!_enabled', 'option_escape' => '!'],
-    ['option_id' => 10, 'option_value' => 'Plugin_Cache', 'option_pattern' => 'Plugin!_Cache', 'option_escape' => '!'],
-    ['option_id' => 11, 'option_value' => 'emoji_😀', 'option_pattern' => 'emoji_*', 'option_escape' => '!'],
-    ['option_id' => 14, 'option_value' => 'new_cache', 'option_pattern' => 'new_%', 'option_escape' => '!'],
-    ['option_id' => 15, 'option_value' => 'bad_escape', 'option_pattern' => 'bad%', 'option_escape' => '!!'],
+    ['setting_id' => 1, 'key_value' => 'cache', 'key_pattern' => 'cache', 'key_escape' => '!'],
+    ['setting_id' => 2, 'key_value' => 'cache  ', 'key_pattern' => 'cache%', 'key_escape' => '!'],
+    ['setting_id' => 3, 'key_value' => "cache\t", 'key_pattern' => "cache\t", 'key_escape' => '!'],
+    ['setting_id' => 4, 'key_value' => 420, 'key_pattern' => '42_', 'key_escape' => '!'],
+    ['setting_id' => 5, 'key_value' => 4.5, 'key_pattern' => '4._', 'key_escape' => '!'],
+    ['setting_id' => 6, 'key_value' => true, 'key_pattern' => '1', 'key_escape' => '!'],
+    ['setting_id' => 7, 'key_value' => false, 'key_pattern' => '1', 'key_escape' => '!'],
+    ['setting_id' => 8, 'key_value' => new SQLiteBlobValue('plugin:blob  '), 'key_pattern' => 'plugin:%', 'key_escape' => '!'],
+    ['setting_id' => 9, 'key_value' => 'plugin_100%_enabled', 'key_pattern' => 'plugin!_100!%!_enabled', 'key_escape' => '!'],
+    ['setting_id' => 10, 'key_value' => 'Plugin_Cache', 'key_pattern' => 'Plugin!_Cache', 'key_escape' => '!'],
+    ['setting_id' => 11, 'key_value' => 'emoji_😀', 'key_pattern' => 'emoji_*', 'key_escape' => '!'],
+    ['setting_id' => 14, 'key_value' => 'new_cache', 'key_pattern' => 'new_%', 'key_escape' => '!'],
+    ['setting_id' => 15, 'key_value' => 'bad_escape', 'key_pattern' => 'bad%', 'key_escape' => '!!'],
 ];
 
 $plan = static fn (
     string $operator = 'LIKE',
-    ?string $escapeColumn = 'option_escape',
+    ?string $escapeColumn = 'key_escape',
     ?array $current = null,
     ?array $next = null,
     string|int $currentEncoding = 'UTF-16LE',
@@ -49,8 +49,8 @@ $plan = static fn (
 ): array => SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
-    'option_value',
-    'option_pattern',
+    'key_value',
+    'key_pattern',
     $operator,
     $escapeColumn,
     'main.app_settings@143',
@@ -72,9 +72,9 @@ $valueAt = static function (array $value, string $path): mixed {
 $cases = [
     'status' => ['status', 'encoding-rtrim-like-glob-affinity-current-source-next144'],
     'operator' => ['operator', 'LIKE'],
-    'value column' => ['valueColumn', 'option_value'],
-    'pattern column' => ['patternColumn', 'option_pattern'],
-    'escape column' => ['escapeColumn', 'option_escape'],
+    'value column' => ['valueColumn', 'key_value'],
+    'pattern column' => ['patternColumn', 'key_pattern'],
+    'escape column' => ['escapeColumn', 'key_escape'],
     'collation' => ['collation', 'RTRIM'],
     'case sensitive like' => ['caseSensitiveLike', true],
     'current source' => ['currentSource', 'main.app_settings@143'],
@@ -144,10 +144,10 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['encoding rtrim like glob affinity current source next144 stable identical rows reusable'] = static function (TestRunner $t) use ($plan): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'cache  ', 'option_pattern' => 'cache', 'option_escape' => '!'],
-        ['option_id' => 2, 'option_value' => 42, 'option_pattern' => '4_', 'option_escape' => '!'],
+        ['setting_id' => 1, 'key_value' => 'cache  ', 'key_pattern' => 'cache', 'key_escape' => '!'],
+        ['setting_id' => 2, 'key_value' => 42, 'key_pattern' => '4_', 'key_escape' => '!'],
     ];
-    $result = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'option_value', 'option_pattern', 'LIKE', 'option_escape', 'stable', 'stable', 7, 7, 'UTF-8', 'UTF-8');
+    $result = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'key_value', 'key_pattern', 'LIKE', 'key_escape', 'stable', 'stable', 7, 7, 'UTF-8', 'UTF-8');
     $t->same([2, 1], $result['currentOrderRowids']);
     $t->same([2], $result['currentMatchedRowids']);
     $t->same([], $result['invalidationReasons']);
@@ -156,9 +156,9 @@ $tests['encoding rtrim like glob affinity current source next144 stable identica
 
 $tests['encoding rtrim like glob affinity current source next144 glob dynamic patterns'] = static function (TestRunner $t) use ($plan): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin:blob  ', 'option_pattern' => 'plugin:*'],
-        ['option_id' => 2, 'option_value' => 'emoji_😀', 'option_pattern' => 'emoji_?'],
-        ['option_id' => 3, 'option_value' => 'cache', 'option_pattern' => 'plugin*'],
+        ['setting_id' => 1, 'key_value' => 'plugin:blob  ', 'key_pattern' => 'plugin:*'],
+        ['setting_id' => 2, 'key_value' => 'emoji_😀', 'key_pattern' => 'emoji_?'],
+        ['setting_id' => 3, 'key_value' => 'cache', 'key_pattern' => 'plugin*'],
     ];
     $result = $plan('GLOB', null, $rows, $rows, 'UTF-8', 'UTF-8');
     $t->same('GLOB', $result['operator']);
@@ -168,7 +168,7 @@ $tests['encoding rtrim like glob affinity current source next144 glob dynamic pa
 };
 
 $tests['encoding rtrim like glob affinity current source next144 rejects glob escape'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('GLOB', 'option_escape'));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('GLOB', 'key_escape'));
 };
 
 $tests['encoding rtrim like glob affinity current source next144 rejects unsupported operator'] = static function (TestRunner $t) use ($plan): void {
@@ -176,19 +176,19 @@ $tests['encoding rtrim like glob affinity current source next144 rejects unsuppo
 };
 
 $tests['encoding rtrim like glob affinity current source next144 rejects missing pattern column'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1, 'option_value' => 'cache']];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'option_value', 'option_pattern'));
+    $rows = [['setting_id' => 1, 'key_value' => 'cache']];
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'key_value', 'key_pattern'));
 };
 
 $tests['encoding rtrim like glob affinity current source next144 records array value as malformed'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1, 'option_value' => ['cache'], 'option_pattern' => '%']];
-    $result = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'option_value', 'option_pattern');
+    $rows = [['setting_id' => 1, 'key_value' => ['cache'], 'key_pattern' => '%']];
+    $result = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'key_value', 'key_pattern');
     $t->same([1], $result['currentMalformedRowids']);
     $t->same('SQLite RTRIM affinity current-source next144 value must be scalar text-affinity input', $result['currentErrors'][1]);
 };
 
 $tests['encoding rtrim like glob affinity current source next144 rejects invalid encoding'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('LIKE', 'option_escape', null, null, 'UTF-32', 'UTF-8'));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('LIKE', 'key_escape', null, null, 'UTF-32', 'UTF-8'));
 };
 
 return $tests;

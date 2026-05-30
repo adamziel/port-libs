@@ -809,6 +809,143 @@ for ($i = 1; $i <= 36; $i++) {
     }
 }
 
+for ($i = 1; $i <= 42; $i++) {
+    $leftRows = [['a' => 1, 'b' => 2], ['a' => 3, 'b' => 4]];
+    if ($i % 3 === 0) {
+        $leftRows[] = ['a' => 5, 'b' => 6];
+    }
+    $rightRows = [['c' => 10, 'd' => 20], ['c' => 30, 'd' => 40]];
+    if ($i % 4 === 0) {
+        $rightRows[] = ['c' => 50, 'd' => 60];
+    }
+    $expectedViewRows = count($leftRows) * count($rightRows);
+    $updateMatches = 0;
+    $deleteMatches = 0;
+    foreach ($leftRows as $left) {
+        foreach ($rightRows as $right) {
+            if (($left['a'] + $right['c']) % 2 === $i % 2) {
+                ++$updateMatches;
+            }
+            if ((int) $left['b'] === 2 || (int) $right['d'] === 40) {
+                ++$deleteMatches;
+            }
+        }
+    }
+    $operations = [
+        [
+            'op' => 'update',
+            'where' => static fn (array $row): bool => ((int) $row['a'] + (int) $row['c']) % 2 === $i % 2,
+            'row' => ['a' => 100 + $i, 'b' => 200 + $i, 'c' => 300 + $i, 'd' => 400 + $i],
+        ],
+        [
+            'op' => 'delete',
+            'where' => static fn (array $row): bool => (int) $row['b'] === 2 || (int) $row['d'] === 40,
+        ],
+        [
+            'op' => 'insert',
+            'row' => ['a' => 700 + $i, 'b' => 800 + $i, 'c' => 900 + $i, 'd' => 1000 + $i],
+        ],
+    ];
+    $expectedLogRows = ($updateMatches * 2) + ($deleteMatches * 2) + 2;
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::insteadOfViewTriggerLog($leftRows, $rightRows, $operations);
+    $case = 'trigger2-7 instead-of view trigger old new rows dynamic ' . $i;
+
+    $tests[$case] = static function (TestRunner $t) use ($plan, $expectedViewRows, $expectedLogRows, $operations, $updateMatches): void {
+        $actual = $plan();
+        $first = $actual['first_log_row'];
+        $last = $actual['last_log_row'];
+
+        $t->same('trigger2.test trigger2-7.1..7.4', $actual['source']);
+        $t->same('instead-of-view-trigger-old-new-log', $actual['operation']);
+        $t->same('commit-ok', $actual['status']);
+        $t->same($expectedViewRows, $actual['view_row_count']);
+        $t->same(3, $actual['operation_count']);
+        $t->same($expectedLogRows, $actual['log_row_count']);
+        $t->same($updateMatches > 0 ? $operations[0]['row']['a'] : 1, $updateMatches > 0 ? $first['new_a'] : $first['old_a']);
+        $t->same($updateMatches > 0 ? $operations[0]['row']['b'] : 2, $updateMatches > 0 ? $first['new_b'] : $first['old_b']);
+        $t->same($updateMatches > 0 ? $operations[0]['row']['c'] : 10, $updateMatches > 0 ? $first['new_c'] : $first['old_c']);
+        $t->same($updateMatches > 0 ? $operations[0]['row']['d'] : 20, $updateMatches > 0 ? $first['new_d'] : $first['old_d']);
+        $t->same(0, $last['old_a']);
+        $t->same(0, $last['old_b']);
+        $t->same(0, $last['old_c']);
+        $t->same(0, $last['old_d']);
+        $t->same($operations[2]['row']['a'], $last['new_a']);
+        $t->same($operations[2]['row']['b'], $last['new_b']);
+        $t->same($operations[2]['row']['c'], $last['new_c']);
+        $t->same($operations[2]['row']['d'], $last['new_d']);
+        $t->same('sqlite-trigger2-instead-of-update-view-old-new-row', $actual['dependencies'][0]);
+        $t->same('sqlite-trigger2-instead-of-delete-view-old-row', $actual['dependencies'][1]);
+        $t->same('sqlite-trigger2-instead-of-insert-view-new-row', $actual['dependencies'][2]);
+    };
+}
+
+for ($i = 1; $i <= 44; $i++) {
+    $baseRows = [
+        ['a' => $i, 'b' => $i + 1, 'c' => $i + 2],
+        ['a' => $i + 3, 'b' => $i + 4, 'c' => $i + 5],
+    ];
+    if ($i % 4 === 0) {
+        $baseRows[] = ['a' => $i + 6, 'b' => $i + 7, 'c' => $i + 8];
+    }
+    $expectedViewRows = array_map(
+        static fn (array $row): array => [
+            'x' => $row['a'] + $row['b'],
+            'y' => $row['b'] + $row['c'],
+            'z' => $row['a'] + $row['c'],
+        ],
+        $baseRows
+    );
+    $deleteMatches = 0;
+    $updateMatches = 0;
+    foreach ($expectedViewRows as $row) {
+        if (($row['x'] + $row['z']) % 2 === $i % 2) {
+            ++$deleteMatches;
+        }
+        if ($row['y'] >= ($i * 2) + 5) {
+            ++$updateMatches;
+        }
+    }
+    $insertRow = ['x' => 1000 + $i, 'y' => 2000 + $i, 'z' => 3000 + $i];
+    $updateRow = ['x' => 4000 + $i, 'y' => 5000 + $i, 'z' => 6000 + $i];
+    $operations = [
+        [
+            'op' => 'delete',
+            'where' => static fn (array $row): bool => ((int) $row['x'] + (int) $row['z']) % 2 === $i % 2,
+        ],
+        ['op' => 'insert', 'row' => $insertRow],
+        [
+            'op' => 'update',
+            'where' => static fn (array $row): bool => (int) $row['y'] >= ($i * 2) + 5,
+            'row' => $updateRow,
+        ],
+    ];
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::expressionViewTriggerRows($baseRows, $operations);
+    $case = 'trigger2-8 expression view trigger old new rows dynamic ' . $i;
+
+    $tests[$case] = static function (TestRunner $t) use ($plan, $expectedViewRows, $deleteMatches, $insertRow, $updateRow, $updateMatches): void {
+        $actual = $plan();
+        $insertLog = $actual['log_rows'][$deleteMatches];
+        $lastLog = $actual['log_rows'][$actual['log_row_count'] - 1];
+
+        $t->same('trigger2.test trigger2-8.1..8.6', $actual['source']);
+        $t->same('expression-view-instead-of-trigger-old-new-rows', $actual['operation']);
+        $t->same('commit-ok', $actual['status']);
+        $t->same($expectedViewRows, $actual['view_rows']);
+        $t->same(count($expectedViewRows), $actual['view_row_count']);
+        $t->same($deleteMatches + 1 + $updateMatches, $actual['log_row_count']);
+        $t->same(null, $insertLog['old_x']);
+        $t->same($insertRow['x'], $insertLog['new_x']);
+        $t->same($insertRow['y'], $insertLog['new_y']);
+        $t->same($insertRow['z'], $insertLog['new_z']);
+        $t->same($updateMatches > 0 ? $updateRow['x'] : $insertRow['x'], $lastLog['new_x']);
+        $t->same($updateMatches > 0 ? $updateRow['y'] : $insertRow['y'], $lastLog['new_y']);
+        $t->same($updateMatches > 0 ? $updateRow['z'] : $insertRow['z'], $lastLog['new_z']);
+        $t->same('sqlite-trigger2-view-expression-columns-feed-old-row', $actual['dependencies'][0]);
+        $t->same('sqlite-trigger2-view-insert-feeds-new-expression-row', $actual['dependencies'][1]);
+        $t->same('sqlite-trigger2-view-update-feeds-old-and-new-expression-rows', $actual['dependencies'][2]);
+    };
+}
+
 $tests['trigger1 schema duplicate trigger records upstream error'] = static function (TestRunner $t): void {
     $plan = SQLiteDynamicTriggerForeignKeyPlan::schemaLifecycle(
         [['name' => 'items', 'object_type' => 'table']],

@@ -52,7 +52,7 @@ $completedBeforeCrash = [
     'sync_current_checkpoint_before_reader_release_next165',
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishPreparation(
     '/srv/www/wp-content/database/wp.sqlite',
     $dirtyDatabase,
     $journalBytes,

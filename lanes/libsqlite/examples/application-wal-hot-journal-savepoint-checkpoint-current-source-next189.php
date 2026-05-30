@@ -64,7 +64,7 @@ $completed = [
     'sync_current_checkpoint_before_reader_release_next165',
 ];
 
-$probe = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+$probe = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishApply(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -82,8 +82,8 @@ $files = [
     $journalPath => $probe['file_rows'][1]['required'] ? $journalBytes : null,
     $walPath => (string) $payloads[$walPath . '#next165-current-reader'],
 ];
-$apply = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan(SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+$apply = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::applyAtomicPublishOperations(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan(SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishApply(
         $databasePath,
         $dirtyDatabase,
         $journalBytes,

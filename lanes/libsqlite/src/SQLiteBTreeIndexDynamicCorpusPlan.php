@@ -1007,6 +1007,55 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,table:string,quote_style:string,column:string,index_name:string,collation:string,sort:string,declared_column:string,lookup_literal:string,lookup_value:int,uses_index:bool,catalog_names:list<string>}>
+     */
+    public static function index3QuotedIdentifierCompatibilityCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite upstream index3 quoted identifier corpus requires at least one case');
+        }
+
+        $quoteStyles = [
+            'single-string' => static fn (string $identifier): string => "'" . $identifier . "'",
+            'double-quoted' => static fn (string $identifier): string => '"' . $identifier . '"',
+            'bracket-quoted' => static fn (string $identifier): string => '[' . $identifier . ']',
+            'bare' => static fn (string $identifier): string => $identifier,
+        ];
+        $columns = ['a', 'b', 'c', 'd'];
+        $catalogNames = ['sqlite_autoindex_t1_1', 'sqlite_autoindex_t1_2', 't1', 't1c', 't1d'];
+        $rows = [];
+
+        for ($case = 1; $case <= $cases; $case++) {
+            $column = $columns[($case - 1) % count($columns)];
+            $quoteName = array_keys($quoteStyles)[intdiv($case - 1, count($columns)) % count($quoteStyles)];
+            $quote = $quoteStyles[$quoteName];
+            $collation = $column === 'b' || $case % 5 === 0 ? 'nocase' : 'binary';
+            $sort = $column === 'b' || $case % 7 === 0 ? 'DESC' : 'ASC';
+            $lookupValue = (($case - 1) % 30) + 1;
+            $lookupLiteral = sprintf('ab%03xxy', $lookupValue);
+
+            $rows[] = [
+                'source' => 'index3.test index3-2.1 through index3-2.5',
+                'case' => $case,
+                'upstream_section' => $case % 4 === 0 ? 'index3-2.4' : ($column === 'b' ? 'index3-2.2' : 'index3-2.1'),
+                'table' => $case % 4 === 0 ? 't2' . chr(97 + (($case - 1) % 4)) : 't1',
+                'quote_style' => $quoteName,
+                'column' => $column,
+                'index_name' => $column === 'b' ? 'sqlite_autoindex_t1_2' : 't1' . $column,
+                'collation' => $collation,
+                'sort' => $sort,
+                'declared_column' => $quote($column),
+                'lookup_literal' => $lookupLiteral,
+                'lookup_value' => $lookupValue,
+                'uses_index' => $column === 'b' || $column === 'c' || $column === 'd',
+                'catalog_names' => $catalogNames,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

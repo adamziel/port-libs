@@ -74,7 +74,7 @@ $plan = static fn (
     ?array $pagesArg = null,
     ?array $hotArg = null,
     ?array $beforeArg = null,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next170Plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planHotJournalCheckpointSource(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -219,12 +219,12 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next170Plan('', $databaseBytes, $pageSize, 's', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
-    'empty database bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next170Plan($databasePath, '', $pageSize, 's', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
-    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next170Plan($databasePath, $databaseBytes, $pageSize, '', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
-    'empty wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next170Plan($databasePath, $databaseBytes, $pageSize, 's', $hotJournal, $savepointBefore, $wal, '', $cache, [1]),
-    'bad page size rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next170Plan($databasePath, $databaseBytes, 500, 's', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
-    'unaligned database rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next170Plan($databasePath, $databaseBytes . 'x', $pageSize, 's', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
+    'empty database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planHotJournalCheckpointSource('', $databaseBytes, $pageSize, 's', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
+    'empty database bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planHotJournalCheckpointSource($databasePath, '', $pageSize, 's', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
+    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planHotJournalCheckpointSource($databasePath, $databaseBytes, $pageSize, '', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
+    'empty wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planHotJournalCheckpointSource($databasePath, $databaseBytes, $pageSize, 's', $hotJournal, $savepointBefore, $wal, '', $cache, [1]),
+    'bad page size rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planHotJournalCheckpointSource($databasePath, $databaseBytes, 500, 's', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
+    'unaligned database rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planHotJournalCheckpointSource($databasePath, $databaseBytes . 'x', $pageSize, 's', $hotJournal, $savepointBefore, $wal, $walBytes, $cache, [1]),
     'bad mode rejected' => static fn () => $plan('invalid'),
     'reader past end rejected' => static fn () => $plan('restart', 5),
     'empty hot journal rejected' => static fn () => $plan('restart', null, null, null, []),

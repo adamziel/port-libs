@@ -116,7 +116,7 @@ $plan = static fn (
     bool $hotJournalExists = true,
     bool $walSidecarExists = true,
     bool $directorySyncRequested = true,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next168Plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReaderReopenAdmission(
     $databasePath,
     $databaseBytes,
     $pageSize,

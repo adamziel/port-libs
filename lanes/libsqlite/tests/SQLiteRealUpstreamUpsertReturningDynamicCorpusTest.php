@@ -304,4 +304,223 @@ foreach ($additionalReturningProjections as $name => [$projection, $expected]) {
     };
 }
 
+$upsert2BaseRows = [
+    ['a' => 1, 'b' => 2, 'c' => 0],
+    ['a' => 3, 'b' => 4, 'c' => 0],
+];
+
+$upsert2Tuples = static function (array $rows): string {
+    $tuples = [];
+    foreach ($rows as $row) {
+        $tuples[] = sprintf('(%d,%d)', $row['a'], $row['b']);
+    }
+
+    return implode(',', $tuples);
+};
+
+$upsert2Oracle = static function (array $incomingRows, string $actionSql) use ($upsert2BaseRows, $upsert2Tuples): array {
+    $db = new PDO('sqlite::memory:');
+    $db->exec('CREATE TABLE t1(a INTEGER PRIMARY KEY, b INT, c DEFAULT 0)');
+    foreach ($upsert2BaseRows as $row) {
+        $db->exec(sprintf('INSERT INTO t1(a,b,c) VALUES(%d,%d,%d)', $row['a'], $row['b'], $row['c']));
+    }
+
+    $returning = [];
+    $result = $db->query(
+        'INSERT INTO t1(a,b) VALUES ' . $upsert2Tuples($incomingRows) . ' '
+        . $actionSql
+        . ' RETURNING a,b,c'
+    );
+    while (($row = $result->fetch(PDO::FETCH_ASSOC)) !== false) {
+        $returning[] = ['a' => (int) $row['a'], 'b' => (int) $row['b'], 'c' => (int) $row['c']];
+    }
+
+    $after = [];
+    $result = $db->query('SELECT a,b,c FROM t1 ORDER BY a');
+    while (($row = $result->fetch(PDO::FETCH_ASSOC)) !== false) {
+        $after[] = ['a' => (int) $row['a'], 'b' => (int) $row['b'], 'c' => (int) $row['c']];
+    }
+
+    return [
+        'after' => $after,
+        'returning' => $returning,
+        'changes' => (int) $db->query('SELECT changes()')->fetchColumn(),
+    ];
+};
+
+$upsert2NativeUpdateWhere = static function (array $incomingRows) use ($upsert2BaseRows): array {
+    return SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+        $upsert2BaseRows,
+        $incomingRows,
+        [[
+            'target' => ['a'],
+            'action' => 'update',
+            'assignments' => [
+                'b' => static fn (array $current, array $excluded): int => (int) $excluded['b'],
+                'c' => static fn (array $current, array $excluded): int => (int) $current['c'] + 1,
+            ],
+            'where' => static fn (array $current, array $excluded): bool => $current['b'] < $excluded['b'],
+        ]],
+        [['a']],
+    );
+};
+
+$upsert2NativeDoNothing = static function (array $incomingRows) use ($upsert2BaseRows): array {
+    return SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+        $upsert2BaseRows,
+        $incomingRows,
+        [[
+            'target' => null,
+            'action' => 'nothing',
+        ]],
+        [['a']],
+    );
+};
+
+$upsert2ConflictArmCases = [
+    'upsert2.test upsert2-100 rowid conflict update where keeps failed older value' => [
+        [
+            ['a' => 1, 'b' => 8, 'c' => 0],
+            ['a' => 2, 'b' => 11, 'c' => 0],
+            ['a' => 3, 'b' => 1, 'c' => 0],
+        ],
+        'ON CONFLICT(a) DO UPDATE SET b=excluded.b, c=c+1 WHERE t1.b<excluded.b',
+        $upsert2NativeUpdateWhere,
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 3, 'b' => 4, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0]],
+    ],
+    'upsert2.test upsert2-200 select-source repeated conflict sees updated row' => [
+        [
+            ['a' => 1, 'b' => 8, 'c' => 0],
+            ['a' => 2, 'b' => 11, 'c' => 0],
+            ['a' => 3, 'b' => 1, 'c' => 0],
+            ['a' => 2, 'b' => 15, 'c' => 0],
+            ['a' => 1, 'b' => 4, 'c' => 0],
+            ['a' => 1, 'b' => 99, 'c' => 0],
+        ],
+        'ON CONFLICT(a) DO UPDATE SET b=excluded.b, c=c+1 WHERE t1.b<excluded.b',
+        $upsert2NativeUpdateWhere,
+        [['a' => 1, 'b' => 99, 'c' => 2], ['a' => 2, 'b' => 15, 'c' => 1], ['a' => 3, 'b' => 4, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 2, 'b' => 15, 'c' => 1], ['a' => 1, 'b' => 99, 'c' => 2]],
+    ],
+    'upsert2.test upsert2-201 target alias equivalent uses current row image' => [
+        [
+            ['a' => 2, 'b' => 11, 'c' => 0],
+            ['a' => 1, 'b' => 8, 'c' => 0],
+            ['a' => 1, 'b' => 4, 'c' => 0],
+            ['a' => 3, 'b' => 5, 'c' => 0],
+        ],
+        'ON CONFLICT(a) DO UPDATE SET b=excluded.b, c=c+1 WHERE t1.b<excluded.b',
+        $upsert2NativeUpdateWhere,
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 3, 'b' => 5, 'c' => 1]],
+        [['a' => 2, 'b' => 11, 'c' => 0], ['a' => 1, 'b' => 8, 'c' => 1], ['a' => 3, 'b' => 5, 'c' => 1]],
+    ],
+    'upsert2.test upsert2-310 do nothing skips existing conflict and returns inserts' => [
+        [
+            ['a' => 1, 'b' => 2, 'c' => 0],
+            ['a' => 4, 'b' => 9, 'c' => 0],
+            ['a' => 3, 'b' => 44, 'c' => 0],
+            ['a' => 5, 'b' => 10, 'c' => 0],
+        ],
+        'ON CONFLICT DO NOTHING',
+        $upsert2NativeDoNothing,
+        [['a' => 1, 'b' => 2, 'c' => 0], ['a' => 3, 'b' => 4, 'c' => 0], ['a' => 4, 'b' => 9, 'c' => 0], ['a' => 5, 'b' => 10, 'c' => 0]],
+        [['a' => 4, 'b' => 9, 'c' => 0], ['a' => 5, 'b' => 10, 'c' => 0]],
+    ],
+    'upsert2.test upsert2-320 failed where behaves like do nothing for returning rows' => [
+        [
+            ['a' => 1, 'b' => 2, 'c' => 0],
+            ['a' => 3, 'b' => 1, 'c' => 0],
+        ],
+        'ON CONFLICT(a) DO UPDATE SET b=excluded.b, c=c+1 WHERE c<0',
+        static function (array $incomingRows) use ($upsert2BaseRows): array {
+            return SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $upsert2BaseRows,
+                $incomingRows,
+                [[
+                    'target' => ['a'],
+                    'action' => 'update',
+                    'assignments' => [
+                        'b' => static fn (array $current, array $excluded): int => (int) $excluded['b'],
+                        'c' => static fn (array $current, array $excluded): int => (int) $current['c'] + 1,
+                    ],
+                    'where' => static fn (array $current, array $excluded): bool => $current['c'] < 0,
+                ]],
+                [['a']],
+            );
+        },
+        [['a' => 1, 'b' => 2, 'c' => 0], ['a' => 3, 'b' => 4, 'c' => 0]],
+        [],
+    ],
+];
+
+foreach ($upsert2ConflictArmCases as $name => [$incomingRows, $actionSql, $native, $expectedAfter, $expectedReturning]) {
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' final rows match upstream oracle'] = static function (TestRunner $t) use ($upsert2Oracle, $native, $incomingRows, $actionSql): void {
+        $expected = $upsert2Oracle($incomingRows, $actionSql);
+        $actual = $native($incomingRows);
+        $after = $actual['after'];
+        usort($after, static fn (array $left, array $right): int => $left['a'] <=> $right['a']);
+
+        $t->same($expected['after'], array_values($after));
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' final rows preserve cited result'] = static function (TestRunner $t) use ($native, $incomingRows, $expectedAfter): void {
+        $actual = $native($incomingRows);
+        $after = $actual['after'];
+        usort($after, static fn (array $left, array $right): int => $left['a'] <=> $right['a']);
+
+        $t->same($expectedAfter, array_values($after));
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' returning rows match upstream oracle'] = static function (TestRunner $t) use ($upsert2Oracle, $native, $incomingRows, $actionSql): void {
+        $expected = $upsert2Oracle($incomingRows, $actionSql);
+        $actual = $native($incomingRows);
+
+        $t->same($expected['returning'], $actual['returning_rows']);
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' returning rows preserve cited result'] = static function (TestRunner $t) use ($native, $incomingRows, $expectedReturning): void {
+        $actual = $native($incomingRows);
+        $t->same($expectedReturning, $actual['returning_rows']);
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' changes match returning count'] = static function (TestRunner $t) use ($native, $incomingRows): void {
+        $actual = $native($incomingRows);
+        $t->same(count($actual['returning_rows']), $actual['changes']);
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' inserted and updated rows account for changes'] = static function (TestRunner $t) use ($native, $incomingRows): void {
+        $actual = $native($incomingRows);
+        $t->same($actual['changes'], count($actual['inserted_rows']) + count($actual['updated_rows']));
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' skipped rows are not returned'] = static function (TestRunner $t) use ($native, $incomingRows): void {
+        $actual = $native($incomingRows);
+        $returnedKeys = array_map(static fn (array $row): string => $row['a'] . ':' . $row['b'], $actual['returning_rows']);
+        foreach ($actual['skipped_rows'] as $row) {
+            $t->same(false, in_array($row['a'] . ':' . $row['b'], $returnedKeys, true));
+        }
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' matched arms expose conflict target order'] = static function (TestRunner $t) use ($native, $incomingRows): void {
+        $actual = $native($incomingRows);
+        foreach ($actual['matched_arms'] as $arm) {
+            $t->same($arm['target'] === null || $arm['target'] === ['a'], true);
+        }
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' projection keeps returning order'] = static function (TestRunner $t) use ($native, $incomingRows, $expectedReturning): void {
+        $actual = $native($incomingRows);
+        $projected = SQLiteUpsertDoUpdateWherePlan::returningRows($actual['returning_rows'], ['a', 'b']);
+        $expected = array_map(static fn (array $row): array => ['a' => $row['a'], 'b' => $row['b']], $expectedReturning);
+
+        $t->same($expected, $projected);
+    };
+
+    $tests['real upstream corpus upsert returning dynamic ' . $name . ' before image remains unchanged'] = static function (TestRunner $t) use ($native, $incomingRows, $upsert2BaseRows): void {
+        $actual = $native($incomingRows);
+        $t->same($upsert2BaseRows, $actual['before']);
+    };
+}
+
 return $tests;

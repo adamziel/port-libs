@@ -42,7 +42,7 @@ $nextWalBytes = $makeWalBytes([
 ], 182, 0x18200101, 0x18200102);
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCheckpointSourceTransition(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -65,7 +65,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next16
 );
 $currentToken = $bootstrap['current_source_token'];
 $nextToken = $bootstrap['next_source_token'];
-$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
+$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCheckpointSourceTransition(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -127,7 +127,7 @@ $run = static function () use ($makeRoot, $rmRoot, $prepared, $journalPath, $pag
         $databaseAfter = (string) file_get_contents($databaseLocal);
         $journalAfter = is_file($journalLocal) ? (string) file_get_contents($journalLocal) : null;
         $walAfter = (string) file_get_contents($databaseLocal . '-wal');
-        $receipt = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next178Plan($prepared, $applied, $databaseAfter, $journalAfter, $walAfter);
+        $receipt = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::verifyAtomicApplyReceipt($prepared, $applied, $databaseAfter, $journalAfter, $walAfter);
         $reopen = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan(
             $prepared,
             $receipt,

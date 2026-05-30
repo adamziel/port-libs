@@ -4360,6 +4360,84 @@ MD);
             $t->contains('focused PASS-line movement', $record['next_gate']);
         }
     },
+    'admits current-source next853-884 veryquick shard countability without cross-counting' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $launcherBase = '8160272f871bffaf7a8a48da09598a7f4bfdce9f';
+        $integrationSource = '6131a7a490000000000000000000000000000000';
+        $nextSource = '8848848848848848848848848848848848848848';
+
+        foreach (range(853, 884) as $slice) {
+            $focusedOutput = implode("\n", array_merge(
+                ['Focused test run: 1 selected test files (root lock skipped)'],
+                array_map(
+                    static fn (int $i): string => sprintf('PASS next%d bulk veryquick-shard admission case %02d', $slice, $i),
+                    range(1, 97)
+                ),
+                ['1 test files, 97 assertions, 0 failures']
+            ));
+
+            $record = $evidence->upstreamVeryquickShardCurrentSourceShard(
+                $slice,
+                [
+                    [
+                        'unit' => 'suite-upstream-veryquick-shard-current-source-next' . $slice,
+                        'tier' => 'veryquick',
+                        'current_countable' => false,
+                        'next_countable' => true,
+                        'launcher_base_head' => $launcherBase,
+                        'dashboard_source_head' => $integrationSource,
+                        'status_source_head' => $integrationSource,
+                        'implementation_source_head' => $integrationSource,
+                        'source_head' => $nextSource,
+                        'artifact_path' => 'lanes/libsqlite/notes/yield-suite-upstream-veryquick-shard-current-source-next853-884.md',
+                        'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick suite' . $slice . '.test',
+                        'scripts' => ['suite' . $slice . '.test'],
+                        'exit' => 0,
+                        'errors' => 0,
+                        'tests' => 97,
+                        'current_tests' => 0,
+                        'next_tests' => 97,
+                        'release_scope' => 'focused-current-source',
+                        'counts_release_parity' => false,
+                    ],
+                ],
+                830,
+                188353,
+                $launcherBase,
+                $integrationSource,
+                $integrationSource,
+                $integrationSource,
+                $nextSource,
+                'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+                $focusedOutput,
+                'next' . $slice . ' bulk denominator burnup follows integrated next837-852, avoids queued next885-916 evidence tests, and excludes release/all parity claims',
+                97,
+                ''
+            );
+
+            $t->same('current-source-next' . $slice . '-veryquick-shard-advanced', $record['status']);
+            $t->same(830, $record['current_mapped']);
+            $t->same(831, $record['next_mapped']);
+            $t->same(1, $record['mapped_delta']);
+            $t->same(97, $record['php_pass_delta']);
+            $t->same(188450, $record['next_php_pass']);
+            $t->same(1, $record['admitted_count']);
+            $t->same(['suite-upstream-veryquick-shard-current-source-next' . $slice], $record['admitted_units']);
+            $t->same(['suite' . $slice . '.test'], $record['target_scripts']);
+            $t->same(true, $record['counts_upstream_veryquick_shard_current_source_next' . $slice]);
+            $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next852']);
+            foreach (range(853, 884) as $otherSlice) {
+                if ($otherSlice === $slice) {
+                    continue;
+                }
+                $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next' . $otherSlice] ?? false);
+            }
+            $t->same(false, $record['counts_upstream_runner_full_suite_countability']);
+            $t->same(false, $record['counts_release_parity']);
+            $t->contains('focused PASS-line movement', $record['next_gate']);
+            $t->contains('no new support component needed', $record['dependency_closure']);
+        }
+    },
     'admits current-source next885-900 veryquick shard countability without cross-counting' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $launcherBase = 'fca16e3d00000000000000000000000000000000';

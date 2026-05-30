@@ -68,7 +68,7 @@ $cache = [
 ];
 $release = ['plugin-import-inner-next176' => [3]];
 
-$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
+$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenHandoff(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -109,7 +109,7 @@ $journalDigest = (static function (array $pages): string {
     return hash('sha256', implode('|', $parts));
 })($hot);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next176Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenAdmission(
     $databasePath,
     $databaseBytes,
     $pageSize,

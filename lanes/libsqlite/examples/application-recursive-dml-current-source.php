@@ -12,6 +12,8 @@ require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteSelectProjection.php';
 require_once __DIR__ . '/../src/SQLiteSelectPredicate.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpression.php';
+require_once __DIR__ . '/../src/SQLiteSelectCompound.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 
 use PortLibs\LibSqlite\SQLiteRecursiveDmlCurrentSource;
@@ -23,10 +25,10 @@ $edges = [
     ['src' => 3, 'dst' => 4],
 ];
 $options = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'old', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'old', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'old', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => 'cache_seed', 'option_value' => 'old', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'site_endpoint', 'key_value' => 'old', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'old', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'site_title', 'key_value' => 'old', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => 'cache_seed', 'key_value' => 'old', 'load_policy' => 'no'],
 ];
 
 $result = SQLiteRecursiveDmlCurrentSource::insertSelect(
@@ -34,15 +36,15 @@ $result = SQLiteRecursiveDmlCurrentSource::insertSelect(
         VALUES (1, 0)
         UNION
         SELECT edges.dst, walk.depth + 1 FROM edges JOIN walk ON edges.src = walk.id WHERE walk.depth < 4
-    ) INSERT INTO archive_options(option_id, option_name, option_value, autoload)
-    SELECT DISTINCT option_id + 100, option_name, option_value || ':archived', autoload
-    FROM wp_options JOIN walk ON walk.id = wp_options.option_id
-    ORDER BY option_id",
-    ['edges' => $edges, 'wp_options' => $options, 'archive_options' => []],
+    ) INSERT INTO archive_settings(setting_id, key_name, key_value, load_policy)
+    SELECT DISTINCT setting_id + 100, key_name, key_value || ':archived', load_policy
+    FROM app_settings JOIN walk ON walk.id = app_settings.setting_id
+    ORDER BY setting_id",
+    ['edges' => $edges, 'app_settings' => $options, 'archive_settings' => []],
 );
 
 echo json_encode([
     'changes' => $result['changes'],
-    'archived_option_ids' => array_column($result['after'], 'option_id'),
-    'archived_names' => array_column($result['inserted_rows'], 'option_name'),
+    'archived_setting_ids' => array_column($result['after'], 'setting_id'),
+    'archived_names' => array_column($result['inserted_rows'], 'key_name'),
 ], JSON_PRETTY_PRINT) . PHP_EOL;

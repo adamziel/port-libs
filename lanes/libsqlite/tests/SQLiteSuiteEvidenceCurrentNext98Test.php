@@ -82,7 +82,7 @@ return [
     'current next98 counts one bounded suite evidence row after next97' => static function (TestRunner $t): void {
         $record = libsqlite_suite_evidence98_record(libsqlite_suite_evidence98_rows(case: 8));
 
-        $t->same('suite-evidence-countable', $record['status']);
+        $t->same('current-next98-suite-evidence-countable', $record['status']);
         $t->same(484, $record['current_mapped']);
         $t->same(485, $record['next_mapped']);
         $t->same(1, $record['mapped_delta']);
@@ -108,7 +108,7 @@ return [
 
         $record = libsqlite_suite_evidence98_record($rows);
 
-        $t->same('suite-evidence-preserved', $record['status']);
+        $t->same('current-next98-suite-evidence-preserved', $record['status']);
         $t->same(0, $record['mapped_delta']);
         $t->same(484, $record['next_mapped']);
     },

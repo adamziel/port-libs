@@ -632,7 +632,7 @@ final class SQLitePragmaSchemaCatalog
             $columns[] = [
                 'name' => $name,
                 'type' => $type,
-                'notNull' => self::containsTopLevelKeyword($tail, 'NOT NULL') || self::containsTopLevelKeyword($tail, 'PRIMARY KEY'),
+                'notNull' => self::containsTopLevelKeyword($tail, 'NOT NULL'),
                 'default' => self::defaultValue($tail),
                 'primaryKey' => self::containsTopLevelKeyword($tail, 'PRIMARY KEY') ? 1 : 0,
                 'hidden' => self::generatedHiddenCode($tail),
@@ -643,9 +643,6 @@ final class SQLitePragmaSchemaCatalog
             foreach ($columns as &$column) {
                 $primaryKeyOrdinal = $tablePrimaryKeys[strtolower($column['name'])] ?? 0;
                 $column['primaryKey'] = $primaryKeyOrdinal;
-                if ($primaryKeyOrdinal !== 0) {
-                    $column['notNull'] = true;
-                }
             }
         }
 

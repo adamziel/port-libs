@@ -841,6 +841,56 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{persist_wal:bool,journal_size_limit:int|null,reader_end_frame:int|null,checkpoint:array<string,mixed>,sidecar_action:string,wal_exists_after_close:bool,wal_bytes:string,wal_bytes_length:int,wal_header:array<string,int|string>|null,reason:string,dependencies:list<string>}
+     */
+    public function persistentWalClosePlan(
+        string $databaseBytes,
+        bool $persistWal,
+        ?int $journalSizeLimit = null,
+        ?int $readerEndFrame = null
+    ): array {
+        $checkpoint = $this->durableCheckpointResult($databaseBytes, 'truncate', $readerEndFrame);
+        $checkpointWalBytes = (string) $checkpoint['wal_bytes'];
+        $sidecarAction = 'delete_wal';
+        $walBytes = '';
+        $walHeader = null;
+        $reason = 'last_close_deletes_wal_sidecar';
+
+        if ((bool) $checkpoint['busy']) {
+            $sidecarAction = 'preserve_wal';
+            $walBytes = $checkpointWalBytes;
+            $walHeader = is_array($checkpoint['wal_header']) ? $checkpoint['wal_header'] : null;
+            $reason = 'reader_or_uncommitted_frames_preserve_wal_sidecar';
+        } elseif ($persistWal) {
+            $sidecarAction = 'persist_wal';
+            $walBytes = $this->toBytes();
+            $walHeader = $this->header->toArray();
+            $reason = 'persistent_wal_keeps_sidecar_after_close';
+
+            if ($journalSizeLimit !== null && $journalSizeLimit >= 0) {
+                $sidecarAction = 'truncate_persistent_wal';
+                $walBytes = '';
+                $walHeader = null;
+                $reason = 'persistent_wal_journal_size_limit_truncates_sidecar';
+            }
+        }
+
+        return [
+            'persist_wal' => $persistWal,
+            'journal_size_limit' => $journalSizeLimit,
+            'reader_end_frame' => $readerEndFrame,
+            'checkpoint' => $checkpoint,
+            'sidecar_action' => $sidecarAction,
+            'wal_exists_after_close' => $sidecarAction !== 'delete_wal',
+            'wal_bytes' => $walBytes,
+            'wal_bytes_length' => strlen($walBytes),
+            'wal_header' => $walHeader,
+            'reason' => $reason,
+            'dependencies' => ['sqlite-wal-checkpoint', 'sqlite-persistent-wal-close', 'durable-sidecar-write'],
+        ];
+    }
+
+    /**
      * @param list<int> $pageNumbers
      * @return array{mode:string,reader_end_frame:int|null,wal_action:string,checkpoint_reason:string,checkpoint_busy:bool,before:list<array{page_number:int,source:string,frame_index:int|null,image:string,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}>,after:list<array{page_number:int,source:string,frame_index:int|null,image:string,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}>,stable:bool,dependencies:list<string>}
      */

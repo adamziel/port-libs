@@ -50,6 +50,69 @@ final class SQLiteRealUpstreamBTreeIndexDynamicCorpus
     }
 
     /**
+     * @return list<array{upstream:string,limit:int,result:list<int>,ordered_rowids:list<int>,source:string}>
+     */
+    public static function index2WideOrderByLimitCases(): array
+    {
+        $rows = self::wideRows();
+        $columns = array_slice(self::wideIndexColumns(), 0, 9);
+        $index = self::buildIndexLeaf($rows, $columns, 65536);
+        $records = self::scanIndexLeaf($index['page'], 65536);
+
+        $cases = [];
+        foreach ([1, 2, 3, 4, 5, 10, 25, 50, 75, 101] as $limit) {
+            $limited = array_slice($records, 0, $limit);
+            $cases[] = [
+                'upstream' => 'index2-2.2-limit-' . $limit,
+                'limit' => $limit,
+                'result' => array_map(static fn (array $record): int => $record[8], $limited),
+                'ordered_rowids' => array_map(static fn (array $record): int => $record[9], $limited),
+                'source' => 'index2.test index2-2.2 SELECT c9 FROM t1 ORDER BY c1,c2,c3,c4,c5,c6 LIMIT 5',
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
+     * @return list<array{upstream:string,join:string,probe_y:int,matched_c:int|null,overflow_payload_length:int,overflow_page_count:int,source:string}>
+     */
+    public static function btree01WithoutRowidOverflowJoinCases(): array
+    {
+        $rows = [];
+        for ($x = 1; $x <= 100; $x++) {
+            $a = $x * 2;
+            $blobLength = $a === 198 ? 1000 : 100;
+            $record = SQLiteRecord::encode([$a, str_repeat("\0", $blobLength), $x]);
+            $local = SQLiteIndexCell::localPayloadLength(strlen($record), 1024);
+            $overflow = strlen($record) - $local;
+            $rows[$a] = [
+                'c' => $x,
+                'overflow_payload_length' => $overflow,
+                'overflow_page_count' => $overflow === 0 ? 0 : intdiv($overflow + 1019, 1020),
+            ];
+        }
+
+        $cases = [];
+        foreach (['LEFT JOIN' => 'btree01-2.1', 'RIGHT JOIN' => 'btree01-2.2'] as $join => $prefix) {
+            foreach ([198, 187, 100] as $index => $probe) {
+                $match = $rows[$probe] ?? null;
+                $cases[] = [
+                    'upstream' => $prefix . '.' . ($index + 1),
+                    'join' => $join,
+                    'probe_y' => $probe,
+                    'matched_c' => $match['c'] ?? null,
+                    'overflow_payload_length' => $match['overflow_payload_length'] ?? 0,
+                    'overflow_page_count' => $match['overflow_page_count'] ?? 0,
+                    'source' => 'btree01.test btree01-2.1/btree01-2.2 WITHOUT ROWID overflow cursor join',
+                ];
+            }
+        }
+
+        return $cases;
+    }
+
+    /**
      * @return list<array{cnt:int,power:int,rowid:int}>
      */
     public static function powerRows(): array

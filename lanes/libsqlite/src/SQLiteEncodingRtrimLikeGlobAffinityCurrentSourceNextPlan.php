@@ -213,14 +213,14 @@ final class SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function rowid(array $row, int $index): int
     {
-        if (!array_key_exists('option_id', $row)) {
+        if (!array_key_exists('setting_id', $row)) {
             return $index + 1;
         }
-        if (!is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite RTRIM affinity current-source next144 option_id must be an integer');
+        if (!is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite RTRIM affinity current-source next144 setting_id must be an integer');
         }
 
-        return $row['option_id'];
+        return $row['setting_id'];
     }
 
     private static function textAffinity(mixed $value, string $label): ?string

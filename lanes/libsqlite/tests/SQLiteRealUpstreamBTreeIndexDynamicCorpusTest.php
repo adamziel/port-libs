@@ -269,4 +269,34 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases(9) 
     };
 }
 
+// Source truth: SQLite upstream test/index3.test index3-2.1 through 2.5.
+// SQLite keeps backwards-compatible support for string literals in places
+// that historically named indexed columns. This dynamic corpus keeps the
+// quoted identifier, collation, sort order, catalog, and lookup rules distinct.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index3QuotedIdentifierCompatibilityCases(1200) as $case) {
+    $tests['real upstream index3 quoted identifier compatibility case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index3.test index3-2.1 through index3-2.5', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1200);
+        $t->true(in_array($case['upstream_section'], ['index3-2.1', 'index3-2.2', 'index3-2.4'], true));
+        $t->true(in_array($case['quote_style'], ['single-string', 'double-quoted', 'bracket-quoted', 'bare'], true));
+        $t->true(in_array($case['column'], ['a', 'b', 'c', 'd'], true));
+        $t->true(str_contains($case['declared_column'], $case['column']));
+        $t->same($case['column'] === 'b' ? 'sqlite_autoindex_t1_2' : 't1' . $case['column'], $case['index_name']);
+        $t->same($case['column'] === 'b' || $case['column'] === 'c' || $case['column'] === 'd', $case['uses_index']);
+        $t->same(sprintf('ab%03xxy', $case['lookup_value']), $case['lookup_literal']);
+        $t->true($case['lookup_value'] >= 1 && $case['lookup_value'] <= 30);
+        $t->same(['sqlite_autoindex_t1_1', 'sqlite_autoindex_t1_2', 't1', 't1c', 't1d'], $case['catalog_names']);
+        if ($case['column'] === 'b') {
+            $t->same('nocase', $case['collation']);
+            $t->same('DESC', $case['sort']);
+            $t->same('index3-2.2', $case['upstream_section']);
+        }
+        if ($case['upstream_section'] === 'index3-2.4') {
+            $t->true(in_array($case['table'], ['t2a', 't2b', 't2c', 't2d'], true));
+        } else {
+            $t->same('t1', $case['table']);
+        }
+    };
+}
+
 return $tests;

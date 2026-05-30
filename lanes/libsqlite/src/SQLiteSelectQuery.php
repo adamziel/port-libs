@@ -16,6 +16,9 @@ final class SQLiteSelectQuery
         $rows = self::applyJoins($rows, $plan['joins'] ?? []);
 
         if (array_key_exists('where', $plan)) {
+            if (array_key_exists('select', $plan) && is_array($plan['select']) && array_is_list($plan['select'])) {
+                $rows = self::materializeFilterAliases($rows, $plan['select']);
+            }
             $where = $plan['where'];
             if (!is_array($where)) {
                 throw new \InvalidArgumentException('SQLite SELECT query where clause must be a predicate');
@@ -82,6 +85,81 @@ final class SQLiteSelectQuery
         }
 
         return SQLiteSelectResult::execute($rows, $distinct, $orderBy, $limit, $offset);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $select
+     * @return list<array<string,mixed>>
+     */
+    private static function materializeFilterAliases(array $rows, array $select): array
+    {
+        $aliases = [];
+        foreach ($select as $expression) {
+            $alias = $expression['alias'] ?? null;
+            if (!is_string($alias) || $alias === '' || self::isFilterAliasUnsafe($expression)) {
+                continue;
+            }
+            $sourceExpression = $expression['sourceExpression'] ?? $expression;
+            if (!is_array($sourceExpression)) {
+                continue;
+            }
+            unset($sourceExpression['alias'], $sourceExpression['hiddenOrderColumn'], $sourceExpression['sourceExpression']);
+            $aliases[$alias] = $sourceExpression;
+        }
+        if ($aliases === []) {
+            return $rows;
+        }
+
+        foreach ($rows as $rowIndex => $row) {
+            foreach ($aliases as $alias => $expression) {
+                if (array_key_exists($alias, $row)) {
+                    continue;
+                }
+                $row[$alias] = SQLiteSelectExpression::evaluate($row, $expression);
+            }
+            $rows[$rowIndex] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     */
+    private static function isFilterAliasUnsafe(array $expression): bool
+    {
+        if (($expression['type'] ?? null) === 'wildcard' || ($expression['type'] ?? null) === 'window') {
+            return true;
+        }
+        if (($expression['type'] ?? null) === 'function') {
+            $name = strtolower((string) ($expression['name'] ?? ''));
+            $arguments = $expression['arguments'] ?? [];
+            $argumentCount = is_array($arguments) && array_is_list($arguments) ? count($arguments) : 0;
+            if (in_array($name, ['count', 'sum', 'total', 'avg', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)) {
+                return true;
+            }
+            if (($name === 'min' || $name === 'max') && $argumentCount === 1) {
+                return true;
+            }
+        }
+        foreach (['left', 'right', 'operand', 'predicate'] as $key) {
+            if (isset($expression[$key]) && is_array($expression[$key]) && self::isFilterAliasUnsafe($expression[$key])) {
+                return true;
+            }
+        }
+        foreach (['arguments', 'values'] as $key) {
+            if (!isset($expression[$key]) || !is_array($expression[$key]) || !array_is_list($expression[$key])) {
+                continue;
+            }
+            foreach ($expression[$key] as $child) {
+                if (is_array($child) && self::isFilterAliasUnsafe($child)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -245,7 +323,7 @@ final class SQLiteSelectQuery
     {
         $orderKeys = array_keys($orderedRows);
         $peerKeys = $orderBy === []
-            ? $orderKeys
+            ? array_fill(0, count($orderedRows), 0)
             : array_map(static function (array $row) use ($orderBy): mixed {
                 if (count($orderBy) === 1) {
                     return SQLiteSelectExpression::evaluate($row, $orderBy[0]['expression']);
@@ -267,6 +345,9 @@ final class SQLiteSelectQuery
             $frame === null
             && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)
         ) {
+            $frame = self::defaultAggregateWindowFrame($orderBy, count($orderedRows));
+        }
+        if ($frame === null && in_array($function, ['first_value', 'last_value', 'nth_value'], true) && $orderBy !== []) {
             $frame = self::defaultAggregateWindowFrame($orderBy, count($orderedRows));
         }
         if ($frame !== null && in_array($function, ['json_group_array', 'jsonb_group_array'], true)) {
@@ -1157,6 +1238,9 @@ final class SQLiteSelectQuery
         if (array_key_exists('having', $groupBy)) {
             if (!is_array($groupBy['having'])) {
                 throw new \InvalidArgumentException('SQLite SELECT query HAVING clause must be a predicate');
+            }
+            if (array_key_exists('select', $plan) && is_array($plan['select']) && array_is_list($plan['select'])) {
+                $summaries = self::materializeFilterAliases($summaries, $plan['select']);
             }
             $summaries = SQLiteSelectPredicate::filter($summaries, $groupBy['having']);
         }

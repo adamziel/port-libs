@@ -54,18 +54,18 @@ $plan = SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::baseFromDel
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [[
-        'source' => 'copied-wp-options-transient-overflow-replace',
+        'source' => 'copied-app-settings-transient-overflow-replace',
         'obsolete_overflow_page_numbers' => [5, 6],
         'rowids' => [12801],
     ]],
     3,
-    str_repeat('replacement-wp-option-next128-', 28),
+    str_repeat('replacement-app-setting-', 28),
     true,
 );
 
 $output = [
-    'applicationUse' => 'A copied wp_options import deletes an overflow-backed transient, coalesces the current leaf freeblocks, then immediately reuses the freed overflow pages for the replacement value with auto-vacuum pointer-map entries rewritten from obsolete overflow to free-page to current/next overflow ownership.',
-    'btreeOverflowFreeblockPointerMapCurrentSourceNext128' => $plan->toArray(),
+    'applicationUse' => 'A copied app_settings import deletes an overflow-backed transient, coalesces the current leaf freeblocks, then immediately reuses the freed overflow pages for the replacement value with auto-vacuum pointer-map entries rewritten from obsolete overflow to free-page to current/next overflow ownership.',
+    'btreeOverflowFreeblockPointerMapCurrentSource' => $plan->toArray(),
     'freelistAfterReplacement' => $plan->databaseAfterAllocation->freelistPageNumbers(),
     'pointerMapTypes' => [
         6 => $plan->databaseAfterAllocation->pointerMapEntryForPage(6)->typeName(),

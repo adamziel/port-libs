@@ -493,6 +493,14 @@ final class SQLiteUpsertReturningSql
 
             return $left === null || $right === null ? null : (string) $left . (string) $right;
         }
+        $dequoted = self::dequoteIdentifier($expression);
+        if ($dequoted !== null) {
+            if (!array_key_exists($dequoted, $current)) {
+                throw new \InvalidArgumentException("SQLite UPSERT RETURNING column {$dequoted} is missing");
+            }
+
+            return $current[$dequoted];
+        }
         if (preg_match('/^(?:(excluded|' . preg_quote($target, '/') . ')\.)?([A-Za-z_][A-Za-z0-9_]*)$/i', $expression, $match) === 1) {
             $source = strtolower($match[1] ?? '') === 'excluded' ? $excluded : $current;
             $column = $match[2];
@@ -518,12 +526,35 @@ final class SQLiteUpsertReturningSql
                 $projection[] = '*';
                 continue;
             }
+            if (preg_match('/^(?:(excluded|[A-Za-z_][A-Za-z0-9_]*)\.)?\*$/i', $term) === 1) {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING may not use TABLE.* wildcards');
+            }
+            $dequoted = self::dequoteIdentifier($term);
+            if ($dequoted !== null) {
+                $projection[] = $dequoted;
+                continue;
+            }
+            if (preg_match("/^'(.*)'$/s", $term) === 1) {
+                $projection[$term] = static fn (): mixed => self::literal($term);
+                continue;
+            }
             if (preg_match('/^(?:(excluded|[A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $match) !== 1) {
-                if (preg_match('/^(.+?)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $term, $expressionMatch) !== 1) {
-                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports columns, aliases, expressions with aliases, and *');
+                if (preg_match('/^(.+?)\s+AS\s+(.+)$/is', $term, $expressionMatch) !== 1) {
+                    if (preg_match('/\s*[\+\-\|]{1,2}\s*/', $term) === 1) {
+                        if (preg_match('/^excluded\./i', $term) === 1 || preg_match('/[^A-Za-z0-9_]excluded\./i', $term) === 1) {
+                            throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
+                        }
+                        $projection[$term] = static fn (array $row): mixed => self::evaluateExpression($term, $target, $row, $row);
+                        continue;
+                    }
+
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports columns, aliases, expressions with aliases, literals, and *');
                 }
                 $expression = trim($expressionMatch[1]);
-                $alias = $expressionMatch[2];
+                $alias = self::dequoteIdentifier(trim($expressionMatch[2])) ?? trim($expressionMatch[2]);
+                if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) !== 1) {
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING alias is malformed');
+                }
                 if (preg_match('/^excluded\./i', $expression) === 1 || preg_match('/[^A-Za-z0-9_]excluded\./i', $expression) === 1) {
                     throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
                 }
@@ -545,6 +576,19 @@ final class SQLiteUpsertReturningSql
         }
 
         return $projection;
+    }
+
+    private static function dequoteIdentifier(string $identifier): ?string
+    {
+        $identifier = trim($identifier);
+        if (preg_match('/^"((?:[^"]|"")*)"$/s', $identifier, $match) === 1) {
+            return str_replace('""', '"', $match[1]);
+        }
+        if (preg_match('/^\[((?:[^\]]|\]\])*)\]$/s', $identifier, $match) === 1) {
+            return str_replace(']]', ']', $match[1]);
+        }
+
+        return null;
     }
 
     /**

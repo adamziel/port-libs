@@ -78,7 +78,7 @@ $fixture = static function (array $journalMutation = [], array $ticketMutations 
     $checkpointPages = [1, 2, 3, 4, 5, 6];
     $release = ['plugin-import-inner-next176' => [3, 5]];
 
-    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
+    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenHandoff(
         $databasePath,
         $databaseBytes,
         $pageSize,
@@ -168,7 +168,7 @@ $fixture = static function (array $journalMutation = [], array $ticketMutations 
         $tickets[$index] = array_merge($tickets[$index], $mutation);
     }
 
-    $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next176Plan(
+    $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenAdmission(
         $databasePath,
         $databaseBytes,
         $pageSize,
@@ -257,7 +257,7 @@ foreach ($cases as $name => [$callback, $expected]) {
 
 $tests['wal hot journal savepoint checkpoint current source next176 rejects empty reader tickets'] = static function (TestRunner $t) use ($fixture): void {
     [$plan, $base, $journalReceipt] = $fixture();
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next176Plan(
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planSourceTokenAdmission(
         $plan['database_path'],
         str_repeat('x', 512),
         512,

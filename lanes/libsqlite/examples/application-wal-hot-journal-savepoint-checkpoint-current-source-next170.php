@@ -46,7 +46,7 @@ $generation = [
     'frame_count' => $wal->frameCount(),
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next170Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planHotJournalCheckpointSource(
     '/srv/www/wp-content/database/wp.sqlite',
     $databaseBytes,
     $pageSize,

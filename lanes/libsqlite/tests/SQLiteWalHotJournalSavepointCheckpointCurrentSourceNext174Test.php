@@ -75,7 +75,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$base169 = static fn (array $completed = [], string $mode = 'restart'): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
+$base169 = static fn (array $completed = [], string $mode = 'restart'): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishPreparation(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -122,7 +122,7 @@ $filesFor = static function (array $completed, string $mode = 'restart') use ($b
     ];
 };
 
-$plan = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+$plan = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishApply(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

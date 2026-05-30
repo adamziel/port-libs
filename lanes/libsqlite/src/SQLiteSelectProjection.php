@@ -29,7 +29,7 @@ final class SQLiteSelectProjection
                 }
 
                 $alias = self::expressionAlias($expression, $index);
-                self::appendProjectedValue($projected, $alias, self::evaluateExpression($row, $expression));
+                self::appendProjectedValue($projected, $alias, self::projectedValue(self::evaluateExpression($row, $expression)));
             }
             $projectedRows[] = $projected;
         }
@@ -220,6 +220,11 @@ final class SQLiteSelectProjection
         }
 
         $projected[$alias] = $value;
+    }
+
+    private static function projectedValue(mixed $value): mixed
+    {
+        return $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
     }
 
     /**

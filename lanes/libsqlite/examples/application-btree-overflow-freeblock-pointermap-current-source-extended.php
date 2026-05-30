@@ -93,25 +93,25 @@ $plan = SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::extendedTab
     3,
     [
         [
-            'source' => 'wp_options autoload value overflow',
+            'source' => 'app_settings value overflow',
             'first_page' => 5,
             'overflow_payload_bytes' => 1016,
         ],
         [
-            'source' => 'wp_options option_name index overflow',
+            'source' => 'app_settings key index overflow',
             'first_page' => 8,
             'overflow_payload_bytes' => 1016,
         ],
     ],
     [
         [
-            'source' => 'wp_options autoload value overflow',
+            'source' => 'app_settings value overflow',
             'rowid' => 14701,
             'obsolete_overflow_page_numbers' => [5, 6],
         ],
         [
-            'source' => 'wp_options option_name index overflow',
-            'record_values' => [['_transient_next147', 14701]],
+            'source' => 'app_settings key index overflow',
+            'record_values' => [['_transient_setting', 14701]],
             'obsolete_overflow_page_numbers' => [8, 9],
         ],
     ],
@@ -121,8 +121,8 @@ $plan = SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::extendedTab
 );
 
 $summary = [
-    'scenario' => 'application-btree-overflow-freeblock-pointermap-current-source-next147',
-    'application_use' => 'Delete a copied wp_options row and its secondary-index overflow chain, coalesce the table leaf freeblock, release both obsolete chains, and allocate the replacement overflow chain without stale pointer-map parents.',
+    'scenario' => 'application-btree-overflow-freeblock-pointermap-current-source',
+    'application_use' => 'Delete a copied app_settings row and its secondary-index overflow chain, coalesce the table leaf freeblock, release both obsolete chains, and allocate the replacement overflow chain without stale pointer-map parents.',
     'released_overflow_pages' => $plan->releasedOverflowPages(),
     'allocated_overflow_pages' => $plan->allocatedOverflowPages(),
     'reused_released_overflow_pages' => $plan->reusedReleasedOverflowPages(),
@@ -138,11 +138,11 @@ if (($argv[1] ?? null) === '--self-test') {
         || $summary['allocated_overflow_pages'] !== [11, 9, 8, 6, 5]
         || $summary['next_pointer_map_parents'] !== [3, 11, 9, 8, 6]
     ) {
-        fwrite(STDERR, "application-btree-overflow-freeblock-pointermap-current-source-next147 self-test failed\n");
+        fwrite(STDERR, "application-btree-overflow-freeblock-pointermap-current-source self-test failed\n");
         exit(1);
     }
 
-    fwrite(STDOUT, "application-btree-overflow-freeblock-pointermap-current-source-next147 self-test passed\n");
+    fwrite(STDOUT, "application-btree-overflow-freeblock-pointermap-current-source self-test passed\n");
     exit(0);
 }
 

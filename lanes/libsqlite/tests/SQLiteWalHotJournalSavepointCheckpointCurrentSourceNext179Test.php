@@ -35,22 +35,22 @@ $reads = [
     ['page' => 3, 'source' => 'wal', 'receipt_digest' => $receiptDigest, 'expected_image' => $page('next179 retry frame active plugins'), 'actual_image' => $page('next179 retry frame active plugins')],
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next179Plan($receipt, $reads, $databaseBytes, null, $walBytes);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReopenReadsAfterReceipt($receipt, $reads, $databaseBytes, null, $walBytes);
 $blockedReceipt = static function () use ($receipt, $reads, $databaseBytes, $walBytes): array {
     $bad = $receipt;
     $bad['can_publish_receipt'] = false;
     $bad['blocked_reasons'] = ['stale_wal_after_apply'];
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next179Plan($bad, $reads, $databaseBytes, null, $walBytes);
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReopenReadsAfterReceipt($bad, $reads, $databaseBytes, null, $walBytes);
 };
 $staleRead = static function () use ($receipt, $reads, $databaseBytes, $walBytes): array {
     $badReads = $reads;
     $badReads[1]['receipt_digest'] = hash('sha256', 'old-next179-receipt');
     $badReads[2]['actual_image'] = str_pad('next179 stale retry frame', 512, '.', STR_PAD_RIGHT);
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next179Plan($receipt, $badReads, $databaseBytes, null, $walBytes);
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReopenReadsAfterReceipt($receipt, $badReads, $databaseBytes, null, $walBytes);
 };
-$staleFiles = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next179Plan($receipt, $reads, 'stale-db', 'leftover-journal', 'stale-wal');
+$staleFiles = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReopenReadsAfterReceipt($receipt, $reads, 'stale-db', 'leftover-journal', 'stale-wal');
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next179'],
@@ -83,7 +83,7 @@ $cases = [
         $bad = $receipt;
         unset($bad['receipt_digest']);
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next179Plan($bad, $reads, $databaseBytes, null, $walBytes);
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReopenReadsAfterReceipt($bad, $reads, $databaseBytes, null, $walBytes);
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }
@@ -92,7 +92,7 @@ $cases = [
     }, 'SQLite WAL hot-journal savepoint checkpoint current-source next179 missing receipt receipt_digest'],
     'empty reads rejected' => [static function () use ($receipt, $databaseBytes, $walBytes): string {
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next179Plan($receipt, [], $databaseBytes, null, $walBytes);
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReopenReadsAfterReceipt($receipt, [], $databaseBytes, null, $walBytes);
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }
@@ -103,7 +103,7 @@ $cases = [
         $bad = $reads;
         $bad[0]['source'] = 'journal';
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next179Plan($receipt, $bad, $databaseBytes, null, $walBytes);
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planReopenReadsAfterReceipt($receipt, $bad, $databaseBytes, null, $walBytes);
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }

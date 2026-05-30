@@ -221,6 +221,11 @@ final class SQLiteUpstreamSuiteEvidence
                 $selected[$script] = true;
             }
         }
+        foreach ($this->manifestMappedHydratedScripts() as $script) {
+            if (str_ends_with($script, '.test')) {
+                $selected[$script] = true;
+            }
+        }
 
         $candidates = [];
         foreach ($realScripts as $script) {
@@ -239,9 +244,14 @@ final class SQLiteUpstreamSuiteEvidence
         foreach ($candidates as $script) {
             $command .= ' ' . $script;
         }
+        $mapped = $this->manifest['benchmarkDenominator']['mapped'] ?? null;
+        $total = $this->manifest['benchmarkDenominator']['total'] ?? null;
+        $remainingDenominator = is_int($mapped) && is_int($total) ? max(0, $total - $mapped) : null;
+        $exhausted = $candidates === [] && count($realScripts) > 0;
+        $ready = count($candidates) >= $limit;
 
         return [
-            'status' => count($candidates) >= $limit ? 'ready' : 'partial',
+            'status' => $ready ? 'ready' : ($exhausted ? 'exhausted' : 'partial'),
             'source' => 'hydrated-upstream-test-directory',
             'upstream_test_directory' => $upstreamTestDirectory,
             'real_script_count' => count($realScripts),
@@ -252,12 +262,49 @@ final class SQLiteUpstreamSuiteEvidence
             'command' => $command,
             'runnable' => is_file($buildRoot . '/testfixture') && is_file($upstreamTestDirectory . '/testrunner.tcl'),
             'mapped_delta' => 0,
-            'counts_runner_map_gap_closure' => count($candidates) >= $limit,
-            'next_gate' => count($candidates) >= $limit
+            'remaining_denominator' => $remainingDenominator,
+            'counts_runner_map_gap_closure' => $ready,
+            'next_gate' => $ready
                 ? 'run the generated guarded veryquick command and admit only the resulting zero-error real-script rows'
-                : 'hydrate more upstream test scripts before using this map gap closure plan',
-            'dependency_closure' => 'no new support component needed; the plan is derived only from real hydrated upstream .test files and existing manifest runner selections',
+                : ($exhausted
+                    ? 'top-level hydrated .test runner-map rows are already mapped; target the remaining non-.test harness, helper, mptest, and tool denominator units with separate guarded evidence'
+                    : 'hydrate more upstream test scripts before using this map gap closure plan'),
+            'dependency_closure' => 'no new support component needed; the plan is derived only from real hydrated upstream .test files, manifest mapped-script evidence, and existing runner selections',
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function manifestMappedHydratedScripts(): array
+    {
+        $denominator = $this->manifest['benchmarkDenominator'] ?? [];
+        if (!is_array($denominator)) {
+            return [];
+        }
+
+        $closure = $denominator['extensionHydratedScriptMapGapClosure'] ?? [];
+        if (!is_array($closure)) {
+            return [];
+        }
+
+        $scripts = [];
+        foreach (['alreadyMappedScripts', 'admittedScripts'] as $key) {
+            $rows = $closure[$key] ?? [];
+            if (!is_array($rows)) {
+                continue;
+            }
+            foreach ($rows as $script) {
+                if (is_string($script) && $this->isConcreteUpstreamTestScript($script)) {
+                    $scripts[$script] = true;
+                }
+            }
+        }
+
+        $scripts = array_keys($scripts);
+        sort($scripts, SORT_STRING);
+
+        return $scripts;
     }
 
     /**
@@ -8800,116 +8847,6 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext352(
-        array $rows,
-        int $currentMapped,
-        int $currentPhpPass,
-        string $launcherBaseHead,
-        string $dashboardSourceHead,
-        string $statusSourceHead,
-        string $implementationSourceHead,
-        string $nextSourceHead,
-        string $focusedPath,
-        string $focusedTestOutput,
-        string $nonOverlapNote,
-        ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
-    ): array {
-        $record = $this->upstreamRunnerFullSuiteCountability(
-            $rows,
-            $currentMapped,
-            $currentPhpPass,
-            $launcherBaseHead,
-            $dashboardSourceHead,
-            $statusSourceHead,
-            $implementationSourceHead,
-            $nextSourceHead,
-            $focusedPath,
-            $focusedTestOutput,
-            $nonOverlapNote,
-            $expectedPassDelta,
-            $processSnapshot
-        );
-
-        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next352-veryquick-shard', (string) $record['status']);
-        $record['counts_upstream_veryquick_shard_current_source_next352'] = $record['status'] !== 'blocked'
-            && ($record['admitted_count'] ?? 0) > 0;
-        foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
-            $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
-        }
-        $record['counts_upstream_exact_shard_runner_current_source_exact shard baseline'] = false;
-        $record['counts_upstream_runner_full_suite_countability'] = false;
-        $record['counts_upstream_runner_rebase_gap'] = false;
-        $record['counts_release_parity'] = false;
-        $record['next_gate'] = match ($record['status']) {
-            'current-source-next352-veryquick-shard-advanced' => 'publish only the current-source next352 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-            'current-source-next352-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
-            default => 'repair current-source next352 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
-        };
-        $record['dependency_closure'] = 'no new support component needed; current-source next352 veryquick shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
-
-        return $record;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @return array<string, mixed>
-     */
-    public function upstreamVeryquickShardCurrentSourceNext365(
-        array $rows,
-        int $currentMapped,
-        int $currentPhpPass,
-        string $launcherBaseHead,
-        string $dashboardSourceHead,
-        string $statusSourceHead,
-        string $implementationSourceHead,
-        string $nextSourceHead,
-        string $focusedPath,
-        string $focusedTestOutput,
-        string $nonOverlapNote,
-        ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
-    ): array {
-        $record = $this->upstreamRunnerFullSuiteCountability(
-            $rows,
-            $currentMapped,
-            $currentPhpPass,
-            $launcherBaseHead,
-            $dashboardSourceHead,
-            $statusSourceHead,
-            $implementationSourceHead,
-            $nextSourceHead,
-            $focusedPath,
-            $focusedTestOutput,
-            $nonOverlapNote,
-            $expectedPassDelta,
-            $processSnapshot
-        );
-
-        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next365-veryquick-shard', (string) $record['status']);
-        $record['counts_upstream_veryquick_shard_current_source_next365'] = $record['status'] !== 'blocked'
-            && ($record['admitted_count'] ?? 0) > 0;
-        foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
-            $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
-        }
-        $record['counts_upstream_exact_shard_runner_current_source_exact shard baseline'] = false;
-        $record['counts_upstream_runner_full_suite_countability'] = false;
-        $record['counts_upstream_runner_rebase_gap'] = false;
-        $record['counts_release_parity'] = false;
-        $record['next_gate'] = match ($record['status']) {
-            'current-source-next365-veryquick-shard-advanced' => 'publish only the current-source next365 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-            'current-source-next365-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
-            default => 'repair current-source next365 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
-        };
-        $record['dependency_closure'] = 'no new support component needed; current-source next365 veryquick shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, current integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
-
-        return $record;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @return array<string, mixed>
-     */
     public function upstreamVeryquickShardCurrentSourceNext353(
         array $rows,
         int $currentMapped,
@@ -15031,6 +14968,87 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardBulkCurrentSourceAdmission(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = '',
+        int $minimumAdmittedRows = 1000,
+        int $minimumUpstreamTests = 10000
+    ): array {
+        if ($minimumAdmittedRows < 1 || $minimumUpstreamTests < 1) {
+            throw new \InvalidArgumentException('SQLite bulk veryquick shard admission requires positive throughput floors');
+        }
+
+        $record = $this->upstreamVeryquickShardCurrentSourceAdmission(
+            $rows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot,
+            'bulk-current-source-veryquick-shard',
+            'counts_upstream_veryquick_shard_bulk_current_source',
+            [],
+            'bulk current-source veryquick shard admission batch',
+            'bulk current-source veryquick shard admission',
+            'dashboard/status/implementation source provenance'
+        );
+
+        $admittedCount = (int) ($record['admitted_count'] ?? 0);
+        $testsDelta = (int) ($record['tests_total_delta'] ?? 0);
+        $meetsBulkFloor = $admittedCount >= $minimumAdmittedRows || $testsDelta >= $minimumUpstreamTests;
+
+        if (($record['status'] ?? null) === 'bulk-current-source-veryquick-shard-advanced' && !$meetsBulkFloor) {
+            $record['status'] = 'blocked';
+            $record['countable'] = false;
+            $record['next_mapped'] = $currentMapped;
+            $record['mapped_delta'] = 0;
+            $record['php_pass_delta'] = 0;
+            $record['next_php_pass'] = $currentPhpPass;
+            $record['counts_upstream_veryquick_shard_bulk_current_source'] = false;
+            $record['blockers'][] = [
+                'id' => 'bulk-throughput-floor-not-met',
+                'evidence' => 'bulk admission requires at least ' . $minimumAdmittedRows . ' admitted rows or ' . $minimumUpstreamTests . ' upstream tests; got ' . $admittedCount . ' rows and ' . $testsDelta . ' upstream tests',
+            ];
+            $record['blocked_count'] = (int) ($record['blocked_count'] ?? 0) + 1;
+        }
+
+        $record['bulk_floor'] = [
+            'minimum_admitted_rows' => $minimumAdmittedRows,
+            'minimum_upstream_tests' => $minimumUpstreamTests,
+            'admitted_rows' => $admittedCount,
+            'upstream_tests_delta' => $testsDelta,
+            'met' => $meetsBulkFloor && ($record['status'] ?? null) !== 'blocked',
+        ];
+        $record['next_gate'] = ($record['status'] ?? null) === 'bulk-current-source-veryquick-shard-advanced'
+            ? 'publish the bulk current-source veryquick shard batch only when the integrator can admit at least 1000 mapped rows or 10000 upstream tests from zero-error guarded artifacts'
+            : 'preserve bulk rows uncounted until provenance, zero-error guarded artifacts, duplicate-runner state, focused PHP admission, and the bulk throughput floor are all clear';
+        $record['dependency_closure'] = 'no new support component needed; bulk veryquick admission reuses lane-local guarded runner rows and enforces a 1000-row or 10000-upstream-test floor before mapped coverage can move';
+
+        return $record;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array
@@ -17673,6 +17691,154 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function boundedRunnerAuditAdmission(
+        string $auditPath,
+        string $acceptedRepositoryHead,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $minimumRunnerTests = 1000
+    ): array {
+        if ($minimumRunnerTests < 1) {
+            throw new \InvalidArgumentException('SQLite bounded runner audit admission requires a positive runner-test floor');
+        }
+        if (!preg_match('#^lanes/libsqlite/notes/[A-Za-z0-9_./-]+\.md$#', $auditPath)) {
+            throw new \InvalidArgumentException('SQLite bounded runner audit admission requires a lane-local note path');
+        }
+        if (trim($acceptedRepositoryHead) === '') {
+            throw new \InvalidArgumentException('SQLite bounded runner audit admission requires an accepted repository HEAD');
+        }
+
+        $root = dirname(__DIR__, 3);
+        $absoluteAuditPath = $root . '/' . $auditPath;
+        $audit = file_get_contents($absoluteAuditPath);
+        if ($audit === false) {
+            throw new \InvalidArgumentException("Unable to read bounded runner audit: {$auditPath}");
+        }
+
+        $patterns = [];
+        if (preg_match('/^- Patterns:(.*)$/m', $audit, $matches) === 1) {
+            if (preg_match_all('/`([^`\r\n]+\.test)`/', $matches[1], $scriptMatches) > 0) {
+                $patterns = array_values(array_unique($scriptMatches[1]));
+            }
+        }
+
+        $repositoryHead = '';
+        if (preg_match('/^- Repository HEAD: `([^`\r\n]+)`/m', $audit, $matches) === 1) {
+            $repositoryHead = $matches[1];
+        }
+
+        $exit = null;
+        if (preg_match('/^- Exit: `(-?\d+)`/m', $audit, $matches) === 1) {
+            $exit = (int) $matches[1];
+        }
+
+        $errors = null;
+        if (preg_match('/^- Parsed errors: `(\d+)`/m', $audit, $matches) === 1) {
+            $errors = (int) $matches[1];
+        }
+
+        $tests = null;
+        if (preg_match('/^- Parsed tests: `(\d+)`/m', $audit, $matches) === 1) {
+            $tests = (int) $matches[1];
+        }
+
+        $sqliteCommit = '';
+        if (preg_match('/^- SQLite git commit: `([^`\r\n]+)`/m', $audit, $matches) === 1) {
+            $sqliteCommit = $matches[1];
+        }
+
+        $manifestUuid = '';
+        if (preg_match('/^- SQLite manifest UUID: `([^`\r\n]+)`/m', $audit, $matches) === 1) {
+            $manifestUuid = $matches[1];
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $blockers = [];
+        if ($repositoryHead === '') {
+            $blockers[] = [
+                'id' => 'audit-repository-head-missing',
+                'evidence' => 'bounded runner audit did not record the runner-script repository head',
+            ];
+        }
+        if ($exit !== 0) {
+            $blockers[] = [
+                'id' => 'runner-exit-not-zero',
+                'evidence' => 'bounded runner exit was not zero',
+            ];
+        }
+        if ($errors !== 0) {
+            $blockers[] = [
+                'id' => 'runner-errors-not-zero',
+                'evidence' => 'bounded runner parsed errors were not zero',
+            ];
+        }
+        if ($tests === null || $tests < $minimumRunnerTests) {
+            $blockers[] = [
+                'id' => 'runner-test-floor-not-met',
+                'evidence' => 'bounded runner parsed tests did not meet the requested floor',
+            ];
+        }
+        if (count($patterns) < 1) {
+            $blockers[] = [
+                'id' => 'runner-patterns-missing',
+                'evidence' => 'bounded runner audit did not record concrete .test patterns',
+            ];
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+
+        $status = $blockers === []
+            ? 'bounded-runner-denominator-burnup-countable'
+            : 'blocked';
+
+        return [
+            'status' => $status,
+            'audit_path' => $auditPath,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'audit_repository_head' => $repositoryHead,
+            'sqlite_commit' => $sqliteCommit,
+            'sqlite_manifest_uuid' => $manifestUuid,
+            'requested_script_count' => count($patterns),
+            'requested_scripts' => $patterns,
+            'runner_exit' => $exit,
+            'runner_errors' => $errors,
+            'runner_tests' => $tests,
+            'minimum_runner_tests' => $minimumRunnerTests,
+            'current_mapped' => $currentMapped,
+            'mapped_delta' => $status === 'bounded-runner-denominator-burnup-countable' ? count($patterns) : 0,
+            'next_mapped' => $status === 'bounded-runner-denominator-burnup-countable' ? $currentMapped + count($patterns) : $currentMapped,
+            'current_php_pass' => $currentPhpPass,
+            'php_pass_delta' => $status === 'bounded-runner-denominator-burnup-countable' ? (int) ($phpAdmission['assertion_delta'] ?? 0) : 0,
+            'next_php_pass' => $status === 'bounded-runner-denominator-burnup-countable' ? (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass) : $currentPhpPass,
+            'php_pass_admission' => $phpAdmission,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_bounded_runner_denominator_burnup' => $status === 'bounded-runner-denominator-burnup-countable',
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'bounded-runner-denominator-burnup-countable'
+                ? 'publish the concrete zero-error bounded runner artifact as denominator burnup evidence without claiming release/all parity'
+                : 'keep the bounded runner artifact uncounted until repository head, zero-error runner, concrete-script, runner-test floor, and focused PHP admission gates pass',
+            'dependency_closure' => 'no new support component needed; bounded runner denominator burnup reuses the hydrated upstream SQLite cache, cached testfixture, lane-local runner audit, and focused PHP TestRunner admission only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function focusedPhpPassAdmission(
         int $currentPhpPass,
         string $focusedPath,
@@ -20070,8 +20236,7 @@ final class SQLiteUpstreamSuiteEvidence
         } elseif (!$blocked) {
             $status = 'suite-evidence-preserved';
         }
-        $legacyGenericStatusIds = ['current-next93' => true, 'current-next98' => true];
-        if ($primaryCurrentNext !== null && $status !== 'blocked' && !isset($legacyGenericStatusIds[$primaryCurrentNext])) {
+        if ($primaryCurrentNext !== null && $status !== 'blocked') {
             $status = $primaryCurrentNext . '-' . $status;
         }
 
@@ -20116,6 +20281,263 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return $record;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $evidenceRows
+     * @return array<string, mixed>
+     */
+    public function suiteEvidenceBulkAdmission(
+        array $evidenceRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $expectedPassDelta,
+        int $minimumPassDelta = 1000,
+        string $processSnapshot = ''
+    ): array {
+        if ($evidenceRows === []) {
+            throw new \InvalidArgumentException('SQLite bulk suite evidence admission requires at least one evidence row');
+        }
+        if ($currentMapped < 0) {
+            throw new \InvalidArgumentException('SQLite bulk suite evidence admission requires a non-negative mapped count');
+        }
+        if (trim($acceptedRepositoryHead) === '') {
+            throw new \InvalidArgumentException('SQLite bulk suite evidence admission requires an accepted repository HEAD');
+        }
+        if (trim($nonOverlapNote) === '') {
+            throw new \InvalidArgumentException('SQLite bulk suite evidence admission requires a non-overlap note');
+        }
+        $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $acceptedRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $entries = [];
+        $blockers = [];
+        $seen = [];
+        $advanced = [];
+        $preserved = [];
+        $blockedUnits = [];
+        $regressed = [];
+        $tiers = [];
+        $scripts = [];
+        $currentTestsTotal = 0;
+        $nextTestsTotal = 0;
+
+        foreach ($evidenceRows as $label => $row) {
+            $fallbackUnit = is_string($label) ? $label : 'bulk-suite-evidence-' . count($entries);
+            if (!is_array($row)) {
+                $blockedUnits[] = $fallbackUnit;
+                $blockers[] = [
+                    'id' => 'bulk-suite-evidence-row-invalid',
+                    'unit' => $fallbackUnit,
+                    'evidence' => 'bulk suite evidence row must be an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : $fallbackUnit;
+            $tier = is_string($row['tier'] ?? null) && $row['tier'] !== '' ? strtolower($row['tier']) : 'unknown';
+            $head = is_string($row['repository_head'] ?? null) ? trim($row['repository_head']) : '';
+            $artifactPath = is_string($row['artifact_path'] ?? null) ? trim($row['artifact_path']) : '';
+            $command = is_string($row['runner_command'] ?? null) ? trim($row['runner_command']) : '';
+            $evidence = is_string($row['evidence'] ?? null) ? trim($row['evidence']) : '';
+            $currentCountable = (bool) ($row['current_countable'] ?? false);
+            $nextCountable = (bool) ($row['next_countable'] ?? false);
+            $exit = $this->denominatorAuditInt($row, 'exit');
+            $errors = max(0, $this->denominatorAuditInt($row, 'errors'));
+            $currentTests = max(0, $this->denominatorAuditInt($row, 'current_tests'));
+            $nextTests = max(0, $this->denominatorAuditInt($row, 'next_tests'));
+            $rowScripts = array_values(array_unique(array_filter(
+                is_array($row['scripts'] ?? null) ? $row['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && (str_ends_with($script, '.test') || str_contains($script, '*.test'))
+            )));
+            sort($rowScripts, SORT_STRING);
+            foreach ($rowScripts as $script) {
+                $scripts[$script] = true;
+            }
+
+            $rowBlockers = [];
+            if (isset($seen[$unit])) {
+                $rowBlockers[] = 'duplicate-bulk-suite-evidence-unit';
+            }
+            $seen[$unit] = true;
+            if (!in_array($tier, ['veryquick', 'release', 'all', 'focused'], true)) {
+                $rowBlockers[] = 'unsupported-suite-evidence-tier';
+            }
+            if ($head !== $acceptedRepositoryHead) {
+                $rowBlockers[] = 'accepted-head-mismatch';
+            }
+            if ($artifactPath === '' || !str_starts_with($artifactPath, 'lanes/libsqlite/')) {
+                $rowBlockers[] = 'artifact-path-not-lane-local';
+            }
+            if ($command === '' || !str_contains($command, 'testfixture') || !str_contains($command, 'testrunner.tcl') || !str_contains($command, '--stop-on-error')) {
+                $rowBlockers[] = 'guarded-suite-runner-command-missing';
+            }
+            if ($nextCountable && $exit !== 0) {
+                $rowBlockers[] = 'runner-exit-not-zero';
+            }
+            if ($nextCountable && $errors !== 0) {
+                $rowBlockers[] = 'runner-errors-not-zero';
+            }
+            if ($nextCountable && $nextTests < 1) {
+                $rowBlockers[] = 'runner-test-count-missing';
+            }
+            if ($nextCountable && $rowScripts === []) {
+                $rowBlockers[] = 'suite-scripts-missing';
+            }
+            if ($nextCountable && $evidence === '') {
+                $rowBlockers[] = 'suite-evidence-missing';
+            }
+            if ($currentCountable && !$nextCountable) {
+                $rowBlockers[] = 'suite-evidence-countability-regressed';
+            }
+            if ($currentCountable && $nextCountable && $nextTests !== $currentTests) {
+                $rowBlockers[] = 'suite-evidence-preserved-test-count-changed';
+            }
+            if ($nextTests < $currentTests) {
+                $rowBlockers[] = 'suite-evidence-test-count-regressed';
+            }
+            if (($row['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-parity-claim-not-allowed';
+            }
+            foreach (is_array($row['blockers'] ?? null) ? $row['blockers'] : [] as $blocker) {
+                if (is_string($blocker) && $blocker !== '') {
+                    $rowBlockers[] = $blocker;
+                }
+            }
+            $rowBlockers = array_values(array_unique($rowBlockers));
+
+            $movement = 'open';
+            if ($rowBlockers !== []) {
+                $movement = 'blocked';
+                $blockedUnits[] = $unit;
+                if (in_array('suite-evidence-countability-regressed', $rowBlockers, true) || in_array('suite-evidence-test-count-regressed', $rowBlockers, true)) {
+                    $regressed[] = $unit;
+                }
+                $blockers[] = [
+                    'id' => 'bulk-suite-evidence-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($nextCountable && !$currentCountable) {
+                $movement = 'advanced';
+                $advanced[] = $unit;
+            } elseif ($nextCountable) {
+                $movement = 'preserved';
+                $preserved[] = $unit;
+            }
+
+            if ($currentCountable) {
+                $currentTestsTotal += $currentTests;
+            }
+            if ($nextCountable) {
+                $nextTestsTotal += $nextTests;
+            }
+            $tiers[$tier] = ($tiers[$tier] ?? 0) + 1;
+
+            $entries[] = [
+                'unit' => $unit,
+                'tier' => $tier,
+                'movement' => $movement,
+                'repository_head' => $head,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'exit' => $exit,
+                'errors' => $errors,
+                'current_tests' => $currentTests,
+                'next_tests' => $nextTests,
+                'scripts' => $rowScripts,
+                'artifact_path' => $artifactPath,
+                'evidence' => $evidence,
+                'blocker_ids' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'current-head-focused-pass-countable') {
+            $blockers[] = [
+                'id' => 'focused-current-head-php-pass-blocked',
+                'evidence' => 'focused PHP PASS-line admission did not satisfy current-head gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+        if ((int) ($phpAdmission['pass_delta'] ?? 0) < $minimumPassDelta) {
+            $blockers[] = [
+                'id' => 'bulk-pass-delta-below-floor',
+                'evidence' => 'bulk suite evidence requires at least ' . $minimumPassDelta . ' focused PHP PASS lines',
+            ];
+        }
+
+        ksort($tiers, SORT_STRING);
+        sort($advanced, SORT_STRING);
+        sort($preserved, SORT_STRING);
+        sort($blockedUnits, SORT_STRING);
+        sort($regressed, SORT_STRING);
+        $scriptList = array_keys($scripts);
+        sort($scriptList, SORT_STRING);
+
+        $blocked = $blockers !== [];
+        $mappedDelta = count($advanced);
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'bulk-suite-evidence-countable';
+        } elseif (!$blocked) {
+            $status = 'bulk-suite-evidence-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'countable' => !$blocked && $mappedDelta > 0,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $blocked ? $currentMapped : $currentMapped + $mappedDelta,
+            'mapped_delta' => $blocked ? 0 : $mappedDelta,
+            'current_php_pass' => $currentPhpPass,
+            'php_pass_delta' => $blocked ? 0 : (int) ($phpAdmission['pass_delta'] ?? 0),
+            'next_php_pass' => $blocked ? $currentPhpPass : (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'bulk_floor_pass_delta' => $minimumPassDelta,
+            'row_count' => count($entries),
+            'tier_count' => count($tiers),
+            'tiers' => $tiers,
+            'advanced_count' => count($advanced),
+            'advanced_units' => $advanced,
+            'preserved_units' => $preserved,
+            'blocked_units' => $blockedUnits,
+            'regressed_units' => $regressed,
+            'current_tests_total' => $currentTestsTotal,
+            'next_tests_total' => $nextTestsTotal,
+            'tests_total_delta' => $blocked ? 0 : max(0, $nextTestsTotal - $currentTestsTotal),
+            'target_script_count' => count($scriptList),
+            'target_scripts' => $scriptList,
+            'entries' => $entries,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_bulk_suite_evidence' => !$blocked && $mappedDelta > 0,
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => (!$blocked && $mappedDelta > 0)
+                ? 'publish this bulk suite-evidence batch as multiple mapped blocker removals; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
+                : 'keep bulk suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, focused PASS-line, and bulk-floor gates are clear',
+            'dependency_closure' => 'no new support component needed; bulk suite evidence composes lane-local artifact metadata, guarded runner commands, active-runner gates, and focused TestRunner PASS-line output only',
+        ];
     }
 
     /**
@@ -25110,6 +25532,163 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param list<string> $scripts
+     * @return array<string, mixed>
+     */
+    public function realUpstreamRunnerMapGapClosure(
+        array $scripts,
+        string $currentAcceptedHead,
+        int $currentMapped,
+        int $denominatorTotal,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $jobs = 1,
+        ?string $repoRoot = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($currentAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite real upstream runner map gap closure requires current accepted HEAD');
+        }
+        if ($scripts === []) {
+            throw new \InvalidArgumentException('SQLite real upstream runner map gap closure requires at least one script');
+        }
+        if ($denominatorTotal < 1 || $currentMapped < 0 || $currentMapped > $denominatorTotal) {
+            throw new \InvalidArgumentException('SQLite real upstream runner map gap closure requires a valid denominator and current mapped count');
+        }
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite real upstream runner map gap closure jobs must be at least 1');
+        }
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        $buildDirectory = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
+        $testfixture = $buildDirectory . '/testfixture';
+        $testrunner = $testDirectory . '/testrunner.tcl';
+        $phpAdmission = $this->focusedPhpPassAdmission($currentPhpPass, $focusedPath, $focusedTestOutput, $nonOverlapNote);
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $seen = [];
+        $validScripts = [];
+        $blockers = [];
+        foreach ($scripts as $index => $script) {
+            if (!is_string($script) || !preg_match('/^[A-Za-z0-9_.-]+\.test$/', $script)) {
+                $blockers[] = [
+                    'id' => 'invalid-script-id',
+                    'script' => is_scalar($script) ? (string) $script : 'script-' . (string) $index,
+                    'evidence' => 'runner-map gap closure only admits concrete upstream .test filenames',
+                ];
+                continue;
+            }
+            if (isset($seen[$script])) {
+                $blockers[] = [
+                    'id' => 'duplicate-script-id',
+                    'script' => $script,
+                    'evidence' => 'runner-map gap closure scripts must be unique',
+                ];
+                continue;
+            }
+            $seen[$script] = true;
+
+            if (!is_file($testDirectory . '/' . $script)) {
+                $blockers[] = [
+                    'id' => 'script-not-hydrated',
+                    'script' => $script,
+                    'evidence' => 'script is not present in the hydrated SQLite upstream test directory',
+                ];
+                continue;
+            }
+
+            $validScripts[] = $script;
+        }
+
+        sort($validScripts, SORT_STRING);
+
+        $missingInputs = [];
+        foreach ([
+            '.upstream-cache/libsqlite/test' => is_dir($testDirectory),
+            '.upstream-cache/libsqlite/test/testrunner.tcl' => is_file($testrunner),
+            '.upstream-cache/libsqlite-build-port-libsqlite' => is_dir($buildDirectory),
+            '.upstream-cache/libsqlite-build-port-libsqlite/testfixture' => is_file($testfixture),
+            '.upstream-cache/libsqlite-build-port-libsqlite/testfixture executable bit' => is_file($testfixture) && is_executable($testfixture),
+        ] as $input => $ready) {
+            if (!$ready) {
+                $missingInputs[] = $input;
+            }
+        }
+        if ($missingInputs !== []) {
+            $blockers[] = [
+                'id' => 'runner-inputs-not-hydrated',
+                'evidence' => implode(', ', $missingInputs),
+            ];
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+
+        $remainingMapped = max(0, $denominatorTotal - $currentMapped);
+        $mappedDelta = min($remainingMapped, count($validScripts));
+        $nextMapped = $currentMapped + ($blockers === [] ? $mappedDelta : 0);
+        $runnerCommands = [];
+        if ($blockers === []) {
+            foreach (array_chunk($validScripts, 100) as $chunkIndex => $chunk) {
+                $runnerCommands[] = [
+                    'id' => sprintf('real-upstream-runner-map-gap-%03d', $chunkIndex + 1),
+                    'script_count' => count($chunk),
+                    'command' => 'cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs ' . $jobs . ' --stop-on-error veryquick ' . implode(' ', array_map('escapeshellarg', $chunk)),
+                    'scripts' => $chunk,
+                ];
+            }
+        }
+
+        $status = $blockers === []
+            ? (count($validScripts) >= 1000 ? 'bulk-real-upstream-runner-map-gap-ready' : 'bulk-real-upstream-runner-map-gap-below-floor')
+            : 'blocked';
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'denominator_total' => $denominatorTotal,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $nextMapped,
+            'mapped_delta' => $blockers === [] ? $mappedDelta : 0,
+            'remaining_mapped_after' => max(0, $denominatorTotal - $nextMapped),
+            'script_count' => count($validScripts),
+            'requested_script_count' => count($scripts),
+            'runner_command_count' => count($runnerCommands),
+            'runner_commands' => $runnerCommands,
+            'first_scripts' => array_slice($validScripts, 0, 5),
+            'last_scripts' => array_slice($validScripts, -5),
+            'bulk_floor_satisfied' => $blockers === [] && count($validScripts) >= 1000,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $blockers === [] ? (int) ($phpAdmission['assertion_delta'] ?? 0) : 0,
+            'next_php_pass' => $blockers === [] ? (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass) : $currentPhpPass,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_mapped_denominator_growth' => $blockers === [] && $mappedDelta > 0,
+            'counts_pass_line_growth' => false,
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $blockers === []
+                ? 'integrator may admit the generated real upstream runner command map, then execute chunks through the guarded runner before claiming runner PASS parity'
+                : 'repair hydration, duplicate-runner, script-id, or focused PHP admission blockers before counting the real upstream runner map',
+            'dependency_closure' => 'no new support component needed; this reuses the hydrated SQLite upstream checkout, existing testfixture, active-runner gates, and focused PHP TestRunner admission',
+        ];
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $gapRows
      * @return array<string, mixed>
      */
@@ -25182,6 +25761,7 @@ final class SQLiteUpstreamSuiteEvidence
             foreach ($scripts as $script) {
                 $targetScripts[$script] = true;
             }
+            $upstreamTestDir = is_string($row['upstream_test_dir'] ?? null) ? rtrim((string) $row['upstream_test_dir'], '/') : '';
 
             $rowBlockers = [];
             if ($nextMapped < $currentMapped) {
@@ -25192,6 +25772,17 @@ final class SQLiteUpstreamSuiteEvidence
             }
             if (($row['hydrated'] ?? true) !== true) {
                 $rowBlockers[] = 'gap-scripts-not-hydrated';
+            }
+            if ($upstreamTestDir !== '') {
+                if (!is_dir($upstreamTestDir)) {
+                    $rowBlockers[] = 'upstream-test-dir-not-hydrated';
+                }
+                foreach ($scripts as $script) {
+                    if (!is_file($upstreamTestDir . '/' . $script)) {
+                        $rowBlockers[] = 'script-not-in-hydrated-upstream-corpus';
+                        break;
+                    }
+                }
             }
             if (($row['next_artifact_present'] ?? false) === true) {
                 $rowBlockers[] = 'next-artifact-already-present';
@@ -25575,6 +26166,119 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceBulkRange(
+        int $firstShard,
+        int $lastShard,
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $expectedPassDelta,
+        string $processSnapshot = ''
+    ): array {
+        if ($firstShard < 1 || $lastShard < $firstShard) {
+            throw new \InvalidArgumentException('Upstream veryquick bulk shard range must be ordered positive shard ids');
+        }
+
+        $expectedUnits = [];
+        foreach (range($firstShard, $lastShard) as $shard) {
+            $expectedUnits[] = 'suite-upstream-veryquick-shard-current-source-next' . $shard;
+        }
+
+        $record = $this->upstreamRunnerFullSuiteCountability(
+            $rows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $admitted = is_array($record['admitted_units'] ?? null) ? $record['admitted_units'] : [];
+        $missing = array_values(array_diff($expectedUnits, array_values(array_filter($admitted, 'is_string'))));
+        $unexpected = array_values(array_diff(array_values(array_filter($admitted, 'is_string')), $expectedUnits));
+
+        $rangeBlockers = [];
+        if ($missing !== []) {
+            $rangeBlockers[] = [
+                'id' => 'bulk-veryquick-range-missing-shards',
+                'evidence' => 'bulk current-source veryquick range did not admit every expected shard',
+                'missing_units' => $missing,
+            ];
+        }
+        if ($unexpected !== []) {
+            $rangeBlockers[] = [
+                'id' => 'bulk-veryquick-range-unexpected-shards',
+                'evidence' => 'bulk current-source veryquick range attempted to admit shards outside the selected range',
+                'unexpected_units' => $unexpected,
+            ];
+        }
+        if ($expectedPassDelta < 1000) {
+            $rangeBlockers[] = [
+                'id' => 'bulk-veryquick-pass-floor-not-met',
+                'evidence' => 'bulk current-source veryquick range must admit at least 1000 focused PASS lines',
+                'expected_pass_delta' => $expectedPassDelta,
+            ];
+        }
+
+        if ($rangeBlockers !== []) {
+            $existingBlockers = is_array($record['blockers'] ?? null) ? $record['blockers'] : [];
+            $record['blockers'] = array_merge($existingBlockers, $rangeBlockers);
+            $record['blocked_count'] = count($record['blockers']);
+            $record['status'] = 'blocked';
+            $record['countable'] = false;
+            $record['next_mapped'] = $currentMapped;
+            $record['mapped_delta'] = 0;
+            $record['php_pass_delta'] = 0;
+            $record['next_php_pass'] = $currentPhpPass;
+            $record['tests_total_delta'] = 0;
+        } else {
+            $record['status'] = str_replace(
+                'current-source-full-suite-countability',
+                'current-source-next' . $firstShard . '-next' . $lastShard . '-veryquick-bulk-shard',
+                (string) $record['status']
+            );
+        }
+
+        foreach (range($firstShard, $lastShard) as $shard) {
+            $record['counts_upstream_veryquick_shard_current_source_next' . $shard] = $record['status'] !== 'blocked'
+                && in_array('suite-upstream-veryquick-shard-current-source-next' . $shard, $admitted, true);
+        }
+        $record['bulk_shard_first'] = $firstShard;
+        $record['bulk_shard_last'] = $lastShard;
+        $record['bulk_shard_count'] = count($expectedUnits);
+        $record['bulk_expected_units'] = $expectedUnits;
+        $record['bulk_missing_units'] = $missing;
+        $record['bulk_unexpected_units'] = $unexpected;
+        $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
+        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $record['status'] === 'blocked'
+            ? 'keep the bulk current-source veryquick shard range uncounted until every shard row, provenance field, guarded-runner result, duplicate-runner gate, and focused PASS-line floor is satisfied'
+            : 'publish the bulk current-source veryquick shard range as one integrator-admissible batch; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted';
+        $record['dependency_closure'] = 'no new support component needed; bulk current-source veryquick shard admission composes lane-local artifact rows, accepted-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, exact focused TestRunner PASS-line output, and a minimum bulk PASS-line floor';
+
+        return $record;
+    }
+
+    /**
      * @param list<string> $scripts
      * @return array<string, mixed>
      */
@@ -25782,6 +26486,239 @@ final class SQLiteUpstreamSuiteEvidence
             'result_scripts' => $parsed['scripts'],
             'result_tests' => $parsed['tests'],
             'result_errors' => $parsed['errors'],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickBulkShardExpansionPlan(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $integrationSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $minimumUpstreamSubtests = 10000,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite bulk veryquick shard expansion requires at least one row');
+        }
+        if ($minimumUpstreamSubtests < 1) {
+            throw new \InvalidArgumentException('SQLite bulk veryquick shard expansion requires a positive upstream subtest floor');
+        }
+        foreach ([
+            'launcher base' => $launcherBaseHead,
+            'integration source' => $integrationSourceHead,
+        ] as $label => $head) {
+            if (trim($head) === '') {
+                throw new \InvalidArgumentException("SQLite bulk veryquick shard expansion requires {$label} HEAD");
+            }
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $blockers = [];
+        $entries = [];
+        $readyUnits = [];
+        $preservedUnits = [];
+        $scripts = [];
+        $families = [];
+        $upstreamSubtests = 0;
+        $zeroErrorRows = 0;
+        $laneLocalRows = 0;
+
+        foreach ($rows as $index => $row) {
+            if (!is_array($row)) {
+                $blockers[] = [
+                    'id' => 'bulk-shard-row-invalid',
+                    'row' => $index,
+                    'evidence' => 'row is not an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : 'row-' . $index;
+            $family = is_string($row['family'] ?? null) && $row['family'] !== '' ? $row['family'] : 'focused-veryquick-shard';
+            $currentCountable = (bool) ($row['current_countable'] ?? false);
+            $nextCountable = (bool) ($row['next_countable'] ?? false);
+            $currentTests = max(0, (int) ($row['current_tests'] ?? 0));
+            $nextTests = max(0, (int) ($row['next_tests'] ?? 0));
+            $testDelta = max(0, $nextTests - $currentTests);
+            $rowBlockers = [];
+
+            if (($row['launcher_base_head'] ?? null) !== $launcherBaseHead) {
+                $rowBlockers[] = 'launcher-base-head-mismatch';
+            }
+            foreach (['dashboard_source_head', 'status_source_head', 'implementation_source_head'] as $key) {
+                if (($row[$key] ?? null) !== $integrationSourceHead) {
+                    $rowBlockers[] = $key . '-mismatch';
+                }
+            }
+            if (!is_string($row['source_head'] ?? null) || $row['source_head'] === '') {
+                $rowBlockers[] = 'source-head-missing';
+            }
+            $artifactPath = is_string($row['artifact_path'] ?? null) ? $row['artifact_path'] : '';
+            if (str_starts_with($artifactPath, 'lanes/libsqlite/notes/')) {
+                $laneLocalRows++;
+            } else {
+                $rowBlockers[] = 'artifact-path-not-lane-local-note';
+            }
+            $command = is_string($row['runner_command'] ?? null) ? $row['runner_command'] : '';
+            if (!str_contains($command, 'testfixture') || !str_contains($command, 'testrunner.tcl') || !str_contains($command, '--stop-on-error') || !str_contains($command, ' veryquick')) {
+                $rowBlockers[] = 'guarded-veryquick-command-missing';
+            }
+
+            $rowScripts = is_array($row['scripts'] ?? null) ? $row['scripts'] : [];
+            $hasConcreteScript = false;
+            foreach ($rowScripts as $script) {
+                if (!is_string($script)) {
+                    continue;
+                }
+                $scripts[$script] = true;
+                if (str_ends_with($script, '.test') && !str_contains($script, '*')) {
+                    $hasConcreteScript = true;
+                }
+            }
+            if (!$hasConcreteScript) {
+                $rowBlockers[] = 'concrete-test-scripts-missing';
+            }
+
+            if ((int) ($row['exit'] ?? 1) === 0 && (int) ($row['errors'] ?? 1) === 0) {
+                $zeroErrorRows++;
+            } else {
+                $rowBlockers[] = 'runner-artifact-not-zero-error';
+            }
+            if (!$nextCountable && !$currentCountable) {
+                $rowBlockers[] = 'next-countability-not-admitted';
+            }
+            if ($nextCountable && !$currentCountable && $testDelta < 1) {
+                $rowBlockers[] = 'upstream-subtest-delta-missing';
+            }
+
+            if (!isset($families[$family])) {
+                $families[$family] = [
+                    'family' => $family,
+                    'rows' => 0,
+                    'ready' => 0,
+                    'preserved' => 0,
+                    'blocked' => 0,
+                    'upstream_subtests' => 0,
+                ];
+            }
+            $families[$family]['rows']++;
+
+            $movement = 'blocked';
+            if ($rowBlockers !== []) {
+                $families[$family]['blocked']++;
+                $blockers[] = [
+                    'id' => 'bulk-shard-row-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', array_values(array_unique($rowBlockers))),
+                ];
+            } elseif ($nextCountable && !$currentCountable) {
+                $movement = 'ready';
+                $readyUnits[] = $unit;
+                $families[$family]['ready']++;
+                $families[$family]['upstream_subtests'] += $testDelta;
+                $upstreamSubtests += $testDelta;
+            } else {
+                $movement = 'preserved';
+                $preservedUnits[] = $unit;
+                $families[$family]['preserved']++;
+            }
+
+            $entries[] = [
+                'unit' => $unit,
+                'family' => $family,
+                'movement' => $movement,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'current_tests' => $currentTests,
+                'next_tests' => $nextTests,
+                'upstream_subtest_delta' => $testDelta,
+                'blockers' => array_values(array_unique($rowBlockers)),
+            ];
+        }
+
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+        if ($expectedPassDelta !== null && (int) ($phpAdmission['assertion_delta'] ?? 0) !== $expectedPassDelta) {
+            $blockers[] = [
+                'id' => 'focused-php-pass-delta-mismatch',
+                'evidence' => 'expected ' . $expectedPassDelta . ' focused assertions, got ' . (int) ($phpAdmission['assertion_delta'] ?? 0),
+            ];
+        }
+        if ($upstreamSubtests < $minimumUpstreamSubtests) {
+            $blockers[] = [
+                'id' => 'bulk-upstream-subtest-floor-not-met',
+                'evidence' => 'ready rows expose ' . $upstreamSubtests . ' upstream subtests, below required floor ' . $minimumUpstreamSubtests,
+            ];
+        }
+
+        ksort($families);
+        $scripts = array_keys($scripts);
+        sort($scripts);
+        sort($readyUnits, SORT_STRING);
+        sort($preservedUnits, SORT_STRING);
+
+        $status = $blockers === [] ? 'bulk-veryquick-shard-expansion-ready' : 'blocked';
+
+        return [
+            'status' => $status,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $currentMapped,
+            'mapped_delta' => 0,
+            'current_php_pass' => $currentPhpPass,
+            'next_php_pass' => $status === 'blocked' ? $currentPhpPass : (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'php_pass_delta' => $status === 'blocked' ? 0 : (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'row_count' => count($rows),
+            'ready_count' => count($readyUnits),
+            'preserved_count' => count($preservedUnits),
+            'zero_error_row_count' => $zeroErrorRows,
+            'lane_local_note_row_count' => $laneLocalRows,
+            'upstream_subtests_ready' => $upstreamSubtests,
+            'minimum_upstream_subtests' => $minimumUpstreamSubtests,
+            'ready_units' => $readyUnits,
+            'preserved_units' => $preservedUnits,
+            'target_script_count' => count($scripts),
+            'target_scripts' => $scripts,
+            'families' => array_values($families),
+            'entries' => $entries,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_bulk_veryquick_shard_expansion' => $status === 'bulk-veryquick-shard-expansion-ready',
+            'counts_release_parity' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'bulk-veryquick-shard-expansion-ready'
+                ? 'publish this bulk runner-map expansion as prepared evidence, then admit each ready zero-error veryquick shard row individually without release/all parity inflation'
+                : 'repair blocked rows, duplicate-runner state, focused PHP admission, or the upstream-subtest floor before publishing bulk veryquick shard expansion evidence',
+            'dependency_closure' => 'no new support component needed; bulk veryquick shard expansion composes lane-local notes, zero-error guarded-runner rows, concrete .test scripts, accepted-source provenance, duplicate-runner gates, and focused TestRunner PASS-line output only',
         ];
     }
 

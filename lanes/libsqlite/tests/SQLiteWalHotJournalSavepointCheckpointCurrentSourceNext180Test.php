@@ -91,7 +91,7 @@ $allTruncate = array_merge($releaseStarted, [
     'sync_released_checkpoint_after_savepoint_publish_next165',
 ]);
 
-$base = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+$base = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planAtomicPublishApply(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -136,7 +136,7 @@ $filesFrom = static function (array $completed, string $mode = 'restart') use ($
 
 $matching = static fn (array $completed = [], string $mode = 'restart'): array => $base($completed, $filesFrom($completed, $mode), $mode);
 $next177 = static fn (array $resume): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume);
-$apply = static fn (array $plan, array $files, array $payloads, ?int $fail = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($plan, $files, $payloads, $fail);
+$apply = static fn (array $plan, array $files, array $payloads, ?int $fail = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::applyAtomicPublishOperations($plan, $files, $payloads, $fail);
 
 $missingDatabaseResume = $base($currentComplete, [
     $journalPath => $journalBytes,
@@ -250,23 +250,23 @@ $throws = [
     'missing status rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads): void {
         $plan = $missingDatabasePlan;
         unset($plan['status']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($plan, $missingDatabaseFiles, $missingDatabasePayloads);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::applyAtomicPublishOperations($plan, $missingDatabaseFiles, $missingDatabasePayloads);
     },
     'missing operations rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads): void {
         $plan = $missingDatabasePlan;
         unset($plan['operations']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($plan, $missingDatabaseFiles, $missingDatabasePayloads);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::applyAtomicPublishOperations($plan, $missingDatabaseFiles, $missingDatabasePayloads);
     },
     'bad payload digest rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads, $databasePath): void {
         $payloads = $missingDatabasePayloads;
         $payloads[$databasePath] = 'bad';
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($missingDatabasePlan, $missingDatabaseFiles, $payloads);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::applyAtomicPublishOperations($missingDatabasePlan, $missingDatabaseFiles, $payloads);
     },
     'missing payload rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($missingDatabasePlan, $missingDatabaseFiles, []);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::applyAtomicPublishOperations($missingDatabasePlan, $missingDatabaseFiles, []);
     },
     'bad failure index rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads, 99);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::applyAtomicPublishOperations($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads, 99);
     },
 ];
 

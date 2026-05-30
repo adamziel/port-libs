@@ -37,7 +37,7 @@ final class SQLiteRecursiveDmlCurrentSource
      * @param array<int|string,mixed> $parameters
      * @return array<string,mixed>
      */
-    public static function updateDeleteReturning(string $sql, array $tables, array $parameters = [], string $rowIdColumn = 'option_id'): array
+    public static function updateDeleteReturning(string $sql, array $tables, array $parameters = [], string $rowIdColumn = 'setting_id'): array
     {
         [$tables, $dml, $name] = self::materializeSingleCte($sql, $tables, $parameters);
         $dml = self::rewriteSingleColumnInSubquery($dml, $name, $tables[$name]);

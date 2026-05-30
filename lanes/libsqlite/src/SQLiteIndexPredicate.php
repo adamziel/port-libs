@@ -263,7 +263,21 @@ final class SQLiteIndexPredicate
 
     private static function valuesEqual(mixed $left, mixed $right, string $collation): bool
     {
-        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+        if (is_int($left) && is_int($right)) {
+            return $left === $right;
+        }
+        if ((is_int($left) && is_float($right)) || (is_float($left) && is_int($right))) {
+            $float = is_float($left) ? $left : $right;
+            $integer = is_int($left) ? $left : $right;
+            if ($float >= (float) (PHP_INT_MAX - 1024) || $float <= (float) (PHP_INT_MIN + 1024)) {
+                return false;
+            }
+
+            return is_finite($float)
+                && floor($float) === $float
+                && (int) $float === $integer;
+        }
+        if (is_float($left) && is_float($right)) {
             return $left == $right;
         }
 

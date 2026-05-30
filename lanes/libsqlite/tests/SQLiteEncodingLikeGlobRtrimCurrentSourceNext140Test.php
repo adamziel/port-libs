@@ -9,8 +9,8 @@ $tests = [];
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -19,8 +19,8 @@ $row = static function (int $id, string $name, string $encoding): array {
     ];
 };
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -81,7 +81,7 @@ $valueAt = static function (array $value, string $path): mixed {
 
 $cases = [
     'like operator' => ['LIKE', 'plugin\\_cache', '\\', 'operator', 'LIKE'],
-    'expression recorded' => ['LIKE', 'plugin\\_cache', '\\', 'expression', 'rtrim(option_name)'],
+    'expression recorded' => ['LIKE', 'plugin\\_cache', '\\', 'expression', 'rtrim(key_name)'],
     'collation recorded' => ['LIKE', 'plugin\\_cache', '\\', 'collation', 'RTRIM'],
     'like range lower' => ['LIKE', 'plugin\\_cache', '\\', 'range.lowerInclusive', 'plugin_cache'],
     'like range upper' => ['LIKE', 'plugin\\_cache', '\\', 'range.upperBound', 'plugin_cachf'],
@@ -178,11 +178,11 @@ $tests['encoding like glob rtrim current source next140 rejects unsupported oper
 };
 
 $tests['encoding like glob rtrim current source next140 rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'LIKE', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'text_encoding' => 1]], $nextRows, 'LIKE', 'plugin%'));
 };
 
 $tests['encoding like glob rtrim current source next140 rejects non integer rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]], $nextRows, 'LIKE', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => '1', 'key_name_bytes' => 'plugin', 'text_encoding' => 1]], $nextRows, 'LIKE', 'plugin%'));
 };
 
 return $tests;
