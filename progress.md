@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 23:57 UTC):
+  Latest libsqlite source is integrated as `31404fc63`
+  (`libsqlite: route PDO insert syntax through neutral helper`). This focused
+  side-slice removes the PDO-specific INSERT syntax gate, routes INSERT VALUES
+  shape parsing through neutral `SQLiteInsertValuesSql`, keeps PDO responsible
+  for translating native libsqlite failures to `PDOException`, and tightens
+  nearby neutral INSERT helper anchors. Verification passed PHP lint for `7`
+  changed/new PHP files, `git diff --cached --check -- lanes/libsqlite`, the
+  PDO INSERT gate grep with no matches, `SQLitePdoPolyfillTest.php` with `1
+  file / 97 assertions / 0 failures`, `SQLiteNoDomainSpecificApiTest.php` with
+  `1 file / 3 assertions / 0 failures`, and adjacent insert helper tests `3
+  files / 138 assertions / 0 failures`. Honest assertion movement from the PDO
+  test is `+10`, so the public row should move to `1238327 pass / 0 fail` with
+  coverage still `1589 / 1589`. Mapped inventory remains complete, but
+  functional/full-suite/release/all-runner parity is still the libsqlite exit
+  gate before moving the team to gitoxide.
+
 - 2026-05-30 supervisor continuation (integration sample 23:52 UTC):
   Latest libsqlite source is integrated as `5b28f965d`
   (`libsqlite: add twenty-seventh current corpus sweep`). The batch accepted
