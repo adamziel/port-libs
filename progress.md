@@ -43,10 +43,37 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 258G available after bounded inactive-worktree cleanup; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 270G available after bounded inactive-worktree cleanup; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (shell samples 03:30 UTC):
+  Latest libsqlite consolidation is integrated as `0d1836f8b`
+  (`libsqlite: consolidate json release stat4 suffix names`). The batch
+  accepts 4 current-base-compatible handoffs covering JSON generated-path
+  rowid-cost cost-selection alias assertions, release-runner canonical map /
+  denominator audit / upstream gap-proof stable naming, STAT4 current-source
+  partial-OR selectivity fence naming, and STAT4 like-prefix / sample-order /
+  partial-predicate / range-window stable naming. Validation passed PHP lint
+  for changed PHP files, 5 changed WordPress/self-test examples, focused
+  changed tests `9 files / 884 assertions / 0 failures`, JSON table family
+  `304 files / 20136 assertions / 0 failures`, release-runner family `27
+  files / 10866 assertions / 0 failures`, STAT4 expression partial family
+  `133 files / 7547 assertions / 0 failures`, and `git diff --check --
+  lanes/libsqlite`. Public pass/mapped counters remain `154019 pass / 0 fail`
+  and `830 / 1589` because this is consolidation-only. Cleanup moved accepted
+  markers to
+  `.tmux-team/tmp/handoff-consumed/accepted-0d1836f-json-release-stat4-20260530T0333Z`,
+  superseded overlap markers to
+  `.tmux-team/tmp/handoff-consumed/superseded-0d1836f-json-release-stat4-20260530T0333Z`,
+  preserved status/diff/untracked evidence under
+  `.tmux-team/tmp/cleanup-evidence/accepted-superseded-0d1836f-20260530T0333Z`,
+  and removed 10 accepted/superseded/rehearsal worktrees for `1353427804`
+  reclaimed bytes. `.tmux-team/tmp` is about `1.1G`, `.tmux-team/worktrees`
+  is about `6.2G`, `/home/claude` has about `270G` free, `/tmp` has about
+  `12G` free, and the live pool reports 11 isolated libsqlite Codex workers
+  with 0 long sleepers.
 
 - 2026-05-30 supervisor continuation (shell samples 03:15 UTC):
   Latest libsqlite consolidation is integrated as `5daf221fa`
