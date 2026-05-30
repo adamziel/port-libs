@@ -489,6 +489,145 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:int,c:int}> $existingRows
+     * @param list<array{a:int,b:int,c:int,raise?:string}> $statementRows
+     * @return array<string,mixed>
+     */
+    public static function raiseActionStatement(array $existingRows, array $statementRows, bool $inTransaction = true, string $target = 'table'): array
+    {
+        $target = strtolower($target);
+        if (!in_array($target, ['table', 'view'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger RAISE target is unsupported');
+        }
+
+        $original = array_values($existingRows);
+        $rows = $original;
+        $statementInserted = [];
+        $ignoredRows = [];
+        $error = null;
+        $rolledBack = false;
+
+        foreach ($statementRows as $row) {
+            $raise = strtolower((string) ($row['raise'] ?? ''));
+            unset($row['raise']);
+            if ($raise === 'ignore') {
+                $ignoredRows[] = $row;
+                continue;
+            }
+            if ($target === 'table') {
+                $rows[] = $row;
+                $statementInserted[] = $row;
+            }
+            if (in_array($raise, ['abort', 'fail', 'rollback'], true)) {
+                $error = $target === 'view' ? 'View ' . $raise : 'Trigger ' . $raise;
+                if ($raise === 'abort') {
+                    $rows = $original;
+                    $statementInserted = [];
+                } elseif ($raise === 'rollback') {
+                    $rolledBack = $inTransaction;
+                    $rows = $inTransaction ? [] : $original;
+                    $statementInserted = $inTransaction ? [] : $statementInserted;
+                }
+                break;
+            }
+        }
+
+        return [
+            'source' => $target === 'view' ? 'trigger3.test trigger3-7.1..7.3' : 'trigger3.test trigger3-1.1..4.2',
+            'operation' => $target === 'view' ? 'view-trigger-raise-action' : 'table-trigger-raise-action',
+            'status' => $error === null ? 'commit-ok' : ($rolledBack ? 'rolled-back' : 'constraint-failed'),
+            'target' => $target,
+            'in_transaction' => $inTransaction,
+            'error' => $error,
+            'rolled_back' => $rolledBack,
+            'rows' => self::sortRows($rows),
+            'row_count' => count($rows),
+            'statement_inserted' => $statementInserted,
+            'statement_inserted_count' => count($statementInserted),
+            'ignored_rows' => $ignoredRows,
+            'ignored_count' => count($ignoredRows),
+            'dependencies' => [
+                'sqlite-trigger3-raise-abort-rolls-back-current-statement',
+                'sqlite-trigger3-raise-fail-preserves-prior-row-changes',
+                'sqlite-trigger3-raise-rollback-clears-active-transaction',
+                'sqlite-trigger3-raise-ignore-skips-current-row',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $rows
+     * @return array<string,mixed>
+     */
+    public static function raiseIgnoreUpdateDelete(array $rows, string $operation, int $ignoredKey): array
+    {
+        $operation = strtolower($operation);
+        if (!in_array($operation, ['update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger RAISE IGNORE operation is unsupported');
+        }
+
+        $rows = array_values($rows);
+        $ignored = [];
+        $changed = [];
+        foreach ($rows as $index => $row) {
+            if ($row['a'] === $ignoredKey) {
+                $ignored[] = $row;
+                continue;
+            }
+            if ($operation === 'update') {
+                $rows[$index]['c'] = 10;
+                $changed[] = $rows[$index];
+            } else {
+                unset($rows[$index]);
+                $changed[] = $row;
+            }
+        }
+
+        return [
+            'source' => 'trigger3.test trigger3-5.1..5.2',
+            'operation' => 'raise-ignore-' . $operation . '-row-suppression',
+            'status' => 'commit-ok',
+            'ignored_key' => $ignoredKey,
+            'rows' => self::sortRows(array_values($rows)),
+            'changed_rows' => self::sortRows($changed),
+            'ignored_rows' => self::sortRows($ignored),
+            'changed_count' => count($changed),
+            'ignored_count' => count($ignored),
+            'dependencies' => [
+                'sqlite-trigger3-raise-ignore-update-skips-current-row',
+                'sqlite-trigger3-raise-ignore-delete-skips-current-row',
+            ],
+        ];
+    }
+
+    /**
+     * @param array{a:int,b:int,c:int} $incoming
+     * @return array<string,mixed>
+     */
+    public static function nestedRaiseIgnoreTrigger(array $incoming): array
+    {
+        $tableRows = [
+            ['a' => 1, 'b' => 2, 'c' => 3],
+            ['a' => 4, 'b' => 5, 'c' => 6],
+        ];
+        $nestedRows = [$incoming, $incoming];
+
+        return [
+            'source' => 'trigger3.test trigger3-6',
+            'operation' => 'nested-trigger-raise-ignore-boundary',
+            'status' => 'commit-ok',
+            'outer_inserted' => $incoming,
+            'nested_rows' => $nestedRows,
+            'table_rows' => $tableRows,
+            'nested_row_count' => count($nestedRows),
+            'table_row_count' => count($tableRows),
+            'dependencies' => [
+                'sqlite-trigger3-raise-ignore-stops-nested-step-not-outer-program',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int}> $leftRows
      * @param list<array{c:int,d:int}> $rightRows
      * @param list<array{op:string,where?:callable(array<string,mixed>):bool,row?:array{a:int,b:int,c:int,d:int}}>

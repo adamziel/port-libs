@@ -333,6 +333,9 @@ final class SQLiteSelectQuery
         if ($aggregateOrderBy !== null) {
             throw new \InvalidArgumentException("SQLite SELECT query aggregate ORDER BY is not supported for {$function}");
         }
+        if ($frame === null && in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
+            $frame = self::defaultAggregateWindowFrame($orderBy, count($orderedRows));
+        }
         if ($frame !== null && in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
             self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
 
@@ -758,6 +761,12 @@ final class SQLiteSelectQuery
             throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs integer argument " . ($index + 1));
         }
         $value = SQLiteSelectExpression::evaluate($rows[0] ?? [], $arguments[$index]);
+        if (is_float($value) && floor($value) === $value) {
+            return (int) $value;
+        }
+        if (is_string($value) && preg_match('/^[+-]?[0-9]+(?:\.0+)?$/', trim($value)) === 1) {
+            return (int) trim($value);
+        }
         if (!is_int($value) && !is_bool($value)) {
             throw new \InvalidArgumentException("SQLite SELECT query {$function}() integer argument must be integer");
         }

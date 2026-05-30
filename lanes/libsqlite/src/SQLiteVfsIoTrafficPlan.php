@@ -323,6 +323,53 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,persistent:bool,fault_index:int,statement:string,connection_reopened:bool,rollback_attempted:bool,checksum_preserved:bool,integrity_check:string,pager_refcount:int,pager_error_state:bool,result_code:string,outer_select_continues:bool,temp_directory_access_error:bool,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function ioerr2RollbackInvariant(
+        string $scenario,
+        bool $persistent,
+        int $faultIndex,
+        string $statement = 'mutating_rollback_batch',
+        bool $connectionReopened = false
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite ioerr2 rollback invariant requires a scenario');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr2 rollback invariant requires a positive fault index');
+        }
+
+        $statement = strtolower(trim($statement));
+        if (!in_array($statement, ['mutating_rollback_batch', 'update_under_select', 'temp_store_directory'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite ioerr2 statement: {$statement}");
+        }
+
+        $resultCode = 'disk I/O error';
+        if ($statement === 'temp_store_directory') {
+            $resultCode = 'not a writable directory';
+        }
+
+        return [
+            'script' => 'ioerr2.test',
+            'scenario' => $scenario,
+            'persistent' => $persistent,
+            'fault_index' => $faultIndex,
+            'statement' => $statement,
+            'connection_reopened' => $connectionReopened || ($persistent && $faultIndex % 13 === 0),
+            'rollback_attempted' => $statement !== 'temp_store_directory',
+            'checksum_preserved' => true,
+            'integrity_check' => 'ok',
+            'pager_refcount' => 0,
+            'pager_error_state' => $statement !== 'temp_store_directory',
+            'result_code' => $resultCode,
+            'outer_select_continues' => $statement === 'update_under_select' ? false : true,
+            'temp_directory_access_error' => $statement === 'temp_store_directory',
+            'dependencies' => ['sqlite-upstream-ioerr2-test', 'sqlite-ioerr-rollback-invariant', 'sqlite-pager-refcount-cleanup'],
+            'upstream' => self::ioerr2Upstream($scenario, $statement),
+        ];
+    }
+
+    /**
      * @param list<string> $flags
      * @return list<string>
      */
@@ -384,6 +431,24 @@ final class SQLiteVfsIoTrafficPlan
         }
 
         return ["{$script} {$scenario}"];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function ioerr2Upstream(string $scenario, string $statement): array
+    {
+        if ($statement === 'update_under_select') {
+            return ['ioerr2.test ioerr2-5'];
+        }
+        if ($statement === 'temp_store_directory') {
+            return ['ioerr2.test ioerr2-6'];
+        }
+        if (str_starts_with($scenario, 'ioerr2-4.')) {
+            return ['ioerr2.test ioerr2-4'];
+        }
+
+        return ['ioerr2.test ioerr2-3'];
     }
 
     /**

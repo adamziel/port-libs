@@ -103,6 +103,7 @@ final class SQLitePragmaSchemaCatalog
                 'function_list' => $this->functionList(),
                 'module_list' => $this->moduleList(),
                 'collation_list' => $this->collationList(),
+                'pragma_list' => $this->pragmaList(),
             },
         ];
     }
@@ -135,6 +136,7 @@ final class SQLitePragmaSchemaCatalog
                 'function_list' => $this->functionList(),
                 'module_list' => $this->moduleList(),
                 'collation_list' => $this->collationList(),
+                'pragma_list' => $this->pragmaList(),
             },
         ];
     }
@@ -157,6 +159,11 @@ final class SQLitePragmaSchemaCatalog
      */
     public function tableInfo(string $tableName, bool $includeHidden = false): array
     {
+        $pragmaVirtualTable = self::pragmaVirtualTableColumns($tableName);
+        if ($pragmaVirtualTable !== null) {
+            return self::columnsToPragmaTableInfo($pragmaVirtualTable, $includeHidden);
+        }
+
         $record = $this->tables[strtolower($tableName)] ?? null;
         if ($record === null || $record->sql === null) {
             return [];
@@ -436,12 +443,34 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list', schema: string|null, target: string}
+     * @return list<array{name: string}>
+     */
+    public function pragmaList(): array
+    {
+        $names = [
+            'collation_list',
+            'foreign_key_list',
+            'function_list',
+            'index_info',
+            'index_list',
+            'index_xinfo',
+            'module_list',
+            'pragma_list',
+            'table_info',
+            'table_list',
+            'table_xinfo',
+        ];
+
+        return array_map(static fn (string $name): array => ['name' => $name], $names);
+    }
+
+    /**
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list'|'pragma_list', schema: string|null, target: string}
      */
     public static function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>function_list|module_list|collation_list|table_list)(?:\s*(?:\(\s*(?<target>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))?\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))?)?$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>function_list|module_list|collation_list|pragma_list|table_list)(?:\s*(?:\(\s*(?<target>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))?\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))?)?$/i', $trimmed, $matches) === 1) {
             return [
                 'pragma' => strtolower($matches['pragma']),
                 'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : null,
@@ -449,7 +478,7 @@ final class SQLitePragmaSchemaCatalog
             ];
         }
         if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)\s*(?:\(\s*(?<paren>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))$/i', $trimmed, $matches)) {
-            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, index_xinfo, foreign_key_list, table_list, function_list, module_list, and collation_list are supported');
+            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, index_xinfo, foreign_key_list, table_list, function_list, module_list, collation_list, and pragma_list are supported');
         }
 
         return [
@@ -460,12 +489,12 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list', schema: string|null, target: string}
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list'|'pragma_list', schema: string|null, target: string}
      */
     public static function parseTableValuedPragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (preg_match('/^pragma_(?<pragma>function_list|module_list|collation_list)\s*\(\s*\)$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^pragma_(?<pragma>function_list|module_list|collation_list|pragma_list)\s*\(\s*\)$/i', $trimmed, $matches) === 1) {
             return [
                 'pragma' => strtolower($matches['pragma']),
                 'schema' => null,
@@ -497,6 +526,67 @@ final class SQLitePragmaSchemaCatalog
             'schema' => isset($args[1]) ? strtolower(self::unquoteIdentifier($args[1])) : null,
             'target' => self::unquoteIdentifier($args[0]),
         ];
+    }
+
+    /**
+     * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}>|null
+     */
+    private static function pragmaVirtualTableColumns(string $tableName): ?array
+    {
+        $name = strtolower($tableName);
+        if (!str_starts_with($name, 'pragma_')) {
+            return null;
+        }
+
+        return match (substr($name, strlen('pragma_'))) {
+            'function_list' => self::plainVirtualColumns(['name', 'builtin', 'type', 'enc', 'narg', 'flags']),
+            'module_list', 'pragma_list' => self::plainVirtualColumns(['name']),
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}>
+     */
+    private static function plainVirtualColumns(array $names): array
+    {
+        return array_map(
+            static fn (string $name): array => [
+                'name' => $name,
+                'type' => '',
+                'notNull' => false,
+                'default' => null,
+                'primaryKey' => 0,
+                'hidden' => 0,
+            ],
+            $names,
+        );
+    }
+
+    /**
+     * @param list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}> $columns
+     * @return list<array{cid: int, name: string, type: string, notnull: int, dflt_value: string|null, pk: int}|array{cid: int, name: string, type: string, notnull: int, dflt_value: string|null, pk: int, hidden: int}>
+     */
+    private static function columnsToPragmaTableInfo(array $columns, bool $includeHidden): array
+    {
+        $rows = [];
+        foreach ($columns as $cid => $column) {
+            $row = [
+                'cid' => $cid,
+                'name' => $column['name'],
+                'type' => $column['type'],
+                'notnull' => $column['notNull'] ? 1 : 0,
+                'dflt_value' => $column['default'],
+                'pk' => $column['primaryKey'],
+            ];
+            if ($includeHidden) {
+                $row['hidden'] = $column['hidden'];
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
     }
 
     /**

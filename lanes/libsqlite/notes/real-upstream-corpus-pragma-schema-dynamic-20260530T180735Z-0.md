@@ -1,0 +1,24 @@
+# real-upstream-corpus-pragma-schema-dynamic-20260530T180735Z-0
+
+- Base accepted HEAD: `a9928e604a7d849ecf8aa28f83049e71a24f4b05`.
+- Upstream source truth:
+  - `/home/claude/port-libs/.upstream-cache/libsqlite/test/pragma5.test`
+    - `pragma5-1.0`: `PRAGMA table_info(pragma_function_list)` exposes six virtual-table columns.
+    - `pragma5-1.1` and `pragma5-1.2`: `pragma_function_list` rows distinguish builtin and external functions.
+    - `pragma5-2.0` and `pragma5-2.1`: `PRAGMA table_info(pragma_module_list)` and module rows.
+    - `pragma5-3.0` and `pragma5-3.1`: `PRAGMA table_info(pragma_pragma_list)` and `pragma_list` row visibility.
+- Behavior implemented: `SQLitePragmaSchemaCatalog` now treats `pragma_function_list`, `pragma_module_list`, and `pragma_pragma_list` as PRAGMA virtual tables for `table_info`/`table_xinfo`, and supports `PRAGMA pragma_list` plus `pragma_pragma_list()`.
+- Focused PHP coverage: added `SQLiteRealUpstreamPragmaIntrospectionDynamicCorpusTest.php` with 427 focused PASS cases and 2536 assertions over virtual PRAGMA schema/introspection behavior:
+  - upstream `pragma5.test` virtual table column shapes;
+  - dynamic external scalar/window function rows;
+  - dynamic module-list rows;
+  - dynamic pragma-list rows and table-info introspection for the PRAGMA virtual tables.
+- Non-overlap: this extends the prior PRAGMA/schema dynamic corpus without repeating table/index/FK schema rows, attached temp/main shadowing, data_version, schema_version, integrity/rootpage, date/VFS/window, source-neutral cleanup, or suite-evidence surfaces. It claims PASS-line growth only, not mapped denominator growth.
+- Dependency closure: no new support component is needed; this reuses the lane-local PRAGMA schema catalog and parser.
+- Verification:
+  - `php -l lanes/libsqlite/src/SQLitePragmaSchemaCatalog.php`
+  - `php -l lanes/libsqlite/tests/SQLiteRealUpstreamPragmaIntrospectionDynamicCorpusTest.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRealUpstreamPragmaIntrospectionDynamicCorpusTest.php` -> `1 test files, 2536 assertions, 0 failures`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaSchemaCatalogTest.php lanes/libsqlite/tests/SQLiteRealUpstreamPragmaSchemaDynamicCorpusTest.php lanes/libsqlite/tests/SQLiteRealUpstreamPragmaIntrospectionDynamicCorpusTest.php` -> `3 test files, 7375 assertions, 0 failures`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteNoDomainSpecificApiTest.php` -> `1 test files, 3 assertions, 0 failures`
+  - `git diff --check -- lanes/libsqlite`

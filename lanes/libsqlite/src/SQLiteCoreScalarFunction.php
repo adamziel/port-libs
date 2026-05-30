@@ -1541,7 +1541,18 @@ final class SQLiteCoreScalarFunction
 
     private static function dateTimeFromJulianDay(float|int $julianDay, \DateTimeZone $timezone): \DateTimeImmutable
     {
-        $shifted = (float) $julianDay + 0.5;
+        if ((float) $julianDay < 1721425.5) {
+            return self::dateTimeFromJulianDayCalendar((float) $julianDay, $timezone);
+        }
+
+        $seconds = ((float) $julianDay - 2440587.5) * 86400.0;
+
+        return self::dateTimeFromUnixTimestamp($seconds, $timezone);
+    }
+
+    private static function dateTimeFromJulianDayCalendar(float $julianDay, \DateTimeZone $timezone): \DateTimeImmutable
+    {
+        $shifted = $julianDay + 0.5;
         $z = (int) floor($shifted);
         $fraction = $shifted - (float) $z;
         $alpha = (int) floor(((float) $z - 1867216.25) / 36524.25);
