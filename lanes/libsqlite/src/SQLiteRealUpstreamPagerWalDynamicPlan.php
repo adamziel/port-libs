@@ -740,6 +740,197 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walPersistOverwriteRecoveryCases(): array
+    {
+        $persistScenarios = [
+            [
+                'source_file' => 'walpersist.test',
+                'upstream' => 'walpersist.test walpersist-1.0..1.11',
+                'phase' => 'persistent-wal-file-control-keeps-wal-and-shm-after-close',
+                'journal_mode' => 'wal',
+                'journal_size_limit' => null,
+                'page_size' => 4096,
+                'wal_bytes_before_close' => 8272,
+                'wal_bytes_after_close' => 8272,
+                'shm_exists_after_close' => true,
+                'wal_exists_after_close' => true,
+                'persist_wal_sequence' => [0, 1, 1, 0, 0, 1],
+                'query_after_reopen' => ['length(a)' => 5000],
+                'integrity' => 'ok',
+                'recovery_required' => false,
+                'savepoint_rolled_back' => false,
+            ],
+            [
+                'source_file' => 'walpersist.test',
+                'upstream' => 'walpersist.test walpersist-2.1..2.3',
+                'phase' => 'persistent-wal-honors-journal-size-limit-on-close',
+                'journal_mode' => 'wal',
+                'journal_size_limit' => 12000,
+                'page_size' => 4096,
+                'wal_bytes_before_close' => 112000,
+                'wal_bytes_after_close' => 0,
+                'shm_exists_after_close' => true,
+                'wal_exists_after_close' => true,
+                'persist_wal_sequence' => [1],
+                'query_after_reopen' => ['integrity_check' => 'ok'],
+                'integrity' => 'ok',
+                'recovery_required' => false,
+                'savepoint_rolled_back' => false,
+            ],
+            [
+                'source_file' => 'walpersist.test',
+                'upstream' => 'walpersist.test walpersist-3.1..3.4',
+                'phase' => 'persistent-wal-truncates-after-autocheckpoint-close',
+                'journal_mode' => 'wal',
+                'journal_size_limit' => 16384,
+                'page_size' => 1024,
+                'wal_bytes_before_close' => 16384,
+                'wal_bytes_after_close' => 0,
+                'shm_exists_after_close' => true,
+                'wal_exists_after_close' => true,
+                'persist_wal_sequence' => [1],
+                'query_after_reopen' => ['integrity_check' => 'ok'],
+                'integrity' => 'ok',
+                'recovery_required' => false,
+                'savepoint_rolled_back' => false,
+            ],
+            [
+                'source_file' => 'walpersist.test',
+                'upstream' => 'walpersist.test 4.1',
+                'phase' => 'persist-wal-survives-journal-mode-toggle-chain',
+                'journal_mode' => 'persist',
+                'journal_size_limit' => null,
+                'page_size' => 4096,
+                'wal_bytes_before_close' => 8272,
+                'wal_bytes_after_close' => 8272,
+                'shm_exists_after_close' => true,
+                'wal_exists_after_close' => true,
+                'persist_wal_sequence' => [1],
+                'query_after_reopen' => ['journal_modes' => ['truncate', 'memory', 'wal', 'persist']],
+                'integrity' => 'ok',
+                'recovery_required' => false,
+                'savepoint_rolled_back' => false,
+            ],
+        ];
+
+        $overwriteScenarios = [
+            [
+                'source_file' => 'waloverwrite.test',
+                'upstream' => 'waloverwrite.test 1.1.1..1.1.6',
+                'phase' => 'empty-wal-overwrites-repeated-page-updates-before-recovery',
+                'journal_mode' => 'wal',
+                'page_size' => 1024,
+                'initial_wal_has_transaction' => false,
+                'cache_size' => 5,
+                'row_count' => 20,
+                'blob_bytes_before_wal_recovery' => 800,
+                'blob_bytes_after_wal_recovery' => 799,
+                'wal_frame_min' => 41,
+                'wal_frame_max' => 59,
+                'savepoint_rolled_back' => false,
+                'recovery_required' => true,
+                'integrity' => 'ok',
+            ],
+            [
+                'source_file' => 'waloverwrite.test',
+                'upstream' => 'waloverwrite.test 1.2.1..1.2.6',
+                'phase' => 'nonempty-wal-overwrites-repeated-page-updates-before-recovery',
+                'journal_mode' => 'wal',
+                'page_size' => 1024,
+                'initial_wal_has_transaction' => true,
+                'cache_size' => 5,
+                'row_count' => 20,
+                'blob_bytes_before_wal_recovery' => 800,
+                'blob_bytes_after_wal_recovery' => 799,
+                'wal_frame_min' => 41,
+                'wal_frame_max' => 59,
+                'savepoint_rolled_back' => false,
+                'recovery_required' => true,
+                'integrity' => 'ok',
+            ],
+            [
+                'source_file' => 'waloverwrite.test',
+                'upstream' => 'waloverwrite.test 1.1.7..1.1.10',
+                'phase' => 'empty-wal-savepoint-rollback-restores-pre-savepoint-page-image',
+                'journal_mode' => 'wal',
+                'page_size' => 1024,
+                'initial_wal_has_transaction' => false,
+                'cache_size' => 5,
+                'row_count' => 20,
+                'blob_bytes_before_wal_recovery' => 799,
+                'blob_bytes_after_wal_recovery' => 798,
+                'wal_frame_min' => 56,
+                'wal_frame_max' => 74,
+                'savepoint_rolled_back' => true,
+                'recovery_required' => true,
+                'integrity' => 'ok',
+            ],
+            [
+                'source_file' => 'waloverwrite.test',
+                'upstream' => 'waloverwrite.test 1.2.7..1.2.10',
+                'phase' => 'nonempty-wal-savepoint-rollback-restores-pre-savepoint-page-image',
+                'journal_mode' => 'wal',
+                'page_size' => 1024,
+                'initial_wal_has_transaction' => true,
+                'cache_size' => 5,
+                'row_count' => 20,
+                'blob_bytes_before_wal_recovery' => 799,
+                'blob_bytes_after_wal_recovery' => 798,
+                'wal_frame_min' => 56,
+                'wal_frame_max' => 74,
+                'savepoint_rolled_back' => true,
+                'recovery_required' => true,
+                'integrity' => 'ok',
+            ],
+        ];
+
+        $scenarios = array_merge($persistScenarios, $overwriteScenarios);
+        $checkpointModes = ['passive', 'full', 'restart', 'truncate'];
+        $syncModes = ['normal', 'full', 'extra', 'off'];
+        $cacheSpillModes = ['default', 'enabled', 'disabled'];
+        $cases = [];
+
+        for ($i = 0; $i < 1000; $i++) {
+            $scenario = $scenarios[$i % count($scenarios)];
+            $checkpointMode = $checkpointModes[$i % count($checkpointModes)];
+            $syncMode = $syncModes[intdiv($i, 4) % count($syncModes)];
+            $cacheSpill = $cacheSpillModes[intdiv($i, 16) % count($cacheSpillModes)];
+            $walBefore = (int) ($scenario['wal_bytes_before_close'] ?? (($scenario['wal_frame_min'] + $scenario['wal_frame_max']) * $scenario['page_size']));
+            $walAfter = (int) ($scenario['wal_bytes_after_close'] ?? $walBefore);
+            $frameCount = isset($scenario['wal_frame_min'])
+                ? (int) floor(($scenario['wal_frame_min'] + $scenario['wal_frame_max']) / 2)
+                : max(0, intdiv($walBefore, (int) $scenario['page_size'] + 24));
+
+            $cases[] = $scenario + [
+                'case' => $i + 1,
+                'checkpoint_mode' => $checkpointMode,
+                'synchronous' => $syncMode,
+                'cache_spill' => $cacheSpill,
+                'wal_bytes_before_close' => $walBefore,
+                'wal_bytes_after_close' => $walAfter,
+                'wal_frame_count' => $frameCount,
+                'wal_truncated_on_close' => $walAfter === 0,
+                'sidecars_persist' => (bool) (($scenario['wal_exists_after_close'] ?? true) && ($scenario['shm_exists_after_close'] ?? true)),
+                'recovered_blob_sum' => isset($scenario['row_count'], $scenario['blob_bytes_after_wal_recovery'])
+                    ? (int) $scenario['row_count'] * (int) $scenario['blob_bytes_after_wal_recovery']
+                    : null,
+                'pre_recovery_blob_sum' => isset($scenario['row_count'], $scenario['blob_bytes_before_wal_recovery'])
+                    ? (int) $scenario['row_count'] * (int) $scenario['blob_bytes_before_wal_recovery']
+                    : null,
+                'dependencies' => [
+                    'sqlite-real-upstream-pager-wal-dynamic',
+                    'sqlite-upstream-walpersist-persistent-sidecars',
+                    'sqlite-upstream-waloverwrite-frame-recovery',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<array<string, mixed>> $locks
      */
     private static function countLocks(array $locks, string $op, string $level): int

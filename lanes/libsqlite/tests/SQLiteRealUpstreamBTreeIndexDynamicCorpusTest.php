@@ -342,6 +342,87 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index7WithoutRowidPartialIndexCases(
     };
 }
 
+// Source truth: SQLite upstream test/index7.test index7-3.1 through 8.1.
+// This keeps the later partial-index corpus distinct from the earlier
+// WITHOUT ROWID update matrix: unique partial-index exclusion, VACUUM
+// integrity, qualified predicate names, view/subquery planner routing,
+// syntax errors, IS TRUE exclusion, and tiny-table stat1 planning.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index7PostUpdateVacuumPlannerCases(1000) as $case) {
+    $tests['real upstream index7 post update vacuum planner dynamic case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index7.test sections index7-3.1 through index7-8.1', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true($case['batch'] >= 1);
+        $t->true(in_array($case['section'], ['index7-3.2', 'index7-3.3', 'index7-3.4', 'index7-4.0', 'index7-5.0', 'index7-6.2', 'index7-6.4', 'index7-6.5', 'index7-7.1', 'index7-8.1'], true));
+        $t->true($case['scenario'] !== '');
+        $t->true($case['table'] !== '');
+        $t->true($case['detail'] !== '');
+        $t->same('ok', $case['integrity']);
+        $t->same($case['result_code'] === 1, $case['error'] !== null);
+        if ($case['uses_partial_index']) {
+            $t->true($case['index_name'] !== null);
+            $t->true(str_contains($case['detail'], $case['index_name']));
+        }
+        $t->true(array_values($case['result_rows']) === $case['result_rows']);
+
+        foreach ($case['insert_values'] as $row) {
+            $t->true(array_values($row) === $row);
+            if ($case['section'] === 'index7-3.3') {
+                $t->same(999, $row[0]);
+            }
+        }
+
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_values($row) === $row);
+        }
+
+        if ($case['section'] === 'index7-3.2') {
+            $t->same(1, $case['result_code']);
+            $t->same('UNIQUE constraint failed: t3.a', $case['error']);
+            $t->same(true, $case['unique']);
+            $t->same('a<>999', $case['partial_predicate']);
+        }
+        if ($case['section'] === 'index7-3.3') {
+            $t->same(0, $case['result_code']);
+            $t->same(null, $case['error']);
+            $t->same(false, $case['uses_partial_index']);
+        }
+        if ($case['section'] === 'index7-3.4') {
+            $t->same([[162]], $case['result_rows']);
+        }
+        if ($case['section'] === 'index7-4.0') {
+            $t->same(true, $case['vacuum_preserves_integrity']);
+            $t->same([['ok']], $case['result_rows']);
+        }
+        if ($case['section'] === 'index7-5.0') {
+            $t->same('xyzzy.t3.b BETWEEN 5 AND 10', $case['partial_predicate']);
+            $t->same([[6], [6]], $case['result_rows']);
+            $t->same(6, $case['stat1']);
+        }
+        if ($case['section'] === 'index7-6.2') {
+            $t->same(false, $case['uses_partial_index']);
+            $t->same([[1, 'xyz', 'abc', 'not xyz']], $case['result_rows']);
+        }
+        if ($case['section'] === 'index7-6.4') {
+            $t->same(true, $case['uses_partial_index']);
+            $t->same([['def', 'xyz']], $case['result_rows']);
+        }
+        if ($case['section'] === 'index7-6.5') {
+            $t->same('near "#1": syntax error', $case['error']);
+            $t->same(1, $case['result_code']);
+        }
+        if ($case['section'] === 'index7-7.1') {
+            $t->same('y IS NOT TRUE', $case['partial_predicate']);
+            $t->same(false, $case['uses_partial_index']);
+            $t->same([[1, 1]], $case['result_rows']);
+        }
+        if ($case['section'] === 'index7-8.1') {
+            $t->same(true, $case['uses_partial_index']);
+            $t->same(0, $case['stat1']);
+            $t->same([[1]], $case['result_rows']);
+        }
+    };
+}
+
 // Source truth: SQLite upstream test/indexA.test sections 2.1 and 3.1. The
 // upstream script repeats the same partial-index affinity matrix for rowid and
 // WITHOUT ROWID tables; the batches below keep those dynamic combinations

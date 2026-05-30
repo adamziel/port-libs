@@ -56,6 +56,10 @@ $deleteUnaryPlusCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy
 $updateParenthesizedNegativeLimit = "UPDATE app_settings SET state = 'all_ordered' WHERE load_policy = 'lazy' RETURNING setting_id, key_name, tenant_id, state ORDER BY length(key_name) ASC, tenant_id DESC, setting_id ASC LIMIT -(1+1) OFFSET -(2)";
 $deleteLengthOrderLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id, key_name ORDER BY length(key_name) ASC, tenant_id DESC, setting_id ASC LIMIT 2";
 $updateSubqueryLengthOrder = "UPDATE app_settings SET state = 'length_ordered' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'refresh' ORDER BY length(key_name) ASC, tenant_id DESC, priority ASC LIMIT -(1+1) OFFSET -(2)) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$updateCastLimit = "UPDATE app_settings SET state = 'cast_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT CAST('3.9' AS INTEGER) OFFSET CAST('1.9' AS INT)";
+$deleteCastCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT CAST('1.9' AS INTEGER), CAST('2.9' AS INT)";
+$updateSubqueryCastLimit = "UPDATE app_settings SET state = 'cast_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'refresh' ORDER BY priority ASC LIMIT CAST('2.9' AS INTEGER) OFFSET CAST('1.1' AS INT)) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteSubqueryCastOffset = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT CAST('3.8' AS INTEGER) OFFSET CAST('1.2' AS INT)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -107,6 +111,20 @@ $cases = [
     'delete length order limit returns old rows in source order' => [static fn (): mixed => array_column($execute($deleteLengthOrderLimit)['returning'], 'setting_id'), [5, 8]],
     'update row-value subquery length order negative limit applies before tuple match' => [static fn (): mixed => $execute($updateSubqueryLengthOrder)['plan']->selectedIds, [2, 3, 5]],
     'update row-value subquery length order returns source order' => [static fn (): mixed => array_column($execute($updateSubqueryLengthOrder)['returning'], 'setting_id'), [2, 3, 5]],
+    'parse update cast limit truncates text numeric' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateCastLimit)['limit'], 3],
+    'parse update cast offset truncates text numeric' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateCastLimit)['offset'], 1],
+    'update cast limit selects after truncated offset' => [static fn (): mixed => $execute($updateCastLimit)['plan']->selectedIds, [2, 3, 6]],
+    'update cast limit returns mutation source order' => [static fn (): mixed => array_column($execute($updateCastLimit)['returning'], 'setting_id'), [2, 3, 6]],
+    'parse delete cast comma offset truncates first expression' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteCastCommaLimit)['offset'], 1],
+    'parse delete cast comma count truncates second expression' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteCastCommaLimit)['limit'], 2],
+    'delete cast comma limit selects truncated window' => [static fn (): mixed => $execute($deleteCastCommaLimit)['plan']->selectedIds, [2, 3]],
+    'delete cast comma limit removes selected rows only' => [static fn (): mixed => array_column($execute($deleteCastCommaLimit)['tables']['app_settings'], 'setting_id'), [1, 4, 5, 6, 7, 8]],
+    'update row-value subquery cast limit applies before tuple match' => [static fn (): mixed => $execute($updateSubqueryCastLimit)['plan']->selectedIds, [2, 5]],
+    'update row-value subquery cast limit returns source order' => [static fn (): mixed => array_column($execute($updateSubqueryCastLimit)['returning'], 'setting_id'), [2, 5]],
+    'delete row-value subquery cast offset applies before tuple match' => [static fn (): mixed => $execute($deleteSubqueryCastOffset)['plan']->selectedIds, [2, 3, 5]],
+    'delete row-value subquery cast offset keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteSubqueryCastOffset)['tables']['app_settings'], 'setting_id'), [1, 4, 6, 7, 8]],
+    'malformed cast null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST(NULL AS INTEGER)"), InvalidArgumentException::class],
+    'malformed cast blob offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET CAST(X'ABCD' AS INT)"), InvalidArgumentException::class],
     'malformed non-integral limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1.2"), InvalidArgumentException::class],
     'malformed null offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET NULL"), InvalidArgumentException::class],
     'malformed missing generic rowid rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($updateNegativeOffset, ['app_settings' => [['tenant_id' => 1, 'key_name' => 'alpha']]], 'setting_id'), InvalidArgumentException::class],
@@ -149,6 +167,43 @@ for ($seed = 1; $seed <= 48; $seed++) {
             $t->same($offset, $result['plan']->toArray()['offset']);
             $t->same($expected, $result['plan']->selectedIds);
             $t->same($expected, array_column($result['plan']->selectedRows, 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limit = $limitValue . '.9';
+    $offset = $offsetValue . '.7';
+    $sql = "UPDATE app_settings SET state = 'dyn_cast' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT CAST('{$limit}' AS INTEGER) OFFSET CAST('{$offset}' AS INT)";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update cast window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limit = $limitValue . '.4';
+    $offset = $offsetValue . '.8';
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT CAST('{$limit}' AS INTEGER) OFFSET CAST('{$offset}' AS INT)) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue cast subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same(-1, SQLiteUpdateDeleteReturningSql::parse($sql)['limit']);
+            $t->same(0, SQLiteUpdateDeleteReturningSql::parse($sql)['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
         };
 }
 

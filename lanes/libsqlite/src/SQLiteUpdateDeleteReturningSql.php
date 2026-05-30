@@ -668,6 +668,20 @@ final class SQLiteUpdateDeleteReturningSql
         if (strcasecmp($expression, 'NULL') === 0 || preg_match('/^X\'[0-9A-F]*\'$/i', $expression) === 1) {
             return null;
         }
+        if (preg_match('/^CAST\s*\((.+)\s+AS\s+(?:INT|INTEGER)\s*\)$/is', $expression, $match) === 1) {
+            $value = self::limitExpressionValue(trim($match[1]));
+            if (is_string($value)) {
+                return (int) $value;
+            }
+            if (is_float($value)) {
+                return (int) $value;
+            }
+            if ($value === null) {
+                return null;
+            }
+
+            return $value;
+        }
         if (str_starts_with($expression, '+')) {
             return self::limitExpressionValue(substr($expression, 1));
         }

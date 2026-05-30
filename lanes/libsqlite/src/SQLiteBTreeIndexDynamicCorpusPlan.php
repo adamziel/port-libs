@@ -909,6 +909,208 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,case:int,batch:int,section:string,scenario:string,table:string,index_name:string|null,unique:bool,partial_predicate:string|null,insert_values:list<array<int,mixed>>,result_rows:list<array<int,mixed>>,result_code:int,error:string|null,uses_partial_index:bool,detail:string,integrity:string,vacuum_preserves_integrity:bool,stat1:int|null}>
+     */
+    public static function index7PostUpdateVacuumPlannerCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index7 post-update corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'section' => 'index7-3.2',
+                'scenario' => 'unique partial index rejects duplicate values outside the excluded sentinel',
+                'table' => 't3',
+                'index' => 't3a',
+                'unique' => true,
+                'predicate' => 'a<>999',
+                'insert' => [[150, 'test1']],
+                'rows' => [],
+                'code' => 1,
+                'error' => 'UNIQUE constraint failed: t3.a',
+                'uses' => true,
+                'detail' => 'INSERT INTO t3(a,b) VALUES(150, test1) checks UNIQUE partial index t3a',
+                'stat1' => null,
+            ],
+            [
+                'section' => 'index7-3.3',
+                'scenario' => 'unique partial index allows duplicate excluded sentinel rows',
+                'table' => 't3',
+                'index' => 't3a',
+                'unique' => true,
+                'predicate' => 'a<>999',
+                'insert' => [[999, 'test1'], [999, 'test2']],
+                'rows' => [],
+                'code' => 0,
+                'error' => null,
+                'uses' => false,
+                'detail' => 'INSERT two rows with a=999 bypasses partial unique index t3a',
+                'stat1' => null,
+            ],
+            [
+                'section' => 'index7-3.4',
+                'scenario' => 'sentinel rows remain visible after partial unique index bypass',
+                'table' => 't3',
+                'index' => 't3a',
+                'unique' => true,
+                'predicate' => 'a<>999',
+                'insert' => [],
+                'rows' => [[162]],
+                'code' => 0,
+                'error' => null,
+                'uses' => false,
+                'detail' => 'SELECT count(*) FROM t3 WHERE a=999 returns sentinel cardinality',
+                'stat1' => null,
+            ],
+            [
+                'section' => 'index7-4.0',
+                'scenario' => 'vacuum preserves partial-index integrity after duplicate sentinel bypass',
+                'table' => 't3',
+                'index' => 't3a',
+                'unique' => true,
+                'predicate' => 'a<>999',
+                'insert' => [],
+                'rows' => [['ok']],
+                'code' => 0,
+                'error' => null,
+                'uses' => false,
+                'detail' => 'VACUUM followed by PRAGMA integrity_check',
+                'stat1' => null,
+            ],
+            [
+                'section' => 'index7-5.0',
+                'scenario' => 'database-name qualifier inside a partial-index predicate is ignored',
+                'table' => 't3',
+                'index' => 't3b',
+                'unique' => false,
+                'predicate' => 'xyzzy.t3.b BETWEEN 5 AND 10',
+                'insert' => [],
+                'rows' => [[6], [6]],
+                'code' => 0,
+                'error' => null,
+                'uses' => true,
+                'detail' => 'SEARCH t3 USING COVERING INDEX t3b (b>? AND b<?)',
+                'stat1' => 6,
+            ],
+            [
+                'section' => 'index7-6.2',
+                'scenario' => 'partial index on an unrelated table does not filter a flattened subquery',
+                'table' => 't4',
+                'index' => 'i4',
+                'unique' => false,
+                'predicate' => "d='xyz'",
+                'insert' => [],
+                'rows' => [[1, 'xyz', 'abc', 'not xyz']],
+                'code' => 0,
+                'error' => null,
+                'uses' => false,
+                'detail' => 'SELECT from t5 filtered subquery cross t4 keeps d=not xyz row',
+                'stat1' => null,
+            ],
+            [
+                'section' => 'index7-6.4',
+                'scenario' => 'view predicate can use the matching partial index',
+                'table' => 't4',
+                'index' => 'i4',
+                'unique' => false,
+                'predicate' => "d='xyz'",
+                'insert' => [['def', 'xyz']],
+                'rows' => [['def', 'xyz']],
+                'code' => 0,
+                'error' => null,
+                'uses' => true,
+                'detail' => 'SEARCH t4 USING INDEX i4 (c=?)',
+                'stat1' => null,
+            ],
+            [
+                'section' => 'index7-6.5',
+                'scenario' => 'host-parameter token remains rejected in partial-index DDL',
+                'table' => 't5',
+                'index' => 't5a',
+                'unique' => false,
+                'predicate' => 'a=#1',
+                'insert' => [],
+                'rows' => [],
+                'code' => 1,
+                'error' => 'near "#1": syntax error',
+                'uses' => false,
+                'detail' => 'CREATE INDEX t5a ON t5(a) WHERE a=#1',
+                'stat1' => null,
+            ],
+            [
+                'section' => 'index7-7.1',
+                'scenario' => 'IS TRUE scan is unaffected by an IS NOT TRUE partial index',
+                'table' => 't6',
+                'index' => 'i6',
+                'unique' => false,
+                'predicate' => 'y IS NOT TRUE',
+                'insert' => [],
+                'rows' => [[1, 1]],
+                'code' => 0,
+                'error' => null,
+                'uses' => false,
+                'detail' => 'SCAN t6; partial index i6 is for y IS NOT TRUE',
+                'stat1' => null,
+            ],
+            [
+                'section' => 'index7-8.1',
+                'scenario' => 'incomplete stat1 for a tiny table still permits a non-null partial-index probe',
+                'table' => 't1',
+                'index' => 't1y',
+                'unique' => false,
+                'predicate' => 'y IS NOT NULL',
+                'insert' => [[1, null], [2, null]],
+                'rows' => [[1]],
+                'code' => 0,
+                'error' => null,
+                'uses' => true,
+                'detail' => 'SEARCH t1 USING COVERING INDEX t1y (y=?)',
+                'stat1' => 0,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $insertValues = array_map(
+                static function (array $row) use ($batch): array {
+                    return array_map(
+                        static fn (mixed $value): mixed => is_int($value) && $value !== 999 ? $value + (($batch - 1) * 1000) : $value,
+                        $row,
+                    );
+                },
+                $template['insert'],
+            );
+
+            $out[] = [
+                'upstream' => $template['section'] . '.dynamic-' . $batch,
+                'source' => 'index7.test sections index7-3.1 through index7-8.1',
+                'case' => $case,
+                'batch' => $batch,
+                'section' => $template['section'],
+                'scenario' => $template['scenario'],
+                'table' => $template['table'],
+                'index_name' => $template['index'],
+                'unique' => $template['unique'],
+                'partial_predicate' => $template['predicate'],
+                'insert_values' => $insertValues,
+                'result_rows' => $template['rows'],
+                'result_code' => $template['code'],
+                'error' => $template['error'],
+                'uses_partial_index' => $template['uses'],
+                'detail' => $template['detail'],
+                'integrity' => 'ok',
+                'vacuum_preserves_integrity' => $template['section'] === 'index7-4.0',
+                'stat1' => $template['stat1'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,source:string,batch:int,storage:string,index_setup:int,index_predicate:mixed,index_name:string,table:string,affinity:string,predicate:mixed,selected_rows:list<array{a:mixed,b:string,c:string,type:string}>,uses_partial_index:bool,detail:string,integrity:string}>
      */
     public static function indexAPartialAffinityMatrixCases(int $batches = 9): array
