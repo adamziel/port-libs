@@ -84,8 +84,21 @@ $tests['upstream corpus window groups range current next18 rejects nonnumeric ra
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ORDER BY option_name RANGE BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };
 
-$tests['upstream corpus window groups range current next18 direct query rejects nonnumeric filtered range key'] = static function (TestRunner $t) use ($options): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'select' => [['type' => 'window', 'function' => 'json_group_array', 'arguments' => [['type' => 'column', 'name' => 'option_name']], 'filter' => ['type' => 'comparison', 'left' => ['type' => 'column', 'name' => 'autoload'], 'operator' => '=', 'right' => ['type' => 'literal', 'value' => 'no']], 'orderBy' => [['expression' => ['type' => 'column', 'name' => 'option_name'], 'direction' => 'ASC']], 'frame' => ['unit' => 'RANGE', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'], 'alias' => 'names']]]));
+$tests['upstream corpus window groups range current next18 direct query nonnumeric filtered range uses peer group'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectQuery::execute([
+        'from' => $options,
+        'select' => [[
+            'type' => 'window',
+            'function' => 'json_group_array',
+            'arguments' => [['type' => 'column', 'name' => 'option_name']],
+            'filter' => ['type' => 'comparison', 'left' => ['type' => 'column', 'name' => 'autoload'], 'operator' => '=', 'right' => ['type' => 'literal', 'value' => 'no']],
+            'orderBy' => [['expression' => ['type' => 'column', 'name' => 'option_name'], 'direction' => 'ASC']],
+            'frame' => ['unit' => 'RANGE', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+            'alias' => 'names',
+        ]],
+    ]);
+
+    $t->same(['[]', '[]', '["cron_lock"]', '["plugin_rules"]', '["theme_mods"]', '["transient_blob"]'], array_column($rows, 'names'));
 };
 
 $tests['upstream corpus window groups range current next18 rejects framed ranking function'] = static function (TestRunner $t) use ($options): void {

@@ -593,15 +593,6 @@ final class SQLiteSelectQuery
         if (!in_array($exclude, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
             throw new \InvalidArgumentException('SQLite SELECT query window EXCLUDE mode is not supported');
         }
-        if ($unit === 'RANGE') {
-            foreach ($rows as $row) {
-                $key = $row['frameKey'];
-                if (!is_int($key) && !is_float($key) && !is_bool($key)) {
-                    throw new \InvalidArgumentException('SQLite SELECT query RANGE frame offsets require numeric ORDER BY keys');
-                }
-            }
-        }
-
         $count = count($rows);
         $groups = [];
         $groupByIndex = [];
