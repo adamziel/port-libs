@@ -8,8 +8,8 @@ No new support component is introduced. The implementation reuses `SQLiteWalHotJ
 
 Focused coverage:
 
-- `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext564579Test.php` chains next564 through next579 from next563.
+- `SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages564579Test.php` chains next564 through next579 from next563.
 - The same test blocks unreleased reader marks, schema-cookie mismatch, missing next570 base for the next571 seal, unsynced WAL-index salt, database-digest mismatch, and duplicate final seal receipts.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next579.php` provides a WordPress-shaped example for the final seal.
+- `wordpress-wal-hot-journal-savepoint-checkpoint-after-current-stage-579.php` provides a WordPress-shaped example for the final seal.
 
 Non-overlap: this stays inside the WAL checkpoint/hot-journal current-source receipt chain and does not repeat next548-563, upstream suite evidence, status/dashboard artifacts, SQL, JSON, B-tree, VFS writer application, planner, or unrelated pager surfaces.

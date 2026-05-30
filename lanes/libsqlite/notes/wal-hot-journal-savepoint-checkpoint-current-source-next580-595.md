@@ -8,8 +8,8 @@ No new numbered source class is introduced. The implementation extends `SQLiteWa
 
 Focused coverage:
 
-- `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext580595Test.php` chains next580 through next595 from next579.
+- `SQLiteWalHotJournalSavepointCheckpointAfterCurrentStages580595Test.php` chains next580 through next595 from next579.
 - The same test blocks source-token mismatch, page-cache digest mismatch, missing next586 base for the next587 seal, visible hot journal, unsynced database header, and duplicate final seal receipts.
-- `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next595.php` provides a WordPress-shaped example for the final seal.
+- `wordpress-wal-hot-journal-savepoint-checkpoint-after-current-stage-595.php` provides a WordPress-shaped example for the final seal.
 
 Non-overlap: this stays inside the WAL checkpoint/hot-journal current-source receipt chain and does not repeat next564-579, upstream suite evidence, status/dashboard artifacts, SQL, JSON, B-tree, VFS writer application, planner, or unrelated pager surfaces.

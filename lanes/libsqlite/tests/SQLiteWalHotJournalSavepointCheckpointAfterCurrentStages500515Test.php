@@ -55,8 +55,8 @@ $chain = static function () use ($base499, $receiptFor): array {
     $next511 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next511AfterCurrentCheckpoint($next510, [$receiptFor($next510, 'next511-schema-cookie-wal-index-salt')]);
     $next512 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next512AfterCurrentCheckpoint($next511, [$receiptFor($next511, 'next512-generation-reader-release')]);
     $next513 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next513AfterCurrentCheckpoint($next512, [$receiptFor($next512, 'next513-hot-journal-database-header')]);
-    $next514 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next514AfterCurrentCheckpoint($next513, [$receiptFor($next513, 'next514-wal-index-page-cache')]);
-    $next515 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next515AfterCurrentCheckpoint($next514, [$receiptFor($next514, 'next515-current-source-seal')]);
+    $next514 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage($next513, [$receiptFor($next513, 'next514-wal-index-page-cache')], 514);
+    $next515 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage($next514, [$receiptFor($next514, 'next515-current-source-seal')], 515);
 
     return [$next500, $next501, $next502, $next503, $next504, $next505, $next506, $next507, $next508, $next509, $next510, $next511, $next512, $next513, $next514, $next515];
 };
@@ -156,7 +156,7 @@ $tests['wal hot journal savepoint checkpoint current source next513 blocks visib
 $tests['wal hot journal savepoint checkpoint current source next515 blocks duplicate final receipts'] = static function (TestRunner $t) use ($chain, $receiptFor): void {
     [, , , , , , , , , , , , , , $next514] = $chain();
     $receipt = $receiptFor($next514, 'next515-duplicate-current-source-seal');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next515AfterCurrentCheckpoint($next514, [$receipt, $receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage($next514, [$receipt, $receipt], 515);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next515', $record['status']);
     $t->same(['checkpoint_receipt_name_duplicate:next515-duplicate-current-source-seal'], $record['blocked_reasons']);
