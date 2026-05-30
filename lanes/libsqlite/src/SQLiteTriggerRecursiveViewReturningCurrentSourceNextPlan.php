@@ -14089,6 +14089,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
+        $options = self::withCurrentSourceTicketOptionAliases($options);
+
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceEpochFence(
             $baseRows,
             $currentInput,
@@ -14147,32 +14149,71 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next222' => $baseVisible,
+            'base_next_source_visible_current_source_ticket' => $baseVisible,
             'current_source_ticket_next222' => $sourceTicket,
+            'current_source_ticket' => $sourceTicket,
             'current_view_source_next222' => $viewSource,
+            'current_view_source_ticket' => $viewSource,
             'current_trigger_source_next222' => $triggerSource,
+            'current_trigger_source_ticket' => $triggerSource,
             'expected_current_view_source_next222' => $expectedViewSource,
+            'expected_current_view_source_ticket' => $expectedViewSource,
             'expected_current_trigger_source_next222' => $expectedTriggerSource,
+            'expected_current_trigger_source_ticket' => $expectedTriggerSource,
             'current_source_matches_next222' => $sourceMatches,
+            'current_source_matches_current_source_ticket' => $sourceMatches,
             'required_current_source_tickets_next222' => $requiredTickets,
+            'required_current_source_tickets' => $requiredTickets,
             'acknowledged_current_source_tickets_next222' => $acknowledgedTickets,
+            'acknowledged_current_source_tickets' => $acknowledgedTickets,
             'missing_current_source_tickets_next222' => $missingTickets,
+            'missing_current_source_tickets' => $missingTickets,
             'unexpected_current_source_tickets_next222' => $unexpectedTickets,
+            'unexpected_current_source_tickets' => $unexpectedTickets,
             'require_current_source_ticket_order_next222' => $requireOrder,
+            'require_current_source_ticket_order' => $requireOrder,
             'current_source_ticket_order_matches_next222' => $orderMatches,
+            'current_source_ticket_order_matches' => $orderMatches,
             'current_source_ticket_complete_next222' => $ticketComplete,
+            'current_source_ticket_complete' => $ticketComplete,
             'next_source_visible_after_current_source_ticket_next222' => $nextVisible,
+            'next_source_visible_after_current_source_ticket' => $nextVisible,
             'current_source_rows_next222' => $currentRows,
+            'current_source_rows_current_source_ticket' => self::canonicalCurrentSourceTicketRows($currentRows),
             'attempted_next_source_rows_next222' => $nextRows,
+            'attempted_next_source_rows_current_source_ticket' => self::canonicalCurrentSourceTicketRows($nextRows),
             'visible_returning_rows_next222' => $visibleRows,
+            'visible_returning_rows_current_source_ticket' => self::canonicalCurrentSourceTicketRows($visibleRows),
             'held_next_source_rows_next222' => $heldRows,
+            'held_next_source_rows_current_source_ticket' => self::canonicalCurrentSourceTicketRows($heldRows),
             'visible_returning_payloads_next222' => array_column($visibleRows, 'returning'),
             'held_next_returning_payloads_next222' => array_column($heldRows, 'returning'),
             'current_source_row_count_next222' => count($currentRows),
+            'current_source_row_count_current_source_ticket' => count($currentRows),
             'attempted_next_source_row_count_next222' => count($nextRows),
+            'attempted_next_source_row_count_current_source_ticket' => count($nextRows),
             'visible_row_count_next222' => count($visibleRows),
+            'visible_row_count_current_source_ticket' => count($visibleRows),
             'held_next_row_count_next222' => count($heldRows),
+            'held_next_row_count_current_source_ticket' => count($heldRows),
             'blocked_reasons_next222' => $blockedReasons,
+            'blocked_reasons_current_source_ticket' => $blockedReasons,
             'current_source_ticket_plan_next222' => [
+                'base_next_source_visible' => $baseVisible,
+                'current_source_matches' => $sourceMatches,
+                'required_tickets' => $requiredTickets,
+                'acknowledged_tickets' => $acknowledgedTickets,
+                'missing_tickets' => $missingTickets,
+                'unexpected_tickets' => $unexpectedTickets,
+                'require_order' => $requireOrder,
+                'order_matches' => $orderMatches,
+                'ticket_complete' => $ticketComplete,
+                'next_source_visible' => $nextVisible,
+                'decision' => $nextVisible
+                    ? 'publish-next-source-after-current-source-ticket'
+                    : 'hold-next-source-until-current-source-ticket',
+            ],
+            'current_source_ticket_plan' => [
                 'base_next_source_visible' => $baseVisible,
                 'current_source_matches' => $sourceMatches,
                 'required_tickets' => $requiredTickets,
@@ -14190,14 +14231,51 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'yield_boundary_next222' => $nextVisible
                 ? 'recursive-view-returning-next222-current-source-ticket-then-next'
                 : 'recursive-view-returning-next222-current-source-ticket-fences-next',
+            'yield_boundary_current_source_ticket' => $nextVisible
+                ? 'recursive-view-returning-current-source-ticket-then-next'
+                : 'recursive-view-returning-current-source-ticket-fences-next',
             'dependency_closure_next222' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-ticket-handoff',
+            'dependency_closure_current_source_ticket' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-ticket-handoff',
             'dependencies_next222' => array_values(array_unique(array_merge($base['dependencies_next218'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-next222',
                 'sqlite-returning-current-source-ticket-handoff',
                 'wordpress-recursive-view-returning-current-source-next222',
             ]))),
+            'dependencies_current_source_ticket' => array_values(array_unique(array_merge($base['dependencies_next218'] ?? [], [
+                'sqlite-trigger-recursive-view-returning-current-source-next222',
+                'sqlite-returning-current-source-ticket-handoff',
+                'wordpress-recursive-view-returning-current-source-next222',
+            ]))),
             'non_overlap_next222' => 'adds current view/trigger source ticket admission after accepted next218 epoch handoff; avoids accepted trigger recursive view RETURNING next157-next218 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+            'non_overlap_current_source_ticket' => 'adds current view/trigger source ticket admission after accepted epoch handoff; avoids accepted trigger recursive view RETURNING source-ticket surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function canonicalCurrentSourceTicketRows(array $rows): array
+    {
+        return array_map(static function (array $row): array {
+            $aliases = [
+                'source_ticket_phase' => 'source_ticket_phase_next222',
+                'current_source_ticket' => 'current_source_ticket_next222',
+                'current_view_source_ticket' => 'current_view_source_next222',
+                'current_trigger_source_ticket' => 'current_trigger_source_next222',
+                'current_source_ticket_receipt' => 'current_source_ticket_receipt_next222',
+                'visible_after_current_source_ticket' => 'visible_after_current_source_ticket_next222',
+                'held_by_current_source_ticket_reasons' => 'held_by_current_source_ticket_reasons_next222',
+            ];
+
+            foreach ($aliases as $canonical => $legacy) {
+                if (array_key_exists($legacy, $row) && !array_key_exists($canonical, $row)) {
+                    $row[$canonical] = $row[$legacy];
+                }
+            }
+
+            return $row;
+        }, $rows);
     }
 
     /**
@@ -16337,12 +16415,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'current_source_ticket' => 'current_source_ticket_next222',
             'current_view_source_ticket' => 'current_view_source_next222',
             'current_trigger_source_ticket' => 'current_trigger_source_next222',
+            'expected_current_view_source_ticket' => 'expected_current_view_source_next222',
+            'expected_current_trigger_source_ticket' => 'expected_current_trigger_source_next222',
             'auto_ack_current_source_tickets' => 'auto_ack_current_source_tickets_next222',
             'acknowledged_current_source_tickets' => 'acknowledged_current_source_tickets_next222',
             'require_current_source_ticket_order' => 'require_current_source_ticket_order_next222',
         ];
         foreach ($aliases as $canonical => $legacy) {
-            if (array_key_exists($canonical, $options) && !array_key_exists($legacy, $options)) {
+            if (array_key_exists($canonical, $options)) {
                 $options[$legacy] = $options[$canonical];
             }
         }

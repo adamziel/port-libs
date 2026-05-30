@@ -24,11 +24,13 @@ $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retrySt
 $summary = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStableFinalContinuationHandoff(...$args);
 
 assert($summary['handoff_consumes_previous_ready'] === true);
+assert($summary['candidate_count'] === 224);
+assert($summary['final_publication_step'] === 1181);
 assert($summary['first_seal_ready'] === true);
 assert($summary['penultimate_seal_ready'] === true);
 assert($summary['final_seal_ready'] === true);
 
-$summary['wordpressUse'] = 'Copied wp_options imports validate the row-value UPDATE/DELETE RETURNING window final continuation handoff through stable publication aliases.';
+$summary['wordpressUse'] = 'Copied wp_options imports validate the row-value UPDATE/DELETE RETURNING window final continuation handoff through the complete stable dynamic publication alias.';
 
 if (($argv[1] ?? null) === '--self-test') {
     echo "wordpress-rowvalue-returning-window-final-continuation-handoff self-test passed\n";

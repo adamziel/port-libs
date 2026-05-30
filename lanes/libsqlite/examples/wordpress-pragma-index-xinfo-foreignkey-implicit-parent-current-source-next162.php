@@ -41,7 +41,7 @@ $nextTables = [
     'wp_options' => $currentTables['wp_options'],
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog159(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog(
     $records,
     $currentTables,
     $records,

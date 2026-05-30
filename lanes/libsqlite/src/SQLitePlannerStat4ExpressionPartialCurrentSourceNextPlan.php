@@ -34074,8 +34074,6 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "mode" => "final-prepared-handoff-current-source-stat4-expression-partial-prep",
                 "canonicalOpcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoff",
                 "canonicalMode" => "final-prepared-handoff-current-source-stat4-expression-partial-prep",
-                "legacyOpcode" => "PrepareStat4ExpressionPartialFinalPreparedHandoffHandoff",
-                "legacyMode" => "final prepared handoff-current-source-stat4-expression-partial-prep",
             ],
         ];
 

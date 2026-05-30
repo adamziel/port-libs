@@ -48,7 +48,7 @@ $page162 = static fn (
     ?array $cursor = null,
     ?array $nextRecords = null,
     ?array $nextTables = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog159(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog(
     $currentRecords162,
     $currentTables162,
     $nextRecords ?? $nextRecords162,
@@ -59,7 +59,7 @@ $page162 = static fn (
     $cursor,
 );
 
-$foreignKeys162 = static fn (?array $records = null): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog159($records ?? $currentRecords162);
+$foreignKeys162 = static fn (?array $records = null): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog($records ?? $currentRecords162);
 
 $valueAt162 = static function (mixed $value, string $path): mixed {
     foreach (explode('.', $path) as $part) {
@@ -178,7 +178,7 @@ $tests['pragma index xinfo foreignkey implicit parent current source next162 rej
         $record162('table', 'child', 'child', 3, 'CREATE TABLE child(a TEXT REFERENCES parent)', 2),
     ];
 
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog159($records));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog($records));
 };
 
 return $tests;

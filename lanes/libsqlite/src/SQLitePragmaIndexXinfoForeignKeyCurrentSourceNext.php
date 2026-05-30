@@ -749,7 +749,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
      * @return array<string,mixed>
      */
-    public static function currentNextPageFromCatalog159(
+    public static function currentNextPageFromCatalog(
         array $currentRecords,
         array $currentTables,
         array $nextRecords,
@@ -760,8 +760,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         ?array $cursor = null,
         bool $tableValuedIndexXinfo = false,
     ): array {
-        $currentForeignKeys = self::foreignKeysFromCatalog159($currentRecords);
-        $nextForeignKeys = self::foreignKeysFromCatalog159($nextRecords);
+        $currentForeignKeys = self::foreignKeysFromCatalog($currentRecords);
+        $nextForeignKeys = self::foreignKeysFromCatalog($nextRecords);
 
         $page = self::currentNextPage156(
             $currentRecords,
@@ -796,10 +796,10 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
      */
-    public static function foreignKeysFromCatalog159(array $records): array
+    public static function foreignKeysFromCatalog(array $records): array
     {
         $catalog = new SQLitePragmaSchemaCatalog($records);
-        $tables = self::tableRecords159($records);
+        $tables = self::tableRecords($records);
         $foreignKeys = [];
 
         foreach ($records as $record) {
@@ -811,7 +811,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             }
 
             $grouped = [];
-            foreach ($catalog->execute('PRAGMA foreign_key_list(' . self::pragmaArgumentLiteral159($record->name) . ')')['rows'] as $row) {
+            foreach ($catalog->execute('PRAGMA foreign_key_list(' . self::pragmaArgumentLiteral($record->name) . ')')['rows'] as $row) {
                 $id = (int) $row['id'];
                 $grouped[$id][] = $row;
             }
@@ -826,14 +826,14 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                 foreach ($rows as $row) {
                     $parentColumn = (string) ($row['to'] ?? '');
                     if ($parentColumn === '') {
-                        $implicitParentColumns ??= self::implicitParentColumns159($catalog, $parentRecord, $parent, count($rows));
+                        $implicitParentColumns ??= self::implicitParentColumns($catalog, $parentRecord, $parent, count($rows));
                         $parentColumn = $implicitParentColumns[(int) $row['seq']] ?? '';
                     }
                     $columns[] = [
                         'child' => (string) $row['from'],
                         'parent' => $parentColumn,
-                        'affinity' => self::declaredColumnAffinity159($parentRecord, $parentColumn),
-                        'collation' => strtolower(self::declaredColumnCollation159($parentRecord, $parentColumn)),
+                        'affinity' => self::declaredColumnAffinity($parentRecord, $parentColumn),
+                        'collation' => strtolower(self::declaredColumnCollation($parentRecord, $parentColumn)),
                     ];
                 }
 
@@ -841,7 +841,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                     'id' => $id,
                     'table' => $record->name,
                     'parent' => $parent,
-                    'without_rowid' => self::isWithoutRowid159($record),
+                    'without_rowid' => self::isWithoutRowid($record),
                     'columns' => $columns,
                 ];
             }
@@ -853,14 +853,14 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     /**
      * @return list<string>
      */
-    private static function implicitParentColumns159(SQLitePragmaSchemaCatalog $catalog, ?SQLiteSchemaRecord $record, string $parent, int $arity): array
+    private static function implicitParentColumns(SQLitePragmaSchemaCatalog $catalog, ?SQLiteSchemaRecord $record, string $parent, int $arity): array
     {
         if ($record === null) {
             throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next159 cannot resolve implicit parent columns without parent table DDL');
         }
 
         $primaryKeyRows = array_values(array_filter(
-            $catalog->execute('PRAGMA table_info(' . self::pragmaArgumentLiteral159($parent) . ')')['rows'],
+            $catalog->execute('PRAGMA table_info(' . self::pragmaArgumentLiteral($parent) . ')')['rows'],
             static fn (array $row): bool => (int) ($row['pk'] ?? 0) > 0,
         ));
         usort($primaryKeyRows, static fn (array $left, array $right): int => (int) $left['pk'] <=> (int) $right['pk']);
@@ -877,7 +877,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param list<SQLiteSchemaRecord> $records
      * @return array<string,SQLiteSchemaRecord>
      */
-    private static function tableRecords159(array $records): array
+    private static function tableRecords(array $records): array
     {
         $tables = [];
         foreach ($records as $record) {
@@ -892,9 +892,9 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         return $tables;
     }
 
-    private static function declaredColumnAffinity159(?SQLiteSchemaRecord $record, string $column): string
+    private static function declaredColumnAffinity(?SQLiteSchemaRecord $record, string $column): string
     {
-        $definition = self::columnDefinition159($record, $column);
+        $definition = self::columnDefinition($record, $column);
         if ($definition === null) {
             return 'none';
         }
@@ -918,9 +918,9 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         return 'numeric';
     }
 
-    private static function declaredColumnCollation159(?SQLiteSchemaRecord $record, string $column): string
+    private static function declaredColumnCollation(?SQLiteSchemaRecord $record, string $column): string
     {
-        $definition = self::columnDefinition159($record, $column);
+        $definition = self::columnDefinition($record, $column);
         if ($definition === null) {
             return 'BINARY';
         }
@@ -931,18 +931,18 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         return strtoupper(str_replace('""', '"', $matches['dq'] ?: ($matches['bt'] ?: ($matches['br'] ?: $matches['bare']))));
     }
 
-    private static function columnDefinition159(?SQLiteSchemaRecord $record, string $column): ?string
+    private static function columnDefinition(?SQLiteSchemaRecord $record, string $column): ?string
     {
         if ($record === null || $record->sql === null) {
             return null;
         }
 
-        $body = self::parenthesizedBody159($record->sql);
+        $body = self::parenthesizedBody($record->sql);
         if ($body === null) {
             return null;
         }
 
-        foreach (self::splitTopLevel159($body, ',') as $definition) {
+        foreach (self::splitTopLevel($body, ',') as $definition) {
             $definition = trim($definition);
             if (preg_match('/^(?:"(?<dq>(?:""|[^"])*)"|`(?<bt>[^`]*)`|\[(?<br>[^\]]*)\]|(?<bare>[A-Za-z_][A-Za-z0-9_]*))\b/s', $definition, $matches) !== 1) {
                 continue;
@@ -956,17 +956,17 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         return null;
     }
 
-    private static function isWithoutRowid159(SQLiteSchemaRecord $record): bool
+    private static function isWithoutRowid(SQLiteSchemaRecord $record): bool
     {
         return $record->sql !== null && preg_match('/\)\s*WITHOUT\s+ROWID\b/i', $record->sql) === 1;
     }
 
-    private static function pragmaArgumentLiteral159(string $identifier): string
+    private static function pragmaArgumentLiteral(string $identifier): string
     {
         return "'" . str_replace("'", "''", $identifier) . "'";
     }
 
-    private static function parenthesizedBody159(string $sql): ?string
+    private static function parenthesizedBody(string $sql): ?string
     {
         $open = strpos($sql, '(');
         if ($open === false) {
@@ -1013,7 +1013,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     /**
      * @return list<string>
      */
-    private static function splitTopLevel159(string $sql, string $delimiter): array
+    private static function splitTopLevel(string $sql, string $delimiter): array
     {
         $parts = [];
         $start = 0;
@@ -12716,7 +12716,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
 
         $catalog = new SQLitePragmaSchemaCatalog($records);
         $rows = [];
-        foreach (self::groupForeignKeys207(self::foreignKeysFromCatalog159($records)) as $foreignKey) {
+        foreach (self::groupForeignKeys207(self::foreignKeysFromCatalog($records)) as $foreignKey) {
             $childColumns = array_map(static fn (array $column): string => (string) $column['child'], $foreignKey['columns']);
             $candidate = self::childIndexPrefix207($catalog, (string) $foreignKey['table'], $childColumns);
             $status = $candidate === null ? 'missing_child_index' : 'covered';

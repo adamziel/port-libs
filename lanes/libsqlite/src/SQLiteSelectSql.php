@@ -3793,6 +3793,9 @@ final class SQLiteSelectSql
         }
         if ($frameOffset !== null) {
             $frame = self::windowFrameClause(trim(substr($windowSql, $frameOffset)));
+            if ($orderBy === [] && in_array($frame['unit'], ['RANGE', 'GROUPS'], true)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY');
+            }
         }
 
         $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'];

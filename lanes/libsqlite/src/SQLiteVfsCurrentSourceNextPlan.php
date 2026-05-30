@@ -60,11 +60,11 @@ final class SQLiteVfsCurrentSourceNextPlan
             'next434-449' => self::run434449($operations, $options),
             'next450-465' => self::run450465($operations, $options),
             'next466-481' => self::run466481($operations, $options),
-            'next482-497' => self::run482497($operations, $options),
-            'next498-513' => self::run498513($operations, $options),
-            'next514-529' => self::run514529($operations, $options),
-            'next530-545' => self::run530545($operations, $options),
-            'next546-561' => self::run546561($operations, $options),
+            'next482-497' => self::runSnapshotReusePublishWindow($operations, $options, 482, 497, 466, 481),
+            'next498-513' => self::runSnapshotReusePublishWindow($operations, $options, 498, 513, 482, 497),
+            'next514-529' => self::runSnapshotReusePublishWindow($operations, $options, 514, 529, 498, 513),
+            'next530-545' => self::runSnapshotReusePublishWindow($operations, $options, 530, 545, 514, 529),
+            'next546-561' => self::runSnapshotReusePublishWindow($operations, $options, 546, 561, 530, 545),
             'next562-577' => self::runInitialPublishedReuseSnapshotFence($operations, $options),
             'next578-593' => self::runPriorPublishedReuseSnapshotFence($operations, $options),
             'next594-609' => self::runPrePublishedReuseSnapshotFence($operations, $options),
@@ -18712,6 +18712,74 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             throw new \InvalidArgumentException('SQLite VFS current-source next466-481 requires positive ' . $label);
         }
         return $value;
+    }
+
+    /**
+     * @param list<array<string, mixed>|string> $operations
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function runSnapshotReusePublishWindow(array $operations, array $options, int $start, int $end, int $priorStart, int $priorEnd): array
+    {
+        if ($operations === []) {
+            throw new \InvalidArgumentException("SQLite VFS current-source next{$start}-{$end} requires operations");
+        }
+
+        $state = self::hydratePublishedReuseSnapshotFence($options['current'] ?? []);
+        $current = self::summaryPublishedReuseSnapshotFence($state);
+        $events = [];
+
+        foreach ($operations as $operation) {
+            $op = self::operationPublishedReuseSnapshotFence($operation);
+            $source = self::sourceForPublishedReuseSnapshotFence($state, $op['source'] ?? null);
+            $before = self::summaryPublishedReuseSnapshotFence($state);
+
+            if ($op['kind'] === 'snapshot') {
+                $events[] = self::snapshotPublishedReuseSnapshotFence($state, $source, self::tokenPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name'), self::tokenPublishedReuseSnapshotFence((string) ($op['ack'] ?? ''), 'reuse acknowledgement'), $before);
+                continue;
+            }
+
+            if ($op['kind'] === 'claim') {
+                $snapshot = self::tokenPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name');
+                $events[] = self::claimPublishedReuseSnapshotFence($state, $source, $snapshot, self::tokenPublishedReuseSnapshotFence((string) ($op['ack'] ?? ''), 'reuse acknowledgement'), self::tokenPublishedReuseSnapshotFence((string) ($op['claim'] ?? $snapshot . '-claim'), 'reuse claim'), $before);
+                continue;
+            }
+
+            if ($op['kind'] === 'publish') {
+                $events[] = self::publishPublishedReuseSnapshotFence($state, $source, self::tokenPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name'), self::tokenPublishedReuseSnapshotFence((string) ($op['claim'] ?? ''), 'reuse claim'), self::tokenPublishedReuseSnapshotFence((string) ($op['token'] ?? 'publish'), 'publish token'), $before);
+                continue;
+            }
+
+            throw new \InvalidArgumentException("SQLite VFS current-source next{$start}-{$end} operation is unsupported");
+        }
+
+        return [
+            'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
+            'current' => $current,
+            'next' => self::summaryPublishedReuseSnapshotFence($state),
+            'events' => $events,
+            'dependencies' => self::snapshotReusePublishWindowDependencies($end),
+            'non_overlap' => "next{$start}-{$end} follows merged next{$priorStart}-{$priorEnd} by requiring the shared-cache-next{$priorEnd} receipt before creating a fresh current-source snapshot and publishing shared-cache-next{$end}; it does not modify prior next{$priorStart}-{$priorEnd} files, earlier capture/readiness/lease gates, dirty flushing, VFS locking, WAL checkpointing, or B-tree behavior.",
+        ];
+    }
+
+    /** @return list<string> */
+    private static function snapshotReusePublishWindowDependencies(int $end): array
+    {
+        $dependencies = [
+            'vfs-current-source-snapshot-reuse-publication',
+            'vfs-current-source-ready-next214-217',
+            'vfs-current-source-reuse-publish-next218-221',
+            'vfs-current-source-reuse-lease-publish-next226-229',
+            'vfs-current-source-reuse-ack-publish-next234-237',
+        ];
+        foreach ([[254, 257], [258, 265], [266, 273], [274, 281], [282, 289], [290, 297], [298, 305], [306, 313], [314, 321], [322, 337], [338, 353], [354, 369], [370, 385], [386, 401], [402, 417], [418, 433], [434, 449], [450, 465], [466, 481], [482, 497], [498, 513], [514, 529], [530, 545], [546, 561]] as [$rangeStart, $rangeEnd]) {
+            if ($rangeEnd > $end) {
+                break;
+            }
+            $dependencies[] = "vfs-current-source-snapshot-reuse-publish-next{$rangeStart}-{$rangeEnd}";
+        }
+        return $dependencies;
     }
 
     // Consolidated behavior from next482-497.

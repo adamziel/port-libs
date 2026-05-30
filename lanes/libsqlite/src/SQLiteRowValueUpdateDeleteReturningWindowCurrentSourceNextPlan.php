@@ -9434,7 +9434,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     ): array {
         $plans = self::executeReadyPublicationRange(
             958,
-            973,
+            1181,
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -9450,12 +9450,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $preflightPlan = $plans[960];
         $firstSealPlan = $plans[961];
         $secondHandoffPlan = $plans[962];
-        $penultimateSealPlan = $plans[969];
-        $finalSealPlan = $plans[973];
+        $penultimateSealPlan = $plans[1177];
+        $finalSealPlan = $plans[1181];
 
         return [
             'status' => 'rowvalue-update-delete-returning-window-final-continuation-handoff',
             'candidate_statuses' => array_values($candidateStatuses),
+            'candidate_count' => count($candidateStatuses),
+            'final_publication_step' => 1181,
             'handoff_token' => $handoffPlan['next958_handoff']['next958_handoff'],
             'handoff_after_ready_range' => $handoffPlan['next958_handoff']['after_ready_range'],
             'handoff_consumes_previous_ready' => $handoffPlan['next958_handoff']['next957_ready'],
@@ -9467,9 +9469,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'first_seal_ready' => $firstSealPlan['next961_ready'],
             'second_handoff_token' => $secondHandoffPlan['next962_handoff']['next962_handoff'],
             'second_handoff_after_ready_range' => $secondHandoffPlan['next962_handoff']['after_ready_range'],
-            'penultimate_seal_ready' => $penultimateSealPlan['next969_ready'],
-            'final_seal_token' => $finalSealPlan['next973_final']['next973_final'],
-            'final_seal_ready' => $finalSealPlan['next973_ready'],
+            'penultimate_seal_ready' => $penultimateSealPlan['next1177_ready'],
+            'final_seal_token' => $finalSealPlan['next1181_final']['next1181_final'],
+            'final_seal_ready' => $finalSealPlan['next1181_ready'],
             'dependency_closure' => 'no new support component needed; final continuation handoff reuses the canonical row-value UPDATE/DELETE RETURNING window ready-publication range executor',
             'non_overlap' => 'consolidates the final row-value RETURNING window handoff into stable aliases only; avoids changing DML execution, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and suite behavior',
         ];

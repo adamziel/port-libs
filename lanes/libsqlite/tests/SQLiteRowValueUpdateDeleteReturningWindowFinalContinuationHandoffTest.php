@@ -9,12 +9,14 @@ $cases = [
         $result = require $examplesDir . '/wordpress-rowvalue-returning-window-final-continuation-handoff.php';
 
         $expectedStatuses = [];
-        for ($next = 958; $next <= 973; $next++) {
+        for ($next = 958; $next <= 1181; $next++) {
             $expectedStatuses[] = 'rowvalue-update-delete-returning-window-current-source-next' . $next;
         }
 
         $t->same('rowvalue-update-delete-returning-window-final-continuation-handoff', $result['status']);
         $t->same($expectedStatuses, $result['candidate_statuses']);
+        $t->same(224, $result['candidate_count']);
+        $t->same(1181, $result['final_publication_step']);
         $t->same(64, strlen($result['handoff_token']));
         $t->same('next954-957', $result['handoff_after_ready_range']);
         $t->same(true, $result['handoff_consumes_previous_ready']);
