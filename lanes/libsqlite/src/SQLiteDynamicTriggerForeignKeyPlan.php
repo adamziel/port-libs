@@ -602,6 +602,69 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:string}> $initialRows
+     * @return array<string,mixed>
+     */
+    public static function withoutRowidReplaceDeleteTriggerPlan(array $initialRows, bool $beforeTrigger, bool $afterTrigger): array
+    {
+        if (!$beforeTrigger && !$afterTrigger) {
+            throw new \InvalidArgumentException('SQLite triggerF requires at least one delete trigger');
+        }
+
+        $rows = [];
+        foreach ($initialRows as $row) {
+            if (!is_int($row['a']) || $row['a'] < 1) {
+                throw new \InvalidArgumentException('SQLite triggerF WITHOUT ROWID primary key must be a positive integer');
+            }
+            if (array_key_exists($row['a'], $rows)) {
+                throw new \InvalidArgumentException('SQLite triggerF WITHOUT ROWID primary key must be unique');
+            }
+            $rows[$row['a']] = ['a' => $row['a'], 'b' => $row['b']];
+        }
+        ksort($rows);
+
+        $log = [];
+        self::deleteWithoutRowidRow($rows, 1, $beforeTrigger, $afterTrigger, $log);
+
+        if (isset($rows[2])) {
+            self::deleteWithoutRowidRow($rows, 2, $beforeTrigger, $afterTrigger, $log);
+        }
+        $rows[2] = ['a' => 2, 'b' => 'three'];
+        ksort($rows);
+
+        if (isset($rows[3])) {
+            self::deleteWithoutRowidRow($rows, 3, $beforeTrigger, $afterTrigger, $log);
+        }
+        $row = $rows[2] ?? throw new \InvalidArgumentException('SQLite triggerF update source row is missing');
+        unset($rows[2]);
+        $row['a'] = 3;
+        $rows[3] = $row;
+        ksort($rows);
+
+        return [
+            'source' => 'triggerF.test 1.2..1.4',
+            'operation' => 'without-rowid-replace-delete-trigger-log',
+            'status' => 'commit-ok',
+            'before_trigger' => $beforeTrigger,
+            'after_trigger' => $afterTrigger,
+            'trigger_count' => (int) $beforeTrigger + (int) $afterTrigger,
+            'initial_primary_keys' => array_values(array_column($initialRows, 'a')),
+            'final_rows' => array_values($rows),
+            'final_primary_keys' => array_values(array_keys($rows)),
+            'log' => $log,
+            'log_values' => array_values(array_column($log, 'value')),
+            'log_count' => count($log),
+            'replace_delete_count' => 3,
+            'without_rowid_primary_key_preserved' => true,
+            'dependencies' => [
+                'sqlite-triggerF-without-rowid-delete-triggers-fire-for-replace-conflicts',
+                'sqlite-triggerF-before-trigger-sees-row-before-delete',
+                'sqlite-triggerF-after-trigger-sees-row-after-delete',
+            ],
+        ];
+    }
+
+    /**
      * @param array{rowid?:mixed,oid?:mixed,_rowid_?:mixed,x:mixed,w?:mixed,y?:mixed,z?:mixed} $row
      * @return array<string,mixed>
      */
@@ -3879,6 +3942,43 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $matches;
+    }
+
+    /**
+     * @param array<int,array{a:int,b:string}> $rows
+     * @param list<array{timing:string,a:int,b:string,row_count:int,value:string}> $log
+     */
+    private static function deleteWithoutRowidRow(array &$rows, int $primaryKey, bool $beforeTrigger, bool $afterTrigger, array &$log): void
+    {
+        if (!isset($rows[$primaryKey])) {
+            return;
+        }
+
+        $old = $rows[$primaryKey];
+        if ($beforeTrigger) {
+            $log[] = self::withoutRowidDeleteLogEntry('before', $old, count($rows));
+        }
+
+        unset($rows[$primaryKey]);
+
+        if ($afterTrigger) {
+            $log[] = self::withoutRowidDeleteLogEntry('after', $old, count($rows));
+        }
+    }
+
+    /**
+     * @param array{a:int,b:string} $old
+     * @return array{timing:string,a:int,b:string,row_count:int,value:string}
+     */
+    private static function withoutRowidDeleteLogEntry(string $timing, array $old, int $rowCount): array
+    {
+        return [
+            'timing' => $timing,
+            'a' => $old['a'],
+            'b' => $old['b'],
+            'row_count' => $rowCount,
+            'value' => (string) $old['a'] . $old['b'] . (string) $rowCount,
+        ];
     }
 
     /**

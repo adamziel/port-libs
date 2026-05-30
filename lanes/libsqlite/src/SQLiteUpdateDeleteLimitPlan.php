@@ -221,9 +221,6 @@ final class SQLiteUpdateDeleteLimitPlan
         if ($rowIdColumn === '' || $rowIdColumn === '__sqlite_udl_index') {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT rowid column must be a non-empty user column');
         }
-        if ($offset < 0) {
-            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT OFFSET must be non-negative');
-        }
         if ($limit === null && $offset !== 0) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT OFFSET requires LIMIT');
         }
@@ -260,7 +257,7 @@ final class SQLiteUpdateDeleteLimitPlan
             self::withOrderValues($qualified, $orderBy),
             self::orderByColumns($orderBy)
         );
-        $selected = SQLiteSelectResult::limitOffset($ordered, $limit, $offset);
+        $selected = SQLiteSelectResult::limitOffset($ordered, $limit, max(0, $offset));
         $selectedIndexes = array_fill_keys(array_column($selected, '__sqlite_udl_index'), true);
         $mutation = [];
         foreach ($indexed as $row) {

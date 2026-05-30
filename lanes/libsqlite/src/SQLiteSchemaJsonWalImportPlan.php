@@ -7,8 +7,8 @@ namespace PortLibs\LibSqlite;
 final class SQLiteSchemaJsonWalImportPlan
 {
     /**
-     * @param list<array{option_id:int,option_name:string,option_value:mixed,autoload?:string,page_number?:int}> $currentRows
-     * @param list<array{option_name:string,function?:string,path:string,value:mixed,page_number?:int,wal_frame_index?:int,statement?:string}> $mutations
+     * @param list<array{setting_id:int,key_name:string,key_value:mixed,load_policy?:string,page_number?:int,tenant_id?:int}> $currentRows
+     * @param list<array{key_name:string,function?:string,path:string,value:mixed,page_number?:int,wal_frame_index?:int,statement?:string,tenant_id?:int}> $mutations
      * @param array<string,array{sql?:string,type?:string}> $existingObjects
      * @param array{schema?:array<string,mixed>,json?:array<string,mixed>,database_path?:string,page_size?:int,wal_autocheckpoint?:int} $options
      * @return array<string,mixed>
@@ -21,7 +21,7 @@ final class SQLiteSchemaJsonWalImportPlan
         array $options = [],
     ): array {
         $pageSize = self::pageSize($options['page_size'] ?? ($options['json']['page_size'] ?? 512));
-        $databasePath = self::databasePath($options['database_path'] ?? '/tmp/wp-schema-json-import.sqlite');
+        $databasePath = self::databasePath($options['database_path'] ?? '/tmp/app-schema-json-import.sqlite');
         $walAutocheckpoint = self::nonNegativeInt($options['wal_autocheckpoint'] ?? 1000, 'wal_autocheckpoint');
         $schemaOptions = is_array($options['schema'] ?? null) ? $options['schema'] : [];
         $jsonOptions = is_array($options['json'] ?? null) ? $options['json'] : [];
@@ -76,7 +76,7 @@ final class SQLiteSchemaJsonWalImportPlan
             ],
             'commit_order' => array_values(array_filter([
                 $schemaPlan['applied_count'] > 0 ? 'write_schema_pages' : null,
-                count($jsonPlan['applied']) > 0 ? 'write_json_option_pages' : null,
+                count($jsonPlan['applied']) > 0 ? 'write_json_setting_pages' : null,
                 'sync_wal',
                 'update_schema_cookie',
                 'checkpoint_or_leave_wal',
@@ -125,7 +125,7 @@ final class SQLiteSchemaJsonWalImportPlan
     }
 
     /**
-     * @param list<array{option_id:int,option_name:string,option_value:mixed,autoload?:string,page_number?:int}> $rows
+     * @param list<array{setting_id:int,key_name:string,key_value:mixed,load_policy?:string,page_number?:int,tenant_id?:int}> $rows
      */
     private static function nextRootPage(array $rows): int
     {
@@ -178,9 +178,9 @@ final class SQLiteSchemaJsonWalImportPlan
         foreach ($applied as $index => $row) {
             $frames[] = [
                 'frame_index' => $offset + $index + 1,
-                'kind' => 'json_option',
+                'kind' => 'json_setting',
                 'statement' => $row['statement'],
-                'option_name' => $row['option_name'],
+                'key_name' => $row['key_name'],
                 'page_number' => $row['page_number'],
                 'page_size' => $pageSize,
                 'source_wal_frame' => $row['wal_frame_index'],
@@ -203,9 +203,9 @@ final class SQLiteSchemaJsonWalImportPlan
             $discarded = $row['rollback']['discarded_wal_frames'][0]['frame_index'] ?? null;
             $frames[] = [
                 'frame_index' => $offset + $index + 1,
-                'kind' => 'discarded_json_option',
+                'kind' => 'discarded_json_setting',
                 'statement' => $row['statement'],
-                'option_name' => $row['option_name'],
+                'key_name' => $row['key_name'],
                 'page_size' => $pageSize,
                 'source_wal_frame' => $discarded,
                 'committed' => false,
@@ -246,7 +246,7 @@ final class SQLiteSchemaJsonWalImportPlan
                 'phase' => 'json',
                 'status' => 'applied',
                 'statement' => $row['statement'],
-                'option_name' => $row['option_name'],
+                'key_name' => $row['key_name'],
                 'page_number' => $row['page_number'],
             ];
         }
@@ -255,7 +255,7 @@ final class SQLiteSchemaJsonWalImportPlan
                 'phase' => 'json',
                 'status' => 'rolled_back',
                 'statement' => $row['statement'],
-                'option_name' => $row['option_name'],
+                'key_name' => $row['key_name'],
                 'error' => $row['error'],
             ];
         }

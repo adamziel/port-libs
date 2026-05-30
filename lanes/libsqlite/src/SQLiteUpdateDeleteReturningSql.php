@@ -619,10 +619,10 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function parseLimit(string $sql): array
     {
-        if (preg_match('/^(-?\d+)(?:\s+OFFSET\s+(\d+))?$/i', $sql, $match) === 1) {
+        if (preg_match('/^(-?\d+)(?:\s+OFFSET\s+(-?\d+))?$/i', $sql, $match) === 1) {
             return [(int) $match[1], isset($match[2]) ? (int) $match[2] : 0];
         }
-        if (preg_match('/^(\d+)\s*,\s*(-?\d+)$/', $sql, $match) === 1) {
+        if (preg_match('/^(-?\d+)\s*,\s*(-?\d+)$/', $sql, $match) === 1) {
             return [(int) $match[2], (int) $match[1]];
         }
 

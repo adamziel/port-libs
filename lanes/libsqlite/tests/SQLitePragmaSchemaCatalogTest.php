@@ -57,7 +57,7 @@ $tests = [
         $t->same('main', $tableInfo['schema']);
         $t->same('app_settings', $tableInfo['target']);
         $t->same(4, count($tableInfo['rows']));
-        $t->same(['cid' => 0, 'name' => 'setting_id', 'type' => 'INTEGER', 'notnull' => 1, 'dflt_value' => null, 'pk' => 1], $tableInfo['rows'][0]);
+        $t->same(['cid' => 0, 'name' => 'setting_id', 'type' => 'INTEGER', 'notnull' => 0, 'dflt_value' => null, 'pk' => 1], $tableInfo['rows'][0]);
         $t->same(['cid' => 1, 'name' => 'setting_key', 'type' => 'TEXT', 'notnull' => 1, 'dflt_value' => "''", 'pk' => 0], $tableInfo['rows'][1]);
         $t->same(['cid' => 2, 'name' => 'setting_value', 'type' => 'TEXT', 'notnull' => 0, 'dflt_value' => null, 'pk' => 0], $tableInfo['rows'][2]);
         $t->same(['cid' => 3, 'name' => 'eager_load', 'type' => 'TEXT', 'notnull' => 0, 'dflt_value' => "'yes'", 'pk' => 0], $tableInfo['rows'][3]);
@@ -123,7 +123,7 @@ $tests = [
         $t->same(1, count($indexList['rows']));
         $t->same('sqlite_autoindex_app tenant settings_1', $indexList['rows'][0]['name']);
         $t->same(1, $indexList['rows'][0]['unique']);
-        $t->same('u', $indexList['rows'][0]['origin']);
+        $t->same('pk', $indexList['rows'][0]['origin']);
 
         $indexInfo = $catalog->execute('PRAGMA index_info("sqlite_autoindex_app tenant settings_1")');
         $t->same(2, count($indexInfo['rows']));

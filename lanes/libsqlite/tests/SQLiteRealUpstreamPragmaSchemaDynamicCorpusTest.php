@@ -240,7 +240,7 @@ foreach (range(1, 65) as $variant) {
         $foreignKeys = $catalog->execute("PRAGMA foreign_key_list(dynamic_settings_{$variant})")['rows'];
 
         $t->same($unique, $indexList[0]['name']);
-        $t->same('u', $indexList[0]['origin']);
+        $t->same('pk', $indexList[0]['origin']);
         $t->same($index, $indexList[1]['name']);
         $t->same('c', $indexList[1]['origin']);
         $t->same('tenant_id', $indexInfo[0]['name']);

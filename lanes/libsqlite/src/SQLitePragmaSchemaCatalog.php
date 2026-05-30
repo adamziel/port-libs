@@ -200,11 +200,11 @@ final class SQLitePragmaSchemaCatalog
     {
         $rows = [];
         foreach ($this->indexesByTable[strtolower($tableName)] ?? [] as $seq => $record) {
-            $origin = str_starts_with($record->name, 'sqlite_autoindex_') ? 'u' : 'c';
+            $origin = $this->indexOrigin($record);
             $rows[] = [
                 'seq' => $seq,
                 'name' => $record->name,
-                'unique' => $origin === 'u' || ($record->sql !== null && self::createIndexIsUnique($record->sql)) ? 1 : 0,
+                'unique' => $origin === 'u' || $origin === 'pk' || ($record->sql !== null && self::createIndexIsUnique($record->sql)) ? 1 : 0,
                 'origin' => $origin,
                 'partial' => $record->sql !== null && self::hasTopLevelWhere($record->sql) ? 1 : 0,
             ];
@@ -943,6 +943,32 @@ final class SQLitePragmaSchemaCatalog
         }
 
         return null;
+    }
+
+    private function indexOrigin(SQLiteSchemaRecord $index): string
+    {
+        if (!str_starts_with($index->name, 'sqlite_autoindex_')) {
+            return 'c';
+        }
+
+        $table = $this->tables[strtolower($index->tableName)] ?? null;
+        if ($table === null || $table->sql === null) {
+            return 'u';
+        }
+
+        $primaryKeyColumns = [];
+        foreach (self::columnsFromCreateTable($table->sql) as $column) {
+            if ($column['primaryKey'] === 0) {
+                continue;
+            }
+            $primaryKeyColumns[$column['primaryKey']] = strtolower($column['name']);
+        }
+        ksort($primaryKeyColumns);
+
+        $terms = $this->autoIndexColumnTerms($index);
+        $termColumns = array_map(static fn (array $term): string => strtolower($term['name']), $terms);
+
+        return $primaryKeyColumns !== [] && array_values($primaryKeyColumns) === $termColumns ? 'pk' : 'u';
     }
 
     /**

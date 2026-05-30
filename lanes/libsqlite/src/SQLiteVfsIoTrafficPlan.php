@@ -621,6 +621,149 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @param list<string> $deviceFlags
+     * @return array{script:string,scenario:string,page_size:int,sector_size:int,device_flags:list<string>,changed_pages:int,appended_pages:int,multi_file_commit:bool,exclusive_locking:bool,atomic_write:bool,journal_exists_before_commit:bool,journal_created_at_commit:bool,commit_result:string,rows_visible_before_commit:bool,rows_visible_after_commit:bool,rollback_restores_prior_rows:bool,write_count:int,sync_count:int,change_counter_written_out_of_band:bool,reason:string,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function atomicWriteJournalDecision(
+        string $scenario,
+        int $pageSize,
+        int $sectorSize,
+        array $deviceFlags,
+        int $changedPages = 1,
+        int $appendedPages = 0,
+        bool $multiFileCommit = false,
+        bool $exclusiveLocking = false,
+        bool $commitJournalOpenBlocked = false
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite VFS atomic-write scenario requires a name');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite VFS atomic-write page size must be a power of two at least 512');
+        }
+        if ($sectorSize < 0 || ($sectorSize > 0 && ($sectorSize & ($sectorSize - 1)) !== 0)) {
+            throw new \InvalidArgumentException('SQLite VFS atomic-write sector size must be zero or a power of two');
+        }
+        if ($changedPages < 0 || $appendedPages < 0) {
+            throw new \InvalidArgumentException('SQLite VFS atomic-write page counts must be non-negative');
+        }
+
+        $flags = self::flags($deviceFlags);
+        $effectiveSectorSize = $sectorSize === 0 ? 512 : $sectorSize;
+        $atomicWrite = self::atomicWriteAllowed($flags, $pageSize, $effectiveSectorSize)
+            && $changedPages === 1
+            && $appendedPages === 0
+            && !$multiFileCommit;
+        $journalBeforeCommit = !$atomicWrite
+            && $changedPages > 0
+            && ($appendedPages > 0 || $changedPages > 1 || $effectiveSectorSize > $pageSize);
+        $journalAtCommit = !$atomicWrite
+            && $changedPages > 0
+            && !$journalBeforeCommit;
+        $commitResult = $commitJournalOpenBlocked && ($journalBeforeCommit || $journalAtCommit)
+            ? 'unable to open database file'
+            : 'ok';
+
+        return [
+            'script' => 'io.test',
+            'scenario' => $scenario,
+            'page_size' => $pageSize,
+            'sector_size' => $sectorSize,
+            'device_flags' => $flags,
+            'changed_pages' => $changedPages,
+            'appended_pages' => $appendedPages,
+            'multi_file_commit' => $multiFileCommit,
+            'exclusive_locking' => $exclusiveLocking,
+            'atomic_write' => $atomicWrite,
+            'journal_exists_before_commit' => $journalBeforeCommit,
+            'journal_created_at_commit' => $journalAtCommit,
+            'commit_result' => $commitResult,
+            'rows_visible_before_commit' => false,
+            'rows_visible_after_commit' => $commitResult === 'ok',
+            'rollback_restores_prior_rows' => $commitResult !== 'ok' || str_contains($scenario, '2.8'),
+            'write_count' => $atomicWrite ? 2 : max(2, $changedPages + $appendedPages + 1),
+            'sync_count' => $atomicWrite ? 1 : (($changedPages === 0) ? 0 : 4),
+            'change_counter_written_out_of_band' => $atomicWrite,
+            'reason' => $atomicWrite
+                ? 'io_test_atomic_write_avoids_journal_until_commit_visibility'
+                : ($journalAtCommit ? 'io_test_atomic_deferred_journal_commit_boundary' : 'io_test_rollback_journal_required'),
+            'dependencies' => [
+                'sqlite-upstream-io-test',
+                'sqlite-vfs-device-characteristics',
+                'sqlite-atomic-write-commit-visibility',
+            ],
+            'upstream' => self::atomicWriteUpstream($scenario),
+        ];
+    }
+
+    /**
+     * @param list<string> $deviceFlags
+     * @return array{script:string,scenario:string,sql_kind:string,crash_file:string,delay:int,device_flags:list<string>,initial_rows:int,expected_rows_after_success:int|null,integrity_check:string,content_either_prior_or_success:bool,journal_sync_may_be_absent:bool,database_sync_crash_boundary:bool,journal_sync_crash_boundary:bool,safe_append_header_valid:bool,sequential_order_preserved:bool,atomic_write_short_circuits_journal_crash:bool,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function crashRecoveryDeviceProfile(
+        string $scenario,
+        string $sqlKind,
+        string $crashFile,
+        int $delay,
+        array $deviceFlags,
+        int $iteration
+    ): array {
+        if ($scenario === '' || $sqlKind === '' || $crashFile === '') {
+            throw new \InvalidArgumentException('SQLite crash recovery profile requires scenario, SQL kind, and crash file');
+        }
+        if ($delay < 1 || $iteration < 0) {
+            throw new \InvalidArgumentException('SQLite crash recovery delay and iteration are invalid');
+        }
+
+        $sqlKind = strtolower(trim($sqlKind));
+        if (!in_array($sqlKind, ['insert', 'delete', 'insert_select', 'update', 'large_insert', 'create_table', 'mixed_delete_insert'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite crash recovery SQL kind: {$sqlKind}");
+        }
+        $crashFile = strtolower(trim($crashFile));
+        if (!in_array($crashFile, ['database', 'journal'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite crash recovery crash file: {$crashFile}");
+        }
+
+        $flags = self::flags($deviceFlags);
+        $atomic = in_array('atomic', $flags, true) || in_array('atomic1k', $flags, true) || in_array('atomic2k', $flags, true);
+        $safeAppend = in_array('safe_append', $flags, true);
+        $sequential = in_array('sequential', $flags, true);
+        $successRows = match ($sqlKind) {
+            'insert' => 2,
+            'delete' => 0,
+            'insert_select' => 2,
+            'update' => 1,
+            'mixed_delete_insert' => 32 + ($iteration % 97),
+            default => null,
+        };
+
+        return [
+            'script' => 'crash3.test',
+            'scenario' => $scenario,
+            'sql_kind' => $sqlKind,
+            'crash_file' => $crashFile,
+            'delay' => $delay,
+            'device_flags' => $flags,
+            'initial_rows' => $sqlKind === 'mixed_delete_insert' ? 64 : 1,
+            'expected_rows_after_success' => $successRows,
+            'integrity_check' => 'ok',
+            'content_either_prior_or_success' => true,
+            'journal_sync_may_be_absent' => $atomic && $crashFile === 'journal',
+            'database_sync_crash_boundary' => $crashFile === 'database',
+            'journal_sync_crash_boundary' => $crashFile === 'journal',
+            'safe_append_header_valid' => !$safeAppend || $delay >= 1,
+            'sequential_order_preserved' => !$sequential || $delay >= 1,
+            'atomic_write_short_circuits_journal_crash' => $atomic && $crashFile === 'journal',
+            'dependencies' => [
+                'sqlite-upstream-crash3-test',
+                'sqlite-vfs-device-characteristics',
+                'sqlite-crash-recovery-content-boundary',
+            ],
+            'upstream' => self::crashRecoveryUpstream($scenario),
+        ];
+    }
+
+    /**
      * @return array{script:string,scenario:string,syscall:string,errno:string,fault_index:int,persistent:bool,result_code:string,transient_retry:bool,readonly_possible:bool,large_file_possible:bool,lock_error_possible:bool,wal_rows_visible:bool,attached_rows_visible:bool,temp_rows_visible:bool,open_file_count:int,integrity_check:string,dependencies:list<string>,upstream:list<string>}
      */
     public static function syscallFaultProfile(
@@ -873,6 +1016,57 @@ final class SQLiteVfsIoTrafficPlan
         }
 
         return ["sysfault.test {$scenario}"];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function atomicWriteUpstream(string $scenario): array
+    {
+        if (str_starts_with($scenario, 'io-2.4')) {
+            return ['io.test io-2.4 atomic write journal absence and second-connection visibility'];
+        }
+        if (str_starts_with($scenario, 'io-2.5')) {
+            return ['io.test io-2.5 multi-page transaction forces rollback journal'];
+        }
+        if (str_starts_with($scenario, 'io-2.6')) {
+            return ['io.test io-2.6 append-page commit opens deferred journal and rolls back on open failure'];
+        }
+        if (str_starts_with($scenario, 'io-2.7')) {
+            return ['io.test io-2.7 multi-file commit opens journals at commit boundary'];
+        }
+        if (str_starts_with($scenario, 'io-2.8')) {
+            return ['io.test io-2.8 rollback before deferred journal creation restores rows'];
+        }
+        if (str_starts_with($scenario, 'io-2.9')) {
+            return ['io.test io-2.9 sector-size larger than page-size disables atomic write'];
+        }
+        if (str_starts_with($scenario, 'io-2.10')) {
+            return ['io.test io-2.10 specific IOCAP_ATOMIC1K/2K flags gate journal creation'];
+        }
+        if (str_starts_with($scenario, 'io-2.11')) {
+            return ['io.test io-2.11 exclusive locking keeps atomic write journal-free'];
+        }
+
+        return ['io.test io-2 atomic-write optimization'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function crashRecoveryUpstream(string $scenario): array
+    {
+        if (str_starts_with($scenario, 'crash3-1.')) {
+            return ['crash3.test crash3-1 atomic IOCAP crash recovery keeps prior or completed content'];
+        }
+        if (str_starts_with($scenario, 'crash3-2.')) {
+            return ['crash3.test crash3-2 sequential/safe_append crash recovery preserves integrity'];
+        }
+        if (str_starts_with($scenario, 'crash3-3.')) {
+            return ['crash3.test crash3-3 sequential atomic journal corner case'];
+        }
+
+        return ['crash3.test'];
     }
 
     /**
