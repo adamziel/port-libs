@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 23:40 UTC):
+  Latest libsqlite source is integrated as `252baed08`
+  (`libsqlite: add twenty-fifth current corpus sweep`). The batch accepted 7
+  behavior-producing current-base handoffs on top of `e26da8838`: row-value
+  UPDATE/DELETE LIMIT `CAST` parity, B-tree index7 partial-index/VACUUM/planner
+  coverage, JSON1/JSONB path matrix coverage, pager/WAL persist/overwrite
+  recovery behavior, trigger/FK fkey6/fkey8/triggerC coverage, UPSERT `DO
+  NOTHING RETURNING` target matching, and checksum VFS reserve-byte/WAL
+  checkpoint/reopen behavior. Verification passed PHP lint for `11`
+  changed/new PHP files, `git diff --cached --check -- lanes/libsqlite`,
+  source-neutral guards, focused selected tests `7 files / 378257 assertions /
+  0 failures / 30681 PASS lines`, accepted-base overlap `2 files / 299431
+  assertions / 0 failures / 19181 PASS lines`, and row-value related tests `4
+  files / 783 assertions / 0 failures / 366 PASS lines`. Honest selected
+  movement is `+11500`, so the public row should move to `1170170 pass / 0
+  fail` with coverage still `1589 / 1589`. Note-only date/select blockers,
+  app-WAL parity, window, newer SELECT-source, and expression-source changes
+  remain parked for separate review. The live pool remains at 10-11 visible
+  libsqlite workers with no long sleepers.
+
 - 2026-05-30 supervisor continuation (integration sample 23:36 UTC):
   Latest libsqlite source is integrated as `33ca1e7bc`
   (`libsqlite: add schemafault pragma corpus slice`). The batch accepted one
