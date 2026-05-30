@@ -3281,6 +3281,202 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,objects_before:list<string>,objects_after:list<string>,index_names:list<string>,table_name:string,index_name:string|null,indexed_column:string|null,expected_error:string|null,integrity:string,explain_only:bool,autoindex:bool}>
+     */
+    public static function indexCatalogLifecycleCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index catalog lifecycle corpus requires at least one case');
+        }
+
+        $bulkIndexNames = [];
+        for ($index = 1; $index < 100; $index++) {
+            $bulkIndexNames[] = sprintf('index%02d', $index);
+        }
+
+        $templates = [
+            [
+                'index-1.1/1.1d',
+                'CREATE INDEX records a stable sqlite_schema index row and survives reopen',
+                'CREATE INDEX index1 ON test1(f1)',
+                ['test1'],
+                ['index1', 'test1'],
+                ['index1'],
+                'test1',
+                'index1',
+                'f1',
+                null,
+                false,
+                false,
+            ],
+            [
+                'index-1.2',
+                'DROP TABLE removes its ordinary index catalog rows',
+                'DROP TABLE test1',
+                ['index1', 'test1'],
+                [],
+                [],
+                'test1',
+                'index1',
+                'f1',
+                null,
+                false,
+                false,
+            ],
+            [
+                'index-2.1',
+                'CREATE INDEX rejects a missing table',
+                'CREATE INDEX index1 ON test1(f1)',
+                [],
+                [],
+                [],
+                'test1',
+                'index1',
+                'f1',
+                'no such table: main.test1',
+                false,
+                false,
+            ],
+            [
+                'index-2.1b/2.2',
+                'CREATE INDEX rejects missing indexed columns without leaving schema rows',
+                'CREATE INDEX index1 ON test1(f1, f2, f4, f3)',
+                ['test1'],
+                ['test1'],
+                [],
+                'test1',
+                'index1',
+                'f4',
+                'no such column: f4',
+                false,
+                false,
+            ],
+            [
+                'index-3.1/3.3',
+                'creating many same-table indexes sorts catalog names and dropping the table removes all of them',
+                'CREATE INDEX indexNN ON test1(fN)',
+                ['test1'],
+                [],
+                $bulkIndexNames,
+                'test1',
+                'indexNN',
+                'fN',
+                null,
+                false,
+                false,
+            ],
+            [
+                'index-5.1/5.2',
+                'sqlite_master cannot be indexed and the catalog remains empty',
+                'CREATE INDEX index1 ON sqlite_master(name)',
+                [],
+                [],
+                [],
+                'sqlite_master',
+                'index1',
+                'name',
+                'table sqlite_master may not be indexed',
+                false,
+                false,
+            ],
+            [
+                'index-6.1/6.1c',
+                'duplicate index names are rejected while IF NOT EXISTS is a no-op',
+                'CREATE INDEX index1 ON test2(g1); CREATE INDEX IF NOT EXISTS index1 ON test1(f1)',
+                ['index1', 'test1', 'test2'],
+                ['index1', 'test1', 'test2'],
+                ['index1'],
+                'test2',
+                'index1',
+                'g1',
+                'index index1 already exists',
+                false,
+                false,
+            ],
+            [
+                'index-6.2/6.4',
+                'index names cannot collide with table names and table drops remove multi-column indexes',
+                'CREATE INDEX test1 ON test2(g1); DROP TABLE test1',
+                ['index1', 'test1', 'test2'],
+                [],
+                ['index1', 'index2', 'index3'],
+                'test2',
+                'test1',
+                'g1',
+                'there is already a table named test1',
+                false,
+                false,
+            ],
+            [
+                'index-7.1/7.5',
+                'PRIMARY KEY creates an autoindex that resolves indexed equality and drops with the table',
+                'CREATE TABLE test1(f1 int, f2 int primary key)',
+                ['test1'],
+                [],
+                ['sqlite_autoindex_test1_1'],
+                'test1',
+                'sqlite_autoindex_test1_1',
+                'f2',
+                null,
+                false,
+                true,
+            ],
+            [
+                'index-8.1',
+                'DROP INDEX rejects a missing index without mutating schema',
+                'DROP INDEX index1',
+                [],
+                [],
+                [],
+                '',
+                'index1',
+                null,
+                'no such index: index1',
+                false,
+                false,
+            ],
+            [
+                'index-9.1/9.2',
+                'EXPLAIN CREATE INDEX does not create the index or mutate table catalog rows',
+                'EXPLAIN CREATE INDEX idx1 ON tab1(a)',
+                ['tab1'],
+                ['tab1'],
+                [],
+                'tab1',
+                'idx1',
+                'a',
+                null,
+                true,
+                false,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $before, $after, $indexes, $table, $indexName, $column, $error, $explainOnly, $autoindex] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'index.test sections index-1.1 through index-9.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'objects_before' => $before,
+                'objects_after' => $after,
+                'index_names' => $indexes,
+                'table_name' => $table,
+                'index_name' => $indexName,
+                'indexed_column' => $column,
+                'expected_error' => $error,
+                'integrity' => $error === null ? 'ok' : 'schema-preserved-after-error',
+                'explain_only' => $explainOnly,
+                'autoindex' => $autoindex,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

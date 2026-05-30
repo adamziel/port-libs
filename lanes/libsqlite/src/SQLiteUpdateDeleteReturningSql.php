@@ -668,6 +668,9 @@ final class SQLiteUpdateDeleteReturningSql
         if (strcasecmp($expression, 'NULL') === 0 || preg_match('/^X\'[0-9A-F]*\'$/i', $expression) === 1) {
             return null;
         }
+        if (str_starts_with($expression, '+')) {
+            return self::limitExpressionValue(substr($expression, 1));
+        }
         if (preg_match('/^-?\d+$/', $expression) === 1) {
             return (int) $expression;
         }
@@ -1633,6 +1636,7 @@ final class SQLiteUpdateDeleteReturningSql
 
         if ($limitSql !== null && $limitSql !== '') {
             [$limit, $offset] = self::parseLimit($limitSql);
+            $offset = max(0, $offset);
             if ($limit !== null && $limit >= 0) {
                 $tuples = array_slice($tuples, $offset, $limit);
             } elseif ($limit !== null && $limit < 0) {
@@ -1699,9 +1703,15 @@ final class SQLiteUpdateDeleteReturningSql
         $terms = self::parseOrderBy($orderSql);
         usort($rows, static function (array $left, array $right) use ($terms): int {
             foreach ($terms as $term) {
-                $column = $term['column'];
-                $leftValue = self::column($left, $column);
-                $rightValue = self::column($right, $column);
+                if (isset($term['column'])) {
+                    $leftValue = self::column($left, $term['column']);
+                    $rightValue = self::column($right, $term['column']);
+                } elseif (isset($term['expression'])) {
+                    $leftValue = self::evaluateExpression($term['expression'], $left);
+                    $rightValue = self::evaluateExpression($term['expression'], $right);
+                } else {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value subquery ORDER BY term needs a column or expression');
+                }
                 if ($leftValue === $rightValue) {
                     continue;
                 }

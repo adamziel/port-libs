@@ -145,6 +145,70 @@ final class SQLiteIndexLifecyclePlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,lookup_value:int,result_value:float,search_count:int,index_name:string,detail:string}>
+     */
+    public static function primaryKeyLookupCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite upstream index primary-key lookup corpus requires at least one case');
+        }
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $lookup = (($case - 1) % 50) + 1;
+            $out[] = [
+                'source' => 'index.test index-11.1/index-11.2',
+                'case' => $case,
+                'upstream_section' => 'index-11.1',
+                'lookup_value' => $lookup,
+                'result_value' => $lookup / 100,
+                'search_count' => 2,
+                'index_name' => 'sqlite_autoindex_t3_1',
+                'detail' => 'PRIMARY KEY(b) autoindex routes equality lookup for row ' . $lookup,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,table:string,index_name:string,drop_sql:string,drop_result:array{0:int,1:string},catalog_count:int,insert_row:list<mixed>,detail:string}>
+     */
+    public static function autoindexDropGuardCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite upstream automatic-index drop guard corpus requires at least one case');
+        }
+
+        $indexNames = [
+            'sqlite_autoindex_t5_1',
+            'sqlite_autoindex_t5_2',
+            'sqlite_autoindex_t5_3',
+        ];
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $indexName = $indexNames[($case - 1) % count($indexNames)];
+            $quoted = $case % 2 === 0;
+            $ifExists = $case % 5 === 0;
+            $dropName = $quoted ? "'" . $indexName . "'" : $indexName;
+            $out[] = [
+                'source' => 'index.test index-13.1 through index-13.4',
+                'case' => $case,
+                'upstream_section' => 'index-13.3',
+                'table' => 't5',
+                'index_name' => $indexName,
+                'drop_sql' => 'DROP INDEX ' . ($ifExists ? 'IF EXISTS ' : '') . $dropName,
+                'drop_result' => [1, 'index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped'],
+                'catalog_count' => 3,
+                'insert_row' => ['a', 'b', 'c'],
+                'detail' => 'automatic UNIQUE/PRIMARY KEY index remains protected after drop attempt',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function numericAffinityIndexRows(): array

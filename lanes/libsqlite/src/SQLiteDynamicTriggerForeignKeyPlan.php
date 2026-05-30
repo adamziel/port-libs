@@ -328,6 +328,152 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array{operation:string,set?:array<string,mixed>,where_column?:string,where_value?:mixed,parent_key?:string,child_key?:string,child_tables?:list<string>,parent_table?:string,referenced_table?:string,referenced_key?:string} $statement
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyAuthorizerReadPlan(array $parents, array $children, array $statement): array
+    {
+        $operation = strtolower(trim((string) ($statement['operation'] ?? '')));
+        if (!in_array($operation, ['update-parent-reference', 'update-parent-primary-key', 'update-parent-unique-key', 'update-parent-all-keys'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey7 authorizer operation is unsupported');
+        }
+
+        $parentTable = self::identifier((string) ($statement['parent_table'] ?? 'par'), 'parent table');
+        $referencedTable = self::identifier((string) ($statement['referenced_table'] ?? 's1'), 'referenced table');
+        $parentKey = self::identifier((string) ($statement['parent_key'] ?? 'a'), 'parent key');
+        $referencedKey = self::identifier((string) ($statement['referenced_key'] ?? 'b'), 'referenced key');
+        $whereColumn = self::identifier((string) ($statement['where_column'] ?? $parentKey), 'WHERE column');
+        $set = $statement['set'] ?? [];
+        if ($set === []) {
+            throw new \InvalidArgumentException('SQLite fkey7 authorizer SET list is empty');
+        }
+        foreach ($set as $column => $_value) {
+            self::identifier((string) $column, 'SET column');
+        }
+
+        $childTables = $statement['child_tables'] ?? ['c1', 'c2', 'c3'];
+        foreach ($childTables as $table) {
+            self::identifier((string) $table, 'child table');
+        }
+
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $updated = [];
+        foreach ($parents as $index => $parent) {
+            if (($parent[$whereColumn] ?? null) !== ($statement['where_value'] ?? null)) {
+                continue;
+            }
+            $old = $parent;
+            foreach ($set as $column => $value) {
+                $parent[(string) $column] = $value;
+            }
+            $parents[$index] = $parent;
+            $updated[] = ['old' => $old, 'new' => $parent];
+        }
+
+        $readTables = [$parentTable => true];
+        $needsReferencedParentRead = array_key_exists($referencedKey, $set);
+        if ($needsReferencedParentRead) {
+            $readTables[$referencedTable] = true;
+        }
+        $needsChildProbe = array_key_exists($parentKey, $set);
+        if ($needsChildProbe) {
+            $readTables[(string) $childTables[0]] = true;
+            $readTables[(string) $childTables[1]] = true;
+        }
+        $needsUniqueChildProbe = array_key_exists('c', $set);
+        if ($needsUniqueChildProbe) {
+            $readTables[(string) $childTables[2]] = true;
+        }
+        ksort($readTables);
+
+        $violations = [];
+        if ($needsReferencedParentRead) {
+            $referencedKeys = array_values(array_column($parents, $referencedKey));
+            foreach ($updated as $change) {
+                $newValue = $change['new'][$referencedKey] ?? null;
+                if ($newValue !== null && !in_array($newValue, $referencedKeys, true)) {
+                    $violations[] = ['table' => $parentTable, 'column' => $referencedKey, 'value' => $newValue, 'reason' => 'missing-referenced-parent'];
+                }
+            }
+        }
+
+        return [
+            'source' => 'fkey7.test fkey7-1.2..1.5',
+            'operation' => 'foreign-key-authorizer-read-dependencies',
+            'status' => $violations === [] ? 'commit-ok' : 'constraint-failed',
+            'statement_operation' => $operation,
+            'parent_table' => $parentTable,
+            'referenced_table' => $referencedTable,
+            'read_tables' => array_keys($readTables),
+            'read_table_count' => count($readTables),
+            'updated_count' => count($updated),
+            'updated_parent_rows' => array_values(array_map(static fn (array $change): array => $change['new'], $updated)),
+            'child_probe_tables' => $needsChildProbe ? [(string) $childTables[0], (string) $childTables[1]] : [],
+            'unique_child_probe_tables' => $needsUniqueChildProbe ? [(string) $childTables[2]] : [],
+            'referenced_parent_read' => $needsReferencedParentRead,
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'foreign_key_checks_enabled' => true,
+            'dependencies' => [
+                'sqlite-fkey7-authorizer-reads-parent-reference-table',
+                'sqlite-fkey7-authorizer-reads-child-tables-for-primary-key-update',
+                'sqlite-fkey7-authorizer-reads-unique-child-table-for-unique-key-update',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<mixed> $parentValues
+     * @param list<mixed> $incomingChildValues
+     * @return array<string,mixed>
+     */
+    public static function insertOrFailForeignKeyBatch(array $parentValues, array $incomingChildValues, bool $uniqueChild): array
+    {
+        if ($incomingChildValues === []) {
+            throw new \InvalidArgumentException('SQLite fkey7 INSERT OR FAIL batch is empty');
+        }
+
+        $children = [];
+        $failed = null;
+        foreach (array_values($incomingChildValues) as $index => $value) {
+            if (!in_array($value, $parentValues, true)) {
+                $failed = ['index' => $index, 'value' => $value, 'reason' => 'foreign-key'];
+                break;
+            }
+            if ($uniqueChild && in_array($value, $children, true)) {
+                $failed = ['index' => $index, 'value' => $value, 'reason' => 'unique'];
+                break;
+            }
+            $children[] = $value;
+        }
+
+        return [
+            'source' => 'fkey7.test fkey7-4.1..4.6',
+            'operation' => 'insert-or-fail-foreign-key-batch',
+            'status' => $failed === null ? 'commit-ok' : 'constraint-failed',
+            'conflict_policy' => 'fail',
+            'unique_child' => $uniqueChild,
+            'parent_values' => array_values($parentValues),
+            'incoming_child_values' => array_values($incomingChildValues),
+            'inserted_child_values' => $children,
+            'inserted_count' => count($children),
+            'failed_index' => $failed['index'] ?? null,
+            'failed_value' => $failed['value'] ?? null,
+            'failed_reason' => $failed['reason'] ?? null,
+            'foreign_key_check_rows' => [],
+            'statement_preserves_prior_successes' => $failed !== null && $children !== [],
+            'dependencies' => [
+                'sqlite-fkey7-insert-or-fail-stops-at-first-fk-violation',
+                'sqlite-fkey7-insert-or-fail-preserves-prior-successful-rows',
+                'sqlite-fkey7-foreign-key-check-empty-after-failed-statement',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param array{event:string,match_column:string,match_value:mixed,delete_column:string,delete_value:mixed,name?:string} $trigger
      * @return array<string,mixed>
