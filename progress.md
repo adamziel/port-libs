@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 17:42 UTC):
+  Latest accepted libsqlite source is `b75ed6b00`
+  (`libsqlite: add upsert and focused corpus followups`). The batch accepted
+  nine compatible current-base handoffs on top of `fb248c9dc`, centered on
+  UPSERT/RETURNING upsert4 behavior and quoted conflict-target handling, with
+  JSON dynamic paths, SELECT aggregate/GROUP BY expression planning,
+  trigger/FK next corpus behavior, window functions, VFS IO follow-up, date
+  modifiers, and source-neutral CAST/LIKE/GLOB plus JSONB CHECK cleanup riding
+  along. Verification passed PHP lint for changed/new PHP files,
+  `git diff --check -- lanes/libsqlite`, changed-file domain-shaped text
+  scans, the focused no-domain guard, and focused gate `10 files / 7830
+  assertions / 0 failures / 5115 selected PASS lines`. Accepted-base
+  comparison at `7ae2bafb` over pre-existing selected files passed `6 files /
+  6320 assertions / 0 failures / 4569 PASS lines`, so the honest new PASS-line
+  delta is `+546`, moving public libsqlite from `207759 pass / 0 fail` to
+  `208305 pass / 0 fail`; mapped coverage remains `958 / 1589`. This was a
+  smaller queue-drain batch; the next cycle needs larger expression/date/json/
+  btree/pager deltas to stay near the `10k+` PASS/hour target.
+
 - 2026-05-30 supervisor continuation (integration sample 17:35 UTC):
   Latest accepted libsqlite source is `fb248c9dc`
   (`libsqlite: add focused followup corpus batch`). The batch accepted eleven

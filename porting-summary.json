@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 17:15:46 UTC",
-    "sourceCommit": "fb248c9dc7caf2f4990cbbd152bf3b7a92669b88",
-    "sourceCommitShort": "fb248c9dc7ca",
+    "generated": "2026-05-30 17:19:14 UTC",
+    "sourceCommit": "b75ed6b006c38229bb9fcbfcd32e0b9c49509f43",
+    "sourceCommitShort": "b75ed6b006c3",
     "sourceBranch": "unknown",
-    "dashboardCommit": "fb248c9dc7caf2f4990cbbd152bf3b7a92669b88",
-    "dashboardCommitShort": "fb248c9dc7ca",
+    "dashboardCommit": "b75ed6b006c38229bb9fcbfcd32e0b9c49509f43",
+    "dashboardCommitShort": "b75ed6b006c3",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "958",
             "coverage": "958 / 1589",
-            "php": "207759 pass / 0 fail",
+            "php": "208305 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted focused follow-up batch after ap...",
-            "currentWork": "Published source fb248c9dc with a +1426 focused PASS-line libsqlite follow-up batch. Cont...",
-            "nextTarget": "Immediately publish this +1426 batch, move consumed handoffs out of the ready queue, then...",
-            "blocker": "The remaining blocker is still integration throughput: the queue contains...",
-            "commit": "fb248c9"
+            "audit": "Accepted third focused batch after applyi...",
+            "currentWork": "Published source b75ed6b00 with a +546 focused PASS-line libsqlite follow-up batch. Conti...",
+            "nextTarget": "Move consumed handoffs out of the ready queue, then wait only for useful ready artifacts...",
+            "blocker": "Integration throughput is still limited by low-yield ready slices.",
+            "commit": "b75ed6b"
         },
         {
             "library": "LightningCSS",
