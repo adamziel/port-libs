@@ -121,6 +121,47 @@ foreach ($strftimeCases as $name => [$format, $value, $expected]) {
     };
 }
 
+// Source truth: SQLite upstream test/date5.test.  The Tcl file derives a
+// 400-year leap-cycle matrix from twelve fixed JD/calendar pairs and checks
+// both directions for every generated year in range.
+$date5Data = [
+    [1, 2024, 2, 29, 2460369.5],
+    [2, 2024, 3, 1, 2460370.5],
+    [3, 2023, 2, 28, 2460003.5],
+    [4, 2023, 3, 1, 2460004.5],
+    [5, 2000, 2, 29, 2451603.5],
+    [6, 2000, 3, 1, 2451604.5],
+    [7, 1900, 2, 28, 2415078.5],
+    [8, 1900, 3, 1, 2415079.5],
+    [9, 1712, 2, 29, 2346413.5],
+    [10, 1712, 3, 1, 2346414.5],
+    [11, 1977, 4, 26, 2443259.5],
+    [12, 2013, 1, 1, 2456293.5],
+];
+
+$addDate5Case = static function (int $sourceId, int $year, int $month, int $day, float $julianDay) use (&$tests): void {
+    $date = sqliteRealUpstreamDateAffinityDynamicFormatDate5Year($year, $month, $day);
+    $jdLabel = str_replace(['-', '.'], ['m', 'p'], (string) $julianDay);
+    $dateLabel = str_replace('-', 'm', $date);
+
+    $tests["real upstream corpus date affinity dynamic date5.test date5-jd{$jdLabel} source {$sourceId}"] = static function (TestRunner $t) use ($julianDay, $date): void {
+        $t->same($date, SQLiteCoreScalarFunction::sqlFunctionArguments('date', [$julianDay]));
+    };
+    $tests["real upstream corpus date affinity dynamic date5.test date5-cal {$dateLabel} source {$sourceId}"] = static function (TestRunner $t) use ($date, $julianDay): void {
+        $t->same($julianDay, SQLiteCoreScalarFunction::sqlFunctionArguments('julianday', [$date]));
+    };
+};
+
+foreach ($date5Data as [$sourceId, $year, $month, $day, $julianDay]) {
+    $addDate5Case($sourceId, $year, $month, $day, $julianDay);
+    for ($cycle = 1; $year + 400 * $cycle <= 9999; $cycle++) {
+        $addDate5Case($sourceId, $year + 400 * $cycle, $month, $day, $julianDay + 146097 * $cycle);
+    }
+    for ($cycle = 1; $year - 400 * $cycle >= -4712; $cycle++) {
+        $addDate5Case($sourceId, $year - 400 * $cycle, $month, $day, $julianDay - 146097 * $cycle);
+    }
+}
+
 for ($upstreamIndex = 0; $upstreamIndex <= 511; $upstreamIndex++) {
     $timestamp = $upstreamIndex * 86390;
     $instant = (new DateTimeImmutable('@' . (string) $timestamp))->setTimezone(new DateTimeZone('UTC'));
@@ -222,6 +263,15 @@ function sqliteRealUpstreamDateAffinityDynamicWeekNumber(DateTimeImmutable $inst
     }
 
     return sprintf('%02d', intdiv($dayOfYear - $daysUntilFirstWeekday, 7) + 1);
+}
+
+function sqliteRealUpstreamDateAffinityDynamicFormatDate5Year(int $year, int $month, int $day): string
+{
+    if ($year < 0) {
+        return sprintf('-%04d-%02d-%02d', -$year, $month, $day);
+    }
+
+    return sprintf('%04d-%02d-%02d', $year, $month, $day);
 }
 
 return $tests;

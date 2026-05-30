@@ -99,6 +99,20 @@ final class SQLiteJsonB
         return $value;
     }
 
+    public static function decodeForJsonEncoding(string $bytes): mixed
+    {
+        if ($bytes === '') {
+            throw new \InvalidArgumentException('SQLite JSONB value is empty');
+        }
+
+        [$value, $next] = self::parseElement($bytes, 0, 0, true);
+        if ($next !== strlen($bytes)) {
+            throw new \InvalidArgumentException('SQLite JSONB value has trailing bytes');
+        }
+
+        return $value;
+    }
+
     public static function encode(mixed $value): string
     {
         return self::encodeElement($value, 0);
@@ -166,10 +180,15 @@ final class SQLiteJsonB
 
     public static function patch(string $targetBytes, string $patchBytes): string
     {
+        return self::encode(self::patchDecoded($targetBytes, $patchBytes));
+    }
+
+    public static function patchDecoded(string $targetBytes, string $patchBytes): mixed
+    {
         $target = self::decodeForEdit($targetBytes);
         $patch = self::decodeForEdit($patchBytes);
 
-        return self::encode(self::mergePatch($target, $patch, 0));
+        return self::mergePatch($target, $patch, 0);
     }
 
     private static function decodeForEdit(string $bytes): mixed

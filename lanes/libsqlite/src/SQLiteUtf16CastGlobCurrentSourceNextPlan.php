@@ -148,10 +148,10 @@ final class SQLiteUtf16CastGlobCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::assertRow($row);
             try {
-                $castText = SQLiteEncodingCollationSourceCursor::decodeText($row['option_value_bytes'], $row['text_encoding']);
+                $castText = SQLiteEncodingCollationSourceCursor::decodeText($row['key_value_bytes'], $row['text_encoding']);
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
                 continue;
             }
 
@@ -159,12 +159,12 @@ final class SQLiteUtf16CastGlobCurrentSourceNextPlan
                 && ($range['upperBound'] === null || strcmp($castText, $range['upperBound']) < 0);
             $matched = $candidate && SQLiteDatabase::globMatches($castText, $pattern);
             $trace[] = [
-                'rowid' => $row['option_id'],
-                'optionName' => $row['option_name'] ?? null,
+                'rowid' => $row['setting_id'],
+                'keyName' => $row['key_name'] ?? null,
                 'originalStorage' => self::storageClass($row),
                 'castStorage' => 'text',
                 'encoding' => self::encodingName($row['text_encoding']),
-                'bytesHex' => strtoupper(bin2hex($row['option_value_bytes'])),
+                'bytesHex' => strtoupper(bin2hex($row['key_value_bytes'])),
                 'castText' => $castText,
                 'castTextHex' => strtoupper(bin2hex($castText)),
                 'candidate' => $candidate,
@@ -184,11 +184,11 @@ final class SQLiteUtf16CastGlobCurrentSourceNextPlan
      */
     private static function assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 CAST GLOB rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 CAST GLOB rows require integer setting_id');
         }
-        if (!array_key_exists('option_value_bytes', $row) || !is_string($row['option_value_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 CAST GLOB rows require option_value_bytes');
+        if (!array_key_exists('key_value_bytes', $row) || !is_string($row['key_value_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 CAST GLOB rows require key_value_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 CAST GLOB rows require integer text_encoding');

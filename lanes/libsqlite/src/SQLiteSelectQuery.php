@@ -307,7 +307,7 @@ final class SQLiteSelectQuery
                 $function === 'nth_value' ? self::windowIntegerArgument($arguments, $orderedRows, 1, 'nth_value') : null,
             );
         }
-        if ($frame !== null) {
+        if ($frame !== null && !in_array($function, ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead'], true)) {
             throw new \InvalidArgumentException("SQLite SELECT query window frame is not supported for {$function}");
         }
 

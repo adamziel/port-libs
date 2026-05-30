@@ -46,7 +46,7 @@ final class SQLiteJsonPatch
         }
 
         return SQLiteJsonCanonical::encodeDecodedJson(
-            SQLiteJsonB::decode(SQLiteJsonB::patch(self::jsonbBytes($target), self::jsonbBytes($patch))),
+            SQLiteJsonB::patchDecoded(self::jsonbBytes($target), self::jsonbBytes($patch)),
         );
     }
 

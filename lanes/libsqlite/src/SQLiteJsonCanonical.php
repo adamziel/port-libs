@@ -24,7 +24,7 @@ final class SQLiteJsonCanonical
         }
         if ($value instanceof SQLiteBlobValue) {
             if (SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
-                return self::encodeDecodedJson(SQLiteJsonB::decode($value->bytes));
+                return self::encodeDecodedJson(SQLiteJsonB::decodeForJsonEncoding($value->bytes));
             }
 
             return self::canonicalizeText($value->bytes);

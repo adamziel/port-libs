@@ -70,7 +70,7 @@ final class SQLiteJsonRemove
             ? $jsonb
             : SQLiteJsonB::remove($jsonb, ...$paths);
 
-        return $removed === null ? null : SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($removed));
+        return $removed === null ? null : SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decodeForJsonEncoding($removed));
     }
 
     private static function jsonbBytes(string|int|float|bool|SQLiteBlobValue $value): string
@@ -110,7 +110,7 @@ final class SQLiteJsonRemove
     private static function decodeJsonText(string $json): mixed
     {
         try {
-            return json_decode($json, true, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
+            return json_decode($json, false, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             return SQLiteJson5Parser::decode($json);
         }

@@ -9,14 +9,16 @@ final class SQLiteJsonbCheckCurrentNextPlan
     /**
      * @param list<array<string,mixed>> $currentRows
      * @param list<array{op:string,rowid?:int|string,row?:array<string,mixed>,set?:array<string,mixed>,mutations?:list<array{column?:string,function:string,path:string,value:mixed}>}> $changes
+     * @param array{jsonColumn?:string} $options
      * @return array<string,mixed>
      */
-    public static function plan(string $createTableSql, array $currentRows, array $changes): array
+    public static function plan(string $createTableSql, array $currentRows, array $changes, array $options = []): array
     {
         $checks = self::checkConstraints($createTableSql);
         if ($checks === []) {
             throw new \InvalidArgumentException('SQLite JSONB CHECK current/next plan requires CHECK constraints');
         }
+        $jsonColumn = self::identifier((string) ($options['jsonColumn'] ?? 'key_value'), 'JSON column');
 
         $rows = self::rowsByRowid($currentRows);
         $current = [];
@@ -33,7 +35,7 @@ final class SQLiteJsonbCheckCurrentNextPlan
         $rejected = [];
         $next = [];
         foreach ($changes as $index => $change) {
-            $candidate = self::candidateRow($rows, $change, $index);
+            $candidate = self::candidateRow($rows, $change, $index, $jsonColumn);
             $rowid = self::rowid($candidate);
             $evaluated = self::evaluateChecks($candidate, $checks);
             $record = [
@@ -323,7 +325,7 @@ final class SQLiteJsonbCheckCurrentNextPlan
         };
     }
 
-    private static function candidateRow(array $rows, array $change, int $index): array
+    private static function candidateRow(array $rows, array $change, int $index, string $jsonColumn): array
     {
         $op = strtoupper($change['op'] ?? '');
         if ($op === 'INSERT') {
@@ -348,11 +350,20 @@ final class SQLiteJsonbCheckCurrentNextPlan
             $row[$column] = $value;
         }
         foreach (($change['mutations'] ?? []) as $mutation) {
-            $column = $mutation['column'] ?? 'key_value';
+            $column = $mutation['column'] ?? $jsonColumn;
             $row[$column] = SQLiteJsonMutation::mutateSqlFunction($mutation['function'], $row[$column] ?? null, $mutation['path'], $mutation['value']);
         }
 
         return $row;
+    }
+
+    private static function identifier(string $value, string $label): string
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
+            throw new \InvalidArgumentException("SQLite JSONB CHECK {$label} must be an identifier");
+        }
+
+        return $value;
     }
 
     /**

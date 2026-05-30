@@ -1052,6 +1052,10 @@ final class SQLitePragmaSchemaCatalog
         }
 
         $end = $length;
+        $comment = self::topLevelCommentOffset($value);
+        if ($comment !== null && $comment > 0) {
+            $end = min($end, $comment);
+        }
         foreach (['COLLATE', 'NOT NULL', 'PRIMARY KEY', 'UNIQUE', 'CHECK', 'REFERENCES', 'GENERATED'] as $keyword) {
             $found = self::findTopLevelKeyword($value, $keyword);
             if ($found !== null && $found > 0) {
@@ -1060,6 +1064,39 @@ final class SQLitePragmaSchemaCatalog
         }
 
         return $end;
+    }
+
+    private static function topLevelCommentOffset(string $text): ?int
+    {
+        $depth = 0;
+        $length = strlen($text);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $text[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $i = self::skipQuoted($text, $i, $char);
+                continue;
+            }
+            if ($char === '[') {
+                $i = self::skipBracketQuoted($text, $i);
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0 && $char === '/' && ($text[$i + 1] ?? '') === '*') {
+                return $i;
+            }
+            if ($depth === 0 && $char === '-' && ($text[$i + 1] ?? '') === '-') {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private static function generatedHiddenCode(string $tail): int

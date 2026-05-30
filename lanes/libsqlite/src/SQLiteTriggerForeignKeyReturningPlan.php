@@ -31,6 +31,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
         $parents = array_values($parents);
         $children = array_values($children);
         $spec = self::foreignKeySpec($foreignKey);
+        $restrictImmediate = $spec['on_update'] === 'restrict';
         $yielded = [];
         $effects = [];
         $fkActions = [];
@@ -56,7 +57,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
             $children = $fk['child'];
             $fkActions = array_merge($fkActions, $fk['actions']);
             $statementViolations = self::foreignKeyViolations($parents, $children, $spec);
-            if (!$spec['deferred'] && $statementViolations !== []) {
+            if ((!$spec['deferred'] || $restrictImmediate) && $statementViolations !== []) {
                 throw new \InvalidArgumentException('SQLite trigger/FK RETURNING immediate constraint failed');
             }
             $violations = array_merge($violations, self::tagViolations($statementViolations, $changes - 1, 'statement'));
@@ -66,7 +67,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
             $children = $after['child'];
             $effects = array_merge($effects, $after['effects']);
             $afterViolations = self::foreignKeyViolations($parents, $children, $spec);
-            if (!$spec['deferred'] && $afterViolations !== []) {
+            if ((!$spec['deferred'] || $restrictImmediate) && $afterViolations !== []) {
                 throw new \InvalidArgumentException('SQLite trigger/FK RETURNING immediate constraint failed after trigger');
             }
             $violations = array_merge($violations, self::tagViolations($afterViolations, $changes - 1, 'after-trigger'));
@@ -99,6 +100,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
         $parents = array_values($parents);
         $children = array_values($children);
         $spec = self::foreignKeySpec($foreignKey);
+        $restrictImmediate = $spec['on_delete'] === 'restrict';
         $yielded = [];
         $effects = [];
         $fkActions = [];
@@ -121,7 +123,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
             $fkActions = array_merge($fkActions, $fk['actions']);
             $remainingParents = array_values($parents);
             $statementViolations = self::foreignKeyViolations($remainingParents, $children, $spec);
-            if (!$spec['deferred'] && $statementViolations !== []) {
+            if ((!$spec['deferred'] || $restrictImmediate) && $statementViolations !== []) {
                 throw new \InvalidArgumentException('SQLite trigger/FK RETURNING immediate constraint failed');
             }
             $violations = array_merge($violations, self::tagViolations($statementViolations, $changes - 1, 'statement'));
@@ -130,7 +132,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
             $children = $after['child'];
             $effects = array_merge($effects, $after['effects']);
             $afterViolations = self::foreignKeyViolations($remainingParents, $children, $spec);
-            if (!$spec['deferred'] && $afterViolations !== []) {
+            if ((!$spec['deferred'] || $restrictImmediate) && $afterViolations !== []) {
                 throw new \InvalidArgumentException('SQLite trigger/FK RETURNING immediate constraint failed after trigger');
             }
             $violations = array_merge($violations, self::tagViolations($afterViolations, $changes - 1, 'after-trigger'));

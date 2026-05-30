@@ -253,4 +253,91 @@ foreach (range(1, 65) as $variant) {
     };
 }
 
+foreach (range(1, 80) as $variant) {
+    $table = 'comment_default_settings_' . $variant;
+    $catalog = static function () use ($variant, $table): SQLitePragmaSchemaCatalog {
+        return new SQLitePragmaSchemaCatalog([
+            new SQLiteSchemaRecord(
+                'table',
+                $table,
+                $table,
+                500 + $variant,
+                "CREATE TABLE {$table}(
+                    a DEFAULT 'abc_{$variant}' /* upstream pragma4.test 5.0 block comment */,
+                    b DEFAULT -{$variant} -- upstream pragma4.test 5.0 line comment
+                    , c DEFAULT +{$variant}.0 /* upstream pragma4.test 5.0 numeric comment */,
+                    d TEXT DEFAULT ('comment -- stays inside expression {$variant}'),
+                    e TEXT DEFAULT '/* quoted comment marker {$variant} */',
+                    f DEFAULT X'0A0B'
+                )",
+                500 + $variant,
+            ),
+        ]);
+    };
+
+    $tests["real upstream pragma4 5.0 default comments variant {$variant}"] = static function (TestRunner $t) use ($catalog, $variant, $table): void {
+        $rows = $catalog()->execute("PRAGMA table_info({$table})")['rows'];
+
+        $t->same(6, count($rows));
+        $t->same('a', $rows[0]['name']);
+        $t->same("'abc_{$variant}'", $rows[0]['dflt_value']);
+        $t->same('b', $rows[1]['name']);
+        $t->same("-{$variant}", $rows[1]['dflt_value']);
+        $t->same('c', $rows[2]['name']);
+        $t->same("+{$variant}.0", $rows[2]['dflt_value']);
+        $t->same('d', $rows[3]['name']);
+        $t->same("('comment -- stays inside expression {$variant}')", $rows[3]['dflt_value']);
+        $t->same('e', $rows[4]['name']);
+        $t->same("'/* quoted comment marker {$variant} */'", $rows[4]['dflt_value']);
+        $t->same("X'0A0B'", $rows[5]['dflt_value']);
+    };
+}
+
+foreach (range(1, 35) as $variant) {
+    $parent = 'pragma_join_parent_' . $variant;
+    $child = 'pragma_join_child_' . $variant;
+    $catalog = static function () use ($variant, $parent, $child): SQLitePragmaSchemaCatalog {
+        return new SQLitePragmaSchemaCatalog([
+            new SQLiteSchemaRecord(
+                'table',
+                $parent,
+                $parent,
+                700 + $variant,
+                "CREATE TABLE {$parent}(tenant_id INTEGER PRIMARY KEY, key_name TEXT)",
+                700 + $variant,
+            ),
+            new SQLiteSchemaRecord(
+                'table',
+                $child,
+                $child,
+                800 + $variant,
+                "CREATE TABLE {$child}(
+                    child_id INTEGER PRIMARY KEY,
+                    tenant_id INTEGER REFERENCES {$parent}(tenant_id),
+                    key_value TEXT
+                )",
+                800 + $variant,
+            ),
+        ]);
+    };
+
+    $tests["real upstream pragma4 6.0 table list foreign key join variant {$variant}"] = static function (TestRunner $t) use ($catalog, $parent, $child): void {
+        $catalog = $catalog();
+        $childList = $catalog->executeTableValuedPragma("pragma_table_list('{$child}')")['rows'];
+        $foreignKeys = $catalog->executeTableValuedPragma("pragma_foreign_key_list('{$child}', 'main')")['rows'];
+        $parentInfo = $catalog->executeTableValuedPragma("pragma_table_info('{$parent}', 'main')")['rows'];
+
+        $primaryKey = array_values(array_filter($parentInfo, static fn (array $row): bool => $row['pk'] !== 0))[0];
+
+        $t->same($child, $childList[0]['name']);
+        $t->same('main', $childList[0]['schema']);
+        $t->same(3, $childList[0]['ncol']);
+        $t->same($parent, $foreignKeys[0]['table']);
+        $t->same('tenant_id', $foreignKeys[0]['from']);
+        $t->same('tenant_id', $foreignKeys[0]['to']);
+        $t->same('tenant_id', $primaryKey['name']);
+        $t->same(1, $primaryKey['pk']);
+    };
+}
+
 return $tests;

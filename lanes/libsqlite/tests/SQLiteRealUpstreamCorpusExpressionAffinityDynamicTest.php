@@ -119,6 +119,49 @@ $literals = [
     13 => ['sql' => 'NULL', 'value' => null, 'rank' => 0],
 ];
 
+// Source truth: SQLite upstream test/e_expr.test e_expr-7.* result storage
+// class matrix for every supported binary operator except AND/OR short-circuit,
+// application-defined MATCH/REGEXP callbacks, and shift tokens not yet parsed
+// by the bounded SELECT SQL expression scanner.
+$operatorTypes = [
+    'cat' => '||',
+    'mul' => '*',
+    'div' => '/',
+    'mod' => '%',
+    'add' => '+',
+    'sub' => '-',
+    'bitand' => '&',
+    'bitor' => '|',
+    'less' => '<',
+    'lesseq' => '<=',
+    'more' => '>',
+    'moreeq' => '>=',
+    'eq1' => '=',
+    'eq2' => '==',
+    'ne1' => '<>',
+    'ne2' => '!=',
+    'is' => 'IS',
+    'like' => 'LIKE',
+    'glob' => 'GLOB',
+    'isnt' => 'IS NOT',
+];
+
+foreach ($operatorTypes as $operatorName => $operator) {
+    foreach ($literals as $rightIndex => $right) {
+        foreach ($literals as $leftIndex => $left) {
+            $tests["real upstream e_expr-7.{$operatorName}.{$rightIndex}.{$leftIndex} binary operator result class"] = static function (TestRunner $t) use ($firstRow, $left, $right, $operator): void {
+                $type = array_values($firstRow("SELECT typeof({$left['sql']} {$operator} {$right['sql']})"))[0];
+                if ($operator === '||') {
+                    $t->true($type === 'text' || $type === 'null', "typeof result for {$operator}");
+                    return;
+                }
+
+                $t->true($type === 'integer' || $type === 'real' || $type === 'null', "typeof result for {$operator}");
+            };
+        }
+    }
+}
+
 $compare = static function (array $left, array $right): int {
     if ($left['rank'] !== $right['rank']) {
         return $left['rank'] <=> $right['rank'];
@@ -146,6 +189,26 @@ foreach ($literals as $rightIndex => $right) {
             $t->same(0, $row[3], 'IS NOT never yields NULL');
         };
     }
+}
+
+// Source truth: SQLite upstream test/e_expr.test e_expr-9.10 through
+// e_expr-9.21. These cover built-in NOCASE COLLATE binding to the expression
+// operand rather than to an already-computed parenthesized comparison result.
+foreach ([
+    'e_expr-9.10' => ["SELECT 'abcd' = 'ABCD' COLLATE nocase", [1]],
+    'e_expr-9.11' => ["SELECT ('abcd' = 'ABCD') COLLATE nocase", [0]],
+    'e_expr-9.12' => ["SELECT 'abcd' == 'ABCD' COLLATE nocase", [1]],
+    'e_expr-9.13' => ["SELECT ('abcd' == 'ABCD') COLLATE nocase", [0]],
+    'e_expr-9.14' => ["SELECT 'abcd' IS 'ABCD' COLLATE nocase", [1]],
+    'e_expr-9.15' => ["SELECT ('abcd' IS 'ABCD') COLLATE nocase", [0]],
+    'e_expr-9.16' => ["SELECT 'abcd' != 'ABCD' COLLATE nocase", [0]],
+    'e_expr-9.17' => ["SELECT ('abcd' != 'ABCD') COLLATE nocase", [1]],
+    'e_expr-9.18' => ["SELECT 'abcd' <> 'ABCD' COLLATE nocase", [0]],
+    'e_expr-9.19' => ["SELECT ('abcd' <> 'ABCD') COLLATE nocase", [1]],
+    'e_expr-9.20' => ["SELECT 'abcd' IS NOT 'ABCD' COLLATE nocase", [0]],
+    'e_expr-9.21' => ["SELECT ('abcd' IS NOT 'ABCD') COLLATE nocase", [1]],
+] as $upstream => [$sql, $expected]) {
+    $assertSelect("real upstream {$upstream} nocase collate precedence", $sql, $expected);
 }
 
 // Source truth: SQLite upstream test/e_expr.test e_expr-10.1/e_expr-10.2

@@ -22,7 +22,7 @@ $jsonText = static function (mixed $value): mixed {
         return null;
     }
     if ($value instanceof SQLiteBlobValue) {
-        return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($value->bytes));
+        return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decodeForJsonEncoding($value->bytes));
     }
     if ($value instanceof SQLiteJsonSubtypeValue) {
         return SQLiteJsonCanonical::encodeDecodedJson(json_decode($value->json, true, 512, JSON_THROW_ON_ERROR));

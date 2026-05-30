@@ -10,28 +10,28 @@ use PortLibs\LibSqlite\SQLiteUtf16CastGlobCurrentSourceNextPlan;
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value_bytes' => $enc('plugin_cache', 2), 'text_encoding' => 2],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value_bytes' => $enc('plugin_cache ', 2), 'text_encoding' => 2],
-    ['option_id' => 3, 'option_name' => 'active_plugins', 'option_value_bytes' => $enc('plugin_blob ', 2), 'text_encoding' => 2, 'storage_class' => 'blob'],
-    ['option_id' => 4, 'option_name' => 'broken_import', 'option_value_bytes' => "p\0x", 'text_encoding' => 2],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value_bytes' => $enc('module_cache', 2), 'text_encoding' => 2],
+    ['setting_id' => 2, 'key_name' => 'landing_page', 'key_value_bytes' => $enc('module_cache ', 2), 'text_encoding' => 2],
+    ['setting_id' => 3, 'key_name' => 'feature_flags', 'key_value_bytes' => $enc('module_blob ', 2), 'text_encoding' => 2, 'storage_class' => 'blob'],
+    ['setting_id' => 4, 'key_name' => 'broken_payload', 'key_value_bytes' => "p\0x", 'text_encoding' => 2],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value_bytes' => $enc('plugin_cache', 2), 'text_encoding' => 2],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value_bytes' => $enc('plugin_cache', 2), 'text_encoding' => 2],
-    ['option_id' => 3, 'option_name' => 'active_plugins', 'option_value_bytes' => $enc('plugin_blob', 2), 'text_encoding' => 2, 'storage_class' => 'blob'],
-    ['option_id' => 5, 'option_name' => 'fresh_plugin', 'option_value_bytes' => $enc('plugin_cache_new', 3), 'text_encoding' => 3],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value_bytes' => $enc('module_cache', 2), 'text_encoding' => 2],
+    ['setting_id' => 2, 'key_name' => 'landing_page', 'key_value_bytes' => $enc('module_cache', 2), 'text_encoding' => 2],
+    ['setting_id' => 3, 'key_name' => 'feature_flags', 'key_value_bytes' => $enc('module_blob', 2), 'text_encoding' => 2, 'storage_class' => 'blob'],
+    ['setting_id' => 5, 'key_name' => 'fresh_module', 'key_value_bytes' => $enc('module_cache_new', 3), 'text_encoding' => 3],
 ];
 
-$plan = SQLiteUtf16CastGlobCurrentSourceNextPlan::optionRowValuePlan(
+$plan = SQLiteUtf16CastGlobCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
-    'plugin_*',
+    'module_*',
 );
 
 $summary = [
     'scenario' => 'application-utf16-cast-glob-current-source-next135',
-    'applicationUse' => 'Copied wp_options imports can compare UTF-16 option_value payloads with CAST(option_value AS TEXT) GLOB while preserving binary GLOB residuals, malformed-row diagnostics, and current/next source invalidation.',
+    'applicationUse' => 'Application setting imports can compare UTF-16 key_value payloads with CAST(key_value AS TEXT) GLOB while preserving binary GLOB residuals, malformed-row diagnostics, and current/next source invalidation.',
     'range' => $plan['range'],
     'currentRowids' => $plan['currentRowids'],
     'nextRowids' => $plan['nextRowids'],
@@ -42,7 +42,7 @@ $summary = [
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($summary['range'] === ['lowerInclusive' => 'plugin_', 'upperBound' => 'plugin`']);
+    assert($summary['range'] === ['lowerInclusive' => 'module_', 'upperBound' => 'module`']);
     assert($summary['currentRowids'] === [1, 2, 3]);
     assert($summary['nextRowids'] === [1, 2, 3, 5]);
     assert($summary['enteredRowids'] === [5]);

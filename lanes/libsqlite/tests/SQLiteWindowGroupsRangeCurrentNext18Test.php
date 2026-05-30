@@ -431,8 +431,10 @@ $tests['upstream corpus window groups range current next18 direct query nonnumer
     $t->same(['[]', '[]', '["cron_lock"]', '["plugin_rules"]', '["theme_mods"]', '["transient_blob"]'], array_column($rows, 'names'));
 };
 
-$tests['upstream corpus window groups range current next18 rejects framed ranking function'] = static function (TestRunner $t) use ($options): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT row_number() OVER (ORDER BY bytes GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM app_cache_entries', ['app_cache_entries' => $options]));
+$tests['upstream corpus window groups range current next18 framed ranking function ignores frame'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT row_number() OVER (ORDER BY bytes GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS row_number FROM app_cache_entries ORDER BY option_id', ['app_cache_entries' => $options]);
+
+    $t->same([1, 2, 3, 4, 5, 6], array_column($rows, 'row_number'));
 };
 
 $tests['upstream corpus window groups range current next18 rejects value range frame without order'] = static function (TestRunner $t) use ($options): void {

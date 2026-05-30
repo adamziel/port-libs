@@ -182,4 +182,38 @@ foreach ($guardCases64 as $name => $callable) {
     };
 }
 
+$tests['jsonb check current next64 supports neutral default json column option'] = static function (TestRunner $t) use ($jsonb64): void {
+    $schema = <<<'SQL'
+CREATE TABLE event_records(
+  id INTEGER PRIMARY KEY,
+  payload_jsonb BLOB,
+  CHECK(json_valid(payload_jsonb, 8)),
+  CHECK(json_extract(payload_jsonb, '$.rank') BETWEEN 1 AND 9)
+)
+SQL;
+    $plan = SQLiteJsonbCheckCurrentNextPlan::plan(
+        $schema,
+        [['id' => 1, 'payload_jsonb' => $jsonb64(['rank' => 2])]],
+        [
+            ['op' => 'UPDATE', 'rowid' => 1, 'mutations' => [
+                ['function' => 'jsonb_set', 'path' => '$.rank', 'value' => 7],
+            ]],
+            ['op' => 'INSERT', 'row' => ['id' => 2, 'payload_jsonb' => $jsonb64(['rank' => 12])]],
+        ],
+        ['jsonColumn' => 'payload_jsonb'],
+    );
+
+    $t->same('event_records', $plan['table']);
+    $t->same([true, false], array_column($plan['next'], 'ok'));
+    $t->same([1], array_column($plan['accepted'], 'rowid'));
+    $t->same(7, SQLiteJsonB::decode($plan['after'][0]['payload_jsonb']->bytes)['rank']);
+};
+
+$tests['jsonb check current next64 rejects invalid neutral json column option'] = static function (TestRunner $t) use ($schema64, $rows64, $changes64): void {
+    $t->throws(
+        InvalidArgumentException::class,
+        static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema64, $rows64, $changes64, ['jsonColumn' => 'payload-jsonb']),
+    );
+};
+
 return $tests;

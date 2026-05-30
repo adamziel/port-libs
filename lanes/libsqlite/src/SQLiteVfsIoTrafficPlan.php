@@ -7,6 +7,79 @@ namespace PortLibs\LibSqlite;
 final class SQLiteVfsIoTrafficPlan
 {
     /**
+     * @return array{script:string,scenario:string,page_size:int,row_payload_bytes:int,events:list<array{upstream:string,operation:string,rows:int,database_writes:int,reason:string}>,total_database_writes:int,quick_balance_events:int,dependencies:list<string>}
+     */
+    public static function quickBalanceInsertTraffic(string $scenario = 'io-1', int $pageSize = 1024, int $rowPayloadBytes = 230): array
+    {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite VFS quick-balance I/O scenario requires a name');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite VFS quick-balance page size must be a power of two at least 512');
+        }
+        if ($rowPayloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite VFS quick-balance row payload must be positive');
+        }
+
+        $events = [
+            [
+                'upstream' => 'io.test io-1.1',
+                'operation' => 'create table root page',
+                'rows' => 0,
+                'database_writes' => 2,
+                'reason' => 'schema_root_and_change_counter',
+            ],
+        ];
+
+        for ($row = 1; $row <= 4; $row++) {
+            $events[] = [
+                'upstream' => 'io.test io-1.2',
+                'operation' => 'fill root leaf',
+                'rows' => $row,
+                'database_writes' => 2,
+                'reason' => 'root_leaf_and_change_counter',
+            ];
+        }
+
+        $events[] = [
+            'upstream' => 'io.test io-1.3',
+            'operation' => 'split full root into two leaves',
+            'rows' => 5,
+            'database_writes' => 4,
+            'reason' => 'two_leaf_pages_root_and_change_counter',
+        ];
+
+        for ($row = 6; $row <= 8; $row++) {
+            $events[] = [
+                'upstream' => 'io.test io-1.4',
+                'operation' => 'append into existing leaves',
+                'rows' => $row,
+                'database_writes' => 2,
+                'reason' => 'leaf_page_and_change_counter',
+            ];
+        }
+
+        $events[] = [
+            'upstream' => 'io.test io-1.5',
+            'operation' => 'quick-balance adds third leaf',
+            'rows' => 9,
+            'database_writes' => 3,
+            'reason' => 'quick_balance_new_leaf_root_and_change_counter',
+        ];
+
+        return [
+            'script' => 'io.test',
+            'scenario' => $scenario,
+            'page_size' => $pageSize,
+            'row_payload_bytes' => $rowPayloadBytes,
+            'events' => $events,
+            'total_database_writes' => array_sum(array_column($events, 'database_writes')),
+            'quick_balance_events' => count(array_filter($events, static fn (array $event): bool => $event['reason'] === 'quick_balance_new_leaf_root_and_change_counter')),
+            'dependencies' => ['sqlite-upstream-io-test', 'sqlite-vfs-quick-balance-traffic', 'sqlite-pager-io-traffic'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @return array{scenario:string,page_size:int,sector_size:int,device_flags:list<string>,atomic_write:bool,journal_created:bool,journal_deferred_until_commit:bool,database_writes:int,journal_writes:int,syncs:int,sync_targets:list<string>,journal_header_nrec:int|null,cache_spill_syncs:int,commit_syncs:int,default_page_size:int,reason:string,dependencies:list<string>}
      */

@@ -6,6 +6,76 @@ use PortLibs\LibSqlite\SQLiteVfsIoTrafficPlan;
 
 $tests = [];
 
+$quickBalance = [
+    'io.test io-1.1 create table writes schema root and change counter' => [0, 2, 'schema_root_and_change_counter'],
+    'io.test io-1.2 insert row 1 writes root leaf and change counter' => [1, 2, 'root_leaf_and_change_counter'],
+    'io.test io-1.2 insert row 2 writes root leaf and change counter' => [2, 2, 'root_leaf_and_change_counter'],
+    'io.test io-1.2 insert row 3 writes root leaf and change counter' => [3, 2, 'root_leaf_and_change_counter'],
+    'io.test io-1.2 insert row 4 writes root leaf and change counter' => [4, 2, 'root_leaf_and_change_counter'],
+    'io.test io-1.3 insert row 5 splits root into two leaves' => [5, 4, 'two_leaf_pages_root_and_change_counter'],
+    'io.test io-1.4 insert row 6 writes one leaf and change counter' => [6, 2, 'leaf_page_and_change_counter'],
+    'io.test io-1.4 insert row 7 writes one leaf and change counter' => [7, 2, 'leaf_page_and_change_counter'],
+    'io.test io-1.4 insert row 8 writes one leaf and change counter' => [8, 2, 'leaf_page_and_change_counter'],
+    'io.test io-1.5 insert row 9 quick-balances a third leaf' => [9, 3, 'quick_balance_new_leaf_root_and_change_counter'],
+];
+
+foreach ($quickBalance as $name => [$rows, $writes, $reason]) {
+    $tests['real upstream corpus vfs io dynamic ' . $name] = static function (TestRunner $t) use ($rows, $writes, $reason): void {
+        $plan = SQLiteVfsIoTrafficPlan::quickBalanceInsertTraffic();
+        $matches = array_values(array_filter($plan['events'], static fn (array $event): bool => $event['rows'] === $rows));
+
+        $t->same(1, count($matches));
+        $t->same($writes, $matches[0]['database_writes']);
+        $t->same($reason, $matches[0]['reason']);
+        $t->same(true, str_starts_with($matches[0]['upstream'], 'io.test io-1.'));
+    };
+}
+
+$tests['real upstream corpus vfs io dynamic io-1 quick-balance sequence totals upstream writes'] = static function (TestRunner $t): void {
+    $plan = SQLiteVfsIoTrafficPlan::quickBalanceInsertTraffic();
+
+    $t->same('io.test', $plan['script']);
+    $t->same('io-1', $plan['scenario']);
+    $t->same(1024, $plan['page_size']);
+    $t->same(10, count($plan['events']));
+    $t->same(23, $plan['total_database_writes']);
+    $t->same(1, $plan['quick_balance_events']);
+};
+
+$tests['real upstream corpus vfs io dynamic io-1 quick-balance preserves upstream event order'] = static function (TestRunner $t): void {
+    $plan = SQLiteVfsIoTrafficPlan::quickBalanceInsertTraffic();
+
+    $t->same([
+        'io.test io-1.1',
+        'io.test io-1.2',
+        'io.test io-1.2',
+        'io.test io-1.2',
+        'io.test io-1.2',
+        'io.test io-1.3',
+        'io.test io-1.4',
+        'io.test io-1.4',
+        'io.test io-1.4',
+        'io.test io-1.5',
+    ], array_column($plan['events'], 'upstream'));
+};
+
+$tests['real upstream corpus vfs io dynamic io-1 quick-balance dependencies name pager traffic'] = static function (TestRunner $t): void {
+    $plan = SQLiteVfsIoTrafficPlan::quickBalanceInsertTraffic('io-1-custom', 2048, 240);
+
+    $t->same('io-1-custom', $plan['scenario']);
+    $t->same(2048, $plan['page_size']);
+    $t->same(240, $plan['row_payload_bytes']);
+    $t->same(true, in_array('sqlite-upstream-io-test', $plan['dependencies'], true));
+    $t->same(true, in_array('sqlite-vfs-quick-balance-traffic', $plan['dependencies'], true));
+    $t->same(true, in_array('sqlite-pager-io-traffic', $plan['dependencies'], true));
+};
+
+$tests['real upstream corpus vfs io dynamic io-1 quick-balance rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::quickBalanceInsertTraffic(''));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::quickBalanceInsertTraffic('io-1', 1000));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::quickBalanceInsertTraffic('io-1', 1024, 0));
+};
+
 $traffic = [
     'io.test io-2.2 normal insert writes two database pages' => [static fn (): mixed => SQLiteVfsIoTrafficPlan::transaction('io-2.2', 1024, 1)['database_writes'], 2],
     'io.test io-2.2 normal insert creates rollback journal' => [static fn (): mixed => SQLiteVfsIoTrafficPlan::transaction('io-2.2', 1024, 1)['journal_created'], true],

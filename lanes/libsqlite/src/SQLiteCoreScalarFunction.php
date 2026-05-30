@@ -1262,10 +1262,10 @@ final class SQLiteCoreScalarFunction
 
             return (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone);
         }
-        if (preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $text) === 1) {
+        if (preg_match('/\A-?\d{4}-\d{2}-\d{2}\z/', $text) === 1) {
             return new \DateTimeImmutable($text . ' 00:00:00', $timezone);
         }
-        if (preg_match('/\A\d{4}-\d{2}-\d{2}(?:[ T]+)\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
+        if (preg_match('/\A-?\d{4}-\d{2}-\d{2}(?:[ T]+)\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
             $normalized = self::normalizeDateTimeText($text);
 
             return (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone);
@@ -1308,7 +1308,30 @@ final class SQLiteCoreScalarFunction
 
     private static function dateTimeFromJulianDay(float|int $julianDay, \DateTimeZone $timezone): \DateTimeImmutable
     {
-        return self::dateTimeFromUnixTimestamp((((float) $julianDay) - 2440587.5) * 86400.0, $timezone);
+        $shifted = (float) $julianDay + 0.5;
+        $z = (int) floor($shifted);
+        $fraction = $shifted - (float) $z;
+        $alpha = (int) floor(((float) $z - 1867216.25) / 36524.25);
+        $a = $z + 1 + $alpha - (int) floor((float) $alpha / 4.0);
+        $b = $a + 1524;
+        $c = (int) floor(((float) $b - 122.1) / 365.25);
+        $d = (int) floor(365.25 * (float) $c);
+        $e = (int) floor((float) ($b - $d) / 30.6001);
+        $day = $b - $d - (int) floor(30.6001 * (float) $e);
+        $month = $e < 14 ? $e - 1 : $e - 13;
+        $year = $month > 2 ? $c - 4716 : $c - 4715;
+
+        $microseconds = (int) round($fraction * 86400000000.0);
+        if ($microseconds >= 86400000000) {
+            $microseconds -= 86400000000;
+            $day++;
+        }
+
+        $date = $year < 0
+            ? sprintf('-%04d-%02d-%02d 00:00:00', -$year, $month, $day)
+            : sprintf('%04d-%02d-%02d 00:00:00', $year, $month, $day);
+
+        return self::modifyBySeconds(new \DateTimeImmutable($date, $timezone), (float) $microseconds / 1000000.0);
     }
 
     private static function strftimeSql(string $format, \DateTimeImmutable $instant): ?string
