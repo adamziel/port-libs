@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 18:21:07 UTC",
-    "sourceCommit": "0adb243fdd344e0c454a6cf6a7f2958c1d5eea71",
-    "sourceCommitShort": "0adb243fdd34",
+    "generated": "2026-05-30 18:25:59 UTC",
+    "sourceCommit": "f88b66ae864859dd482d9fcf2abe8c354b92c9b1",
+    "sourceCommitShort": "f88b66ae8648",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0adb243fdd344e0c454a6cf6a7f2958c1d5eea71",
-    "dashboardCommitShort": "0adb243fdd34",
+    "dashboardCommit": "f88b66ae864859dd482d9fcf2abe8c354b92c9b1",
+    "dashboardCommitShort": "f88b66ae8648",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1189",
             "coverage": "1189 / 1589",
-            "php": "287773 pass / 0 fail",
+            "php": "298721 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted 8 compatible ready handoffs afte...",
-            "currentWork": "Published source 0adb243fdd with a +43398 honest selected PASS-line libsqlite batch, brin...",
-            "nextTarget": "Keep 10-11 visible libsqlite workers active, score fresh current-base ready markers immed...",
-            "blocker": "The active limiter is now mapped-denominator and true full-suite parity,...",
-            "commit": "0adb243"
+            "audit": "Accepted 7 compatible PASS-line handoffs...",
+            "currentWork": "Published source f88b66ae86 with a +10948 honest selected PASS-line libsqlite batch, brin...",
+            "nextTarget": "Keep 10-11 visible libsqlite workers active, continue immediate scoring of fresh current-...",
+            "blocker": "Clean PASS-line throughput remains healthy.",
+            "commit": "f88b66a"
         },
         {
             "library": "LightningCSS",
