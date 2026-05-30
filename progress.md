@@ -49,8 +49,10 @@
 ## Current Coordination Snapshot
 
 - 2026-05-30 supervisor continuation (integration sample 20:03 UTC):
-  Accepted a post-publish current-base libsqlite batch replayed on dashboard
-  head `688b5b5b`. Nineteen handoffs applied cleanly after excluding stale
+  Latest accepted libsqlite source is `76d39ae01`
+  (`libsqlite: add post publish corpus batch`). This post-publish current-base
+  batch was replayed on dashboard head `688b5b5b`; 19 handoffs applied cleanly
+  after excluding stale
   status/dashboard hunks. Accepted coverage adds bulk veryquick shard evidence
   plus real upstream B-tree numeric affinity, date fraction truncation,
   expression affinity/types2/BETWEEN, JSON tree invariants and JSON corpus,
