@@ -90,9 +90,138 @@ final class SQLiteJsonImportRollbackWalPlan
         ];
     }
 
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicParityScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 100 + $seed;
+            $featurePage = 2 + ($seed % 4);
+            $catalogPage = 10 + $seed;
+            $brokenPage = 30 + $seed;
+            $walFramesBefore = 5 + ($seed % 5);
+            $jsonbMode = $seed % 3 === 0;
+            $rollbackFrame = 0;
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 10 + 1,
+                    'key_name' => 'feature_flags_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'rollout' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => $seed % 2 === 0 ? 'yes' : 'no',
+                    'page_number' => $featurePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 10 + 2,
+                    'key_name' => 'catalog_payload_' . $seed,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['items' => ['base'], 'version' => $seed]))
+                        : json_encode(['items' => ['base'], 'version' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $catalogPage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 10 + 3,
+                    'key_name' => 'broken_payload_' . $seed,
+                    'key_value' => '{"broken":',
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+
+            $mutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'enable_feature_' . $seed,
+                    'key_name' => 'feature_flags_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'append_catalog_' . $seed,
+                    'key_name' => 'catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.items',
+                    'value' => new SQLiteJsonSubtypeValue(json_encode(['base', 'dynamic-' . $seed], JSON_THROW_ON_ERROR)),
+                    'wal_frame_index' => 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'broken_payload_' . $seed,
+                    'key_name' => 'broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 3,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($brokenPage, $catalogPage, $featurePage));
+            $walBytes = self::scenarioWalBytes($pageSize, $walFramesBefore, 0x7000 + $seed, 0x7100 + $seed);
+            $plan = self::plan($rows, $mutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_dynamic_json_import_' . $seed,
+                'savepoint' => 'dynamic_json_batch_' . $seed,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'wal_frames_before' => $walFramesBefore,
+                'rollback_frame' => $rollbackFrame,
+                'expected_truncate_bytes' => 32 + ($rollbackFrame * (24 + $pageSize)),
+                'expected_restored_pages' => [$featurePage, $catalogPage],
+                'expected_failed_statement' => 'broken_payload_' . $seed,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'plan' => $plan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
     private static function emptyWalBytes(int $pageSize): string
     {
         return pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, 0x51, 0x52, 0, 0);
+    }
+
+    private static function scenarioDatabaseBytes(int $pageSize, int $maxPage): string
+    {
+        $bytes = '';
+        for ($page = 1; $page <= $maxPage; $page++) {
+            $bytes .= str_pad("app-json-dynamic-page:{$page}:before", $pageSize, "\0");
+        }
+
+        return $bytes;
+    }
+
+    private static function scenarioWalBytes(int $pageSize, int $frames, int $saltOne, int $saltTwo): string
+    {
+        $bytes = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, $saltOne, $saltTwo, 0, 0);
+        for ($frame = 1; $frame <= $frames; $frame++) {
+            $bytes .= pack('N*', $frame + 1, 0, $saltOne, $saltTwo, 0, 0)
+                . str_pad("app-json-dynamic-wal-frame:{$frame}", $pageSize, "\0");
+        }
+
+        return $bytes;
     }
 
     /**

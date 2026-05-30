@@ -301,6 +301,136 @@ final class SQLiteIndexLifecyclePlan
     }
 
     /**
+     * @return list<array{source:string,case:int,batch:int,upstream_section:string,scenario:string,table_name:string,index_name:string,index_kind:string,mutation:string,result_rows:list<list<mixed>>,catalog_names:list<string>,expected_error:string|null,integrity:string,detail:string}>
+     */
+    public static function lateIndexExpressionAndTempCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index.test late dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'upstream' => 'index-20.1',
+                'scenario' => 'quoted index create and drop removes catalog entry',
+                'table' => 't6',
+                'index' => 't6i2',
+                'kind' => 'quoted-index-drop',
+                'mutation' => 'CREATE INDEX "t6i2" ON t6(c); DROP INDEX "t6i2"',
+                'rows' => [],
+                'catalog' => ['t6', 't6i1'],
+                'error' => null,
+                'detail' => 'quoted DROP INDEX deletes t6i2 while preserving t6 and t6i1',
+            ],
+            [
+                'upstream' => 'index-20.2',
+                'scenario' => 'quoted base index drop empties index catalog for table',
+                'table' => 't6',
+                'index' => 't6i1',
+                'kind' => 'quoted-index-drop',
+                'mutation' => 'DROP INDEX "t6i1"',
+                'rows' => [],
+                'catalog' => ['t6'],
+                'error' => null,
+                'detail' => 'quoted DROP INDEX accepts the original composite index name',
+            ],
+            [
+                'upstream' => 'index-21.1',
+                'scenario' => 'TEMP index on non-TEMP table is rejected',
+                'table' => 't6',
+                'index' => 'i21',
+                'kind' => 'temp-index-scope',
+                'mutation' => 'CREATE INDEX temp.i21 ON t6(c)',
+                'rows' => [],
+                'catalog' => ['main.t6'],
+                'error' => 'cannot create a TEMP index on non-TEMP table "t6"',
+                'detail' => 'TEMP schema index creation is scoped to TEMP tables only',
+            ],
+            [
+                'upstream' => 'index-21.2',
+                'scenario' => 'TEMP index on TEMP table orders rows descending',
+                'table' => 'temp.t6',
+                'index' => 'temp.i21',
+                'kind' => 'temp-index-scope',
+                'mutation' => 'CREATE TEMP TABLE t6(x); CREATE INDEX temp.i21 ON t6(x)',
+                'rows' => [[9], [5], [1]],
+                'catalog' => ['temp.i21', 'temp.t6'],
+                'error' => null,
+                'detail' => 'TEMP index belongs to TEMP table and supports ORDER BY x DESC',
+            ],
+            [
+                'upstream' => 'index-22.0',
+                'scenario' => 'expression indexes with IF NOT EXISTS preserve inserted rows',
+                'table' => 't1',
+                'index' => 'x1/x2',
+                'kind' => 'expression-index-if-not-exists',
+                'mutation' => 'CREATE UNIQUE INDEX IF NOT EXISTS x1 ON t1(b==0); CREATE INDEX IF NOT EXISTS x2 ON t1(a || 0) WHERE b',
+                'rows' => [['a', 1, '|'], ['a', 0, '|']],
+                'catalog' => ['t1', 'x1', 'x2'],
+                'error' => null,
+                'detail' => 'boolean and concatenation expression indexes coexist without suppressing legal rows',
+            ],
+            [
+                'upstream' => 'index-23.0',
+                'scenario' => 'unique GLOB expression index survives REINDEX',
+                'table' => 't1',
+                'index' => 't1x1',
+                'kind' => 'unique-expression-reindex',
+                'mutation' => 'CREATE UNIQUE INDEX t1x1 ON t1(a GLOB b); REINDEX',
+                'rows' => [['0.0', 1.0], ['1.0', 1.0]],
+                'catalog' => ['t1', 't1x1'],
+                'error' => null,
+                'detail' => 'GLOB expression keys remain distinct across REINDEX',
+            ],
+            [
+                'upstream' => 'index-23.1',
+                'scenario' => 'TYPEOF expression unique index ignores duplicate storage class',
+                'table' => 't1',
+                'index' => 'index_0',
+                'kind' => 'unique-expression-reindex',
+                'mutation' => 'CREATE UNIQUE INDEX index_0 ON t1(TYPEOF(a)); INSERT OR IGNORE values real and false; REINDEX',
+                'rows' => [[0.1]],
+                'catalog' => ['index_0', 't1'],
+                'error' => null,
+                'detail' => 'TYPEOF(a) unique expression key keeps only the first real row before REINDEX',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+
+            $rows = [];
+            foreach ($template['rows'] as $row) {
+                $rows[] = array_map(
+                    static fn (mixed $value): mixed => is_int($value) ? $value + (($batch - 1) * 1000) : $value,
+                    $row,
+                );
+            }
+
+            $out[] = [
+                'source' => 'index.test sections index-20.1 through index-23.1',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => $template['upstream'],
+                'scenario' => $template['scenario'],
+                'table_name' => $template['table'],
+                'index_name' => $template['index'],
+                'index_kind' => $template['kind'],
+                'mutation' => $template['mutation'],
+                'result_rows' => $rows,
+                'catalog_names' => $template['catalog'],
+                'expected_error' => $template['error'],
+                'integrity' => 'ok',
+                'detail' => $template['detail'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param array<string, array<string, mixed>> $catalog
      * @param list<string> $columns
      */

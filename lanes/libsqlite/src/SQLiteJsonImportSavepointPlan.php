@@ -431,6 +431,6 @@ final class SQLiteJsonImportSavepointPlan
 
     private static function pageImage(int $pageSize, int $pageNumber, string $label): string
     {
-        return str_pad("wp-json-page:{$pageNumber}:{$label}", $pageSize, "\0");
+        return str_pad("app-json-page:{$pageNumber}:{$label}", $pageSize, "\0");
     }
 }

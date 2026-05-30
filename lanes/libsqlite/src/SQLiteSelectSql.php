@@ -1926,12 +1926,39 @@ final class SQLiteSelectSql
             'from' => $source['from'],
             'joins' => $source['joins'],
         ]);
+        $hasExplicitAlias = trim(substr($sql, $offset)) !== '';
 
         return [
             'name' => 'join-group',
             'alias' => $alias,
-            'rows' => $rows,
+            'rows' => $hasExplicitAlias ? self::unqualifiedDerivedRows($rows) : $rows,
+            'qualifyRows' => $hasExplicitAlias,
         ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function unqualifiedDerivedRows(array $rows): array
+    {
+        $unqualified = [];
+        foreach ($rows as $row) {
+            $unqualifiedRow = [];
+            foreach ($row as $column => $value) {
+                if (!is_string($column) || $column === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL derived rows must have named columns');
+                }
+                $name = str_contains($column, '.') ? substr($column, strrpos($column, '.') + 1) : $column;
+                if (array_key_exists($name, $unqualifiedRow)) {
+                    $name = $column;
+                }
+                $unqualifiedRow[$name] = $value;
+            }
+            $unqualified[] = $unqualifiedRow;
+        }
+
+        return $unqualified;
     }
 
     /**
@@ -1998,6 +2025,8 @@ final class SQLiteSelectSql
             : self::correlatedSubqueryRows($body, $tables, $outerRow);
         if ($columns !== []) {
             $rows = self::renameDerivedTableColumns($rows, $columns, $alias);
+        } else {
+            $rows = self::unqualifiedDerivedRows($rows);
         }
 
         return [
