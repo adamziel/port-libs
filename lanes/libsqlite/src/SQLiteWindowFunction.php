@@ -824,6 +824,65 @@ final class SQLiteWindowFunction
     }
 
     /**
+     * @param iterable<int|float> $values
+     * @param iterable<mixed> $orderKeys
+     * @return list<int|float|string|null>
+     */
+    public static function customFrameStateValues(
+        string $function,
+        iterable $values,
+        iterable $orderKeys,
+        string $frameUnit,
+        string $startBoundary,
+        string $endBoundary,
+    ): array {
+        $function = strtolower($function);
+        if (!in_array($function, ['median', 'sorted_values', 'sumint'], true)) {
+            throw new \InvalidArgumentException("SQLite custom window function {$function} is not supported");
+        }
+
+        $rows = self::rows($values);
+        foreach ($rows as $value) {
+            if (!is_int($value) && !is_float($value)) {
+                throw new \InvalidArgumentException('SQLite custom numeric window values must be numeric');
+            }
+        }
+
+        $frames = self::aggregateFrameBetweenRows($rows, $orderKeys, $frameUnit, $startBoundary, $endBoundary);
+        $result = [];
+        foreach ($frames as $frame) {
+            $frameValues = array_map(static fn (int $index): int|float => $rows[$index], $frame['frame']);
+            if ($function === 'sumint') {
+                $result[] = (int) array_sum(array_map(static fn (int|float $value): int => (int) $value, $frameValues));
+                continue;
+            }
+
+            sort($frameValues);
+            if ($function === 'sorted_values') {
+                $result[] = implode(' ', array_map(static fn (int|float $value): string => (string) $value, $frameValues));
+                continue;
+            }
+
+            $count = count($frameValues);
+            if ($count === 0) {
+                $result[] = null;
+                continue;
+            }
+
+            $middle = intdiv($count, 2);
+            if ($count % 2 === 1) {
+                $result[] = $frameValues[$middle];
+                continue;
+            }
+
+            $sum = $frameValues[$middle] + $frameValues[$middle - 1];
+            $result[] = fmod((float) $sum, 2.0) === 0.0 ? (int) ($sum / 2) : $sum / 2.0;
+        }
+
+        return $result;
+    }
+
+    /**
      * @param list<mixed> $orderKeys
      * @return list<int>
      */
@@ -911,10 +970,6 @@ final class SQLiteWindowFunction
 
         if ($unit === 'RANGE') {
             if (!is_int($orderKeys[$currentIndex]) && !is_float($orderKeys[$currentIndex]) && !is_bool($orderKeys[$currentIndex])) {
-                if (in_array($start['type'], ['PRECEDING', 'FOLLOWING'], true) || in_array($end['type'], ['PRECEDING', 'FOLLOWING'], true)) {
-                    throw new \InvalidArgumentException('SQLite RANGE frame offsets require numeric ORDER BY keys');
-                }
-
                 $groups = self::peerGroups($orderKeys);
                 $groupByIndex = [];
                 foreach ($groups as $groupIndex => $group) {

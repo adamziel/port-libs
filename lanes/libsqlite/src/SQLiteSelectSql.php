@@ -139,6 +139,7 @@ final class SQLiteSelectSql
             $selectSql = self::expandNamedWindowReferences($selectSql, $namedWindows);
         }
         $select = self::selectList($selectSql, $tables);
+        $select = self::annotateWildcardColumns($select, $source['from']);
         $plan = [
             'from' => $source['from'],
             'select' => $select,
@@ -4893,23 +4894,87 @@ final class SQLiteSelectSql
      */
     private static function orderByOrdinalColumn(array $select, int $ordinal): string
     {
-        $index = $ordinal - 1;
-        if (!isset($select[$index])) {
+        if ($ordinal < 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY ordinal is out of range');
         }
 
-        $term = $select[$index];
-        if (($term['type'] ?? null) === 'wildcard') {
-            throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal is not supported');
-        }
-        if (isset($term['alias']) && is_string($term['alias']) && $term['alias'] !== '') {
-            return $term['alias'];
-        }
-        if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name']) && $term['name'] !== '') {
-            return $term['name'];
+        $remaining = $ordinal;
+        foreach ($select as $term) {
+            if (($term['type'] ?? null) === 'wildcard') {
+                $columns = $term['columns'] ?? null;
+                if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal needs source columns');
+                }
+                if ($remaining <= count($columns)) {
+                    $column = $columns[$remaining - 1];
+                    if (!is_string($column) || $column === '') {
+                        throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal column is malformed');
+                    }
+
+                    return $column;
+                }
+                $remaining -= count($columns);
+                continue;
+            }
+
+            if ($remaining !== 1) {
+                $remaining--;
+                continue;
+            }
+
+            if (isset($term['alias']) && is_string($term['alias']) && $term['alias'] !== '') {
+                return $term['alias'];
+            }
+            if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name']) && $term['name'] !== '') {
+                return $term['name'];
+            }
+
+            return 'expr' . $ordinal;
         }
 
-        return 'expr' . $ordinal;
+        throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY ordinal is out of range');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function annotateWildcardColumns(array $select, array $rows): array
+    {
+        if ($rows === []) {
+            return $select;
+        }
+
+        $sourceColumns = array_keys($rows[0]);
+        foreach ($select as $index => $term) {
+            if (($term['type'] ?? null) !== 'wildcard') {
+                continue;
+            }
+
+            $prefix = isset($term['prefix']) && is_string($term['prefix']) && $term['prefix'] !== ''
+                ? $term['prefix'] . '.'
+                : null;
+            $columns = [];
+            foreach ($sourceColumns as $column) {
+                if (!is_string($column) || $column === '') {
+                    continue;
+                }
+                if ($prefix !== null) {
+                    if (!str_starts_with($column, $prefix)) {
+                        continue;
+                    }
+                    $columns[] = substr($column, strlen($prefix));
+                    continue;
+                }
+                $columns[] = $column;
+            }
+            if ($columns !== []) {
+                $select[$index]['columns'] = $columns;
+            }
+        }
+
+        return $select;
     }
 
     /**

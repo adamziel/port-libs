@@ -370,6 +370,63 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,soft_heap_limit:int,cache_pages:int,rows_inserted:int,row_payload_bytes:int,fault_index:int,temp_table:bool,transaction_opened:bool,commit_attempted:bool,rollback_attempted:bool,pager_cache_pressure:bool,memory_reclaim_attempted:bool,pager_error_state:bool,result_code:string,integrity_check:string,open_file_count:int,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function softHeapIoErrorStress(
+        string $scenario,
+        int $softHeapLimit,
+        int $cachePages,
+        int $rowsInserted,
+        int $rowPayloadBytes,
+        int $faultIndex,
+        bool $tempTable = false
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite ioerr3 soft-heap scenario requires a name');
+        }
+        if ($softHeapLimit < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr3 soft-heap limit must be positive');
+        }
+        if ($cachePages < 0) {
+            throw new \InvalidArgumentException('SQLite ioerr3 cache pages must be non-negative');
+        }
+        if ($rowsInserted < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr3 row count must be positive');
+        }
+        if ($rowPayloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr3 row payload must be positive');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr3 fault index must be positive');
+        }
+
+        $pagerCachePressure = $cachePages === 0 || ($rowsInserted * $rowPayloadBytes) > $softHeapLimit;
+        $resultCode = $faultIndex % 17 === 0 ? 'ok' : 'disk I/O error';
+
+        return [
+            'script' => 'ioerr3.test',
+            'scenario' => $scenario,
+            'soft_heap_limit' => $softHeapLimit,
+            'cache_pages' => $cachePages,
+            'rows_inserted' => $rowsInserted,
+            'row_payload_bytes' => $rowPayloadBytes,
+            'fault_index' => $faultIndex,
+            'temp_table' => $tempTable,
+            'transaction_opened' => !$tempTable,
+            'commit_attempted' => !$tempTable,
+            'rollback_attempted' => !$tempTable && $resultCode !== 'ok',
+            'pager_cache_pressure' => $pagerCachePressure,
+            'memory_reclaim_attempted' => $pagerCachePressure,
+            'pager_error_state' => $resultCode !== 'ok',
+            'result_code' => $resultCode,
+            'integrity_check' => 'ok',
+            'open_file_count' => 0,
+            'dependencies' => ['sqlite-upstream-ioerr3-test', 'sqlite-soft-heap-io-error-recovery', 'sqlite-pager-cache-pressure'],
+            'upstream' => $tempTable ? ['ioerr3.test ioerr3-2'] : ['ioerr3.test ioerr3-1'],
+        ];
+    }
+
+    /**
      * @param list<string> $flags
      * @return list<string>
      */

@@ -70,6 +70,79 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{id:int|string,key:string}> $parents
+     * @param list<array{id:int|string,parent_key:string}> $children
+     * @return array<string,mixed>
+     */
+    public static function nocaseDeleteTriggerRepair(array $parents, array $children, string $deleteAction = 'no action'): array
+    {
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $deleteAction = strtolower(trim($deleteAction));
+        if (!in_array($deleteAction, ['no action', 'restrict'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-12.2 delete action is unsupported');
+        }
+
+        $originalParents = $parents;
+        $deleted = [];
+        foreach ($parents as $index => $parent) {
+            self::identifier((string) ($parent['key'] ?? ''), 'parent key');
+            $deleted[] = $parent;
+            unset($parents[$index]);
+        }
+        $parents = array_values($parents);
+
+        $referenced = [];
+        foreach ($deleted as $old) {
+            $key = (string) $old['key'];
+            foreach ($children as $child) {
+                if (strcasecmp($key, (string) ($child['parent_key'] ?? '')) === 0) {
+                    $referenced[] = $old;
+                    break;
+                }
+            }
+        }
+
+        if ($deleteAction === 'restrict' && $referenced !== []) {
+            return [
+                'source' => 'fkey2.test fkey2-12.2.1..12.2.4',
+                'operation' => 'nocase-parent-delete-trigger-repair',
+                'status' => 'constraint-failed',
+                'delete_action' => $deleteAction,
+                'trigger_reinserted_keys' => [],
+                'parent_keys' => array_values(array_column($originalParents, 'key')),
+                'child_keys' => array_values(array_column($children, 'parent_key')),
+                'violation_count' => 0,
+                'restrict_failed_before_trigger_repair' => true,
+                'dependencies' => [
+                    'sqlite-fkey2-restrict-is-immediate-before-after-trigger-repair',
+                    'sqlite-fkey2-nocase-parent-key-match',
+                ],
+            ];
+        }
+
+        foreach ($referenced as $row) {
+            $parents[] = $row;
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-12.2.1..12.2.4',
+            'operation' => 'nocase-parent-delete-trigger-repair',
+            'status' => 'commit-ok',
+            'delete_action' => $deleteAction,
+            'trigger_reinserted_keys' => array_values(array_column($referenced, 'key')),
+            'parent_keys' => array_values(array_column(self::sortRows($parents), 'key')),
+            'child_keys' => array_values(array_column($children, 'parent_key')),
+            'violation_count' => self::nocaseViolationCount($parents, $children),
+            'restrict_failed_before_trigger_repair' => false,
+            'dependencies' => [
+                'sqlite-fkey2-after-delete-trigger-can-repair-no-action-fk',
+                'sqlite-fkey2-nocase-parent-key-match',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param array{event:string,match_column:string,match_value:mixed,delete_column:string,delete_value:mixed,name?:string} $trigger
      * @return array<string,mixed>
@@ -1217,6 +1290,23 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                     'parent_id' => $parent,
                     'phase' => 'deferred-commit',
                 ];
+            }
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param list<array{id:int|string,key:string}> $parents
+     * @param list<array{id:int|string,parent_key:string}> $children
+     */
+    private static function nocaseViolationCount(array $parents, array $children): int
+    {
+        $keys = array_map(static fn (array $row): string => strtolower((string) $row['key']), $parents);
+        $violations = 0;
+        foreach ($children as $child) {
+            if (!in_array(strtolower((string) ($child['parent_key'] ?? '')), $keys, true)) {
+                ++$violations;
             }
         }
 

@@ -175,8 +175,8 @@ $tests['real upstream corpus window functions fractional range dynamic cites ups
     ]);
 };
 
-$tests['real upstream corpus window functions fractional range dynamic rejects null range order key'] = static function (TestRunner $t) use ($labels): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::aggregateFrameBetweenValues('sum', $labels, [1, 2, null], 'RANGE', 'CURRENT ROW', 'CURRENT ROW'));
+$tests['real upstream corpus window functions fractional range dynamic null range order key falls back to peers'] = static function (TestRunner $t) use ($labels): void {
+    $t->same(['E', 'D', 'C'], SQLiteWindowFunction::aggregateFrameBetweenValues('group_concat', array_slice($labels, 0, 3), [1, 2, null], 'RANGE', 'CURRENT ROW', 'CURRENT ROW'));
 };
 
 $tests['real upstream corpus window functions fractional range dynamic rejects malformed fractional boundary'] = static function (TestRunner $t) use ($labels, $descendingRangeKeys): void {

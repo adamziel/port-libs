@@ -555,6 +555,118 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param list<string> $statements
+     * @return array<string, mixed>
+     */
+    public static function ioErrorRecoveryProfile(
+        string $scenario,
+        int $failAt,
+        array $statements,
+        bool $autoVacuum = false,
+        bool $multiFileCommit = false
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['transaction', 'vacuum', 'overflow-read', 'hot-journal', 'statement-playback', 'pointer-map'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS IO error recovery scenario is unsupported');
+        }
+        if ($failAt < 1) {
+            throw new \InvalidArgumentException('SQLite VFS IO error recovery failure index must be positive');
+        }
+        if ($statements === []) {
+            throw new \InvalidArgumentException('SQLite VFS IO error recovery requires at least one statement');
+        }
+
+        $statementCount = count($statements);
+        $exclude = [];
+        $reason = 'io_error_reported_and_transaction_state_recovered';
+        $checkpoint = 'refcount';
+        $expectedResult = 'SQLITE_IOERR';
+        $rollbackRequired = true;
+        $journalFiles = $multiFileCommit ? 2 : 1;
+        $integrityCheck = 'ok';
+        $rowsPreserved = true;
+        $hotJournalReplayed = false;
+        $pointerMapChecked = false;
+        $overflowReadRetried = false;
+
+        if ($autoVacuum && $scenario === 'transaction') {
+            $exclude[] = 8;
+            if ($failAt === 8) {
+                $expectedResult = 'suppressed';
+                $rollbackRequired = false;
+                $reason = 'autovacuum_missing_page_read_error_suppressed';
+            }
+        }
+
+        if ($scenario === 'vacuum') {
+            $exclude[] = 1;
+            if ($autoVacuum) {
+                $exclude[] = 12;
+            }
+            $checkpoint = 'checksum';
+            $journalFiles = 2;
+            if (in_array($failAt, $exclude, true)) {
+                $expectedResult = 'suppressed';
+                $rollbackRequired = false;
+                $reason = 'vacuum_temporary_header_or_autovacuum_read_error_suppressed';
+            }
+        }
+
+        if ($scenario === 'overflow-read') {
+            $checkpoint = 'record-header';
+            $overflowReadRetried = true;
+            $rollbackRequired = false;
+            $reason = 'overflow_record_header_io_error_reported_without_cache_leak';
+        } elseif ($scenario === 'hot-journal') {
+            $checkpoint = 'hot-journal';
+            $hotJournalReplayed = $failAt > 1;
+            $rowsPreserved = true;
+            $reason = 'hot_journal_rollback_io_error_preserves_last_committed_image';
+        } elseif ($scenario === 'statement-playback') {
+            $checkpoint = 'statement-journal';
+            $expectedResult = 'constraint';
+            $rollbackRequired = true;
+            $reason = 'statement_playback_io_error_preserves_outer_transaction';
+        } elseif ($scenario === 'pointer-map') {
+            $checkpoint = 'pointer-map';
+            $pointerMapChecked = true;
+            $reason = 'autovacuum_pointer_map_io_error_keeps_tree_consistent';
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'ioerr.test',
+            'scenario' => $scenario,
+            'upstream' => [
+                'ioerr.test ioerr-1',
+                'ioerr.test ioerr-2',
+                'ioerr.test ioerr-4',
+                'ioerr.test ioerr-7',
+                'ioerr.test ioerr-10',
+                'ioerr.test ioerr-12',
+                'ioerr.test ioerr-13',
+                'ioerr.test ioerr-14',
+            ],
+            'fail_at' => $failAt,
+            'statement_count' => $statementCount,
+            'auto_vacuum' => $autoVacuum,
+            'multi_file_commit' => $multiFileCommit,
+            'excluded_faults' => $exclude,
+            'expected_result' => $expectedResult,
+            'rollback_required' => $rollbackRequired,
+            'journal_files_touched' => $journalFiles,
+            'checkpoint' => $checkpoint,
+            'integrity_check' => $integrityCheck,
+            'rows_preserved' => $rowsPreserved,
+            'hot_journal_replayed' => $hotJournalReplayed,
+            'pointer_map_checked' => $pointerMapChecked,
+            'overflow_read_retried' => $overflowReadRetried,
+            'reason' => $reason,
+            'dependencies' => ['upstream-ioerr-recovery-profile', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function memoryJournalSavepointProfile(

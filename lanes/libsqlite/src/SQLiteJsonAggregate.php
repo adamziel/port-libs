@@ -672,6 +672,9 @@ final class SQLiteJsonAggregate
             if (!is_array($pair) || !array_key_exists(0, $pair) || !array_key_exists(1, $pair)) {
                 throw new \InvalidArgumentException('json_group_object() aggregate rows must be [label, value] pairs');
             }
+            if ($pair[0] === null) {
+                continue;
+            }
             $members[] = SQLiteJsonConstructor::jsonObjectLabel($pair[0]) . ':' . SQLiteJsonConstructor::jsonValue($pair[1]);
         }
 
@@ -688,6 +691,9 @@ final class SQLiteJsonAggregate
         foreach ($pairs as $pair) {
             if (!is_array($pair) || !array_key_exists(0, $pair) || !array_key_exists(1, $pair)) {
                 throw new \InvalidArgumentException('json_group_object() DISTINCT rows must be [label, value] pairs');
+            }
+            if ($pair[0] === null) {
+                continue;
             }
             $key = self::distinctObjectKey($pair[0], $pair[1]);
             if (isset($seen[$key])) {
