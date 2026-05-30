@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 11:13 UTC):
+  Latest libsqlite source is integrated as `a154a7799`
+  (`libsqlite: consolidate current-source helpers`). The batch accepts six
+  current-base handoffs from published head `056a2e85`: suite-evidence dynamic
+  helper cleanup, WAL checkpoint after-current stage consolidation, STAT4
+  prepared-handoff canonical fence evidence, release-runner evidence renames,
+  upstream veryquick shard next373 evidence, and window RANGE/GROUPS next18
+  assertions. Verification passed PHP lint for changed PHP files, focused
+  helper gate `7 files / 2570 assertions / 0 failures`, full libsqlite lane
+  `2 test files / 758987 assertions / 0 failures / 188317 PASS lines`, `git
+  diff --check -- lanes/libsqlite`, and source guards confirming no WordPress
+  text and no WordPress/WP-named class, interface, trait, function, or method
+  declarations remain under `lanes/libsqlite/src` PHP. Public pass/fail should
+  move to `188317 pass / 0 fail`; mapped coverage remains `830 / 1589` until a
+  fresh denominator-mapped SQLite suite row is accepted. The visible tmux pool
+  remains at 11 current-base libsqlite Codex worker windows with no long
+  sleepers in the latest sample.
+
 - 2026-05-30 supervisor continuation (integration sample 11:10 UTC):
   Latest libsqlite source is integrated as `bb1716560`
   (`libsqlite: remove WordPress-named source APIs`). The cleanup renames the
