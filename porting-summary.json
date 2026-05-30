@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 20:15:35 UTC",
-    "sourceCommit": "45227d403ee393f7d077fbe52e24bd5890540fbe",
-    "sourceCommitShort": "45227d403ee3",
+    "generated": "2026-05-30 20:27:15 UTC",
+    "sourceCommit": "88bec31c07e914ffe9e2dbbe3e70bc41dbe70cc1",
+    "sourceCommitShort": "88bec31c07e9",
     "sourceBranch": "main",
-    "dashboardCommit": "45227d403ee393f7d077fbe52e24bd5890540fbe",
-    "dashboardCommitShort": "45227d403ee3",
+    "dashboardCommit": "88bec31c07e914ffe9e2dbbe3e70bc41dbe70cc1",
+    "dashboardCommitShort": "88bec31c07e9",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1472",
             "coverage": "1472 / 1589",
-            "php": "573146 pass / 0 fail",
+            "php": "612306 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted 14 current-base handoffs after r...",
-            "currentWork": "Published source 45227d403 with a +30617 honest selected PASS-line libsqlite batch, bring...",
-            "nextTarget": "Archive consumed markers and the duplicate rejection, start the next current-base scratch...",
+            "audit": "Accepted 28 current-base handoffs after r...",
+            "currentWork": "Published source 88bec31c with a fourth rapid current-base batch and +39160 honest select...",
+            "nextTarget": "Publish this fourth rapid sweep, archive consumed markers, inspect the side SQLite PDO po...",
             "blocker": "Libsqlite is not complete: remaining blockers are the last 117 mapped row...",
-            "commit": "45227d4"
+            "commit": "88bec31"
         },
         {
             "library": "LightningCSS",

@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 20:26 UTC):
+  Latest accepted libsqlite source is `88bec31c`
+  (`libsqlite: add fourth rapid current corpus sweep`). This fourth rapid
+  current-base batch was replayed on dashboard head `a5d711ea`; 28 handoffs
+  applied cleanly after excluding stale status/dashboard hunks. Accepted
+  coverage adds bulk runner/suite/veryquick evidence plus real upstream B-tree
+  wide-column/index expansion, VFS IO error/ioerr4/incremental-vacuum behavior,
+  date strftime extended behavior, expression NULL logic, JSON502 escaped path
+  behavior, LIMIT corpus behavior, pager/WAL expansion and extended behavior,
+  PRAGMA schema6 rowid behavior, SELECT1 repeated wildcard behavior,
+  trigger/FK check/fkey7 behavior, UPSERT/RETURNING composite/select-input
+  behavior, and window9 collation/filter coverage. Focused green verification
+  passed `31 files / 405605 assertions / 0 failures / 75463 PASS lines`; the
+  accepted-base green comparison over existing selected tests passed `13 files
+  / 203749 assertions / 0 failures / 36303 PASS lines`, so the honest selected
+  PASS-line delta is `+39160`. Public libsqlite should move to `612306 pass /
+  0 fail`; mapped coverage remains `1472 / 1589`. Gates also passed PHP lint
+  for 31 changed/new PHP files, `git diff --check`, no new domain-shaped source
+  additions, and `SQLiteNoDomainSpecificApiTest`. `SQLiteHeaderTest` remains an
+  existing-red broad file at 9 failures both before and after; it was sampled
+  for no-worse behavior but not counted in the zero-fail selected gate.
+
 - 2026-05-30 supervisor continuation (integration sample 20:14 UTC):
   Latest accepted libsqlite source is `45227d403`
   (`libsqlite: add third rapid current corpus sweep`). This third rapid
