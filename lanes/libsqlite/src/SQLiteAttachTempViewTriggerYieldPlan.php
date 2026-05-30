@@ -244,7 +244,7 @@ final class SQLiteAttachTempViewTriggerYieldPlan
      */
     private static function operation(SQLiteAttachedSchemaCatalog $catalog, string $statement, string $triggerSchema, bool $tempTrigger, array $newRow, ?array $oldRow): array
     {
-        if (preg_match('/^insert\s+into\s+(?:(?<schema>["`\[]?[\w-]+["`\]]?)\s*\.\s*)?(?<table>["`\[]?[\w-]+["`\]]?)\s*\((?<columns>[^)]*)\)\s*values\s*\((?<values>.*)\)$/is', $statement, $matches)) {
+        if (preg_match('/\Ainsert\s+into\s+(?:(?<schema>["`\[]?[\w-]+["`\]]?)\s*\.\s*)?(?<table>["`\[]?[\w-]+["`\]]?)\s*\((?<columns>[^)]*)\)\s*values\s*\((?<values>.*)\)$/is', $statement, $matches)) {
             $target = self::resolveBodyTable($catalog, self::nameParts($matches), $triggerSchema, $tempTrigger);
             $columns = self::identifierList($matches['columns']);
             $values = self::splitCommaList($matches['values']);

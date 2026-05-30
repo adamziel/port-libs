@@ -218,7 +218,7 @@ final class SQLitePDO extends \PDO
                 $this->clearError();
                 return ['rows' => [], 'changes' => 0];
             }
-            if (preg_match('/^insert\b/i', $sql) === 1) {
+            if (SQLiteInsertValuesSql::startsWithInsertKeyword($sql)) {
                 $result = ['rows' => [], 'changes' => $this->insertValues($sql, $parameters)];
                 $this->clearError();
 
@@ -334,19 +334,13 @@ final class SQLitePDO extends \PDO
     /** @param array<int|string,mixed> $parameters */
     private function insertValues(string $sql, array $parameters): int
     {
-        if (preg_match('/^insert\s+into\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s*\(([^)]*)\))?\s+values\s*(.+)$/is', $sql, $match) !== 1) {
-            throw new \PDOException('SQLitePDO INSERT support requires INSERT INTO table [(columns)] VALUES (...)');
-        }
-        $table = $match[1];
+        $statement = SQLiteInsertValuesSql::parse($sql);
+        $table = $statement['target'];
         $this->assertTable($table);
-        $columns = isset($match[2]) && trim($match[2]) !== ''
-            ? array_map('trim', explode(',', $match[2]))
-            : $this->columns[$table];
-        $tuples = $this->valueTuples($match[3]);
+        $columns = $statement['columns'] ?? $this->columns[$table];
         $changes = 0;
         $parameterCursor = $parameters;
-        foreach ($tuples as $tuple) {
-            $values = $this->splitTopLevel($tuple, ',');
+        foreach ($statement['tuples'] as $values) {
             if (count($values) !== count($columns)) {
                 throw new \PDOException('SQLitePDO INSERT column count does not match value count');
             }
@@ -469,21 +463,6 @@ final class SQLitePDO extends \PDO
         }
 
         throw new \PDOException("SQLitePDO unsupported scalar expression: {$expression}");
-    }
-
-    /** @return list<string> */
-    private function valueTuples(string $sql): array
-    {
-        $tuples = [];
-        foreach ($this->splitTopLevel($sql, ',') as $part) {
-            $part = trim($part);
-            if (!str_starts_with($part, '(') || !str_ends_with($part, ')')) {
-                throw new \PDOException('SQLitePDO INSERT VALUES tuple is malformed');
-            }
-            $tuples[] = substr($part, 1, -1);
-        }
-
-        return $tuples;
     }
 
     /** @return list<string> */

@@ -70,7 +70,7 @@ final class SQLiteInsertSelectSql
     public static function plan(string $sql, array $tables, array $parameters = []): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
-        if (preg_match('/^insert\s+(?:or\s+(abort|fail|ignore|rollback|replace)\s+)?into\s+/i', $sql, $match) !== 1) {
+        if (preg_match('/\Ainsert\s+(?:or\s+(abort|fail|ignore|rollback|replace)\s+)?into\s+/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite INSERT SELECT SQL must start with INSERT INTO');
         }
         $conflictAction = strtolower(($match[1] ?? '') === '' ? 'abort' : $match[1]);

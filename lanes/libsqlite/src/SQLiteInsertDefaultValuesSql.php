@@ -31,7 +31,7 @@ final class SQLiteInsertDefaultValuesSql
     public static function plan(string $sql, array $tables, array $schemas, ?string $currentTimestamp = null): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
-        if (preg_match('/^insert\s+(?:or\s+(abort|fail|ignore|rollback|replace)\s+)?into\s+([A-Za-z_][A-Za-z0-9_]*)\s+default\s+values$/i', $sql, $match) !== 1) {
+        if (preg_match('/\Ainsert\s+(?:or\s+(abort|fail|ignore|rollback|replace)\s+)?into\s+([A-Za-z_][A-Za-z0-9_]*)\s+default\s+values$/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite INSERT DEFAULT VALUES SQL is malformed');
         }
 

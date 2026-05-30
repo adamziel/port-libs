@@ -90,6 +90,31 @@ return [
         $t->same('kept', $pdo->query('SELECT body FROM logs')->fetchColumn());
     },
 
+    'SQLitePDO delegates INSERT syntax errors through PDO exceptions' => static function (TestRunner $t): void {
+        $pdo = new SQLitePDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE logs (id INTEGER PRIMARY KEY, body TEXT)');
+        $t->same(1, $pdo->exec("INSERT INTO logs (body) VALUES ('kept')"));
+
+        foreach ([
+            'INSERT logs (body) VALUES (\'missing into\')',
+            'INSERT INTO logs (body) SELECT \'unsupported source\'',
+            'INSERT INTO logs (body) VALUES',
+            'INSERT INTO logs (body) VALUES (\'trailing comma\',)',
+        ] as $sql) {
+            try {
+                $pdo->exec($sql);
+            } catch (PDOException $exception) {
+                $t->same('HY000', $pdo->errorCode());
+                $t->true(!str_contains($exception->getMessage(), 'INSERT support requires INSERT INTO table [(columns)] VALUES (...)'));
+                continue;
+            }
+
+            throw new RuntimeException('Expected PDOException for invalid INSERT SQL');
+        }
+
+        $t->same(['kept'], $pdo->query('SELECT body FROM logs ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
+    },
+
     'SQLitePDO reports PDO exceptions for invalid DSNs unsupported APIs and transaction misuse' => static function (TestRunner $t): void {
         $t->throws(PDOException::class, static fn () => new SQLitePDO('mysql:dbname=test'));
 
