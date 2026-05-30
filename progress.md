@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 11:10 UTC):
+  Latest libsqlite source is integrated as `bb1716560`
+  (`libsqlite: remove WordPress-named source APIs`). The cleanup renames the
+  production `SQLiteWordPress*` API surface to generic `SQLite*`,
+  `SQLiteOptionRow*`, and `SQLiteOptionRows*` names; removes
+  `WordPress`/`wordpress`/`WP`/`wp_` from libsqlite PHP class, function,
+  interface, trait, and method declarations; and renames 3001 libsqlite example
+  files from `wordpress-*` to `application-*` so genericized test/example
+  references resolve. Dashboard schema keys remain compatible with the existing
+  generator. Verification passed PHP lint for changed PHP files, `git
+  diff --check -- lanes/libsqlite`, JSON validation, focused renamed-family gate
+  `6 files / 10181 assertions / 0 failures`, repaired rowvalue/vacuum
+  regression gate `68 files / 1118 assertions / 0 failures`, full libsqlite
+  lane `3193 selected files / 758972 assertions / 0 failures / 188310 PASS
+  lines`, and source guards confirming no WordPress text remains in
+  `lanes/libsqlite/src` PHP. Public pass/fail remains `188310 pass / 0 fail`;
+  mapped coverage remains `830 / 1589`. Remaining explicitly-noted cleanup risk:
+  source fixture strings such as `wp_options`/`wp_sitemeta` still exist as data,
+  not as class or method names.
+
 - 2026-05-30 supervisor continuation (integration sample 10:20 UTC):
   Latest libsqlite source is integrated as `da18beb61`
   (`libsqlite: tighten stat4 and window root gates`). The batch accepts two
