@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:18 UTC):
+  Latest accepted libsqlite source is `2c0ba1564c`
+  (`libsqlite: add high-yield corpus throughput batch`). This batch accepts 11
+  compatible handoffs on top of `a9928e604`, covering e_expr concatenation,
+  date/affinity modifiers, WAL checksum pager behavior, trigger/FK dynamic and
+  savepoint coverage, PRAGMA schema invalidation, UPSERT/RETURNING correlated,
+  schema-variant, and statement coverage, JSON1/JSONB no-edit mutation behavior,
+  and expression-affinity follow-up behavior. Focused verification passed `14
+  files / 21644 assertions / 0 failures / 14916 PASS lines`; the accepted-base
+  comparison over existing selected files passed `4 files / 4438 assertions / 0
+  failures / 4438 PASS lines`, so the honest selected PASS-line delta is
+  `+10478`. Public libsqlite should move to `244375 pass / 0 fail`; mapped
+  coverage remains `1189 / 1589`. The worker prompt now has a hard handoff
+  floor for real-corpus/bulk slices so new workers should produce high-yield
+  batches or blocker notes instead of low-yield convenience patches.
+
 - 2026-05-30 supervisor continuation (integration sample 18:07 UTC):
   Latest accepted libsqlite source is `70e9bfd9c`
   (`libsqlite: add date expr window corpus batch`). This batch accepts five
