@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 07:17:56 UTC",
-    "sourceCommit": "83fdf2feb16ac7d24203e1b464691d9c8f2acf53",
-    "sourceCommitShort": "83fdf2feb16a",
+    "generated": "2026-05-30 08:06:16 UTC",
+    "sourceCommit": "31035fe8bc8f9ba2c2bcdabcb21859e4b5dae65a",
+    "sourceCommitShort": "31035fe8bc8f",
     "sourceBranch": "main",
-    "dashboardCommit": "83fdf2feb16ac7d24203e1b464691d9c8f2acf53",
-    "dashboardCommitShort": "83fdf2feb16a",
+    "dashboardCommit": "31035fe8bc8f9ba2c2bcdabcb21859e4b5dae65a",
+    "dashboardCommitShort": "31035fe8bc8f",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "830",
             "coverage": "830 / 1589",
-            "php": "188079 pass / 0 fail",
+            "php": "188083 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "blocker burn-down and numbered suffix consolidation",
-            "audit": "Accepted source commit 83fdf2feb16ac7d242...",
-            "currentWork": "Committed libsqlite source 83fdf2feb clearing suite-evidence current-next and window GROU...",
-            "nextTarget": "Consume the accepted suite-evidence/windowrange handoffs, push source/status/dashboard co...",
-            "blocker": "The prior root blockers for suite-evidence current-next78-103 statuses/de...",
-            "commit": "83fdf2f"
+            "phase": "blocker burn-down, behavior fixes, and numbered suffix...",
+            "audit": "Accepted source commit 31035fe8bc8f9ba2c2...",
+            "currentWork": "Committed libsqlite source 31035fe8 integrating pager/WAL behavior fixes, PRAGMA next153...",
+            "nextTarget": "Push source/status/dashboard commits, move accepted handoffs to consumed, keep 10-11 libs...",
+            "blocker": "Root/no-arg and full libsqlite lane gates pass under explicit 1024M PHP m...",
+            "commit": "31035fe"
         },
         {
             "library": "LightningCSS",

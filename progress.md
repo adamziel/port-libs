@@ -3623,3 +3623,29 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Generated `porting.html` / `porting-summary.json` remain uncommitted because
   the gate is not clean. Continue with focused fixes and rerun the root gate
   only after each verified batch.
+
+## Supervisor Integration 2026-05-30T08:05Z Libsqlite Five-Handoff Batch
+
+- Integrated five non-overlapping libsqlite handoffs as source commit
+  `31035fe8b libsqlite: integrate pager wal pragma consolidation batch`.
+- Behavior fixes: pager master-journal reader-cache parsing now accepts
+  NUL-terminated and mixed newline/NUL master member lists; WAL next153 page
+  validation now rejects invalid page numbers before hot-journal byte work.
+- Consolidation/API cleanup: PRAGMA next153 uses descriptive production
+  entry points; JSON table and STAT4 private helper duplicates were
+  consolidated without changing observable keys/dependencies/opcodes.
+- Focused/family verification passed: PHP lint for 9 changed PHP files,
+  direct focused gate 3 files / 230 assertions / 0 failures, pager family
+  149 files / 9,993 assertions / 0 failures, WAL family 2 files / 11,759
+  assertions / 0 failures, PRAGMA family 170 files / 14,073 assertions /
+  0 failures, JSON family 305 files / 20,306 assertions / 0 failures, STAT4
+  family 133 files / 7,561 assertions / 0 failures, PRAGMA and WAL example
+  self-tests, and `git diff --check`.
+- The default-memory root gate hit PHP's 128M memory limit after 127,604 PASS
+  lines, not an assertion failure. Rerunning the same commit with
+  `memory_limit=1024M` passed the broad gates: root/no-arg 2 files / 782,572
+  assertions / 0 failures, and full libsqlite lane 2 files / 758,104
+  assertions / 0 failures / 188,083 PASS lines.
+- Worker pool remains active at 10-11 visible libsqlite panes, no long
+  sleepers observed, and disk remains healthy at roughly 402G free on
+  `/home/claude`.
