@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:32 UTC):
+  Latest accepted libsqlite source is `cc52cdf6c0`
+  (`libsqlite: add current corpus throughput batch`). This batch accepts 12
+  compatible current-base handoffs on top of `2b09fd94b`, covering select4
+  compound dynamic corpus behavior, index7 WITHOUT ROWID partial-index
+  behavior, JSON103 aggregate behavior, JSONB remove behavior, trigger/FK
+  dynamic action coverage, PRAGMA schema invalidation and schema-batch
+  coverage, date floor/ceiling behavior, e_expr NULL/BETWEEN bulk behavior,
+  expression-affinity matrix coverage, upsert5 conflict-matrix coverage, and
+  VFS/WAL/SHM fault profile assertions. Focused verification passed `13 files /
+  79148 assertions / 0 failures / 18183 PASS lines`; the accepted-base
+  comparison over existing selected files passed `3 files / 13511 assertions /
+  0 failures / 665 PASS lines`, so the honest selected PASS-line delta is
+  `+17518`. Public libsqlite should move to `316239 pass / 0 fail`; mapped
+  coverage remains `1189 / 1589`. The worker pool is currently 10-11 visible
+  libsqlite Codex windows with no long sleepers; the practical path to
+  `10000+` more PASS lines per hour is to keep publishing these current-base
+  batches every 10-15 minutes, reject overlapping crumbs, and split remaining
+  older WordPress-shaped libsqlite fixture cleanup into a separate verified
+  source-neutral lane so it does not interrupt high-yield corpus integration.
+
 - 2026-05-30 supervisor continuation (integration sample 18:26 UTC):
   Latest accepted libsqlite source is `f88b66ae86`
   (`libsqlite: add corpus throughput followup`). This batch accepts 7
