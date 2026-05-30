@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 00:21 UTC):
+  Latest libsqlite consolidation is integrated and pushed as `f5eb42d29`
+  (`libsqlite: consolidate compound pager suite json stat4 helpers`). The batch
+  accepts 6 current-base handoffs covering compound recursive LIMIT
+  `Next185`/`Next186`/`Next187` boundary naming plus `Next210` helper naming,
+  upstream veryquick current-source admission `Next235` consolidation, pager
+  reader-cache `Next310`/`Next314` examples/tests, JSON generated-path rowid
+  helper naming, and STAT4 expression partial helper naming. Validation passed
+  PHP lint for 18 changed PHP files, 5 changed WordPress/self-test examples,
+  `git diff --check -- lanes/libsqlite`, compound family `78 files / 29418
+  assertions / 0 failures`, upstream current-source family `298 files / 375847
+  assertions / 0 failures`, pager reader-cache family `149 files / 9983
+  assertions / 0 failures`, STAT4 expression partial family `133 files / 7537
+  assertions / 0 failures`, and JSON generated-path rowid family `238 files /
+  16357 assertions / 0 failures`. Public pass/mapped counters remain `154019
+  pass / 0 fail` and `830 / 1589` because this is consolidation-only. Visible
+  tmux pool remains in the requested band with 11 isolated libsqlite workers
+  and 0 long sleepers. Disk is tight at roughly `14G` free, so the next
+  supervisor pass should continue bounded cleanup while integrating only
+  current-base handoffs.
+
 - 2026-05-30 supervisor continuation (shell samples 00:06 UTC):
   Latest libsqlite consolidation is integrated and pushed as `c5032d245`
   (`libsqlite: consolidate pager stat4 json wal vfs utf helpers`). The batch
