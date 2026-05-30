@@ -244,6 +244,7 @@ final class SQLiteSelectQuery
             $frame = self::defaultAggregateWindowFrame($orderBy, count($orderedRows));
         }
         if ($frame !== null && in_array($function, ['json_group_array', 'jsonb_group_array'], true)) {
+            self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
             if (count($arguments) !== 1 || (($arguments[0]['type'] ?? null) === 'wildcard')) {
                 throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs one value argument");
             }
@@ -251,6 +252,7 @@ final class SQLiteSelectQuery
             return self::jsonAggregateWindowFrameValues($function, $arguments[0], $orderedRows, $peerKeys, $frame, $filter, $aggregateOrderBy, $distinct);
         }
         if ($frame !== null && in_array($function, ['json_group_object', 'jsonb_group_object'], true)) {
+            self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
             if (count($arguments) !== 2 || (($arguments[0]['type'] ?? null) === 'wildcard') || (($arguments[1]['type'] ?? null) === 'wildcard')) {
                 throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs label and value arguments");
             }
@@ -261,9 +263,7 @@ final class SQLiteSelectQuery
             throw new \InvalidArgumentException("SQLite SELECT query DISTINCT window aggregate is not supported for {$function}");
         }
         if ($frame !== null && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
-            if ($orderBy === [] && in_array($frame['unit'], ['RANGE', 'GROUPS'], true)) {
-                throw new \InvalidArgumentException('SQLite SELECT query RANGE/GROUPS window frame needs ORDER BY');
-            }
+            self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
             if ($function === 'count' && (($arguments[0]['type'] ?? null) === 'wildcard')) {
                 $values = array_fill(0, count($orderedRows), 1);
             } elseif ($arguments === []) {
@@ -338,6 +338,17 @@ final class SQLiteSelectQuery
         return $orderBy === []
             ? ['unit' => 'ROWS', 'preceding' => $partitionSize, 'following' => $partitionSize, 'exclude' => 'NO OTHERS']
             : ['unit' => 'GROUPS', 'preceding' => $partitionSize, 'following' => 0, 'exclude' => 'NO OTHERS'];
+    }
+
+    /**
+     * @param list<array{expression:array<string,mixed>,direction:string}> $orderBy
+     * @param array{unit:string,preceding:int|float,following:int|float,exclude:string} $frame
+     */
+    private static function assertOrderedRangeOrGroupsFrame(array $orderBy, array $frame): void
+    {
+        if ($orderBy === [] && in_array($frame['unit'], ['RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite SELECT query RANGE/GROUPS window frame needs ORDER BY');
+        }
     }
 
     /**

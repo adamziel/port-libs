@@ -33289,7 +33289,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializePreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::preparedHandoffFenceForRange(
+        return self::materializePreparedHandoffNumberedRangeStage(
             $base,
             $currentSource,
             $neededColumns,
@@ -33297,34 +33297,59 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             750,
             765,
             "prepared handoff",
+            "stat4-expression-partial-prepared-handoff-ready",
+            "prepared current-source STAT4 handoff slices",
+            "prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
         );
-        $ready = ($base["status"] ?? null) === "stat4-expression-partial-prepared-handoff-ready"
-            && $fence["allSlicesPrepared"]
-            && $fence["previousFenceReady"];
+    }
+
+    /**
+     * @param array<string,mixed> $base
+     * @param array<string,mixed> $currentSource
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    private static function materializePreparedHandoffNumberedRangeStage(
+        array $base,
+        array $currentSource,
+        array $neededColumns,
+        string $previousFenceKey,
+        int $firstSlice,
+        int $lastSlice,
+        string $priorLabel,
+        string $requiredStatus,
+        string $extendsLabel,
+        string $nonOverlapAvoids
+    ): array {
+        $range = $firstSlice . '-' . $lastSlice;
+        $compact = (string) $firstSlice . (string) $lastSlice;
+        $ready = ($base["status"] ?? null) === $requiredStatus;
+        $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, $previousFenceKey, $firstSlice, $lastSlice, $priorLabel);
+        $ready = $ready && $fence["allSlicesPrepared"] && $fence["previousFenceReady"];
 
         return array_replace_recursive($base, [
-            "status" => $ready ? "stat4-expression-partial-current-source-next750-765-prepared" : "requires-current-source-stat4-next750-765-prep",
-            "stat4Next750765PreparationFence" => $fence,
+            "status" => $ready ? "stat4-expression-partial-current-source-next{$range}-prepared" : "requires-current-source-stat4-next{$range}-prep",
+            "stat4Next{$compact}PreparationFence" => $fence,
             "selectedPlan" => [
-                "next750765Prepared" => $ready,
-                "next750765SliceCount" => $fence["sliceCount"],
-                "next750765PreparedSlices" => $fence["preparedSlices"],
-                "next750765BlockedSlices" => $fence["blockedSlices"],
-                "next750765PriorHandoffSignature" => $fence["priorHandoffSignature"],
-                "next750765HandoffSignature" => $fence["handoffSignature"],
+                "next{$compact}Prepared" => $ready,
+                "next{$compact}SliceCount" => $fence["sliceCount"],
+                "next{$compact}PreparedSlices" => $fence["preparedSlices"],
+                "next{$compact}BlockedSlices" => $fence["blockedSlices"],
+                "next{$compact}PriorHandoffSignature" => $fence["priorHandoffSignature"],
+                "next{$compact}HandoffSignature" => $fence["handoffSignature"],
             ],
             "stat4Fence" => [
-                "next750765Prepared" => $ready,
-                "next750765HandoffSignature" => $fence["handoffSignature"],
+                "next{$compact}Prepared" => $ready,
+                "next{$compact}HandoffSignature" => $fence["handoffSignature"],
             ],
             "cursorProgram" => self::preparedHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
-                ["sqlite-sqlplanner-stat4-expression-partial-current-source-next750-765-prep"],
+                ["sqlite-sqlplanner-stat4-expression-partial-current-source-next{$range}-prep"],
             ))),
-            "dependency_closure" => "no new support component needed; next750-765 preparation extends the accepted prepared current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares next750-765 current-source handoff slices only; avoids changing prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
-            "detail" => trim((string) ($base["detail"] ?? "") . " NEXT750-765 PREPARED HANDOFF"),
+            "dependency_closure" => "no new support component needed; next{$range} preparation extends the accepted {$extendsLabel} and keeps their projected row continuity for follow-on planner work",
+            "non_overlap" => "prepares next{$range} current-source handoff slices only; avoids changing {$nonOverlapAvoids}",
+            "detail" => trim((string) ($base["detail"] ?? "") . " NEXT{$range} PREPARED HANDOFF"),
         ]);
     }
 

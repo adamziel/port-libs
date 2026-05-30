@@ -80,6 +80,14 @@ $tests['upstream corpus window groups range current next18 rejects frame without
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };
 
+$tests['upstream corpus window groups range current next18 rejects json frame without order'] = static function (TestRunner $t) use ($options): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT json_group_array(option_name) OVER (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
+};
+
+$tests['upstream corpus window groups range current next18 rejects json object frame without order'] = static function (TestRunner $t) use ($options): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT json_group_object(option_name, bytes) OVER (RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
+};
+
 $tests['upstream corpus window groups range current next18 rejects nonnumeric range key'] = static function (TestRunner $t) use ($options): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ORDER BY option_name RANGE BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };

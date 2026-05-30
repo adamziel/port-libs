@@ -87,7 +87,7 @@ function libsqlite_suite_next99_record(
     ?int $expected = 99,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next99_evidence()->suiteReleaseRunnerCountabilityCurrentSourceNext99(
+    return libsqlite_suite_next99_evidence()->releaseRunnerCountabilityCurrentSource(
         $rows,
         568,
         38278,
