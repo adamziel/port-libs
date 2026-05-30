@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 19:31 UTC):
+  Latest accepted libsqlite source is `22b491115`
+  (`libsqlite: add current upstream corpus batch`). This current-base batch
+  accepts 9 clean handoffs on top of dashboard/source head `de394d1a2` while
+  skipping note-only bulk/date handoffs that did not move selected PASS
+  evidence. Accepted coverage adds PRAGMA schema introspection, B-tree index
+  build helpers, VFS ioerr expansion, pager/WAL overwrite behavior, SELECT
+  compound collation, trigger/FK blob-column behavior, window group-concat
+  corpus behavior, UPSERT/RETURNING note evidence, and a source-neutral
+  CAST/LIKE/GLOB defaults cleanup. Focused verification passed `9 files /
+  116185 assertions / 0 failures / 42358 PASS lines`; the accepted-base
+  comparison passed `3 files / 20123 assertions / 0 failures / 1089 PASS
+  lines`, so the honest selected PASS-line delta is `+41269`. Public libsqlite
+  should move to `430515 pass / 0 fail`; mapped coverage remains `1472 /
+  1589`. The slowdown was integration cadence rather than worker idleness: the
+  visible pool stayed at 10-11 current-base Codex workers and 0 long sleepers.
+
 - 2026-05-30 supervisor continuation (integration sample 19:22 UTC):
   Latest accepted libsqlite source is `72af86241`
   (`libsqlite: add broad safe corpus batch`). This batch accepts 87 clean
