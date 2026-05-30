@@ -7,12 +7,12 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encoding === 'UTF-16LE' ? 2 : 3,
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -164,19 +164,19 @@ foreach ($stableCases as $name => [$path, $expected]) {
 }
 
 $tests['utf16 nocase like range bytes rejects non utf16 text encoding'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['option_id' => 1, 'option_name_bytes' => 'plugin_alpha', 'text_encoding' => 1]], $nextRows));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['setting_id' => 1, 'key_name_bytes' => 'plugin_alpha', 'text_encoding' => 1]], $nextRows));
 };
 
-$tests['utf16 nocase like range bytes rejects missing option bytes'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['option_id' => 1, 'text_encoding' => 2]], $nextRows));
+$tests['utf16 nocase like range bytes rejects missing setting bytes'] = static function (TestRunner $t) use ($plan, $nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['setting_id' => 1, 'text_encoding' => 2]], $nextRows));
 };
 
 $tests['utf16 nocase like range bytes rejects non integer rowid'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 2]], $nextRows));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['setting_id' => '1', 'key_name_bytes' => 'p', 'text_encoding' => 2]], $nextRows));
 };
 
 $tests['utf16 nocase like range bytes rejects malformed utf16 bytes'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $bad = [['option_id' => 1, 'option_name_bytes' => "\x3d\xd8", 'text_encoding' => 2]];
+    $bad = [['setting_id' => 1, 'key_name_bytes' => "\x3d\xd8", 'text_encoding' => 2]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', $bad, $nextRows));
 };
 

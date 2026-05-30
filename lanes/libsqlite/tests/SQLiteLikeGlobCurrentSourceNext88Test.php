@@ -7,18 +7,18 @@ use PortLibs\LibSqlite\SQLiteLikeGlobCurrentSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad fixture encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -166,12 +166,12 @@ $tests['like glob current source next88 rejects missing source'] = static functi
 };
 
 $tests['like glob current source next88 rejects malformed next utf8 bytes'] = static function (TestRunner $t) use ($statement, $plan, $currentRows): void {
-    $next = [['option_id' => 1, 'option_name_bytes' => "plugin_\xc3", 'text_encoding' => 1]];
+    $next = [['setting_id' => 1, 'key_name_bytes' => "plugin_\xc3", 'text_encoding' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan($statement(), $statement(), $currentRows, $next));
 };
 
 $tests['like glob current source next88 rejects missing rowid'] = static function (TestRunner $t) use ($statement, $plan, $nextRows): void {
-    $current = [['option_name_bytes' => 'plugin', 'text_encoding' => 1]];
+    $current = [['key_name_bytes' => 'plugin', 'text_encoding' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan($statement(), $statement(), $current, $nextRows));
 };
 

@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
@@ -29,7 +29,7 @@ $nextRows = [
     $row(4, 'PLUGIN_CACHE', 2),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::optionRowNameEmbeddedNulPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan(
     $currentRows,
     $nextRows,
     'plugin!_cache',
@@ -48,7 +48,7 @@ if (($argv[1] ?? null) === '--self-test') {
 
 echo json_encode([
     'scenario' => 'application-utf16-nocase-like-rtrim-nul-current-source-next',
-    'applicationUse' => 'Copied wp_options scans must compare full decoded UTF-16 text with embedded NUL bytes instead of truncating option_name at a C-string boundary before LIKE/RTRIM/NOCASE rechecks.',
+    'applicationUse' => 'Copied app_settings scans must compare full decoded UTF-16 text with embedded NUL bytes instead of truncating key_name at a C-string boundary before LIKE/RTRIM/NOCASE rechecks.',
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
     'nextMatchedRowids' => $plan['nextMatchedRowids'],
     'currentCstringFalseMatchRowids' => $plan['currentCstringFalseMatchRowids'],

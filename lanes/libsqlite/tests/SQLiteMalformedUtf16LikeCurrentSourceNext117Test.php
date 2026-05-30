@@ -7,26 +7,26 @@ use PortLibs\LibSqlite\SQLiteMalformedLikeGlobSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad fixture encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
-$bad = static function (int $id, string $bytes, int $encoding, string $autoload = 'yes'): array {
+$bad = static function (int $id, string $bytes, int $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => $bytes,
+        'setting_id' => $id,
+        'key_name_bytes' => $bytes,
         'text_encoding' => $encoding,
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 

@@ -7,17 +7,17 @@ use PortLibs\LibSqlite\SQLiteEncodingLikeGlobSourceSwitchPlan;
 
 $tests = [];
 
-$makeRow = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$makeRow = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -137,12 +137,12 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['encoding like glob source current next86 rejects malformed next source bytes'] = static function (TestRunner $t) use ($currentRows): void {
-    $next = [['option_id' => 1, 'option_name_bytes' => "plugin_\xc3", 'text_encoding' => 1]];
+    $next = [['setting_id' => 1, 'key_name_bytes' => "plugin_\xc3", 'text_encoding' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobSourceSwitchPlan::keyValueRowKeySourceSwitch($currentRows, $next, 'plugin%'));
 };
 
 $tests['encoding like glob source current next86 rejects missing current rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $current = [['option_name_bytes' => 'plugin', 'text_encoding' => 1]];
+    $current = [['key_name_bytes' => 'plugin', 'text_encoding' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingLikeGlobSourceSwitchPlan::keyValueRowKeySourceSwitch($current, $nextRows, 'plugin%'));
 };
 

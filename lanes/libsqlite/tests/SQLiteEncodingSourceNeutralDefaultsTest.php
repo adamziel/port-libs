@@ -12,7 +12,15 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
         $sourceRoot . '/SQLiteCastNocaseCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteCastRtrimGlobRangeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteCastRtrimLikeCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteEncodingCollationSourceCursor.php',
+        $sourceRoot . '/SQLiteEncodingLikeGlobSourceSwitchPlan.php',
+        $sourceRoot . '/SQLiteLikeGlobCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteMalformedLikeGlobSourceNextPlan.php',
+        $sourceRoot . '/SQLiteNocaseLikeRtrimCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteRtrimNocaseGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16CastGlobCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16NocaseLikeCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan.php',
     ];
 };
 

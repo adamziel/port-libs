@@ -9,22 +9,22 @@ use PortLibs\LibSqlite\SQLiteLikeCurrentNextCursor;
 $tests = [];
 
 $rows = [
-    ['option_id' => 1, 'option_name' => 'plugin_alpha', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => "plugin_\xc2", 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => "plugin_\xc2a", 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => "plugin_\xc3", 'autoload' => 'yes'],
-    ['option_id' => 5, 'option_name' => "plugin_\xc3 ", 'autoload' => 'no'],
-    ['option_id' => 6, 'option_name' => "plugin_\xc3A", 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_é', 'autoload' => 'yes'],
-    ['option_id' => 8, 'option_name' => "plugin_\xe2", 'autoload' => 'yes'],
-    ['option_id' => 9, 'option_name' => "plugin_\xe2\x82", 'autoload' => 'no'],
-    ['option_id' => 10, 'option_name' => 'plugin_zeta', 'autoload' => 'yes'],
-    ['option_id' => 11, 'option_name' => 'Plugin_É', 'autoload' => 'no'],
-    ['option_id' => 12, 'option_name' => 'theme_alpha', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'plugin_alpha', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => "plugin_\xc2", 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => "plugin_\xc2a", 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => "plugin_\xc3", 'load_policy' => 'yes'],
+    ['setting_id' => 5, 'key_name' => "plugin_\xc3 ", 'load_policy' => 'no'],
+    ['setting_id' => 6, 'key_name' => "plugin_\xc3A", 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'plugin_é', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => "plugin_\xe2", 'load_policy' => 'yes'],
+    ['setting_id' => 9, 'key_name' => "plugin_\xe2\x82", 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'plugin_zeta', 'load_policy' => 'yes'],
+    ['setting_id' => 11, 'key_name' => 'Plugin_É', 'load_policy' => 'no'],
+    ['setting_id' => 12, 'key_name' => 'theme_alpha', 'load_policy' => 'yes'],
 ];
 
 $entries = array_map(
-    static fn (array $row): array => ['key' => $row['option_name'], 'rowid' => $row['option_id'], 'payload' => $row],
+    static fn (array $row): array => ['key' => $row['key_name'], 'rowid' => $row['setting_id'], 'payload' => $row],
     $rows,
 );
 $likeCursor = static fn (string $pattern, string $collation = 'BINARY', ?string $escape = null, bool $caseSensitive = true): SQLiteLikeCurrentNextCursor => new SQLiteLikeCurrentNextCursor(
@@ -127,8 +127,8 @@ foreach ($databaseCases as $name => [$value, $pattern, $escape, $caseSensitive, 
 
 $tests['like glob malformed text current source next84 matched rows preserve application payload'] = static function (TestRunner $t) use ($likeCursor): void {
     $rows = $likeCursor("plugin\_\xc3%", 'BINARY', '\\', true)->matchedRows();
-    $t->same('yes', $rows[0]['payload']['autoload']);
-    $t->same("plugin_\xc3", $rows[0]['payload']['option_name']);
+    $t->same('yes', $rows[0]['payload']['load_policy']);
+    $t->same("plugin_\xc3", $rows[0]['payload']['key_name']);
     $t->same(true, $rows[2]['malformedUtf8']);
 };
 

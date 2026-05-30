@@ -173,8 +173,8 @@ $tests['real upstream corpus window functions dynamic rejects fractional rows bo
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::aggregateFrameBetweenValues('sum', $values, $order, 'ROWS', '1.5 PRECEDING', 'CURRENT ROW'));
 };
 
-$tests['real upstream corpus window functions dynamic rejects text range order key'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::aggregateFrameBetweenValues('sum', [1], ['text'], 'RANGE', 'CURRENT ROW', '1 FOLLOWING'));
+$tests['real upstream corpus window functions dynamic text range order key uses current peer group'] = static function (TestRunner $t): void {
+    $t->same([3, 3, 7, 7, 5], SQLiteWindowFunction::aggregateFrameBetweenValues('sum', [1, 2, 3, 4, 5], ['a', 'a', 'b', 'b', 'c'], 'RANGE', 'CURRENT ROW', '1 FOLLOWING'));
 };
 
 return $tests;

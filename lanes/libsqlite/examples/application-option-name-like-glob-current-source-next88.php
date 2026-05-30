@@ -7,17 +7,17 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteLikeGlobCurrentSourceNextPlan;
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -38,7 +38,7 @@ $nextRows = [
 ];
 
 $currentStatement = [
-    'source' => 'main.wp_options@schema-cookie-10',
+    'source' => 'main.app_settings@schema-cookie-10',
     'operator' => 'LIKE',
     'pattern' => 'plugin\_100\%%',
     'collation' => 'NOCASE',
@@ -46,7 +46,7 @@ $currentStatement = [
     'caseSensitiveLike' => false,
 ];
 $nextStatement = [
-    'source' => 'main.wp_options@schema-cookie-11',
+    'source' => 'main.app_settings@schema-cookie-11',
     'operator' => 'LIKE',
     'pattern' => 'plugin\_100\%%',
     'collation' => 'NOCASE',
@@ -54,24 +54,24 @@ $nextStatement = [
     'caseSensitiveLike' => false,
 ];
 
-$literalPercentPlan = SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement(
+$literalPercentPlan = SQLiteLikeGlobCurrentSourceNextPlan::keyValueRowKeyStatement(
     $currentRows,
     $nextRows,
     $currentStatement,
     $nextStatement,
 );
 
-$globPlan = SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement(
+$globPlan = SQLiteLikeGlobCurrentSourceNextPlan::keyValueRowKeyStatement(
     $currentRows,
     $nextRows,
     [
-        'source' => 'main.wp_options@schema-cookie-10',
+        'source' => 'main.app_settings@schema-cookie-10',
         'operator' => 'GLOB',
         'pattern' => 'plugin_*',
         'collation' => 'BINARY',
     ],
     [
-        'source' => 'main.wp_options@schema-cookie-11',
+        'source' => 'main.app_settings@schema-cookie-11',
         'operator' => 'GLOB',
         'pattern' => 'plugin_*',
         'collation' => 'BINARY',
@@ -79,7 +79,7 @@ $globPlan = SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement(
 );
 
 $result = [
-    'scenario' => 'copied wp_options LIKE/GLOB current-source next88 reprepare guard',
+    'scenario' => 'copied app_settings LIKE/GLOB current-source next88 reprepare guard',
     'literalPercentStatus' => $literalPercentPlan['status'],
     'literalPercentReasons' => $literalPercentPlan['reprepareReasons'],
     'literalPercentRetainedRowids' => $literalPercentPlan['retainedRowids'],
@@ -100,7 +100,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($result['globNextRowids'] === [3, 2, 6]);
     assert($result['globExitedRowids'] === [4]);
     assert($result['globEnteredRowids'] === [6]);
-    echo "application-option-name-like-glob-current-source-next88 self-test passed\n";
+    echo "application-setting-key-like-glob-current-source-next88 self-test passed\n";
     return;
 }
 

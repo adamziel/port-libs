@@ -51,46 +51,46 @@ foreach ($compareCases as $name => [$left, $right, $expected]) {
 }
 
 $rows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'siteurl ', 'option_value' => 'space padded', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => "siteurl\t", 'option_value' => 'tab padded', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => "siteurl\n", 'option_value' => 'newline padded', 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => "siteurl\0", 'option_value' => 'nul padded', 'autoload' => 'no'],
-    ['option_id' => 6, 'option_name' => 'SiteURL ', 'option_value' => 'case padded', 'autoload' => 'no'],
-    ['option_id' => 7, 'option_name' => 'plugin_å ', 'option_value' => 'unicode space', 'autoload' => 'yes'],
-    ['option_id' => 8, 'option_name' => "plugin_å\t", 'option_value' => 'unicode tab', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'siteurl ', 'key_value' => 'space padded', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => "siteurl\t", 'key_value' => 'tab padded', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => "siteurl\n", 'key_value' => 'newline padded', 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => "siteurl\0", 'key_value' => 'nul padded', 'load_policy' => 'no'],
+    ['setting_id' => 6, 'key_name' => 'SiteURL ', 'key_value' => 'case padded', 'load_policy' => 'no'],
+    ['setting_id' => 7, 'key_name' => 'plugin_å ', 'key_value' => 'unicode space', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => "plugin_å\t", 'key_value' => 'unicode tab', 'load_policy' => 'no'],
 ];
-$tables = ['wp_options' => $rows];
+$tables = ['app_settings' => $rows];
 
 $sqlCases = [
     'case base trims only space suffix' => [
-        "SELECT option_id, CASE option_name COLLATE RTRIM WHEN 'siteurl' THEN 'match' ELSE 'miss' END AS bucket FROM wp_options ORDER BY option_id",
+        "SELECT setting_id, CASE key_name COLLATE RTRIM WHEN 'siteurl' THEN 'match' ELSE 'miss' END AS bucket FROM app_settings ORDER BY setting_id",
         'bucket',
         ['match', 'match', 'miss', 'miss', 'miss', 'miss', 'miss', 'miss'],
     ],
     'case when operand trims only space suffix' => [
-        "SELECT option_id, CASE option_name WHEN 'siteurl ' COLLATE RTRIM THEN 'match' ELSE 'miss' END AS bucket FROM wp_options ORDER BY option_id",
+        "SELECT setting_id, CASE key_name WHEN 'siteurl ' COLLATE RTRIM THEN 'match' ELSE 'miss' END AS bucket FROM app_settings ORDER BY setting_id",
         'bucket',
         ['match', 'match', 'miss', 'miss', 'miss', 'miss', 'miss', 'miss'],
     ],
     'case rtrim does not fold case' => [
-        "SELECT option_id, CASE option_name COLLATE RTRIM WHEN 'SiteURL' THEN 'match' ELSE 'miss' END AS bucket FROM wp_options ORDER BY option_id",
+        "SELECT setting_id, CASE key_name COLLATE RTRIM WHEN 'SiteURL' THEN 'match' ELSE 'miss' END AS bucket FROM app_settings ORDER BY setting_id",
         'bucket',
         ['miss', 'miss', 'miss', 'miss', 'miss', 'match', 'miss', 'miss'],
     ],
     'where case keeps tab padded option distinct' => [
-        "SELECT option_id FROM wp_options WHERE CASE option_name COLLATE RTRIM WHEN 'siteurl' THEN 1 ELSE 0 END = 1 ORDER BY option_id",
-        'option_id',
+        "SELECT setting_id FROM app_settings WHERE CASE key_name COLLATE RTRIM WHEN 'siteurl' THEN 1 ELSE 0 END = 1 ORDER BY setting_id",
+        'setting_id',
         [1, 2],
     ],
     'unicode space suffix matches under rtrim' => [
-        "SELECT option_id FROM wp_options WHERE CASE option_name COLLATE RTRIM WHEN 'plugin_å' THEN 1 ELSE 0 END = 1 ORDER BY option_id",
-        'option_id',
+        "SELECT setting_id FROM app_settings WHERE CASE key_name COLLATE RTRIM WHEN 'plugin_å' THEN 1 ELSE 0 END = 1 ORDER BY setting_id",
+        'setting_id',
         [7],
     ],
     'unicode tab suffix remains distinct under rtrim' => [
-        "SELECT option_id FROM wp_options WHERE CASE option_name COLLATE RTRIM WHEN 'plugin_å\t' THEN 1 ELSE 0 END = 1 ORDER BY option_id",
-        'option_id',
+        "SELECT setting_id FROM app_settings WHERE CASE key_name COLLATE RTRIM WHEN 'plugin_å\t' THEN 1 ELSE 0 END = 1 ORDER BY setting_id",
+        'setting_id',
         [8],
     ],
 ];
@@ -102,13 +102,13 @@ foreach ($sqlCases as $name => [$sql, $column, $expected]) {
 }
 
 $entries = [
-    ['key' => 'siteurl', 'rowid' => 1, 'payload' => ['option_name' => 'siteurl']],
-    ['key' => 'siteurl ', 'rowid' => 2, 'payload' => ['option_name' => 'siteurl ']],
-    ['key' => "siteurl\t", 'rowid' => 3, 'payload' => ['option_name' => "siteurl\t"]],
-    ['key' => "siteurl\n", 'rowid' => 4, 'payload' => ['option_name' => "siteurl\n"]],
-    ['key' => 'siteurl  ', 'rowid' => 5, 'payload' => ['option_name' => 'siteurl  ']],
-    ['key' => "siteurl\t ", 'rowid' => 6, 'payload' => ['option_name' => "siteurl\t "]],
-    ['key' => 'sitevalue', 'rowid' => 7, 'payload' => ['option_name' => 'sitevalue']],
+    ['key' => 'siteurl', 'rowid' => 1, 'payload' => ['key_name' => 'siteurl']],
+    ['key' => 'siteurl ', 'rowid' => 2, 'payload' => ['key_name' => 'siteurl ']],
+    ['key' => "siteurl\t", 'rowid' => 3, 'payload' => ['key_name' => "siteurl\t"]],
+    ['key' => "siteurl\n", 'rowid' => 4, 'payload' => ['key_name' => "siteurl\n"]],
+    ['key' => 'siteurl  ', 'rowid' => 5, 'payload' => ['key_name' => 'siteurl  ']],
+    ['key' => "siteurl\t ", 'rowid' => 6, 'payload' => ['key_name' => "siteurl\t "]],
+    ['key' => 'sitevalue', 'rowid' => 7, 'payload' => ['key_name' => 'sitevalue']],
 ];
 
 $cursor = static fn (string $pattern = 'siteurl'): SQLiteGlobCursor => new SQLiteGlobCursor($entries, $pattern, 'RTRIM');

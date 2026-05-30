@@ -78,7 +78,7 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
             if ($currentByRowid[$rowid]['text_encoding'] !== $nextByRowid[$rowid]['text_encoding']) {
                 $changedEncodingRowids[] = $rowid;
             }
-            if ($currentByRowid[$rowid]['option_name_bytes'] !== $nextByRowid[$rowid]['option_name_bytes']) {
+            if ($currentByRowid[$rowid]['key_name_bytes'] !== $nextByRowid[$rowid]['key_name_bytes']) {
                 $changedBytesRowids[] = $rowid;
             }
         }
@@ -167,11 +167,11 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
     private static function assertUtf16Rows(array $rows, string $side): array
     {
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE {$side} rows require integer option_id");
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE {$side} rows require integer setting_id");
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE {$side} rows require option_name_bytes");
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE {$side} rows require key_name_bytes");
             }
             if (!isset($row['text_encoding']) || !in_array($row['text_encoding'], [2, 3], true)) {
                 throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE {$side} rows require UTF-16 text_encoding");
@@ -183,15 +183,15 @@ final class SQLiteUtf16NocaseLikeRangeBytesPlan
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array<int,array{option_name_bytes:string,text_encoding:int}>
+     * @return array<int,array{key_name_bytes:string,text_encoding:int}>
      */
     private static function sourceRowsByRowid(array $rows, string $side): array
     {
         self::assertUtf16Rows($rows, $side);
         $indexed = [];
         foreach ($rows as $row) {
-            $indexed[$row['option_id']] = [
-                'option_name_bytes' => $row['option_name_bytes'],
+            $indexed[$row['setting_id']] = [
+                'key_name_bytes' => $row['key_name_bytes'],
                 'text_encoding' => $row['text_encoding'],
             ];
         }
@@ -398,28 +398,28 @@ final class SQLiteUtf16NocaseLikeResidualPlan
         $valid = [];
         $errors = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE residual rows require integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE residual rows require integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE residual rows require option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE residual rows require key_name_bytes');
             }
             if (!isset($row['text_encoding']) || !in_array($row['text_encoding'], [2, 3], true)) {
                 throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE residual rows require UTF-16 text_encoding');
             }
 
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
             } catch (\InvalidArgumentException $exception) {
-                $errors[$row['option_id']] = $exception->getMessage();
+                $errors[$row['setting_id']] = $exception->getMessage();
                 continue;
             }
 
             $valid[] = [
-                'rowid' => $row['option_id'],
+                'rowid' => $row['setting_id'],
                 'text' => $text,
                 'key' => self::asciiLower($text),
-                'bytes' => $row['option_name_bytes'],
+                'bytes' => $row['key_name_bytes'],
                 'encoding' => $row['text_encoding'] === 2 ? 'UTF-16LE' : 'UTF-16BE',
             ];
         }

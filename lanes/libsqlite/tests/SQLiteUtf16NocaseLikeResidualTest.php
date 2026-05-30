@@ -9,15 +9,15 @@ $tests = [];
 
 $row141 = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encoding === 'UTF-16LE' ? 2 : 3,
     ];
 };
 
 $bad141 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -197,16 +197,16 @@ $tests['utf16 nocase like residual rejects non utf16 database encoding'] = stati
     $t->throws(InvalidArgumentException::class, static fn () => $plan141('plugin%', null, null, null, 'stable', 'stable', 'UTF-8', 'UTF-16LE'));
 };
 
-$tests['utf16 nocase like residual rejects non integer option id'] = static function (TestRunner $t) use ($residualRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::keyValueRowKeyResidualPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $residualRows, 'plugin%'));
+$tests['utf16 nocase like residual rejects non integer setting id'] = static function (TestRunner $t) use ($residualRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::keyValueRowKeyResidualPlan([['setting_id' => '1', 'key_name_bytes' => 'x', 'text_encoding' => 2]], $residualRows, 'plugin%'));
 };
 
-$tests['utf16 nocase like residual rejects missing option bytes'] = static function (TestRunner $t) use ($residualRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::keyValueRowKeyResidualPlan([['option_id' => 1, 'text_encoding' => 2]], $residualRows, 'plugin%'));
+$tests['utf16 nocase like residual rejects missing setting bytes'] = static function (TestRunner $t) use ($residualRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::keyValueRowKeyResidualPlan([['setting_id' => 1, 'text_encoding' => 2]], $residualRows, 'plugin%'));
 };
 
 $tests['utf16 nocase like residual rejects non utf16 row encoding'] = static function (TestRunner $t) use ($residualRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::keyValueRowKeyResidualPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $residualRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::keyValueRowKeyResidualPlan([['setting_id' => 1, 'key_name_bytes' => 'x', 'text_encoding' => 1]], $residualRows, 'plugin%'));
 };
 
 return $tests;

@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encoding === 'UTF-16LE' ? 2 : 3,
     ];
 };
@@ -30,14 +30,14 @@ $nextRows = [
     $row(4, 'PLUGIN_added', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeCurrentSourceNextPlan::optionRowNameLikePlan(
+$plan = SQLiteUtf16NocaseLikeCurrentSourceNextPlan::keyValueRowKeyLikePlan(
     $currentRows,
     $nextRows,
     'plugin%',
     null,
     false,
-    'main.wp_options@cookie125',
-    'main.wp_options@cookie126',
+    'main.app_settings@cookie125',
+    'main.app_settings@cookie126',
     125,
     126,
     1,
@@ -54,7 +54,7 @@ $summary = [
     'changedEncodingRowids' => $plan['changedEncodingRowids'],
     'rangeBytesChanged' => $plan['rangeBytesChanged'],
     'invalidationReasons' => $plan['invalidationReasons'],
-    'applicationUse' => 'Copied wp_options tables stored as UTF-16LE or UTF-16BE can re-evaluate option_name LIKE scans on a NOCASE index after source, schema, collation, or database-encoding changes without reusing stale current-source cursor bounds.',
+    'applicationUse' => 'Copied app_settings tables stored as UTF-16LE or UTF-16BE can re-evaluate key_name LIKE scans on a NOCASE index after source, schema, collation, or database-encoding changes without reusing stale current-source cursor bounds.',
 ];
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {

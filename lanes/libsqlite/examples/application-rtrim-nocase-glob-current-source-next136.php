@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteRtrimNocaseGlobCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -32,12 +32,12 @@ $next = [
     $row(4, 'plugin_cache_new', 'UTF-16LE'),
 ];
 
-$plan = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNameExpressionPlan(
+$plan = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan(
     $current,
     $next,
     'plugin_*',
-    'main.wp_options@135',
-    'main.wp_options@136',
+    'main.app_settings@135',
+    'main.app_settings@136',
     21,
     22,
     4,
@@ -66,7 +66,7 @@ if (($argv[1] ?? null) === '--self-test') {
 
 echo json_encode([
     'scenario' => 'application-rtrim-nocase-glob-current-source-next136',
-    'applicationUse' => 'Copied wp_options scans over rtrim(option_name) COLLATE NOCASE can keep a broad encoded index range while applying byte-sensitive GLOB residual checks and invalidating stale cursors when the next source changes bytes, encoding, schema, or matching rowsets.',
+    'applicationUse' => 'Copied app_settings scans over rtrim(key_name) COLLATE NOCASE can keep a broad encoded index range while applying byte-sensitive GLOB residual checks and invalidating stale cursors when the next source changes bytes, encoding, schema, or matching rowsets.',
     'pattern' => $plan['pattern'],
     'range' => $plan['range'],
     'currentCandidateRowids' => $plan['currentCandidateRowids'],

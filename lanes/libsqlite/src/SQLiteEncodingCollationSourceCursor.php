@@ -196,19 +196,19 @@ final class SQLiteEncodingCollationSourceCursor
     ): array {
         $entries = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite encoding source Application scan requires integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite encoding source application setting scan requires integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite encoding source Application scan requires option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite encoding source application setting scan requires key_name_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
-                throw new \InvalidArgumentException('SQLite encoding source Application scan requires integer text_encoding');
+                throw new \InvalidArgumentException('SQLite encoding source application setting scan requires integer text_encoding');
             }
             $entries[] = [
-                'keyBytes' => $row['option_name_bytes'],
+                'keyBytes' => $row['key_name_bytes'],
                 'textEncoding' => $row['text_encoding'],
-                'rowid' => $row['option_id'],
+                'rowid' => $row['setting_id'],
                 'payload' => $row,
             ];
         }
@@ -230,19 +230,19 @@ final class SQLiteEncodingCollationSourceCursor
     ): array {
         $entries = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite encoding source Application scan requires integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite encoding source application setting scan requires integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite encoding source Application scan requires option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite encoding source application setting scan requires key_name_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
-                throw new \InvalidArgumentException('SQLite encoding source Application scan requires integer text_encoding');
+                throw new \InvalidArgumentException('SQLite encoding source application setting scan requires integer text_encoding');
             }
             $entries[] = [
-                'keyBytes' => $row['option_name_bytes'],
+                'keyBytes' => $row['key_name_bytes'],
                 'textEncoding' => $row['text_encoding'],
-                'rowid' => $row['option_id'],
+                'rowid' => $row['setting_id'],
                 'payload' => $row,
             ];
         }

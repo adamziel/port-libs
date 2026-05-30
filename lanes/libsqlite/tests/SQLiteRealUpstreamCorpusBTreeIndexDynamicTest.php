@@ -165,4 +165,108 @@ $tests['real upstream corpus btree index dynamic rejects empty seek prefix'] = s
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealUpstreamBTreeIndexDynamicCorpus::seekByPrefix([[1, 1]], []));
 };
 
+$index4 = static fn (): array => SQLiteRealUpstreamBTreeIndexDynamicCorpus::index4IntegrityScenarios();
+
+$tests['real upstream corpus index4.test cites integrity and duplicate-index upstream source'] = static function (TestRunner $t) use ($index4): void {
+    $t->same('index4.test 1.1 through 2.2', $index4()['source']);
+};
+$tests['real upstream corpus index4.test creates 65536 rows before indexing'] = static function (TestRunner $t) use ($index4): void {
+    $t->same(65536, $index4()['row_count_doubling'][count($index4()['row_count_doubling']) - 1]);
+};
+$tests['real upstream corpus index4.test primary randomblob index integrity is ok'] = static function (TestRunner $t) use ($index4): void {
+    $t->same('ok', $index4()['primary_index_integrity']);
+};
+$tests['real upstream corpus index4.test limited memory index integrity is ok'] = static function (TestRunner $t) use ($index4): void {
+    $t->same('ok', $index4()['limited_memory_index_integrity']);
+};
+$tests['real upstream corpus index4.test mixed payload seed count is eight'] = static function (TestRunner $t) use ($index4): void {
+    $t->same(8, $index4()['mixed_payload_seed_count']);
+};
+$tests['real upstream corpus index4.test mixed payload final count is 256'] = static function (TestRunner $t) use ($index4): void {
+    $t->same(256, $index4()['mixed_payload_final_count']);
+};
+$tests['real upstream corpus index4.test mixed payload index integrity is ok'] = static function (TestRunner $t) use ($index4): void {
+    $t->same('ok', $index4()['mixed_payload_index_integrity']);
+};
+$tests['real upstream corpus index4.test single row index integrity is ok'] = static function (TestRunner $t) use ($index4): void {
+    $t->same('ok', $index4()['single_row_index_integrity']);
+};
+$tests['real upstream corpus index4.test empty rowset index integrity is ok'] = static function (TestRunner $t) use ($index4): void {
+    $t->same('ok', $index4()['empty_index_integrity']);
+};
+$tests['real upstream corpus index4.test unique duplicate create-index fails'] = static function (TestRunner $t) use ($index4): void {
+    $t->same([1, 'UNIQUE constraint failed: t2.x'], $index4()['unique_duplicate_error']);
+};
+
+foreach ([1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536] as $ordinal => $count) {
+    $tests["real upstream corpus index4.test row doubling step {$ordinal} reaches {$count} rows"] = static function (TestRunner $t) use ($index4, $ordinal, $count): void {
+        $t->same($count, $index4()['row_count_doubling'][$ordinal]);
+        $t->same(true, $ordinal === 0 || $index4()['row_count_doubling'][$ordinal - 1] * 2 === $count);
+    };
+}
+
+foreach ([14, 35, 15, 35, 16] as $ordinal => $value) {
+    $tests["real upstream corpus index4.test duplicate unique input row {$ordinal} value {$value}"] = static function (TestRunner $t) use ($index4, $ordinal, $value): void {
+        $values = $index4()['unique_duplicate_values'];
+        $t->same($value, $values[$ordinal]);
+        $t->same($ordinal + 1, count(array_slice($values, 0, $ordinal + 1)));
+    };
+}
+
+$btree02 = static fn (): array => SQLiteRealUpstreamBTreeIndexDynamicCorpus::btree02CursorMutationScenario();
+
+$tests['real upstream corpus btree02.test cites cursor mutation upstream source'] = static function (TestRunner $t) use ($btree02): void {
+    $t->same('btree02.test btree02-100 and btree02-110', $btree02()['source']);
+};
+$tests['real upstream corpus btree02.test starts with ten without-rowid rows'] = static function (TestRunner $t) use ($btree02): void {
+    $t->same(10, $btree02()['initial_count']);
+};
+$tests['real upstream corpus btree02.test finishes with ten rows after cursor mutations'] = static function (TestRunner $t) use ($btree02): void {
+    $t->same(10, $btree02()['final_count']);
+};
+$tests['real upstream corpus btree02.test visits thirty cursor rows across cross join'] = static function (TestRunner $t) use ($btree02): void {
+    $t->same(30, $btree02()['cursor_visits']);
+};
+$tests['real upstream corpus btree02.test alternates fifteen inserts and deletes'] = static function (TestRunner $t) use ($btree02): void {
+    $t->same(15, $btree02()['inserted_count']);
+    $t->same(15, $btree02()['deleted_count']);
+};
+$tests['real upstream corpus btree02.test commits after each cursor mutation plus final commit'] = static function (TestRunner $t) use ($btree02): void {
+    $t->same(31, $btree02()['committed_batches']);
+};
+$tests['real upstream corpus btree02.test first cursor row inserts derived key'] = static function (TestRunner $t) use ($btree02): void {
+    $t->same(['a' => 'a1', 'b' => 1, 'cnt' => 1, 'operation' => 'insert'], $btree02()['first_cursor_row']);
+};
+$tests['real upstream corpus btree02.test last cursor row deletes current key'] = static function (TestRunner $t) use ($btree02): void {
+    $t->same(['a' => 'aa', 'b' => 10, 'cnt' => 3, 'operation' => 'delete'], $btree02()['last_cursor_row']);
+};
+
+foreach (range(0, 29) as $ordinal) {
+    $expectedB = intdiv($ordinal, 3) + 1;
+    $expectedCnt = ($ordinal % 3) + 1;
+    $tests["real upstream corpus btree02.test t2 cursor output pair {$ordinal}"] = static function (TestRunner $t) use ($btree02, $ordinal, $expectedB, $expectedCnt): void {
+        $pair = $btree02()['t2_pairs'][$ordinal];
+        $t->same($expectedB, $pair['x']);
+        $t->same($expectedCnt, $pair['y']);
+    };
+}
+
+foreach (range(0, 14) as $ordinal) {
+    $expected = intdiv($ordinal * 2, 3) + 1001;
+    $tests["real upstream corpus btree02.test inserted b value {$ordinal}"] = static function (TestRunner $t) use ($btree02, $ordinal, $expected): void {
+        $values = $btree02()['inserted_b_values'];
+        $t->same($expected, $values[$ordinal]);
+        $t->same(true, $values[$ordinal] >= 1001 && $values[$ordinal] <= 1010);
+    };
+}
+
+foreach (range(0, 14) as $ordinal) {
+    $expected = sprintf('%02x', intdiv(($ordinal * 2) + 1, 3) + 161);
+    $tests["real upstream corpus btree02.test deleted key {$ordinal}"] = static function (TestRunner $t) use ($btree02, $ordinal, $expected): void {
+        $keys = $btree02()['deleted_a_values'];
+        $t->same($expected, $keys[$ordinal]);
+        $t->same(2, strlen($keys[$ordinal]));
+    };
+}
+
 return $tests;

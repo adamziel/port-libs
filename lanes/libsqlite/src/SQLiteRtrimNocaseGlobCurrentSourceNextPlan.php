@@ -99,21 +99,21 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextPlainImpl
         $ordered = [];
         $malformed = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source rows require integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source rows require integer setting_id');
             }
-            if (!array_key_exists('option_name', $row) || !is_string($row['option_name'])) {
-                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source rows require text option_name');
+            if (!array_key_exists('key_name', $row) || !is_string($row['key_name'])) {
+                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source rows require text key_name');
             }
 
-            $key = self::comparisonKey($row['option_name'], $collation);
-            $malformedUtf8 = preg_match('//u', $row['option_name']) !== 1;
+            $key = self::comparisonKey($row['key_name'], $collation);
+            $malformedUtf8 = preg_match('//u', $row['key_name']) !== 1;
             if ($malformedUtf8) {
-                $malformed[] = $row['option_id'];
+                $malformed[] = $row['setting_id'];
             }
             $ordered[] = [
-                'rowid' => $row['option_id'],
-                'text' => $row['option_name'],
+                'rowid' => $row['setting_id'],
+                'text' => $row['key_name'],
                 'comparisonKey' => $key,
                 'payload' => $row,
                 'malformedUtf8' => $malformedUtf8,
@@ -283,7 +283,7 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl
 
         return [
             'operator' => 'GLOB',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE',
             'pattern' => $pattern,
             'collation' => 'NOCASE',
             'rangeCollation' => 'RTRIM+NOCASE',
@@ -356,28 +356,28 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl
         $valid = [];
         $errors = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require key_name_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
                 throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require integer text_encoding');
             }
 
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $valid[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'comparisonKey' => self::comparisonKey($text),
                     'encoding' => self::encodingName($row['text_encoding']),
-                    'bytesHex' => bin2hex($row['option_name_bytes']),
+                    'bytesHex' => bin2hex($row['key_name_bytes']),
                     'payload' => $row,
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $errors[$row['option_id']] = $exception->getMessage();
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 

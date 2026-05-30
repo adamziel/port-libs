@@ -401,4 +401,138 @@ foreach ([2, 4, 8, 16, 20] as $limit) {
     };
 }
 
+$select2DynamicTables = static function (): array {
+    $tbl1 = [];
+    for ($i = 0; $i <= 30; $i++) {
+        $tbl1[] = ['f1' => $i % 9, 'f2' => $i % 10];
+    }
+
+    $tbl2 = [];
+    for ($i = 1; $i <= 2000; $i++) {
+        $tbl2[] = ['f1' => $i, 'f2' => $i * 2, 'f3' => $i * 3];
+    }
+
+    return [
+        'tbl1' => $tbl1,
+        'tbl2' => $tbl2,
+        'aa' => [
+            ['a' => 1],
+            ['a' => 3],
+        ],
+        'bb' => [
+            ['b' => 2],
+            ['b' => 4],
+            ['b' => 0],
+        ],
+    ];
+};
+
+$select2CrossCases = [
+    'select2.test select2-4.1 scalar max join predicate' => ['SELECT * FROM aa, bb WHERE max(a,b)>2', [1, 4, 3, 2, 3, 4], true],
+    'select2.test select2-4.2 truthy cross join predicate' => ['SELECT * FROM aa CROSS JOIN bb WHERE b', [1, 2, 1, 4, 3, 2, 3, 4]],
+    'select2.test select2-4.3 negated truthy cross join predicate' => ['SELECT * FROM aa CROSS JOIN bb WHERE NOT b', [1, 0, 3, 0]],
+    'select2.test select2-4.4 scalar min truthy predicate' => ['SELECT * FROM aa, bb WHERE min(a,b)', [1, 2, 1, 4, 3, 2, 3, 4]],
+    'select2.test select2-4.5 negated scalar min truthy predicate' => ['SELECT * FROM aa, bb WHERE NOT min(a,b)', [1, 0, 3, 0]],
+    'select2.test select2-4.1 bounded max equality rows' => ['SELECT a,b FROM aa, bb WHERE max(a,b)=4', [1, 4, 3, 4]],
+    'select2.test select2-4.4 bounded min equality rows' => ['SELECT a,b FROM aa, bb WHERE min(a,b)=1 ORDER BY b', [1, 2, 1, 4]],
+];
+
+foreach ($select2CrossCases as $name => $case) {
+    [$sql, $expected] = $case;
+    $usePreInsertZeroTables = ($case[2] ?? false) === true;
+    $tests['real upstream corpus ' . $name] = static function (TestRunner $t) use ($select2DynamicTables, $sql, $expected, $assertFlatValues, $flatValues, $name, $usePreInsertZeroTables): void {
+        $tables = $select2DynamicTables();
+        if ($usePreInsertZeroTables) {
+            $tables['bb'] = [
+                ['b' => 2],
+                ['b' => 4],
+            ];
+        }
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $tables), $flatValues);
+        $t->contains('select2.test', $name);
+        $t->contains('SELECT', $sql);
+    };
+}
+
+foreach ([0, 1, 2, 3, 4, 5, 6, 7, 8] as $f1) {
+    $expected = [];
+    foreach ($select2DynamicTables()['tbl1'] as $row) {
+        if ($row['f1'] === $f1) {
+            $expected[] = $row['f2'];
+        }
+    }
+    sort($expected);
+
+    $tests["real upstream corpus select2.test select2-1.1 dynamic nested-loop f2 for f1 {$f1}"] = static function (TestRunner $t) use ($select2DynamicTables, $f1, $expected, $assertFlatValues, $flatValues): void {
+        $sql = "SELECT f2 FROM tbl1 WHERE f1={$f1} ORDER BY f2";
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $select2DynamicTables()), $flatValues);
+        $t->same($expected === [], count(SQLiteSelectSql::execute($sql, $select2DynamicTables())) === 0);
+        $t->contains('select2-1.1', "select2.test select2-1.1 dynamic nested-loop f2 for f1 {$f1}");
+    };
+}
+
+foreach ([100, 250, 500, 750, 1000, 1500, 2000] as $f1) {
+    $f2 = $f1 * 2;
+    $tests["real upstream corpus select2.test select2-3.2 dynamic direct equality f2 {$f2}"] = static function (TestRunner $t) use ($select2DynamicTables, $f1, $f2, $assertFlatValues, $flatValues): void {
+        $sql = "SELECT f1 FROM tbl2 WHERE f2={$f2}";
+        $assertFlatValues($t, [$f1], SQLiteSelectSql::execute($sql, $select2DynamicTables()), $flatValues);
+        $t->contains('select2-3.2', "select2.test select2-3.2 dynamic direct equality f2 {$f2}");
+        $t->same($f2, $f1 * 2);
+    };
+
+    $tests["real upstream corpus select2.test select2-3.1 dynamic commuted equality f2 {$f2}"] = static function (TestRunner $t) use ($select2DynamicTables, $f1, $f2, $assertFlatValues, $flatValues): void {
+        $sql = "SELECT f1 FROM tbl2 WHERE {$f2}=f2";
+        $assertFlatValues($t, [$f1], SQLiteSelectSql::execute($sql, $select2DynamicTables()), $flatValues);
+        $t->contains('select2-3.1', "select2.test select2-3.1 dynamic commuted equality f2 {$f2}");
+        $t->same($f2, $f1 * 2);
+    };
+
+    $tests["real upstream corpus select2.test select2-3.2 dynamic full row equality f2 {$f2}"] = static function (TestRunner $t) use ($select2DynamicTables, $f1, $f2, $assertFlatValues, $flatValues): void {
+        $sql = "SELECT * FROM tbl2 WHERE f2={$f2}";
+        $assertFlatValues($t, [$f1, $f2, $f1 * 3], SQLiteSelectSql::execute($sql, $select2DynamicTables()), $flatValues);
+        $t->contains('select2-3.2', "select2.test select2-3.2 dynamic full row equality f2 {$f2}");
+        $t->same($f2, $f1 * 2);
+    };
+}
+
+foreach ([100, 500, 1000, 2000, 3000] as $threshold) {
+    $count = 0;
+    foreach ($select2DynamicTables()['tbl2'] as $row) {
+        if ($row['f2'] > $threshold) {
+            $count++;
+        }
+    }
+
+    $tests["real upstream corpus select2.test select2-2.2 dynamic count f2 greater than {$threshold}"] = static function (TestRunner $t) use ($select2DynamicTables, $threshold, $count, $assertFlatValues, $flatValues): void {
+        $sql = "SELECT count(*) FROM tbl2 WHERE f2>{$threshold}";
+        $assertFlatValues($t, [$count], SQLiteSelectSql::execute($sql, $select2DynamicTables()), $flatValues);
+        $t->contains('select2-2.2', "select2.test select2-2.2 dynamic count f2 greater than {$threshold}");
+        $t->true($count >= 0);
+    };
+}
+
+$select7TablesFor = static function (array $values): array {
+    return [
+        't3' => array_map(static fn (float $value): array => ['a' => $value], $values),
+    ];
+};
+
+$select7AliasGroupCases = [
+    'select7.test select7-7.2 computed CASE alias group baseline' => [[44.0, 56.0], [1.38, 1, 1.62, 1]],
+    'select7.test select7-7.2 computed CASE alias group includes zero branch' => [[0.0, 44.0, 56.0], [0, 1, 1.38, 1, 1.62, 1]],
+    'select7.test select7-7.2 computed CASE alias group duplicate lower bucket' => [[44.0, 44.0, 56.0], [1.38, 2, 1.62, 1]],
+    'select7.test select7-7.2 computed CASE alias group duplicate upper bucket' => [[44.0, 56.0, 56.0], [1.38, 1, 1.62, 2]],
+    'select7.test select7-7.2 computed CASE alias group integer-like value' => [[25.0, 75.0], [1.0, 1, 2.0, 1]],
+    'select7.test select7-7.2 computed CASE alias group mixed order' => [[56.0, 0.0, 44.0], [0, 1, 1.38, 1, 1.62, 1]],
+];
+
+foreach ($select7AliasGroupCases as $name => [$values, $expected]) {
+    $tests['real upstream corpus ' . $name] = static function (TestRunner $t) use ($select7TablesFor, $values, $expected, $assertFlatValues, $flatValues, $name): void {
+        $sql = 'SELECT (CASE WHEN a=0 THEN 0 ELSE (a + 25) / 50 END) AS categ, count(*) FROM t3 GROUP BY categ ORDER BY categ';
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $select7TablesFor($values)), $flatValues);
+        $t->contains('select7.test', $name);
+        $t->contains('GROUP BY categ', $sql);
+    };
+}
+
 return $tests;

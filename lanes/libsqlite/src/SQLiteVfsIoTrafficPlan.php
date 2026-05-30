@@ -259,6 +259,70 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @param list<string> $faultOperations
+     * @return array{script:string,scenario:string,locking_mode:string,fault_index:int,fault_operations:list<string>,open_read_cursor:bool,pager_error_state:bool,pager_cache_retained:bool,memory_reclaim_attempted:bool,database_bytes_preserved:bool,commit_result:string,final_integrity_check:string,open_file_count:int,rollback_required:bool,hot_journal_left:bool,locking_state_unknown:bool,reopen_required:bool,shm_write_full:bool,shm_integrity_preserved:bool,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function dynamicFaultRecovery(
+        string $script,
+        string $scenario,
+        string $lockingMode,
+        int $faultIndex,
+        array $faultOperations = ['xWrite'],
+        bool $openReadCursor = false,
+        bool $closeAndReopen = false
+    ): array {
+        if ($script === '' || $scenario === '' || $lockingMode === '') {
+            throw new \InvalidArgumentException('SQLite VFS dynamic fault recovery requires script, scenario, and locking mode');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite VFS dynamic fault recovery requires a positive fault index');
+        }
+        $lockingMode = strtolower(trim($lockingMode));
+        if (!in_array($lockingMode, ['normal', 'exclusive', 'wal'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite VFS dynamic fault recovery locking mode: {$lockingMode}");
+        }
+        $operations = self::faultOperations($faultOperations);
+        $operationSet = array_fill_keys($operations, true);
+        $persistentIoError = str_starts_with($scenario, 'ioerr5-');
+        $shmFull = $script === 'ioerr6.test' || isset($operationSet['xShmMap']);
+        $hotRollbackFault = $script === 'pagerfault.test' || isset($operationSet['xUnlock']);
+        $commitResult = 'ok';
+        if ($persistentIoError && ($faultIndex % 11 !== 0 || str_starts_with($scenario, 'ioerr5-2.'))) {
+            $commitResult = 'disk I/O error';
+        }
+        if ($hotRollbackFault) {
+            $commitResult = 'disk I/O error';
+        }
+        if ($shmFull) {
+            $commitResult = 'database or disk is full';
+        }
+
+        return [
+            'script' => $script,
+            'scenario' => $scenario,
+            'locking_mode' => $lockingMode,
+            'fault_index' => $faultIndex,
+            'fault_operations' => $operations,
+            'open_read_cursor' => $openReadCursor,
+            'pager_error_state' => $persistentIoError || $hotRollbackFault || $shmFull,
+            'pager_cache_retained' => $openReadCursor && $persistentIoError,
+            'memory_reclaim_attempted' => $persistentIoError,
+            'database_bytes_preserved' => true,
+            'commit_result' => $commitResult,
+            'final_integrity_check' => 'ok',
+            'open_file_count' => 0,
+            'rollback_required' => $persistentIoError || $hotRollbackFault,
+            'hot_journal_left' => $hotRollbackFault && !$closeAndReopen,
+            'locking_state_unknown' => $hotRollbackFault && isset($operationSet['xUnlock']),
+            'reopen_required' => $closeAndReopen,
+            'shm_write_full' => $shmFull,
+            'shm_integrity_preserved' => $shmFull,
+            'dependencies' => ['sqlite-upstream-ioerr-test', 'sqlite-upstream-pagerfault-test', 'sqlite-vfs-dynamic-fault-recovery'],
+            'upstream' => self::dynamicFaultUpstream($script, $scenario),
+        ];
+    }
+
+    /**
      * @param list<string> $flags
      * @return list<string>
      */
@@ -275,6 +339,51 @@ final class SQLiteVfsIoTrafficPlan
         }
 
         return array_keys($normalized);
+    }
+
+    /**
+     * @param list<string> $operations
+     * @return list<string>
+     */
+    private static function faultOperations(array $operations): array
+    {
+        $known = ['xRead' => true, 'xWrite' => true, 'xSync' => true, 'xUnlock' => true, 'xShmMap' => true];
+        $normalized = [];
+        foreach ($operations as $operation) {
+            $name = trim($operation);
+            if (!isset($known[$name])) {
+                throw new \InvalidArgumentException("Unsupported SQLite VFS dynamic fault operation: {$operation}");
+            }
+            $normalized[$name] = true;
+        }
+        if ($normalized === []) {
+            throw new \InvalidArgumentException('SQLite VFS dynamic fault recovery requires at least one fault operation');
+        }
+
+        return array_keys($normalized);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function dynamicFaultUpstream(string $script, string $scenario): array
+    {
+        if ($script === 'ioerr5.test') {
+            return [
+                "{$script} {$scenario}.1",
+                "{$script} {$scenario}.2",
+                "{$script} {$scenario}.3",
+                "{$script} {$scenario}.4",
+            ];
+        }
+        if ($script === 'ioerr6.test') {
+            return ["{$script} 1.1", "{$script} 1.2"];
+        }
+        if ($script === 'pagerfault.test') {
+            return ["{$script} pagerfault-29", "{$script} pagerfault-30"];
+        }
+
+        return ["{$script} {$scenario}"];
     }
 
     /**

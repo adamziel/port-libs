@@ -10,21 +10,21 @@ require_once __DIR__ . '/../src/SQLiteMalformedLikeGlobSourceNextPlan.php';
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteMalformedLikeGlobSourceNextPlan;
 
-$row = static function (int $id, string $bytes, int|string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $bytes, int|string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => is_int($encoding) ? $bytes : SQLiteEncodingCollationSourceCursor::encodeText($bytes, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => is_int($encoding) ? $bytes : SQLiteEncodingCollationSourceCursor::encodeText($bytes, $encoding),
         'text_encoding' => is_int($encoding) ? $encoding : match (strtoupper($encoding)) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad fixture encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
-$plan = SQLiteMalformedLikeGlobSourceNextPlan::optionRowNameCurrentNext(
+$plan = SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext(
     [
         $row(1, 'plugin_alpha', 'UTF-8'),
         $row(2, "plugin_\xc3", 1),
@@ -43,8 +43,8 @@ $plan = SQLiteMalformedLikeGlobSourceNextPlan::optionRowNameCurrentNext(
     'NOCASE',
     null,
     false,
-    'main.wp_options@cookie88',
-    'main.wp_options@cookie91',
+    'main.app_settings@cookie88',
+    'main.app_settings@cookie91',
 );
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -53,7 +53,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentMalformedRowids'] === [2, 3]);
     assert($plan['repairedRowids'] === [2, 3]);
     assert($plan['nextRowids'] === [1, 5, 2, 3]);
-    echo "application-option-name-malformed-like-glob-source-next91 self-test passed\n";
+    echo "application-setting-key-malformed-like-glob-source-next91 self-test passed\n";
     return;
 }
 

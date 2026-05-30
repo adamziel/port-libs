@@ -165,4 +165,142 @@ $tests['real upstream corpus vfs io dynamic rejects zero ioerr index'] = static 
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::ioErrorBoundary('ioerr.test', 'ioerr-1', 'read', 0));
 };
 
+$faultRecoveryCases = [];
+foreach (['normal', 'exclusive'] as $lockingMode) {
+    foreach (range(1, 22) as $faultIndex) {
+        $faultRecoveryCases[] = [
+            "ioerr5.test ioerr5-1.{$lockingMode}-{$faultIndex}",
+            'ioerr5.test',
+            'ioerr5-1.' . $lockingMode . '-' . $faultIndex,
+            $lockingMode,
+            $faultIndex,
+            ['xWrite'],
+            true,
+            false,
+            $faultIndex % 11 === 0 ? 'ok' : 'disk I/O error',
+            true,
+            false,
+            false,
+        ];
+    }
+}
+foreach (['exclusive', 'normal'] as $lockingMode) {
+    foreach (range(1, 18) as $faultIndex) {
+        $faultRecoveryCases[] = [
+            "ioerr5.test ioerr5-2.{$lockingMode}-{$faultIndex}",
+            'ioerr5.test',
+            'ioerr5-2.' . $lockingMode . '-' . $faultIndex,
+            $lockingMode,
+            $faultIndex,
+            ['xWrite'],
+            false,
+            false,
+            'disk I/O error',
+            false,
+            false,
+            false,
+        ];
+    }
+}
+foreach ([29 => false, 30 => true] as $pagerFault => $reopen) {
+    foreach (range(1, 10) as $faultIndex) {
+        $faultRecoveryCases[] = [
+            "pagerfault.test pagerfault-{$pagerFault}.{$faultIndex}",
+            'pagerfault.test',
+            'pagerfault-' . $pagerFault,
+            'normal',
+            $faultIndex,
+            ['xWrite', 'xUnlock'],
+            false,
+            $reopen,
+            'disk I/O error',
+            false,
+            !$reopen,
+            true,
+        ];
+    }
+}
+foreach (range(1, 12) as $faultIndex) {
+    $faultRecoveryCases[] = [
+        "ioerr6.test shmfault full {$faultIndex}",
+        'ioerr6.test',
+        'ioerr6-1',
+        'wal',
+        $faultIndex,
+        ['xWrite', 'xShmMap'],
+        false,
+        false,
+        'database or disk is full',
+        false,
+        false,
+        false,
+    ];
+}
+
+$tests['real upstream corpus vfs io dynamic ioerr5 pagerfault ioerr6 dynamic fault recovery matrix'] = static function (TestRunner $t) use ($faultRecoveryCases): void {
+    foreach ($faultRecoveryCases as [$name, $script, $scenario, $lockingMode, $faultIndex, $operations, $openCursor, $reopen, $commitResult, $cacheRetained, $hotJournalLeft, $unknownLocking]) {
+        $plan = SQLiteVfsIoTrafficPlan::dynamicFaultRecovery($script, $scenario, $lockingMode, $faultIndex, $operations, $openCursor, $reopen);
+
+        $t->same($script, $plan['script']);
+        $t->same($scenario, $plan['scenario']);
+        $t->same($lockingMode, $plan['locking_mode']);
+        $t->same($faultIndex, $plan['fault_index']);
+        $t->same(array_values(array_unique($operations)), $plan['fault_operations']);
+        $t->same($openCursor, $plan['open_read_cursor']);
+        $t->same(true, $plan['pager_error_state']);
+        $t->same($cacheRetained, $plan['pager_cache_retained']);
+        $t->same($script === 'ioerr5.test', $plan['memory_reclaim_attempted']);
+        $t->same(true, $plan['database_bytes_preserved']);
+        $t->same($commitResult, $plan['commit_result']);
+        $t->same('ok', $plan['final_integrity_check']);
+        $t->same(0, $plan['open_file_count']);
+        $t->same($script !== 'ioerr6.test', $plan['rollback_required']);
+        $t->same($hotJournalLeft, $plan['hot_journal_left']);
+        $t->same($unknownLocking, $plan['locking_state_unknown']);
+        $t->same($reopen, $plan['reopen_required']);
+        $t->same($script === 'ioerr6.test', $plan['shm_write_full']);
+        $t->same($script === 'ioerr6.test', $plan['shm_integrity_preserved']);
+        $t->same(true, in_array('sqlite-vfs-dynamic-fault-recovery', $plan['dependencies'], true));
+        $t->same(true, in_array('sqlite-upstream-ioerr-test', $plan['dependencies'], true));
+        $t->same(true, in_array('sqlite-upstream-pagerfault-test', $plan['dependencies'], true));
+        $t->same(true, $plan['upstream'] !== []);
+        $t->same(true, str_starts_with($name, $script));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic ioerr5 recovery cites subtest phases'] = static function (TestRunner $t): void {
+    $plan = SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('ioerr5.test', 'ioerr5-1.normal-5', 'normal', 5, ['xWrite'], true);
+
+    $t->same([
+        'ioerr5.test ioerr5-1.normal-5.1',
+        'ioerr5.test ioerr5-1.normal-5.2',
+        'ioerr5.test ioerr5-1.normal-5.3',
+        'ioerr5.test ioerr5-1.normal-5.4',
+    ], $plan['upstream']);
+};
+
+$tests['real upstream corpus vfs io dynamic pagerfault rollback unknown lock can recover by retry or reopen'] = static function (TestRunner $t): void {
+    $retry = SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('pagerfault.test', 'pagerfault-29', 'normal', 2, ['xWrite', 'xUnlock'], false, false);
+    $reopen = SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('pagerfault.test', 'pagerfault-30', 'normal', 2, ['xWrite', 'xUnlock'], false, true);
+
+    $t->same(true, $retry['locking_state_unknown']);
+    $t->same(true, $reopen['locking_state_unknown']);
+    $t->same(false, $retry['reopen_required']);
+    $t->same(true, $reopen['reopen_required']);
+    $t->same(true, $retry['hot_journal_left']);
+    $t->same(false, $reopen['hot_journal_left']);
+    $t->same('ok', $retry['final_integrity_check']);
+    $t->same('ok', $reopen['final_integrity_check']);
+};
+
+$tests['real upstream corpus vfs io dynamic fault recovery rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('', 'ioerr5-1.normal-1', 'normal', 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('ioerr5.test', '', 'normal', 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('ioerr5.test', 'ioerr5-1.normal-1', '', 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('ioerr5.test', 'ioerr5-1.normal-1', 'invalid', 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('ioerr5.test', 'ioerr5-1.normal-1', 'normal', 0));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('ioerr5.test', 'ioerr5-1.normal-1', 'normal', 1, []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoTrafficPlan::dynamicFaultRecovery('ioerr5.test', 'ioerr5-1.normal-1', 'normal', 1, ['xDelete']));
+};
+
 return $tests;

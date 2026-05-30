@@ -4329,6 +4329,16 @@ final class SQLiteSelectSql
         foreach (self::splitTopLevel($sql, ',') as $index => $term) {
             $term = trim($term);
             if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $term) === 1) {
+                $aliasExpression = self::groupByAliasExpression($term, $select);
+                if ($aliasExpression !== null) {
+                    $column = '__groupByExpression' . $index;
+                    $columns[] = $column;
+                    $expressions[] = [
+                        'column' => $column,
+                        'expression' => $aliasExpression,
+                    ];
+                    continue;
+                }
                 $columns[] = $term;
                 continue;
             }
@@ -4354,6 +4364,34 @@ final class SQLiteSelectSql
         }
 
         return $groupBy;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return ?array<string,mixed>
+     */
+    private static function groupByAliasExpression(string $term, array $select): ?array
+    {
+        if (str_contains($term, '.')) {
+            return null;
+        }
+
+        foreach ($select as $selectTerm) {
+            if (($selectTerm['alias'] ?? null) !== $term) {
+                continue;
+            }
+
+            $expression = $selectTerm['sourceExpression'] ?? $selectTerm;
+            if (!is_array($expression)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY alias expression is malformed');
+            }
+
+            unset($expression['alias'], $expression['hiddenOrderColumn']);
+
+            return $expression;
+        }
+
+        return null;
     }
 
     /**

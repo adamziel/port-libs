@@ -1092,6 +1092,9 @@ final class SQLiteCoreScalarFunction
         }
 
         $instant = self::parseDateTimeValue($timeValue, $modifiers);
+        if ($instant === null) {
+            return null;
+        }
         foreach ($modifiers as $modifier) {
             $modifierText = strtolower(trim(self::coerceText($functionName, $modifier, 'modifier')));
             if ($modifierText === 'unixepoch' || $modifierText === 'julianday' || $modifierText === 'auto' || $modifierText === 'subsec' || $modifierText === 'subsecond') {
@@ -1227,7 +1230,7 @@ final class SQLiteCoreScalarFunction
     /**
      * @param list<mixed> $modifiers
      */
-    private static function parseDateTimeValue(mixed $value, array $modifiers): \DateTimeImmutable
+    private static function parseDateTimeValue(mixed $value, array $modifiers): ?\DateTimeImmutable
     {
         $timezone = new \DateTimeZone('UTC');
         $modifierTexts = array_map(
@@ -1240,16 +1243,44 @@ final class SQLiteCoreScalarFunction
             throw new \InvalidArgumentException('Conflicting SQLite date/time interpretation modifiers');
         }
 
-        if (in_array('unixepoch', $modifierTexts, true)) {
-            return self::dateTimeFromUnixTimestamp(self::coerceNumeric($value), $timezone);
+        $unixepochOffset = array_search('unixepoch', $modifierTexts, true);
+        if ($unixepochOffset !== false) {
+            if ($unixepochOffset !== 0) {
+                return null;
+            }
+            $numeric = self::coerceLosslessNumeric($value);
+            if ($numeric === null) {
+                return null;
+            }
+
+            return self::dateTimeFromUnixTimestamp($numeric, $timezone);
         }
-        if (in_array('julianday', $modifierTexts, true)) {
-            return self::dateTimeFromJulianDay(self::coerceNumeric($value), $timezone);
+        $juliandayOffset = array_search('julianday', $modifierTexts, true);
+        if ($juliandayOffset !== false) {
+            if ($juliandayOffset !== 0) {
+                return null;
+            }
+            $numeric = self::coerceLosslessNumeric($value);
+            if ($numeric === null) {
+                return null;
+            }
+
+            return self::dateTimeFromJulianDay($numeric, $timezone);
         }
-        if (in_array('auto', $modifierTexts, true)) {
-            $numeric = self::coerceNumeric($value);
-            if ($numeric >= 0.0 && $numeric <= 5373484.499999) {
+        $autoOffset = array_search('auto', $modifierTexts, true);
+        if ($autoOffset !== false) {
+            if ($autoOffset !== 0) {
+                return null;
+            }
+            $numeric = self::coerceLosslessNumeric($value);
+            if ($numeric === null) {
+                return self::parseDateTimeValue($value, []);
+            }
+            if ($numeric >= 0.0 && $numeric <= 5373484.4999999) {
                 return self::dateTimeFromJulianDay($numeric, $timezone);
+            }
+            if ($numeric < -210866760000 || $numeric > 253402300799) {
+                return null;
             }
 
             return self::dateTimeFromUnixTimestamp($numeric, $timezone);

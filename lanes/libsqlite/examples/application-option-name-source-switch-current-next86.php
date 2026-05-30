@@ -7,17 +7,17 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteEncodingLikeGlobSourceSwitchPlan;
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -37,7 +37,7 @@ $nextRows = [
     $row(5, 'theme_alpha', 'UTF-8'),
 ];
 
-$pluginPlan = SQLiteEncodingLikeGlobSourceSwitchPlan::optionRowNameSourceSwitch(
+$pluginPlan = SQLiteEncodingLikeGlobSourceSwitchPlan::keyValueRowKeySourceSwitch(
     $currentRows,
     $nextRows,
     'plugin%',
@@ -45,11 +45,11 @@ $pluginPlan = SQLiteEncodingLikeGlobSourceSwitchPlan::optionRowNameSourceSwitch(
     'NOCASE',
     null,
     false,
-    'main.wp_options@schema-cookie-10',
-    'main.wp_options@schema-cookie-11',
+    'main.app_settings@schema-cookie-10',
+    'main.app_settings@schema-cookie-11',
 );
 
-$literalPercentPlan = SQLiteEncodingLikeGlobSourceSwitchPlan::optionRowNameSourceSwitch(
+$literalPercentPlan = SQLiteEncodingLikeGlobSourceSwitchPlan::keyValueRowKeySourceSwitch(
     $currentRows,
     $nextRows,
     'plugin\_100\%%',
@@ -57,12 +57,12 @@ $literalPercentPlan = SQLiteEncodingLikeGlobSourceSwitchPlan::optionRowNameSourc
     'NOCASE',
     '\\',
     false,
-    'main.wp_options@schema-cookie-10',
-    'main.wp_options@schema-cookie-11',
+    'main.app_settings@schema-cookie-10',
+    'main.app_settings@schema-cookie-11',
 );
 
 $result = [
-    'scenario' => 'copied wp_options encoding LIKE/GLOB current-source to next-source switch current-next86',
+    'scenario' => 'copied app_settings encoding LIKE/GLOB current-source to next-source switch current-next86',
     'pluginInvalidated' => $pluginPlan['cursorInvalidated'],
     'pluginReasons' => $pluginPlan['invalidationReasons'],
     'pluginExitedRowids' => $pluginPlan['exitedRowids'],
@@ -81,7 +81,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($result['pluginChangedEncodingRowids'] === [1, 3]);
     assert($result['literalPercentRetainedRowids'] === [3]);
     assert($result['literalPercentChangedBytesRowids'] === [3]);
-    echo "application-option-name-source-switch-current-next86 self-test passed\n";
+    echo "application-setting-key-source-switch-current-next86 self-test passed\n";
     return;
 }
 

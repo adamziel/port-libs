@@ -7,22 +7,22 @@ use PortLibs\LibSqlite\SQLiteRtrimNocaseGlobCurrentSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -87,7 +87,7 @@ $valueAt = static function (array $value, string $path): mixed {
 
 $cases = [
     'records operator' => ['plugin_*', 'operator', 'GLOB'],
-    'records expression' => ['plugin_*', 'expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'records expression' => ['plugin_*', 'expression', 'rtrim(key_name) COLLATE NOCASE'],
     'records collation' => ['plugin_*', 'collation', 'NOCASE'],
     'records range collation' => ['plugin_*', 'rangeCollation', 'RTRIM+NOCASE'],
     'records residual collation' => ['plugin_*', 'residualCollation', 'BINARY'],
@@ -194,16 +194,16 @@ $tests['rtrim nocase glob current source nextOneThreeSix exact rtrim range keeps
     $t->same(false, $result['currentResidualMatches'][3]);
 };
 
-$tests['rtrim nocase glob current source nextOneThreeSix rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_*'));
+$tests['rtrim nocase glob current source nextOneThreeSix rejects non integer setting id'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['setting_id' => '1', 'key_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_*'));
 };
 
-$tests['rtrim nocase glob current source nextOneThreeSix rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'plugin_*'));
+$tests['rtrim nocase glob current source nextOneThreeSix rejects missing setting bytes'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['setting_id' => 1, 'text_encoding' => 1]], $nextRows, 'plugin_*'));
 };
 
 $tests['rtrim nocase glob current source nextOneThreeSix rejects missing text encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache']], $nextRows, 'plugin_*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyExpressionPlan([['setting_id' => 1, 'key_name_bytes' => 'plugin_cache']], $nextRows, 'plugin_*'));
 };
 
 return $tests;

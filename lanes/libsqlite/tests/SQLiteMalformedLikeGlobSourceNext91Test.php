@@ -7,17 +7,17 @@ use PortLibs\LibSqlite\SQLiteMalformedLikeGlobSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $bytes, int|string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $bytes, int|string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => is_int($encoding) ? $bytes : SQLiteEncodingCollationSourceCursor::encodeText($bytes, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => is_int($encoding) ? $bytes : SQLiteEncodingCollationSourceCursor::encodeText($bytes, $encoding),
         'text_encoding' => is_int($encoding) ? $encoding : match (strtoupper($encoding)) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad fixture encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -180,23 +180,23 @@ $tests['malformed like glob source next91 rejects malformed escape'] = static fu
     $t->throws(InvalidArgumentException::class, static fn () => $plan(escape: 'xx'));
 };
 
-$tests['malformed like glob source next91 rejects missing option id'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $current = [['option_name_bytes' => 'plugin_alpha', 'text_encoding' => 1]];
+$tests['malformed like glob source next91 rejects missing setting id'] = static function (TestRunner $t) use ($plan, $nextRows): void {
+    $current = [['key_name_bytes' => 'plugin_alpha', 'text_encoding' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan(current: $current, next: $nextRows));
 };
 
 $tests['malformed like glob source next91 rejects non string bytes'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $current = [['option_id' => 1, 'option_name_bytes' => 10, 'text_encoding' => 1]];
+    $current = [['setting_id' => 1, 'key_name_bytes' => 10, 'text_encoding' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan(current: $current, next: $nextRows));
 };
 
 $tests['malformed like glob source next91 rejects missing encoding'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $current = [['option_id' => 1, 'option_name_bytes' => 'plugin_alpha']];
+    $current = [['setting_id' => 1, 'key_name_bytes' => 'plugin_alpha']];
     $t->throws(InvalidArgumentException::class, static fn () => $plan(current: $current, next: $nextRows));
 };
 
 $tests['malformed like glob source next91 reports unsupported encoding as malformed source'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $current = [['option_id' => 1, 'option_name_bytes' => 'plugin_alpha', 'text_encoding' => 99]];
+    $current = [['setting_id' => 1, 'key_name_bytes' => 'plugin_alpha', 'text_encoding' => 99]];
     $result = $plan(current: $current, next: $nextRows);
     $t->same([1], $result['currentMalformedRowids']);
     $t->same('SQLite text encoding must be UTF-8, UTF-16LE, or UTF-16BE', $result['currentErrors'][1]);

@@ -14,13 +14,13 @@ $encodingNumber147 = static fn (string $encoding): int => match ($encoding) {
     default => throw new InvalidArgumentException('bad fixture encoding'),
 };
 
-$row147 = static function (int $id, string $name, string $encoding, string $autoload = 'yes') use ($encodingNumber147): array {
+$row147 = static function (int $id, string $name, string $encoding, string $load_policy = 'yes') use ($encodingNumber147): array {
     return [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encodingNumber147($encoding),
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -163,7 +163,7 @@ $tests['like escape glob candidate current source next147 rejects multi characte
 };
 
 $tests['like escape glob candidate current source next147 rejects malformed utf16 candidate bytes'] = static function (TestRunner $t) use ($statement147, $plan147, $currentRows147): void {
-    $next = [['option_id' => 1, 'option_name_bytes' => "\x70", 'text_encoding' => 2]];
+    $next = [['setting_id' => 1, 'key_name_bytes' => "\x70", 'text_encoding' => 2]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan147($statement147('plugin%'), $statement147('plugin%'), $currentRows147, $next));
 };
 

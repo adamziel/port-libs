@@ -19,9 +19,9 @@ $encodingNumber = static fn (string $encoding): int => match ($encoding) {
 
 $row = static function (int $id, string $name, string $encoding) use ($encodingNumber): array {
     return [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encodingNumber($encoding),
     ];
 };
@@ -42,21 +42,21 @@ $nextRows = [
 ];
 
 $like = [
-    'source' => 'main.wp_options@schema147',
+    'source' => 'main.app_settings@schema147',
     'operator' => 'LIKE',
     'pattern' => 'plugin!_!%!_cache%',
     'collation' => 'NOCASE',
     'escape' => '!',
 ];
 $glob = [
-    'source' => 'main.wp_options@schema147',
+    'source' => 'main.app_settings@schema147',
     'operator' => 'GLOB',
     'pattern' => 'plugin_[A-z]*_cache*',
     'collation' => 'NOCASE',
 ];
 
-$likePlan = SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement($currentRows, $nextRows, $like, $like);
-$globPlan = SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement($currentRows, $nextRows, $glob, $glob);
+$likePlan = SQLiteLikeGlobCurrentSourceNextPlan::keyValueRowKeyStatement($currentRows, $nextRows, $like, $like);
+$globPlan = SQLiteLikeGlobCurrentSourceNextPlan::keyValueRowKeyStatement($currentRows, $nextRows, $glob, $glob);
 
 $summary = [
     'scenario' => 'application-like-escape-glob-candidates-current-source-next147',
@@ -69,7 +69,7 @@ $summary = [
     'globFalsePositiveRowids' => $globPlan['current']['falsePositiveRowids'],
     'globCandidateChangedEncodings' => $globPlan['candidateChangedEncodingRowids'],
     'dependencies' => $likePlan['dependencies'],
-    'applicationUse' => 'Copied wp_options option_name LIKE ESCAPE and GLOB probes can keep index-range candidate rows separate from residual matches so source-cookie, encoding, and byte changes still reprepare stale cursors.',
+    'applicationUse' => 'Copied app_settings key_name LIKE ESCAPE and GLOB probes can keep index-range candidate rows separate from residual matches so source-cookie, encoding, and byte changes still reprepare stale cursors.',
 ];
 
 if (in_array('--self-test', $argv, true)) {

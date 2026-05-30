@@ -9,8 +9,8 @@ $tests = [];
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -19,8 +19,8 @@ $row = static function (int $id, string $name, string $encoding): array {
     ];
 };
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -85,7 +85,7 @@ $valueAt = static function (array $value, string $path): mixed {
 
 $cases = [
     'operator' => ['plugin\_%', '\\', 'operator', 'LIKE'],
-    'expression' => ['plugin\_%', '\\', 'expression', 'rtrim(option_name) COLLATE NOCASE'],
+    'expression' => ['plugin\_%', '\\', 'expression', 'rtrim(key_name) COLLATE NOCASE'],
     'collation' => ['plugin\_%', '\\', 'collation', 'NOCASE'],
     'escape' => ['plugin\_%', '\\', 'escape', '\\'],
     'range lower' => ['plugin\_%', '\\', 'range.lowerInclusive', 'plugin_'],
@@ -95,7 +95,7 @@ $cases = [
     'like plan ascii' => ['plugin\_%', '\\', 'likePlan.prefixIsAscii', true],
     'like plan index usable' => ['plugin\_%', '\\', 'likePlan.indexUsable', true],
     'range usable' => ['plugin\_%', '\\', 'rangeUsable', true],
-    'index key' => ['plugin\_%', '\\', 'indexKey', 'ascii_lower(rtrim(option_name, space))'],
+    'index key' => ['plugin\_%', '\\', 'indexKey', 'ascii_lower(rtrim(key_name, space))'],
     'residual rtrim marker' => ['plugin\_%', '\\', 'residualUsesRtrimText', true],
     'nocase ascii marker' => ['plugin\_%', '\\', 'nocaseIsAsciiOnly', true],
     'rtrim ascii space marker' => ['plugin\_%', '\\', 'rtrimTrimsOnlyAsciiSpace', true],
@@ -183,20 +183,20 @@ $tests['nocase like rtrim current source next146 stable no-prefix still not reus
     $t->same(false, $plan['cursorReusable']);
 };
 
-$tests['nocase like rtrim current source next146 rejects missing option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_name_bytes' => 'plugin', 'text_encoding' => 1]], [], 'plugin%'));
+$tests['nocase like rtrim current source next146 rejects missing setting id'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['key_name_bytes' => 'plugin', 'text_encoding' => 1]], [], 'plugin%'));
 };
 
 $tests['nocase like rtrim current source next146 rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], [], 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'text_encoding' => 1]], [], 'plugin%'));
 };
 
 $tests['nocase like rtrim current source next146 rejects missing encoding'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'plugin']], [], 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name_bytes' => 'plugin']], [], 'plugin%'));
 };
 
 $tests['nocase like rtrim current source next146 records unsupported encoding as malformed'] = static function (TestRunner $t): void {
-    $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], [], 'plugin%');
+    $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name_bytes' => 'plugin', 'text_encoding' => 9]], [], 'plugin%');
     $t->same([1], $plan['currentMalformedRowids']);
     $t->same('SQLite text encoding must be UTF-8, UTF-16LE, or UTF-16BE', $plan['currentErrors'][1]);
 };

@@ -145,18 +145,18 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
 
         foreach ($rows as $row) {
             $rowid = self::rowid($row);
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite malformed LIKE/GLOB source plan requires option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite malformed LIKE/GLOB source plan requires key_name_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
                 throw new \InvalidArgumentException('SQLite malformed LIKE/GLOB source plan requires integer text_encoding');
             }
 
-            $bytesHex[$rowid] = bin2hex($row['option_name_bytes']);
+            $bytesHex[$rowid] = bin2hex($row['key_name_bytes']);
             try {
                 $cursor = new SQLiteEncodingCollationSourceCursor([
                     [
-                        'keyBytes' => $row['option_name_bytes'],
+                        'keyBytes' => $row['key_name_bytes'],
                         'textEncoding' => $row['text_encoding'],
                         'rowid' => $rowid,
                         'payload' => $row,
@@ -165,7 +165,7 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
                 $range ??= $cursor->currentNextPlan()['range'];
             } catch (\InvalidArgumentException $exception) {
                 $errors[$rowid] = $exception->getMessage();
-                if (self::rawBytesMayMatchPrefix($row['option_name_bytes'], $row['text_encoding'], $pattern, $operator, $collation, $escape, $caseSensitiveLike)) {
+                if (self::rawBytesMayMatchPrefix($row['key_name_bytes'], $row['text_encoding'], $pattern, $operator, $collation, $escape, $caseSensitiveLike)) {
                     $malformedCandidateRowids[] = $rowid;
                 }
                 continue;
@@ -201,11 +201,11 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
      */
     private static function rowid(array $row): int
     {
-        if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite malformed LIKE/GLOB source plan requires integer option_id');
+        if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite malformed LIKE/GLOB source plan requires integer setting_id');
         }
 
-        return $row['option_id'];
+        return $row['setting_id'];
     }
 
     /**

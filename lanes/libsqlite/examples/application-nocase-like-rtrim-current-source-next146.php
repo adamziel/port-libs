@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteNocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -32,7 +32,7 @@ $nextRows = [
     $row(5, 'plugin_fresh ', 'UTF-8'),
 ];
 
-$plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan(
     $currentRows,
     $nextRows,
     'plugin\_%',
@@ -50,7 +50,7 @@ $summary = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-assert($summary['expression'] === 'rtrim(option_name) COLLATE NOCASE');
+assert($summary['expression'] === 'rtrim(key_name) COLLATE NOCASE');
 assert($summary['range'] === ['lowerInclusive' => 'plugin_', 'upperBound' => 'plugin`']);
 assert($summary['currentMatchedRowids'] === [1, 2, 3]);
 assert($summary['nextMatchedRowids'] === [1, 2, 3, 5]);

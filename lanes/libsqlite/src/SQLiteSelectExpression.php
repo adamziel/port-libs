@@ -493,7 +493,7 @@ final class SQLiteSelectExpression
         return match ($target) {
             'integer' => self::integerOperand($value),
             'real' => (float) self::numericOperand($value),
-            'numeric' => self::numericOperand($value),
+            'numeric' => self::numericCastOperand($value),
             'text' => self::textValue($value),
             'none' => new SQLiteBlobValue(self::textValue($value)),
             default => throw new \InvalidArgumentException("SQLite SELECT CAST target {$target} is not supported"),
@@ -677,6 +677,19 @@ final class SQLiteSelectExpression
         }
 
         throw new \InvalidArgumentException('SQLite SELECT numeric expression operands must be scalar, BLOB, or NULL');
+    }
+
+    private static function numericCastOperand(mixed $value): int|float
+    {
+        $numeric = self::numericOperand($value);
+        if (is_int($numeric)) {
+            return $numeric;
+        }
+        if (is_finite($numeric) && floor($numeric) === $numeric && $numeric >= -9223372036854775808.0 && $numeric < 9223372036854775807.0) {
+            return (int) $numeric;
+        }
+
+        return $numeric;
     }
 
     private static function numericPrefix(string $value): int|float

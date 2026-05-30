@@ -8,15 +8,15 @@ use PortLibs\LibSqlite\SQLiteGlobCursor;
 $tests = [];
 
 $entries = [
-    ['key' => 'Plugin_Alpha', 'rowid' => 1, 'payload' => ['option_name' => 'Plugin_Alpha', 'autoload' => 'yes']],
-    ['key' => 'plugin_alpha', 'rowid' => 2, 'payload' => ['option_name' => 'plugin_alpha', 'autoload' => 'yes']],
-    ['key' => 'plugin_beta', 'rowid' => 3, 'payload' => ['option_name' => 'plugin_beta', 'autoload' => 'no']],
-    ['key' => 'plugin_beta ', 'rowid' => 4, 'payload' => ['option_name' => 'plugin_beta ', 'autoload' => 'no']],
-    ['key' => "plugin_\xc3_enabled", 'rowid' => 5, 'payload' => ['option_name' => "plugin_\xc3_enabled", 'autoload' => 'yes']],
-    ['key' => 'plugin_é_enabled', 'rowid' => 6, 'payload' => ['option_name' => 'plugin_é_enabled', 'autoload' => 'yes']],
-    ['key' => 'plugin_É_enabled', 'rowid' => 7, 'payload' => ['option_name' => 'plugin_É_enabled', 'autoload' => 'no']],
-    ['key' => 'plugin_zeta', 'rowid' => 8, 'payload' => ['option_name' => 'plugin_zeta', 'autoload' => 'no']],
-    ['key' => 'theme_alpha', 'rowid' => 9, 'payload' => ['option_name' => 'theme_alpha', 'autoload' => 'yes']],
+    ['key' => 'Plugin_Alpha', 'rowid' => 1, 'payload' => ['key_name' => 'Plugin_Alpha', 'load_policy' => 'yes']],
+    ['key' => 'plugin_alpha', 'rowid' => 2, 'payload' => ['key_name' => 'plugin_alpha', 'load_policy' => 'yes']],
+    ['key' => 'plugin_beta', 'rowid' => 3, 'payload' => ['key_name' => 'plugin_beta', 'load_policy' => 'no']],
+    ['key' => 'plugin_beta ', 'rowid' => 4, 'payload' => ['key_name' => 'plugin_beta ', 'load_policy' => 'no']],
+    ['key' => "plugin_\xc3_enabled", 'rowid' => 5, 'payload' => ['key_name' => "plugin_\xc3_enabled", 'load_policy' => 'yes']],
+    ['key' => 'plugin_é_enabled', 'rowid' => 6, 'payload' => ['key_name' => 'plugin_é_enabled', 'load_policy' => 'yes']],
+    ['key' => 'plugin_É_enabled', 'rowid' => 7, 'payload' => ['key_name' => 'plugin_É_enabled', 'load_policy' => 'no']],
+    ['key' => 'plugin_zeta', 'rowid' => 8, 'payload' => ['key_name' => 'plugin_zeta', 'load_policy' => 'no']],
+    ['key' => 'theme_alpha', 'rowid' => 9, 'payload' => ['key_name' => 'theme_alpha', 'load_policy' => 'yes']],
 ];
 
 $makeCursor = static fn (string $pattern = 'plugin_*', string $collation = 'BINARY'): SQLiteGlobCursor => new SQLiteGlobCursor(
@@ -90,8 +90,8 @@ foreach ($matchCases as $name => [$pattern, $collation, $expectedRowids]) {
 
 $tests['glob current next72 matched rows preserve payload columns'] = static function (TestRunner $t) use ($makeCursor): void {
     $rows = $makeCursor('plugin_[À-ÿ]*', 'BINARY')->matchedRows();
-    $t->same("plugin_\xc3_enabled", $rows[0]['payload']['option_name']);
-    $t->same('yes', $rows[0]['payload']['autoload']);
+    $t->same("plugin_\xc3_enabled", $rows[0]['payload']['key_name']);
+    $t->same('yes', $rows[0]['payload']['load_policy']);
 };
 
 $tests['glob current next72 matched rows expose source positions after collation sort'] = static function (TestRunner $t) use ($makeCursor): void {

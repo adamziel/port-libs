@@ -7,30 +7,30 @@ use PortLibs\LibSqlite\SQLiteRtrimNocaseGlobCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'Plugin_Cache', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_cache ', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => "plugin_cache\t", 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_cache_extra', 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'plugin_Cache_extra', 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_éclair', 'autoload' => 'yes'],
-    ['option_id' => 8, 'option_name' => 'PLUGIN_éclair', 'autoload' => 'yes'],
-    ['option_id' => 9, 'option_name' => "plugin_bad_\xc3\x28", 'autoload' => 'no'],
-    ['option_id' => 10, 'option_name' => 'theme_cache', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'Plugin_Cache', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache ', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => "plugin_cache\t", 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_cache_extra', 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'plugin_Cache_extra', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'plugin_éclair', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => 'PLUGIN_éclair', 'load_policy' => 'yes'],
+    ['setting_id' => 9, 'key_name' => "plugin_bad_\xc3\x28", 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'theme_cache', 'load_policy' => 'yes'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'Plugin_Cache', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_cache  ', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => "plugin_cache\t", 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_cache_extra', 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'plugin_Cache_extra', 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_éclair', 'autoload' => 'yes'],
-    ['option_id' => 8, 'option_name' => 'PLUGIN_éclair', 'autoload' => 'yes'],
-    ['option_id' => 9, 'option_name' => 'plugin_bad_fixed', 'autoload' => 'no'],
-    ['option_id' => 11, 'option_name' => 'plugin_cache_new', 'autoload' => 'yes'],
-    ['option_id' => 12, 'option_name' => "plugin_new_\xc3\x28", 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'Plugin_Cache', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache  ', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => "plugin_cache\t", 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_cache_extra', 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'plugin_Cache_extra', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'plugin_éclair', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => 'PLUGIN_éclair', 'load_policy' => 'yes'],
+    ['setting_id' => 9, 'key_name' => 'plugin_bad_fixed', 'load_policy' => 'no'],
+    ['setting_id' => 11, 'key_name' => 'plugin_cache_new', 'load_policy' => 'yes'],
+    ['setting_id' => 12, 'key_name' => "plugin_new_\xc3\x28", 'load_policy' => 'no'],
 ];
 
 $plan = static fn (
@@ -132,11 +132,11 @@ $tests['rtrim nocase glob current source nextOneOneNine rejects unsupported coll
 };
 
 $tests['rtrim nocase glob current source nextOneOneNine rejects missing rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_name' => 'plugin_cache']], $nextRows, 'plugin_*', 'NOCASE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['key_name' => 'plugin_cache']], $nextRows, 'plugin_*', 'NOCASE'));
 };
 
-$tests['rtrim nocase glob current source nextOneOneNine rejects non text option name'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name' => 42]], $nextRows, 'plugin_*', 'NOCASE'));
+$tests['rtrim nocase glob current source nextOneOneNine rejects non text setting name'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name' => 42]], $nextRows, 'plugin_*', 'NOCASE'));
 };
 
 return $tests;

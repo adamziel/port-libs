@@ -8,26 +8,26 @@ require_once __DIR__ . '/../src/SQLiteRtrimNocaseGlobCurrentSourceNextPlan.php';
 use PortLibs\LibSqlite\SQLiteRtrimNocaseGlobCurrentSourceNextPlan;
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'Plugin_Cache', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_cache ', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => "plugin_cache\t", 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_cache_extra', 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'PLUGIN_cache_extra', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'Plugin_Cache', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache ', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => "plugin_cache\t", 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_cache_extra', 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'PLUGIN_cache_extra', 'load_policy' => 'yes'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_cache', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'Plugin_Cache', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_cache  ', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => "plugin_cache\t", 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_cache_extra', 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'PLUGIN_cache_extra', 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_cache_new', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'plugin_cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'Plugin_Cache', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_cache  ', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => "plugin_cache\t", 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_cache_extra', 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'PLUGIN_cache_extra', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'plugin_cache_new', 'load_policy' => 'yes'],
 ];
 
-$nocase = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, 'plugin_*', 'NOCASE');
-$rtrim = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::optionRowNamePlan($currentRows, $nextRows, 'plugin_cache', 'RTRIM');
+$nocase = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, 'plugin_*', 'NOCASE');
+$rtrim = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan($currentRows, $nextRows, 'plugin_cache', 'RTRIM');
 
 if (($argv[1] ?? null) === '--self-test') {
     foreach ([

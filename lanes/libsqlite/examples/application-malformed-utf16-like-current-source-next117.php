@@ -12,32 +12,32 @@ use PortLibs\LibSqlite\SQLiteMalformedLikeGlobSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encoding === 'UTF-16LE' ? 2 : 3,
     ];
 };
 
 $current = [
     $row(1, 'plugin_alpha', 'UTF-16LE'),
-    ['option_id' => 2, 'option_name_bytes' => "p\x00l\x00u\x00g\x00i\x00n\x00_\x00\x00\xd8", 'text_encoding' => 2],
-    ['option_id' => 3, 'option_name_bytes' => "t\x00h\x00e\x00m\x00e\x00_\x00\x00\xd8", 'text_encoding' => 2],
+    ['setting_id' => 2, 'key_name_bytes' => "p\x00l\x00u\x00g\x00i\x00n\x00_\x00\x00\xd8", 'text_encoding' => 2],
+    ['setting_id' => 3, 'key_name_bytes' => "t\x00h\x00e\x00m\x00e\x00_\x00\x00\xd8", 'text_encoding' => 2],
 ];
 
 $next = [
     $row(1, 'plugin_alpha', 'UTF-16BE'),
     $row(2, 'plugin_fixed', 'UTF-16LE'),
-    ['option_id' => 4, 'option_name_bytes' => "p\x00l\x00u\x00g\x00i\x00n\x00_\x00\x00\xd8", 'text_encoding' => 2],
+    ['setting_id' => 4, 'key_name_bytes' => "p\x00l\x00u\x00g\x00i\x00n\x00_\x00\x00\xd8", 'text_encoding' => 2],
 ];
 
-$plan = SQLiteMalformedLikeGlobSourceNextPlan::optionRowNameCurrentNext(
+$plan = SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext(
     $current,
     $next,
     'plugin%',
     'LIKE',
     'NOCASE',
-    currentSource: 'main.wp_options@cookie116',
-    nextSource: 'main.wp_options@cookie117',
+    currentSource: 'main.app_settings@cookie116',
+    nextSource: 'main.app_settings@cookie117',
 );
 
 printf("current malformed candidates: %s\n", implode(',', $plan['currentMalformedCandidateRowids']));

@@ -9,13 +9,13 @@ $tests = [];
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -71,7 +71,7 @@ $valueAt = static function (array $value, string $path): mixed {
 $cases = [
     'status' => ['status', 'utf16-nocase-like-rtrim-nul-current-source-nextoneSevenFour'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ?'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ?'],
     'pattern' => ['pattern', 'plugin!_cache'],
     'escape' => ['escape', '!'],
     'current source' => ['currentSource', 'main.app_settings@173'],
@@ -220,7 +220,7 @@ $tests['utf16 nocase like rtrim nul current source nextOneSevenFour non ascii pr
 };
 
 $tests['utf16 nocase like rtrim nul current source nextOneSevenFour rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
-    $rows = [['option_id' => 1, 'option_name_bytes' => $enc('plugin_cache', 2)]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc('plugin_cache', 2)]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan($rows, $rows, 'plugin%'));
 };
 
