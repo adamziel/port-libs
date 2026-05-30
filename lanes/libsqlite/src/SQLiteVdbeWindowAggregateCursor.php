@@ -37,6 +37,8 @@ final class SQLiteVdbeWindowAggregateCursor
         private readonly array $orderNulls = [],
         private readonly string $frameUnit = 'ROWS',
         private readonly string $excludeMode = 'NO OTHERS',
+        private readonly string $startBoundary = 'PRECEDING',
+        private readonly string $endBoundary = 'FOLLOWING',
     ) {
         if (!array_is_list($rows)) {
             throw new \InvalidArgumentException('SQLite VDBE window aggregate rows must be a list');
@@ -61,6 +63,8 @@ final class SQLiteVdbeWindowAggregateCursor
         if (!in_array($exclude, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
             throw new \InvalidArgumentException('SQLite VDBE window aggregate EXCLUDE mode is not supported');
         }
+        self::assertFrameBoundary($startBoundary, true);
+        self::assertFrameBoundary($endBoundary, false);
         self::assertColumnList($partitionColumns, true, 'partition');
         self::assertColumnList($orderColumns, false, 'order');
 
@@ -544,7 +548,10 @@ final class SQLiteVdbeWindowAggregateCursor
 
         $unit = strtoupper(trim($this->frameUnit));
         if ($unit === 'ROWS') {
-            return [max($partitionStart, $this->position - (int) $this->preceding), min($partitionEnd, $this->position + (int) $this->following)];
+            return [
+                max($partitionStart, min($partitionEnd + 1, $this->rowsBoundaryIndex($this->startBoundary, $this->preceding, $partitionStart, $partitionEnd, true))),
+                min($partitionEnd, max($partitionStart - 1, $this->rowsBoundaryIndex($this->endBoundary, $this->following, $partitionStart, $partitionEnd, false))),
+            ];
         }
         if ($unit === 'RANGE') {
             return $this->currentRangeFrame($partitionStart, $partitionEnd);
@@ -561,16 +568,18 @@ final class SQLiteVdbeWindowAggregateCursor
         $orderColumn = $this->orderColumns[0];
         $current = $this->numericRangeKey($this->orderedRows[$this->position][$orderColumn]);
         $descending = $this->orderDescending[0] ?? false;
+        $startBoundary = strtoupper(trim($this->startBoundary));
+        $endBoundary = strtoupper(trim($this->endBoundary));
         $start = null;
         $end = null;
         for ($index = $partitionStart; $index <= $partitionEnd; $index++) {
             $numeric = $this->numericRangeKey($this->orderedRows[$index][$orderColumn]);
             if ($descending) {
-                $inFrame = $numeric <= $current + (float) $this->preceding + 1.0e-12
-                    && $numeric >= $current - (float) $this->following - 1.0e-12;
+                $inFrame = $numeric <= $this->rangeLowerLimit($current, $startBoundary, (float) $this->preceding, true) + 1.0e-12
+                    && $numeric >= $this->rangeUpperLimit($current, $endBoundary, (float) $this->following, true) - 1.0e-12;
             } else {
-                $inFrame = $numeric >= $current - (float) $this->preceding - 1.0e-12
-                    && $numeric <= $current + (float) $this->following + 1.0e-12;
+                $inFrame = $numeric >= $this->rangeLowerLimit($current, $startBoundary, (float) $this->preceding, false) - 1.0e-12
+                    && $numeric <= $this->rangeUpperLimit($current, $endBoundary, (float) $this->following, false) + 1.0e-12;
             }
             if (!$inFrame) {
                 continue;
@@ -579,7 +588,7 @@ final class SQLiteVdbeWindowAggregateCursor
             $end = $index;
         }
 
-        return [$start ?? $this->position, $end ?? $this->position];
+        return [$start ?? $partitionEnd + 1, $end ?? $partitionStart - 1];
     }
 
     /**
@@ -599,8 +608,11 @@ final class SQLiteVdbeWindowAggregateCursor
         }
 
         $currentGroup = $groupIndexByRow[$this->position];
-        $startGroup = max(0, $currentGroup - (int) $this->preceding);
-        $endGroup = min(count($groups) - 1, $currentGroup + (int) $this->following);
+        $startGroup = max(0, min(count($groups), $this->groupBoundaryIndex($currentGroup, count($groups), $this->startBoundary, (int) $this->preceding, true)));
+        $endGroup = min(count($groups) - 1, max(-1, $this->groupBoundaryIndex($currentGroup, count($groups), $this->endBoundary, (int) $this->following, false)));
+        if ($startGroup > $endGroup) {
+            return [$partitionEnd + 1, $partitionStart - 1];
+        }
 
         return [$groups[$startGroup][0], $groups[$endGroup][count($groups[$endGroup]) - 1]];
     }
@@ -672,8 +684,68 @@ final class SQLiteVdbeWindowAggregateCursor
     private function currentRawFrameIndexes(): array
     {
         [$start, $end] = $this->currentFrameRange();
+        if ($start > $end) {
+            return [];
+        }
 
         return range($start, $end);
+    }
+
+    private static function assertFrameBoundary(string $boundary, bool $isStart): void
+    {
+        $boundary = strtoupper(trim($boundary));
+        $allowed = $isStart
+            ? ['UNBOUNDED PRECEDING', 'PRECEDING', 'CURRENT ROW', 'FOLLOWING']
+            : ['PRECEDING', 'CURRENT ROW', 'FOLLOWING', 'UNBOUNDED FOLLOWING'];
+        if (!in_array($boundary, $allowed, true)) {
+            throw new \InvalidArgumentException('SQLite VDBE window aggregate frame boundary is not supported');
+        }
+    }
+
+    private function rowsBoundaryIndex(string $boundary, int|float $offset, int $partitionStart, int $partitionEnd, bool $isStart): int
+    {
+        return match (strtoupper(trim($boundary))) {
+            'UNBOUNDED PRECEDING' => $partitionStart,
+            'UNBOUNDED FOLLOWING' => $partitionEnd,
+            'CURRENT ROW' => $this->position,
+            'PRECEDING' => $this->position - (int) $offset,
+            'FOLLOWING' => $this->position + (int) $offset,
+            default => $isStart ? $partitionEnd + 1 : $partitionStart - 1,
+        };
+    }
+
+    private function groupBoundaryIndex(int $currentGroup, int $groupCount, string $boundary, int $offset, bool $isStart): int
+    {
+        return match (strtoupper(trim($boundary))) {
+            'UNBOUNDED PRECEDING' => 0,
+            'UNBOUNDED FOLLOWING' => $groupCount - 1,
+            'CURRENT ROW' => $currentGroup,
+            'PRECEDING' => $currentGroup - $offset,
+            'FOLLOWING' => $currentGroup + $offset,
+            default => $isStart ? $groupCount : -1,
+        };
+    }
+
+    private function rangeLowerLimit(float|int $current, string $boundary, float $offset, bool $descending): float
+    {
+        return match ($boundary) {
+            'UNBOUNDED PRECEDING' => $descending ? INF : -INF,
+            'CURRENT ROW' => (float) $current,
+            'PRECEDING' => $descending ? (float) $current + $offset : (float) $current - $offset,
+            'FOLLOWING' => $descending ? (float) $current - $offset : (float) $current + $offset,
+            default => INF,
+        };
+    }
+
+    private function rangeUpperLimit(float|int $current, string $boundary, float $offset, bool $descending): float
+    {
+        return match ($boundary) {
+            'UNBOUNDED FOLLOWING' => $descending ? -INF : INF,
+            'CURRENT ROW' => (float) $current,
+            'PRECEDING' => $descending ? (float) $current + $offset : (float) $current - $offset,
+            'FOLLOWING' => $descending ? (float) $current - $offset : (float) $current + $offset,
+            default => -INF,
+        };
     }
 
     /**

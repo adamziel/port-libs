@@ -132,7 +132,7 @@ $predicateCases = [
     'missing temp table main wal change forces unqualified reprepare' => static function () use ($baseSchemas, $plan): bool {
         $schemas = $baseSchemas();
         $schemas['temp']['tables'] = [];
-        return $plan($schemas, ['wp_options'])['prepared_tables']['wp_options']['requires_reprepare'] === true;
+        return $plan($schemas, ['wp_options'])['requires_reprepare'] === true;
     },
     'missing temp and main table resolves to archive' => static function () use ($baseSchemas, $plan): bool {
         $schemas = $baseSchemas();
@@ -158,12 +158,12 @@ $predicateCases = [
         return $result['prepared_tables'] === [] && $result['changed_schemas'] === ['main', 'archive'];
     },
     'default missing temp and main schemas are supplied' => static function (): bool {
-        $result = SQLiteAttachTempMainWalSchemaCachePlan::currentNext(['archive' => ['schema_cookie' => 1, 'tables' => ['wp_options']]]);
+        $result = SQLiteAttachTempMainWalSchemaCachePlan::currentNext(['archive' => ['schema_cookie' => 1, 'tables' => ['app_settings']]]);
         return $result['search_order'] === ['temp', 'main', 'archive'];
     },
     'default missing temp and main schemas do not shadow archive' => static function (): bool {
-        $result = SQLiteAttachTempMainWalSchemaCachePlan::currentNext(['archive' => ['schema_cookie' => 1, 'tables' => ['wp_options']]]);
-        return $result['prepared_tables']['wp_options']['schema'] === 'archive';
+        $result = SQLiteAttachTempMainWalSchemaCachePlan::currentNext(['archive' => ['schema_cookie' => 1, 'tables' => ['app_settings']]]);
+        return $result['prepared_tables']['app_settings']['schema'] === 'archive';
     },
     'database list keeps shared cache marker' => static function () use ($plan): bool {
         return $plan()['database_list'][2]['cache'] === 'shared';

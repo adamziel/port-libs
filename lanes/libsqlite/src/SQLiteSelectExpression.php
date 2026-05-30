@@ -598,7 +598,7 @@ final class SQLiteSelectExpression
             '+' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric + (int) $rightNumeric : $leftNumeric + $rightNumeric,
             '-' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric - (int) $rightNumeric : $leftNumeric - $rightNumeric,
             '*' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric * (int) $rightNumeric : $leftNumeric * $rightNumeric,
-            '/' => $leftNumeric / $rightNumeric,
+            '/' => self::integerLike($leftNumeric, $rightNumeric) ? intdiv((int) $leftNumeric, (int) $rightNumeric) : $leftNumeric / $rightNumeric,
             '%' => (int) $leftNumeric % (int) $rightNumeric,
             default => throw new \InvalidArgumentException("SQLite SELECT numeric operator {$operator} is not supported"),
         };
@@ -609,11 +609,16 @@ final class SQLiteSelectExpression
         $leftInteger = self::integerOperand($left);
         $rightInteger = self::integerOperand($right);
 
+        if ($rightInteger < 0) {
+            $operator = $operator === '<<' ? '>>' : ($operator === '>>' ? '<<' : $operator);
+            $rightInteger = -$rightInteger;
+        }
+
         return match ($operator) {
             '&' => $leftInteger & $rightInteger,
             '|' => $leftInteger | $rightInteger,
-            '<<' => $leftInteger << $rightInteger,
-            '>>' => $leftInteger >> $rightInteger,
+            '<<' => $rightInteger >= 64 ? 0 : $leftInteger << $rightInteger,
+            '>>' => $rightInteger >= 64 ? ($leftInteger < 0 ? -1 : 0) : $leftInteger >> $rightInteger,
             default => throw new \InvalidArgumentException("SQLite SELECT bitwise operator {$operator} is not supported"),
         };
     }

@@ -11,7 +11,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
      * @param list<string> $preparedTables
      * @return array<string,mixed>
      */
-    public static function currentNext(array $schemas, array $preparedTables = ['wp_options'], string $sourceSchema = 'main'): array
+    public static function currentNext(array $schemas, array $preparedTables = ['app_settings'], string $sourceSchema = 'main'): array
     {
         $normalized = self::normalizeSchemas($schemas);
         $source = self::normalizeName($sourceSchema);
@@ -63,8 +63,8 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
             'changed_schemas' => $changed,
             'prepared_tables' => $resolutions,
             'requires_reprepare' => $reprepare,
-            'temp_shadows_main' => self::tableExists($normalized['temp'] ?? null, 'wp_options')
-                && self::tableExists($normalized['main'] ?? null, 'wp_options'),
+            'temp_shadows_main' => self::tableExists($normalized['temp'] ?? null, $preparedTables[0] ?? 'app_settings')
+                && self::tableExists($normalized['main'] ?? null, $preparedTables[0] ?? 'app_settings'),
             'wal_schema_cookie_sources' => $walDependencies,
             'database_list' => self::databaseList($normalized, $order),
             'dependencies' => [
@@ -132,7 +132,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
      * @param list<string> $preparedTables
      * @return array<string,mixed>
      */
-    public static function currentNextObjects(array $schemas, array $preparedTables = ['wp_options'], string $sourceSchema = 'main'): array
+    public static function currentNextObjects(array $schemas, array $preparedTables = ['app_settings'], string $sourceSchema = 'main'): array
     {
         $normalized = self::normalizeSchemas($schemas);
         foreach ($schemas as $name => $schema) {

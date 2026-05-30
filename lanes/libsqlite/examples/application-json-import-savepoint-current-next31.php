@@ -11,43 +11,43 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $plan = SQLiteJsonImportSavepointPlan::plan([
     [
-        'option_id' => 1,
-        'option_name' => 'plugin_settings',
-        'option_value' => '{"enabled":false,"modules":["core"]}',
-        'autoload' => 'yes',
+        'setting_id' => 1,
+        'key_name' => 'plugin_settings',
+        'key_value' => '{"enabled":false,"modules":["core"]}',
+        'load_policy' => 'yes',
         'page_number' => 2,
     ],
     [
-        'option_id' => 65,
-        'option_name' => 'theme_mods_twenty',
-        'option_value' => new SQLiteBlobValue(SQLiteJsonB::encode(['colors' => ['accent' => 'blue']])),
-        'autoload' => 'yes',
+        'setting_id' => 65,
+        'key_name' => 'theme_mods_twenty',
+        'key_value' => new SQLiteBlobValue(SQLiteJsonB::encode(['colors' => ['accent' => 'blue']])),
+        'load_policy' => 'yes',
         'page_number' => 3,
     ],
     [
-        'option_id' => 130,
-        'option_name' => 'broken_plugin_settings',
-        'option_value' => '{"enabled":',
-        'autoload' => 'no',
+        'setting_id' => 130,
+        'key_name' => 'broken_plugin_settings',
+        'key_value' => '{"enabled":',
+        'load_policy' => 'no',
         'page_number' => 4,
     ],
 ], [
     [
         'statement' => 'enable_plugin',
-        'option_name' => 'plugin_settings',
+        'key_name' => 'plugin_settings',
         'path' => '$.enabled',
         'value' => true,
     ],
     [
         'statement' => 'theme_accent',
-        'option_name' => 'theme_mods_twenty',
+        'key_name' => 'theme_mods_twenty',
         'function' => 'jsonb_set',
         'path' => '$.colors.accent',
         'value' => new SQLiteJsonSubtypeValue('{"name":"green","contrast":7}'),
     ],
     [
         'statement' => 'broken_payload',
-        'option_name' => 'broken_plugin_settings',
+        'key_name' => 'broken_plugin_settings',
         'path' => '$.enabled',
         'value' => true,
     ],
@@ -55,7 +55,7 @@ $plan = SQLiteJsonImportSavepointPlan::plan([
 
 echo json_encode([
     'scenario' => 'application-json-import-savepoint',
-    'applicationUse' => 'Apply copied wp_options JSON option mutations with SQLite statement-journal savepoint rollback semantics so one malformed JSON option rolls back without discarding the surrounding plugin-settings import.',
+    'applicationUse' => 'Apply copied app_settings JSON key mutations with SQLite statement-journal savepoint rollback semantics so one malformed JSON key rolls back without discarding the surrounding plugin-settings import.',
     'status' => $plan['status'],
     'appliedStatements' => array_column($plan['applied'], 'statement'),
     'failedStatements' => array_column($plan['failed'], 'statement'),

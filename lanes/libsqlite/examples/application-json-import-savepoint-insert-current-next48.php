@@ -11,19 +11,19 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $plan = SQLiteJsonImportSavepointPlan::plan([
     [
-        'option_id' => 1,
-        'option_name' => 'plugin_settings',
-        'option_value' => '{"enabled":false,"imports":0}',
-        'autoload' => 'yes',
+        'setting_id' => 1,
+        'key_name' => 'plugin_settings',
+        'key_value' => '{"enabled":false,"imports":0}',
+        'load_policy' => 'yes',
         'page_number' => 2,
     ],
 ], [
     [
         'statement' => 'insert_plugin_catalog',
-        'option_name' => 'plugin_catalog',
+        'key_name' => 'plugin_catalog',
         'on_missing' => 'insert',
-        'insert_option_id' => 130,
-        'insert_autoload' => 'no',
+        'insert_setting_id' => 130,
+        'insert_load_policy' => 'no',
         'page_number' => 5,
         'initial_value' => '{}',
         'path' => '$.plugins',
@@ -32,10 +32,10 @@ $plan = SQLiteJsonImportSavepointPlan::plan([
     ],
     [
         'statement' => 'insert_palette',
-        'option_name' => 'theme_palette',
+        'key_name' => 'theme_palette',
         'on_missing' => 'insert',
-        'insert_option_id' => 141,
-        'insert_autoload' => 'yes',
+        'insert_setting_id' => 141,
+        'insert_load_policy' => 'yes',
         'page_number' => 6,
         'function' => 'jsonb_set',
         'initial_value' => new SQLiteBlobValue(SQLiteJsonB::encode(['colors' => ['accent' => 'blue']])),
@@ -45,9 +45,9 @@ $plan = SQLiteJsonImportSavepointPlan::plan([
     ],
     [
         'statement' => 'insert_broken_catalog',
-        'option_name' => 'broken_catalog',
+        'key_name' => 'broken_catalog',
         'on_missing' => 'insert',
-        'insert_option_id' => 142,
+        'insert_setting_id' => 142,
         'page_number' => 7,
         'initial_value' => '{"broken":',
         'path' => '$.enabled',
@@ -58,15 +58,15 @@ $plan = SQLiteJsonImportSavepointPlan::plan([
 
 echo json_encode([
     'scenario' => 'application-json-import-savepoint-insert-current-next48',
-    'applicationUse' => 'Insert missing copied wp_options JSON rows inside the active import savepoint while statement rollback removes a malformed inserted row without discarding earlier JSON imports.',
+    'applicationUse' => 'Insert missing copied app_settings JSON rows inside the active import savepoint while statement rollback removes a malformed inserted row without discarding earlier JSON imports.',
     'status' => $plan['status'],
     'appliedStatements' => array_column($plan['applied'], 'statement'),
     'insertedStatements' => array_values(array_map(
         static fn (array $row): string => $row['statement'],
-        array_filter($plan['applied'], static fn (array $row): bool => $row['inserted_option'])
+        array_filter($plan['applied'], static fn (array $row): bool => $row['inserted_setting'])
     )),
     'failedStatements' => array_column($plan['failed'], 'statement'),
-    'finalOptionNames' => array_column($plan['final_rows'], 'option_name'),
+    'finalKeyNames' => array_column($plan['final_rows'], 'key_name'),
     'savepointPages' => $plan['savepoint_state'][1]['page_numbers'] ?? [],
     'rollbackPages' => $plan['rollback_to_savepoint']['restored_page_numbers'],
     'walRollbackFrames' => array_column($plan['wal_rollback_to_savepoint']['discarded_wal_frames'], 'frame_index'),

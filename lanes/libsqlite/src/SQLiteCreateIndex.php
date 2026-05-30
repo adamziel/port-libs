@@ -1055,6 +1055,20 @@ final class SQLiteCreateIndex
             return new SQLiteIndexPredicate($operand[0], SQLiteIndexPredicate::IS_NOT_NULL);
         }
 
+        $not = self::readIdentifier($where, $offset);
+        if ($not !== null && strcasecmp($not[0], 'NOT') === 0) {
+            $null = self::readIdentifier($where, $not[1]);
+            if ($null === null || strcasecmp($null[0], 'NULL') !== 0) {
+                return null;
+            }
+
+            if (trim(substr($where, $null[1])) !== '') {
+                return null;
+            }
+
+            return new SQLiteIndexPredicate($operand[0], SQLiteIndexPredicate::IS_NOT_NULL);
+        }
+
         $in = self::readIdentifier($where, $offset);
         if ($in !== null && strcasecmp($in[0], 'IN') === 0) {
             $listOffset = self::skipWhitespace($where, $in[1]);

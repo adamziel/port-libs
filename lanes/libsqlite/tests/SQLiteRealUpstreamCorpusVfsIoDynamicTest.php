@@ -1,0 +1,217 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLiteVfsIoDynamicPlan;
+
+$tests = [];
+
+$appendCases = [];
+foreach ([0, 1, 50, 511, 512, 513, 999, 1000, 1023, 1024, 1025, 4095, 4096, 4097, 8191, 8192] as $prefixBytes) {
+    foreach ([512, 1024, 4096] as $pageSize) {
+        $appendCases[] = [$prefixBytes, $pageSize, $pageSize * 3];
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic avfs append offsets stay page aligned'] = static function (TestRunner $t) use ($appendCases): void {
+    foreach ($appendCases as [$prefixBytes, $pageSize, $databaseBytes]) {
+        $layout = SQLiteVfsIoDynamicPlan::appendDatabaseLayout($prefixBytes, $pageSize, $databaseBytes);
+
+        $t->same('ok', $layout['status']);
+        $t->same($prefixBytes, $layout['prefix_bytes']);
+        $t->same($pageSize, $layout['page_size']);
+        $t->same($databaseBytes, $layout['database_bytes']);
+        $t->same(true, $layout['aligned']);
+        $t->same(0, $layout['database_offset'] % $pageSize);
+        $t->same(max(0, $layout['database_offset'] - $prefixBytes), $layout['padding_bytes']);
+        $t->same('Start-Of-SQLite3-', $layout['trailer_magic']);
+        $t->same($layout['database_offset'], $layout['trailer_offset']);
+        $t->same($layout['database_offset'] + $databaseBytes + 25, $layout['total_bytes']);
+        $t->same(true, $layout['prefix_intact']);
+        $t->same(true, in_array('upstream-avfs-append-offset', $layout['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic avfs empty container begins at zero'] = static function (TestRunner $t): void {
+    foreach ([512, 1024, 2048, 4096, 8192] as $pageSize) {
+        $layout = SQLiteVfsIoDynamicPlan::appendDatabaseLayout(0, $pageSize, $pageSize * 2);
+
+        $t->same(0, $layout['database_offset']);
+        $t->same(0, $layout['padding_bytes']);
+        $t->same($pageSize * 2 + 25, $layout['total_bytes']);
+        $t->same(true, $layout['prefix_intact']);
+        $t->same(true, $layout['aligned']);
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic avfs rejects malformed layout inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendDatabaseLayout(-1, 512, 1024));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendDatabaseLayout(0, 500, 1024));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendDatabaseLayout(0, 768, 1024));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendDatabaseLayout(0, 512, -1));
+};
+
+$ioCases = [
+    [['powersafe_overwrite'], 2, 'delete', 'full', 4, false, false, false],
+    [['atomic'], 2, 'delete', 'full', 1, true, false, false],
+    [['atomic'], 3, 'delete', 'full', 4, false, false, false],
+    [['safe_append'], 2, 'delete', 'full', 3, false, true, false],
+    [['sequential'], 2, 'delete', 'full', 3, false, false, true],
+    [['safe_append', 'sequential'], 2, 'delete', 'full', 2, false, true, true],
+    [['batch_atomic'], 1, 'delete', 'full', 1, true, false, false],
+    [['safe_append'], 5, 'truncate', 'normal', 3, false, true, false],
+    [['sequential'], 5, 'persist', 'normal', 3, false, false, true],
+    [['powersafe_overwrite'], 4, 'wal', 'full', 2, false, false, false],
+    [['powersafe_overwrite'], 4, 'off', 'full', 1, false, false, false],
+    [['powersafe_overwrite'], 4, 'delete', 'off', 0, false, false, false],
+];
+
+$tests['real upstream corpus vfs io dynamic io device characteristic sync counts'] = static function (TestRunner $t) use ($ioCases): void {
+    foreach ($ioCases as [$flags, $changedPages, $journalMode, $syncMode, $syncCount, $atomic, $safeAppend, $sequential]) {
+        $plan = SQLiteVfsIoDynamicPlan::ioTrafficPlan($flags, $changedPages, $journalMode, $syncMode);
+
+        $t->same('ok', $plan['status']);
+        $t->same($changedPages, $plan['changed_pages']);
+        $t->same($journalMode, $plan['journal_mode']);
+        $t->same($syncMode, $plan['sync_mode']);
+        $t->same($changedPages, $plan['database_page_writes']);
+        $t->same($syncCount, $plan['sync_count']);
+        $t->same($atomic, $plan['atomic_write_optimization']);
+        $t->same($safeAppend, $plan['safe_append_optimization']);
+        $t->same($sequential, $plan['sequential_optimization']);
+        $t->same(true, in_array('upstream-io-device-characteristics', $plan['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic io rollback journal writes follow device flags'] = static function (TestRunner $t) use ($ioCases): void {
+    foreach ($ioCases as [$flags, $changedPages, $journalMode, $syncMode]) {
+        $plan = SQLiteVfsIoDynamicPlan::ioTrafficPlan($flags, $changedPages, $journalMode, $syncMode);
+        $rollbackJournal = !in_array($journalMode, ['wal', 'off'], true);
+
+        $t->same($rollbackJournal && !$plan['atomic_write_optimization'] ? $changedPages : 0, $plan['journal_page_writes']);
+        $t->same($rollbackJournal && !$plan['atomic_write_optimization'] ? 1 : 0, $plan['journal_header_writes']);
+        $t->same($syncMode === 'off' ? [] : $plan['sync_sequence'], $plan['sync_sequence']);
+        $t->same(true, is_array($plan['device_flags']));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $plan['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic io rejects unsupported traffic options'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::ioTrafficPlan([], 0));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::ioTrafficPlan(['networked'], 1));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::ioTrafficPlan([], 1, 'memory'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::ioTrafficPlan([], 1, 'delete', 'extra'));
+};
+
+$nolockCases = [
+    ['file:/srv/app/data/app.sqlite?nolock=0', true, false, false, ['xLock' => 7, 'xUnlock' => 5, 'xCheckReservedLock' => 0, 'xAccess' => 0]],
+    ['file:/srv/app/data/app.sqlite?nolock=1', true, true, false, ['xLock' => 0, 'xUnlock' => 0, 'xCheckReservedLock' => 0, 'xAccess' => 0]],
+    ['file:/srv/app/data/app.sqlite?nolock=0', false, false, false, ['xLock' => 2, 'xUnlock' => 2, 'xCheckReservedLock' => 0, 'xAccess' => 4]],
+    ['file:/srv/app/data/app.sqlite?nolock=1', false, true, false, ['xLock' => 0, 'xUnlock' => 0, 'xCheckReservedLock' => 0, 'xAccess' => 0]],
+    ['file:/srv/app/data/app.sqlite?immutable=0&mode=ro', false, false, false, ['xLock' => 2, 'xUnlock' => 2, 'xCheckReservedLock' => 0, 'xAccess' => 4]],
+    ['file:/srv/app/data/app.sqlite?immutable=1&mode=ro', false, false, true, ['xLock' => 0, 'xUnlock' => 0, 'xCheckReservedLock' => 0, 'xAccess' => 0]],
+];
+
+$tests['real upstream corpus vfs io dynamic nolock and immutable suppress expected calls'] = static function (TestRunner $t) use ($nolockCases): void {
+    foreach ($nolockCases as [$filename, $writeTransaction, $nolock, $immutable, $calls]) {
+        $probe = SQLiteVfsIoDynamicPlan::nolockProbe($filename, $writeTransaction);
+
+        $t->same('ok', $probe['status']);
+        $t->same($writeTransaction, $probe['write_transaction']);
+        $t->same($nolock, $probe['nolock']);
+        $t->same($immutable, $probe['immutable']);
+        $t->same($calls, $probe['calls']);
+        $t->same($nolock || $immutable, $probe['lock_calls_suppressed']);
+        $t->same(true, in_array('upstream-nolock-uri-lock-suppression', $probe['dependencies'], true));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $probe['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic nolock preserves normalized paths'] = static function (TestRunner $t) use ($nolockCases): void {
+    foreach ($nolockCases as [$filename, $writeTransaction]) {
+        $probe = SQLiteVfsIoDynamicPlan::nolockProbe($filename, $writeTransaction);
+
+        $t->same(true, str_ends_with($probe['path'], 'app.sqlite'));
+        $t->same(0, $probe['calls']['xCheckReservedLock']);
+        $t->same($probe['lock_calls_suppressed'] ? 0 : ($writeTransaction ? 7 : 2), $probe['calls']['xLock']);
+        $t->same($probe['lock_calls_suppressed'] ? 0 : ($writeTransaction ? 5 : 2), $probe['calls']['xUnlock']);
+    }
+};
+
+$fileControlCases = [
+    ['PRAGMA mmap_size=65536', 'mmap_size', 65536],
+    ['PRAGMA mmap_size(32768)', 'mmap_size', 32768],
+    ['PRAGMA main.mmap_size=16384', 'mmap_size', 16384],
+    ['PRAGMA chunk_size=8192', 'chunk_size', 8192],
+    ['PRAGMA chunk_size(4096)', 'chunk_size', 4096],
+    ['PRAGMA max_page_count=512', 'size_limit', 512],
+    ['PRAGMA journal_size_limit=1048576', 'size_limit', 1048576],
+    ['PRAGMA reserve_bytes=24', 'reserve_bytes', 24],
+    ['PRAGMA lock_timeout=2500', 'lock_timeout', 2500],
+    ['PRAGMA busy_timeout=1200', 'lock_timeout', 1200],
+    ['PRAGMA data_version', 'data_version', 1],
+    ['file_control(size_hint, 32768)', 'size_hint', 32768],
+    ['file_control(persist_wal, on)', 'persist_wal', true],
+    ['file_control(powersafe_overwrite, 0)', 'powersafe_overwrite', false],
+    ['file_control(tempfilename, journal)', 'tempfilename', '.journal'],
+];
+
+$tests['real upstream corpus vfs io dynamic filectrl sql controls match upstream names'] = static function (TestRunner $t) use ($fileControlCases): void {
+    foreach ($fileControlCases as [$sql, $op, $expectedValue]) {
+        $sequence = SQLiteVfsIoDynamicPlan::fileControlSequence('file:/srv/app/data/app.sqlite?mode=rw&cache=shared&vfs=unix', [$sql]);
+        $pair = $sequence['pairs'][0];
+
+        $t->same('ok', $sequence['status']);
+        $t->same(1, $sequence['count']);
+        $t->same($op, $pair['op']);
+        $t->same('ok', $pair['result']['status']);
+        if ($op === 'tempfilename') {
+            $t->same(true, str_ends_with($pair['result']['value'], $expectedValue));
+        } else {
+            $t->same($expectedValue, $pair['result']['value']);
+        }
+        $t->same(true, in_array('upstream-filectrl-sql-file-control', $sequence['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic filectrl threads current state through sequence'] = static function (TestRunner $t): void {
+    $sequence = SQLiteVfsIoDynamicPlan::fileControlSequence('file:/srv/app/data/app.sqlite?mode=rw&cache=shared&vfs=unix', [
+        'PRAGMA mmap_size=4096',
+        'PRAGMA chunk_size=8192',
+        'PRAGMA reserve_bytes=11',
+        'PRAGMA busy_timeout=99',
+        'file_control(size_hint, 4096)',
+    ]);
+
+    $t->same(5, $sequence['count']);
+    $t->same(4096, $sequence['pairs'][1]['current']['mmap_size']);
+    $t->same(8192, $sequence['pairs'][2]['current']['chunk_size']);
+    $t->same(11, $sequence['pairs'][3]['current']['reserve_bytes']);
+    $t->same(99, $sequence['pairs'][4]['current']['lock_timeout']);
+    $t->same(4096, $sequence['pairs'][4]['result']['value']);
+    $t->same(5, $sequence['applied']);
+    $t->same(3, $sequence['changed']);
+    $t->same(true, in_array('vfs-io-dynamic-real-corpus', $sequence['dependencies'], true));
+};
+
+$tests['real upstream corpus vfs io dynamic filectrl immutable and nolock retain ignored mmap behavior'] = static function (TestRunner $t): void {
+    foreach ([
+        'file:/srv/app/data/archive.sqlite?mode=ro&immutable=1',
+        'file:/srv/app/data/archive.sqlite?nolock=1',
+    ] as $filename) {
+        $sequence = SQLiteVfsIoDynamicPlan::fileControlSequence($filename, ['PRAGMA mmap_size=65536']);
+
+        $t->same(1, $sequence['count']);
+        $t->same('mmap_size', $sequence['pairs'][0]['op']);
+        $t->same('ignored', $sequence['pairs'][0]['result']['status']);
+        $t->same(0, $sequence['pairs'][0]['result']['value']);
+        $t->same(1, $sequence['ignored']);
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $sequence['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic filectrl rejects empty sequence'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::fileControlSequence('file:/srv/app/data/app.sqlite?mode=rw', []));
+};
+
+return $tests;

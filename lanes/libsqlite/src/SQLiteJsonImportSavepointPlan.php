@@ -7,20 +7,20 @@ namespace PortLibs\LibSqlite;
 final class SQLiteJsonImportSavepointPlan
 {
     /**
-     * @param list<array{option_id:int,option_name:string,option_value:mixed,autoload?:string,page_number?:int,blog_id?:int}> $currentRows
-     * @param list<array{option_name:string,function?:string,path:string,value:mixed,page_number?:int,wal_frame_index?:int,statement?:string,on_missing?:string,insert_option_id?:int,insert_autoload?:string,initial_value?:mixed,blog_id?:int}> $mutations
-     * @param array{database_bytes?:string,page_size?:int,savepoint?:string,transaction?:string} $options
+     * @param list<array{setting_id:int,key_name:string,key_value:mixed,load_policy?:string,page_number?:int,tenant_id?:int}> $currentRows
+     * @param list<array{key_name:string,function?:string,path:string,value:mixed,page_number?:int,wal_frame_index?:int,statement?:string,on_missing?:string,insert_setting_id?:int,insert_load_policy?:string,initial_value?:mixed,tenant_id?:int}> $mutations
+     * @param array{database_bytes?:string,page_size?:int,savepoint?:string,transaction?:string} $keys
      * @return array<string,mixed>
      */
-    public static function plan(array $currentRows, array $mutations, array $options = []): array
+    public static function plan(array $currentRows, array $mutations, array $keys = []): array
     {
-        $pageSize = (int) ($options['page_size'] ?? 512);
+        $pageSize = (int) ($keys['page_size'] ?? 512);
         if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
             throw new \InvalidArgumentException('SQLite Application JSON import savepoint page size must be a power of two at least 512');
         }
 
-        $transactionName = (string) ($options['transaction'] ?? 'application_json_import');
-        $savepointName = (string) ($options['savepoint'] ?? 'current_json_batch');
+        $transactionName = (string) ($keys['transaction'] ?? 'application_json_import');
+        $savepointName = (string) ($keys['savepoint'] ?? 'current_json_batch');
         if ($transactionName === '' || $savepointName === '') {
             throw new \InvalidArgumentException('SQLite Application JSON import savepoint names must not be empty');
         }
@@ -29,28 +29,28 @@ final class SQLiteJsonImportSavepointPlan
         $rowsById = [];
         $pageImages = [];
         $maxPage = 1;
-        $maxOptionId = 0;
-        $hasMultisiteRows = false;
+        $maxSettingId = 0;
+        $hasMultitenantRows = false;
         foreach ($currentRows as $row) {
             $normalized = self::normalizeRow($row);
-            $hasMultisiteRows = $hasMultisiteRows || $normalized['blog_id'] !== null;
+            $hasMultitenantRows = $hasMultitenantRows || $normalized['tenant_id'] !== null;
             $rowKey = self::rowKey($normalized);
             if (isset($rowsByKey[$rowKey])) {
-                throw new \InvalidArgumentException("Duplicate current wp_options JSON option key {$rowKey}");
+                throw new \InvalidArgumentException("Duplicate current app_settings JSON key key {$rowKey}");
             }
-            if (isset($rowsById[$normalized['option_id']])) {
-                throw new \InvalidArgumentException("Duplicate current wp_options JSON option_id {$normalized['option_id']}");
+            if (isset($rowsById[$normalized['setting_id']])) {
+                throw new \InvalidArgumentException("Duplicate current app_settings JSON setting_id {$normalized['setting_id']}");
             }
 
             $rowsByKey[$rowKey] = $normalized;
-            $rowsById[$normalized['option_id']] = $normalized;
-            $maxOptionId = max($maxOptionId, $normalized['option_id']);
+            $rowsById[$normalized['setting_id']] = $normalized;
+            $maxSettingId = max($maxSettingId, $normalized['setting_id']);
             $page = $normalized['page_number'];
             $maxPage = max($maxPage, $page);
             $pageImages[$page] ??= self::pageImage($pageSize, $page, self::rowLabel($normalized) . ':before');
         }
 
-        $databaseBytes = (string) ($options['database_bytes'] ?? self::databaseImage($pageSize, $maxPage, $pageImages));
+        $databaseBytes = (string) ($keys['database_bytes'] ?? self::databaseImage($pageSize, $maxPage, $pageImages));
         if ($databaseBytes === '' || strlen($databaseBytes) % $pageSize !== 0) {
             throw new \InvalidArgumentException('SQLite Application JSON import savepoint database image must be aligned to the page size');
         }
@@ -70,17 +70,17 @@ final class SQLiteJsonImportSavepointPlan
         foreach ($mutations as $index => $mutation) {
             $statementName = self::statementName($mutation, $index);
             $savepoints->beginStatementJournal($statementName);
-            $insertedOptionName = null;
+            $insertedSettingName = null;
 
             try {
-                $optionName = self::mutationKeyName($mutation);
-                $rowKey = self::mutationRowKey($mutation, $hasMultisiteRows);
+                $keyName = self::mutationKeyName($mutation);
+                $rowKey = self::mutationRowKey($mutation, $hasMultitenantRows);
                 if (!isset($workingRows[$rowKey])) {
-                    $row = self::insertMissingRow($mutation, $optionName, $rowKey, $workingIds, $maxOptionId, $hasMultisiteRows);
+                    $row = self::insertMissingRow($mutation, $keyName, $rowKey, $workingIds, $maxSettingId, $hasMultitenantRows);
                     $workingRows[$rowKey] = $row;
-                    $workingIds[$row['option_id']] = $row;
-                    $maxOptionId = max($maxOptionId, $row['option_id']);
-                    $insertedOptionName = $rowKey;
+                    $workingIds[$row['setting_id']] = $row;
+                    $maxSettingId = max($maxSettingId, $row['setting_id']);
+                    $insertedSettingName = $rowKey;
                 } else {
                     $row = $workingRows[$rowKey];
                 }
@@ -94,13 +94,13 @@ final class SQLiteJsonImportSavepointPlan
                 $savepoints->recordStatementPageImageWrite($statementName, $pageNumber, $beforeImage);
                 $savepoints->recordStatementWalFrameWrite($statementName, $walFrame, $pageNumber);
                 $mutatedValue = SQLiteJsonMutation::mutateSqlFunctionArguments($function, [
-                    $row['option_value'],
+                    $row['key_value'],
                     $mutation['path'],
                     $mutation['value'],
                 ]);
 
                 $savepoints->recordPageImageWrite($pageNumber, $beforeImage);
-                $workingRows[$rowKey]['option_value'] = $mutatedValue;
+                $workingRows[$rowKey]['key_value'] = $mutatedValue;
                 $workingDatabase = self::writePage(
                     $workingDatabase,
                     $pageSize,
@@ -110,36 +110,36 @@ final class SQLiteJsonImportSavepointPlan
 
                 $statementPlans[] = $savepoints->statementRollbackPlan($statementName, $pageSize) + [
                     'status' => 'applied',
-                    'option_name' => $row['option_name'],
-                    'option_key' => $rowKey,
-                    'blog_id' => $row['blog_id'],
+                    'key_name' => $row['key_name'],
+                    'setting_key' => $rowKey,
+                    'tenant_id' => $row['tenant_id'],
                     'json_function' => $function,
                     'json_path' => $mutation['path'],
                 ];
                 $applied[] = [
                     'statement' => $statementName,
-                    'option_name' => $row['option_name'],
-                    'option_key' => $rowKey,
-                    'blog_id' => $row['blog_id'],
+                    'key_name' => $row['key_name'],
+                    'setting_key' => $rowKey,
+                    'tenant_id' => $row['tenant_id'],
                     'page_number' => $pageNumber,
                     'wal_frame_index' => $walFrame,
                     'json_function' => $function,
                     'json_path' => $mutation['path'],
-                    'inserted_option' => $insertedOptionName === $rowKey,
-                    'option_value' => $mutatedValue,
+                    'inserted_setting' => $insertedSettingName === $rowKey,
+                    'key_value' => $mutatedValue,
                 ];
             } catch (\Throwable $exception) {
                 $workingDatabase = $savepoints->rollbackStatementDatabaseImage($statementName, $workingDatabase, $pageSize);
                 $rollback = $savepoints->rollbackStatementOnErrorWithPlan($statementName, $pageSize);
-                if ($insertedOptionName !== null && isset($workingRows[$insertedOptionName])) {
-                    unset($workingIds[$workingRows[$insertedOptionName]['option_id']]);
-                    unset($workingRows[$insertedOptionName]);
+                if ($insertedSettingName !== null && isset($workingRows[$insertedSettingName])) {
+                    unset($workingIds[$workingRows[$insertedSettingName]['setting_id']]);
+                    unset($workingRows[$insertedSettingName]);
                 }
                 $failed[] = [
                     'statement' => $statementName,
-                    'option_name' => isset($mutation['option_name']) && is_string($mutation['option_name']) ? $mutation['option_name'] : null,
-                    'option_key' => self::failedMutationRowKey($mutation, $hasMultisiteRows),
-                    'blog_id' => self::mutationTenantIdOrNull($mutation),
+                    'key_name' => isset($mutation['key_name']) && is_string($mutation['key_name']) ? $mutation['key_name'] : null,
+                    'setting_key' => self::failedMutationRowKey($mutation, $hasMultitenantRows),
+                    'tenant_id' => self::mutationTenantIdOrNull($mutation),
                     'error' => $exception->getMessage(),
                     'rollback' => $rollback,
                     'database_restored' => true,
@@ -170,7 +170,7 @@ final class SQLiteJsonImportSavepointPlan
             'dependencies' => [
                 'sqlite-json-mutation-current',
                 'sqlite-savepoint-statement-journal-current',
-                $hasMultisiteRows ? 'sqlite-application-multisite-json-import-current' : 'sqlite-application-json-import-savepoint-current',
+                $hasMultitenantRows ? 'sqlite-application-multitenant-json-import-current' : 'sqlite-application-json-import-savepoint-current',
                 'sqlite-application-json-import-savepoint-insert-current-next48',
             ],
         ];
@@ -178,43 +178,43 @@ final class SQLiteJsonImportSavepointPlan
 
     /**
      * @param array<string,mixed> $row
-     * @return array{option_id:int,option_name:string,option_value:mixed,autoload:string,page_number:int,blog_id:?int}
+     * @return array{setting_id:int,key_name:string,key_value:mixed,load_policy:string,page_number:int,tenant_id:?int}
      */
     private static function normalizeRow(array $row): array
     {
-        $id = $row['option_id'] ?? null;
+        $id = $row['setting_id'] ?? null;
         if (!is_int($id) && !(is_string($id) && ctype_digit($id))) {
-            throw new \InvalidArgumentException('wp_options JSON import option_id must be an integer');
+            throw new \InvalidArgumentException('app_settings JSON import setting_id must be an integer');
         }
         $id = (int) $id;
         if ($id <= 0) {
-            throw new \InvalidArgumentException('wp_options JSON import option_id must be positive');
+            throw new \InvalidArgumentException('app_settings JSON import setting_id must be positive');
         }
 
-        $name = $row['option_name'] ?? null;
+        $name = $row['key_name'] ?? null;
         if (!is_string($name) || $name === '' || str_contains($name, "\0")) {
-            throw new \InvalidArgumentException('wp_options JSON import option_name must be non-empty text');
+            throw new \InvalidArgumentException('app_settings JSON import key_name must be non-empty text');
         }
 
         $page = $row['page_number'] ?? (2 + intdiv($id - 1, 64));
         if (!is_int($page) || $page < 1) {
-            throw new \InvalidArgumentException('wp_options JSON import page number must be one-based');
+            throw new \InvalidArgumentException('app_settings JSON import page number must be one-based');
         }
 
-        $autoload = $row['autoload'] ?? 'no';
-        if (!is_string($autoload)) {
-            throw new \InvalidArgumentException('wp_options JSON import autoload must be text');
+        $load_policy = $row['load_policy'] ?? 'no';
+        if (!is_string($load_policy)) {
+            throw new \InvalidArgumentException('app_settings JSON import load_policy must be text');
         }
 
-        $blogId = self::tenantIdOrNull($row['blog_id'] ?? null, 'wp_options JSON import blog_id');
+        $tenantId = self::tenantIdOrNull($row['tenant_id'] ?? null, 'app_settings JSON import tenant_id');
 
         return [
-            'option_id' => $id,
-            'option_name' => $name,
-            'option_value' => $row['option_value'] ?? '{}',
-            'autoload' => $autoload,
+            'setting_id' => $id,
+            'key_name' => $name,
+            'key_value' => $row['key_value'] ?? '{}',
+            'load_policy' => $load_policy,
             'page_number' => $page,
-            'blog_id' => $blogId,
+            'tenant_id' => $tenantId,
         ];
     }
 
@@ -236,37 +236,37 @@ final class SQLiteJsonImportSavepointPlan
      */
     private static function mutationKeyName(array $mutation): string
     {
-        $optionName = $mutation['option_name'] ?? null;
-        if (!is_string($optionName) || $optionName === '') {
-            throw new \InvalidArgumentException('SQLite Application JSON import mutation requires an option_name');
+        $keyName = $mutation['key_name'] ?? null;
+        if (!is_string($keyName) || $keyName === '') {
+            throw new \InvalidArgumentException('SQLite Application JSON import mutation requires an key_name');
         }
 
-        return $optionName;
+        return $keyName;
     }
 
     /**
      * @param array<string,mixed> $mutation
-     * @param array<int,array{option_id:int,option_name:string,option_value:mixed,autoload:string,page_number:int,blog_id:?int}> $rowsById
-     * @return array{option_id:int,option_name:string,option_value:mixed,autoload:string,page_number:int,blog_id:?int}
+     * @param array<int,array{setting_id:int,key_name:string,key_value:mixed,load_policy:string,page_number:int,tenant_id:?int}> $rowsById
+     * @return array{setting_id:int,key_name:string,key_value:mixed,load_policy:string,page_number:int,tenant_id:?int}
      */
-    private static function insertMissingRow(array $mutation, string $optionName, string $rowKey, array $rowsById, int $maxOptionId, bool $hasMultisiteRows): array
+    private static function insertMissingRow(array $mutation, string $keyName, string $rowKey, array $rowsById, int $maxSettingId, bool $hasMultitenantRows): array
     {
         $mode = $mutation['on_missing'] ?? null;
         if ($mode !== 'insert') {
-            throw new \InvalidArgumentException("SQLite Application JSON import option does not exist: {$rowKey}");
+            throw new \InvalidArgumentException("SQLite Application JSON import key does not exist: {$rowKey}");
         }
 
-        $id = $mutation['insert_option_id'] ?? ($maxOptionId + 1);
+        $id = $mutation['insert_setting_id'] ?? ($maxSettingId + 1);
         if (!is_int($id) || $id <= 0) {
-            throw new \InvalidArgumentException('SQLite Application JSON import inserted option_id must be positive');
+            throw new \InvalidArgumentException('SQLite Application JSON import inserted setting_id must be positive');
         }
         if (isset($rowsById[$id])) {
-            throw new \InvalidArgumentException("SQLite Application JSON import inserted option_id already exists: {$id}");
+            throw new \InvalidArgumentException("SQLite Application JSON import inserted setting_id already exists: {$id}");
         }
 
-        $autoload = $mutation['insert_autoload'] ?? 'no';
-        if (!is_string($autoload)) {
-            throw new \InvalidArgumentException('SQLite Application JSON import inserted autoload must be text');
+        $load_policy = $mutation['insert_load_policy'] ?? 'no';
+        if (!is_string($load_policy)) {
+            throw new \InvalidArgumentException('SQLite Application JSON import inserted load_policy must be text');
         }
 
         $page = $mutation['page_number'] ?? (2 + intdiv($id - 1, 64));
@@ -275,48 +275,48 @@ final class SQLiteJsonImportSavepointPlan
         }
 
         return [
-            'option_id' => $id,
-            'option_name' => $optionName,
-            'option_value' => $mutation['initial_value'] ?? '{}',
-            'autoload' => $autoload,
+            'setting_id' => $id,
+            'key_name' => $keyName,
+            'key_value' => $mutation['initial_value'] ?? '{}',
+            'load_policy' => $load_policy,
             'page_number' => $page,
-            'blog_id' => $hasMultisiteRows ? self::mutationTenantIdOrNull($mutation) : null,
+            'tenant_id' => $hasMultitenantRows ? self::mutationTenantIdOrNull($mutation) : null,
         ];
     }
 
     /**
      * @param array<string,mixed> $mutation
      */
-    private static function mutationRowKey(array $mutation, bool $hasMultisiteRows): string
+    private static function mutationRowKey(array $mutation, bool $hasMultitenantRows): string
     {
-        $optionName = self::mutationKeyName($mutation);
-        if (!$hasMultisiteRows) {
-            return $optionName;
+        $keyName = self::mutationKeyName($mutation);
+        if (!$hasMultitenantRows) {
+            return $keyName;
         }
 
-        $blogId = self::tenantIdOrNull($mutation['blog_id'] ?? null, 'wp_options JSON import mutation blog_id');
-        if ($blogId === null) {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON import mutation requires blog_id');
+        $tenantId = self::tenantIdOrNull($mutation['tenant_id'] ?? null, 'app_settings JSON import mutation tenant_id');
+        if ($tenantId === null) {
+            throw new \InvalidArgumentException('SQLite Application multitenant JSON import mutation requires tenant_id');
         }
 
-        return self::key($blogId, $optionName);
+        return self::key($tenantId, $keyName);
     }
 
     /**
      * @param array<string,mixed> $mutation
      */
-    private static function failedMutationRowKey(array $mutation, bool $hasMultisiteRows): ?string
+    private static function failedMutationRowKey(array $mutation, bool $hasMultitenantRows): ?string
     {
-        if (!isset($mutation['option_name']) || !is_string($mutation['option_name']) || $mutation['option_name'] === '') {
+        if (!isset($mutation['key_name']) || !is_string($mutation['key_name']) || $mutation['key_name'] === '') {
             return null;
         }
-        if (!$hasMultisiteRows) {
-            return $mutation['option_name'];
+        if (!$hasMultitenantRows) {
+            return $mutation['key_name'];
         }
 
-        $blogId = self::mutationTenantIdOrNull($mutation);
+        $tenantId = self::mutationTenantIdOrNull($mutation);
 
-        return $blogId === null ? null : self::key($blogId, $mutation['option_name']);
+        return $tenantId === null ? null : self::key($tenantId, $mutation['key_name']);
     }
 
     /**
@@ -324,28 +324,28 @@ final class SQLiteJsonImportSavepointPlan
      */
     private static function mutationTenantIdOrNull(array $mutation): ?int
     {
-        return self::tenantIdOrNull($mutation['blog_id'] ?? null, 'wp_options JSON import mutation blog_id');
+        return self::tenantIdOrNull($mutation['tenant_id'] ?? null, 'app_settings JSON import mutation tenant_id');
     }
 
     /**
-     * @param array{blog_id:?int,option_name:string} $row
+     * @param array{tenant_id:?int,key_name:string} $row
      */
     private static function rowKey(array $row): string
     {
-        return $row['blog_id'] === null ? $row['option_name'] : self::key($row['blog_id'], $row['option_name']);
+        return $row['tenant_id'] === null ? $row['key_name'] : self::key($row['tenant_id'], $row['key_name']);
     }
 
     /**
-     * @param array{blog_id:?int,option_name:string} $row
+     * @param array{tenant_id:?int,key_name:string} $row
      */
     private static function rowLabel(array $row): string
     {
-        return $row['blog_id'] === null ? $row['option_name'] : 'blog' . $row['blog_id'] . ':' . $row['option_name'];
+        return $row['tenant_id'] === null ? $row['key_name'] : 'tenant' . $row['tenant_id'] . ':' . $row['key_name'];
     }
 
-    private static function key(int $blogId, string $optionName): string
+    private static function key(int $tenantId, string $keyName): string
     {
-        return $blogId . ':' . $optionName;
+        return $tenantId . ':' . $keyName;
     }
 
     private static function tenantIdOrNull(mixed $value, string $label): ?int
@@ -356,12 +356,12 @@ final class SQLiteJsonImportSavepointPlan
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException($label . ' must be a positive integer');
         }
-        $blogId = (int) $value;
-        if ($blogId <= 0) {
+        $tenantId = (int) $value;
+        if ($tenantId <= 0) {
             throw new \InvalidArgumentException($label . ' must be a positive integer');
         }
 
-        return $blogId;
+        return $tenantId;
     }
 
     /**

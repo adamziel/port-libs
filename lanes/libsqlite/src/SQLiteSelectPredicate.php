@@ -195,7 +195,7 @@ final class SQLiteSelectPredicate
         $value = self::operand($row, $predicate, 'left');
         $lower = self::operand($row, $predicate, 'lower');
         $upper = self::operand($row, $predicate, 'upper');
-        if ($value === null || $lower === null || $upper === null) {
+        if ($value === null) {
             return null;
         }
 
@@ -203,15 +203,26 @@ final class SQLiteSelectPredicate
             ?? self::expressionCollation($predicate['left'] ?? null)
             ?? self::expressionCollation($predicate['lower'] ?? null)
             ?? self::expressionCollation($predicate['upper'] ?? null);
-        $lowerComparison = self::compareValues($value, $lower, false, $collation);
-        $upperComparison = self::compareValues($value, $upper, false, $collation);
-        if ($lowerComparison === null || $upperComparison === null) {
+        $lowerMatched = null;
+        if ($lower !== null) {
+            $lowerComparison = self::compareValues($value, $lower, false, $collation);
+            $lowerMatched = $lowerComparison === null ? null : $lowerComparison >= 0;
+        }
+
+        $upperMatched = null;
+        if ($upper !== null) {
+            $upperComparison = self::compareValues($value, $upper, false, $collation);
+            $upperMatched = $upperComparison === null ? null : $upperComparison <= 0;
+        }
+
+        if ($lowerMatched === false || $upperMatched === false) {
+            return $negate;
+        }
+        if ($lowerMatched === null || $upperMatched === null) {
             return null;
         }
 
-        $matched = $lowerComparison >= 0 && $upperComparison <= 0;
-
-        return $negate ? !$matched : $matched;
+        return $negate ? false : true;
     }
 
     /**
