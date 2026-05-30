@@ -1056,14 +1056,14 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentCoverage = self::orderByConstraintCoverage120($plan['current']['used'], $orderBy);
-        $nextCoverage = self::orderByConstraintCoverage120($plan['next']['used'], $orderBy);
-        $currentPartialOrder = self::jsonTablePartialOrderCostProfile124($plan['current'], $plan['currentCostOrder'], $currentCoverage);
-        $nextPartialOrder = self::jsonTablePartialOrderCostProfile124($plan['next'], $plan['nextCostOrder'], $nextCoverage);
-        $currentProfile = self::jsonTablePathOrderByCostProfile131($plan['currentPathConstraint'], $currentPartialOrder, $plan['currentRows']);
-        $nextProfile = self::jsonTablePathOrderByCostProfile131($plan['nextPathConstraint'], $nextPartialOrder, $plan['nextRows']);
-        $transitions = self::jsonTablePathOrderByCostTransitions131($currentProfile, $nextProfile);
-        $reasons = self::jsonTablePathOrderByCostReplanReasons131($transitions);
+        $currentCoverage = self::orderByConstraintCoverage($plan['current']['used'], $orderBy);
+        $nextCoverage = self::orderByConstraintCoverage($plan['next']['used'], $orderBy);
+        $currentPartialOrder = self::jsonTablePartialOrderCostProfile($plan['current'], $plan['currentCostOrder'], $currentCoverage);
+        $nextPartialOrder = self::jsonTablePartialOrderCostProfile($plan['next'], $plan['nextCostOrder'], $nextCoverage);
+        $currentProfile = self::jsonTablePathOrderByCostProfile($plan['currentPathConstraint'], $currentPartialOrder, $plan['currentRows']);
+        $nextProfile = self::jsonTablePathOrderByCostProfile($plan['nextPathConstraint'], $nextPartialOrder, $plan['nextRows']);
+        $transitions = self::jsonTablePathOrderByCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTablePathOrderByCostReplanReasons($transitions);
 
         $plan['currentPathOrderByCost'] = $currentProfile;
         $plan['nextPathOrderByCost'] = $nextProfile;
@@ -1114,10 +1114,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTablePathGeneratedOrderProfile137($plan['currentPathOrderByCost'], $plan['currentRows'], $generatedOrder);
-        $nextProfile = self::jsonTablePathGeneratedOrderProfile137($plan['nextPathOrderByCost'], $plan['nextRows'], $generatedOrder);
-        $transitions = self::jsonTablePathGeneratedOrderTransitions137($currentProfile, $nextProfile);
-        $reasons = self::jsonTablePathGeneratedOrderReplanReasons137($transitions);
+        $currentProfile = self::jsonTablePathGeneratedOrderProfile($plan['currentPathOrderByCost'], $plan['currentRows'], $generatedOrder);
+        $nextProfile = self::jsonTablePathGeneratedOrderProfile($plan['nextPathOrderByCost'], $plan['nextRows'], $generatedOrder);
+        $transitions = self::jsonTablePathGeneratedOrderTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTablePathGeneratedOrderReplanReasons($transitions);
 
         $plan['currentPathGeneratedOrder'] = $currentProfile;
         $plan['nextPathGeneratedOrder'] = $nextProfile;
@@ -1167,20 +1167,20 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathCostProfile134(
+        $currentProfile = self::jsonTableGeneratedPathCostProfile(
             $currentSource,
             $generatedPathColumn,
             $plan['currentPathOrderByCost'],
             $plan['currentRows'],
         );
-        $nextProfile = self::jsonTableGeneratedPathCostProfile134(
+        $nextProfile = self::jsonTableGeneratedPathCostProfile(
             $nextSource,
             $generatedPathColumn,
             $plan['nextPathOrderByCost'],
             $plan['nextRows'],
         );
-        $transitions = self::jsonTableGeneratedPathCostTransitions134($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathCostReplanReasons134($transitions);
+        $transitions = self::jsonTableGeneratedPathCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathCostReplanReasons($transitions);
 
         $plan['generatedPathColumn'] = $generatedPathColumn;
         $plan['currentGeneratedPathCost'] = $currentProfile;
@@ -1227,8 +1227,8 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table nested path planner requires a nested path column');
         }
 
-        $currentRoot = self::composeNestedRootPath121($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
-        $nextRoot = self::composeNestedRootPath121($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
+        $currentRoot = self::composeNestedRootPath($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
+        $nextRoot = self::composeNestedRootPath($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
         $current = $currentSource + ['__sqlite_json_table_nested_root_next121' => $currentRoot['root']];
         $next = $nextSource + ['__sqlite_json_table_nested_root_next121' => $nextRoot['root']];
         $plan = self::currentSourceConstraintCostOrder(
@@ -1476,8 +1476,8 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table nested constraint order planner requires a nested path column');
         }
 
-        $currentRoot = self::composeNestedRootPath121($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
-        $nextRoot = self::composeNestedRootPath121($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
+        $currentRoot = self::composeNestedRootPath($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
+        $nextRoot = self::composeNestedRootPath($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
         $current = $currentSource + ['__sqlite_json_table_nested_constraint_order_root_next127' => $currentRoot['root']];
         $next = $nextSource + ['__sqlite_json_table_nested_constraint_order_root_next127' => $nextRoot['root']];
 
@@ -1539,8 +1539,8 @@ final class SQLiteJsonTablePlan
             $nestedReasons[] = 'json-table-nested-constraint-order-row-count-changed';
         }
 
-        $plan['currentNestedConstraintOrder'] = self::nestedConstraintOrderProfile127($currentRoot, $plan['currentPartialOrderCost'], $plan['currentOrderConstraintCoverage']);
-        $plan['nextNestedConstraintOrder'] = self::nestedConstraintOrderProfile127($nextRoot, $plan['nextPartialOrderCost'], $plan['nextOrderConstraintCoverage']);
+        $plan['currentNestedConstraintOrder'] = self::nestedConstraintOrderProfile($currentRoot, $plan['currentPartialOrderCost'], $plan['currentOrderConstraintCoverage']);
+        $plan['nextNestedConstraintOrder'] = self::nestedConstraintOrderProfile($nextRoot, $plan['nextPartialOrderCost'], $plan['nextOrderConstraintCoverage']);
         $plan['nestedConstraintOrderTransitions'] = $transitions;
         $plan['next127ReplanReasons'] = array_values(array_unique(array_merge($plan['next124ReplanReasons'], $nestedReasons)));
         $plan['replanRequired'] = $plan['next127ReplanReasons'] !== [];
@@ -1584,10 +1584,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::rowidHiddenPathProfile138($plan['currentNestedPathRowid'], $constraints);
-        $nextProfile = self::rowidHiddenPathProfile138($plan['nextNestedPathRowid'], $constraints);
-        $transitions = self::rowidHiddenPathTransitions138($currentProfile, $nextProfile);
-        $reasons = self::rowidHiddenPathReplanReasons138($transitions);
+        $currentProfile = self::rowidHiddenPathProfile($plan['currentNestedPathRowid'], $constraints);
+        $nextProfile = self::rowidHiddenPathProfile($plan['nextNestedPathRowid'], $constraints);
+        $transitions = self::rowidHiddenPathTransitions($currentProfile, $nextProfile);
+        $reasons = self::rowidHiddenPathReplanReasons($transitions);
 
         $plan['currentRowidHiddenPath'] = $currentProfile;
         $plan['nextRowidHiddenPath'] = $nextProfile;
@@ -1637,10 +1637,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::hiddenRowidPathProfile146($currentSource, $plan['currentRowidHiddenPath'], $constraints);
-        $nextProfile = self::hiddenRowidPathProfile146($nextSource, $plan['nextRowidHiddenPath'], $constraints);
-        $transitions = self::hiddenRowidPathTransitions146($currentProfile, $nextProfile);
-        $reasons = self::hiddenRowidPathReplanReasons146($transitions);
+        $currentProfile = self::hiddenRowidPathProfile($currentSource, $plan['currentRowidHiddenPath'], $constraints);
+        $nextProfile = self::hiddenRowidPathProfile($nextSource, $plan['nextRowidHiddenPath'], $constraints);
+        $transitions = self::hiddenRowidPathTransitions($currentProfile, $nextProfile);
+        $reasons = self::hiddenRowidPathReplanReasons($transitions);
 
         $plan['currentHiddenRowidPathSource'] = $currentProfile;
         $plan['nextHiddenRowidPathSource'] = $nextProfile;
@@ -1962,10 +1962,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::nestedPathRowidProfile133($plan['currentNestedHiddenCost'], $plan['current'], $constraints);
-        $nextProfile = self::nestedPathRowidProfile133($plan['nextNestedHiddenCost'], $plan['next'], $constraints);
-        $transitions = self::nestedPathRowidTransitions133($currentProfile, $nextProfile);
-        $reasons = self::nestedPathRowidReplanReasons133($transitions);
+        $currentProfile = self::nestedPathRowidProfile($plan['currentNestedHiddenCost'], $plan['current'], $constraints);
+        $nextProfile = self::nestedPathRowidProfile($plan['nextNestedHiddenCost'], $plan['next'], $constraints);
+        $transitions = self::nestedPathRowidTransitions($currentProfile, $nextProfile);
+        $reasons = self::nestedPathRowidReplanReasons($transitions);
 
         $plan['currentNestedPathRowid'] = $currentProfile;
         $plan['nextNestedPathRowid'] = $nextProfile;
@@ -2193,18 +2193,18 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidBestIndexProfile163(
+        $currentProfile = self::jsonTableGeneratedPathRowidBestIndexProfile(
             $plan['currentGeneratedPathRowidCostSource'],
             $constraints,
             $orderBy,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidBestIndexProfile163(
+        $nextProfile = self::jsonTableGeneratedPathRowidBestIndexProfile(
             $plan['nextGeneratedPathRowidCostSource'],
             $constraints,
             $orderBy,
         );
-        $transitions = self::jsonTableGeneratedPathRowidBestIndexTransitions163($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidBestIndexReplanReasons163($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidBestIndexTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidBestIndexReplanReasons($transitions);
 
         $plan['currentGeneratedPathRowidBestIndex'] = $currentProfile;
         $plan['nextGeneratedPathRowidBestIndex'] = $nextProfile;
@@ -2313,16 +2313,16 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceFenceProfile172(
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceFenceProfile(
             $plan['currentGeneratedPathRowidYield'],
             $plan['currentGeneratedPathRowidCostSource'],
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceFenceProfile172(
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceFenceProfile(
             $plan['nextGeneratedPathRowidYield'],
             $plan['nextGeneratedPathRowidCostSource'],
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceFenceTransitions172($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceFenceReplanReasons172($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceFenceTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceFenceReplanReasons($transitions);
 
         $plan['currentGeneratedPathRowidSourceFence172'] = $currentProfile;
         $plan['nextGeneratedPathRowidSourceFence172'] = $nextProfile;
@@ -2496,16 +2496,16 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceMaterialization180(
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceMaterialization(
             $currentSource,
             $plan['currentGeneratedPathRowidXFilterProgram177'],
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceMaterialization180(
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceMaterialization(
             $nextSource,
             $plan['nextGeneratedPathRowidXFilterProgram177'],
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceMaterializationTransitions180($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceMaterializationReplanReasons180($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceMaterializationTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceMaterializationReplanReasons($transitions);
 
         $plan['currentGeneratedPathRowidCurrentSourceMaterialization180'] = $currentProfile;
         $plan['nextGeneratedPathRowidCurrentSourceMaterialization180'] = $nextProfile;
@@ -2574,7 +2574,7 @@ final class SQLiteJsonTablePlan
             $plan['next180ReplanReasons'] !== [],
         );
         $transitions = self::jsonTableGeneratedPathRowidCurrentSourceBatchTransitions183($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceBatchReplanReasons183($transitions);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceBatchReplanReasons($transitions);
 
         $plan['currentGeneratedPathRowidCurrentSourceBatch183'] = $currentProfile;
         $plan['nextGeneratedPathRowidCurrentSourceBatch183'] = $nextProfile;
@@ -2762,7 +2762,7 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $profile = self::jsonTableGeneratedPathRowidDeletedResumeProfile188(
+        $profile = self::jsonTableGeneratedPathRowidDeletedResumeProfile(
             $function,
             $currentSource,
             $nextSource,
@@ -2828,7 +2828,7 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentFilter = self::jsonTableGeneratedPathRowidXFilterRecheck191(
+        $currentFilter = self::jsonTableGeneratedPathRowidXFilterRecheck(
             $function,
             $currentSource,
             $jsonColumn,
@@ -2837,7 +2837,7 @@ final class SQLiteJsonTablePlan
             $plan['currentGeneratedPathRowidCurrentSourceResume185'],
             false,
         );
-        $nextFilter = self::jsonTableGeneratedPathRowidXFilterRecheck191(
+        $nextFilter = self::jsonTableGeneratedPathRowidXFilterRecheck(
             $function,
             $nextSource,
             $jsonColumn,
@@ -2846,8 +2846,8 @@ final class SQLiteJsonTablePlan
             $plan['currentGeneratedPathRowidCurrentSourceResume185'],
             (bool) ($plan['generatedPathRowidDeletedResume188']['restartRequired'] ?? true),
         );
-        $transitions = self::jsonTableGeneratedPathRowidXFilterRecheckTransitions191($currentFilter, $nextFilter);
-        $reasons = self::jsonTableGeneratedPathRowidXFilterRecheckReasons191($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidXFilterRecheckTransitions($currentFilter, $nextFilter);
+        $reasons = self::jsonTableGeneratedPathRowidXFilterRecheckReasons($transitions);
         $restartRequired188 = (bool) ($plan['generatedPathRowidDeletedResume188']['restartRequired'] ?? true);
 
         $plan['currentGeneratedPathRowidXFilterRecheck191'] = $currentFilter;
@@ -2907,12 +2907,12 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidXColumnCacheProfile196(
+        $currentProfile = self::jsonTableGeneratedPathRowidXColumnCacheProfile(
             $plan['currentGeneratedPathRowidXFilterRecheck191'],
             $plan['currentGeneratedPathRowidCurrentSourceResume185'],
             $projection,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidXColumnCacheProfile196(
+        $nextProfile = self::jsonTableGeneratedPathRowidXColumnCacheProfile(
             $plan['nextGeneratedPathRowidXFilterRecheck191'],
             $plan['currentGeneratedPathRowidCurrentSourceResume185'],
             $projection,
@@ -3040,7 +3040,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        self::jsonTableGeneratedPathRowidAliasOrderTerms205($orderBy);
+        self::jsonTableGeneratedPathRowidAliasOrderTerms($orderBy);
         $plan = self::currentSourceGeneratedPathRowidAliasProjection(
             $function,
             $currentSource,
@@ -5056,7 +5056,7 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentAnchor = self::jsonTableGeneratedPathRowidAnchorRemapProfile195(
+        $currentAnchor = self::jsonTableGeneratedPathRowidAnchorRemapProfile(
             $function,
             $currentSource,
             $jsonColumn,
@@ -5066,7 +5066,7 @@ final class SQLiteJsonTablePlan
             $plan['currentGeneratedPathRowidCurrentSourceResume185'],
             false,
         );
-        $nextAnchor = self::jsonTableGeneratedPathRowidAnchorRemapProfile195(
+        $nextAnchor = self::jsonTableGeneratedPathRowidAnchorRemapProfile(
             $function,
             $nextSource,
             $jsonColumn,
@@ -5076,8 +5076,8 @@ final class SQLiteJsonTablePlan
             $plan['currentGeneratedPathRowidCurrentSourceResume185'],
             false,
         );
-        $transitions = self::jsonTableGeneratedPathRowidAnchorRemapTransitions195($currentAnchor, $nextAnchor);
-        $reasons = self::jsonTableGeneratedPathRowidAnchorRemapReasons195($transitions, $nextAnchor);
+        $transitions = self::jsonTableGeneratedPathRowidAnchorRemapTransitions($currentAnchor, $nextAnchor);
+        $reasons = self::jsonTableGeneratedPathRowidAnchorRemapReasons($transitions, $nextAnchor);
 
         $plan['currentGeneratedPathRowidAnchorRemap195'] = $currentAnchor;
         $plan['nextGeneratedPathRowidAnchorRemap195'] = $nextAnchor;
@@ -6535,10 +6535,10 @@ final class SQLiteJsonTablePlan
             $generatedConstraints,
         );
 
-        $currentProfile = self::jsonTableGeneratedHiddenRowidCostProfile142($plan['currentGeneratedHiddenCost'], $constraints);
-        $nextProfile = self::jsonTableGeneratedHiddenRowidCostProfile142($plan['nextGeneratedHiddenCost'], $constraints);
-        $transitions = self::jsonTableGeneratedHiddenRowidCostTransitions142($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedHiddenRowidCostReplanReasons142($transitions);
+        $currentProfile = self::jsonTableGeneratedHiddenRowidCostProfile($plan['currentGeneratedHiddenCost'], $constraints);
+        $nextProfile = self::jsonTableGeneratedHiddenRowidCostProfile($plan['nextGeneratedHiddenCost'], $constraints);
+        $transitions = self::jsonTableGeneratedHiddenRowidCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedHiddenRowidCostReplanReasons($transitions);
 
         $plan['currentGeneratedHiddenRowidCost'] = $currentProfile;
         $plan['nextGeneratedHiddenRowidCost'] = $nextProfile;
@@ -6597,10 +6597,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableGeneratedHiddenCostProfile136($plan['currentNestedHiddenCost'], $plan['current'], $generatedConstraints);
-        $nextProfile = self::jsonTableGeneratedHiddenCostProfile136($plan['nextNestedHiddenCost'], $plan['next'], $generatedConstraints);
-        $transitions = self::jsonTableGeneratedHiddenCostTransitions136($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedHiddenCostReplanReasons136($transitions);
+        $currentProfile = self::jsonTableGeneratedHiddenCostProfile($plan['currentNestedHiddenCost'], $plan['current'], $generatedConstraints);
+        $nextProfile = self::jsonTableGeneratedHiddenCostProfile($plan['nextNestedHiddenCost'], $plan['next'], $generatedConstraints);
+        $transitions = self::jsonTableGeneratedHiddenCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedHiddenCostReplanReasons($transitions);
 
         $plan['currentGeneratedHiddenCost'] = $currentProfile;
         $plan['nextGeneratedHiddenCost'] = $nextProfile;
@@ -6655,16 +6655,16 @@ final class SQLiteJsonTablePlan
             $generatedConstraints,
         );
 
-        $currentProfile = self::jsonTableHiddenGeneratedCostProfile148(
+        $currentProfile = self::jsonTableHiddenGeneratedCostProfile(
             $plan['currentHiddenPathGeneratedSource'],
             $constraints,
         );
-        $nextProfile = self::jsonTableHiddenGeneratedCostProfile148(
+        $nextProfile = self::jsonTableHiddenGeneratedCostProfile(
             $plan['nextHiddenPathGeneratedSource'],
             $constraints,
         );
-        $transitions = self::jsonTableHiddenGeneratedCostTransitions148($currentProfile, $nextProfile);
-        $reasons = self::jsonTableHiddenGeneratedCostReplanReasons148($transitions);
+        $transitions = self::jsonTableHiddenGeneratedCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenGeneratedCostReplanReasons($transitions);
 
         $plan['currentHiddenGeneratedCost'] = $currentProfile;
         $plan['nextHiddenGeneratedCost'] = $nextProfile;
@@ -6715,10 +6715,10 @@ final class SQLiteJsonTablePlan
             $generatedConstraints,
         );
 
-        $currentProfile = self::jsonTableHiddenGeneratedRowidProfile157($plan['currentHiddenGeneratedCost'], $constraints);
-        $nextProfile = self::jsonTableHiddenGeneratedRowidProfile157($plan['nextHiddenGeneratedCost'], $constraints);
-        $transitions = self::jsonTableHiddenGeneratedRowidTransitions157($currentProfile, $nextProfile);
-        $reasons = self::jsonTableHiddenGeneratedRowidReplanReasons157($transitions);
+        $currentProfile = self::jsonTableHiddenGeneratedRowidProfile($plan['currentHiddenGeneratedCost'], $constraints);
+        $nextProfile = self::jsonTableHiddenGeneratedRowidProfile($plan['nextHiddenGeneratedCost'], $constraints);
+        $transitions = self::jsonTableHiddenGeneratedRowidTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenGeneratedRowidReplanReasons($transitions);
 
         $plan['currentHiddenGeneratedRowid'] = $currentProfile;
         $plan['nextHiddenGeneratedRowid'] = $nextProfile;
@@ -6766,10 +6766,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableHiddenRowidOrderProfile135($plan['current'], $orderBy);
-        $nextProfile = self::jsonTableHiddenRowidOrderProfile135($plan['next'], $orderBy);
-        $transitions = self::jsonTableHiddenRowidOrderTransitions135($currentProfile, $nextProfile);
-        $reasons = self::jsonTableHiddenRowidOrderReplanReasons135($transitions);
+        $currentProfile = self::jsonTableHiddenRowidOrderProfile($plan['current'], $orderBy);
+        $nextProfile = self::jsonTableHiddenRowidOrderProfile($plan['next'], $orderBy);
+        $transitions = self::jsonTableHiddenRowidOrderTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenRowidOrderReplanReasons($transitions);
 
         $plan['currentHiddenRowidOrder'] = $currentProfile;
         $plan['nextHiddenRowidOrder'] = $nextProfile;
@@ -6823,10 +6823,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableHiddenGeneratedOrderProfile132($plan['current'], $plan['currentIndexedHiddenOrder'], $generatedOrder);
-        $nextProfile = self::jsonTableHiddenGeneratedOrderProfile132($plan['next'], $plan['nextIndexedHiddenOrder'], $generatedOrder);
-        $transitions = self::jsonTableHiddenGeneratedOrderTransitions132($currentProfile, $nextProfile);
-        $reasons = self::jsonTableHiddenGeneratedOrderReplanReasons132($transitions);
+        $currentProfile = self::jsonTableHiddenGeneratedOrderProfile($plan['current'], $plan['currentIndexedHiddenOrder'], $generatedOrder);
+        $nextProfile = self::jsonTableHiddenGeneratedOrderProfile($plan['next'], $plan['nextIndexedHiddenOrder'], $generatedOrder);
+        $transitions = self::jsonTableHiddenGeneratedOrderTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenGeneratedOrderReplanReasons($transitions);
 
         $plan['currentHiddenGeneratedOrder'] = $currentProfile;
         $plan['nextHiddenGeneratedOrder'] = $nextProfile;
@@ -6877,18 +6877,18 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableHiddenPathGeneratedCurrentSourceProfile143(
+        $currentProfile = self::jsonTableHiddenPathGeneratedCurrentSourceProfile(
             $plan['current'],
             $plan['currentHiddenPathRowidSource'],
             $generatedConstraints,
         );
-        $nextProfile = self::jsonTableHiddenPathGeneratedCurrentSourceProfile143(
+        $nextProfile = self::jsonTableHiddenPathGeneratedCurrentSourceProfile(
             $plan['next'],
             $plan['nextHiddenPathRowidSource'],
             $generatedConstraints,
         );
-        $transitions = self::jsonTableHiddenPathGeneratedCurrentSourceTransitions143($currentProfile, $nextProfile);
-        $reasons = self::jsonTableHiddenPathGeneratedCurrentSourceReplanReasons143($transitions);
+        $transitions = self::jsonTableHiddenPathGeneratedCurrentSourceTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenPathGeneratedCurrentSourceReplanReasons($transitions);
 
         $plan['currentHiddenPathGeneratedSource'] = $currentProfile;
         $plan['nextHiddenPathGeneratedSource'] = $nextProfile;
@@ -6934,8 +6934,8 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table nested hidden cost planner requires a nested path column');
         }
 
-        $currentRoot = self::composeNestedRootPath121($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
-        $nextRoot = self::composeNestedRootPath121($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
+        $currentRoot = self::composeNestedRootPath($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
+        $nextRoot = self::composeNestedRootPath($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
         $rootColumn = '__sqlite_json_table_nested_hidden_root_next129';
         $current = $currentSource + [$rootColumn => $currentRoot['root']];
         $next = $nextSource + [$rootColumn => $nextRoot['root']];
@@ -6950,10 +6950,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::nestedHiddenCostProfile129($currentRoot, $plan['current'], $plan['currentPathHiddenRowidCost']);
-        $nextProfile = self::nestedHiddenCostProfile129($nextRoot, $plan['next'], $plan['nextPathHiddenRowidCost']);
-        $transitions = self::nestedHiddenCostTransitions129($currentProfile, $nextProfile);
-        $reasons = self::nestedHiddenCostReplanReasons129($transitions);
+        $currentProfile = self::nestedHiddenCostProfile($currentRoot, $plan['current'], $plan['currentPathHiddenRowidCost']);
+        $nextProfile = self::nestedHiddenCostProfile($nextRoot, $plan['next'], $plan['nextPathHiddenRowidCost']);
+        $transitions = self::nestedHiddenCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::nestedHiddenCostReplanReasons($transitions);
 
         $plan['currentNestedHiddenCost'] = $currentProfile;
         $plan['nextNestedHiddenCost'] = $nextProfile;
@@ -7001,16 +7001,16 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableHiddenPathRowidCurrentSourceProfile140(
+        $currentProfile = self::jsonTableHiddenPathRowidCurrentSourceProfile(
             $plan['current'],
             $plan['currentPathHiddenRowidCost'],
         );
-        $nextProfile = self::jsonTableHiddenPathRowidCurrentSourceProfile140(
+        $nextProfile = self::jsonTableHiddenPathRowidCurrentSourceProfile(
             $plan['next'],
             $plan['nextPathHiddenRowidCost'],
         );
-        $transitions = self::jsonTableHiddenPathRowidCurrentSourceTransitions140($currentProfile, $nextProfile);
-        $reasons = self::jsonTableHiddenPathRowidCurrentSourceReplanReasons140($transitions);
+        $transitions = self::jsonTableHiddenPathRowidCurrentSourceTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenPathRowidCurrentSourceReplanReasons($transitions);
 
         $plan['currentHiddenPathRowidSource'] = $currentProfile;
         $plan['nextHiddenPathRowidSource'] = $nextProfile;
@@ -7055,28 +7055,28 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentOrderCoverage = self::orderByConstraintCoverage120($plan['current']['used'], $orderBy);
-        $nextOrderCoverage = self::orderByConstraintCoverage120($plan['next']['used'], $orderBy);
-        $currentPartialOrder = self::jsonTablePartialOrderCostProfile124(
+        $currentOrderCoverage = self::orderByConstraintCoverage($plan['current']['used'], $orderBy);
+        $nextOrderCoverage = self::orderByConstraintCoverage($plan['next']['used'], $orderBy);
+        $currentPartialOrder = self::jsonTablePartialOrderCostProfile(
             $plan['current'],
             $plan['currentCostOrder'],
             $currentOrderCoverage,
         );
-        $nextPartialOrder = self::jsonTablePartialOrderCostProfile124(
+        $nextPartialOrder = self::jsonTablePartialOrderCostProfile(
             $plan['next'],
             $plan['nextCostOrder'],
             $nextOrderCoverage,
         );
-        $currentProfile = self::jsonTableHiddenPathOrderByProfile128(
+        $currentProfile = self::jsonTableHiddenPathOrderByProfile(
             $plan['currentPathHiddenRowidCost'],
             $currentPartialOrder,
         );
-        $nextProfile = self::jsonTableHiddenPathOrderByProfile128(
+        $nextProfile = self::jsonTableHiddenPathOrderByProfile(
             $plan['nextPathHiddenRowidCost'],
             $nextPartialOrder,
         );
-        $transitions = self::jsonTableHiddenPathOrderByTransitions128($currentProfile, $nextProfile);
-        $reasons = self::jsonTableHiddenPathOrderByReplanReasons128($transitions);
+        $transitions = self::jsonTableHiddenPathOrderByTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenPathOrderByReplanReasons($transitions);
 
         $plan['currentHiddenPathOrderBy'] = $currentProfile;
         $plan['nextHiddenPathOrderBy'] = $nextProfile;
@@ -7120,18 +7120,18 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTablePathHiddenRowidCostProfile126(
+        $currentProfile = self::jsonTablePathHiddenRowidCostProfile(
             $plan['current'],
             $plan['currentIndexedConstraintCost'],
             $plan['currentPathConstraint'],
         );
-        $nextProfile = self::jsonTablePathHiddenRowidCostProfile126(
+        $nextProfile = self::jsonTablePathHiddenRowidCostProfile(
             $plan['next'],
             $plan['nextIndexedConstraintCost'],
             $plan['nextPathConstraint'],
         );
-        $transitions = self::jsonTablePathHiddenRowidCostTransitions126($currentProfile, $nextProfile);
-        $reasons = self::jsonTablePathHiddenRowidCostReplanReasons126($transitions);
+        $transitions = self::jsonTablePathHiddenRowidCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTablePathHiddenRowidCostReplanReasons($transitions);
 
         $plan['currentPathHiddenRowidCost'] = $currentProfile;
         $plan['nextPathHiddenRowidCost'] = $nextProfile;
@@ -7175,10 +7175,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableIndexedHiddenOrderProfile122($plan['current'], $plan['currentIndexedConstraintCost'], $orderBy);
-        $nextProfile = self::jsonTableIndexedHiddenOrderProfile122($plan['next'], $plan['nextIndexedConstraintCost'], $orderBy);
-        $transitions = self::jsonTableIndexedHiddenOrderTransitions122($currentProfile, $nextProfile);
-        $reasons = self::jsonTableIndexedHiddenOrderReplanReasons122($transitions);
+        $currentProfile = self::jsonTableIndexedHiddenOrderProfile($plan['current'], $plan['currentIndexedConstraintCost'], $orderBy);
+        $nextProfile = self::jsonTableIndexedHiddenOrderProfile($plan['next'], $plan['nextIndexedConstraintCost'], $orderBy);
+        $transitions = self::jsonTableIndexedHiddenOrderTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableIndexedHiddenOrderReplanReasons($transitions);
 
         $plan['currentIndexedHiddenOrder'] = $currentProfile;
         $plan['nextIndexedHiddenOrder'] = $nextProfile;
@@ -7222,18 +7222,18 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTablePartialOrderCostProfile124(
+        $currentProfile = self::jsonTablePartialOrderCostProfile(
             $plan['current'],
             $plan['currentCostOrder'],
             $plan['currentOrderConstraintCoverage'],
         );
-        $nextProfile = self::jsonTablePartialOrderCostProfile124(
+        $nextProfile = self::jsonTablePartialOrderCostProfile(
             $plan['next'],
             $plan['nextCostOrder'],
             $plan['nextOrderConstraintCoverage'],
         );
-        $transitions = self::jsonTablePartialOrderCostTransitions124($currentProfile, $nextProfile);
-        $reasons = self::jsonTablePartialOrderCostReplanReasons124($transitions);
+        $transitions = self::jsonTablePartialOrderCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTablePartialOrderCostReplanReasons($transitions);
 
         $plan['currentPartialOrderCost'] = $currentProfile;
         $plan['nextPartialOrderCost'] = $nextProfile;
@@ -7277,11 +7277,11 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $plan['currentOrderConstraintCoverage'] = self::orderByConstraintCoverage120(
+        $plan['currentOrderConstraintCoverage'] = self::orderByConstraintCoverage(
             $plan['current']['used'],
             $orderBy,
         );
-        $plan['nextOrderConstraintCoverage'] = self::orderByConstraintCoverage120(
+        $plan['nextOrderConstraintCoverage'] = self::orderByConstraintCoverage(
             $plan['next']['used'],
             $orderBy,
         );
@@ -7367,8 +7367,8 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentHiddenResiduals = self::hiddenResidualConstraints88($plan['current']['constraintUsage']);
-        $nextHiddenResiduals = self::hiddenResidualConstraints88($plan['next']['constraintUsage']);
+        $currentHiddenResiduals = self::hiddenResidualConstraints($plan['current']['constraintUsage']);
+        $nextHiddenResiduals = self::hiddenResidualConstraints($plan['next']['constraintUsage']);
         $rowCountTransition = [
             'current' => count($plan['currentRows']),
             'next' => count($plan['nextRows']),
@@ -7505,8 +7505,8 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentAliases = self::rowidAliasConstraintProvenance99($constraints, $plan['current']['constraintUsage']);
-        $nextAliases = self::rowidAliasConstraintProvenance99($constraints, $plan['next']['constraintUsage']);
+        $currentAliases = self::rowidAliasConstraintProvenance($constraints, $plan['current']['constraintUsage']);
+        $nextAliases = self::rowidAliasConstraintProvenance($constraints, $plan['next']['constraintUsage']);
         $aliasTransition = [
             'current' => array_column($currentAliases, 'originalColumn'),
             'next' => array_column($nextAliases, 'originalColumn'),
@@ -8074,7 +8074,7 @@ final class SQLiteJsonTablePlan
             }
         }
 
-        $currentAliases = self::rowidAliasConstraintProvenance99($constraints, []);
+        $currentAliases = self::rowidAliasConstraintProvenance($constraints, []);
         $aliasTransition = [
             'current' => array_column($currentAliases, 'originalColumn'),
             'next' => array_column($currentAliases, 'originalColumn'),
@@ -8472,7 +8472,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $source
      * @return array{baseRoot:string,nestedPath:string,root:string,mode:string}
      */
-    private static function composeNestedRootPath121(array $source, string $baseRootColumn, string $nestedPathColumn, string $side): array
+    private static function composeNestedRootPath(array $source, string $baseRootColumn, string $nestedPathColumn, string $side): array
     {
         if (!array_key_exists($baseRootColumn, $source)) {
             throw new \InvalidArgumentException("SQLite JSON table nested path {$side} source row is missing {$baseRootColumn}");
@@ -8918,15 +8918,15 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array{generatedOrderBy:list<array{name:string,source:string,path:string,direction:string}>,pathScanStrategy:string,selectedPathSignature:string|null,pathOrderCostClass:string,pathOrderEffectiveCost:int,hasGeneratedOrder:bool,requiresGeneratedSorter:bool,generatedSortPenalty:int,rowGeneratedKeys:list<list<mixed>>,orderedRowids:list<int|null>,firstGeneratedKey:list<mixed>,lastGeneratedKey:list<mixed>,generatedOutputTape:list<array{rowid:int|null,key:list<mixed>,path:mixed,fullkey:mixed}>,effectiveEstimatedCost:int,costClass:string,rowCount:int}
      */
-    private static function jsonTablePathGeneratedOrderProfile137(array $pathOrder, array $rows, array $generatedOrder): array
+    private static function jsonTablePathGeneratedOrderProfile(array $pathOrder, array $rows, array $generatedOrder): array
     {
-        $terms = self::normalizeGeneratedOrderTerms132($generatedOrder);
+        $terms = self::normalizeGeneratedOrderTerms($generatedOrder);
         $rowCount = count($rows);
         $rowEntries = [];
         foreach ($rows as $row) {
             $key = [];
             foreach ($terms as $term) {
-                $key[] = self::generatedOrderValue132($row, $term);
+                $key[] = self::generatedOrderValue($row, $term);
             }
             $rowEntries[] = [
                 'rowid' => isset($row['id']) ? (int) $row['id'] : null,
@@ -8939,7 +8939,7 @@ final class SQLiteJsonTablePlan
         if ($terms !== []) {
             usort(
                 $rowEntries,
-                static fn (array $left, array $right): int => self::compareGeneratedOrderEntries132($left, $right, $terms),
+                static fn (array $left, array $right): int => self::compareGeneratedOrderEntries($left, $right, $terms),
             );
         }
 
@@ -8962,7 +8962,7 @@ final class SQLiteJsonTablePlan
             'lastGeneratedKey' => $rowEntries[$rowCount - 1]['key'] ?? [],
             'generatedOutputTape' => $rowEntries,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTablePathGeneratedOrderCostClass137($pathOrder, $terms, $terms !== [] && $rowCount > 1, $effectiveCost),
+            'costClass' => self::jsonTablePathGeneratedOrderCostClass($pathOrder, $terms, $terms !== [] && $rowCount > 1, $effectiveCost),
             'rowCount' => $rowCount,
         ];
     }
@@ -8971,7 +8971,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $pathOrder
      * @param list<array{name:string,source:string,path:string,direction:string}> $terms
      */
-    private static function jsonTablePathGeneratedOrderCostClass137(
+    private static function jsonTablePathGeneratedOrderCostClass(
         array $pathOrder,
         array $terms,
         bool $requiresSorter,
@@ -8997,7 +8997,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTablePathGeneratedOrderTransitions137(array $current, array $next): array
+    private static function jsonTablePathGeneratedOrderTransitions(array $current, array $next): array
     {
         return [
             [
@@ -9049,7 +9049,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTablePathGeneratedOrderReplanReasons137(array $transitions): array
+    private static function jsonTablePathGeneratedOrderReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -9077,14 +9077,14 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{hiddenOrderBy:list<array{column:string,direction:string}>,hasHiddenOrder:bool,requiresHiddenSorter:bool,sourceHiddenKey:list<mixed>,rowHiddenKeys:list<list<mixed>>,firstHiddenKey:list<mixed>,lastHiddenKey:list<mixed>,selectedSignature:string|null,indexedEffectiveCost:int,hiddenSortPenalty:int,effectiveEstimatedCost:int,costClass:string,rowCount:int}
      */
-    private static function jsonTableIndexedHiddenOrderProfile122(array $plan, array $indexedCost, array $orderBy): array
+    private static function jsonTableIndexedHiddenOrderProfile(array $plan, array $indexedCost, array $orderBy): array
     {
-        $hiddenOrderBy = self::jsonTableHiddenOrderTerms122($orderBy);
+        $hiddenOrderBy = self::jsonTableHiddenOrderTerms($orderBy);
         $rows = $plan['rows'];
         $rowCount = count($rows);
         $hasHiddenOrder = $hiddenOrderBy !== [];
         $requiresHiddenSorter = $hasHiddenOrder && $rowCount > 1;
-        $sourceHiddenKey = self::jsonTableHiddenOrderSourceKey122($plan, $hiddenOrderBy);
+        $sourceHiddenKey = self::jsonTableHiddenOrderSourceKey($plan, $hiddenOrderBy);
         $rowHiddenKeys = [];
         foreach ($rows as $row) {
             $rowKey = $sourceHiddenKey;
@@ -9114,7 +9114,7 @@ final class SQLiteJsonTablePlan
             'indexedEffectiveCost' => $indexedEffectiveCost,
             'hiddenSortPenalty' => $hiddenSortPenalty,
             'effectiveEstimatedCost' => $effectiveEstimatedCost,
-            'costClass' => self::jsonTableIndexedHiddenOrderCostClass122($indexedCost, $hasHiddenOrder, $requiresHiddenSorter, $effectiveEstimatedCost),
+            'costClass' => self::jsonTableIndexedHiddenOrderCostClass($indexedCost, $hasHiddenOrder, $requiresHiddenSorter, $effectiveEstimatedCost),
             'rowCount' => $rowCount,
         ];
     }
@@ -9123,7 +9123,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return list<array{column:string,direction:string}>
      */
-    private static function jsonTableHiddenOrderTerms122(array $orderBy): array
+    private static function jsonTableHiddenOrderTerms(array $orderBy): array
     {
         $terms = [];
         foreach (self::normalizeOrderByTerms($orderBy) as $term) {
@@ -9140,7 +9140,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction:string}> $hiddenOrderBy
      * @return list<mixed>
      */
-    private static function jsonTableHiddenOrderSourceKey122(array $plan, array $hiddenOrderBy): array
+    private static function jsonTableHiddenOrderSourceKey(array $plan, array $hiddenOrderBy): array
     {
         $key = [];
         foreach ($hiddenOrderBy as $term) {
@@ -9165,7 +9165,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array<string,mixed> $indexedCost
      */
-    private static function jsonTableIndexedHiddenOrderCostClass122(array $indexedCost, bool $hasHiddenOrder, bool $requiresHiddenSorter, int $effectiveCost): string
+    private static function jsonTableIndexedHiddenOrderCostClass(array $indexedCost, bool $hasHiddenOrder, bool $requiresHiddenSorter, int $effectiveCost): string
     {
         if (($indexedCost['scanStrategy'] ?? null) === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -9188,7 +9188,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableIndexedHiddenOrderTransitions122(array $current, array $next): array
+    private static function jsonTableIndexedHiddenOrderTransitions(array $current, array $next): array
     {
         return [
             [
@@ -9234,7 +9234,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableIndexedHiddenOrderReplanReasons122(array $transitions): array
+    private static function jsonTableIndexedHiddenOrderReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -9261,9 +9261,9 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array{generatedOrderBy:list<array{name:string,source:string,path:string,direction:string}>,hasGeneratedOrder:bool,requiresGeneratedSorter:bool,generatedSortPenalty:int,hiddenSourceKey:list<mixed>,rowGeneratedKeys:list<list<mixed>>,orderedRowids:list<int|null>,firstGeneratedKey:list<mixed>,lastGeneratedKey:list<mixed>,generatedOutputTape:list<array{rowid:int|null,key:list<mixed>,fullkey:mixed}>,hiddenEffectiveCost:int,effectiveEstimatedCost:int,costClass:string,rowCount:int}
      */
-    private static function jsonTableHiddenGeneratedOrderProfile132(array $plan, array $hiddenOrder, array $generatedOrder): array
+    private static function jsonTableHiddenGeneratedOrderProfile(array $plan, array $hiddenOrder, array $generatedOrder): array
     {
-        $terms = self::normalizeGeneratedOrderTerms132($generatedOrder);
+        $terms = self::normalizeGeneratedOrderTerms($generatedOrder);
         $rows = $plan['rows'];
         $rowCount = count($rows);
         $hiddenSourceKey = $hiddenOrder['sourceHiddenKey'] ?? [];
@@ -9271,7 +9271,7 @@ final class SQLiteJsonTablePlan
         foreach ($rows as $row) {
             $key = [];
             foreach ($terms as $term) {
-                $key[] = self::generatedOrderValue132($row, $term);
+                $key[] = self::generatedOrderValue($row, $term);
             }
             $rowEntries[] = [
                 'rowid' => isset($row['id']) ? (int) $row['id'] : null,
@@ -9283,7 +9283,7 @@ final class SQLiteJsonTablePlan
         if ($terms !== []) {
             usort(
                 $rowEntries,
-                static fn (array $left, array $right): int => self::compareGeneratedOrderEntries132($left, $right, $terms),
+                static fn (array $left, array $right): int => self::compareGeneratedOrderEntries($left, $right, $terms),
             );
         }
 
@@ -9306,7 +9306,7 @@ final class SQLiteJsonTablePlan
             'generatedOutputTape' => $rowEntries,
             'hiddenEffectiveCost' => $hiddenEffectiveCost,
             'effectiveEstimatedCost' => $effectiveEstimatedCost,
-            'costClass' => self::jsonTableHiddenGeneratedOrderCostClass132($hiddenOrder, $terms, $terms !== [] && $rowCount > 1, $effectiveEstimatedCost),
+            'costClass' => self::jsonTableHiddenGeneratedOrderCostClass($hiddenOrder, $terms, $terms !== [] && $rowCount > 1, $effectiveEstimatedCost),
             'rowCount' => $rowCount,
         ];
     }
@@ -9315,7 +9315,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return list<array{name:string,source:string,path:string,direction:string}>
      */
-    private static function normalizeGeneratedOrderTerms132(array $generatedOrder): array
+    private static function normalizeGeneratedOrderTerms(array $generatedOrder): array
     {
         $terms = [];
         foreach ($generatedOrder as $term) {
@@ -9350,7 +9350,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array{name:string,source:string,path:string,direction:string} $term
      */
-    private static function generatedOrderValue132(array $row, array $term): mixed
+    private static function generatedOrderValue(array $row, array $term): mixed
     {
         $source = self::rowColumnValue($row, $term['source']);
         if ($source === null) {
@@ -9366,7 +9366,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{name:string,source:string,path:string,direction:string}> $terms
      */
-    private static function compareGeneratedOrderEntries132(array $left, array $right, array $terms): int
+    private static function compareGeneratedOrderEntries(array $left, array $right, array $terms): int
     {
         foreach ($terms as $index => $term) {
             $comparison = self::compareResidualOrdered($left['key'][$index] ?? null, $right['key'][$index] ?? null);
@@ -9382,7 +9382,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $hiddenOrder
      * @param list<array{name:string,source:string,path:string,direction:string}> $terms
      */
-    private static function jsonTableHiddenGeneratedOrderCostClass132(array $hiddenOrder, array $terms, bool $requiresSorter, int $effectiveCost): string
+    private static function jsonTableHiddenGeneratedOrderCostClass(array $hiddenOrder, array $terms, bool $requiresSorter, int $effectiveCost): string
     {
         if (($hiddenOrder['costClass'] ?? null) === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -9402,7 +9402,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableHiddenGeneratedOrderTransitions132(array $current, array $next): array
+    private static function jsonTableHiddenGeneratedOrderTransitions(array $current, array $next): array
     {
         return [
             [
@@ -9454,7 +9454,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableHiddenGeneratedOrderReplanReasons132(array $transitions): array
+    private static function jsonTableHiddenGeneratedOrderReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -9482,9 +9482,9 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @return array{root:string,baseRoot:string,nestedPath:string,mode:string,generatedConstraints:list<array{name:string,source:string,path:string,operator:string,value:mixed,usable:bool}>,generatedConstraintSignatures:list<string>,hiddenEstimatedCost:int,generatedEstimatedCost:int,effectiveEstimatedCost:int,rowCount:int,matchedRowCount:int,filteredRowids:list<int|null>,filteredFullkeys:list<mixed>,generatedValueTape:list<array{rowid:int|null,fullkey:mixed,values:array<string,mixed>,matched:bool}>,firstFilteredRowid:int|null,lastFilteredRowid:int|null,costClass:string,scanStrategy:string}
      */
-    private static function jsonTableGeneratedHiddenCostProfile136(array $nestedHidden, array $plan, array $generatedConstraints): array
+    private static function jsonTableGeneratedHiddenCostProfile(array $nestedHidden, array $plan, array $generatedConstraints): array
     {
-        $constraints = self::normalizeGeneratedHiddenConstraints136($generatedConstraints);
+        $constraints = self::normalizeGeneratedHiddenConstraints($generatedConstraints);
         $rows = $plan['rows'];
         $tape = [];
         $filteredRowids = [];
@@ -9492,10 +9492,10 @@ final class SQLiteJsonTablePlan
         foreach ($rows as $row) {
             $values = [];
             foreach ($constraints as $constraint) {
-                $values[$constraint['name']] = self::generatedOrderValue132($row, $constraint);
+                $values[$constraint['name']] = self::generatedOrderValue($row, $constraint);
             }
 
-            $matched = self::generatedHiddenValuesMatch136($values, $constraints);
+            $matched = self::generatedHiddenValuesMatch($values, $constraints);
             $rowid = isset($row['id']) ? (int) $row['id'] : null;
             $fullkey = $row['fullkey'] ?? null;
             if ($matched) {
@@ -9546,7 +9546,7 @@ final class SQLiteJsonTablePlan
             'generatedValueTape' => $tape,
             'firstFilteredRowid' => $filteredRowids[0] ?? null,
             'lastFilteredRowid' => $filteredRowids === [] ? null : $filteredRowids[array_key_last($filteredRowids)],
-            'costClass' => self::jsonTableGeneratedHiddenCostClass136((bool) $plan['runnable'], count($constraints), $rowCount, $matchedCount, $effectiveCost),
+            'costClass' => self::jsonTableGeneratedHiddenCostClass((bool) $plan['runnable'], count($constraints), $rowCount, $matchedCount, $effectiveCost),
             'scanStrategy' => (string) $nestedHidden['scanStrategy'],
         ];
     }
@@ -9555,7 +9555,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $constraints
      * @return list<array{name:string,source:string,path:string,operator:string,value:mixed,usable:bool}>
      */
-    private static function normalizeGeneratedHiddenConstraints136(array $constraints): array
+    private static function normalizeGeneratedHiddenConstraints(array $constraints): array
     {
         $normalized = [];
         foreach ($constraints as $constraint) {
@@ -9593,7 +9593,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $values
      * @param list<array{name:string,source:string,path:string,operator:string,value:mixed,usable:bool}> $constraints
      */
-    private static function generatedHiddenValuesMatch136(array $values, array $constraints): bool
+    private static function generatedHiddenValuesMatch(array $values, array $constraints): bool
     {
         foreach ($constraints as $constraint) {
             if (!$constraint['usable']) {
@@ -9607,7 +9607,7 @@ final class SQLiteJsonTablePlan
                 'IS NOT' => !self::valuesAreNotDistinct($actual, $expected),
                 'IS NULL' => $actual === null,
                 'IS NOT NULL' => $actual !== null,
-                'IN' => is_array($expected) && self::generatedHiddenInList136($actual, $expected),
+                'IN' => is_array($expected) && self::generatedHiddenInList($actual, $expected),
                 'BETWEEN' => is_array($expected)
                     && count($expected) === 2
                     && self::compareSQLiteValues($actual, array_values($expected)[0]) >= 0
@@ -9625,7 +9625,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<mixed> $values
      */
-    private static function generatedHiddenInList136(mixed $actual, array $values): bool
+    private static function generatedHiddenInList(mixed $actual, array $values): bool
     {
         foreach ($values as $value) {
             if (self::valuesAreNotDistinct($actual, $value)) {
@@ -9636,7 +9636,7 @@ final class SQLiteJsonTablePlan
         return false;
     }
 
-    private static function jsonTableGeneratedHiddenCostClass136(bool $runnable, int $constraintCount, int $rowCount, int $matchedCount, int $effectiveCost): string
+    private static function jsonTableGeneratedHiddenCostClass(bool $runnable, int $constraintCount, int $rowCount, int $matchedCount, int $effectiveCost): string
     {
         if (!$runnable) {
             return 'unrunnable-json-table';
@@ -9664,7 +9664,7 @@ final class SQLiteJsonTablePlan
      */
     private static function jsonTableGeneratedOrderCostProfile(array $generatedHidden, array $plan, array $generatedOrder): array
     {
-        $terms = self::normalizeGeneratedOrderTerms132($generatedOrder);
+        $terms = self::normalizeGeneratedOrderTerms($generatedOrder);
         $matchedByRowid = [];
         foreach ($generatedHidden['generatedValueTape'] as $entry) {
             if (($entry['matched'] ?? false) !== true) {
@@ -9683,7 +9683,7 @@ final class SQLiteJsonTablePlan
 
             $key = [];
             foreach ($terms as $term) {
-                $key[] = self::generatedOrderValue132($row, $term);
+                $key[] = self::generatedOrderValue($row, $term);
             }
 
             $entries[] = [
@@ -9694,7 +9694,7 @@ final class SQLiteJsonTablePlan
             ];
         }
 
-        usort($entries, static fn (array $left, array $right): int => self::compareGeneratedOrderEntries132($left, $right, $terms));
+        usort($entries, static fn (array $left, array $right): int => self::compareGeneratedOrderEntries($left, $right, $terms));
 
         $filteredCount = count($entries);
         $requiresSorter = $filteredCount > 1;
@@ -9828,7 +9828,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedHiddenCostTransitions136(array $current, array $next): array
+    private static function jsonTableGeneratedHiddenCostTransitions(array $current, array $next): array
     {
         return [
             [
@@ -9886,7 +9886,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedHiddenCostReplanReasons136(array $transitions): array
+    private static function jsonTableGeneratedHiddenCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -10071,14 +10071,14 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{root:string,rowidConstraintSignature:string|null,rowidConstraintColumn:string|null,rowidConstraintOperator:string|null,rowidConstraintValue:mixed,rowidScoped:bool,generatedMatchedRowCount:int,rowidMatchedRowCount:int,intersectedRowCount:int,intersectedRowids:list<int|null>,intersectedFullkeys:list<mixed>,firstIntersectedRowid:int|null,lastIntersectedRowid:int|null,generatedRowidTape:list<array{rowid:int|null,fullkey:mixed,generatedMatched:bool,rowidMatched:bool,matched:bool,values:array<string,mixed>}>,baseGeneratedCost:int,effectiveEstimatedCost:int,costClass:string}
      */
-    private static function jsonTableGeneratedHiddenRowidCostProfile142(array $generatedHidden, array $constraints): array
+    private static function jsonTableGeneratedHiddenRowidCostProfile(array $generatedHidden, array $constraints): array
     {
-        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $rowidConstraint = self::firstRowidConstraint($constraints);
         $rowidOperator = isset($rowidConstraint['operator']) ? strtoupper((string) $rowidConstraint['operator']) : null;
         $rowidValue = $rowidConstraint['value'] ?? null;
         $rowidScoped = $rowidConstraint !== null
             && $rowidOperator === '='
-            && self::rowidConstraintIntValue133($rowidValue) !== null;
+            && self::rowidConstraintIntValue($rowidValue) !== null;
 
         $tape = [];
         $rowidMatched = 0;
@@ -10130,7 +10130,7 @@ final class SQLiteJsonTablePlan
 
         return [
             'root' => (string) $generatedHidden['root'],
-            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature($rowidConstraint),
             'rowidConstraintColumn' => isset($rowidConstraint['column']) ? self::normalizeConstraintColumn((string) $rowidConstraint['column']) : null,
             'rowidConstraintOperator' => $rowidOperator,
             'rowidConstraintValue' => $rowidValue,
@@ -10145,11 +10145,11 @@ final class SQLiteJsonTablePlan
             'generatedRowidTape' => $tape,
             'baseGeneratedCost' => $baseCost,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTableGeneratedHiddenRowidCostClass142((string) $generatedHidden['costClass'], $rowidConstraint !== null, $rowidScoped, $matchedCount, $effectiveCost),
+            'costClass' => self::jsonTableGeneratedHiddenRowidCostClass((string) $generatedHidden['costClass'], $rowidConstraint !== null, $rowidScoped, $matchedCount, $effectiveCost),
         ];
     }
 
-    private static function jsonTableGeneratedHiddenRowidCostClass142(
+    private static function jsonTableGeneratedHiddenRowidCostClass(
         string $generatedCostClass,
         bool $hasRowidConstraint,
         bool $rowidScoped,
@@ -10179,7 +10179,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedHiddenRowidCostTransitions142(array $current, array $next): array
+    private static function jsonTableGeneratedHiddenRowidCostTransitions(array $current, array $next): array
     {
         return [
             ['field' => 'root', 'current' => $current['root'], 'next' => $next['root'], 'changed' => $current['root'] !== $next['root']],
@@ -10198,7 +10198,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedHiddenRowidCostReplanReasons142(array $transitions): array
+    private static function jsonTableGeneratedHiddenRowidCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -10581,12 +10581,12 @@ final class SQLiteJsonTablePlan
      */
     private static function jsonTableGeneratedPathRowidConstraintCostProfile(array $generatedPath, array $constraints): array
     {
-        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $rowidConstraint = self::firstRowidConstraint($constraints);
         $rowidOperator = isset($rowidConstraint['operator']) ? strtoupper((string) $rowidConstraint['operator']) : null;
         $rowidValue = $rowidConstraint['value'] ?? null;
         $rowidScoped = $rowidConstraint !== null
             && $rowidOperator === '='
-            && self::rowidConstraintIntValue133($rowidValue) !== null;
+            && self::rowidConstraintIntValue($rowidValue) !== null;
 
         $tape = [];
         $rowidMatched = 0;
@@ -10637,7 +10637,7 @@ final class SQLiteJsonTablePlan
 
         return [
             'generatedPath' => $generatedPath['generatedPath'],
-            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature($rowidConstraint),
             'rowidConstraintColumn' => isset($rowidConstraint['column']) ? self::normalizeConstraintColumn((string) $rowidConstraint['column']) : null,
             'rowidConstraintOperator' => $rowidOperator,
             'rowidConstraintValue' => $rowidValue,
@@ -10864,7 +10864,7 @@ final class SQLiteJsonTablePlan
      */
     private static function jsonTableGeneratedPathRowidSeekCostProfile(array $generatedPathRowid, array $constraints): array
     {
-        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $rowidConstraint = self::firstRowidConstraint($constraints);
         $seek = $rowidConstraint === null ? null : self::rowidSeekSet($rowidConstraint);
         $intersected = array_values(array_map('intval', array_filter(
             $generatedPathRowid['intersectedRowids'] ?? [],
@@ -10901,7 +10901,7 @@ final class SQLiteJsonTablePlan
         }
 
         return [
-            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature($rowidConstraint),
             'seekOperator' => $seek['operator'] ?? null,
             'seekable' => $seekable,
             'seekRowids' => $seekRowids,
@@ -10925,7 +10925,7 @@ final class SQLiteJsonTablePlan
         $operator = strtoupper((string) $constraint['operator']);
         $value = $constraint['value'] ?? null;
         if ($operator === '=') {
-            $rowid = self::rowidConstraintIntValue133($value);
+            $rowid = self::rowidConstraintIntValue($value);
 
             return [
                 'operator' => '=',
@@ -10936,7 +10936,7 @@ final class SQLiteJsonTablePlan
         if ($operator === 'IN' && is_array($value)) {
             $rowids = [];
             foreach ($value as $item) {
-                $rowid = self::rowidConstraintIntValue133($item);
+                $rowid = self::rowidConstraintIntValue($item);
                 if ($rowid !== null) {
                     $rowids[$rowid] = $rowid;
                 }
@@ -10951,8 +10951,8 @@ final class SQLiteJsonTablePlan
         }
         if ($operator === 'BETWEEN' && is_array($value) && count($value) === 2) {
             [$lower, $upper] = array_values($value);
-            $lowerRowid = self::rowidConstraintIntValue133($lower);
-            $upperRowid = self::rowidConstraintIntValue133($upper);
+            $lowerRowid = self::rowidConstraintIntValue($lower);
+            $upperRowid = self::rowidConstraintIntValue($upper);
             if ($lowerRowid === null || $upperRowid === null || $lowerRowid > $upperRowid || ($upperRowid - $lowerRowid) > 63) {
                 return ['operator' => 'BETWEEN', 'seekable' => false, 'rowids' => []];
             }
@@ -11085,7 +11085,7 @@ final class SQLiteJsonTablePlan
             $isGeneratedPath = $column === 'path' && $operator === '=';
             $isRowidPoint = $column === 'id'
                 && $operator === '='
-                && self::rowidConstraintIntValue133($constraint['value'] ?? null) !== null;
+                && self::rowidConstraintIntValue($constraint['value'] ?? null) !== null;
             $omit = $isGeneratedPath || $isRowidPoint;
             $kind = $isGeneratedPath ? 'generated-path' : ($isRowidPoint ? 'rowid-point' : 'residual');
 
@@ -11615,7 +11615,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{idxNum:int,idxStr:string,rowidAlias:string|null,pathConstraintOmitted:bool,rowidConstraintOmitted:bool,usableConstraintColumns:list<string>,residualColumns:list<string>,argvBindingColumns:list<string>,orderByConsumed:bool,estimatedRows:int,estimatedCost:int,cursorAdmission:string,currentSourcePinned:bool,coveringConstraintSet:bool,planFingerprint:string}
      */
-    private static function jsonTableGeneratedPathRowidBestIndexProfile163(
+    private static function jsonTableGeneratedPathRowidBestIndexProfile(
         array $sourceCost,
         array $constraints,
         array $orderBy,
@@ -11638,14 +11638,14 @@ final class SQLiteJsonTablePlan
             array_values($sourceCost['argvBindings'] ?? []),
         );
         $pathConstraintOmitted = in_array('path', $omitColumns, true);
-        $rowidAlias = self::jsonTableGeneratedPathRowidBestIndexAlias163($constraints);
+        $rowidAlias = self::jsonTableGeneratedPathRowidBestIndexAlias($constraints);
         $rowidConstraintOmitted = $rowidAlias !== null && in_array('id', $omitColumns, true);
         $runnable = (bool) ($sourceCost['runnable'] ?? false);
         $rowids = array_values($sourceCost['intersectedRowids'] ?? []);
         $estimatedRows = $runnable ? count($rowids) : 0;
         $baseCost = (int) ($sourceCost['effectiveEstimatedCost'] ?? 1000000);
         $estimatedCost = $runnable ? max(1, min($baseCost, max(1, $estimatedRows))) : 1000000;
-        $orderByConsumed = self::jsonTableGeneratedPathRowidBestIndexOrderConsumed163($orderBy, $pathConstraintOmitted, $rowidConstraintOmitted);
+        $orderByConsumed = self::jsonTableGeneratedPathRowidBestIndexOrderConsumed($orderBy, $pathConstraintOmitted, $rowidConstraintOmitted);
         $idxNum = 0;
         $idxNum |= $pathConstraintOmitted ? 1 : 0;
         $idxNum |= $rowidConstraintOmitted ? 2 : 0;
@@ -11695,7 +11695,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      */
-    private static function jsonTableGeneratedPathRowidBestIndexAlias163(array $constraints): ?string
+    private static function jsonTableGeneratedPathRowidBestIndexAlias(array $constraints): ?string
     {
         foreach ($constraints as $constraint) {
             if (($constraint['usable'] ?? true) !== true) {
@@ -11703,7 +11703,7 @@ final class SQLiteJsonTablePlan
             }
             $column = self::normalizeConstraintColumn((string) ($constraint['column'] ?? ''));
             $operator = strtoupper((string) ($constraint['operator'] ?? '='));
-            if ($column === 'id' && $operator === '=' && self::rowidConstraintIntValue133($constraint['value'] ?? null) !== null) {
+            if ($column === 'id' && $operator === '=' && self::rowidConstraintIntValue($constraint['value'] ?? null) !== null) {
                 return (string) ($constraint['column'] ?? 'rowid');
             }
         }
@@ -11714,7 +11714,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,direction?:string}> $orderBy
      */
-    private static function jsonTableGeneratedPathRowidBestIndexOrderConsumed163(array $orderBy, bool $pathOmitted, bool $rowidOmitted): bool
+    private static function jsonTableGeneratedPathRowidBestIndexOrderConsumed(array $orderBy, bool $pathOmitted, bool $rowidOmitted): bool
     {
         if ($orderBy === []) {
             return false;
@@ -11734,7 +11734,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidBestIndexTransitions163(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidBestIndexTransitions(array $current, array $next): array
     {
         return [
             ['field' => 'idxNum', 'current' => $current['idxNum'], 'next' => $next['idxNum'], 'changed' => $current['idxNum'] !== $next['idxNum']],
@@ -11752,7 +11752,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidBestIndexReplanReasons163(array $transitions): array
+    private static function jsonTableGeneratedPathRowidBestIndexReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -13132,7 +13132,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $sourceCost
      * @return array{sourceOptionId:int|null,sourceOptionName:string|null,sourceRoot:mixed,generatedPath:string|null,yieldDecision:string,costClass:string,yieldRowids:list<int>,yieldPaths:list<string>,currentSourcePinned:bool,sourceFingerprint:string|null,costFingerprint:string|null,sourceFenceToken:string,resetGeneration:int,sourceResetRequired:bool,retainsCurrentRows:bool,staleYieldBlocked:bool,stableYieldKey:string}
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceFenceProfile172(array $yield, array $sourceCost): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceFenceProfile(array $yield, array $sourceCost): array
     {
         $rowids = array_values(array_filter($yield['yieldRowids'] ?? [], static fn (mixed $rowid): bool => is_int($rowid)));
         $paths = array_values(array_filter($yield['yieldPaths'] ?? [], static fn (mixed $path): bool => is_string($path)));
@@ -13185,7 +13185,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceFenceTransitions172(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceFenceTransitions(array $current, array $next): array
     {
         return [
             ['field' => 'sourceOptionId', 'current' => $current['sourceOptionId'], 'next' => $next['sourceOptionId'], 'changed' => $current['sourceOptionId'] !== $next['sourceOptionId']],
@@ -13211,7 +13211,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceFenceReplanReasons172(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceFenceReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -14398,7 +14398,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $program177
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceMaterialization180(array $source, array $program177): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceMaterialization(array $source, array $program177): array
     {
         $sourceGeneration = self::jsonTableGeneratedPathRowidCurrentSourceGeneration($source);
         $rowids = array_values(array_map('intval', $program177['yieldRowids'] ?? []));
@@ -14415,7 +14415,7 @@ final class SQLiteJsonTablePlan
             && $rowids !== []
             && $programFingerprint !== ''
             && !str_contains($xFilterOpcode, 'empty');
-        $materializationOpcode = self::jsonTableGeneratedPathRowidMaterializationOpcode180(
+        $materializationOpcode = self::jsonTableGeneratedPathRowidMaterializationOpcode(
             $canMaterialize,
             $resetRequired,
             $conflict,
@@ -14452,7 +14452,7 @@ final class SQLiteJsonTablePlan
         }
 
         $estimatedRows = $canMaterialize ? count($materializedRows) : 0;
-        $estimatedCost = self::jsonTableGeneratedPathRowidMaterializationCost180(
+        $estimatedCost = self::jsonTableGeneratedPathRowidMaterializationCost(
             $canMaterialize,
             (int) ($program177['estimatedCost'] ?? 1000000),
             count($seekTape),
@@ -14478,7 +14478,7 @@ final class SQLiteJsonTablePlan
             'residualConstraintColumns' => $residualColumns,
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
-            'costClass' => self::jsonTableGeneratedPathRowidMaterializationCostClass180($materializationOpcode, $estimatedRows, $estimatedCost, count($residualColumns)),
+            'costClass' => self::jsonTableGeneratedPathRowidMaterializationCostClass($materializationOpcode, $estimatedRows, $estimatedCost, count($residualColumns)),
             'materializationFingerprint' => hash('sha256', json_encode([
                 $sourceGeneration,
                 $programFingerprint,
@@ -14494,7 +14494,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $residualColumns
      * @param list<int> $rowids
      */
-    private static function jsonTableGeneratedPathRowidMaterializationOpcode180(
+    private static function jsonTableGeneratedPathRowidMaterializationOpcode(
         bool $canMaterialize,
         bool $resetRequired,
         bool $conflict,
@@ -14520,7 +14520,7 @@ final class SQLiteJsonTablePlan
         return 'materialize-current-source-blocked-next180';
     }
 
-    private static function jsonTableGeneratedPathRowidMaterializationCost180(
+    private static function jsonTableGeneratedPathRowidMaterializationCost(
         bool $canMaterialize,
         int $programCost,
         int $seekCount,
@@ -14533,7 +14533,7 @@ final class SQLiteJsonTablePlan
         return max(1, min($programCost, max(1, $seekCount)) + $residualCount);
     }
 
-    private static function jsonTableGeneratedPathRowidMaterializationCostClass180(
+    private static function jsonTableGeneratedPathRowidMaterializationCostClass(
         string $opcode,
         int $estimatedRows,
         int $estimatedCost,
@@ -14563,7 +14563,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceMaterializationTransitions180(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceMaterializationTransitions(array $current, array $next): array
     {
         $fields = [
             'sourceGeneration',
@@ -14599,7 +14599,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceMaterializationReplanReasons180(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceMaterializationReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -15102,7 +15102,7 @@ final class SQLiteJsonTablePlan
         $remainingRowids = array_values(array_map(static fn (array $row): int => (int) ($row['rowid'] ?? 0), $remainingRows));
         $eof = !$blocked && $resumeFound && $remainingRowids === [];
         $emitCost = $blocked || !$resumeFound ? 1000000 : max(1, count($batchRows));
-        $opcode = self::jsonTableGeneratedPathRowidBatchOpcode183($blocked, $resumeFound, $batchRows, $remainingRowids, $staleAfterNextSource);
+        $opcode = self::jsonTableGeneratedPathRowidBatchOpcode($blocked, $resumeFound, $batchRows, $remainingRowids, $staleAfterNextSource);
 
         $yieldTape = [];
         foreach ($batchRows as $index => $row) {
@@ -15131,7 +15131,7 @@ final class SQLiteJsonTablePlan
             'eofAfterBatch' => $eof,
             'yieldTape' => $yieldTape,
             'emitCost' => $emitCost,
-            'costClass' => self::jsonTableGeneratedPathRowidBatchCostClass183($opcode, count($batchRows), $remainingRowids),
+            'costClass' => self::jsonTableGeneratedPathRowidBatchCostClass($opcode, count($batchRows), $remainingRowids),
             'batchFingerprint' => hash('sha256', json_encode([
                 $materialization['materializationFingerprint'] ?? null,
                 $batchSize,
@@ -15148,7 +15148,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $batchRows
      * @param list<int> $remainingRowids
      */
-    private static function jsonTableGeneratedPathRowidBatchOpcode183(
+    private static function jsonTableGeneratedPathRowidBatchOpcode(
         bool $blocked,
         bool $resumeFound,
         array $batchRows,
@@ -15177,7 +15177,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<int> $remainingRowids
      */
-    private static function jsonTableGeneratedPathRowidBatchCostClass183(string $opcode, int $batchCount, array $remainingRowids): string
+    private static function jsonTableGeneratedPathRowidBatchCostClass(string $opcode, int $batchCount, array $remainingRowids): string
     {
         if (str_starts_with($opcode, 'restart-next-source')) {
             return 'json-table-generated-path-rowid-batch-restart-next183';
@@ -15242,7 +15242,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceBatchReplanReasons183(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceBatchReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -15512,7 +15512,7 @@ final class SQLiteJsonTablePlan
         $pendingRowids = array_values(array_merge($pendingBatchRowids, $remainingRowids));
         $eofAfterXNext = !$staleAfterNextSource && $nextInBatch === null && $remainingRowids === [];
         $needsRefill = !$staleAfterNextSource && $nextInBatch === null && $remainingRowids !== [];
-        $opcode = self::jsonTableGeneratedPathRowidCursorOpcode186(
+        $opcode = self::jsonTableGeneratedPathRowidCursorOpcode(
             $staleAfterNextSource,
             (string) ($batch['batchOpcode'] ?? ''),
             $active,
@@ -15536,7 +15536,7 @@ final class SQLiteJsonTablePlan
             'needsBatchRefill' => $needsRefill,
             'staleAfterNextSource' => $staleAfterNextSource,
             'xNextOpcode' => $opcode,
-            'xNextCost' => self::jsonTableGeneratedPathRowidCursorCost186($opcode, $pendingRowids),
+            'xNextCost' => self::jsonTableGeneratedPathRowidCursorCost($opcode, $pendingRowids),
             'costClass' => self::jsonTableGeneratedPathRowidCursorCostClass186($opcode, $pendingRowids),
             'cursorTape' => [[
                 'position' => $cursorPosition,
@@ -15556,7 +15556,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function jsonTableGeneratedPathRowidCursorOpcode186(
+    private static function jsonTableGeneratedPathRowidCursorOpcode(
         bool $staleAfterNextSource,
         string $batchOpcode,
         ?array $active,
@@ -15585,7 +15585,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<int> $pendingRowids
      */
-    private static function jsonTableGeneratedPathRowidCursorCost186(string $opcode, array $pendingRowids): int
+    private static function jsonTableGeneratedPathRowidCursorCost(string $opcode, array $pendingRowids): int
     {
         if (str_starts_with($opcode, 'restart-next-source') || str_starts_with($opcode, 'block-current-source')) {
             return 1000000;
@@ -15691,7 +15691,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $resume
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidDeletedResumeProfile188(
+    private static function jsonTableGeneratedPathRowidDeletedResumeProfile(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -15708,18 +15708,18 @@ final class SQLiteJsonTablePlan
         )));
         sort($currentRowids);
 
-        $nextRowids = self::jsonTableSourceRowids188($function, $nextSource, $jsonColumn, $rootColumn);
+        $nextRowids = self::jsonTableSourceRowids($function, $nextSource, $jsonColumn, $rootColumn);
         $deleted = array_values(array_diff($currentRowids, $nextRowids));
         $retained = array_values(array_intersect($currentRowids, $nextRowids));
         $inserted = array_values(array_diff($nextRowids, $currentRowids));
 
-        $currentFingerprint = self::jsonTableGeneratedPathRowidSourceFingerprint188(
+        $currentFingerprint = self::jsonTableGeneratedPathRowidSourceFingerprint(
             $currentSource,
             $jsonColumn,
             $generatedPathColumn,
             $rootColumn,
         );
-        $nextFingerprint = self::jsonTableGeneratedPathRowidSourceFingerprint188(
+        $nextFingerprint = self::jsonTableGeneratedPathRowidSourceFingerprint(
             $nextSource,
             $jsonColumn,
             $generatedPathColumn,
@@ -15768,7 +15768,7 @@ final class SQLiteJsonTablePlan
             'insertedRowidCount' => count($inserted),
             'estimatedRows' => $checkpointReusable ? count($retained) : 0,
             'estimatedCost' => $checkpointReusable ? max(1, count($retained)) : 1000000,
-            'costClass' => self::jsonTableGeneratedPathRowidDeletedResumeCostClass188(
+            'costClass' => self::jsonTableGeneratedPathRowidDeletedResumeCostClass(
                 $checkpointReusable,
                 $deleted,
                 $inserted,
@@ -15783,7 +15783,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $source
      * @return list<int>
      */
-    private static function jsonTableSourceRowids188(
+    private static function jsonTableSourceRowids(
         string $function,
         array $source,
         string $jsonColumn,
@@ -15823,7 +15823,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array<string,mixed> $source
      */
-    private static function jsonTableGeneratedPathRowidSourceFingerprint188(
+    private static function jsonTableGeneratedPathRowidSourceFingerprint(
         array $source,
         string $jsonColumn,
         string $generatedPathColumn,
@@ -15841,7 +15841,7 @@ final class SQLiteJsonTablePlan
      * @param list<int> $deleted
      * @param list<int> $inserted
      */
-    private static function jsonTableGeneratedPathRowidDeletedResumeCostClass188(
+    private static function jsonTableGeneratedPathRowidDeletedResumeCostClass(
         bool $checkpointReusable,
         array $deleted,
         array $inserted,
@@ -15869,7 +15869,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $resume
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidXFilterRecheck191(
+    private static function jsonTableGeneratedPathRowidXFilterRecheck(
         string $function,
         array $source,
         string $jsonColumn,
@@ -16054,7 +16054,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidXFilterRecheckTransitions191(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidXFilterRecheckTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -16089,7 +16089,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidXFilterRecheckReasons191(array $transitions): array
+    private static function jsonTableGeneratedPathRowidXFilterRecheckReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -16115,7 +16115,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $resume
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidAnchorRemapProfile195(
+    private static function jsonTableGeneratedPathRowidAnchorRemapProfile(
         string $function,
         array $source,
         string $jsonColumn,
@@ -16210,7 +16210,7 @@ final class SQLiteJsonTablePlan
         $resumeByRowid = !$staleAfterNextSource && $anchors !== [] && count($stable) === count($anchors);
         $resumeByFullkey = !$staleAfterNextSource && $remapped !== [] && $collisions === [] && $missing === [];
         $reseekRowids = array_values(array_map(static fn (array $anchor): int => (int) $anchor['remappedRowid'], $remapped));
-        $opcode = self::jsonTableGeneratedPathRowidAnchorRemapOpcode195($resumeByRowid, $resumeByFullkey, $staleAfterNextSource, $collisions, $missing);
+        $opcode = self::jsonTableGeneratedPathRowidAnchorRemapOpcode($resumeByRowid, $resumeByFullkey, $staleAfterNextSource, $collisions, $missing);
 
         return [
             'function' => $function,
@@ -16229,7 +16229,7 @@ final class SQLiteJsonTablePlan
             'anchorOpcode' => $opcode,
             'estimatedRows' => $resumeByRowid ? count($stable) : ($resumeByFullkey ? count($reseekRowids) : 0),
             'estimatedCost' => $resumeByRowid ? max(1, count($stable)) : ($resumeByFullkey ? max(2, count($reseekRowids) + 1) : 1000000),
-            'costClass' => self::jsonTableGeneratedPathRowidAnchorRemapCostClass195($opcode, $reseekRowids),
+            'costClass' => self::jsonTableGeneratedPathRowidAnchorRemapCostClass($opcode, $reseekRowids),
             'anchorFingerprint' => hash('sha256', json_encode([
                 'function' => $function,
                 'root' => $root,
@@ -16246,7 +16246,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $collisions
      * @param list<array<string,mixed>> $missing
      */
-    private static function jsonTableGeneratedPathRowidAnchorRemapOpcode195(
+    private static function jsonTableGeneratedPathRowidAnchorRemapOpcode(
         bool $resumeByRowid,
         bool $resumeByFullkey,
         bool $staleAfterNextSource,
@@ -16275,7 +16275,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<int> $reseekRowids
      */
-    private static function jsonTableGeneratedPathRowidAnchorRemapCostClass195(string $opcode, array $reseekRowids): string
+    private static function jsonTableGeneratedPathRowidAnchorRemapCostClass(string $opcode, array $reseekRowids): string
     {
         if (str_starts_with($opcode, 'resume-rowid')) {
             return 'json-table-generated-path-rowid-anchor-rowid-next195';
@@ -16303,7 +16303,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidAnchorRemapTransitions195(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidAnchorRemapTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -16340,7 +16340,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidAnchorRemapReasons195(array $transitions, array $next): array
+    private static function jsonTableGeneratedPathRowidAnchorRemapReasons(array $transitions, array $next): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -16375,7 +16375,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidXColumnCacheProfile196(
+    private static function jsonTableGeneratedPathRowidXColumnCacheProfile(
         array $filter191,
         array $resume185,
         array $projection,
@@ -16965,7 +16965,7 @@ final class SQLiteJsonTablePlan
         array $orderBy,
         bool $upstreamReplanRequired,
     ): array {
-        $terms = self::jsonTableGeneratedPathRowidAliasOrderTerms205($orderBy);
+        $terms = self::jsonTableGeneratedPathRowidAliasOrderTerms($orderBy);
         $aliasTape = is_array($aliasProjection203['aliasTape'] ?? null) ? $aliasProjection203['aliasTape'] : [];
         $acceptedRows = array_values(array_filter(
             $aliasTape,
@@ -16974,12 +16974,12 @@ final class SQLiteJsonTablePlan
         $orderConsumed = $terms !== []
             && !$upstreamReplanRequired
             && (bool) ($aliasProjection203['aliasProjectionReusable'] ?? false)
-            && self::jsonTableGeneratedPathRowidAliasOrderTermsAreAliases205($terms);
+            && self::jsonTableGeneratedPathRowidAliasOrderTermsAreAliases($terms);
         $orderedRows = $acceptedRows;
         if ($orderConsumed) {
             usort(
                 $orderedRows,
-                static fn (array $left, array $right): int => self::jsonTableGeneratedPathRowidAliasOrderCompare205($left, $right, $terms),
+                static fn (array $left, array $right): int => self::jsonTableGeneratedPathRowidAliasOrderCompare($left, $right, $terms),
             );
         }
 
@@ -17035,7 +17035,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return list<array{column:string,direction:string}>
      */
-    private static function jsonTableGeneratedPathRowidAliasOrderTerms205(array $orderBy): array
+    private static function jsonTableGeneratedPathRowidAliasOrderTerms(array $orderBy): array
     {
         $terms = [];
         foreach ($orderBy as $term) {
@@ -17059,7 +17059,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,direction:string}> $terms
      */
-    private static function jsonTableGeneratedPathRowidAliasOrderTermsAreAliases205(array $terms): bool
+    private static function jsonTableGeneratedPathRowidAliasOrderTermsAreAliases(array $terms): bool
     {
         foreach ($terms as $term) {
             if (!in_array($term['column'], ['id', 'rowid', '_rowid_', 'oid'], true)) {
@@ -17073,7 +17073,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,direction:string}> $terms
      */
-    private static function jsonTableGeneratedPathRowidAliasOrderCompare205(array $left, array $right, array $terms): int
+    private static function jsonTableGeneratedPathRowidAliasOrderCompare(array $left, array $right, array $terms): int
     {
         foreach ($terms as $term) {
             $column = $term['column'];
@@ -18279,7 +18279,7 @@ final class SQLiteJsonTablePlan
      */
     private static function jsonTableGeneratedRowidOrderProfile(array $generatedRowid, array $generatedOrder): array
     {
-        $terms = self::normalizeGeneratedOrderTerms132($generatedOrder);
+        $terms = self::normalizeGeneratedOrderTerms($generatedOrder);
         $entries = [];
         foreach ($generatedRowid['generatedRowidTape'] as $entry) {
             if (($entry['matched'] ?? false) !== true) {
@@ -18299,7 +18299,7 @@ final class SQLiteJsonTablePlan
             ];
         }
 
-        usort($entries, static fn (array $left, array $right): int => self::compareGeneratedOrderEntries132($left, $right, $terms));
+        usort($entries, static fn (array $left, array $right): int => self::compareGeneratedOrderEntries($left, $right, $terms));
 
         $rowCount = count($entries);
         $requiresSorter = $rowCount > 1;
@@ -18560,7 +18560,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $partialOrder
      * @return array{compositeSignature:string|null,scanStrategy:string,pathOrderPrefix:list<string>,orderSuffix:list<string>,orderByConsumed:bool,blockSortRequired:bool,requiresOrderSort:bool,effectiveEstimatedCost:int,costClass:string,pathRowidTape:list<array{path:string,rowid:int}>,orderedRowids:list<int>,firstOrderedPathRowid:array{path:string,rowid:int}|null,lastOrderedPathRowid:array{path:string,rowid:int}|null}
      */
-    private static function jsonTableHiddenPathOrderByProfile128(array $pathRowid, array $partialOrder): array
+    private static function jsonTableHiddenPathOrderByProfile(array $pathRowid, array $partialOrder): array
     {
         $pathRowidTape = $pathRowid['pathRowidTape'] ?? [];
         $orderedRowids = array_values(array_map(
@@ -18580,17 +18580,17 @@ final class SQLiteJsonTablePlan
         return [
             'compositeSignature' => $pathRowid['compositeSignature'] ?? null,
             'scanStrategy' => (string) ($pathRowid['scanStrategy'] ?? 'full-json-table-scan'),
-            'pathOrderPrefix' => self::hiddenPathOrderPrefix128($pathRowid, $partialOrder),
+            'pathOrderPrefix' => self::hiddenPathOrderPrefix($pathRowid, $partialOrder),
             'orderSuffix' => array_values(array_map('strval', $orderSuffix)),
             'orderByConsumed' => !$requiresOrderSort,
             'blockSortRequired' => $blockSortRequired,
             'requiresOrderSort' => $requiresOrderSort,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTableHiddenPathOrderByCostClass128($pathRowid, $partialOrder, $requiresOrderSort, $effectiveCost),
+            'costClass' => self::jsonTableHiddenPathOrderByCostClass($pathRowid, $partialOrder, $requiresOrderSort, $effectiveCost),
             'pathRowidTape' => $pathRowidTape,
             'orderedRowids' => $orderedRowids,
-            'firstOrderedPathRowid' => self::firstOrderedPathRowid128($pathRowidTape, $orderedRowids),
-            'lastOrderedPathRowid' => self::lastOrderedPathRowid128($pathRowidTape, $orderedRowids),
+            'firstOrderedPathRowid' => self::firstOrderedPathRowid($pathRowidTape, $orderedRowids),
+            'lastOrderedPathRowid' => self::lastOrderedPathRowid($pathRowidTape, $orderedRowids),
         ];
     }
 
@@ -18599,7 +18599,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $partialOrder
      * @return list<string>
      */
-    private static function hiddenPathOrderPrefix128(array $pathRowid, array $partialOrder): array
+    private static function hiddenPathOrderPrefix(array $pathRowid, array $partialOrder): array
     {
         $prefix = [];
         if (($pathRowid['pathSignature'] ?? null) !== null) {
@@ -18623,7 +18623,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $pathRowid
      * @param array<string,mixed> $partialOrder
      */
-    private static function jsonTableHiddenPathOrderByCostClass128(
+    private static function jsonTableHiddenPathOrderByCostClass(
         array $pathRowid,
         array $partialOrder,
         bool $requiresOrderSort,
@@ -18652,7 +18652,7 @@ final class SQLiteJsonTablePlan
      * @param list<int> $orderedRowids
      * @return array{path:string,rowid:int}|null
      */
-    private static function firstOrderedPathRowid128(array $pathRowidTape, array $orderedRowids): ?array
+    private static function firstOrderedPathRowid(array $pathRowidTape, array $orderedRowids): ?array
     {
         foreach ($orderedRowids as $rowid) {
             foreach ($pathRowidTape as $entry) {
@@ -18670,7 +18670,7 @@ final class SQLiteJsonTablePlan
      * @param list<int> $orderedRowids
      * @return array{path:string,rowid:int}|null
      */
-    private static function lastOrderedPathRowid128(array $pathRowidTape, array $orderedRowids): ?array
+    private static function lastOrderedPathRowid(array $pathRowidTape, array $orderedRowids): ?array
     {
         for ($index = count($orderedRowids) - 1; $index >= 0; $index--) {
             foreach ($pathRowidTape as $entry) {
@@ -18688,7 +18688,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableHiddenPathOrderByTransitions128(array $current, array $next): array
+    private static function jsonTableHiddenPathOrderByTransitions(array $current, array $next): array
     {
         return [
             [
@@ -18746,7 +18746,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableHiddenPathOrderByReplanReasons128(array $transitions): array
+    private static function jsonTableHiddenPathOrderByReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -18772,7 +18772,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{orderBy:list<array{column:string,direction:string}>,rowidTieBreakColumns:list<string>,rowidTieBreakConsumed:bool,orderByConsumed:bool,requiresSorter:bool,baseEstimatedCost:int,sortPenalty:int,effectiveEstimatedCost:int,costClass:string,orderedRowids:list<int>,orderKeyTape:list<array{rowid:int,orderKey:list<mixed>,fullkey:string}>,firstOrderKey:list<mixed>|null,lastOrderKey:list<mixed>|null}
      */
-    private static function jsonTableHiddenRowidOrderProfile135(array $plan, array $orderBy): array
+    private static function jsonTableHiddenRowidOrderProfile(array $plan, array $orderBy): array
     {
         $normalizedOrderBy = self::normalizeOrderByTerms($orderBy);
         $rows = $plan['rows'];
@@ -18781,14 +18781,14 @@ final class SQLiteJsonTablePlan
         }
 
         $rowCount = count($rows);
-        $rowidTieBreakColumns = self::rowidTieBreakColumns135($normalizedOrderBy);
-        $rowidTieBreakConsumed = $rowidTieBreakColumns !== [] && self::rowidTieBreakIsStreaming135($normalizedOrderBy);
+        $rowidTieBreakColumns = self::rowidTieBreakColumns($normalizedOrderBy);
+        $rowidTieBreakConsumed = $rowidTieBreakColumns !== [] && self::rowidTieBreakIsStreaming($normalizedOrderBy);
         $orderByConsumed = (bool) $plan['orderByConsumed'];
         $requiresSorter = $normalizedOrderBy !== [] && !$orderByConsumed && $rowCount > 1;
         $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty($rowCount, $normalizedOrderBy) : 0;
         $baseCost = (int) $plan['estimatedCost'];
         $effectiveCost = $baseCost >= 1000000 ? $baseCost : $baseCost + $sortPenalty;
-        $orderKeyTape = self::hiddenRowidOrderKeyTape135($rows, $normalizedOrderBy);
+        $orderKeyTape = self::hiddenRowidOrderKeyTape($rows, $normalizedOrderBy);
 
         return [
             'orderBy' => $normalizedOrderBy,
@@ -18799,7 +18799,7 @@ final class SQLiteJsonTablePlan
             'baseEstimatedCost' => $baseCost,
             'sortPenalty' => $sortPenalty,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTableHiddenRowidOrderCostClass135($plan, $normalizedOrderBy, $rowidTieBreakConsumed, $requiresSorter),
+            'costClass' => self::jsonTableHiddenRowidOrderCostClass($plan, $normalizedOrderBy, $rowidTieBreakConsumed, $requiresSorter),
             'orderedRowids' => array_map(static fn (array $row): int => (int) $row['id'], $rows),
             'orderKeyTape' => $orderKeyTape,
             'firstOrderKey' => $orderKeyTape[0]['orderKey'] ?? null,
@@ -18811,7 +18811,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction:string}> $orderBy
      * @return list<string>
      */
-    private static function rowidTieBreakColumns135(array $orderBy): array
+    private static function rowidTieBreakColumns(array $orderBy): array
     {
         $columns = [];
         foreach ($orderBy as $term) {
@@ -18826,7 +18826,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,direction:string}> $orderBy
      */
-    private static function rowidTieBreakIsStreaming135(array $orderBy): bool
+    private static function rowidTieBreakIsStreaming(array $orderBy): bool
     {
         $count = count($orderBy);
         for ($index = 0; $index < $count; $index++) {
@@ -18846,7 +18846,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction:string}> $orderBy
      * @return list<array{rowid:int,orderKey:list<mixed>,fullkey:string}>
      */
-    private static function hiddenRowidOrderKeyTape135(array $rows, array $orderBy): array
+    private static function hiddenRowidOrderKeyTape(array $rows, array $orderBy): array
     {
         $tape = [];
         foreach ($rows as $row) {
@@ -18868,7 +18868,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $plan
      * @param list<array{column:string,direction:string}> $orderBy
      */
-    private static function jsonTableHiddenRowidOrderCostClass135(
+    private static function jsonTableHiddenRowidOrderCostClass(
         array $plan,
         array $orderBy,
         bool $rowidTieBreakConsumed,
@@ -18900,7 +18900,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableHiddenRowidOrderTransitions135(array $current, array $next): array
+    private static function jsonTableHiddenRowidOrderTransitions(array $current, array $next): array
     {
         return [
             [
@@ -18958,7 +18958,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableHiddenRowidOrderReplanReasons135(array $transitions): array
+    private static function jsonTableHiddenRowidOrderReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -19929,7 +19929,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
      * @return list<array{constraintIndex:int,column:string,operator:string,usable:bool}>
      */
-    private static function hiddenResidualConstraints88(array $usage): array
+    private static function hiddenResidualConstraints(array $usage): array
     {
         $hidden = [];
         foreach ($usage as $entry) {
@@ -20003,7 +20003,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
      * @return list<array{constraintIndex:int,originalColumn:string,normalizedColumn:string,operator:string,usable:bool,source:string}>
      */
-    private static function rowidAliasConstraintProvenance99(array $constraints, array $usage): array
+    private static function rowidAliasConstraintProvenance(array $constraints, array $usage): array
     {
         $aliases = [];
         foreach ($constraints as $index => $constraint) {
@@ -20278,7 +20278,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return list<array{column:string,direction:string,consumed:bool,reason:string,constraintOperator:string|null,constraintValue:mixed}>
      */
-    private static function orderByConstraintCoverage120(array $used, array $orderBy): array
+    private static function orderByConstraintCoverage(array $used, array $orderBy): array
     {
         $coverage = [];
         foreach (self::normalizeOrderByTerms($orderBy) as $term) {
@@ -20320,7 +20320,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction:string,consumed:bool,reason:string,constraintOperator:string|null,constraintValue:mixed}> $coverage
      * @return array{orderBy:list<array{column:string,direction:string}>,consumedPrefix:list<array<string,mixed>>,suffixOrderBy:list<array{column:string,direction:string}>,consumedPrefixColumns:list<string>,suffixColumns:list<string>,prefixConsumedCount:int,suffixSortWidth:int,blockSortRequired:bool,baseSortPenalty:int,blockSortPenalty:int,sortSavings:int,baseEffectiveEstimatedCost:int,effectiveEstimatedCost:int,costClass:string,rowCount:int,rowOrder:list<int|null>,firstSuffixKey:mixed,lastSuffixKey:mixed}
      */
-    private static function jsonTablePartialOrderCostProfile124(array $plan, array $costOrder, array $coverage): array
+    private static function jsonTablePartialOrderCostProfile(array $plan, array $costOrder, array $coverage): array
     {
         $orderBy = $costOrder['orderBy'];
         $consumedPrefix = [];
@@ -20355,7 +20355,7 @@ final class SQLiteJsonTablePlan
             'sortSavings' => max(0, $baseSortPenalty - $blockSortPenalty),
             'baseEffectiveEstimatedCost' => (int) $costOrder['effectiveEstimatedCost'],
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTablePartialOrderCostClass124($plan, $costOrder, $blockSortRequired, $prefixCount, $effectiveCost),
+            'costClass' => self::jsonTablePartialOrderCostClass($plan, $costOrder, $blockSortRequired, $prefixCount, $effectiveCost),
             'rowCount' => $rowCount,
             'rowOrder' => $costOrder['rowOrder'],
             'firstSuffixKey' => self::jsonTableOrderKey($plan['rows'][0] ?? null, $suffixOrderBy),
@@ -20367,7 +20367,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $plan
      * @param array<string,mixed> $costOrder
      */
-    private static function jsonTablePartialOrderCostClass124(
+    private static function jsonTablePartialOrderCostClass(
         array $plan,
         array $costOrder,
         bool $blockSortRequired,
@@ -20398,7 +20398,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTablePartialOrderCostTransitions124(array $current, array $next): array
+    private static function jsonTablePartialOrderCostTransitions(array $current, array $next): array
     {
         return [
             [
@@ -20450,7 +20450,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTablePartialOrderCostReplanReasons124(array $transitions): array
+    private static function jsonTablePartialOrderCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -20476,7 +20476,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $pathCost
      * @return array{pathSignature:string|null,rowidSignature:string|null,compositeSignature:string|null,scanStrategy:string,pathEstimatedCost:int,rowidEstimatedCost:int,intersectedEstimatedRows:int,intersectedEstimatedCost:int,effectiveEstimatedCost:int,costClass:string,rowCount:int,rowids:list<int>,pathRowidTape:list<array{path:string|null,rowid:int|null}>,firstPathRowid:array{path:string|null,rowid:int|null}|null,lastPathRowid:array{path:string|null,rowid:int|null}|null}
      */
-    private static function jsonTablePathHiddenRowidCostProfile126(array $plan, array $indexedCost, array $pathCost): array
+    private static function jsonTablePathHiddenRowidCostProfile(array $plan, array $indexedCost, array $pathCost): array
     {
         $rowid = null;
         foreach ($indexedCost['indexedConstraints'] as $constraint) {
@@ -20492,7 +20492,7 @@ final class SQLiteJsonTablePlan
         $pathSignature = $pathCost['selectedPathSignature'];
         $rowidSignature = $rowid === null ? null : self::jsonTableIndexedConstraintSignature($rowid);
         $rowids = self::rowidsFromRows($plan['rows']);
-        $pathRowidTape = self::jsonTablePathRowidTape126($plan['rows']);
+        $pathRowidTape = self::jsonTablePathRowidTape($plan['rows']);
 
         if (!$plan['runnable']) {
             $scanStrategy = 'unrunnable-json-table';
@@ -20532,7 +20532,7 @@ final class SQLiteJsonTablePlan
             'intersectedEstimatedRows' => $intersectedRows,
             'intersectedEstimatedCost' => $intersectedCost,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTablePathHiddenRowidCostClass126($scanStrategy, $effectiveCost),
+            'costClass' => self::jsonTablePathHiddenRowidCostClass($scanStrategy, $effectiveCost),
             'rowCount' => count($pathRowidTape),
             'rowids' => $rowids,
             'pathRowidTape' => $pathRowidTape,
@@ -20545,7 +20545,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $rows
      * @return list<array{path:string|null,rowid:int|null}>
      */
-    private static function jsonTablePathRowidTape126(array $rows): array
+    private static function jsonTablePathRowidTape(array $rows): array
     {
         $tape = [];
         foreach ($rows as $row) {
@@ -20558,7 +20558,7 @@ final class SQLiteJsonTablePlan
         return $tape;
     }
 
-    private static function jsonTablePathHiddenRowidCostClass126(string $scanStrategy, int $effectiveCost): string
+    private static function jsonTablePathHiddenRowidCostClass(string $scanStrategy, int $effectiveCost): string
     {
         if ($scanStrategy === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -20581,7 +20581,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTablePathHiddenRowidCostTransitions126(array $current, array $next): array
+    private static function jsonTablePathHiddenRowidCostTransitions(array $current, array $next): array
     {
         return [
             [
@@ -20627,7 +20627,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTablePathHiddenRowidCostReplanReasons126(array $transitions): array
+    private static function jsonTablePathHiddenRowidCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -20653,10 +20653,10 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $pathRowid
      * @return array{seekSignature:string|null,pathValue:mixed,rowidValue:mixed,pointSeekable:bool,matched:bool,missingRowid:bool,sourceKind:string,rowCount:int,matchedRowid:int|null,matchedPath:string|null,matchedFullkey:string|null,matchedKey:mixed,matchedType:string|null,matchedAtom:mixed,matchedValue:mixed,matchedValueFingerprint:string|null,seekTape:list<array{path:string|null,rowid:int|null,fullkey:string|null,type:string|null,key:mixed,matched:bool}>,effectiveEstimatedCost:int,costClass:string}
      */
-    private static function jsonTableHiddenPathRowidCurrentSourceProfile140(array $plan, array $pathRowid): array
+    private static function jsonTableHiddenPathRowidCurrentSourceProfile(array $plan, array $pathRowid): array
     {
-        $pathConstraint = self::pointConstraintValue140($plan['used'] ?? [], 'path');
-        $rowidConstraint = self::pointConstraintValue140($plan['used'] ?? [], 'id');
+        $pathConstraint = self::pointConstraintValue($plan['used'] ?? [], 'path');
+        $rowidConstraint = self::pointConstraintValue($plan['used'] ?? [], 'id');
         $pointSeekable = $pathConstraint['usable'] && $rowidConstraint['usable'];
         $rowidValue = $rowidConstraint['value'];
         $pathValue = $pathConstraint['value'];
@@ -20701,10 +20701,10 @@ final class SQLiteJsonTablePlan
             'matchedType' => $matchedRow !== null && isset($matchedRow['type']) && is_string($matchedRow['type']) ? $matchedRow['type'] : null,
             'matchedAtom' => $matchedRow['atom'] ?? null,
             'matchedValue' => $matchedRow['value'] ?? null,
-            'matchedValueFingerprint' => $matchedRow === null ? null : self::jsonTableStableValueToken140($matchedRow['value'] ?? null),
+            'matchedValueFingerprint' => $matchedRow === null ? null : self::jsonTableStableValueToken($matchedRow['value'] ?? null),
             'seekTape' => $seekTape,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTableHiddenPathRowidCurrentSourceCostClass140(
+            'costClass' => self::jsonTableHiddenPathRowidCurrentSourceCostClass(
                 (bool) ($plan['runnable'] ?? false),
                 $pointSeekable,
                 $matched,
@@ -20717,7 +20717,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $constraints
      * @return array{usable:bool,value:mixed}
      */
-    private static function pointConstraintValue140(array $constraints, string $column): array
+    private static function pointConstraintValue(array $constraints, string $column): array
     {
         foreach ($constraints as $constraint) {
             if (($constraint['column'] ?? null) !== $column) {
@@ -20729,14 +20729,14 @@ final class SQLiteJsonTablePlan
 
             return [
                 'usable' => true,
-                'value' => $column === 'id' ? self::rowidConstraintIntValue133($constraint['value'] ?? null) : ($constraint['value'] ?? null),
+                'value' => $column === 'id' ? self::rowidConstraintIntValue($constraint['value'] ?? null) : ($constraint['value'] ?? null),
             ];
         }
 
         return ['usable' => false, 'value' => null];
     }
 
-    private static function jsonTableStableValueToken140(mixed $value): string
+    private static function jsonTableStableValueToken(mixed $value): string
     {
         if (is_scalar($value) || $value === null) {
             return get_debug_type($value) . ':' . json_encode($value, JSON_THROW_ON_ERROR);
@@ -20745,7 +20745,7 @@ final class SQLiteJsonTablePlan
         return get_debug_type($value) . ':' . json_encode($value, JSON_THROW_ON_ERROR);
     }
 
-    private static function jsonTableHiddenPathRowidCurrentSourceCostClass140(
+    private static function jsonTableHiddenPathRowidCurrentSourceCostClass(
         bool $runnable,
         bool $pointSeekable,
         bool $matched,
@@ -20772,7 +20772,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableHiddenPathRowidCurrentSourceTransitions140(array $current, array $next): array
+    private static function jsonTableHiddenPathRowidCurrentSourceTransitions(array $current, array $next): array
     {
         return [
             [
@@ -20824,7 +20824,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableHiddenPathRowidCurrentSourceReplanReasons140(array $transitions): array
+    private static function jsonTableHiddenPathRowidCurrentSourceReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -20852,12 +20852,12 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @return array{seekSignature:string|null,sourceKind:string,matched:bool,generatedMatched:bool,generatedConstraints:list<array{name:string,source:string,path:string,operator:string,value:mixed,usable:bool}>,generatedConstraintSignatures:list<string>,generatedValues:array<string,mixed>,generatedTape:list<array{name:string,source:string,path:string,operator:string,expected:mixed,actual:mixed,matched:bool,usable:bool}>,matchedRowid:int|null,matchedPath:string|null,matchedFullkey:string|null,matchedValueFingerprint:string|null,effectiveEstimatedCost:int,costClass:string}
      */
-    private static function jsonTableHiddenPathGeneratedCurrentSourceProfile143(
+    private static function jsonTableHiddenPathGeneratedCurrentSourceProfile(
         array $plan,
         array $hiddenPathRowid,
         array $generatedConstraints,
     ): array {
-        $constraints = self::normalizeGeneratedHiddenConstraints136($generatedConstraints);
+        $constraints = self::normalizeGeneratedHiddenConstraints($generatedConstraints);
         $matched = (bool) ($hiddenPathRowid['matched'] ?? false);
         $fakeRow = [
             'json' => $plan['source']['jsonValue'] ?? $plan['source']['option_value'] ?? null,
@@ -20868,8 +20868,8 @@ final class SQLiteJsonTablePlan
         $values = [];
         $tape = [];
         foreach ($constraints as $constraint) {
-            $actual = $matched ? self::generatedOrderValue132($fakeRow, $constraint) : null;
-            $singleMatch = $matched && self::generatedHiddenValuesMatch136(
+            $actual = $matched ? self::generatedOrderValue($fakeRow, $constraint) : null;
+            $singleMatch = $matched && self::generatedHiddenValuesMatch(
                 [$constraint['name'] => $actual],
                 [$constraint],
             );
@@ -20886,7 +20886,7 @@ final class SQLiteJsonTablePlan
             ];
         }
 
-        $generatedMatched = $matched && self::generatedHiddenValuesMatch136($values, $constraints);
+        $generatedMatched = $matched && self::generatedHiddenValuesMatch($values, $constraints);
         $baseCost = (int) ($hiddenPathRowid['effectiveEstimatedCost'] ?? 1000000);
         if (!(bool) ($plan['runnable'] ?? false) || ($hiddenPathRowid['costClass'] ?? null) === 'unrunnable-json-table') {
             $effectiveCost = 1000000;
@@ -20915,7 +20915,7 @@ final class SQLiteJsonTablePlan
             'matchedFullkey' => $hiddenPathRowid['matchedFullkey'] ?? null,
             'matchedValueFingerprint' => $hiddenPathRowid['matchedValueFingerprint'] ?? null,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTableHiddenPathGeneratedCurrentSourceCostClass143(
+            'costClass' => self::jsonTableHiddenPathGeneratedCurrentSourceCostClass(
                 (bool) ($plan['runnable'] ?? false),
                 $matched,
                 $generatedMatched,
@@ -20924,7 +20924,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function jsonTableHiddenPathGeneratedCurrentSourceCostClass143(
+    private static function jsonTableHiddenPathGeneratedCurrentSourceCostClass(
         bool $runnable,
         bool $matched,
         bool $generatedMatched,
@@ -20948,7 +20948,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableHiddenPathGeneratedCurrentSourceTransitions143(array $current, array $next): array
+    private static function jsonTableHiddenPathGeneratedCurrentSourceTransitions(array $current, array $next): array
     {
         return [
             [
@@ -21006,7 +21006,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableHiddenPathGeneratedCurrentSourceReplanReasons143(array $transitions): array
+    private static function jsonTableHiddenPathGeneratedCurrentSourceReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -21033,7 +21033,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{seekSignature:string|null,sourceKind:string,matched:bool,generatedMatched:bool,usableGeneratedConstraintCount:int,residualGeneratedConstraintCount:int,hiddenConstraintColumns:list<string>,constraintUsage:list<array<string,mixed>>,argvBindings:list<array{argvIndex:int,column:string,operator:string,value:mixed,omit:bool,kind:string}>,omitColumns:list<string>,residualColumns:list<string>,estimatedRows:int,estimatedCost:int,costClass:string,matchedRowid:int|null,matchedFullkey:string|null,generatedValues:array<string,mixed>,planFingerprint:string}
      */
-    private static function jsonTableHiddenGeneratedCostProfile148(array $generated, array $constraints): array
+    private static function jsonTableHiddenGeneratedCostProfile(array $generated, array $constraints): array
     {
         $constraintUsage = [];
         $argvBindings = [];
@@ -21095,8 +21095,8 @@ final class SQLiteJsonTablePlan
         $generatedMatched = (bool) ($generated['generatedMatched'] ?? false);
         $baseCost = (int) ($generated['effectiveEstimatedCost'] ?? 1000000);
         $sourceKind = (string) ($generated['sourceKind'] ?? 'missing');
-        $estimatedRows = self::jsonTableHiddenGeneratedEstimatedRows148($matched, $generatedMatched, count($usableGenerated), count($residualGenerated));
-        $estimatedCost = self::jsonTableHiddenGeneratedEstimatedCost148($baseCost, $estimatedRows, count($usableGenerated), count($residualGenerated), $sourceKind);
+        $estimatedRows = self::jsonTableHiddenGeneratedEstimatedRows($matched, $generatedMatched, count($usableGenerated), count($residualGenerated));
+        $estimatedCost = self::jsonTableHiddenGeneratedEstimatedCost($baseCost, $estimatedRows, count($usableGenerated), count($residualGenerated), $sourceKind);
 
         return [
             'seekSignature' => $generated['seekSignature'] ?? null,
@@ -21112,15 +21112,15 @@ final class SQLiteJsonTablePlan
             'residualColumns' => array_values(array_unique($residualColumns)),
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
-            'costClass' => self::jsonTableHiddenGeneratedCostClass148($sourceKind, $matched, $generatedMatched, count($usableGenerated), count($residualGenerated)),
+            'costClass' => self::jsonTableHiddenGeneratedCostClass($sourceKind, $matched, $generatedMatched, count($usableGenerated), count($residualGenerated)),
             'matchedRowid' => $generated['matchedRowid'] ?? null,
             'matchedFullkey' => $generated['matchedFullkey'] ?? null,
             'generatedValues' => $generated['generatedValues'] ?? [],
-            'planFingerprint' => self::jsonTableHiddenGeneratedPlanFingerprint148($generated, $argvBindings, $estimatedRows, $estimatedCost),
+            'planFingerprint' => self::jsonTableHiddenGeneratedPlanFingerprint($generated, $argvBindings, $estimatedRows, $estimatedCost),
         ];
     }
 
-    private static function jsonTableHiddenGeneratedEstimatedRows148(bool $matched, bool $generatedMatched, int $usableGenerated, int $residualGenerated): int
+    private static function jsonTableHiddenGeneratedEstimatedRows(bool $matched, bool $generatedMatched, int $usableGenerated, int $residualGenerated): int
     {
         if (!$matched || !$generatedMatched) {
             return 0;
@@ -21129,7 +21129,7 @@ final class SQLiteJsonTablePlan
         return max(1, 4 - min(3, $usableGenerated) + $residualGenerated);
     }
 
-    private static function jsonTableHiddenGeneratedEstimatedCost148(int $baseCost, int $estimatedRows, int $usableGenerated, int $residualGenerated, string $sourceKind): int
+    private static function jsonTableHiddenGeneratedEstimatedCost(int $baseCost, int $estimatedRows, int $usableGenerated, int $residualGenerated, string $sourceKind): int
     {
         if ($sourceKind === 'sql-null' || $baseCost >= 1000000) {
             return 1000000;
@@ -21141,7 +21141,7 @@ final class SQLiteJsonTablePlan
         return max(1, $baseCost + $estimatedRows + $residualGenerated);
     }
 
-    private static function jsonTableHiddenGeneratedCostClass148(string $sourceKind, bool $matched, bool $generatedMatched, int $usableGenerated, int $residualGenerated): string
+    private static function jsonTableHiddenGeneratedCostClass(string $sourceKind, bool $matched, bool $generatedMatched, int $usableGenerated, int $residualGenerated): string
     {
         if ($sourceKind === 'sql-null') {
             return 'unrunnable-json-table';
@@ -21166,7 +21166,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $generated
      * @param list<array{argvIndex:int,column:string,operator:string,value:mixed,omit:bool,kind:string}> $argvBindings
      */
-    private static function jsonTableHiddenGeneratedPlanFingerprint148(array $generated, array $argvBindings, int $estimatedRows, int $estimatedCost): string
+    private static function jsonTableHiddenGeneratedPlanFingerprint(array $generated, array $argvBindings, int $estimatedRows, int $estimatedCost): string
     {
         return hash('sha256', json_encode([
             $generated['seekSignature'] ?? null,
@@ -21183,7 +21183,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableHiddenGeneratedCostTransitions148(array $current, array $next): array
+    private static function jsonTableHiddenGeneratedCostTransitions(array $current, array $next): array
     {
         return [
             ['field' => 'seekSignature', 'current' => $current['seekSignature'], 'next' => $next['seekSignature'], 'changed' => $current['seekSignature'] !== $next['seekSignature']],
@@ -21202,7 +21202,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableHiddenGeneratedCostReplanReasons148(array $transitions): array
+    private static function jsonTableHiddenGeneratedCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -21230,14 +21230,14 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{seekSignature:string|null,rowidConstraintSignature:string|null,rowidConstraintColumn:string|null,rowidConstraintOperator:string|null,rowidConstraintValue:mixed,rowidScoped:bool,matched:bool,generatedMatched:bool,rowidMatched:bool,intersected:bool,intersectedRowids:list<int>,intersectedFullkeys:list<string>,generatedValues:array<string,mixed>,rowidGeneratedTape:list<array{rowid:int|null,fullkey:string|null,generatedMatched:bool,rowidMatched:bool,matched:bool,values:array<string,mixed>}>,baseEstimatedRows:int,baseEstimatedCost:int,effectiveEstimatedRows:int,effectiveEstimatedCost:int,costClass:string,planFingerprint:string}
      */
-    private static function jsonTableHiddenGeneratedRowidProfile157(array $hiddenGenerated, array $constraints): array
+    private static function jsonTableHiddenGeneratedRowidProfile(array $hiddenGenerated, array $constraints): array
     {
-        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $rowidConstraint = self::firstRowidConstraint($constraints);
         $rowidOperator = isset($rowidConstraint['operator']) ? strtoupper((string) $rowidConstraint['operator']) : null;
         $rowidValue = $rowidConstraint['value'] ?? null;
         $rowidScoped = $rowidConstraint !== null
             && $rowidOperator === '='
-            && self::rowidConstraintIntValue133($rowidValue) !== null;
+            && self::rowidConstraintIntValue($rowidValue) !== null;
         $matchedRowid = is_int($hiddenGenerated['matchedRowid'] ?? null) ? $hiddenGenerated['matchedRowid'] : null;
         $matchedFullkey = is_string($hiddenGenerated['matchedFullkey'] ?? null) ? $hiddenGenerated['matchedFullkey'] : null;
         $row = [
@@ -21287,7 +21287,7 @@ final class SQLiteJsonTablePlan
 
         $fingerprint = hash('sha256', json_encode([
             $hiddenGenerated['seekSignature'] ?? null,
-            $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature($rowidConstraint),
             $intersected,
             $hiddenGenerated['generatedValues'] ?? [],
             $effectiveRows,
@@ -21296,7 +21296,7 @@ final class SQLiteJsonTablePlan
 
         return [
             'seekSignature' => $hiddenGenerated['seekSignature'] ?? null,
-            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature($rowidConstraint),
             'rowidConstraintColumn' => isset($rowidConstraint['column']) ? self::normalizeConstraintColumn((string) $rowidConstraint['column']) : null,
             'rowidConstraintOperator' => $rowidOperator,
             'rowidConstraintValue' => $rowidValue,
@@ -21313,7 +21313,7 @@ final class SQLiteJsonTablePlan
             'baseEstimatedCost' => $baseCost,
             'effectiveEstimatedRows' => $effectiveRows,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTableHiddenGeneratedRowidCostClass157(
+            'costClass' => self::jsonTableHiddenGeneratedRowidCostClass(
                 (string) ($hiddenGenerated['costClass'] ?? ''),
                 $rowidConstraint !== null,
                 $rowidScoped,
@@ -21324,7 +21324,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function jsonTableHiddenGeneratedRowidCostClass157(
+    private static function jsonTableHiddenGeneratedRowidCostClass(
         string $baseCostClass,
         bool $hasRowidConstraint,
         bool $rowidScoped,
@@ -21356,7 +21356,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableHiddenGeneratedRowidTransitions157(array $current, array $next): array
+    private static function jsonTableHiddenGeneratedRowidTransitions(array $current, array $next): array
     {
         return [
             ['field' => 'seekSignature', 'current' => $current['seekSignature'], 'next' => $next['seekSignature'], 'changed' => $current['seekSignature'] !== $next['seekSignature']],
@@ -21378,7 +21378,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableHiddenGeneratedRowidReplanReasons157(array $transitions): array
+    private static function jsonTableHiddenGeneratedRowidReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -21409,7 +21409,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction:string,consumed:bool,reason:string,constraintOperator:string|null,constraintValue:mixed}> $coverage
      * @return array{baseRoot:string,nestedPath:string,root:string,mode:string,consumedPrefixColumns:list<string>,suffixColumns:list<string>,prefixConsumedCount:int,blockSortRequired:bool,effectiveEstimatedCost:int,costClass:string,rowOrder:list<int|null>,coverage:list<array<string,mixed>>,rootOrderKey:list<mixed>,firstSuffixKey:mixed,lastSuffixKey:mixed}
      */
-    private static function nestedConstraintOrderProfile127(array $nestedRoot, array $partialOrder, array $coverage): array
+    private static function nestedConstraintOrderProfile(array $nestedRoot, array $partialOrder, array $coverage): array
     {
         return [
             'baseRoot' => (string) $nestedRoot['baseRoot'],
@@ -21436,16 +21436,16 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $hiddenCost
      * @return array{baseRoot:string,nestedPath:string,root:string,mode:string,hiddenArguments:list<mixed>,hiddenArgumentCount:int,hiddenRootDepth:int,scanStrategy:string,compositeSignature:string|null,effectiveEstimatedCost:int,hiddenEstimatedCost:int,rowCount:int,rowids:list<int>,rootRowidTape:list<array{root:string,rowid:int|null,fullkey:string|null}>,firstRootRowid:array{root:string,rowid:int|null,fullkey:string|null}|null,lastRootRowid:array{root:string,rowid:int|null,fullkey:string|null}|null,costClass:string}
      */
-    private static function nestedHiddenCostProfile129(array $nestedRoot, array $plan, array $hiddenCost): array
+    private static function nestedHiddenCostProfile(array $nestedRoot, array $plan, array $hiddenCost): array
     {
         $hiddenArguments = array_slice($plan['filterArguments'] ?? [], 0, 2);
         $rowCount = count($plan['rows'] ?? []);
-        $rootDepth = self::jsonPathDepth129((string) $nestedRoot['root']);
+        $rootDepth = self::jsonPathDepth((string) $nestedRoot['root']);
         $effectiveCost = (int) $hiddenCost['effectiveEstimatedCost'];
         $hiddenEstimatedCost = $effectiveCost >= 1000000
             ? 1000000
-            : $effectiveCost + $rootDepth + self::nestedPathModePenalty129((string) $nestedRoot['mode']);
-        $rootRowidTape = self::nestedRootRowidTape129((string) $nestedRoot['root'], $plan['rows'] ?? []);
+            : $effectiveCost + $rootDepth + self::nestedPathModePenalty((string) $nestedRoot['mode']);
+        $rootRowidTape = self::nestedRootRowidTape((string) $nestedRoot['root'], $plan['rows'] ?? []);
 
         return [
             'baseRoot' => (string) $nestedRoot['baseRoot'],
@@ -21464,7 +21464,7 @@ final class SQLiteJsonTablePlan
             'rootRowidTape' => $rootRowidTape,
             'firstRootRowid' => $rootRowidTape[0] ?? null,
             'lastRootRowid' => $rootRowidTape === [] ? null : $rootRowidTape[array_key_last($rootRowidTape)],
-            'costClass' => self::nestedHiddenCostClass129((bool) $plan['runnable'], (string) $hiddenCost['scanStrategy'], $hiddenEstimatedCost, $rowCount),
+            'costClass' => self::nestedHiddenCostClass((bool) $plan['runnable'], (string) $hiddenCost['scanStrategy'], $hiddenEstimatedCost, $rowCount),
         ];
     }
 
@@ -21472,7 +21472,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $rows
      * @return list<array{root:string,rowid:int|null,fullkey:string|null}>
      */
-    private static function nestedRootRowidTape129(string $root, array $rows): array
+    private static function nestedRootRowidTape(string $root, array $rows): array
     {
         $tape = [];
         foreach ($rows as $row) {
@@ -21486,7 +21486,7 @@ final class SQLiteJsonTablePlan
         return $tape;
     }
 
-    private static function jsonPathDepth129(string $path): int
+    private static function jsonPathDepth(string $path): int
     {
         if ($path === '$') {
             return 0;
@@ -21497,7 +21497,7 @@ final class SQLiteJsonTablePlan
         return count($matches[0]);
     }
 
-    private static function nestedPathModePenalty129(string $mode): int
+    private static function nestedPathModePenalty(string $mode): int
     {
         return match ($mode) {
             'absolute-path' => 0,
@@ -21507,7 +21507,7 @@ final class SQLiteJsonTablePlan
         };
     }
 
-    private static function nestedHiddenCostClass129(bool $runnable, string $scanStrategy, int $hiddenEstimatedCost, int $rowCount): string
+    private static function nestedHiddenCostClass(bool $runnable, string $scanStrategy, int $hiddenEstimatedCost, int $rowCount): string
     {
         if (!$runnable || $scanStrategy === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -21533,7 +21533,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function nestedHiddenCostTransitions129(array $current, array $next): array
+    private static function nestedHiddenCostTransitions(array $current, array $next): array
     {
         return [
             [
@@ -21585,7 +21585,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function nestedHiddenCostReplanReasons129(array $transitions): array
+    private static function nestedHiddenCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -21613,14 +21613,14 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,mixed>
      */
-    private static function jsonTablePathOrderByCostProfile131(array $pathCost, array $partialOrder, array $rows): array
+    private static function jsonTablePathOrderByCostProfile(array $pathCost, array $partialOrder, array $rows): array
     {
         $pathEstimatedCost = (int) $pathCost['pathEstimatedCost'];
         $sortPenalty = (int) $partialOrder['blockSortPenalty'];
         $effectiveCost = $pathEstimatedCost >= 1000000
             ? $pathEstimatedCost
             : $pathEstimatedCost + $sortPenalty;
-        $orderedPathTape = self::jsonTablePathRowidTape126($rows);
+        $orderedPathTape = self::jsonTablePathRowidTape($rows);
 
         return [
             'selectedPathSignature' => $pathCost['selectedPathSignature'],
@@ -21634,14 +21634,14 @@ final class SQLiteJsonTablePlan
             'requiresSorter' => (bool) $partialOrder['blockSortRequired'],
             'sortPenalty' => $sortPenalty,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTablePathOrderByCostClass131((string) $pathCost['pathScanStrategy'], (bool) $partialOrder['blockSortRequired'], $effectiveCost),
+            'costClass' => self::jsonTablePathOrderByCostClass((string) $pathCost['pathScanStrategy'], (bool) $partialOrder['blockSortRequired'], $effectiveCost),
             'orderedPathTape' => $orderedPathTape,
             'firstOrderedPath' => $orderedPathTape[0] ?? null,
             'lastOrderedPath' => $orderedPathTape === [] ? null : $orderedPathTape[array_key_last($orderedPathTape)],
         ];
     }
 
-    private static function jsonTablePathOrderByCostClass131(string $pathScanStrategy, bool $requiresSorter, int $effectiveCost): string
+    private static function jsonTablePathOrderByCostClass(string $pathScanStrategy, bool $requiresSorter, int $effectiveCost): string
     {
         if ($pathScanStrategy === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -21663,7 +21663,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTablePathOrderByCostTransitions131(array $current, array $next): array
+    private static function jsonTablePathOrderByCostTransitions(array $current, array $next): array
     {
         return [
             [
@@ -21721,7 +21721,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTablePathOrderByCostReplanReasons131(array $transitions): array
+    private static function jsonTablePathOrderByCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -21748,16 +21748,16 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{root:string,baseRoot:string,nestedPath:string,mode:string,rowidConstraintSignature:string|null,rowidConstraintValue:mixed,rowidConstraintOperator:string|null,rowidConstraintColumn:string|null,rowidConstraintUsable:bool,rowidScoped:bool,rootRowidTape:list<array{root:string,rowid:int|null,fullkey:string|null}>,scopedRowids:list<int>,relativeFullkeys:list<string>,firstScopedRowid:int|null,lastScopedRowid:int|null,rowCount:int,matchedRowCount:int,missingRowid:bool,scanStrategy:string,costClass:string,effectiveEstimatedCost:int}
      */
-    private static function nestedPathRowidProfile133(array $nestedHidden, array $plan, array $constraints): array
+    private static function nestedPathRowidProfile(array $nestedHidden, array $plan, array $constraints): array
     {
-        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $rowidConstraint = self::firstRowidConstraint($constraints);
         $rowidValue = $rowidConstraint['value'] ?? null;
         $rowidOperator = isset($rowidConstraint['operator']) ? strtoupper((string) $rowidConstraint['operator']) : null;
         $root = (string) $nestedHidden['root'];
         $rootRowidTape = $nestedHidden['rootRowidTape'];
         $scopedTape = [];
         foreach ($rootRowidTape as $entry) {
-            if ($rowidConstraint !== null && $rowidOperator === '=' && $entry['rowid'] !== self::rowidConstraintIntValue133($rowidValue)) {
+            if ($rowidConstraint !== null && $rowidOperator === '=' && $entry['rowid'] !== self::rowidConstraintIntValue($rowidValue)) {
                 continue;
             }
 
@@ -21765,7 +21765,7 @@ final class SQLiteJsonTablePlan
         }
 
         $relativeFullkeys = array_values(array_map(
-            static fn (array $entry): string => self::relativeJsonFullkey133($root, $entry['fullkey']),
+            static fn (array $entry): string => self::relativeJsonFullkey($root, $entry['fullkey']),
             $scopedTape,
         ));
         $scopedRowids = array_values(array_filter(
@@ -21773,14 +21773,14 @@ final class SQLiteJsonTablePlan
             static fn (?int $rowid): bool => $rowid !== null,
         ));
 
-        $rowidScoped = $rowidConstraint !== null && $rowidOperator === '=' && self::rowidConstraintIntValue133($rowidValue) !== null;
+        $rowidScoped = $rowidConstraint !== null && $rowidOperator === '=' && self::rowidConstraintIntValue($rowidValue) !== null;
 
         return [
             'root' => $root,
             'baseRoot' => (string) $nestedHidden['baseRoot'],
             'nestedPath' => (string) $nestedHidden['nestedPath'],
             'mode' => (string) $nestedHidden['mode'],
-            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature($rowidConstraint),
             'rowidConstraintValue' => $rowidValue,
             'rowidConstraintOperator' => $rowidOperator,
             'rowidConstraintColumn' => isset($rowidConstraint['column']) ? self::normalizeConstraintColumn((string) $rowidConstraint['column']) : null,
@@ -21795,7 +21795,7 @@ final class SQLiteJsonTablePlan
             'matchedRowCount' => count($scopedTape),
             'missingRowid' => $rowidScoped && $scopedTape === [],
             'scanStrategy' => (string) $nestedHidden['scanStrategy'],
-            'costClass' => self::nestedPathRowidCostClass133((bool) $plan['runnable'], $rowidScoped, $scopedTape !== [], (string) $nestedHidden['scanStrategy']),
+            'costClass' => self::nestedPathRowidCostClass((bool) $plan['runnable'], $rowidScoped, $scopedTape !== [], (string) $nestedHidden['scanStrategy']),
             'effectiveEstimatedCost' => $rowidScoped && $scopedTape !== []
                 ? max(1, min((int) $nestedHidden['hiddenEstimatedCost'], 2))
                 : (int) $nestedHidden['hiddenEstimatedCost'],
@@ -21806,7 +21806,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{column:string,operator:string,value:mixed,usable?:bool}|null
      */
-    private static function firstRowidConstraint133(array $constraints): ?array
+    private static function firstRowidConstraint(array $constraints): ?array
     {
         foreach ($constraints as $constraint) {
             $column = self::normalizeConstraintColumn((string) ($constraint['column'] ?? ''));
@@ -21821,7 +21821,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param array{column:string,operator:string,value:mixed,usable?:bool} $constraint
      */
-    private static function nestedPathRowidConstraintSignature133(array $constraint): string
+    private static function nestedPathRowidConstraintSignature(array $constraint): string
     {
         $column = self::normalizeConstraintColumn((string) $constraint['column']);
         $operator = strtoupper((string) $constraint['operator']);
@@ -21829,7 +21829,7 @@ final class SQLiteJsonTablePlan
         return $column . ':' . $operator . ':' . json_encode($constraint['value']);
     }
 
-    private static function rowidConstraintIntValue133(mixed $value): ?int
+    private static function rowidConstraintIntValue(mixed $value): ?int
     {
         if (is_int($value)) {
             return $value;
@@ -21841,7 +21841,7 @@ final class SQLiteJsonTablePlan
         return null;
     }
 
-    private static function relativeJsonFullkey133(string $root, mixed $fullkey): string
+    private static function relativeJsonFullkey(string $root, mixed $fullkey): string
     {
         if (!is_string($fullkey) || $fullkey === '') {
             return '';
@@ -21859,7 +21859,7 @@ final class SQLiteJsonTablePlan
         return $fullkey;
     }
 
-    private static function nestedPathRowidCostClass133(bool $runnable, bool $rowidScoped, bool $matchedRowid, string $scanStrategy): string
+    private static function nestedPathRowidCostClass(bool $runnable, bool $rowidScoped, bool $matchedRowid, string $scanStrategy): string
     {
         if (!$runnable || $scanStrategy === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -21882,7 +21882,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function nestedPathRowidTransitions133(array $current, array $next): array
+    private static function nestedPathRowidTransitions(array $current, array $next): array
     {
         return [
             [
@@ -21934,7 +21934,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function nestedPathRowidReplanReasons133(array $transitions): array
+    private static function nestedPathRowidReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -21962,10 +21962,10 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{root:string,baseRoot:string,nestedPath:string,pathConstraintSignature:string|null,rowidConstraintSignature:string|null,compositeSignature:string|null,pathScoped:bool,rowidScoped:bool,matchedRowCount:int,pathMatchedRowids:list<int>,rowidMatchedRowids:list<int>,intersectedRowids:list<int>,relativeFullkeys:list<string>,hiddenPathTape:list<array{root:string,rowid:int|null,fullkey:string|null,relativeFullkey:string,pathMatched:bool,rowidMatched:bool,matched:bool}>,firstIntersectedRowid:int|null,lastIntersectedRowid:int|null,costClass:string,effectiveEstimatedCost:int}
      */
-    private static function rowidHiddenPathProfile138(array $nestedPathRowid, array $constraints): array
+    private static function rowidHiddenPathProfile(array $nestedPathRowid, array $constraints): array
     {
-        $pathConstraint = self::firstHiddenPathConstraint138($constraints);
-        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $pathConstraint = self::firstHiddenPathConstraint($constraints);
+        $rowidConstraint = self::firstRowidConstraint($constraints);
         $rowidOperator = isset($rowidConstraint['operator']) ? strtoupper((string) $rowidConstraint['operator']) : null;
         $rowidValue = $rowidConstraint['value'] ?? null;
         $root = (string) $nestedPathRowid['root'];
@@ -21978,14 +21978,14 @@ final class SQLiteJsonTablePlan
         foreach ($nestedPathRowid['rootRowidTape'] as $entry) {
             $rowid = is_int($entry['rowid'] ?? null) ? $entry['rowid'] : null;
             $fullkey = is_string($entry['fullkey'] ?? null) ? $entry['fullkey'] : null;
-            $relativeFullkey = self::relativeJsonFullkey133($root, $fullkey);
+            $relativeFullkey = self::relativeJsonFullkey($root, $fullkey);
             $row = [
                 'id' => $rowid,
                 'rowid' => $rowid,
                 '_rowid_' => $rowid,
                 'oid' => $rowid,
                 'fullkey' => $fullkey,
-                'path' => self::hiddenPathFromFullkey138($fullkey),
+                'path' => self::hiddenPathFromFullkey($fullkey),
                 'relative_fullkey' => $relativeFullkey,
                 'relativefullkey' => $relativeFullkey,
             ];
@@ -22016,18 +22016,18 @@ final class SQLiteJsonTablePlan
         }
 
         $pathScoped = $pathConstraint !== null;
-        $rowidScoped = $rowidConstraint !== null && $rowidOperator === '=' && self::rowidConstraintIntValue133($rowidValue) !== null;
+        $rowidScoped = $rowidConstraint !== null && $rowidOperator === '=' && self::rowidConstraintIntValue($rowidValue) !== null;
         $baseCost = (int) $nestedPathRowid['effectiveEstimatedCost'];
-        $effectiveCost = $baseCost >= 1000000 ? $baseCost : self::rowidHiddenPathEffectiveCost138($baseCost, $pathScoped, $rowidScoped, count($intersectedRowids));
+        $effectiveCost = $baseCost >= 1000000 ? $baseCost : self::rowidHiddenPathEffectiveCost($baseCost, $pathScoped, $rowidScoped, count($intersectedRowids));
 
         return [
             'root' => $root,
             'baseRoot' => (string) $nestedPathRowid['baseRoot'],
             'nestedPath' => (string) $nestedPathRowid['nestedPath'],
-            'pathConstraintSignature' => $pathConstraint === null ? null : self::rowidHiddenPathConstraintSignature138($pathConstraint),
-            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            'pathConstraintSignature' => $pathConstraint === null ? null : self::rowidHiddenPathConstraintSignature($pathConstraint),
+            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature($rowidConstraint),
             'compositeSignature' => $pathConstraint !== null && $rowidConstraint !== null
-                ? self::rowidHiddenPathConstraintSignature138($pathConstraint) . '&&' . self::nestedPathRowidConstraintSignature133($rowidConstraint)
+                ? self::rowidHiddenPathConstraintSignature($pathConstraint) . '&&' . self::nestedPathRowidConstraintSignature($rowidConstraint)
                 : null,
             'pathScoped' => $pathScoped,
             'rowidScoped' => $rowidScoped,
@@ -22039,7 +22039,7 @@ final class SQLiteJsonTablePlan
             'hiddenPathTape' => $tape,
             'firstIntersectedRowid' => $intersectedRowids[0] ?? null,
             'lastIntersectedRowid' => $intersectedRowids === [] ? null : $intersectedRowids[array_key_last($intersectedRowids)],
-            'costClass' => self::rowidHiddenPathCostClass138((string) $nestedPathRowid['costClass'], $pathScoped, $rowidScoped, count($intersectedRowids)),
+            'costClass' => self::rowidHiddenPathCostClass((string) $nestedPathRowid['costClass'], $pathScoped, $rowidScoped, count($intersectedRowids)),
             'effectiveEstimatedCost' => $effectiveCost,
         ];
     }
@@ -22048,7 +22048,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{column:string,operator:string,value:mixed,usable?:bool}|null
      */
-    private static function firstHiddenPathConstraint138(array $constraints): ?array
+    private static function firstHiddenPathConstraint(array $constraints): ?array
     {
         foreach ($constraints as $constraint) {
             if (!($constraint['usable'] ?? true)) {
@@ -22063,7 +22063,7 @@ final class SQLiteJsonTablePlan
         return null;
     }
 
-    private static function hiddenPathFromFullkey138(?string $fullkey): ?string
+    private static function hiddenPathFromFullkey(?string $fullkey): ?string
     {
         if ($fullkey === null || $fullkey === '' || $fullkey === '$') {
             return null;
@@ -22078,12 +22078,12 @@ final class SQLiteJsonTablePlan
     /**
      * @param array{column:string,operator:string,value:mixed,usable?:bool} $constraint
      */
-    private static function rowidHiddenPathConstraintSignature138(array $constraint): string
+    private static function rowidHiddenPathConstraintSignature(array $constraint): string
     {
         return strtolower((string) $constraint['column']) . ':' . strtoupper((string) $constraint['operator']) . ':' . json_encode($constraint['value']);
     }
 
-    private static function rowidHiddenPathEffectiveCost138(int $baseCost, bool $pathScoped, bool $rowidScoped, int $matchedRows): int
+    private static function rowidHiddenPathEffectiveCost(int $baseCost, bool $pathScoped, bool $rowidScoped, int $matchedRows): int
     {
         if ($matchedRows === 0) {
             return 1;
@@ -22101,7 +22101,7 @@ final class SQLiteJsonTablePlan
         return $baseCost;
     }
 
-    private static function rowidHiddenPathCostClass138(string $baseCostClass, bool $pathScoped, bool $rowidScoped, int $matchedRows): string
+    private static function rowidHiddenPathCostClass(string $baseCostClass, bool $pathScoped, bool $rowidScoped, int $matchedRows): string
     {
         if ($baseCostClass === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -22127,7 +22127,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function rowidHiddenPathTransitions138(array $current, array $next): array
+    private static function rowidHiddenPathTransitions(array $current, array $next): array
     {
         return [
             ['field' => 'root', 'current' => $current['root'], 'next' => $next['root'], 'changed' => $current['root'] !== $next['root']],
@@ -22145,7 +22145,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function rowidHiddenPathReplanReasons138(array $transitions): array
+    private static function rowidHiddenPathReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -22172,10 +22172,10 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{sourceToken:array{option_id:mixed,option_name:mixed,root:string,nestedPath:string},root:string,baseRoot:string,nestedPath:string,pathConstraintSignature:string|null,rowidConstraintSignature:string|null,aliasColumns:list<string>,rowidAlias:string|null,pathAlias:string|null,pointSeekable:bool,matchedRowCount:int,pinnedRowids:list<int>,pinnedRelativeFullkeys:list<string>,rowidPathTape:list<array{rowid:int|null,relativeFullkey:string,pathMatched:bool,rowidMatched:bool,matched:bool}>,firstPinned:array{rowid:int,relativeFullkey:string}|null,lastPinned:array{rowid:int,relativeFullkey:string}|null,effectiveEstimatedCost:int,costClass:string}
      */
-    private static function hiddenRowidPathProfile146(array $source, array $rowidHiddenPath, array $constraints): array
+    private static function hiddenRowidPathProfile(array $source, array $rowidHiddenPath, array $constraints): array
     {
-        $rowidConstraint = self::firstRowidConstraint133($constraints);
-        $pathConstraint = self::firstHiddenPathConstraint138($constraints);
+        $rowidConstraint = self::firstRowidConstraint($constraints);
+        $pathConstraint = self::firstHiddenPathConstraint($constraints);
         $rowidAlias = $rowidConstraint === null ? null : self::normalizeConstraintColumn((string) $rowidConstraint['column']);
         $pathAlias = $pathConstraint === null ? null : strtolower((string) $pathConstraint['column']);
         $aliasColumns = array_values(array_unique(array_filter([$rowidAlias, $pathAlias], static fn (?string $column): bool => $column !== null)));
@@ -22224,11 +22224,11 @@ final class SQLiteJsonTablePlan
                 ? null
                 : ['rowid' => $pinnedRowids[array_key_last($pinnedRowids)], 'relativeFullkey' => $pinnedRelativeFullkeys[array_key_last($pinnedRelativeFullkeys)]],
             'effectiveEstimatedCost' => (int) ($rowidHiddenPath['effectiveEstimatedCost'] ?? 1000000),
-            'costClass' => self::hiddenRowidPathCostClass146($rowidHiddenPath, $pointSeekable),
+            'costClass' => self::hiddenRowidPathCostClass($rowidHiddenPath, $pointSeekable),
         ];
     }
 
-    private static function hiddenRowidPathCostClass146(array $rowidHiddenPath, bool $pointSeekable): string
+    private static function hiddenRowidPathCostClass(array $rowidHiddenPath, bool $pointSeekable): string
     {
         $base = (string) ($rowidHiddenPath['costClass'] ?? 'unrunnable-json-table');
         if ($base === 'unrunnable-json-table') {
@@ -22258,7 +22258,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function hiddenRowidPathTransitions146(array $current, array $next): array
+    private static function hiddenRowidPathTransitions(array $current, array $next): array
     {
         return [
             ['field' => 'sourceToken', 'current' => $current['sourceToken'], 'next' => $next['sourceToken'], 'changed' => $current['sourceToken'] !== $next['sourceToken']],
@@ -22277,7 +22277,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function hiddenRowidPathReplanReasons146(array $transitions): array
+    private static function hiddenRowidPathReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -22305,7 +22305,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathCostProfile134(
+    private static function jsonTableGeneratedPathCostProfile(
         array $source,
         string $generatedPathColumn,
         array $pathOrderCost,
@@ -22324,11 +22324,11 @@ final class SQLiteJsonTablePlan
         }
 
         $selectedSignature = $pathOrderCost['selectedPathSignature'];
-        $pathConstraint = self::jsonTableGeneratedPathConstraintFromSignature134($selectedSignature);
+        $pathConstraint = self::jsonTableGeneratedPathConstraintFromSignature($selectedSignature);
         $matched = $generatedPath !== null
             && $pathConstraint !== null
-            && self::jsonTableGeneratedPathMatchesConstraint134($generatedPath, $pathConstraint);
-        $coveredRows = $matched ? self::jsonTableGeneratedPathCoveredRows134($generatedPath, $rows) : [];
+            && self::jsonTableGeneratedPathMatchesConstraint($generatedPath, $pathConstraint);
+        $coveredRows = $matched ? self::jsonTableGeneratedPathCoveredRows($generatedPath, $rows) : [];
         $baseCost = (int) $pathOrderCost['effectiveEstimatedCost'];
         if (($pathOrderCost['costClass'] ?? null) === 'unrunnable-json-table') {
             $estimatedCost = 1000000;
@@ -22363,17 +22363,17 @@ final class SQLiteJsonTablePlan
             'generatedEstimatedCost' => $estimatedCost,
             'baseEffectiveCost' => $baseCost,
             'pathRowCount' => (int) $pathOrderCost['pathRowCount'],
-            'coveredPathTape' => self::jsonTablePathRowidTape126($coveredRows),
+            'coveredPathTape' => self::jsonTablePathRowidTape($coveredRows),
             'firstCoveredPath' => $coveredRows === [] ? null : ($coveredRows[0]['path'] ?? null),
             'lastCoveredPath' => $coveredRows === [] ? null : ($coveredRows[array_key_last($coveredRows)]['path'] ?? null),
-            'costClass' => self::jsonTableGeneratedPathCostClass134($coverage, $estimatedCost),
+            'costClass' => self::jsonTableGeneratedPathCostClass($coverage, $estimatedCost),
         ];
     }
 
     /**
      * @return array{operator:string,value:mixed}|null
      */
-    private static function jsonTableGeneratedPathConstraintFromSignature134(mixed $signature): ?array
+    private static function jsonTableGeneratedPathConstraintFromSignature(mixed $signature): ?array
     {
         if (!is_string($signature)) {
             return null;
@@ -22393,19 +22393,19 @@ final class SQLiteJsonTablePlan
     /**
      * @param array{operator:string,value:mixed} $constraint
      */
-    private static function jsonTableGeneratedPathMatchesConstraint134(string $generatedPath, array $constraint): bool
+    private static function jsonTableGeneratedPathMatchesConstraint(string $generatedPath, array $constraint): bool
     {
         $value = $constraint['value'];
 
         return match ($constraint['operator']) {
             '=', 'IS', 'IS NOT DISTINCT FROM' => is_string($value) && $generatedPath === $value,
-            'LIKE' => is_string($value) && self::jsonTableGeneratedPathLike134($generatedPath, $value),
+            'LIKE' => is_string($value) && self::jsonTableGeneratedPathLike($generatedPath, $value),
             'IN' => is_array($value) && in_array($generatedPath, $value, true),
             default => false,
         };
     }
 
-    private static function jsonTableGeneratedPathLike134(string $generatedPath, string $pattern): bool
+    private static function jsonTableGeneratedPathLike(string $generatedPath, string $pattern): bool
     {
         if ($pattern === '%') {
             return true;
@@ -22424,7 +22424,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function jsonTableGeneratedPathCoveredRows134(string $generatedPath, array $rows): array
+    private static function jsonTableGeneratedPathCoveredRows(string $generatedPath, array $rows): array
     {
         $covered = [];
         foreach ($rows as $row) {
@@ -22440,7 +22440,7 @@ final class SQLiteJsonTablePlan
         return $covered;
     }
 
-    private static function jsonTableGeneratedPathCostClass134(string $coverage, int $estimatedCost): string
+    private static function jsonTableGeneratedPathCostClass(string $coverage, int $estimatedCost): string
     {
         if ($coverage === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -22463,7 +22463,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathCostTransitions134(array $current, array $next): array
+    private static function jsonTableGeneratedPathCostTransitions(array $current, array $next): array
     {
         return [
             [
@@ -22515,7 +22515,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathCostReplanReasons134(array $transitions): array
+    private static function jsonTableGeneratedPathCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {

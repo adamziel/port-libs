@@ -66,7 +66,7 @@ $page = static fn (
     string $indexSql = 'PRAGMA main.index_xinfo(wp_options_name_autoload)',
     string $foreignKeySql = 'PRAGMA main.foreign_key_check(wp_options)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page153(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyRepairReadinessPage(
     $catalog(),
     $nextCatalog ?? $catalog(),
     $indexSql,

@@ -29351,7 +29351,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     private static function masterJournalRecoveryMembers(string $bytes): array
     {
         $members = [];
-        foreach (preg_split('/\r?\n/', $bytes) ?: [] as $line) {
+        foreach (preg_split('/[\r\n\0]+/', $bytes) ?: [] as $line) {
             $line = trim($line);
             if ($line !== '' && !in_array($line, $members, true)) {
                 $members[] = $line;

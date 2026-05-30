@@ -200,4 +200,34 @@ foreach ($throws as $name => $callback) {
     };
 }
 
+$tests['wal hot journal savepoint checkpoint current source next153 validates zero page before hot journal bytes'] = static function (TestRunner $t) use ($databasePath, $dirtyDatabase, $stack, $wal, $walBytes, $nextTransactions): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::hotJournalSavepointCheckpointAppendPlan(
+        $databasePath,
+        $dirtyDatabase,
+        '',
+        $stack(),
+        'plugin-settings-next153',
+        $wal,
+        $walBytes,
+        [0],
+        $nextTransactions(),
+        2
+    ), 'one-based integers');
+};
+
+$tests['wal hot journal savepoint checkpoint current source next153 validates string page before hot journal bytes'] = static function (TestRunner $t) use ($databasePath, $dirtyDatabase, $stack, $wal, $walBytes, $nextTransactions): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::hotJournalSavepointCheckpointAppendPlan(
+        $databasePath,
+        $dirtyDatabase,
+        '',
+        $stack(),
+        'plugin-settings-next153',
+        $wal,
+        $walBytes,
+        ['1'],
+        $nextTransactions(),
+        2
+    ), 'one-based integers');
+};
+
 return $tests;

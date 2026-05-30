@@ -30195,6 +30195,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         if (!in_array($mode, ['restart', 'truncate'], true)) {
             throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 requires restart or truncate mode');
         }
+        self::assertOneBasedPageNumbers($pageNumbers);
 
         $hot = SQLiteWalHotJournalCheckpointRestartCurrentSourceNextPlan::plan(
             $databasePath,
@@ -30231,10 +30232,6 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
         $rows = [];
         foreach ($pageNumbers as $pageNumber) {
-            if (!is_int($pageNumber) || $pageNumber < 1) {
-                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 pages must be one-based integers');
-            }
-
             $hotRow = self::databasePage($hotDatabaseBytes, $wal->header->pageSize, $pageNumber, 'hot-journal-database');
             $currentRow = $currentWal->readerSnapshotPageImage($hotDatabaseBytes, $pageNumber, min($currentReaderEndFrame, $currentWal->frameCount()));
             $nextRow = $nextWalAfterAppend->readerSnapshotPageImage((string) $releasedCheckpoint['database_bytes'], $pageNumber, $nextWalAfterAppend->frameCount());
@@ -30341,6 +30338,18 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         $checksum = SQLiteWal::checksumPair($headerBytes, $wal->header->usesLittleEndianChecksums());
 
         return SQLiteWal::parse($headerBytes . pack('N*', $checksum[0], $checksum[1]), $wal->header->pageSize, true);
+    }
+
+    /**
+     * @param list<int> $pageNumbers
+     */
+    private static function assertOneBasedPageNumbers(array $pageNumbers): void
+    {
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 pages must be one-based integers');
+            }
+        }
     }
 
     /**

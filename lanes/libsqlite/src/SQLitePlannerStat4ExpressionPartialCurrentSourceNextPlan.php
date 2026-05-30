@@ -32842,7 +32842,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeStat4ExpressionPartialHandoffContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceForLateHandoffStageOne($base, $currentSource, $neededColumns);
+        $fence = self::stat4ExpressionPartialHandoffFenceForRange(
+            $base,
+            $currentSource,
+            $neededColumns,
+            "stat4Next654669PreparationFence",
+            670,
+            685,
+            "next654-669",
+        );
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next654-669-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -32862,7 +32870,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next670685Prepared" => $ready,
                 "next670685HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramForLateHandoffStageOne($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::stat4ExpressionPartialHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next670-685-prep"],
@@ -32873,161 +32881,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceForLateHandoffStageOne(array $base, array $currentSource, array $neededColumns): array
-    {
-        if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next670-685 needs projected columns");
-        }
 
-        $prior = $base["stat4Next654669PreparationFence"] ?? null;
-        if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next670-685 needs next654-669 handoff fence");
-        }
-
-        $priorWindows = $prior["handoffWindows"] ?? null;
-        if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next670-685 needs next654-669 handoff windows");
-        }
-
-        $currentRows = self::rowsByRowidForLateHandoffStageOne($currentSource);
-        $windows = [];
-        $blocked = [];
-        $priorPrepared = self::intListForLateHandoffStageOne($prior["preparedSlices"] ?? null, "prior prepared slices");
-
-        foreach (range(670, 685) as $slice) {
-            $ordinal = $slice - 670;
-            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
-            if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next670-685 prior handoff windows must be arrays");
-            }
-
-            $rowid = self::intValueForLateHandoffStageOne($priorWindow["rowid"] ?? null, "prior rowid");
-            $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsForLateHandoffStageOne($row, $neededColumns) : [];
-            $priorProjected = $priorWindow["projectedColumns"] ?? [];
-            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueForLateHandoffStageOne($priorWindow["slice"] ?? null, "prior slice");
-            $ready = is_array($row)
-                && in_array($priorSlice, $priorPrepared, true)
-                && ($priorWindow["prepared"] ?? null) === true
-                && $projectionMatches;
-
-            if (!$ready) {
-                $blocked[] = $slice;
-            }
-
-            $windows[] = [
-                "slice" => $slice,
-                "continuesSlice" => $priorSlice,
-                "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
-                "projectedColumns" => $projected,
-                "priorProjectedColumns" => $priorProjected,
-                "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
-                "projectionMatchesPrior" => $projectionMatches,
-                "prepared" => $ready,
-            ];
-        }
-
-        $prepared = array_values(array_map(
-            static fn (array $window): int => $window["slice"],
-            array_filter($windows, static fn (array $window): bool => $window["prepared"]),
-        ));
-
-        return [
-            "sliceRange" => [670, 685],
-            "sliceCount" => 16,
-            "priorSliceRange" => $prior["sliceRange"] ?? null,
-            "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
-            "preparedSlices" => $prepared,
-            "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
-            "handoffWindows" => $windows,
-            "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
-        ];
-    }
-
-    private static function rowsByRowidForLateHandoffStageOne(array $source): array
-    {
-        if (!isset($source["rows"]) || !is_array($source["rows"])) {
-            throw new \InvalidArgumentException("SQLite next670-685 needs current rows");
-        }
-
-        $rows = [];
-        foreach ($source["rows"] as $row) {
-            if (!is_array($row)) {
-                throw new \InvalidArgumentException("SQLite next670-685 current rows must be arrays");
-            }
-            $rowid = self::intValueForLateHandoffStageOne($row["rowid"] ?? null, "current rowid");
-            $rows[$rowid] = $row;
-        }
-
-        return $rows;
-    }
-
-    private static function intListForLateHandoffStageOne(mixed $value, string $label): array
-    {
-        if (!is_array($value)) {
-            throw new \InvalidArgumentException("SQLite next670-685 needs " . $label);
-        }
-
-        return array_values(array_map(static fn (mixed $rowid): int => self::intValueForLateHandoffStageOne($rowid, $label), $value));
-    }
-
-    private static function intValueForLateHandoffStageOne(mixed $value, string $label): int
-    {
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_string($value) && preg_match("/^-?\d+$/", $value) === 1) {
-            return (int) $value;
-        }
-
-        throw new \InvalidArgumentException("SQLite next670-685 " . $label . " must be an integer");
-    }
-
-    private static function projectedColumnsForLateHandoffStageOne(array $row, array $neededColumns): array
-    {
-        $projected = [];
-        foreach ($neededColumns as $column) {
-            if (!is_string($column) || $column === "") {
-                throw new \InvalidArgumentException("SQLite next670-685 projected column names must be non-empty");
-            }
-            $projected[$column] = $row[$column] ?? null;
-        }
-
-        return $projected;
-    }
-
-    private static function cursorProgramForLateHandoffStageOne(array $program, bool $ready, array $fence): array
-    {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
-            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
-            "legacyOpcode" => "PrepareStat4ExpressionPartialNext670685Handoff",
-            "legacyMode" => "next670-685-current-source-stat4-expression-partial-prep",
-            "sliceRange" => $fence["sliceRange"],
-            "priorSliceRange" => $fence["priorSliceRange"],
-            "preparedSlices" => $fence["preparedSlices"],
-            "priorHandoffSignature" => $fence["priorHandoffSignature"],
-            "handoffSignature" => $fence["handoffSignature"],
-        ];
-
-        return $program;
-    }
-
-    /**
-     * @param array<string,mixed> $preparedSource
-     * @param array<string,mixed> $currentSource
-     * @param list<array<string,mixed>> $queryTerms
-     * @param list<string> $neededColumns
-     * @return array<string,mixed>
-     */
     public static function materializeStat4ExpressionPartialLateHandoffStageTwo(
         array $preparedSource,
         array $currentSource,
@@ -33037,7 +32891,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeStat4ExpressionPartialLateHandoffStageOne($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceForLateHandoffStageTwo($base, $currentSource, $neededColumns);
+        $fence = self::stat4ExpressionPartialHandoffFenceForRange(
+            $base,
+            $currentSource,
+            $neededColumns,
+            "stat4Next670685PreparationFence",
+            686,
+            701,
+            "next670-685",
+        );
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next670-685-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -33057,7 +32919,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next686701Prepared" => $ready,
                 "next686701HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramForLateHandoffStageTwo($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::stat4ExpressionPartialHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next686-701-prep"],
@@ -33068,161 +32930,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceForLateHandoffStageTwo(array $base, array $currentSource, array $neededColumns): array
-    {
-        if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next686-701 needs projected columns");
-        }
 
-        $prior = $base["stat4Next670685PreparationFence"] ?? null;
-        if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next686-701 needs next670-685 handoff fence");
-        }
-
-        $priorWindows = $prior["handoffWindows"] ?? null;
-        if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next686-701 needs next670-685 handoff windows");
-        }
-
-        $currentRows = self::rowsByRowidForLateHandoffStageTwo($currentSource);
-        $windows = [];
-        $blocked = [];
-        $priorPrepared = self::intListForLateHandoffStageTwo($prior["preparedSlices"] ?? null, "prior prepared slices");
-
-        foreach (range(686, 701) as $slice) {
-            $ordinal = $slice - 686;
-            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
-            if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next686-701 prior handoff windows must be arrays");
-            }
-
-            $rowid = self::intValueForLateHandoffStageTwo($priorWindow["rowid"] ?? null, "prior rowid");
-            $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsForLateHandoffStageTwo($row, $neededColumns) : [];
-            $priorProjected = $priorWindow["projectedColumns"] ?? [];
-            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueForLateHandoffStageTwo($priorWindow["slice"] ?? null, "prior slice");
-            $ready = is_array($row)
-                && in_array($priorSlice, $priorPrepared, true)
-                && ($priorWindow["prepared"] ?? null) === true
-                && $projectionMatches;
-
-            if (!$ready) {
-                $blocked[] = $slice;
-            }
-
-            $windows[] = [
-                "slice" => $slice,
-                "continuesSlice" => $priorSlice,
-                "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
-                "projectedColumns" => $projected,
-                "priorProjectedColumns" => $priorProjected,
-                "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
-                "projectionMatchesPrior" => $projectionMatches,
-                "prepared" => $ready,
-            ];
-        }
-
-        $prepared = array_values(array_map(
-            static fn (array $window): int => $window["slice"],
-            array_filter($windows, static fn (array $window): bool => $window["prepared"]),
-        ));
-
-        return [
-            "sliceRange" => [686, 701],
-            "sliceCount" => 16,
-            "priorSliceRange" => $prior["sliceRange"] ?? null,
-            "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
-            "preparedSlices" => $prepared,
-            "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
-            "handoffWindows" => $windows,
-            "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
-        ];
-    }
-
-    private static function rowsByRowidForLateHandoffStageTwo(array $source): array
-    {
-        if (!isset($source["rows"]) || !is_array($source["rows"])) {
-            throw new \InvalidArgumentException("SQLite next686-701 needs current rows");
-        }
-
-        $rows = [];
-        foreach ($source["rows"] as $row) {
-            if (!is_array($row)) {
-                throw new \InvalidArgumentException("SQLite next686-701 current rows must be arrays");
-            }
-            $rowid = self::intValueForLateHandoffStageTwo($row["rowid"] ?? null, "current rowid");
-            $rows[$rowid] = $row;
-        }
-
-        return $rows;
-    }
-
-    private static function intListForLateHandoffStageTwo(mixed $value, string $label): array
-    {
-        if (!is_array($value)) {
-            throw new \InvalidArgumentException("SQLite next686-701 needs " . $label);
-        }
-
-        return array_values(array_map(static fn (mixed $rowid): int => self::intValueForLateHandoffStageTwo($rowid, $label), $value));
-    }
-
-    private static function intValueForLateHandoffStageTwo(mixed $value, string $label): int
-    {
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_string($value) && preg_match("/^-?\d+$/", $value) === 1) {
-            return (int) $value;
-        }
-
-        throw new \InvalidArgumentException("SQLite next686-701 " . $label . " must be an integer");
-    }
-
-    private static function projectedColumnsForLateHandoffStageTwo(array $row, array $neededColumns): array
-    {
-        $projected = [];
-        foreach ($neededColumns as $column) {
-            if (!is_string($column) || $column === "") {
-                throw new \InvalidArgumentException("SQLite next686-701 projected column names must be non-empty");
-            }
-            $projected[$column] = $row[$column] ?? null;
-        }
-
-        return $projected;
-    }
-
-    private static function cursorProgramForLateHandoffStageTwo(array $program, bool $ready, array $fence): array
-    {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
-            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
-            "legacyOpcode" => "PrepareStat4ExpressionPartialNext686701Handoff",
-            "legacyMode" => "next686-701-current-source-stat4-expression-partial-prep",
-            "sliceRange" => $fence["sliceRange"],
-            "priorSliceRange" => $fence["priorSliceRange"],
-            "preparedSlices" => $fence["preparedSlices"],
-            "priorHandoffSignature" => $fence["priorHandoffSignature"],
-            "handoffSignature" => $fence["handoffSignature"],
-        ];
-
-        return $program;
-    }
-
-    /**
-     * @param array<string,mixed> $preparedSource
-     * @param array<string,mixed> $currentSource
-     * @param list<array<string,mixed>> $queryTerms
-     * @param list<string> $neededColumns
-     * @return array<string,mixed>
-     */
     public static function materializeStat4ExpressionPartialLateHandoffStageThree(
         array $preparedSource,
         array $currentSource,
@@ -33232,7 +32940,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeStat4ExpressionPartialLateHandoffStageTwo($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceForLateHandoffStageThree($base, $currentSource, $neededColumns);
+        $fence = self::stat4ExpressionPartialHandoffFenceForRange(
+            $base,
+            $currentSource,
+            $neededColumns,
+            "stat4Next686701PreparationFence",
+            702,
+            717,
+            "next686-701",
+        );
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next686-701-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -33252,7 +32968,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next702717Prepared" => $ready,
                 "next702717HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramForLateHandoffStageThree($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::stat4ExpressionPartialHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next702-717-prep"],
@@ -33263,161 +32979,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceForLateHandoffStageThree(array $base, array $currentSource, array $neededColumns): array
-    {
-        if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next702-717 needs projected columns");
-        }
 
-        $prior = $base["stat4Next686701PreparationFence"] ?? null;
-        if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next702-717 needs next686-701 handoff fence");
-        }
-
-        $priorWindows = $prior["handoffWindows"] ?? null;
-        if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next702-717 needs next686-701 handoff windows");
-        }
-
-        $currentRows = self::rowsByRowidForLateHandoffStageThree($currentSource);
-        $windows = [];
-        $blocked = [];
-        $priorPrepared = self::intListForLateHandoffStageThree($prior["preparedSlices"] ?? null, "prior prepared slices");
-
-        foreach (range(702, 717) as $slice) {
-            $ordinal = $slice - 702;
-            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
-            if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next702-717 prior handoff windows must be arrays");
-            }
-
-            $rowid = self::intValueForLateHandoffStageThree($priorWindow["rowid"] ?? null, "prior rowid");
-            $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsForLateHandoffStageThree($row, $neededColumns) : [];
-            $priorProjected = $priorWindow["projectedColumns"] ?? [];
-            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueForLateHandoffStageThree($priorWindow["slice"] ?? null, "prior slice");
-            $ready = is_array($row)
-                && in_array($priorSlice, $priorPrepared, true)
-                && ($priorWindow["prepared"] ?? null) === true
-                && $projectionMatches;
-
-            if (!$ready) {
-                $blocked[] = $slice;
-            }
-
-            $windows[] = [
-                "slice" => $slice,
-                "continuesSlice" => $priorSlice,
-                "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
-                "projectedColumns" => $projected,
-                "priorProjectedColumns" => $priorProjected,
-                "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
-                "projectionMatchesPrior" => $projectionMatches,
-                "prepared" => $ready,
-            ];
-        }
-
-        $prepared = array_values(array_map(
-            static fn (array $window): int => $window["slice"],
-            array_filter($windows, static fn (array $window): bool => $window["prepared"]),
-        ));
-
-        return [
-            "sliceRange" => [702, 717],
-            "sliceCount" => 16,
-            "priorSliceRange" => $prior["sliceRange"] ?? null,
-            "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
-            "preparedSlices" => $prepared,
-            "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
-            "handoffWindows" => $windows,
-            "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
-        ];
-    }
-
-    private static function rowsByRowidForLateHandoffStageThree(array $source): array
-    {
-        if (!isset($source["rows"]) || !is_array($source["rows"])) {
-            throw new \InvalidArgumentException("SQLite next702-717 needs current rows");
-        }
-
-        $rows = [];
-        foreach ($source["rows"] as $row) {
-            if (!is_array($row)) {
-                throw new \InvalidArgumentException("SQLite next702-717 current rows must be arrays");
-            }
-            $rowid = self::intValueForLateHandoffStageThree($row["rowid"] ?? null, "current rowid");
-            $rows[$rowid] = $row;
-        }
-
-        return $rows;
-    }
-
-    private static function intListForLateHandoffStageThree(mixed $value, string $label): array
-    {
-        if (!is_array($value)) {
-            throw new \InvalidArgumentException("SQLite next702-717 needs " . $label);
-        }
-
-        return array_values(array_map(static fn (mixed $rowid): int => self::intValueForLateHandoffStageThree($rowid, $label), $value));
-    }
-
-    private static function intValueForLateHandoffStageThree(mixed $value, string $label): int
-    {
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_string($value) && preg_match("/^-?\d+$/", $value) === 1) {
-            return (int) $value;
-        }
-
-        throw new \InvalidArgumentException("SQLite next702-717 " . $label . " must be an integer");
-    }
-
-    private static function projectedColumnsForLateHandoffStageThree(array $row, array $neededColumns): array
-    {
-        $projected = [];
-        foreach ($neededColumns as $column) {
-            if (!is_string($column) || $column === "") {
-                throw new \InvalidArgumentException("SQLite next702-717 projected column names must be non-empty");
-            }
-            $projected[$column] = $row[$column] ?? null;
-        }
-
-        return $projected;
-    }
-
-    private static function cursorProgramForLateHandoffStageThree(array $program, bool $ready, array $fence): array
-    {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
-            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
-            "legacyOpcode" => "PrepareStat4ExpressionPartialNext702717Handoff",
-            "legacyMode" => "next702-717-current-source-stat4-expression-partial-prep",
-            "sliceRange" => $fence["sliceRange"],
-            "priorSliceRange" => $fence["priorSliceRange"],
-            "preparedSlices" => $fence["preparedSlices"],
-            "priorHandoffSignature" => $fence["priorHandoffSignature"],
-            "handoffSignature" => $fence["handoffSignature"],
-        ];
-
-        return $program;
-    }
-
-    /**
-     * @param array<string,mixed> $preparedSource
-     * @param array<string,mixed> $currentSource
-     * @param list<array<string,mixed>> $queryTerms
-     * @param list<string> $neededColumns
-     * @return array<string,mixed>
-     */
     public static function materializeStat4ExpressionPartialLateHandoffStageFour(
         array $preparedSource,
         array $currentSource,
@@ -33427,7 +32989,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeStat4ExpressionPartialLateHandoffStageThree($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceForLateHandoffStageFour($base, $currentSource, $neededColumns);
+        $fence = self::stat4ExpressionPartialHandoffFenceForRange(
+            $base,
+            $currentSource,
+            $neededColumns,
+            "stat4Next702717PreparationFence",
+            718,
+            733,
+            "next702-717",
+        );
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next702-717-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -33447,7 +33017,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next718733Prepared" => $ready,
                 "next718733HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramForLateHandoffStageFour($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::stat4ExpressionPartialHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next718-733-prep"],
@@ -33458,161 +33028,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceForLateHandoffStageFour(array $base, array $currentSource, array $neededColumns): array
-    {
-        if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next718-733 needs projected columns");
-        }
 
-        $prior = $base["stat4Next702717PreparationFence"] ?? null;
-        if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next718-733 needs next702-717 handoff fence");
-        }
-
-        $priorWindows = $prior["handoffWindows"] ?? null;
-        if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next718-733 needs next702-717 handoff windows");
-        }
-
-        $currentRows = self::rowsByRowidForLateHandoffStageFour($currentSource);
-        $windows = [];
-        $blocked = [];
-        $priorPrepared = self::intListForLateHandoffStageFour($prior["preparedSlices"] ?? null, "prior prepared slices");
-
-        foreach (range(718, 733) as $slice) {
-            $ordinal = $slice - 718;
-            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
-            if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next718-733 prior handoff windows must be arrays");
-            }
-
-            $rowid = self::intValueForLateHandoffStageFour($priorWindow["rowid"] ?? null, "prior rowid");
-            $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsForLateHandoffStageFour($row, $neededColumns) : [];
-            $priorProjected = $priorWindow["projectedColumns"] ?? [];
-            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueForLateHandoffStageFour($priorWindow["slice"] ?? null, "prior slice");
-            $ready = is_array($row)
-                && in_array($priorSlice, $priorPrepared, true)
-                && ($priorWindow["prepared"] ?? null) === true
-                && $projectionMatches;
-
-            if (!$ready) {
-                $blocked[] = $slice;
-            }
-
-            $windows[] = [
-                "slice" => $slice,
-                "continuesSlice" => $priorSlice,
-                "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
-                "projectedColumns" => $projected,
-                "priorProjectedColumns" => $priorProjected,
-                "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
-                "projectionMatchesPrior" => $projectionMatches,
-                "prepared" => $ready,
-            ];
-        }
-
-        $prepared = array_values(array_map(
-            static fn (array $window): int => $window["slice"],
-            array_filter($windows, static fn (array $window): bool => $window["prepared"]),
-        ));
-
-        return [
-            "sliceRange" => [718, 733],
-            "sliceCount" => 16,
-            "priorSliceRange" => $prior["sliceRange"] ?? null,
-            "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
-            "preparedSlices" => $prepared,
-            "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
-            "handoffWindows" => $windows,
-            "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
-        ];
-    }
-
-    private static function rowsByRowidForLateHandoffStageFour(array $source): array
-    {
-        if (!isset($source["rows"]) || !is_array($source["rows"])) {
-            throw new \InvalidArgumentException("SQLite next718-733 needs current rows");
-        }
-
-        $rows = [];
-        foreach ($source["rows"] as $row) {
-            if (!is_array($row)) {
-                throw new \InvalidArgumentException("SQLite next718-733 current rows must be arrays");
-            }
-            $rowid = self::intValueForLateHandoffStageFour($row["rowid"] ?? null, "current rowid");
-            $rows[$rowid] = $row;
-        }
-
-        return $rows;
-    }
-
-    private static function intListForLateHandoffStageFour(mixed $value, string $label): array
-    {
-        if (!is_array($value)) {
-            throw new \InvalidArgumentException("SQLite next718-733 needs " . $label);
-        }
-
-        return array_values(array_map(static fn (mixed $rowid): int => self::intValueForLateHandoffStageFour($rowid, $label), $value));
-    }
-
-    private static function intValueForLateHandoffStageFour(mixed $value, string $label): int
-    {
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_string($value) && preg_match("/^-?\d+$/", $value) === 1) {
-            return (int) $value;
-        }
-
-        throw new \InvalidArgumentException("SQLite next718-733 " . $label . " must be an integer");
-    }
-
-    private static function projectedColumnsForLateHandoffStageFour(array $row, array $neededColumns): array
-    {
-        $projected = [];
-        foreach ($neededColumns as $column) {
-            if (!is_string($column) || $column === "") {
-                throw new \InvalidArgumentException("SQLite next718-733 projected column names must be non-empty");
-            }
-            $projected[$column] = $row[$column] ?? null;
-        }
-
-        return $projected;
-    }
-
-    private static function cursorProgramForLateHandoffStageFour(array $program, bool $ready, array $fence): array
-    {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoffRange",
-            "mode" => "prepared-handoff-range-current-source-stat4-expression-partial-prep",
-            "legacyOpcode" => "PrepareStat4ExpressionPartialNext718733Handoff",
-            "legacyMode" => "next718-733-current-source-stat4-expression-partial-prep",
-            "sliceRange" => $fence["sliceRange"],
-            "priorSliceRange" => $fence["priorSliceRange"],
-            "preparedSlices" => $fence["preparedSlices"],
-            "priorHandoffSignature" => $fence["priorHandoffSignature"],
-            "handoffSignature" => $fence["handoffSignature"],
-        ];
-
-        return $program;
-    }
-
-    /**
-     * @param array<string,mixed> $preparedSource
-     * @param array<string,mixed> $currentSource
-     * @param list<array<string,mixed>> $queryTerms
-     * @param list<string> $neededColumns
-     * @return array<string,mixed>
-     */
     public static function materializePreparedHandoff(
         array $preparedSource,
         array $currentSource,

@@ -36298,7 +36298,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
      * @return array{status:string,source_id:string,current_source:array<string,mixed>,next_source:array<string,mixed>,offset:int,limit:int,count:int,total:int,next_offset:int|null,complete:bool,current:array<string,mixed>,next_counts:array<string,mixed>,delta:array<string,mixed>,next_state:array{ready:bool,blocking:list<string>},next:array{source_id:string,offset:int}|null,rows:list<array<string,mixed>>}
      */
-    public static function page153(
+    public static function foreignKeyRepairReadinessPage(
         SQLiteAttachedSchemaCatalog $currentCatalog,
         SQLiteAttachedSchemaCatalog $nextCatalog,
         string $indexXinfoSql,
@@ -36317,15 +36317,15 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             throw new InvalidArgumentException('SQLite PRAGMA index_xinfo foreign-key current-source next153 limit must be positive');
         }
 
-        $current = self::snapshot153($currentCatalog, $indexXinfoSql, $currentSchemas, $foreignKeySql, $indexTableValued);
-        $next = self::snapshot153($nextCatalog, $indexXinfoSql, $nextSchemas, $foreignKeySql, $indexTableValued);
-        $sourceId = self::stableHash153([
+        $current = self::foreignKeyRepairReadinessSnapshot($currentCatalog, $indexXinfoSql, $currentSchemas, $foreignKeySql, $indexTableValued);
+        $next = self::foreignKeyRepairReadinessSnapshot($nextCatalog, $indexXinfoSql, $nextSchemas, $foreignKeySql, $indexTableValued);
+        $sourceId = self::foreignKeyRepairStableHash([
             'mode' => 'pragma-index-xinfo-foreignkey-current-source-next153',
             'current' => $current['source_id'],
             'next' => $next['source_id'],
         ]);
         if ($cursor !== null) {
-            self::validateCursor153($cursor, $sourceId, $offset);
+            self::validateForeignKeyRepairCursor($cursor, $sourceId, $offset);
         }
 
         $rows = [
@@ -36335,8 +36335,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         $pageRows = array_slice($rows, $offset, $limit);
         $nextOffset = $offset + count($pageRows);
         $complete = $nextOffset >= count($rows);
-        $delta = self::delta153($current['counts'], $next['counts'], $current['index_signature'], $next['index_signature']);
-        $blocking = self::blocking153($next['counts'], $current['index_signature'], $next['index_signature']);
+        $delta = self::foreignKeyRepairDelta($current['counts'], $next['counts'], $current['index_signature'], $next['index_signature']);
+        $blocking = self::foreignKeyRepairBlocking($next['counts'], $current['index_signature'], $next['index_signature']);
 
         return [
             'status' => $blocking === [] ? 'ok' : 'blocked',
@@ -36368,7 +36368,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
      * @return array{source_id:string,source:array<string,mixed>,rows:list<array<string,mixed>>,counts:array<string,mixed>,index_signature:string}
      */
-    private static function snapshot153(
+    private static function foreignKeyRepairReadinessSnapshot(
         SQLiteAttachedSchemaCatalog $catalog,
         string $indexXinfoSql,
         array $schemas,
@@ -36382,8 +36382,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             throw new InvalidArgumentException('SQLite PRAGMA index_xinfo foreign-key current-source next153 requires index_xinfo input');
         }
 
-        $foreignKeys = self::foreignKeyRows153($foreignKeySql, $schemas, $catalog);
-        $indexRows = self::indexRows153($index);
+        $foreignKeys = self::foreignKeyRepairRows($foreignKeySql, $schemas, $catalog);
+        $indexRows = self::foreignKeyRepairIndexRows($index);
         $fkRows = array_map(
             static fn (array $row): array => [
                 'kind' => 'foreign_key_check',
@@ -36400,16 +36400,16 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                 'rowid' => $row['rowid'],
                 'parent' => $row['parent'],
                 'fkid' => $row['fkid'],
-                'message' => self::foreignKeyMessage153($row),
+                'message' => self::foreignKeyRepairMessage($row),
             ],
             $foreignKeys['rows'],
         );
         $source = [
             'mode' => 'index_xinfo_foreignkey_current_source_next153',
-            'catalog_hash' => self::catalogHash153($catalog),
-            'schemas_hash' => self::stableHash153($schemas),
-            'index_xinfo_sql' => self::normalizeSql153($indexXinfoSql),
-            'foreign_key_sql' => self::normalizeSql153($foreignKeySql),
+            'catalog_hash' => self::foreignKeyRepairCatalogHash($catalog),
+            'schemas_hash' => self::foreignKeyRepairStableHash($schemas),
+            'index_xinfo_sql' => self::normalizeForeignKeyRepairSql($indexXinfoSql),
+            'foreign_key_sql' => self::normalizeForeignKeyRepairSql($foreignKeySql),
             'index_schema' => $index['schema'],
             'index_target' => $index['target'],
             'index_table_valued' => $indexTableValued,
@@ -36418,7 +36418,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         $rows = [...$indexRows, ...$fkRows];
 
         return [
-            'source_id' => self::stableHash153($source),
+            'source_id' => self::foreignKeyRepairStableHash($source),
             'source' => $source,
             'rows' => $rows,
             'counts' => [
@@ -36427,9 +36427,9 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                 'index_auxiliary_columns' => count(array_filter($indexRows, static fn (array $row): bool => $row['key'] === 0)),
                 'index_expression_columns' => count(array_filter($indexRows, static fn (array $row): bool => $row['cid'] === -2)),
                 'foreign_key' => count($fkRows),
-                'foreign_key_tables' => self::uniqueCount153(array_map(static fn (array $row): string => (string) $row['table'], $fkRows)),
+                'foreign_key_tables' => self::foreignKeyRepairUniqueCount(array_map(static fn (array $row): string => (string) $row['table'], $fkRows)),
             ],
-            'index_signature' => self::stableHash153($indexRows),
+            'index_signature' => self::foreignKeyRepairStableHash($indexRows),
         ];
     }
 
@@ -36437,7 +36437,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param array{schema:string,target:string,rows:list<array<string,int|string|null>>} $index
      * @return list<array<string,mixed>>
      */
-    private static function indexRows153(array $index): array
+    private static function foreignKeyRepairIndexRows(array $index): array
     {
         return array_map(
             static fn (array $row): array => [
@@ -36455,7 +36455,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                 'rowid' => null,
                 'parent' => null,
                 'fkid' => null,
-                'message' => self::indexMessage153($index['schema'], $index['target'], $row),
+                'message' => self::foreignKeyRepairIndexMessage($index['schema'], $index['target'], $row),
             ],
             $index['rows'],
         );
@@ -36465,9 +36465,9 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
      * @return array{rows:list<array<string,mixed>>,table_valued:bool}
      */
-    private static function foreignKeyRows153(string $foreignKeySql, array $schemas, SQLiteAttachedSchemaCatalog $catalog): array
+    private static function foreignKeyRepairRows(string $foreignKeySql, array $schemas, SQLiteAttachedSchemaCatalog $catalog): array
     {
-        $normalized = self::normalizeSql153($foreignKeySql);
+        $normalized = self::normalizeForeignKeyRepairSql($foreignKeySql);
         $tableValued = str_starts_with($normalized, 'select ')
             || str_starts_with($normalized, 'pragma_foreign_key_check')
             || str_contains($normalized, '.pragma_foreign_key_check(');
@@ -36484,7 +36484,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     /**
      * @param array<string,mixed> $row
      */
-    private static function indexMessage153(string $schema, string $target, array $row): string
+    private static function foreignKeyRepairIndexMessage(string $schema, string $target, array $row): string
     {
         $name = $row['name'] === null ? '<expr>' : (string) $row['name'];
 
@@ -36494,7 +36494,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     /**
      * @param array<string,mixed> $row
      */
-    private static function foreignKeyMessage153(array $row): string
+    private static function foreignKeyRepairMessage(array $row): string
     {
         $rowid = $row['rowid'] === null ? 'NULL' : (string) $row['rowid'];
 
@@ -36506,7 +36506,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param array<string,mixed> $next
      * @return array<string,mixed>
      */
-    private static function delta153(array $current, array $next, string $currentIndexSignature, string $nextIndexSignature): array
+    private static function foreignKeyRepairDelta(array $current, array $next, string $currentIndexSignature, string $nextIndexSignature): array
     {
         $keys = ['index_xinfo', 'index_key_columns', 'index_auxiliary_columns', 'index_expression_columns', 'foreign_key', 'foreign_key_tables'];
         $delta = [
@@ -36524,7 +36524,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param array<string,mixed> $next
      * @return list<string>
      */
-    private static function blocking153(array $next, string $currentIndexSignature, string $nextIndexSignature): array
+    private static function foreignKeyRepairBlocking(array $next, string $currentIndexSignature, string $nextIndexSignature): array
     {
         $blocking = [];
         if ($currentIndexSignature !== $nextIndexSignature) {
@@ -36540,12 +36540,12 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     /**
      * @param list<string> $values
      */
-    private static function uniqueCount153(array $values): int
+    private static function foreignKeyRepairUniqueCount(array $values): int
     {
         return count(array_unique($values));
     }
 
-    private static function catalogHash153(SQLiteAttachedSchemaCatalog $catalog): string
+    private static function foreignKeyRepairCatalogHash(SQLiteAttachedSchemaCatalog $catalog): string
     {
         $snapshot = [
             'database_list' => $catalog->databaseList(),
@@ -36568,13 +36568,13 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             );
         }
 
-        return self::stableHash153($snapshot);
+        return self::foreignKeyRepairStableHash($snapshot);
     }
 
     /**
      * @param array<string,mixed> $cursor
      */
-    private static function validateCursor153(array $cursor, string $sourceId, int $offset): void
+    private static function validateForeignKeyRepairCursor(array $cursor, string $sourceId, int $offset): void
     {
         if (($cursor['source_id'] ?? null) !== $sourceId) {
             throw new InvalidArgumentException('SQLite PRAGMA index_xinfo foreign-key current-source next153 cursor source changed');
@@ -36585,24 +36585,24 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         }
     }
 
-    private static function normalizeSql153(string $sql): string
+    private static function normalizeForeignKeyRepairSql(string $sql): string
     {
         return strtolower(trim(preg_replace('/\s+/', ' ', rtrim($sql, " \t\r\n;")) ?? trim($sql)));
     }
 
-    private static function stableHash153(mixed $value): string
+    private static function foreignKeyRepairStableHash(mixed $value): string
     {
-        return hash('sha256', self::stableEncode153($value));
+        return hash('sha256', self::foreignKeyRepairStableEncode($value));
     }
 
-    private static function stableEncode153(mixed $value): string
+    private static function foreignKeyRepairStableEncode(mixed $value): string
     {
         if (is_array($value)) {
             if (!array_is_list($value)) {
                 ksort($value);
             }
 
-            return '[' . implode(',', array_map(static fn (mixed $item, string|int $key): string => self::stableEncode153((string) $key) . ':' . self::stableEncode153($item), $value, array_keys($value))) . ']';
+            return '[' . implode(',', array_map(static fn (mixed $item, string|int $key): string => self::foreignKeyRepairStableEncode((string) $key) . ':' . self::foreignKeyRepairStableEncode($item), $value, array_keys($value))) . ']';
         }
 
         return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);

@@ -43,7 +43,7 @@ $nextSchemas['main']['tables']['wp_options'] = [
     ['rowid' => 1, 'option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
 ];
 
-$first = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page153(
+$first = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyRepairReadinessPage(
     $catalog,
     $catalog,
     'PRAGMA main.index_xinfo(wp_options_name_autoload)',
@@ -53,7 +53,7 @@ $first = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page153(
     0,
     4,
 );
-$second = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page153(
+$second = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyRepairReadinessPage(
     $catalog,
     $catalog,
     'PRAGMA main.index_xinfo(wp_options_name_autoload)',
