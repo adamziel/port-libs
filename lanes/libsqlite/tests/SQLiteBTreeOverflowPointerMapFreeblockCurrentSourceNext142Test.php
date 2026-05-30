@@ -154,7 +154,7 @@ $cases142 = [
     'page image keys' => static fn (): mixed => array_keys($plan142()->pageImages()),
     'overflow image keys' => static fn (): mixed => array_keys($plan142()->overflowPageImages()),
     'header from image freelist count' => static fn (): mixed => SQLiteHeader::parse($plan142()->pageImages()[1])->freelistPageCount,
-    'leaf fragment status' => static fn (): mixed => $leafHeader142()->freeblockCurrentNextFragmentReport($plan142()->databaseAfterAllocation->page(3))['status'],
+    'leaf fragment status' => static fn (): mixed => $leafHeader142()->freeblockFragmentReport($plan142()->databaseAfterAllocation->page(3))['status'],
     'leaf secure delete zeroed' => static fn (): mixed => $leafHeader142()->freeblockSecureDeleteReport($plan142()->databaseAfterAllocation->page(3))['secure_delete_payload_zeroed'],
     'without secure delete keeps released payload before allocation overwrite' => static fn (): mixed => substr($plan142(false)->databaseAfterRelease->page(7), 4, 1),
     'summary current pages' => static fn (): mixed => array_column($plan142()->toArray()['current_source_overflow_chain_rows'], 'page_number'),

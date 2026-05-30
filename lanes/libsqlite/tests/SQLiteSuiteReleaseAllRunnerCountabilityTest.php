@@ -36,7 +36,7 @@ function libsqlite_suite_count75_rows(
             'repository_head' => $head,
             'current_countable' => false,
             'next_countable' => true,
-            'artifact_path' => 'lanes/libsqlite/notes/suite-release-all-runner-countability-current-next75.md',
+            'artifact_path' => 'lanes/libsqlite/notes/suite-release-all-runner-countability.md',
             'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error all',
             'scripts' => [$allScript, 'btree*.test', 'pager*.test'],
             'exit' => 0,
@@ -74,12 +74,12 @@ function libsqlite_suite_count75_record(
     ?int $expected = 89,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_count75_evidence()->suiteReleaseAllRunnerCountabilityCurrentNext75(
+    return libsqlite_suite_count75_evidence()->suiteReleaseAllRunnerCountability(
         $rows,
         464,
         28917,
         $head,
-        'lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityCurrentNext75Test.php',
+        'lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityTest.php',
         $output ?? libsqlite_suite_count75_output(),
         'current-next75 release/all countability avoids accepted current-next72 release-runner admission, current-next70 shard countability, suite-denominator freshness, and batch70/71 behavior clusters',
         $expected,
@@ -249,9 +249,9 @@ $tests['current next75 blocks pass line inflation'] = static function (TestRunne
 $tests['current next75 rejects invalid setup'] = static function (TestRunner $t): void {
     $evidence = libsqlite_suite_count75_evidence();
 
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseAllRunnerCountabilityCurrentNext75([], 464, 28917, 'c196709c053869bec78f15d5a1f299d396f8fdb0', 'lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityCurrentNext75Test.php', libsqlite_suite_count75_output(), 'non-overlap', 89));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseAllRunnerCountabilityCurrentNext75(libsqlite_suite_count75_rows(), -1, 28917, 'c196709c053869bec78f15d5a1f299d396f8fdb0', 'lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityCurrentNext75Test.php', libsqlite_suite_count75_output(), 'non-overlap', 89));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseAllRunnerCountabilityCurrentNext75(libsqlite_suite_count75_rows(), 464, 28917, '', 'lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityCurrentNext75Test.php', libsqlite_suite_count75_output(), 'non-overlap', 89));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseAllRunnerCountability([], 464, 28917, 'c196709c053869bec78f15d5a1f299d396f8fdb0', 'lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityTest.php', libsqlite_suite_count75_output(), 'non-overlap', 89));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseAllRunnerCountability(libsqlite_suite_count75_rows(), -1, 28917, 'c196709c053869bec78f15d5a1f299d396f8fdb0', 'lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityTest.php', libsqlite_suite_count75_output(), 'non-overlap', 89));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteReleaseAllRunnerCountability(libsqlite_suite_count75_rows(), 464, 28917, '', 'lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityTest.php', libsqlite_suite_count75_output(), 'non-overlap', 89));
 };
 
 $tests['current next75 records dependency closure and next gate'] = static function (TestRunner $t): void {

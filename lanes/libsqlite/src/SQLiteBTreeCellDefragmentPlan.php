@@ -79,7 +79,7 @@ final class SQLiteBTreeCellDefragmentPlan
         }
 
         $cellsBefore = self::cellDetails($page, $beforeHeader, $usableSize, $overflowReader, $textEncoding);
-        $fragmentReport = $beforeHeader->freeblockCurrentNextFragmentReport($page, $usableSize);
+        $fragmentReport = $beforeHeader->freeblockFragmentReport($page, $usableSize);
         $afterPage = match ($beforeHeader->pageType) {
             'table-leaf' => SQLiteTableLeafPage::defragment($page, $pageSize, $headerOffset, $usableSize, $clearFreeSpace),
             'index-leaf' => SQLiteIndexLeafPage::defragment($page, $pageSize, $headerOffset, $usableSize, $clearFreeSpace),

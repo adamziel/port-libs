@@ -147,7 +147,7 @@ $cases131 = [
     'overflow image keys' => static fn (): mixed => array_keys($plan131()->overflowPageImages()),
     'summary row count' => static fn (): mixed => count($plan131()->toArray()['btree_pointermap_overflow_freeblock_current_source_next131']),
     'header from image freelist count' => static fn (): mixed => SQLiteHeader::parse($plan131()->pageImages()[1])->freelistPageCount,
-    'leaf fragment report ok' => static fn (): mixed => $leafHeader131()->freeblockCurrentNextFragmentReport($plan131()->databaseAfterAllocation->page(3))['status'],
+    'leaf fragment report ok' => static fn (): mixed => $leafHeader131()->freeblockFragmentReport($plan131()->databaseAfterAllocation->page(3))['status'],
     'leaf secure delete zeroed' => static fn (): mixed => $leafHeader131()->freeblockSecureDeleteReport($plan131()->databaseAfterAllocation->page(3))['secure_delete_payload_zeroed'],
     'without secure delete keeps released payload before allocation overwrite' => static fn (): mixed => substr($plan131(false)->databaseAfterRelease->page(6), 4, 1),
     'empty payload rejected' => static fn (): mixed => $throwMessage131(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::pointerMapOverflowFreeblockFromDeleteResults($database131(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, '')),

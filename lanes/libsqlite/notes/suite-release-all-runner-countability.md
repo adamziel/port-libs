@@ -1,10 +1,10 @@
-# SQLite Suite Release/All Runner Countability Current-Next75
+# SQLite Suite Release/All Runner Countability
 
 ## Scope
 
-This slice removes one suite-family countability blocker without launching a
-broad upstream runner. It adds a lane-local validator for accepted-HEAD
-release/all runner artifacts:
+This consolidation keeps the accepted release/all countability behavior while
+removing the numbered production helper name. The lane-local validator still
+checks accepted-HEAD release/all runner artifacts:
 
 - accepted repository head must match `c196709c053869bec78f15d5a1f299d396f8fdb0`
 - artifact paths must stay under `lanes/libsqlite/`
@@ -16,12 +16,12 @@ release/all runner artifacts:
 - release/all parity remains false until a separate broad zero-error closure
   artifact is accepted
 
-## Evidence
+## Current Consolidation Evidence
 
 Focused command:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityCurrentNext75Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteSuiteReleaseAllRunnerCountabilityTest.php
 ```
 
 Result:
@@ -31,9 +31,9 @@ Focused test run: 1 selected test files (root lock skipped)
 1 test files, 871 assertions, 0 failures
 ```
 
-The focused run emitted 89 `PASS` lines, so `lane-status.json` moves
-`phpPass` from `28917` to `29006`. The manifest mapped denominator moves
-`464 -> 465 / 1589` for this one countability blocker row.
+This cleanup does not claim new `phpPass` or mapped-denominator movement. It
+renames the production helper and direct focused test/note path while preserving
+the existing current-next75 receipt/status strings and release/all assertions.
 
 ## Non-Overlap
 

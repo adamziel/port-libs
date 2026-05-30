@@ -1630,66 +1630,66 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             throw new \InvalidArgumentException('SQLite VFS current-source next166-169 requires operations');
         }
 
-        $state = self::hydrate166169($options['current'] ?? []);
-        $current = self::summary166169($state);
+        $state = self::hydrateRuntimeErrorSyscall($options['current'] ?? []);
+        $current = self::runtimeErrorSyscallSummary($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation166169($operation);
-            $before = self::summary166169($state);
+            $op = self::runtimeErrorSyscallOperation($operation);
+            $before = self::runtimeErrorSyscallSummary($state);
 
             if ($op['kind'] === 'open') {
-                $source = self::sourceName166169((string) $op['source']);
-                $path = self::pathName166169((string) $op['path']);
-                $owner = self::owner166169($path);
+                $source = self::runtimeErrorSyscallSourceName((string) $op['source']);
+                $path = self::runtimeErrorSyscallPathName((string) $op['path']);
+                $owner = self::runtimeErrorSyscallOwner($path);
                 $state['sequence']++;
                 $state['owner_generations'][$owner] = (int) ($state['owner_generations'][$owner] ?? 0) + 1;
-                $state['sources'][$source] = self::sourceState166169(
+                $state['sources'][$source] = self::runtimeErrorSyscallSourceState(
                     'vfs166169-' . $state['sequence'],
                     $path,
                     $owner,
-                    self::systemCalls166169($op['system_calls'] ?? $op['syscalls'] ?? [])
+                    self::runtimeErrorSyscallSystemCalls($op['system_calls'] ?? $op['syscalls'] ?? [])
                 );
                 $state['current_source'] = $source;
-                $events[] = self::event166169('open', 'open', $source, $before, self::summary166169($state), $state['sources'][$source]);
+                $events[] = self::runtimeErrorSyscallEvent('open', 'open', $source, $before, self::runtimeErrorSyscallSummary($state), $state['sources'][$source]);
                 continue;
             }
 
             if ($op['kind'] === 'source') {
-                $source = self::sourceName166169((string) $op['source']);
+                $source = self::runtimeErrorSyscallSourceName((string) $op['source']);
                 if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                    $events[] = self::event166169('source', 'missing-source', $source, $before, self::summary166169($state), []);
+                    $events[] = self::runtimeErrorSyscallEvent('source', 'missing-source', $source, $before, self::runtimeErrorSyscallSummary($state), []);
                     continue;
                 }
                 $state['current_source'] = $source;
-                $events[] = self::event166169('source', 'ok', $source, $before, self::summary166169($state), [
+                $events[] = self::runtimeErrorSyscallEvent('source', 'ok', $source, $before, self::runtimeErrorSyscallSummary($state), [
                     'path' => $state['sources'][$source]['path'],
                     'owner' => $state['sources'][$source]['owner'],
                 ]);
                 continue;
             }
 
-            $source = self::sourceFor166169($state, $op['source'] ?? null);
+            $source = self::runtimeErrorSyscallSourceFor($state, $op['source'] ?? null);
             if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                $events[] = self::event166169($op['kind'], 'missing-source', $source, $before, self::summary166169($state), []);
+                $events[] = self::runtimeErrorSyscallEvent($op['kind'], 'missing-source', $source, $before, self::runtimeErrorSyscallSummary($state), []);
                 continue;
             }
 
             if ($op['kind'] === 'currenttime') {
-                $julian = self::julianDay166169($op['unix'] ?? $op['timestamp'] ?? null);
+                $julian = self::runtimeErrorSyscallJulianDay($op['unix'] ?? $op['timestamp'] ?? null);
                 $state['sources'][$source]['last_time_julian'] = $julian;
-                $events[] = self::event166169('current_time', 'ok', $source, $before, self::summary166169($state), [
+                $events[] = self::runtimeErrorSyscallEvent('current_time', 'ok', $source, $before, self::runtimeErrorSyscallSummary($state), [
                     'julian_day' => $julian,
-                    'unix' => self::unixFromJulian166169($julian),
+                    'unix' => self::runtimeErrorSyscallUnixFromJulian($julian),
                 ]);
                 continue;
             }
 
             if ($op['kind'] === 'currenttimeint64') {
-                $unix = self::nonNegativeInt166169($op['unix'] ?? $op['timestamp'] ?? null, 'current time unix timestamp');
+                $unix = self::runtimeErrorSyscallNonNegativeInt($op['unix'] ?? $op['timestamp'] ?? null, 'current time unix timestamp');
                 $int64 = ($unix + 21086676 * 10000) * 1000;
                 $state['sources'][$source]['last_time_int64'] = $int64;
-                $events[] = self::event166169('current_time_int64', 'ok', $source, $before, self::summary166169($state), [
+                $events[] = self::runtimeErrorSyscallEvent('current_time_int64', 'ok', $source, $before, self::runtimeErrorSyscallSummary($state), [
                     'unix' => $unix,
                     'sqlite_time_int64' => $int64,
                     'monotonic_for_source' => $int64 >= (int) ($before['sources'][$source]['last_time_int64'] ?? 0),
@@ -1698,10 +1698,10 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'lasterror') {
-                $code = self::errorCode166169($op['code'] ?? 'SQLITE_IOERR');
-                $message = self::message166169((string) ($op['message'] ?? $code));
+                $code = self::runtimeErrorSyscallErrorCode($op['code'] ?? 'SQLITE_IOERR');
+                $message = self::runtimeErrorSyscallMessage((string) ($op['message'] ?? $code));
                 $state['sources'][$source]['last_error'] = ['code' => $code, 'message' => $message];
-                $events[] = self::event166169('last_error', 'recorded', $source, $before, self::summary166169($state), [
+                $events[] = self::runtimeErrorSyscallEvent('last_error', 'recorded', $source, $before, self::runtimeErrorSyscallSummary($state), [
                     'code' => $code,
                     'message' => $message,
                 ]);
@@ -1709,20 +1709,20 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'setsystemcall') {
-                $name = self::systemCallName166169((string) $op['name']);
+                $name = self::runtimeErrorSyscallSystemCallName((string) $op['name']);
                 $enabled = (bool) ($op['enabled'] ?? true);
                 $state['sources'][$source]['system_calls'][$name] = $enabled;
-                $events[] = self::event166169('set_system_call', 'ok', $source, $before, self::summary166169($state), [
+                $events[] = self::runtimeErrorSyscallEvent('set_system_call', 'ok', $source, $before, self::runtimeErrorSyscallSummary($state), [
                     'name' => $name,
                     'enabled' => $enabled,
-                    'enabled_count' => self::enabledSystemCallCount166169($state['sources'][$source]['system_calls']),
+                    'enabled_count' => self::runtimeErrorSyscallEnabledSystemCallCount($state['sources'][$source]['system_calls']),
                 ]);
                 continue;
             }
 
             if ($op['kind'] === 'getsystemcall') {
-                $name = self::systemCallName166169((string) $op['name']);
-                $events[] = self::event166169('get_system_call', 'ok', $source, $before, self::summary166169($state), [
+                $name = self::runtimeErrorSyscallSystemCallName((string) $op['name']);
+                $events[] = self::runtimeErrorSyscallEvent('get_system_call', 'ok', $source, $before, self::runtimeErrorSyscallSummary($state), [
                     'name' => $name,
                     'enabled' => (bool) ($state['sources'][$source]['system_calls'][$name] ?? false),
                 ]);
@@ -1730,9 +1730,9 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'nextsystemcall') {
-                $after = isset($op['after']) && $op['after'] !== '' ? self::systemCallName166169((string) $op['after']) : null;
-                $next = self::nextSystemCall166169($state['sources'][$source]['system_calls'], $after);
-                $events[] = self::event166169('next_system_call', $next === null ? 'end' : 'ok', $source, $before, self::summary166169($state), [
+                $after = isset($op['after']) && $op['after'] !== '' ? self::runtimeErrorSyscallSystemCallName((string) $op['after']) : null;
+                $next = self::runtimeErrorSyscallNextSystemCall($state['sources'][$source]['system_calls'], $after);
+                $events[] = self::runtimeErrorSyscallEvent('next_system_call', $next === null ? 'end' : 'ok', $source, $before, self::runtimeErrorSyscallSummary($state), [
                     'after' => $after,
                     'name' => $next,
                 ]);
@@ -1742,11 +1742,11 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             if ($op['kind'] === 'close') {
                 $state['sources'][$source]['closed'] = true;
                 if ($state['current_source'] === $source) {
-                    $state['current_source'] = self::firstOpenSource166169($state);
+                    $state['current_source'] = self::firstOpenRuntimeErrorSyscallSource($state);
                 }
-                $events[] = self::event166169('close', 'closed', $source, $before, self::summary166169($state), [
+                $events[] = self::runtimeErrorSyscallEvent('close', 'closed', $source, $before, self::runtimeErrorSyscallSummary($state), [
                     'last_error' => $state['sources'][$source]['last_error'],
-                    'enabled_system_calls' => self::enabledSystemCallCount166169($state['sources'][$source]['system_calls']),
+                    'enabled_system_calls' => self::runtimeErrorSyscallEnabledSystemCallCount($state['sources'][$source]['system_calls']),
                 ]);
                 continue;
             }
@@ -1757,7 +1757,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary166169($state),
+            'next' => self::runtimeErrorSyscallSummary($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-close-reopen',
@@ -1769,26 +1769,26 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function hydrate166169(mixed $current): array
+    private static function hydrateRuntimeErrorSyscall(mixed $current): array
     {
         $state = ['sequence' => 0, 'current_source' => null, 'owner_generations' => [], 'sources' => []];
         if (!is_array($current)) {
             return $state;
         }
         foreach (is_array($current['owner_generations'] ?? null) ? $current['owner_generations'] : [] as $owner => $generation) {
-            $state['owner_generations'][self::pathName166169((string) $owner)] = self::positiveInt166169($generation, 'owner generation');
+            $state['owner_generations'][self::runtimeErrorSyscallPathName((string) $owner)] = self::runtimeErrorSyscallPositiveInt($generation, 'owner generation');
         }
         foreach (is_array($current['sources'] ?? null) ? $current['sources'] : [] as $name => $source) {
             if (!is_array($source)) {
                 continue;
             }
-            $path = self::pathName166169((string) ($source['path'] ?? ''));
-            $sourceName = self::sourceName166169((string) $name);
-            $state['sources'][$sourceName] = self::sourceState166169(
-                self::token166169((string) ($source['handle'] ?? $sourceName), 'handle'),
+            $path = self::runtimeErrorSyscallPathName((string) ($source['path'] ?? ''));
+            $sourceName = self::runtimeErrorSyscallSourceName((string) $name);
+            $state['sources'][$sourceName] = self::runtimeErrorSyscallSourceState(
+                self::runtimeErrorSyscallToken((string) ($source['handle'] ?? $sourceName), 'handle'),
                 $path,
-                self::pathName166169((string) ($source['owner'] ?? self::owner166169($path))),
-                self::systemCalls166169($source['system_calls'] ?? []),
+                self::runtimeErrorSyscallPathName((string) ($source['owner'] ?? self::runtimeErrorSyscallOwner($path))),
+                self::runtimeErrorSyscallSystemCalls($source['system_calls'] ?? []),
                 $source['last_error'] ?? null,
                 $source['last_time_julian'] ?? null,
                 $source['last_time_int64'] ?? null,
@@ -1796,13 +1796,13 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             );
         }
         if (isset($current['current_source'])) {
-            $state['current_source'] = self::sourceName166169((string) $current['current_source']);
+            $state['current_source'] = self::runtimeErrorSyscallSourceName((string) $current['current_source']);
         }
         $state['sequence'] = count($state['sources']);
         return $state;
     }
 
-    private static function operation166169(string|array $operation): array
+    private static function runtimeErrorSyscallOperation(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -1835,7 +1835,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         throw new \InvalidArgumentException('SQLite VFS current-source next166-169 operation is unsupported');
     }
 
-    private static function sourceState166169(
+    private static function runtimeErrorSyscallSourceState(
         string $handle,
         string $path,
         string $owner,
@@ -1851,19 +1851,19 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             'owner' => $owner,
             'system_calls' => $systemCalls,
             'last_error' => is_array($lastError) ? [
-                'code' => self::errorCode166169($lastError['code'] ?? 'SQLITE_IOERR'),
-                'message' => self::message166169((string) ($lastError['message'] ?? $lastError['code'] ?? 'SQLITE_IOERR')),
+                'code' => self::runtimeErrorSyscallErrorCode($lastError['code'] ?? 'SQLITE_IOERR'),
+                'message' => self::runtimeErrorSyscallMessage((string) ($lastError['message'] ?? $lastError['code'] ?? 'SQLITE_IOERR')),
             ] : null,
             'last_time_julian' => $lastTimeJulian === null ? null : (float) $lastTimeJulian,
-            'last_time_int64' => $lastTimeInt64 === null ? null : self::positiveInt166169($lastTimeInt64, 'current time int64'),
+            'last_time_int64' => $lastTimeInt64 === null ? null : self::runtimeErrorSyscallPositiveInt($lastTimeInt64, 'current time int64'),
             'closed' => $closed,
         ];
     }
 
-    private static function sourceFor166169(array $state, mixed $source): string
+    private static function runtimeErrorSyscallSourceFor(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::sourceName166169((string) $source);
+            return self::runtimeErrorSyscallSourceName((string) $source);
         }
         if (!is_string($state['current_source'])) {
             throw new \InvalidArgumentException('SQLite VFS current-source next166-169 has no selected source');
@@ -1871,7 +1871,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $state['current_source'];
     }
 
-    private static function firstOpenSource166169(array $state): ?string
+    private static function firstOpenRuntimeErrorSyscallSource(array $state): ?string
     {
         foreach ($state['sources'] as $name => $source) {
             if ($source['closed'] !== true) {
@@ -1881,7 +1881,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return null;
     }
 
-    private static function sourceName166169(string $source): string
+    private static function runtimeErrorSyscallSourceName(string $source): string
     {
         $source = strtolower(trim($source));
         if ($source === '' || preg_match('/^[a-z0-9_.:-]+$/', $source) !== 1) {
@@ -1890,7 +1890,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $source;
     }
 
-    private static function pathName166169(string $path): string
+    private static function runtimeErrorSyscallPathName(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -1899,22 +1899,22 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $path;
     }
 
-    private static function owner166169(string $path): string
+    private static function runtimeErrorSyscallOwner(string $path): string
     {
         return preg_replace('/-(?:wal|shm|journal)$/', '', $path) ?? $path;
     }
 
-    private static function julianDay166169(mixed $unix): float
+    private static function runtimeErrorSyscallJulianDay(mixed $unix): float
     {
-        return self::nonNegativeInt166169($unix, 'current time unix timestamp') / 86400 + 2440587.5;
+        return self::runtimeErrorSyscallNonNegativeInt($unix, 'current time unix timestamp') / 86400 + 2440587.5;
     }
 
-    private static function unixFromJulian166169(float $julian): int
+    private static function runtimeErrorSyscallUnixFromJulian(float $julian): int
     {
         return (int) round(($julian - 2440587.5) * 86400);
     }
 
-    private static function systemCalls166169(mixed $calls): array
+    private static function runtimeErrorSyscallSystemCalls(mixed $calls): array
     {
         $out = [];
         foreach (is_array($calls) ? $calls : [] as $name => $enabled) {
@@ -1922,13 +1922,13 @@ private static function runMmapSharedMemory(array $operations, array $options = 
                 $name = (string) $enabled;
                 $enabled = true;
             }
-            $out[self::systemCallName166169((string) $name)] = (bool) $enabled;
+            $out[self::runtimeErrorSyscallSystemCallName((string) $name)] = (bool) $enabled;
         }
         ksort($out);
         return $out;
     }
 
-    private static function systemCallName166169(string $name): string
+    private static function runtimeErrorSyscallSystemCallName(string $name): string
     {
         $name = strtolower(str_replace('-', '_', trim($name)));
         if ($name === '' || preg_match('/^[a-z0-9_]+$/', $name) !== 1) {
@@ -1937,7 +1937,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $name;
     }
 
-    private static function nextSystemCall166169(array $calls, ?string $after): ?string
+    private static function runtimeErrorSyscallNextSystemCall(array $calls, ?string $after): ?string
     {
         $names = array_keys(array_filter($calls));
         sort($names);
@@ -1949,12 +1949,12 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return null;
     }
 
-    private static function enabledSystemCallCount166169(array $calls): int
+    private static function runtimeErrorSyscallEnabledSystemCallCount(array $calls): int
     {
         return count(array_filter($calls));
     }
 
-    private static function errorCode166169(mixed $code): string
+    private static function runtimeErrorSyscallErrorCode(mixed $code): string
     {
         $code = strtoupper(str_replace(' ', '_', trim((string) $code)));
         if ($code === '' || preg_match('/^SQLITE_[A-Z0-9_]+$/', $code) !== 1) {
@@ -1963,7 +1963,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $code;
     }
 
-    private static function message166169(string $message): string
+    private static function runtimeErrorSyscallMessage(string $message): string
     {
         $message = trim($message);
         if ($message === '' || str_contains($message, "\0")) {
@@ -1972,7 +1972,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $message;
     }
 
-    private static function token166169(string $value, string $label): string
+    private static function runtimeErrorSyscallToken(string $value, string $label): string
     {
         $value = trim($value);
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $value) !== 1) {
@@ -1981,7 +1981,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $value;
     }
 
-    private static function positiveInt166169(mixed $value, string $label): int
+    private static function runtimeErrorSyscallPositiveInt(mixed $value, string $label): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException("SQLite VFS current-source next166-169 {$label} must be positive");
@@ -1993,7 +1993,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $int;
     }
 
-    private static function nonNegativeInt166169(mixed $value, string $label): int
+    private static function runtimeErrorSyscallNonNegativeInt(mixed $value, string $label): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException("SQLite VFS current-source next166-169 {$label} must be non-negative");
@@ -2005,7 +2005,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $int;
     }
 
-    private static function summary166169(array $state): array
+    private static function runtimeErrorSyscallSummary(array $state): array
     {
         $open = 0;
         foreach ($state['sources'] as $source) {
@@ -2020,7 +2020,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function event166169(string $operation, string $status, string $source, array $before, array $next, array $extra): array
+    private static function runtimeErrorSyscallEvent(string $operation, string $status, string $source, array $before, array $next, array $extra): array
     {
         return array_merge([
             'operation' => $operation,
@@ -2043,56 +2043,56 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             throw new \InvalidArgumentException('SQLite VFS current-source next170-173 requires operations');
         }
 
-        $state = self::hydrate170173($options['current'] ?? []);
-        $current = self::summary170173($state);
+        $state = self::hydratePathControlNames($options['current'] ?? []);
+        $current = self::pathControlNamesSummary($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation170173($operation);
-            $before = self::summary170173($state);
+            $op = self::pathControlNamesOperation($operation);
+            $before = self::pathControlNamesSummary($state);
 
             if ($op['kind'] === 'open') {
-                $source = self::sourceName170173((string) $op['source']);
-                $path = self::pathName170173((string) $op['path']);
-                $owner = self::owner170173($path);
+                $source = self::pathControlNamesSourceName((string) $op['source']);
+                $path = self::pathControlNamesPathName((string) $op['path']);
+                $owner = self::pathControlNamesOwner($path);
                 $state['sequence']++;
                 $state['owner_generations'][$owner] = (int) ($state['owner_generations'][$owner] ?? 0) + 1;
-                $state['sources'][$source] = self::sourceState170173(
+                $state['sources'][$source] = self::pathControlNamesSourceState(
                     'vfs170173-' . $state['sequence'],
                     $path,
                     $owner,
-                    self::controlState170173($op['controls'] ?? [])
+                    self::pathControlNamesControlState($op['controls'] ?? [])
                 );
                 $state['current_source'] = $source;
-                $events[] = self::event170173('open', 'open', $source, $before, self::summary170173($state), $state['sources'][$source]);
+                $events[] = self::pathControlNamesEvent('open', 'open', $source, $before, self::pathControlNamesSummary($state), $state['sources'][$source]);
                 continue;
             }
 
             if ($op['kind'] === 'source') {
-                $source = self::sourceName170173((string) $op['source']);
+                $source = self::pathControlNamesSourceName((string) $op['source']);
                 if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                    $events[] = self::event170173('source', 'missing-source', $source, $before, self::summary170173($state), []);
+                    $events[] = self::pathControlNamesEvent('source', 'missing-source', $source, $before, self::pathControlNamesSummary($state), []);
                     continue;
                 }
                 $state['current_source'] = $source;
-                $events[] = self::event170173('source', 'ok', $source, $before, self::summary170173($state), [
+                $events[] = self::pathControlNamesEvent('source', 'ok', $source, $before, self::pathControlNamesSummary($state), [
                     'path' => $state['sources'][$source]['path'],
                     'owner' => $state['sources'][$source]['owner'],
                 ]);
                 continue;
             }
 
-            $source = self::sourceFor170173($state, $op['source'] ?? null);
+            $source = self::pathControlNamesSourceFor($state, $op['source'] ?? null);
             if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                $events[] = self::event170173($op['kind'], 'missing-source', $source, $before, self::summary170173($state), []);
+                $events[] = self::pathControlNamesEvent($op['kind'], 'missing-source', $source, $before, self::pathControlNamesSummary($state), []);
                 continue;
             }
 
             if ($op['kind'] === 'filecontrol') {
-                $control = self::controlName170173((string) $op['name']);
-                $value = self::controlValue170173($control, $op['value'] ?? true);
+                $control = self::pathControlNamesControlName((string) $op['name']);
+                $value = self::pathControlNamesControlValue($control, $op['value'] ?? true);
                 $state['sources'][$source]['controls'][$control] = $value;
-                $events[] = self::event170173('file_control', 'ok', $source, $before, self::summary170173($state), [
+                $events[] = self::pathControlNamesEvent('file_control', 'ok', $source, $before, self::pathControlNamesSummary($state), [
                     'name' => $control,
                     'value' => $value,
                     'control_count' => count($state['sources'][$source]['controls']),
@@ -2101,23 +2101,23 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'pathname') {
-                $suffix = self::pathSuffix170173((string) ($op['suffix'] ?? ''));
+                $suffix = self::pathControlNamesPathSuffix((string) ($op['suffix'] ?? ''));
                 $path = $state['sources'][$source]['path'] . $suffix;
-                $sameOwner = self::owner170173($path) === $state['sources'][$source]['owner'];
-                $events[] = self::event170173('pathname', $sameOwner ? 'ok' : 'blocked', $source, $before, self::summary170173($state), [
+                $sameOwner = self::pathControlNamesOwner($path) === $state['sources'][$source]['owner'];
+                $events[] = self::pathControlNamesEvent('pathname', $sameOwner ? 'ok' : 'blocked', $source, $before, self::pathControlNamesSummary($state), [
                     'path' => $path,
-                    'owner' => self::owner170173($path),
+                    'owner' => self::pathControlNamesOwner($path),
                     'same_owner' => $sameOwner,
                 ]);
                 continue;
             }
 
             if ($op['kind'] === 'tempname') {
-                $prefix = self::token170173((string) ($op['prefix'] ?? 'etilqs'), 'temporary prefix');
-                $ordinal = self::positiveInt170173($op['ordinal'] ?? count($state['sources']) + 1, 'temporary ordinal');
+                $prefix = self::pathControlNamesToken((string) ($op['prefix'] ?? 'etilqs'), 'temporary prefix');
+                $ordinal = self::pathControlNamesPositiveInt($op['ordinal'] ?? count($state['sources']) + 1, 'temporary ordinal');
                 $path = rtrim(dirname($state['sources'][$source]['path']), '/') . '/' . $prefix . '-' . $ordinal . '.tmp';
                 $state['sources'][$source]['generated_names'][] = $path;
-                $events[] = self::event170173('temporary_name', 'ok', $source, $before, self::summary170173($state), [
+                $events[] = self::pathControlNamesEvent('temporary_name', 'ok', $source, $before, self::pathControlNamesSummary($state), [
                     'path' => $path,
                     'generated_count' => count($state['sources'][$source]['generated_names']),
                 ]);
@@ -2127,9 +2127,9 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             if ($op['kind'] === 'close') {
                 $state['sources'][$source]['closed'] = true;
                 if ($state['current_source'] === $source) {
-                    $state['current_source'] = self::firstOpenSource170173($state);
+                    $state['current_source'] = self::firstOpenPathControlSource($state);
                 }
-                $events[] = self::event170173('close', 'closed', $source, $before, self::summary170173($state), [
+                $events[] = self::pathControlNamesEvent('close', 'closed', $source, $before, self::pathControlNamesSummary($state), [
                     'controls' => $state['sources'][$source]['controls'],
                     'generated_names' => $state['sources'][$source]['generated_names'],
                 ]);
@@ -2142,7 +2142,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary170173($state),
+            'next' => self::pathControlNamesSummary($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-close-reopen',
@@ -2155,38 +2155,38 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function hydrate170173(mixed $current): array
+    private static function hydratePathControlNames(mixed $current): array
     {
         $state = ['sequence' => 0, 'current_source' => null, 'owner_generations' => [], 'sources' => []];
         if (!is_array($current)) {
             return $state;
         }
         foreach (is_array($current['owner_generations'] ?? null) ? $current['owner_generations'] : [] as $owner => $generation) {
-            $state['owner_generations'][self::pathName170173((string) $owner)] = self::positiveInt170173($generation, 'owner generation');
+            $state['owner_generations'][self::pathControlNamesPathName((string) $owner)] = self::pathControlNamesPositiveInt($generation, 'owner generation');
         }
         foreach (is_array($current['sources'] ?? null) ? $current['sources'] : [] as $name => $source) {
             if (!is_array($source)) {
                 continue;
             }
-            $path = self::pathName170173((string) ($source['path'] ?? ''));
-            $sourceName = self::sourceName170173((string) $name);
-            $state['sources'][$sourceName] = self::sourceState170173(
-                self::token170173((string) ($source['handle'] ?? $sourceName), 'handle'),
+            $path = self::pathControlNamesPathName((string) ($source['path'] ?? ''));
+            $sourceName = self::pathControlNamesSourceName((string) $name);
+            $state['sources'][$sourceName] = self::pathControlNamesSourceState(
+                self::pathControlNamesToken((string) ($source['handle'] ?? $sourceName), 'handle'),
                 $path,
-                self::pathName170173((string) ($source['owner'] ?? self::owner170173($path))),
-                self::controlState170173($source['controls'] ?? []),
+                self::pathControlNamesPathName((string) ($source['owner'] ?? self::pathControlNamesOwner($path))),
+                self::pathControlNamesControlState($source['controls'] ?? []),
                 is_array($source['generated_names'] ?? null) ? array_values($source['generated_names']) : [],
                 (bool) ($source['closed'] ?? false)
             );
         }
         if (isset($current['current_source'])) {
-            $state['current_source'] = self::sourceName170173((string) $current['current_source']);
+            $state['current_source'] = self::pathControlNamesSourceName((string) $current['current_source']);
         }
         $state['sequence'] = count($state['sources']);
         return $state;
     }
 
-    private static function operation170173(string|array $operation): array
+    private static function pathControlNamesOperation(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -2215,7 +2215,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         throw new \InvalidArgumentException('SQLite VFS current-source next170-173 operation is unsupported');
     }
 
-    private static function sourceState170173(
+    private static function pathControlNamesSourceState(
         string $handle,
         string $path,
         string $owner,
@@ -2228,15 +2228,15 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             'path' => $path,
             'owner' => $owner,
             'controls' => $controls,
-            'generated_names' => array_map(static fn ($path): string => self::pathName170173((string) $path), $generatedNames),
+            'generated_names' => array_map(static fn ($path): string => self::pathControlNamesPathName((string) $path), $generatedNames),
             'closed' => $closed,
         ];
     }
 
-    private static function sourceFor170173(array $state, mixed $source): string
+    private static function pathControlNamesSourceFor(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::sourceName170173((string) $source);
+            return self::pathControlNamesSourceName((string) $source);
         }
         if (!is_string($state['current_source'])) {
             throw new \InvalidArgumentException('SQLite VFS current-source next170-173 has no selected source');
@@ -2244,7 +2244,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $state['current_source'];
     }
 
-    private static function firstOpenSource170173(array $state): ?string
+    private static function firstOpenPathControlSource(array $state): ?string
     {
         foreach ($state['sources'] as $name => $source) {
             if ($source['closed'] !== true) {
@@ -2254,7 +2254,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return null;
     }
 
-    private static function sourceName170173(string $source): string
+    private static function pathControlNamesSourceName(string $source): string
     {
         $source = strtolower(trim($source));
         if ($source === '' || preg_match('/^[a-z0-9_.:-]+$/', $source) !== 1) {
@@ -2263,7 +2263,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $source;
     }
 
-    private static function pathName170173(string $path): string
+    private static function pathControlNamesPathName(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -2272,23 +2272,23 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $path;
     }
 
-    private static function owner170173(string $path): string
+    private static function pathControlNamesOwner(string $path): string
     {
         return preg_replace('/-(?:wal|shm|journal)$/', '', $path) ?? $path;
     }
 
-    private static function controlState170173(mixed $controls): array
+    private static function pathControlNamesControlState(mixed $controls): array
     {
         $out = [];
         foreach (is_array($controls) ? $controls : [] as $name => $value) {
-            $control = self::controlName170173((string) $name);
-            $out[$control] = self::controlValue170173($control, $value);
+            $control = self::pathControlNamesControlName((string) $name);
+            $out[$control] = self::pathControlNamesControlValue($control, $value);
         }
         ksort($out);
         return $out;
     }
 
-    private static function controlName170173(string $name): string
+    private static function pathControlNamesControlName(string $name): string
     {
         $name = strtolower(str_replace('-', '_', trim($name)));
         $allowed = ['chunk_size', 'persist_wal', 'powersafe_overwrite', 'size_hint', 'tempfilename'];
@@ -2298,18 +2298,18 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $name;
     }
 
-    private static function controlValue170173(string $control, mixed $value): int|bool|string
+    private static function pathControlNamesControlValue(string $control, mixed $value): int|bool|string
     {
         if (in_array($control, ['chunk_size', 'size_hint'], true)) {
-            return self::positiveInt170173($value, $control);
+            return self::pathControlNamesPositiveInt($value, $control);
         }
         if (in_array($control, ['persist_wal', 'powersafe_overwrite'], true)) {
             return (bool) $value;
         }
-        return self::pathName170173((string) $value);
+        return self::pathControlNamesPathName((string) $value);
     }
 
-    private static function pathSuffix170173(string $suffix): string
+    private static function pathControlNamesPathSuffix(string $suffix): string
     {
         $suffix = trim($suffix);
         if (!in_array($suffix, ['-wal', '-shm', '-journal'], true)) {
@@ -2318,7 +2318,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $suffix;
     }
 
-    private static function token170173(string $value, string $label): string
+    private static function pathControlNamesToken(string $value, string $label): string
     {
         $value = trim($value);
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $value) !== 1) {
@@ -2327,7 +2327,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $value;
     }
 
-    private static function positiveInt170173(mixed $value, string $label): int
+    private static function pathControlNamesPositiveInt(mixed $value, string $label): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException("SQLite VFS current-source next170-173 {$label} must be positive");
@@ -2339,7 +2339,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $int;
     }
 
-    private static function nonNegativeInt170173(mixed $value, string $label): int
+    private static function pathControlNamesNonNegativeInt(mixed $value, string $label): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException("SQLite VFS current-source next170-173 {$label} must be non-negative");
@@ -2351,7 +2351,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $int;
     }
 
-    private static function summary170173(array $state): array
+    private static function pathControlNamesSummary(array $state): array
     {
         $open = 0;
         foreach ($state['sources'] as $source) {
@@ -2366,7 +2366,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function event170173(string $operation, string $status, string $source, array $before, array $next, array $extra): array
+    private static function pathControlNamesEvent(string $operation, string $status, string $source, array $before, array $next, array $extra): array
     {
         return array_merge([
             'operation' => $operation,

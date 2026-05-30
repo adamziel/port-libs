@@ -19939,7 +19939,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function suiteReleaseAllRunnerCountabilityCurrentNext75(
+    public function suiteReleaseAllRunnerCountability(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,

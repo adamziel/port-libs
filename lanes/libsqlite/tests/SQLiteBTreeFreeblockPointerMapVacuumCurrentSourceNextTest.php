@@ -166,8 +166,8 @@ $cases = [
     'next page 42 pointer map survives' => static fn (array $fx): mixed => $fx[1]->nextDatabase->pointerMapEntryForPage(42)->typeName(),
     'next page 42 pointer map parent survives' => static fn (array $fx): mixed => $fx[1]->nextDatabase->pointerMapEntryForPage(42)->parentPageNumber,
     'leaf integrity ok' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockIntegrityReport($fx[1]->nextDatabase->page(3))['status'],
-    'leaf fragment report ok' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockCurrentNextFragmentReport($fx[1]->nextDatabase->page(3))['status'],
-    'leaf current-next fragments cleared' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockCurrentNextFragmentReport($fx[1]->nextDatabase->page(3))['current_next_fragment_bytes'],
+    'leaf fragment report ok' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockFragmentReport($fx[1]->nextDatabase->page(3))['status'],
+    'leaf current-next fragments cleared' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockFragmentReport($fx[1]->nextDatabase->page(3))['current_next_fragment_bytes'],
     'leaf secure-delete zeroed' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockSecureDeleteReport($fx[1]->nextDatabase->page(3))['secure_delete_payload_zeroed'],
     'index leaf page type accepted' => static fn (): mixed => $fixture(8, true, true, "\x0a")[1]->coalescePlan->pageType,
     'bounded pass keeps trunk below pointer-map page' => static fn (): mixed => $fixture(2)[1]->survivingFreelistPageNumbers(),
@@ -287,7 +287,7 @@ foreach (range(1, 22) as $index) {
         $t->same(strlen($database->toBytes()), $plan->materializedApplySummary()['byte_length']);
         $t->same($database->freelistPageNumbers(), $plan->survivingFreelistPageNumbers());
         $t->same('ok', $header->freeblockIntegrityReport($database->page(3))['status']);
-        $t->same(0, $header->freeblockCurrentNextFragmentReport($database->page(3))['current_next_fragment_bytes']);
+        $t->same(0, $header->freeblockFragmentReport($database->page(3))['current_next_fragment_bytes']);
         $t->same('btree-page', $database->pointerMapEntryForPage(42)->typeName());
         $t->same([104, 106], $plan->vacuumPlan->releasedOverflowPages());
         $t->same('ok', $plan->rows[0]['freeblock_status']);

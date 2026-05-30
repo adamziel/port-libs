@@ -6,7 +6,7 @@ This slice fixes the B-tree page freeblock parser for SQLite's current/next
 freeblock fragment edge. A next freeblock may start 1-3 bytes after the current
 freeblock ends; those bytes are page-local fragmented free bytes, not a corrupt
 overlap. The parser now rejects only overlapping next offsets, and
-`SQLiteBTreePageHeader::freeblockCurrentNextFragmentReport()` reports the
+`SQLiteBTreePageHeader::freeblockFragmentReport()` reports the
 fragment bytes accounted between current/next freeblocks.
 
 Focused verification:

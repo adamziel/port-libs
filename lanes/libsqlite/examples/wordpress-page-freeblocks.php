@@ -23,7 +23,7 @@ $usableSize = $database->usablePageSize();
 
 $integrity = $header->freeblockIntegrityReport($page, $usableSize);
 $secureDelete = $header->freeblockSecureDeleteReport($page, $usableSize);
-$currentNextFragments = $header->freeblockCurrentNextFragmentReport($page, $usableSize);
+$currentNextFragments = $header->freeblockFragmentReport($page, $usableSize);
 $freeblocks = $integrity['freeblocks'];
 $freeSpaceBytes = $integrity['free_space_bytes'];
 

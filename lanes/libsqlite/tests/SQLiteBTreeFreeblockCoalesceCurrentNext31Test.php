@@ -77,7 +77,7 @@ $cases = [
     'rewritten freeblocks parse as one' => static fn (): mixed => count($coalescedHeader($fixture())->freeblocks($fixture()->pageImage)),
     'rewritten freeblock size parses' => static fn (): mixed => $coalescedHeader($fixture())->freeblocks($fixture()->pageImage)[0]->size,
     'rewritten freeblock next is null' => static fn (): mixed => $coalescedHeader($fixture())->freeblocks($fixture()->pageImage)[0]->nextOffset,
-    'rewritten fragment report has no current next gaps' => static fn (): mixed => $coalescedHeader($fixture())->freeblockCurrentNextFragmentReport($fixture()->pageImage)['current_next_fragment_bytes'],
+    'rewritten fragment report has no current next gaps' => static fn (): mixed => $coalescedHeader($fixture())->freeblockFragmentReport($fixture()->pageImage)['current_next_fragment_bytes'],
     'rewritten integrity remains ok' => static fn (): mixed => $coalescedHeader($fixture())->freeblockIntegrityReport($fixture()->pageImage)['status'],
     'rewritten free space preserved' => static fn (): mixed => $coalescedHeader($fixture())->freeSpaceBytes($fixture()->pageImage),
     'clear option zeros merged freeblock payload' => static fn (): mixed => SQLiteBTreePageHeader::parsePage(SQLiteBTreeFreeblockCoalescePlan::fromPage(7, $pageWithCurrentNextFragments(), clearCoalescedFragments: true)->pageImage, 512)->freeblockSecureDeleteReport(SQLiteBTreeFreeblockCoalescePlan::fromPage(7, $pageWithCurrentNextFragments(), clearCoalescedFragments: true)->pageImage)['secure_delete_payload_zeroed'],

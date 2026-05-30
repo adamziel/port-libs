@@ -169,7 +169,7 @@ $cases147 = [
     'updated pages' => static fn (): mixed => $plan147()->toArray()['updated_page_numbers'],
     'overflow image pages' => static fn (): mixed => array_keys($plan147()->overflowPageImages()),
     'header from image freelist count' => static fn (): mixed => SQLiteHeader::parse($plan147()->pageImages()[1])->freelistPageCount,
-    'leaf fragment status' => static fn (): mixed => $leafHeader147()->freeblockCurrentNextFragmentReport($plan147()->databaseAfterAllocation->page(3))['status'],
+    'leaf fragment status' => static fn (): mixed => $leafHeader147()->freeblockFragmentReport($plan147()->databaseAfterAllocation->page(3))['status'],
     'leaf secure delete zeroed' => static fn (): mixed => $leafHeader147()->freeblockSecureDeleteReport($plan147()->databaseAfterAllocation->page(3))['secure_delete_payload_zeroed'],
     'without secure delete keeps released table payload before allocation overwrite' => static fn (): mixed => substr($plan147(false)->databaseAfterRelease->page(6), 4, 1),
     'without secure delete keeps released index payload before allocation overwrite' => static fn (): mixed => substr($plan147(false)->databaseAfterRelease->page(9), 4, 1),

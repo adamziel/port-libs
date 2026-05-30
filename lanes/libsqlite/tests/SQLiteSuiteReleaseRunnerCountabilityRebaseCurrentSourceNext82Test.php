@@ -60,7 +60,7 @@ function libsqlite_suite_count82_rows(
             'implementation_source_head' => $implementationSource,
             'current_status' => 'countable',
             'next_status' => 'countable',
-            'artifact_path' => 'lanes/libsqlite/notes/suite-release-all-runner-countability-current-next75.md',
+            'artifact_path' => 'lanes/libsqlite/notes/suite-release-all-runner-countability.md',
             'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error all',
             'scripts' => ['pager.test', 'wal.test'],
             'tests' => 329670,

@@ -227,7 +227,7 @@ final class SQLiteBTreePageHeader
     /**
      * @return array{status:string,page_type:string,fragmented_free_bytes:int,current_next_fragment_bytes:int,unaccounted_fragment_bytes:int,current_next_fragments:list<array{current_offset:int,current_end_offset:int,next_offset:int,fragment_bytes:int}>,error:?string}
      */
-    public function freeblockCurrentNextFragmentReport(string $page, ?int $usableSize = null): array
+    public function freeblockFragmentReport(string $page, ?int $usableSize = null): array
     {
         $fragments = [];
         $fragmentBytes = 0;

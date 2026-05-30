@@ -269,7 +269,7 @@ final class SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNextPlan
             'fragmented_bytes_after' => $coalescePlan->fragmentedBytesAfter,
             'coalesced_fragment_bytes' => $coalescePlan->coalescedFragmentBytes,
             'freeblock_status' => $leafHeader->freeblockIntegrityReport($leafImage)['status'],
-            'current_next_fragment_bytes' => $leafHeader->freeblockCurrentNextFragmentReport($leafImage)['current_next_fragment_bytes'],
+            'current_next_fragment_bytes' => $leafHeader->freeblockFragmentReport($leafImage)['current_next_fragment_bytes'],
         ];
     }
 

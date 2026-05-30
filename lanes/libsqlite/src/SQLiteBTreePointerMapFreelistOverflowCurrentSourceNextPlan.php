@@ -225,7 +225,11 @@ final class SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextBaseVariantPla
             $nextEntry = $databaseAfterAllocation->pointerMapEntryForPage($pageNumber)->toArray();
             $nextPage = $databaseAfterAllocation->page($pageNumber);
             $step = $allocationSteps[$position] ?? [];
-            $nextPageNumber = self::readUInt32($nextPage, 0);
+            $nextPageNumber = SQLiteBTreePointerMapFreelistOverflowPageCodec::readUInt32(
+                $nextPage,
+                0,
+                'SQLite b-tree pointer-map freelist overflow next129 could not read uint32'
+            );
 
             $rows[] = [
                 'page_number' => $pageNumber,
@@ -266,15 +270,6 @@ final class SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextBaseVariantPla
         return $sources;
     }
 
-    private static function readUInt32(string $bytes, int $offset): int
-    {
-        $value = unpack('N', substr($bytes, $offset, 4));
-        if ($value === false) {
-            throw new \InvalidArgumentException('SQLite b-tree pointer-map freelist overflow next129 could not read uint32');
-        }
-
-        return $value[1];
-    }
 }
 
 final class SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextExtendedVariantPlan
@@ -568,7 +563,11 @@ final class SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextExtendedVarian
                 'free_pointer_map_parent' => $freeEntry['parent_page_number'],
                 'next_pointer_map_type' => $nextEntry['type_name'],
                 'next_pointer_map_parent' => $nextEntry['parent_page_number'],
-                'next_overflow_next_page' => self::readUInt32($page, 0),
+                'next_overflow_next_page' => SQLiteBTreePointerMapFreelistOverflowPageCodec::readUInt32(
+                    $page,
+                    0,
+                    'SQLite b-tree pointer-map freelist overflow next141 could not read uint32'
+                ),
                 'payload_prefix' => substr($page, 4, 16),
             ];
         }
@@ -591,11 +590,15 @@ final class SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextExtendedVarian
         return $sources;
     }
 
-    private static function readUInt32(string $bytes, int $offset): int
+}
+
+final class SQLiteBTreePointerMapFreelistOverflowPageCodec
+{
+    public static function readUInt32(string $bytes, int $offset, string $errorMessage): int
     {
         $value = unpack('N', substr($bytes, $offset, 4));
         if ($value === false) {
-            throw new \InvalidArgumentException('SQLite b-tree pointer-map freelist overflow next141 could not read uint32');
+            throw new \InvalidArgumentException($errorMessage);
         }
 
         return $value[1];

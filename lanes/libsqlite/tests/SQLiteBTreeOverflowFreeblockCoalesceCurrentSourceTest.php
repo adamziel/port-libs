@@ -117,8 +117,8 @@ $cases = [
     'materialized database page count' => static fn (array $fx): mixed => $fx[1]->database->pageCount(),
     'materialized header freelist count' => static fn (array $fx): mixed => $fx[1]->database->header->freelistPageCount,
     'materialized header first trunk' => static fn (array $fx): mixed => $fx[1]->database->header->firstFreelistTrunkPage,
-    'materialized leaf fragment report ok' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockCurrentNextFragmentReport($fx[1]->database->page(3))['status'],
-    'materialized leaf has no current next fragments' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockCurrentNextFragmentReport($fx[1]->database->page(3))['current_next_fragment_bytes'],
+    'materialized leaf fragment report ok' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockFragmentReport($fx[1]->database->page(3))['status'],
+    'materialized leaf has no current next fragments' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockFragmentReport($fx[1]->database->page(3))['current_next_fragment_bytes'],
     'materialized leaf integrity ok' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockIntegrityReport($fx[1]->database->page(3))['status'],
     'materialized leaf secure-delete zeroed' => static fn (array $fx): mixed => $afterHeader($fx)->freeblockSecureDeleteReport($fx[1]->database->page(3))['secure_delete_payload_zeroed'],
     'materialized overflow page 5 is freelist trunk' => static fn (array $fx): mixed => unpack('N', substr($fx[1]->database->page(5), 4, 4))[1],
@@ -229,7 +229,7 @@ foreach (range(1, 16) as $index) {
         $header = SQLiteBTreePageHeader::parsePage($plan->database->page(3), 512);
 
         $t->same('ok', $header->freeblockIntegrityReport($plan->database->page(3))['status']);
-        $t->same(0, $header->freeblockCurrentNextFragmentReport($plan->database->page(3))['current_next_fragment_bytes']);
+        $t->same(0, $header->freeblockFragmentReport($plan->database->page(3))['current_next_fragment_bytes']);
         $t->same([5, 6], $plan->releasePlan->releasedOverflowPages);
         $t->same([5, 6], $plan->database->freelistPageNumbers());
         $t->same('free-page', $plan->database->pointerMapEntryForPage(5)->typeName());
