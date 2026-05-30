@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 01:40 UTC):
+  Latest libsqlite consolidation is integrated as `0cd768bc7`
+  (`libsqlite: consolidate pager btree compound stat4 suffixes`). The batch
+  accepts 4 current-base-applicable handoffs covering pager reader-cache
+  `Next166`, `Next168`, `Next169`, and `Next170` entry/test/example naming,
+  B-tree page-move/freelist-rebalance production class/test/notes naming,
+  compound recursive-limit `Next209`, `Next211`, and `Next212` private helper
+  naming, and STAT4 prepared-handoff `830-845` dynamic range handling.
+  Validation passed PHP lint for 14 changed PHP files, 5 changed
+  WordPress/self-test examples, `git diff --check -- lanes/libsqlite`,
+  focused tests `12 files / 2065 assertions / 0 failures`, pager reader-cache
+  family `149 files / 9989 assertions / 0 failures`, STAT4 expression partial
+  family `133 files / 7539 assertions / 0 failures`, and compound recursive
+  LIMIT family `91 files / 32141 assertions / 0 failures`. Public pass/mapped
+  counters remain `154019 pass / 0 fail` and `830 / 1589` because this is
+  consolidation-only. Current disk state after bounded cleanup is roughly
+  `223G` free on `/home/claude` and `12G` free on `/tmp`; keep inactive
+  worktree cleanup opportunistic while preserving dirty work archives.
+
 - 2026-05-30 supervisor continuation (shell samples 01:13 UTC):
   Latest libsqlite consolidation is integrated and pushed as `158b12e19`
   (`libsqlite: consolidate pager stat4 compound suffixes`). The batch accepts
