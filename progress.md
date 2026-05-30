@@ -48,6 +48,20 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (PDO side slice 21:52 UTC):
+  Accepted `59eefd04` (`libsqlite: expand SQLite PDO compatibility`) on top
+  of the thirteenth rapid corpus publication. The patch expands the native-PHP
+  PDO subset with connection and statement `errorCode()`/`errorInfo()`
+  tracking, `columnCount()`, `FETCH_CLASS`, `FETCH_INTO`, and transaction-state
+  misuse checks. Verification passed PHP lint for 3 changed PHP files,
+  `git diff --check -- lanes/libsqlite`, and focused
+  `SQLitePdoPolyfillTest.php` plus `SQLiteNoDomainSpecificApiTest.php` with
+  `2 test files / 64 assertions / 0 failures / 11 PASS lines`. Accepted-base
+  comparison for the same two files passed with `2 test files / 46 assertions /
+  0 failures / 10 PASS lines`, so selected PHP throughput moves by `+1` to
+  `844277 pass / 0 fail`. Mapped coverage remains `1589 / 1589`; this is side
+  PDO API coverage, not a new upstream corpus mapping.
+
 - 2026-05-30 supervisor continuation (integration sample 21:48 UTC):
   Latest libsqlite source is being advanced from dashboard head `551608c47`
   through a thirteenth rapid current-base corpus sweep. The scratch batch
