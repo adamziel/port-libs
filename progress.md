@@ -43,10 +43,31 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 47G available, 90% used after bounded inactive-worktree cleanup; `/tmp` has about 8.5G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 243G available after bounded inactive-worktree cleanup; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (shell samples 02:16 UTC):
+  Latest libsqlite consolidation is integrated as `bb93d670`
+  (`libsqlite: consolidate pager stat4 utf16 suffix names`). The batch accepts
+  8 current-base-compatible handoffs covering pager reader-cache
+  `CurrentSourceNext177`, `178`, `180`, and `238` test/example names, stale
+  numbered notes, pager reader-cache private `variantNext` helper names, STAT4
+  unsampled-equality-bracket `CurrentSourceNext171` / `materializeNext171`
+  names, and UTF-16 RTRIM/NOCASE private `v221` / `v223` helpers. Validation
+  passed PHP lint for 14 changed PHP files, 5 changed WordPress/self-test
+  examples, `git diff --check -- lanes/libsqlite`, focused tests `8 files /
+  614 assertions / 0 failures`, pager reader-cache family `149 files / 9989
+  assertions / 0 failures`, STAT4 expression partial family `133 files / 7543
+  assertions / 0 failures`, and UTF-16 RTRIM family `61 files / 4697
+  assertions / 0 failures`. Public pass/mapped counters remain `154019 pass /
+  0 fail` and `830 / 1589` because this is consolidation-only. Four overlapping
+  alternative rename markers were deferred as superseded because they targeted
+  the same old numbered files or the same STAT4 hunk. The live worker pool
+  remains in the 10-11 isolated libsqlite Codex band with 0 long sleepers, and
+  disk remains healthy at roughly `243G` free on `/home/claude` and `12G` free
+  on `/tmp`.
 
 - 2026-05-30 supervisor continuation (shell samples 02:02 UTC):
   Latest libsqlite consolidation is integrated as `c72bc419`
