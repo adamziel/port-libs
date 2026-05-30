@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 18:59:46 UTC",
-    "sourceCommit": "b638b418bc099e63c9b8bfbf6e790ee4d03147d3",
-    "sourceCommitShort": "b638b418bc09",
+    "generated": "2026-05-30 19:09:36 UTC",
+    "sourceCommit": "ba4a45f8b96fc790cbc71b4217e0565b71026866",
+    "sourceCommitShort": "ba4a45f8b96f",
     "sourceBranch": "main",
-    "dashboardCommit": "b638b418bc099e63c9b8bfbf6e790ee4d03147d3",
-    "dashboardCommitShort": "b638b418bc09",
+    "dashboardCommit": "ba4a45f8b96fc790cbc71b4217e0565b71026866",
+    "dashboardCommitShort": "ba4a45f8b96f",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1472",
             "coverage": "1472 / 1589",
-            "php": "364889 pass / 0 fail",
+            "php": "386161 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted 25 fresh/safe real-bulk handoffs...",
-            "currentWork": "Published source b638b418b with a +9285 honest selected PASS-line libsqlite batch, bringi...",
-            "nextTarget": "Keep 10-11 visible current-base libsqlite workers active, quarantine red expression/PRAGM...",
-            "blocker": "Fresh real/bulk handoff scoring is maintaining near-10k batch throughput,...",
-            "commit": "b638b41"
+            "audit": "Accepted 30 current/recent non-red real-b...",
+            "currentWork": "Published source ba4a45f8b with a +21272 honest selected PASS-line libsqlite batch, bring...",
+            "nextTarget": "Keep 10-11 visible current-base libsqlite workers active, preserve the high-yield real/bu...",
+            "blocker": "Throughput is currently above the +10000 PASS-line/hour target when the s...",
+            "commit": "ba4a45f"
         },
         {
             "library": "LightningCSS",

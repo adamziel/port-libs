@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 19:09 UTC):
+  Latest accepted libsqlite source is `ba4a45f8b`
+  (`libsqlite: add current corpus throughput batch`). This batch accepts 30
+  current/recent non-red real-bulk handoffs on top of `28d061295` after
+  excluding stale expression/PRAGMA extended candidates that had produced red
+  focused failures in the previous scoring pass. Accepted coverage adds VFS
+  ioerr3 and recovery coverage, date-affinity modifier coverage, JSON104
+  merge-patch and JSON106 invariant bulk coverage, pager/WAL restart-overwrite
+  coverage, PRAGMA schema thousand-row coverage, SELECT flatten/core batches,
+  trigger/FK action-matrix plus nocase repair coverage, UPSERT/RETURNING broad
+  and tail coverage, window5/windowB/window pushdown/fractional range/null
+  range coverage, WAL reader-checkpoint coverage, and bulk runner/suite
+  denominator notes. Focused verification passed `20 files / 166656 assertions
+  / 0 failures / 21975 PASS lines`; the accepted-base comparison passed `2
+  files / 703 assertions / 0 failures / 703 PASS lines`, so the honest
+  selected PASS-line delta is `+21272`. Public libsqlite should move to
+  `386161 pass / 0 fail`; mapped coverage remains `1472 / 1589`. The full
+  source scan still finds 30 older domain-shaped `lanes/libsqlite/src` PHP
+  files; no new domain-specific source additions were introduced by this
+  batch, and the next worker allocation must keep high-yield corpus publishing
+  separate from source-neutral cleanup so throughput does not collapse.
+
 - 2026-05-30 supervisor continuation (integration sample 19:00 UTC):
   Latest accepted libsqlite source is `b638b418b`
   (`libsqlite: add fresh corpus throughput batch`). This batch accepts 25
