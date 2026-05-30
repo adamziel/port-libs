@@ -5,6 +5,13 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLitePDO;
 use PortLibs\LibSqlite\SQLitePDOStatement;
 
+final class SQLitePdoFetchTarget
+{
+    public mixed $id = null;
+    public mixed $name = null;
+    public mixed $qty = null;
+}
+
 return [
     'SQLitePDO extends native PDO classes' => static function (TestRunner $t): void {
         $pdo = new SQLitePDO('sqlite::memory:');
@@ -87,11 +94,16 @@ return [
         $t->throws(PDOException::class, static fn () => $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT));
         $t->throws(PDOException::class, static fn () => $pdo->getAttribute(PDO::ATTR_AUTOCOMMIT));
         $t->throws(PDOException::class, static fn () => $pdo->exec('VACUUM'));
+        $t->same('HY000', $pdo->errorCode());
+        $t->same('HY000', $pdo->errorInfo()[0]);
+        $t->contains('unsupported SQL statement', (string) $pdo->errorInfo()[2]);
         $t->throws(PDOException::class, static fn () => $pdo->commit());
 
         $pdo->beginTransaction();
+        $t->true($pdo->inTransaction());
         $t->throws(PDOException::class, static fn () => $pdo->beginTransaction());
         $pdo->rollBack();
+        $t->same(false, $pdo->inTransaction());
     },
 
     'SQLitePDO quotes scalar values and applies default fetch modes' => static function (TestRunner $t): void {
@@ -107,7 +119,7 @@ return [
         $t->true($row instanceof stdClass);
         $t->same('Ada', $row->name);
 
-        $t->throws(PDOException::class, static fn () => $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_CLASS));
+        $t->throws(PDOException::class, static fn () => $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_LAZY));
     },
 
     'SQLitePDOStatement supports object bound and repeated column fetches' => static function (TestRunner $t): void {
@@ -141,5 +153,35 @@ return [
         $t->true($bound->fetch(PDO::FETCH_BOUND));
         $t->same('first', $boundName);
         $t->same(4, $boundQty);
+    },
+
+    'SQLitePDOStatement reports columns classes into objects and statement errors' => static function (TestRunner $t): void {
+        $pdo = new SQLitePDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER)');
+        $pdo->exec("INSERT INTO items (name, qty) VALUES ('first', 4), ('second', 6)");
+
+        $statement = $pdo->query('SELECT id, name, qty FROM items ORDER BY id');
+        $t->same(3, $statement->columnCount());
+        $row = $statement->fetch(PDO::FETCH_CLASS);
+        $t->true($row instanceof stdClass);
+        $t->same('first', $row->name);
+
+        $classStatement = $pdo->query('SELECT id, name, qty FROM items WHERE id = 2');
+        $t->true($classStatement->setFetchMode(PDO::FETCH_CLASS, SQLitePdoFetchTarget::class));
+        $target = $classStatement->fetch();
+        $t->true($target instanceof SQLitePdoFetchTarget);
+        $t->same('second', $target->name);
+        $t->same(6, $target->qty);
+
+        $into = new SQLitePdoFetchTarget();
+        $intoStatement = $pdo->query('SELECT id, name, qty FROM items WHERE id = 1');
+        $t->true($intoStatement->setFetchMode(PDO::FETCH_INTO, $into));
+        $t->same($into, $intoStatement->fetch());
+        $t->same('first', $into->name);
+
+        $bad = $pdo->prepare('SELECT * FROM missing_table');
+        $t->throws(PDOException::class, static fn () => $bad->execute());
+        $t->same('HY000', $bad->errorCode());
+        $t->same('HY000', $bad->errorInfo()[0]);
     },
 ];

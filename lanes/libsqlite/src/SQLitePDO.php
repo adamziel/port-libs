@@ -17,6 +17,10 @@ final class SQLitePDO extends \PDO
     private ?array $transactionSnapshot = null;
     private int $errmode = \PDO::ERRMODE_EXCEPTION;
     private int $defaultFetchMode = \PDO::FETCH_BOTH;
+    private string $errorCode = '00000';
+
+    /** @var array{0:string,1:int|null,2:string|null} */
+    private array $errorInfo = ['00000', null, null];
 
     public function __construct(string $dsn, ?string $username = null, ?string $password = null, ?array $options = null)
     {
@@ -152,6 +156,17 @@ final class SQLitePDO extends \PDO
         return true;
     }
 
+    public function errorCode(): ?string
+    {
+        return $this->errorCode;
+    }
+
+    /** @return array{0:string,1:int|null,2:string|null} */
+    public function errorInfo(): array
+    {
+        return $this->errorInfo;
+    }
+
     public function commit(): bool
     {
         if ($this->transactionSnapshot === null) {
@@ -181,42 +196,73 @@ final class SQLitePDO extends \PDO
     {
         $sql = trim(rtrim(trim($sql), ';'));
         if ($sql === '') {
+            $this->clearError();
             return ['rows' => [], 'changes' => 0];
         }
         try {
             if (preg_match('/^(?:select|values|with)\b/i', $sql) === 1) {
-                return ['rows' => SQLiteSelectSql::execute($sql, $this->tables, $parameters), 'changes' => 0];
+                $result = ['rows' => SQLiteSelectSql::execute($sql, $this->tables, $parameters), 'changes' => 0];
+                $this->clearError();
+
+                return $result;
             }
             if (preg_match('/^create\s+table\b/i', $sql) === 1) {
                 $this->createTable($sql);
+                $this->clearError();
                 return ['rows' => [], 'changes' => 0];
             }
             if (preg_match('/^insert\b/i', $sql) === 1) {
-                return ['rows' => [], 'changes' => $this->insertValues($sql, $parameters)];
+                $result = ['rows' => [], 'changes' => $this->insertValues($sql, $parameters)];
+                $this->clearError();
+
+                return $result;
             }
             if (preg_match('/^update\b/i', $sql) === 1) {
-                return ['rows' => [], 'changes' => $this->updateRows($sql, $parameters)];
+                $result = ['rows' => [], 'changes' => $this->updateRows($sql, $parameters)];
+                $this->clearError();
+
+                return $result;
             }
             if (preg_match('/^delete\b/i', $sql) === 1) {
-                return ['rows' => [], 'changes' => $this->deleteRows($sql, $parameters)];
+                $result = ['rows' => [], 'changes' => $this->deleteRows($sql, $parameters)];
+                $this->clearError();
+
+                return $result;
             }
             if (preg_match('/^begin(?:\s+transaction)?$/i', $sql) === 1) {
                 $this->beginTransaction();
+                $this->clearError();
                 return ['rows' => [], 'changes' => 0];
             }
             if (preg_match('/^commit$/i', $sql) === 1) {
                 $this->commit();
+                $this->clearError();
                 return ['rows' => [], 'changes' => 0];
             }
             if (preg_match('/^rollback$/i', $sql) === 1) {
                 $this->rollBack();
+                $this->clearError();
                 return ['rows' => [], 'changes' => 0];
             }
         } catch (\Throwable $exception) {
-            throw new \PDOException($exception->getMessage(), 0, $exception);
+            throw $this->failure($exception->getMessage(), $exception);
         }
 
-        throw new \PDOException("SQLitePDO unsupported SQL statement: {$sql}");
+        throw $this->failure("SQLitePDO unsupported SQL statement: {$sql}");
+    }
+
+    private function clearError(): void
+    {
+        $this->errorCode = '00000';
+        $this->errorInfo = ['00000', null, null];
+    }
+
+    private function failure(string $message, ?\Throwable $previous = null): \PDOException
+    {
+        $this->errorCode = 'HY000';
+        $this->errorInfo = ['HY000', 1, $message];
+
+        return new \PDOException($message, 0, $previous);
     }
 
     /** @return list<string> */

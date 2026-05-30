@@ -13,6 +13,8 @@ final class SQLitePDOStatement extends \PDOStatement
         \PDO::FETCH_COLUMN,
         \PDO::FETCH_OBJ,
         \PDO::FETCH_BOUND,
+        \PDO::FETCH_CLASS,
+        \PDO::FETCH_INTO,
     ];
 
     /** @var array<int|string,mixed> */
@@ -36,6 +38,12 @@ final class SQLitePDOStatement extends \PDOStatement
     private int $cursor = 0;
     private int $rowCount = 0;
     private ?int $fetchMode = null;
+    private string $fetchClass = 'stdClass';
+    private ?object $fetchInto = null;
+    private string $errorCode = '00000';
+
+    /** @var array{0:string,1:int|null,2:string|null} */
+    private array $errorInfo = ['00000', null, null];
 
     public function __construct(
         private readonly SQLitePDO $connection,
@@ -55,10 +63,19 @@ final class SQLitePDOStatement extends \PDOStatement
                 $parameters[is_int($key) ? $key + 1 : $key] = $value;
             }
         }
-        $result = $this->connection->executeSql($this->sql, $parameters);
+        try {
+            $result = $this->connection->executeSql($this->sql, $parameters);
+        } catch (\PDOException $exception) {
+            $this->errorCode = $this->connection->errorCode() ?? 'HY000';
+            $this->errorInfo = $this->connection->errorInfo();
+
+            throw $exception;
+        }
         $this->rows = $result['rows'];
         $this->rowCount = $result['changes'];
         $this->cursor = 0;
+        $this->errorCode = '00000';
+        $this->errorInfo = ['00000', null, null];
 
         return true;
     }
@@ -115,6 +132,22 @@ final class SQLitePDOStatement extends \PDOStatement
         return $this->rowCount;
     }
 
+    public function columnCount(): int
+    {
+        return isset($this->rows[0]) ? count($this->rows[0]) : 0;
+    }
+
+    public function errorCode(): ?string
+    {
+        return $this->errorCode;
+    }
+
+    /** @return array{0:string,1:int|null,2:string|null} */
+    public function errorInfo(): array
+    {
+        return $this->errorInfo;
+    }
+
     public function bindValue(string|int $param, mixed $value, int $type = \PDO::PARAM_STR): bool
     {
         $this->boundValues[$this->normalizeParam($param)] = $this->coerce($value, $type);
@@ -142,11 +175,22 @@ final class SQLitePDOStatement extends \PDOStatement
 
     public function setFetchMode(int $mode, mixed ...$args): bool
     {
-        if ($args !== []) {
-            throw new \PDOException('SQLitePDOStatement fetch mode arguments are not supported');
-        }
         if (!in_array($mode, self::SUPPORTED_FETCH_MODES, true)) {
             throw new \PDOException('SQLitePDOStatement fetch mode is not supported');
+        }
+        if ($mode === \PDO::FETCH_CLASS) {
+            $class = $args[0] ?? 'stdClass';
+            if (!is_string($class) || !class_exists($class)) {
+                throw new \PDOException('SQLitePDOStatement FETCH_CLASS needs an existing class name');
+            }
+            $this->fetchClass = $class;
+        } elseif ($mode === \PDO::FETCH_INTO) {
+            if (!isset($args[0]) || !is_object($args[0])) {
+                throw new \PDOException('SQLitePDOStatement FETCH_INTO needs an object');
+            }
+            $this->fetchInto = $args[0];
+        } elseif ($args !== []) {
+            throw new \PDOException('SQLitePDOStatement fetch mode arguments are not supported');
         }
         $this->fetchMode = $mode;
 
@@ -167,6 +211,25 @@ final class SQLitePDOStatement extends \PDOStatement
         }
         if ($mode === \PDO::FETCH_OBJ) {
             return (object) $row;
+        }
+        if ($mode === \PDO::FETCH_CLASS) {
+            $class = $this->fetchClass;
+            $object = new $class();
+            foreach ($row as $column => $value) {
+                $object->{$column} = $value;
+            }
+
+            return $object;
+        }
+        if ($mode === \PDO::FETCH_INTO) {
+            if ($this->fetchInto === null) {
+                throw new \PDOException('SQLitePDOStatement FETCH_INTO needs an object');
+            }
+            foreach ($row as $column => $value) {
+                $this->fetchInto->{$column} = $value;
+            }
+
+            return $this->fetchInto;
         }
         if ($mode === \PDO::FETCH_BOUND) {
             foreach ($this->boundColumns as $column => &$target) {
