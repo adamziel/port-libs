@@ -322,4 +322,85 @@ for ($offset = 0; $offset < 80; $offset++) {
     };
 }
 
+// Source truth: SQLite upstream test/select9.test test_compound_select
+// expands each compound SELECT across LIMIT/OFFSET windows.  Keep the same
+// compact t1/t2 shape and exercise the native compound SELECT executor with
+// row-window slices over UNION ALL table order and explicit ORDER BY terms.
+$select9Tables = [
+    't1' => [
+        ['a' => 1, 'b' => 'one', 'c' => 'I'],
+        ['a' => 3, 'b' => null, 'c' => null],
+        ['a' => 5, 'b' => 'five', 'c' => 'V'],
+        ['a' => 7, 'b' => 'seven', 'c' => 'VII'],
+        ['a' => 9, 'b' => null, 'c' => null],
+        ['a' => 2, 'b' => 'two', 'c' => 'II'],
+        ['a' => 4, 'b' => 'four', 'c' => 'IV'],
+        ['a' => 6, 'b' => null, 'c' => null],
+        ['a' => 8, 'b' => 'eight', 'c' => 'VIII'],
+        ['a' => 10, 'b' => 'ten', 'c' => 'X'],
+    ],
+    't2' => [
+        ['d' => 1, 'e' => 'two', 'f' => 'IV'],
+        ['d' => 2, 'e' => 'four', 'f' => 'VIII'],
+        ['d' => 3, 'e' => null, 'f' => null],
+        ['d' => 4, 'e' => 'eight', 'f' => 'XVI'],
+        ['d' => 5, 'e' => 'ten', 'f' => 'XX'],
+        ['d' => 6, 'e' => null, 'f' => null],
+        ['d' => 7, 'e' => 'fourteen', 'f' => 'XXVIII'],
+        ['d' => 8, 'e' => 'sixteen', 'f' => 'XXXII'],
+        ['d' => 9, 'e' => null, 'f' => null],
+        ['d' => 10, 'e' => 'twenty', 'f' => 'XL'],
+    ],
+];
+
+$select9CompoundCases = [
+    'select9.test select9-1.2 union-all table order' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2',
+        [1, 'one', 3, null, 5, 'five', 7, 'seven', 9, null, 2, 'two', 4, 'four', 6, null, 8, 'eight', 10, 'ten', 1, 'two', 2, 'four', 3, null, 4, 'eight', 5, 'ten', 6, null, 7, 'fourteen', 8, 'sixteen', 9, null, 10, 'twenty'],
+    ],
+    'select9.test select9-1.3 union-all order by first column' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2 ORDER BY 1',
+        [1, 'one', 1, 'two', 2, 'two', 2, 'four', 3, null, 3, null, 4, 'four', 4, 'eight', 5, 'five', 5, 'ten', 6, null, 6, null, 7, 'seven', 7, 'fourteen', 8, 'eight', 8, 'sixteen', 9, null, 9, null, 10, 'ten', 10, 'twenty'],
+    ],
+    'select9.test select9-1.4 union-all order by second column' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2 ORDER BY 2',
+        [3, null, 9, null, 6, null, 3, null, 6, null, 9, null, 8, 'eight', 4, 'eight', 5, 'five', 4, 'four', 2, 'four', 7, 'fourteen', 1, 'one', 7, 'seven', 8, 'sixteen', 10, 'ten', 5, 'ten', 10, 'twenty', 2, 'two', 1, 'two'],
+    ],
+    'select9.test select9-1.5 union-all order by first and second' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2 ORDER BY 1, 2',
+        [1, 'one', 1, 'two', 2, 'four', 2, 'two', 3, null, 3, null, 4, 'eight', 4, 'four', 5, 'five', 5, 'ten', 6, null, 6, null, 7, 'fourteen', 7, 'seven', 8, 'eight', 8, 'sixteen', 9, null, 9, null, 10, 'ten', 10, 'twenty'],
+    ],
+    'select9.test select9-1.6 union-all order by second and first' => [
+        'SELECT a, b FROM t1 UNION ALL SELECT d, e FROM t2 ORDER BY 2, 1',
+        [3, null, 3, null, 6, null, 6, null, 9, null, 9, null, 4, 'eight', 8, 'eight', 5, 'five', 2, 'four', 4, 'four', 7, 'fourteen', 1, 'one', 7, 'seven', 8, 'sixteen', 5, 'ten', 10, 'ten', 10, 'twenty', 1, 'two', 2, 'two'],
+    ],
+];
+
+foreach ($select9CompoundCases as $caseName => [$baseSql, $baseExpected]) {
+    $tests['real upstream corpus select9.test dynamic compound baseline ' . $caseName] = static function (TestRunner $t) use ($caseName, $baseSql, $baseExpected, $select9Tables, $assertSelect): void {
+        $assertSelect($t, $baseSql, $select9Tables, $baseExpected);
+        $t->contains('select9.test', $caseName);
+    };
+
+    $rowCount = intdiv(count($baseExpected), 2);
+    for ($limit = 0; $limit <= $rowCount + 1; $limit++) {
+        for ($offset = 0; $offset <= $rowCount + 1; $offset++) {
+            $expectedWindow = array_slice($baseExpected, $offset * 2, $limit * 2);
+            $testName = sprintf(
+                'real upstream corpus select9.test dynamic compound %s limit %02d offset %02d',
+                $caseName,
+                $limit,
+                $offset
+            );
+
+            $tests[$testName] = static function (TestRunner $t) use ($caseName, $baseSql, $limit, $offset, $expectedWindow, $select9Tables, $assertSelect): void {
+                $sql = $baseSql . ' LIMIT ' . $limit . ($offset === 0 ? '' : ' OFFSET ' . $offset);
+
+                $assertSelect($t, $sql, $select9Tables, $expectedWindow);
+                $t->contains('select9.test', $caseName . ' test_compound_select LIMIT/OFFSET');
+            };
+        }
+    }
+}
+
 return $tests;

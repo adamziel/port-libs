@@ -101,6 +101,41 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index6PartialJoinAndUpdateCases() as
     };
 }
 
+// Source truth: SQLite upstream test/indexA.test sections 2.1 and 3.1. The
+// upstream script repeats the same TEXT/NUMERIC/REAL partial-index affinity
+// matrix for rowid and WITHOUT ROWID tables.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases() as $case) {
+    $tests['real upstream indexA partial affinity matrix ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->same('indexA.test sections 2.1 and 3.1', $case['source']);
+        $t->true($case['batch'] >= 1);
+        $t->true(in_array($case['storage'], ['rowid', 'without-rowid'], true));
+        $t->true(in_array($case['affinity'], ['TEXT', 'NUMERIC', 'REAL'], true));
+        $t->true(in_array($case['table'], ['x1', 'x2', 'x3'], true));
+        $t->same('ok', $case['integrity']);
+        $t->same($case['uses_partial_index'], str_contains($case['detail'], 'USING COVERING INDEX'));
+        if ($case['index_setup'] === 0) {
+            $t->same('', $case['index_name']);
+            $t->same(false, $case['uses_partial_index']);
+            $t->true(str_starts_with($case['detail'], 'SCAN '));
+        } else {
+            $t->same('i' . substr($case['table'], 1), $case['index_name']);
+        }
+        if ($case['affinity'] === 'TEXT') {
+            $t->same(1, count($case['selected_rows']));
+            $t->same(is_float($case['predicate']) ? '2.0' : (string) $case['predicate'], (string) $case['selected_rows'][0]['a']);
+            $t->same('text', $case['selected_rows'][0]['type']);
+        } else {
+            $t->same(2, count($case['selected_rows']));
+            $t->same($case['affinity'] === 'NUMERIC' ? 'integer' : 'real', $case['selected_rows'][0]['type']);
+            $t->same($case['selected_rows'][0]['type'], $case['selected_rows'][1]['type']);
+        }
+        foreach ($case['selected_rows'] as $row) {
+            $t->true(str_ends_with($row['b'], '-' . $case['batch']));
+            $t->true(str_ends_with($row['c'], '-' . $case['batch']));
+        }
+    };
+}
+
 $tests['real upstream btree index dynamic corpus source files are explicit'] = static function (TestRunner $t): void {
     $t->same([
         'btree01.test',
@@ -108,6 +143,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'index.test',
         'index6.test',
         'index9.test',
+        'indexA.test',
         'indexedby.test',
     ], [
         'btree01.test',
@@ -115,6 +151,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'index.test',
         'index6.test',
         'index9.test',
+        'indexA.test',
         'indexedby.test',
     ]);
 };
@@ -126,6 +163,7 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(6, count(SQLiteBTreeIndexDynamicCorpusPlan::indexedByRowidAffinityCases()));
     $t->same(10, count(SQLiteBTreeIndexDynamicCorpusPlan::btree02CursorMutationCases()));
     $t->same(10, count(SQLiteBTreeIndexDynamicCorpusPlan::index6PartialJoinAndUpdateCases()));
+    $t->same(1080, count(SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases()));
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {

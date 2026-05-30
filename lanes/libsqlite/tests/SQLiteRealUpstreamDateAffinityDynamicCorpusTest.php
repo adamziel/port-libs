@@ -239,7 +239,7 @@ for ($upstreamIndex = 512; $upstreamIndex <= 1023; $upstreamIndex++) {
     };
 }
 
-for ($upstreamIndex = 1024; $upstreamIndex <= 1535; $upstreamIndex++) {
+for ($upstreamIndex = 1024; $upstreamIndex <= 24858; $upstreamIndex++) {
     $timestamp = $upstreamIndex * 86390;
     $instant = (new DateTimeImmutable('@' . (string) $timestamp))->setTimezone(new DateTimeZone('UTC'));
     $expected = implode(',', [

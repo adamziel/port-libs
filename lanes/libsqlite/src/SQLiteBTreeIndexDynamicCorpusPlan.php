@@ -697,6 +697,135 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,batch:int,storage:string,index_setup:int,index_predicate:mixed,index_name:string,table:string,affinity:string,predicate:mixed,selected_rows:list<array{a:mixed,b:string,c:string,type:string}>,uses_partial_index:bool,detail:string,integrity:string}>
+     */
+    public static function indexAPartialAffinityMatrixCases(int $batches = 9): array
+    {
+        if ($batches < 1) {
+            throw new \InvalidArgumentException('SQLite indexA dynamic corpus requires at least one batch');
+        }
+
+        $indexPredicates = [
+            0 => null,
+            1 => 2,
+            2 => 2.0,
+            3 => '2.0',
+            4 => '2',
+        ];
+        $predicates = [
+            1 => 2,
+            2 => 2.0,
+            3 => '2',
+            4 => '2.0',
+        ];
+        $affinities = [
+            'x1' => 'TEXT',
+            'x2' => 'NUMERIC',
+            'x3' => 'REAL',
+        ];
+        $storages = [
+            'rowid' => 2,
+            'without-rowid' => 3,
+        ];
+
+        $cases = [];
+        for ($batch = 1; $batch <= $batches; $batch++) {
+            foreach ($storages as $storage => $upstreamGroup) {
+                foreach ($indexPredicates as $indexSetup => $indexPredicate) {
+                    foreach ($affinities as $table => $affinity) {
+                        foreach ($predicates as $predicateSlot => $predicate) {
+                            $selectedRows = self::indexAAffinityRows($affinity, $predicate, $batch);
+                            $usesPartialIndex = $indexSetup !== 0
+                                && self::sqliteCompareEqual($affinity, $indexPredicate, $predicate)
+                                && $selectedRows !== [];
+
+                            $cases[] = [
+                                'upstream' => 'indexA-' . $upstreamGroup . '.1.' . $indexSetup . '.' . $predicateSlot . '.batch-' . $batch,
+                                'source' => 'indexA.test sections 2.1 and 3.1',
+                                'batch' => $batch,
+                                'storage' => $storage,
+                                'index_setup' => $indexSetup,
+                                'index_predicate' => $indexPredicate,
+                                'index_name' => $indexSetup === 0 ? '' : 'i' . substr($table, 1),
+                                'table' => $table,
+                                'affinity' => $affinity,
+                                'predicate' => $predicate,
+                                'selected_rows' => $selectedRows,
+                                'uses_partial_index' => $usesPartialIndex,
+                                'detail' => $usesPartialIndex
+                                    ? 'SEARCH ' . $table . ' USING COVERING INDEX i' . substr($table, 1) . ' (b=? AND c=?)'
+                                    : 'SCAN ' . $table,
+                                'integrity' => 'ok',
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        return $cases;
+    }
+
+    /**
+     * @return list<array{a:mixed,b:string,c:string,type:string}>
+     */
+    private static function indexAAffinityRows(string $affinity, mixed $predicate, int $batch): array
+    {
+        $rows = [
+            ['literal' => '2', 'b' => 'two-' . $batch, 'c' => 'ii-' . $batch],
+            ['literal' => '2.0', 'b' => 'twopointoh-' . $batch, 'c' => 'ii.0-' . $batch],
+        ];
+        $selected = [];
+        foreach ($rows as $row) {
+            $stored = self::indexAStoredValue($affinity, $row['literal']);
+            if (!self::sqliteCompareEqual($affinity, $stored, $predicate)) {
+                continue;
+            }
+            $selected[] = [
+                'a' => $stored,
+                'b' => $row['b'],
+                'c' => $row['c'],
+                'type' => self::indexATypeOf($affinity),
+            ];
+        }
+
+        return $selected;
+    }
+
+    private static function indexAStoredValue(string $affinity, string $literal): int|float|string
+    {
+        return match ($affinity) {
+            'TEXT' => $literal,
+            'NUMERIC' => 2,
+            'REAL' => 2.0,
+            default => throw new \InvalidArgumentException('Unsupported SQLite indexA affinity'),
+        };
+    }
+
+    private static function indexATypeOf(string $affinity): string
+    {
+        return match ($affinity) {
+            'TEXT' => 'text',
+            'NUMERIC' => 'integer',
+            'REAL' => 'real',
+            default => throw new \InvalidArgumentException('Unsupported SQLite indexA affinity'),
+        };
+    }
+
+    private static function sqliteCompareEqual(string $affinity, mixed $left, mixed $right): bool
+    {
+        if ($affinity === 'TEXT') {
+            return (string) $left === (string) $right;
+        }
+
+        if (is_numeric($left) && is_numeric($right)) {
+            return (float) $left === (float) $right;
+        }
+
+        return $left === $right;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

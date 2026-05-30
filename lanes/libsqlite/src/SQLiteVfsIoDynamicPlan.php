@@ -554,6 +554,65 @@ final class SQLiteVfsIoDynamicPlan
         ];
     }
 
+    /**
+     * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
+    public static function atomicPagerCacheRetentionProfile(
+        int $pageSize,
+        int $cacheSize,
+        int $indexedRows,
+        int $payloadBytes,
+        int $tablesModified,
+        array $deviceFlags = ['atomic']
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite atomic pager-cache retention page size must be a power of two at least 512');
+        }
+        if ($cacheSize < 1 || $indexedRows < 1 || $payloadBytes < 1 || $tablesModified < 1) {
+            throw new \InvalidArgumentException('SQLite atomic pager-cache retention requires positive cache, row, payload, and table counts');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $payloadPages = max(1, (int) ceil(($indexedRows * ($payloadBytes + 24)) / $pageSize));
+        $schemaPages = 4;
+        $indexPages = max(1, (int) ceil($payloadPages / 3));
+        $databasePages = $schemaPages + $payloadPages + $indexPages;
+        $databaseFitsCache = $databasePages <= $cacheSize;
+        $atomicAllowed = self::atomicWriteAllowed($flags, $pageSize, $pageSize);
+        $singleTableAtomic = $atomicAllowed && $tablesModified === 1;
+
+        $commitPath = $singleTableAtomic
+            ? 'single_page_atomic_write'
+            : 'rollback_journal_transaction';
+        $pagerCacheFlushed = !$databaseFitsCache || !$atomicAllowed;
+        $corruptionHiddenByCache = $databaseFitsCache && !$pagerCacheFlushed;
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => ['io.test io-6.1', 'io.test io-6.2.1.1-6.2.1.3', 'io.test io-6.2.2.1-6.2.2.3'],
+            'page_size' => $pageSize,
+            'cache_size' => $cacheSize,
+            'indexed_rows' => $indexedRows,
+            'payload_bytes' => $payloadBytes,
+            'tables_modified' => $tablesModified,
+            'device_flags' => $flags,
+            'database_pages' => $databasePages,
+            'database_fits_cache' => $databaseFitsCache,
+            'atomic_write_allowed' => $atomicAllowed,
+            'commit_path' => $commitPath,
+            'pre_commit_integrity' => 'ok',
+            'post_commit_integrity' => $corruptionHiddenByCache ? 'ok' : 'corruption-visible',
+            'pager_cache_flushed_by_commit' => $pagerCacheFlushed,
+            'corrupt_disk_pages' => 2,
+            'corrupt_offset' => $pageSize * 5,
+            'mmap_disabled' => true,
+            'ordered_cache_warmup' => ['rowid', 'index'],
+            'dependencies' => ['upstream-io-atomic-pager-cache-retention', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;

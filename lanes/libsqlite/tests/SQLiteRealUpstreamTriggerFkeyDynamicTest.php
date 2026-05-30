@@ -317,4 +317,219 @@ foreach (range(1, 48) as $offset) {
     };
 }
 
+$shiftRows = static function (int $offset, string $label) use ($baseParents, $baseChildren): array {
+    $parents = [];
+    $children = [];
+    foreach ($baseParents as $row) {
+        $copy = $row;
+        $copy['setting_id'] = (int) $row['setting_id'] + $offset;
+        $copy['key_name'] = $row['key_name'] . '-' . $label;
+        $copy['key_value'] = $row['key_value'] . '-' . $label;
+        $parents[] = $copy;
+    }
+    foreach ($baseChildren as $row) {
+        $copy = $row;
+        $copy['child_id'] = (int) $row['child_id'] + $offset;
+        $copy['setting_id'] = (int) $row['setting_id'] + $offset;
+        $copy['label'] = $row['label'] . '-' . $label;
+        $children[] = $copy;
+    }
+
+    return [$parents, $children];
+};
+
+$fkey2UpdateActions = [
+    ['section' => 'fkey2-4 cascade update', 'on_update' => 'cascade', 'deferred' => false],
+    ['section' => 'fkey2-9 set null update', 'on_update' => 'set null', 'deferred' => false],
+    ['section' => 'fkey2-9 set default update', 'on_update' => 'set default', 'deferred' => false],
+    ['section' => 'fkey2-20 deferred no action update', 'on_update' => 'no action', 'deferred' => true],
+];
+
+foreach (range(1, 100) as $caseId) {
+    foreach ($fkey2UpdateActions as $actionIndex => $case) {
+        $tests['real upstream trigger fkey dynamic broad update corpus ' . $case['section'] . ' case ' . $caseId] = static function (TestRunner $t) use ($shiftRows, $fk, $auditTriggers, $returning, $case, $caseId, $actionIndex): void {
+            $offset = 10000 + ($caseId * 100) + ($actionIndex * 10);
+            [$parents, $children] = $shiftRows($offset, 'broad-update-' . $caseId . '-' . $actionIndex);
+            $targetOne = 1 + $offset;
+            $targetTwo = 2 + $offset;
+            $defaultParent = 9 + $offset;
+            $newOne = $targetOne + 20;
+            $newTwo = $targetTwo + 20;
+            $spec = $fk((string) $case['on_update'], 'no action', (bool) $case['deferred'], $defaultParent);
+
+            $result = SQLiteTriggerForeignKeyReturningPlan::updateParents(
+                $parents,
+                $children,
+                [
+                    'setting_id' => static fn (array $row): int => (int) $row['setting_id'] + 20,
+                    'key_value' => static fn (array $row): string => $row['key_name'] . ':wide-update',
+                    'revision' => static fn (array $row): int => (int) $row['revision'] + $caseId,
+                ],
+                static fn (array $row): bool => in_array($row['setting_id'], [$targetOne, $targetTwo], true),
+                $spec,
+                $case['on_update'] === 'cascade' ? $auditTriggers : [],
+                $returning,
+                'setting_id',
+            );
+
+            $expectedChildKeys = match ($case['on_update']) {
+                'cascade' => [$newOne, $newTwo, 3 + $offset, 4 + $offset, $newOne, $newTwo],
+                'set null' => [null, null, 3 + $offset, 4 + $offset],
+                'set default' => [$defaultParent, $defaultParent, 3 + $offset, 4 + $offset],
+                default => [1 + $offset, 2 + $offset, 3 + $offset, 4 + $offset],
+            };
+            $expectedAction = match ($case['on_update']) {
+                'set null' => 'set-null',
+                'set default' => 'set-default',
+                default => (string) $case['on_update'],
+            };
+
+            $t->same(2, $result['changes']);
+            $t->same([$newOne, $newTwo, 3 + $offset, 4 + $offset, $defaultParent], array_column($result['parent'], 'setting_id'));
+            $t->same($expectedChildKeys, array_column($result['child'], 'setting_id'));
+            $t->same([$expectedAction, $expectedAction], array_column($result['foreign_key_actions'], 'action'));
+            $t->same([$targetOne, $targetTwo], array_column($result['foreign_key_actions'], 'from'));
+            $t->same($case['on_update'] === 'no action' ? [$newOne, $newTwo] : array_slice($expectedChildKeys, 0, 2), array_column($result['foreign_key_actions'], 'to'));
+            $t->same([$targetOne, $targetTwo], array_column($result['yielded'], 'old_key'));
+            $t->same([$newOne, $newTwo], array_column($result['yielded'], 'new_key'));
+            $t->same([$newOne, $newTwo], array_column(array_column($result['yielded'], 'returning'), 'setting_id'));
+            $t->same([$targetOne, $targetTwo], array_column(array_column($result['yielded'], 'returning'), 'old_setting_id'));
+            if ($case['on_update'] === 'no action') {
+                $t->same(6, count($result['foreign_key_violations']));
+                $phaseCounts = array_count_values(array_column($result['foreign_key_violations'], 'phase'));
+                $t->same(3, $phaseCounts['statement'] ?? 0);
+                $t->same(3, $phaseCounts['after-trigger'] ?? 0);
+                $childKeyCounts = array_count_values(array_column($result['foreign_key_violations'], 'child_key'));
+                $t->same(4, $childKeyCounts[$targetOne] ?? 0);
+                $t->same(2, $childKeyCounts[$targetTwo] ?? 0);
+            } else {
+                $t->same([], $result['foreign_key_violations']);
+            }
+            if ($case['on_update'] === 'cascade') {
+                $t->same(['settings_before_update_touch', 'settings_after_update_audit', 'settings_before_update_touch', 'settings_after_update_audit'], array_column($result['trigger_effects'], 'trigger'));
+            } else {
+                $t->same([], $result['trigger_effects']);
+            }
+        };
+    }
+}
+
+$fkey2DeleteActions = [
+    ['section' => 'fkey2-11 cascade delete', 'on_delete' => 'cascade', 'deferred' => false],
+    ['section' => 'fkey2-9 set null delete', 'on_delete' => 'set null', 'deferred' => false],
+    ['section' => 'fkey2-9 set default delete', 'on_delete' => 'set default', 'deferred' => false],
+    ['section' => 'fkey2-20 deferred no action delete', 'on_delete' => 'no action', 'deferred' => true],
+];
+
+foreach (range(1, 100) as $caseId) {
+    foreach ($fkey2DeleteActions as $actionIndex => $case) {
+        $tests['real upstream trigger fkey dynamic broad delete corpus ' . $case['section'] . ' case ' . $caseId] = static function (TestRunner $t) use ($shiftRows, $fk, $auditTriggers, $returning, $case, $caseId, $actionIndex): void {
+            $offset = 30000 + ($caseId * 100) + ($actionIndex * 10);
+            [$parents, $children] = $shiftRows($offset, 'broad-delete-' . $caseId . '-' . $actionIndex);
+            $targetOne = 3 + $offset;
+            $targetTwo = 4 + $offset;
+            $defaultParent = 9 + $offset;
+            $spec = $fk('no action', (string) $case['on_delete'], (bool) $case['deferred'], $defaultParent);
+
+            $result = SQLiteTriggerForeignKeyReturningPlan::deleteParents(
+                $parents,
+                $children,
+                static fn (array $row): bool => in_array($row['setting_id'], [$targetOne, $targetTwo], true),
+                $spec,
+                $case['on_delete'] === 'cascade' ? $auditTriggers : [],
+                $returning,
+                'setting_id',
+            );
+
+            $expectedChildKeys = match ($case['on_delete']) {
+                'cascade' => [1 + $offset, 2 + $offset, null, null],
+                'set null' => [1 + $offset, 2 + $offset, null, null],
+                'set default' => [1 + $offset, 2 + $offset, $defaultParent, $defaultParent],
+                default => [1 + $offset, 2 + $offset, 3 + $offset, 4 + $offset],
+            };
+            $expectedAction = match ($case['on_delete']) {
+                'cascade' => 'cascade-delete',
+                'set null' => 'set-null',
+                'set default' => 'set-default',
+                default => (string) $case['on_delete'],
+            };
+
+            $t->same(2, $result['changes']);
+            $t->same([1 + $offset, 2 + $offset, $defaultParent], array_column($result['parent'], 'setting_id'));
+            $t->same($expectedChildKeys, array_column($result['child'], 'setting_id'));
+            $t->same([$expectedAction, $expectedAction], array_column($result['foreign_key_actions'], 'action'));
+            $t->same([$targetOne, $targetTwo], array_column($result['foreign_key_actions'], 'from'));
+            $t->same($case['on_delete'] === 'set default' ? [$defaultParent, $defaultParent] : [null, null], array_column($result['foreign_key_actions'], 'to'));
+            $t->same([$targetOne, $targetTwo], array_column($result['yielded'], 'old_key'));
+            $t->same([$targetOne, $targetTwo], array_column($result['yielded'], 'new_key'));
+            $t->same([$targetOne, $targetTwo], array_column(array_column($result['yielded'], 'returning'), 'setting_id'));
+            $t->same([$targetOne, $targetTwo], array_column(array_column($result['yielded'], 'returning'), 'old_setting_id'));
+            if ($case['on_delete'] === 'no action') {
+                $t->same(6, count($result['foreign_key_violations']));
+                $phaseCounts = array_count_values(array_column($result['foreign_key_violations'], 'phase'));
+                $t->same(3, $phaseCounts['statement'] ?? 0);
+                $t->same(3, $phaseCounts['after-trigger'] ?? 0);
+                $childKeyCounts = array_count_values(array_column($result['foreign_key_violations'], 'child_key'));
+                $t->same(4, $childKeyCounts[$targetOne] ?? 0);
+                $t->same(2, $childKeyCounts[$targetTwo] ?? 0);
+            } else {
+                $t->same([], $result['foreign_key_violations']);
+            }
+            if ($case['on_delete'] === 'cascade') {
+                $t->same(['settings_after_delete_audit', 'settings_after_delete_audit'], array_column($result['trigger_effects'], 'trigger'));
+                $t->same([$targetOne, $targetTwo], array_column(array_column($result['trigger_effects'], 'row'), 'old_key'));
+            } else {
+                $t->same([], $result['trigger_effects']);
+            }
+        };
+    }
+}
+
+foreach (range(1, 120) as $caseId) {
+    $tests['real upstream trigger fkey dynamic fkey2-1 deferred statement check case ' . $caseId] = static function (TestRunner $t) use ($shiftRows, $fk, $returning, $caseId): void {
+        $offset = 50000 + ($caseId * 50);
+        [$parents, $children] = $shiftRows($offset, 'deferred-statement-' . $caseId);
+        $target = 1 + $offset;
+        $result = SQLiteTriggerForeignKeyReturningPlan::updateParents(
+            $parents,
+            $children,
+            ['setting_id' => static fn (array $row): int => (int) $row['setting_id'] + 1000 + $caseId],
+            static fn (array $row): bool => $row['setting_id'] === $target,
+            $fk('no action', 'no action', true),
+            [],
+            $returning,
+            'setting_id',
+        );
+
+        $t->same(1, $result['changes']);
+        $t->same($target + 1000 + $caseId, $result['parent'][0]['setting_id']);
+        $t->same($target, $result['child'][0]['setting_id']);
+        $t->same(['no action'], array_column($result['foreign_key_actions'], 'action'));
+        $t->same(2, count($result['foreign_key_violations']));
+        $t->same(['statement', 'after-trigger'], array_column($result['foreign_key_violations'], 'phase'));
+        $t->same(1, $result['yielded'][0]['violations_before_after_triggers']);
+        $t->same(1, $result['yielded'][0]['violations_after_triggers']);
+        $t->same($target, $result['yielded'][0]['old_key']);
+        $t->same($target + 1000 + $caseId, $result['yielded'][0]['new_key']);
+    };
+}
+
+foreach (range(1, 80) as $caseId) {
+    $tests['real upstream trigger fkey dynamic fkey2-12 restrict immediate case ' . $caseId] = static function (TestRunner $t) use ($shiftRows, $fk, $caseId): void {
+        $offset = 70000 + ($caseId * 50);
+        [$parents, $children] = $shiftRows($offset, 'restrict-' . $caseId);
+        $target = 1 + $offset;
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerForeignKeyReturningPlan::updateParents(
+            $parents,
+            $children,
+            ['setting_id' => static fn (array $row): int => (int) $row['setting_id'] + 30],
+            static fn (array $row): bool => $row['setting_id'] === $target,
+            $fk('restrict', 'no action', true),
+            [],
+            ['setting_id'],
+            'setting_id',
+        ));
+    };
+}
+
 return $tests;

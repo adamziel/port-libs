@@ -694,7 +694,7 @@ final class SQLiteWal
         }
 
         $remainingCommittedFrameCount = $totalCommittableFrameCount - $checkpointedFrameCount;
-        $readerBlocksCompletion = $remainingCommittedFrameCount > 0 && $readerEndFrame !== null;
+        $readerBlocksCompletion = $mode !== 'noop' && $remainingCommittedFrameCount > 0 && $readerEndFrame !== null;
         $readerBlocksReset = $readerEndFrame !== null && ($mode === 'restart' || $mode === 'truncate');
         $uncommittedFrameCount = $this->uncommittedFrameCount();
         $allCommittedFramesCheckpointed = $lastCommitFrame !== null
@@ -706,6 +706,8 @@ final class SQLiteWal
 
         if ($lastCommitFrame === null) {
             $reason = count($this->frames) === 0 ? 'wal_has_no_frames' : 'no_committed_transaction';
+        } elseif ($mode === 'noop') {
+            $reason = 'noop_checkpoint_does_not_backfill';
         } elseif ($readerBlocksCompletion) {
             $reason = $mode === 'passive' ? 'reader_limited_passive_checkpoint' : 'reader_blocks_checkpoint_completion';
         } elseif ($readerBlocksReset && ($allCommittedFramesCheckpointed || $emptyWal)) {
@@ -714,7 +716,6 @@ final class SQLiteWal
             $reason = 'uncommitted_frames_after_last_commit';
         } else {
             $reason = match ($mode) {
-                'noop' => 'noop_checkpoint_does_not_backfill',
                 'passive' => 'passive_checkpoint_complete',
                 'full' => 'full_checkpoint_complete',
                 'restart' => 'restart_checkpoint_can_reset_wal',
