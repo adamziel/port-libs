@@ -91,6 +91,17 @@ $tests['upstream corpus window groups range current next18 reports sql frame wit
     throw new RuntimeException('Expected SQL GROUPS frame without ORDER BY to be rejected');
 };
 
+$tests['upstream corpus window groups range current next18 reports sql range frame without order'] = static function (TestRunner $t) use ($options): void {
+    try {
+        SQLiteSelectSql::execute('SELECT count(*) OVER (RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) FROM wp_options', ['wp_options' => $options]);
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY', $exception->getMessage());
+        return;
+    }
+
+    throw new RuntimeException('Expected SQL RANGE frame without ORDER BY to be rejected');
+};
+
 $tests['upstream corpus window groups range current next18 plan rejects frame without order'] = static function (TestRunner $t) use ($options): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::plan('SELECT sum(bytes) OVER (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };

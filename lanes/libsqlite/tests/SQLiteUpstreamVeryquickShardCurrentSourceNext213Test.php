@@ -96,7 +96,7 @@ function libsqlite_suite_next213_record(
     ?int $expected = 94,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next213_evidence()->upstreamVeryquickShardCurrentSourceNext213(
+    return libsqlite_suite_next213_evidence()->upstreamVeryquickShardCurrentSourceAdmission(
         $rows,
         623,
         101697,
@@ -109,7 +109,39 @@ function libsqlite_suite_next213_record(
         $output ?? libsqlite_suite_next213_output(),
         'current-source next213 veryquick-shard admission avoids accepted next155/157/159/161/164/166/167/169/171/172/173/174/175/176/177/178/181/184/187/190/194/200/202/209/212 suite evidence, exact-shard next148, queued suite156/160/162/163/165/168/170/182/183/185/186/211 manifest-conflict work, runner106/jsonvt104 rebase work, accepted batch193 behavior surfaces, and live B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE work',
         $expected,
-        $snapshot
+        $snapshot,
+        'current-source-next213-veryquick-shard',
+        'counts_upstream_veryquick_shard_current_source_next213',
+        [
+            'counts_upstream_veryquick_shard_current_source_next212',
+            'counts_upstream_veryquick_shard_current_source_next209',
+            'counts_upstream_veryquick_shard_current_source_next202',
+            'counts_upstream_veryquick_shard_current_source_next200',
+            'counts_upstream_veryquick_shard_current_source_next194',
+            'counts_upstream_veryquick_shard_current_source_next190',
+            'counts_upstream_veryquick_shard_current_source_next187',
+            'counts_upstream_veryquick_shard_current_source_next184',
+            'counts_upstream_veryquick_shard_current_source_next181',
+            'counts_upstream_veryquick_shard_current_source_next178',
+            'counts_upstream_veryquick_shard_current_source_next177',
+            'counts_upstream_veryquick_shard_current_source_next176',
+            'counts_upstream_veryquick_shard_current_source_next175',
+            'counts_upstream_veryquick_shard_current_source_next174',
+            'counts_upstream_veryquick_shard_current_source_next173',
+            'counts_upstream_veryquick_shard_current_source_next172',
+            'counts_upstream_veryquick_shard_current_source_next171',
+            'counts_upstream_veryquick_shard_current_source_next169',
+            'counts_upstream_veryquick_shard_current_source_next167',
+            'counts_upstream_veryquick_shard_current_source_next166',
+            'counts_upstream_veryquick_shard_current_source_next164',
+            'counts_upstream_veryquick_shard_current_source_next161',
+            'counts_upstream_veryquick_shard_current_source_next159',
+            'counts_upstream_veryquick_shard_current_source_next157',
+            'counts_upstream_veryquick_shard_current_source_next155',
+        ],
+        'current-source next213 veryquick shard',
+        'current-source next213 veryquick shard admission',
+        'integration-source provenance'
     );
 }
 

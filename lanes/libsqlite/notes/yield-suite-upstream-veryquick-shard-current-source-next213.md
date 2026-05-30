@@ -3,9 +3,10 @@
 Date: 2026-05-28
 
 This isolated upstream-suite micro-slice does not launch a broad SQLite
-`testfixture`, `make test`, `mptest`, `all`, or `release` run. It adds
-`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceNext213()`,
-which admits one lane-local zero-error guarded veryquick shard row only when
+`testfixture`, `make test`, `mptest`, `all`, or `release` run. It uses
+`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceAdmission()`
+with the next213 status and count-key metadata, which admits one lane-local
+zero-error guarded veryquick shard row only when
 the launcher Base accepted HEAD, current integration source heads, concrete
 `.test` selections, duplicate-runner gate, removed-blocker classification, and
 focused PHP PASS-line output all match the next213 evidence record.
