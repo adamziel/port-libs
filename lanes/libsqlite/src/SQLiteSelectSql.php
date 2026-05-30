@@ -1640,6 +1640,11 @@ final class SQLiteSelectSql
             return $joinGroup;
         }
 
+        $parenthesizedTable = self::parenthesizedTableReference($sql, $tables, $jsonConstraints, $jsonErrorBoundaryColumns, $outerRow);
+        if ($parenthesizedTable !== null) {
+            return $parenthesizedTable;
+        }
+
         $jsonTable = self::jsonTableReference($sql, $jsonErrorBoundaryColumns, $jsonConstraints);
         if ($jsonTable !== null) {
             return $jsonTable;
@@ -1735,6 +1740,46 @@ final class SQLiteSelectSql
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $jsonConstraints
+     * @param list<string> $jsonErrorBoundaryColumns
+     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
+     */
+    private static function parenthesizedTableReference(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): ?array
+    {
+        $sql = trim($sql);
+        if (!str_starts_with($sql, '(')) {
+            return null;
+        }
+
+        [$body, $offset] = self::consumeParenthesized($sql, 0);
+        $body = trim($body);
+        $tail = trim(substr($sql, $offset));
+        if (
+            $body === ''
+            || preg_match('/^(?:select|with|values)\s+/i', $body) === 1
+            || self::firstJoinOffset($body) !== null
+            || count(self::splitTopLevel($body, ',')) > 1
+        ) {
+            return null;
+        }
+
+        $reference = self::tableReference($body, $tables, $jsonConstraints, $jsonErrorBoundaryColumns, $outerRow);
+        if ($tail === '') {
+            return $reference;
+        }
+
+        [$alias, $columns] = self::parenthesizedJoinAlias($tail);
+        if ($columns !== []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL parenthesized table column aliases are not supported');
+        }
+
+        $reference['alias'] = $alias;
+
+        return $reference;
     }
 
     /**

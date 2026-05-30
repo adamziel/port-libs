@@ -511,14 +511,18 @@ final class SQLiteSchemaImportExecutor
         foreach (self::splitCommaTerms($body) as $term) {
             $lower = strtolower($term);
             if (preg_match('/^\s*(constraint\s+(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+)?(primary\s+key|unique)\b/', $lower) === 1) {
-                $signature = self::tableConstraintSignature($term);
-                if (!isset($signatures[$signature])) {
-                    $signatures[$signature] = true;
-                    $count++;
+                foreach (self::tableConstraintSignatures($term) as $signature) {
+                    if (!isset($signatures[$signature])) {
+                        $signatures[$signature] = true;
+                        $count++;
+                    }
                 }
                 continue;
             }
             if (preg_match('/\b(unique|primary\s+key)\b/', $lower) === 1 && preg_match('/^\s*(constraint\b|check\b|foreign\b)/', $lower) !== 1) {
+                if (self::isIntegerPrimaryKeyAliasWithoutUnique($term)) {
+                    continue;
+                }
                 $signature = self::columnConstraintSignature($term);
                 if (!isset($signatures[$signature])) {
                     $signatures[$signature] = true;
@@ -530,14 +534,22 @@ final class SQLiteSchemaImportExecutor
         return $count;
     }
 
-    private static function tableConstraintSignature(string $term): string
+    /**
+     * @return list<string>
+     */
+    private static function tableConstraintSignatures(string $term): array
     {
         $constraint = trim(preg_replace('/^\s*constraint\s+(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+/i', '', $term) ?? $term);
-        if (preg_match('/^(?:primary\s+key|unique)\s*\((?<columns>.*)\)/is', $constraint, $matches) !== 1) {
-            return strtolower(preg_replace('/\s+/', ' ', $constraint) ?? $constraint);
+        if (preg_match_all('/(?:primary\s+key|unique)\s*\((?<columns>[^)]*)\)/i', $constraint, $matches) === 0) {
+            return [strtolower(preg_replace('/\s+/', ' ', $constraint) ?? $constraint)];
         }
 
-        return 'columns:' . implode(',', self::constraintColumnNames($matches['columns']));
+        $signatures = [];
+        foreach ($matches['columns'] as $columns) {
+            $signatures[] = 'columns:' . implode(',', self::constraintColumnNames($columns));
+        }
+
+        return $signatures;
     }
 
     private static function columnConstraintSignature(string $term): string
@@ -548,6 +560,20 @@ final class SQLiteSchemaImportExecutor
         }
 
         return 'columns:' . strtolower($name);
+    }
+
+    private static function isIntegerPrimaryKeyAliasWithoutUnique(string $term): bool
+    {
+        $nameLength = self::leadingIdentifierLength($term);
+        if ($nameLength === 0) {
+            return false;
+        }
+        $tail = trim(substr(trim($term), $nameLength));
+        if (preg_match('/^integer\s+primary\s+key(?:\s+(?:asc|desc))?(?:\s+|$)/i', $tail) !== 1) {
+            return false;
+        }
+
+        return preg_match('/\bunique\b/i', $tail) !== 1;
     }
 
     /**

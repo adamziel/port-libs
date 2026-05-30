@@ -251,4 +251,93 @@ $tests['real upstream corpus upsert5 do-nothing arm rejects assignments'] = stat
     $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeConflictArms($baseRow(), [['a' => 1, 'b' => null, 'c' => 3, 'd' => 4, 'e' => 5]], [['target' => ['a'], 'action' => 'nothing', 'assignments' => ['b' => static fn (): string => 'bad']]], $uniqueConstraints));
 };
 
+for ($variant = 0; $variant < 80; ++$variant) {
+    $offset = $variant * 100;
+    $label = "variant {$variant} offset {$offset}";
+    $seedRows = static fn (): array => [
+        ['a' => 1 + $offset, 'b' => 2 + $offset, 'c' => 0],
+        ['a' => 3 + $offset, 'b' => 4 + $offset, 'c' => 0],
+    ];
+    $upsertRows = static fn (): array => [
+        ['a' => 1 + $offset, 'b' => 8 + $offset, 'c' => 0],
+        ['a' => 2 + $offset, 'b' => 11 + $offset, 'c' => 0],
+        ['a' => 3 + $offset, 'b' => 1 + $offset, 'c' => 0],
+    ];
+    $assignments = [
+        'b' => static fn (array $current, array $incoming): int => (int) $incoming['b'],
+        'c' => static fn (array $current): int => (int) $current['c'] + 1,
+    ];
+    $whereIncreasing = static fn (array $current, array $incoming): bool => $current['b'] < $incoming['b'];
+    $whereNever = static fn (): bool => false;
+    $runUpdate = static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeWithTriggerTrace($seedRows(), $upsertRows(), ['a'], $assignments, $whereIncreasing);
+    $runWithoutRowid = static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeWithTriggerTrace($seedRows(), $upsertRows(), ['a'], $assignments, $whereIncreasing, [['a']]);
+    $runNothing = static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeWithTriggerTrace($seedRows(), [['a' => 1 + $offset, 'b' => 2 + $offset, 'c' => 0]], ['a'], [], null, [['a']], 'nothing');
+    $runFailedWhere = static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeWithTriggerTrace($seedRows(), [['a' => 1 + $offset, 'b' => 2 + $offset, 'c' => 0]], ['a'], ['c' => static fn (array $current): int => (int) $current['c'] + 1], $whereNever);
+
+    $tests["real upstream corpus upsert2-100 DO UPDATE WHERE row image {$label}"] = static function (TestRunner $t) use ($runUpdate, $offset): void {
+        $t->same([
+            ['a' => 1 + $offset, 'b' => 8 + $offset, 'c' => 1],
+            ['a' => 3 + $offset, 'b' => 4 + $offset, 'c' => 0],
+            ['a' => 2 + $offset, 'b' => 11 + $offset, 'c' => 0],
+        ], $runUpdate()['after']);
+    };
+    $tests["real upstream corpus upsert2-100 RETURNING omits failed WHERE row {$label}"] = static function (TestRunner $t) use ($runUpdate, $offset): void {
+        $t->same([1 + $offset, 2 + $offset], array_column($runUpdate()['returning_rows'], 'a'));
+    };
+    $tests["real upstream corpus upsert2-100 changed count {$label}"] = static function (TestRunner $t) use ($runUpdate): void {
+        $t->same(2, $runUpdate()['changes']);
+    };
+    $tests["real upstream corpus upsert2-100 skipped incoming row {$label}"] = static function (TestRunner $t) use ($runUpdate, $offset): void {
+        $t->same([['a' => 3 + $offset, 'b' => 1 + $offset, 'c' => 0]], $runUpdate()['skipped_rows']);
+    };
+    $tests["real upstream corpus upsert2-100 trigger order {$label}"] = static function (TestRunner $t) use ($runUpdate): void {
+        $t->same(['before-insert', 'before-update', 'after-update', 'before-insert', 'after-insert', 'before-insert'], array_column($runUpdate()['trigger_trace'], 'event'));
+    };
+    $tests["real upstream corpus upsert2-100 before update old row {$label}"] = static function (TestRunner $t) use ($runUpdate, $offset): void {
+        $t->same(['a' => 1 + $offset, 'b' => 2 + $offset, 'c' => 0], $runUpdate()['trigger_trace'][1]['old']);
+    };
+    $tests["real upstream corpus upsert2-100 after update new row {$label}"] = static function (TestRunner $t) use ($runUpdate, $offset): void {
+        $t->same(['a' => 1 + $offset, 'b' => 8 + $offset, 'c' => 1], $runUpdate()['trigger_trace'][2]['new']);
+    };
+    $tests["real upstream corpus upsert2-110 WITHOUT ROWID parity {$label}"] = static function (TestRunner $t) use ($runUpdate, $runWithoutRowid): void {
+        $t->same($runUpdate()['after'], $runWithoutRowid()['after']);
+    };
+    $tests["real upstream corpus upsert2-110 WITHOUT ROWID RETURNING parity {$label}"] = static function (TestRunner $t) use ($runUpdate, $runWithoutRowid): void {
+        $t->same($runUpdate()['returning_rows'], $runWithoutRowid()['returning_rows']);
+    };
+    $tests["real upstream corpus upsert2-310 DO NOTHING fires only before insert {$label}"] = static function (TestRunner $t) use ($runNothing): void {
+        $t->same(['before-insert'], array_column($runNothing()['trigger_trace'], 'event'));
+    };
+    $tests["real upstream corpus upsert2-310 DO NOTHING yields no RETURNING row {$label}"] = static function (TestRunner $t) use ($runNothing): void {
+        $t->same([], $runNothing()['returning_rows']);
+    };
+    $tests["real upstream corpus upsert2-320 failed WHERE fires only before insert {$label}"] = static function (TestRunner $t) use ($runFailedWhere): void {
+        $t->same(['before-insert'], array_column($runFailedWhere()['trigger_trace'], 'event'));
+    };
+    $tests["real upstream corpus upsert2-320 failed WHERE leaves target unchanged {$label}"] = static function (TestRunner $t) use ($runFailedWhere, $seedRows): void {
+        $t->same($seedRows(), $runFailedWhere()['after']);
+    };
+    $tests["real upstream corpus upsert2-300 returning projection follows update trigger row {$label}"] = static function (TestRunner $t) use ($runUpdate, $offset): void {
+        $projected = SQLiteUpsertDoUpdateWherePlan::returningRows($runUpdate()['returning_rows'], ['a', 'b', 'c', 'marker' => static fn (array $row): string => 'upsert2:' . (string) $row['a']]);
+        $t->same([
+            ['a' => 1 + $offset, 'b' => 8 + $offset, 'c' => 1, 'marker' => 'upsert2:' . (string) (1 + $offset)],
+            ['a' => 2 + $offset, 'b' => 11 + $offset, 'c' => 0, 'marker' => 'upsert2:' . (string) (2 + $offset)],
+        ], $projected);
+    };
+    $tests["real upstream corpus upsert2 trigger dependencies cite Tcl sections {$label}"] = static function (TestRunner $t) use ($runUpdate): void {
+        $t->same([
+            'sqlite-upsert-trigger-trace',
+            'upsert2.test-100',
+            'upsert2.test-110',
+            'upsert2.test-300',
+            'upsert2.test-310',
+            'upsert2.test-320',
+            'upsert2.test-400',
+            'upsert2.test-410',
+            'upsert2.test-420',
+            'returning1.test-4.5',
+        ], $runUpdate()['dependencies']);
+    };
+}
+
 return $tests;

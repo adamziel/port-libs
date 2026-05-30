@@ -8,31 +8,31 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan;
 $tests = [];
 
 $current239 = [
-    ['option_id' => 1, 'option_name' => 'legacy_plugin_payload', 'option_value' => "plugin_\xe2legacy"],
-    ['option_id' => 2, 'option_name' => 'legacy_plugin_pair', 'option_value' => "plugin_\xe2("],
-    ['option_id' => 3, 'option_name' => 'legacy_plugin_valid_euro', 'option_value' => "plugin_\xe2\x82\xac"],
-    ['option_id' => 4, 'option_name' => 'legacy_plugin_continuation', 'option_value' => "plugin_\x82tail"],
-    ['option_id' => 5, 'option_name' => 'legacy_plugin_other_bad', 'option_value' => "plugin_\xc3("],
-    ['option_id' => 6, 'option_name' => 'legacy_plugin_upper', 'option_value' => "Plugin_\xe2tail"],
-    ['option_id' => 7, 'option_name' => 'numeric_retry', 'option_value' => 42],
-    ['option_id' => 8, 'option_name' => 'float_retry', 'option_value' => 42.5],
-    ['option_id' => 9, 'option_name' => 'blob_payload', 'option_value' => new SQLiteBlobValue("plugin_\xe2blob")],
-    ['option_id' => 10, 'option_name' => 'boolean_retry', 'option_value' => true],
+    ['setting_id' => 1, 'key_name' => 'legacy_plugin_payload', 'key_value' => "plugin_\xe2legacy"],
+    ['setting_id' => 2, 'key_name' => 'legacy_plugin_pair', 'key_value' => "plugin_\xe2("],
+    ['setting_id' => 3, 'key_name' => 'legacy_plugin_valid_euro', 'key_value' => "plugin_\xe2\x82\xac"],
+    ['setting_id' => 4, 'key_name' => 'legacy_plugin_continuation', 'key_value' => "plugin_\x82tail"],
+    ['setting_id' => 5, 'key_name' => 'legacy_plugin_other_bad', 'key_value' => "plugin_\xc3("],
+    ['setting_id' => 6, 'key_name' => 'legacy_plugin_upper', 'key_value' => "Plugin_\xe2tail"],
+    ['setting_id' => 7, 'key_name' => 'numeric_retry', 'key_value' => 42],
+    ['setting_id' => 8, 'key_name' => 'float_retry', 'key_value' => 42.5],
+    ['setting_id' => 9, 'key_name' => 'blob_payload', 'key_value' => new SQLiteBlobValue("plugin_\xe2blob")],
+    ['setting_id' => 10, 'key_name' => 'boolean_retry', 'key_value' => true],
 ];
 
 $next239 = [
-    ['option_id' => 1, 'option_name' => 'legacy_plugin_payload', 'option_value' => "plugin_\xe2legacy2"],
-    ['option_id' => 2, 'option_name' => 'legacy_plugin_pair', 'option_value' => "plugin_\xe2("],
-    ['option_id' => 3, 'option_name' => 'legacy_plugin_truncated_euro', 'option_value' => "plugin_\xe2\x82"],
-    ['option_id' => 4, 'option_name' => 'legacy_plugin_continuation', 'option_value' => "plugin_\x82tail"],
-    ['option_id' => 5, 'option_name' => 'legacy_plugin_other_bad', 'option_value' => "plugin_\xc3("],
-    ['option_id' => 6, 'option_name' => 'legacy_plugin_upper', 'option_value' => "Plugin_\xe2tail"],
-    ['option_id' => 7, 'option_name' => 'numeric_retry', 'option_value' => 42],
-    ['option_id' => 8, 'option_name' => 'float_retry', 'option_value' => 43.5],
-    ['option_id' => 9, 'option_name' => 'blob_payload', 'option_value' => new SQLiteBlobValue("plugin_\xe2blob")],
-    ['option_id' => 10, 'option_name' => 'boolean_retry', 'option_value' => false],
-    ['option_id' => 11, 'option_name' => 'new_legacy_plugin', 'option_value' => "plugin_\xe2new"],
-    ['option_id' => 12, 'option_name' => 'new_valid_utf8', 'option_value' => "plugin_\xe3\x81\x82"],
+    ['setting_id' => 1, 'key_name' => 'legacy_plugin_payload', 'key_value' => "plugin_\xe2legacy2"],
+    ['setting_id' => 2, 'key_name' => 'legacy_plugin_pair', 'key_value' => "plugin_\xe2("],
+    ['setting_id' => 3, 'key_name' => 'legacy_plugin_truncated_euro', 'key_value' => "plugin_\xe2\x82"],
+    ['setting_id' => 4, 'key_name' => 'legacy_plugin_continuation', 'key_value' => "plugin_\x82tail"],
+    ['setting_id' => 5, 'key_name' => 'legacy_plugin_other_bad', 'key_value' => "plugin_\xc3("],
+    ['setting_id' => 6, 'key_name' => 'legacy_plugin_upper', 'key_value' => "Plugin_\xe2tail"],
+    ['setting_id' => 7, 'key_name' => 'numeric_retry', 'key_value' => 42],
+    ['setting_id' => 8, 'key_name' => 'float_retry', 'key_value' => 43.5],
+    ['setting_id' => 9, 'key_name' => 'blob_payload', 'key_value' => new SQLiteBlobValue("plugin_\xe2blob")],
+    ['setting_id' => 10, 'key_name' => 'boolean_retry', 'key_value' => false],
+    ['setting_id' => 11, 'key_name' => 'new_legacy_plugin', 'key_value' => "plugin_\xe2new"],
+    ['setting_id' => 12, 'key_name' => 'new_valid_utf8', 'key_value' => "plugin_\xe3\x81\x82"],
 ];
 
 $plan239 = static fn (
@@ -67,7 +67,7 @@ $valueAt239 = static function (array $value, string $path): mixed {
 $cases239 = [
     'status' => ['status', 'encoding-collation-affinity-glob-current-source-next239'],
     'operator' => ['operator', 'GLOB'],
-    'expression' => ['expression', 'CAST(option_value AS TEXT) GLOB ? /* malformed-byte bracket range current-source fence */'],
+    'expression' => ['expression', 'CAST(key_value AS TEXT) GLOB ? /* malformed-byte bracket range current-source fence */'],
     'pattern' => ['pattern', "plugin_[\xe2-\xe2]*"],
     'pattern hex' => ['patternBytesHex', '706c7567696e5f5be22de25d2a'],
     'pattern tokens' => ['patternTokens', ['70', '6c', '75', '67', '69', '6e', '5f', '5b', 'e2', '2d', 'e2', '5d', '2a']],
@@ -137,9 +137,9 @@ $tests['encoding collation affinity glob current source next239 continuation byt
 
 $tests['encoding collation affinity glob current source next239 question consumes one malformed byte'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => "legacy_\xe2_tail"],
-        ['option_id' => 2, 'option_value' => "legacy_\xe2\x82_tail"],
-        ['option_id' => 3, 'option_value' => "legacy_\xe2\x82\xac_tail"],
+        ['setting_id' => 1, 'key_value' => "legacy_\xe2_tail"],
+        ['setting_id' => 2, 'key_value' => "legacy_\xe2\x82_tail"],
+        ['setting_id' => 3, 'key_value' => "legacy_\xe2\x82\xac_tail"],
     ];
     $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($rows, $rows, 'legacy_?_tail', 'same', 'same', 1, 1);
     $t->same([1, 3], $plan['currentRowids']);
@@ -165,11 +165,11 @@ $tests['encoding collation affinity glob current source next239 binary glob keep
 
 $tests['encoding collation affinity glob current source next239 numeric affinity participates'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 42],
-        ['option_id' => 2, 'option_value' => 42.5],
-        ['option_id' => 3, 'option_value' => true],
-        ['option_id' => 4, 'option_value' => false],
-        ['option_id' => 5, 'option_value' => null],
+        ['setting_id' => 1, 'key_value' => 42],
+        ['setting_id' => 2, 'key_value' => 42.5],
+        ['setting_id' => 3, 'key_value' => true],
+        ['setting_id' => 4, 'key_value' => false],
+        ['setting_id' => 5, 'key_value' => null],
     ];
     $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($rows, $rows, '42*', 'same', 'same', 1, 1);
     $t->same([1, 2], $plan['currentRowids']);
@@ -178,8 +178,8 @@ $tests['encoding collation affinity glob current source next239 numeric affinity
 
 $tests['encoding collation affinity glob current source next239 blob and null remain non matches'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => new SQLiteBlobValue("plugin_\xe2blob")],
-        ['option_id' => 2, 'option_value' => null],
+        ['setting_id' => 1, 'key_value' => new SQLiteBlobValue("plugin_\xe2blob")],
+        ['setting_id' => 2, 'key_value' => null],
     ];
     $plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($rows, $rows, "plugin_[\xe2-\xe2]*", 'same', 'same', 1, 1);
     $t->same([], $plan['currentRowids']);
@@ -194,11 +194,11 @@ $tests['encoding collation affinity glob current source next239 stable cursor re
 };
 
 $tests['encoding collation affinity glob current source next239 rejects missing option value'] = static function (TestRunner $t) use ($next239): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan([['option_id' => 1]], $next239, "plugin_[\xe2-\xe2]*"));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan([['setting_id' => 1]], $next239, "plugin_[\xe2-\xe2]*"));
 };
 
 $tests['encoding collation affinity glob current source next239 rejects non scalar value'] = static function (TestRunner $t) use ($next239): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan([['option_id' => 1, 'option_value' => ['x']]], $next239, "plugin_[\xe2-\xe2]*"));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan([['setting_id' => 1, 'key_value' => ['x']]], $next239, "plugin_[\xe2-\xe2]*"));
 };
 
 return $tests;

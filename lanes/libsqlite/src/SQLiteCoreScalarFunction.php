@@ -1141,6 +1141,9 @@ final class SQLiteCoreScalarFunction
             if ($modifierText === 'unixepoch' || $modifierText === 'julianday' || $modifierText === 'auto' || $modifierText === 'subsec' || $modifierText === 'subsecond') {
                 continue;
             }
+            if ($modifierText === 'utc' || $modifierText === 'localtime') {
+                continue;
+            }
             if ($modifierText === 'floor') {
                 if ($floorCandidate !== null) {
                     $instant = $floorCandidate;

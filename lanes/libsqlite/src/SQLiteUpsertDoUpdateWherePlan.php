@@ -165,6 +165,114 @@ final class SQLiteUpsertDoUpdateWherePlan
 
     /**
      * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $incomingRows
+     * @param list<string> $uniqueColumns
+     * @param array<string,callable(array<string,mixed>,array<string,mixed>):mixed> $assignments
+     * @param callable(array<string,mixed>,array<string,mixed>):bool|null $where
+     * @param list<list<string>>|null $uniqueConstraints
+     * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,trigger_trace:list<array{event:string,row:array<string,mixed>,old?:array<string,mixed>,new?:array<string,mixed>}>,changes:int,dependencies:list<string>}
+     */
+    public static function executeWithTriggerTrace(
+        array $rows,
+        array $incomingRows,
+        array $uniqueColumns,
+        array $assignments,
+        ?callable $where = null,
+        ?array $uniqueConstraints = null,
+        string $conflictAction = 'update',
+    ): array {
+        self::validateRows($rows, 'target');
+        self::validateRows($incomingRows, 'incoming');
+        self::validateUniqueColumns($uniqueColumns);
+        $uniqueConstraints = self::normalizeUniqueConstraints($uniqueColumns, $uniqueConstraints);
+
+        $conflictAction = strtolower($conflictAction);
+        if (!in_array($conflictAction, ['update', 'nothing'], true)) {
+            throw new \InvalidArgumentException('SQLite UPSERT trigger trace conflict action must be update or nothing');
+        }
+        if ($conflictAction === 'update') {
+            self::validateAssignments($assignments);
+        } elseif ($assignments !== []) {
+            throw new \InvalidArgumentException('SQLite UPSERT trigger trace DO NOTHING cannot have assignments');
+        }
+
+        $before = $rows;
+        $inserted = [];
+        $updated = [];
+        $skipped = [];
+        $returning = [];
+        $triggerTrace = [];
+        $changes = 0;
+
+        foreach ($incomingRows as $incoming) {
+            self::ensureColumns($incoming, $uniqueColumns, 'incoming');
+            $triggerTrace[] = ['event' => 'before-insert', 'row' => $incoming];
+
+            $conflictIndex = self::findConflictIndex($rows, $incoming, $uniqueColumns);
+            if ($conflictIndex === null) {
+                self::ensureNoUniqueConflict($rows, $incoming, $uniqueConstraints, null, 'insert');
+                $rows[] = $incoming;
+                $inserted[] = $incoming;
+                $returning[] = $incoming;
+                $triggerTrace[] = ['event' => 'after-insert', 'row' => $incoming];
+                ++$changes;
+                continue;
+            }
+
+            if ($conflictAction === 'nothing') {
+                $skipped[] = $incoming;
+                continue;
+            }
+
+            $current = $rows[$conflictIndex];
+            if ($where !== null && !$where($current, $incoming)) {
+                $skipped[] = $incoming;
+                continue;
+            }
+
+            $updatedRow = $current;
+            foreach ($assignments as $column => $assignment) {
+                $updatedRow[$column] = $assignment($current, $incoming);
+            }
+
+            $otherRows = $rows;
+            unset($otherRows[$conflictIndex]);
+            self::ensureNoUniqueConflict(array_values($otherRows), $updatedRow, $uniqueConstraints, null, 'update');
+
+            $triggerTrace[] = ['event' => 'before-update', 'row' => $updatedRow, 'old' => $current, 'new' => $updatedRow];
+            $rows[$conflictIndex] = $updatedRow;
+            $updated[] = $updatedRow;
+            $returning[] = $updatedRow;
+            $triggerTrace[] = ['event' => 'after-update', 'row' => $updatedRow, 'old' => $current, 'new' => $updatedRow];
+            ++$changes;
+        }
+
+        return [
+            'before' => $before,
+            'after' => array_values($rows),
+            'inserted_rows' => $inserted,
+            'updated_rows' => $updated,
+            'skipped_rows' => $skipped,
+            'returning_rows' => $returning,
+            'trigger_trace' => $triggerTrace,
+            'changes' => $changes,
+            'dependencies' => [
+                'sqlite-upsert-trigger-trace',
+                'upsert2.test-100',
+                'upsert2.test-110',
+                'upsert2.test-300',
+                'upsert2.test-310',
+                'upsert2.test-320',
+                'upsert2.test-400',
+                'upsert2.test-410',
+                'upsert2.test-420',
+                'returning1.test-4.5',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
      * @param list<string|callable(array<string,mixed>):mixed>|array<string,string|callable(array<string,mixed>):mixed>|null $projection
      * @return list<array<string,mixed>>
      */

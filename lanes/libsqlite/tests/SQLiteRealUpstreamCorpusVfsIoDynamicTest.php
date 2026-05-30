@@ -220,6 +220,101 @@ $tests['real upstream corpus vfs io dynamic io rejects unsupported traffic optio
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::ioTrafficPlan([], 1, 'delete', 'extra'));
 };
 
+$cacheSpillProfiles = [];
+foreach ([1024, 2048, 4096] as $pageSize) {
+    foreach ([4, 7, 10, 13, 16, 20] as $cacheSize) {
+        foreach ([21, 33, 41, 57, 73, 89] as $statementPages) {
+            foreach ([
+                'sequential' => ['sequential'],
+                'safe_append' => ['safe_append'],
+                'safe_append_sequential' => ['safe_append', 'sequential'],
+                'ordinary' => [],
+            ] as $label => $flags) {
+                $cacheSpillProfiles[] = [$label, $flags, $pageSize, $cacheSize, $statementPages, 'full', true];
+            }
+        }
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic cache spill sync matrix follows io 3 and io 4'] = static function (TestRunner $t) use ($cacheSpillProfiles): void {
+    foreach ($cacheSpillProfiles as [$label, $flags, $pageSize, $cacheSize, $statementPages, $syncMode, $directorySync]) {
+        $profile = SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile($flags, $pageSize, $cacheSize, $statementPages, $syncMode, false, $directorySync);
+        $sequential = in_array('sequential', $flags, true);
+        $safeAppend = in_array('safe_append', $flags, true);
+        $expectedSyncSequence = [];
+        if ($directorySync) {
+            $expectedSyncSequence[] = 'directory';
+        }
+        if (!$sequential) {
+            $expectedSyncSequence[] = 'journal-pages';
+        }
+        if (!$safeAppend && !$sequential) {
+            $expectedSyncSequence[] = 'journal-header';
+        }
+        $expectedSyncSequence[] = 'database';
+
+        $t->same('ok', $profile['status']);
+        $t->same('io.test', $profile['script']);
+        $t->same($flags, $profile['device_flags']);
+        $t->same($pageSize, $profile['page_size']);
+        $t->same($cacheSize, $profile['cache_size']);
+        $t->same($statementPages, $profile['statement_pages']);
+        $t->same($syncMode, $profile['sync_mode']);
+        $t->same($directorySync, $profile['directory_sync']);
+        $t->same(false, $profile['reserved_bytes']);
+        $t->same($sequential, $profile['sequential_optimization']);
+        $t->same($safeAppend, $profile['safe_append_optimization']);
+        $t->same(intdiv($statementPages - 1, $cacheSize), $profile['cache_spills']);
+        $t->same(true, $profile['file_grew_during_spill']);
+        $t->same($sequential ? 0 : max(1, $profile['cache_spills']), $profile['precommit_syncs']);
+        $t->same($sequential ? 1 : count($expectedSyncSequence), $profile['commit_syncs']);
+        $t->same($expectedSyncSequence, $profile['sync_sequence']);
+        $t->same($safeAppend ? 0xffffffff : null, $profile['journal_header_nrec']);
+        $t->same($safeAppend ? 1 : max(1, 1 + $profile['cache_spills']), $profile['journal_header_count']);
+        $t->same(512, $profile['journal_header_bytes']);
+        $t->same($pageSize + 8, $profile['page_record_bytes']);
+        $t->same(512 + (($pageSize + 8) * $statementPages), $profile['journal_file_bytes']);
+        $t->same(0, $profile['database_bytes_after_spill'] % $pageSize);
+        $t->same($sequential ? 39936 : $profile['database_bytes_after_spill'], $profile['database_bytes_after_commit']);
+        $t->same($sequential ? 'sequential_device_defers_spill_syncs_until_commit' : ($safeAppend ? 'safe_append_uses_single_journal_header_across_spills' : 'full_sync_journal_headers_may_repeat_after_spills'), $profile['reason']);
+        $t->same(true, in_array('io.test io-3.2', $profile['upstream'], true));
+        $t->same(true, in_array('io.test io-3.3', $profile['upstream'], true));
+        $t->same(true, in_array('io.test io-4.3.4', $profile['upstream'], true));
+        $t->same(true, in_array('upstream-io-cache-spill-sync', $profile['dependencies'], true));
+        $t->same(true, in_array('upstream-io-safe-append-journal-size', $profile['dependencies'], true));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $profile['dependencies'], true));
+        $t->same(true, in_array($label, ['sequential', 'safe_append', 'safe_append_sequential', 'ordinary'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic cache spill sync handles reserved bytes and sync off'] = static function (TestRunner $t): void {
+    $reserved = SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile(['sequential'], 1024, 10, 41, 'full', true);
+    $off = SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile(['safe_append'], 1024, 10, 41, 'off');
+    $noDirSync = SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile(['safe_append'], 1024, 10, 41, 'normal', false, false);
+
+    $t->same(40960, $reserved['database_bytes_after_commit']);
+    $t->same(0, $reserved['precommit_syncs']);
+    $t->same(1, $reserved['commit_syncs']);
+    $t->same([], $off['sync_sequence']);
+    $t->same(0, $off['commit_syncs']);
+    $t->same(0, $off['precommit_syncs']);
+    $t->same(['journal-pages', 'database'], $noDirSync['sync_sequence']);
+    $t->same(2, $noDirSync['commit_syncs']);
+    $t->same(0xffffffff, $noDirSync['journal_header_nrec']);
+    $t->same(1, $noDirSync['journal_header_count']);
+    $t->same(true, in_array('io.test io-4.1', $noDirSync['upstream'], true));
+    $t->same(true, in_array('io.test io-4.2.2', $noDirSync['upstream'], true));
+    $t->same(true, in_array('io.test io-3.3', $reserved['upstream'], true));
+};
+
+$tests['real upstream corpus vfs io dynamic cache spill sync rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile([], 1000, 10, 41));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile([], 1024, 0, 41));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile([], 1024, 10, 0));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile(['bad'], 1024, 10, 41));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::cacheSpillSyncProfile([], 1024, 10, 41, 'extra'));
+};
+
 $atomicVisibilityCases = [];
 foreach (range(1, 42) as $case) {
     $committedRows = [

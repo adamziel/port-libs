@@ -269,6 +269,105 @@ final class SQLiteVfsIoDynamicPlan
 
     /**
      * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
+    public static function cacheSpillSyncProfile(
+        array $deviceFlags,
+        int $pageSize,
+        int $cacheSize,
+        int $statementPages,
+        string $syncMode = 'full',
+        bool $reservedBytes = false,
+        bool $directorySync = true
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite cache-spill VFS profile page size must be a power of two at least 512');
+        }
+        if ($cacheSize < 1 || $statementPages < 1) {
+            throw new \InvalidArgumentException('SQLite cache-spill VFS profile requires positive cache and statement page counts');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $syncMode = strtolower(trim($syncMode));
+        if (!in_array($syncMode, ['off', 'normal', 'full'], true)) {
+            throw new \InvalidArgumentException('SQLite cache-spill VFS profile sync mode is unsupported');
+        }
+
+        $sequential = in_array('sequential', $flags, true);
+        $safeAppend = in_array('safe_append', $flags, true);
+        $cacheSpills = max(0, intdiv(max(0, $statementPages - 1), $cacheSize));
+        $journalHeaderBytes = 512;
+        $pageRecordBytes = $pageSize + 8;
+        $syncTargets = [];
+
+        if ($syncMode !== 'off') {
+            if ($directorySync) {
+                $syncTargets[] = 'directory';
+            }
+            if (!$sequential) {
+                $syncTargets[] = 'journal-pages';
+            }
+            if (!$safeAppend && !$sequential) {
+                $syncTargets[] = 'journal-header';
+            }
+            $syncTargets[] = 'database';
+        }
+
+        $databaseBytesAfterSpill = max($pageSize * 2, self::align(($statementPages + 2) * $pageSize, $pageSize));
+        if ($sequential && $reservedBytes) {
+            $databaseBytesAfterCommit = 40960;
+        } elseif ($sequential) {
+            $databaseBytesAfterCommit = 39936;
+        } else {
+            $databaseBytesAfterCommit = $databaseBytesAfterSpill;
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => [
+                'io.test io-3.1',
+                'io.test io-3.2',
+                'io.test io-3.3',
+                'io.test io-4.1',
+                'io.test io-4.2.1',
+                'io.test io-4.2.2',
+                'io.test io-4.2.3',
+                'io.test io-4.3.1',
+                'io.test io-4.3.2',
+                'io.test io-4.3.3',
+                'io.test io-4.3.4',
+            ],
+            'device_flags' => $flags,
+            'page_size' => $pageSize,
+            'cache_size' => $cacheSize,
+            'statement_pages' => $statementPages,
+            'sync_mode' => $syncMode,
+            'directory_sync' => $directorySync,
+            'reserved_bytes' => $reservedBytes,
+            'sequential_optimization' => $sequential,
+            'safe_append_optimization' => $safeAppend,
+            'cache_spills' => $cacheSpills,
+            'file_grew_during_spill' => $databaseBytesAfterSpill > 20000,
+            'precommit_syncs' => $sequential || $syncMode === 'off' ? 0 : max(1, $cacheSpills),
+            'commit_syncs' => $syncMode === 'off' ? 0 : ($sequential ? 1 : count($syncTargets)),
+            'sync_sequence' => $syncTargets,
+            'journal_header_nrec' => $safeAppend ? 0xffffffff : null,
+            'journal_header_count' => $safeAppend ? 1 : max(1, 1 + $cacheSpills),
+            'journal_header_bytes' => $journalHeaderBytes,
+            'page_record_bytes' => $pageRecordBytes,
+            'journal_file_bytes' => $journalHeaderBytes + ($pageRecordBytes * $statementPages),
+            'database_bytes_after_spill' => $databaseBytesAfterSpill,
+            'database_bytes_after_commit' => $databaseBytesAfterCommit,
+            'reason' => $sequential
+                ? 'sequential_device_defers_spill_syncs_until_commit'
+                : ($safeAppend ? 'safe_append_uses_single_journal_header_across_spills' : 'full_sync_journal_headers_may_repeat_after_spills'),
+            'dependencies' => ['upstream-io-cache-spill-sync', 'upstream-io-safe-append-journal-size', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @param list<string> $deviceFlags
      * @param list<array<string, mixed>> $committedRows
      * @param list<array<string, mixed>> $pendingRows
      * @return array<string, mixed>

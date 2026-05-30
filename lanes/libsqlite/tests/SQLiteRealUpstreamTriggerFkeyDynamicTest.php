@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PortLibs\LibSqlite\SQLiteForeignKeyDeferredCascadePlan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerForeignKeyReturningPlan;
 
 $tests = [];
@@ -529,6 +531,203 @@ foreach (range(1, 80) as $caseId) {
             ['setting_id'],
             'setting_id',
         ));
+    };
+}
+
+$fkdynRows = static function (int $seed): array {
+    $parents = [];
+    $children = [];
+    for ($i = 1; $i <= 6; $i++) {
+        $key = ($seed * 100) + $i;
+        $parents[] = ['setting_id' => $key, 'label' => 'parent-' . $key, 'rank' => $i];
+        $children[] = ['child_id' => ($seed * 1000) + $i, 'parent_setting_id' => $key, 'payload' => 'child-' . $key];
+    }
+    $children[] = ['child_id' => ($seed * 1000) + 99, 'parent_setting_id' => null, 'payload' => 'null-child'];
+
+    return ['parents' => $parents, 'children' => $children];
+};
+
+$fkdynColumn = static fn (array $rows, string $name): array => array_map(static fn (array $row): mixed => $row[$name] ?? null, $rows);
+
+$fkdynRowForKey = static function (array $rows, string $column, mixed $key): ?array {
+    foreach ($rows as $row) {
+        if (($row[$column] ?? null) === $key) {
+            return $row;
+        }
+    }
+
+    return null;
+};
+
+$fkdynUpdateSpec = [
+    'parent_key' => 'setting_id',
+    'child_key' => 'parent_setting_id',
+    'on_update' => 'CASCADE',
+    'deferred' => true,
+];
+$fkdynDeleteSpec = [
+    'parent_key' => 'setting_id',
+    'child_key' => 'parent_setting_id',
+    'on_delete' => 'CASCADE',
+    'deferred' => true,
+];
+
+$tests['real upstream corpus fkey2.test and trigger tests cite hydrated sources'] = static function (TestRunner $t): void {
+    $t->contains('/test/fkey2.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/fkey2.test');
+    $t->contains('/test/trigger1.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/trigger1.test');
+    $t->contains('/test/triggerB.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/triggerB.test');
+    $t->contains('/test/triggerC.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/triggerC.test');
+    $t->same('dynamic trigger/FK corpus', 'dynamic trigger/FK corpus');
+};
+
+$fkdynActions = ['CASCADE', 'SET NULL', 'SET DEFAULT', 'NO ACTION'];
+for ($seed = 1; $seed <= 125; $seed++) {
+    foreach ($fkdynActions as $action) {
+        $tests[sprintf('real upstream corpus fkey2.test fkey2-1/fkey2-9 dynamic delete action %s seed %03d', strtolower(str_replace(' ', '-', $action)), $seed)] = static function (TestRunner $t) use ($fkdynRows, $fkdynColumn, $fkdynDeleteSpec, $action, $seed): void {
+            $rows = $fkdynRows($seed);
+            $deletedKey = ($seed * 100) + (($seed % 6) + 1);
+            $spec = $fkdynDeleteSpec;
+            $spec['on_delete'] = $action;
+            $spec['child_default'] = 0;
+            $result = SQLiteForeignKeyDeferredCascadePlan::deleteParents($rows['parents'], $rows['children'], [['setting_id' => $deletedKey]], $spec);
+
+            $t->same(false, in_array($deletedKey, $fkdynColumn($result['parent'], 'setting_id'), true), 'parent row deleted');
+            $t->same('delete-parent', $result['deferred'][0]['operation'], 'deferred parent delete queued');
+            $t->same(strtolower($action), $result['deferred'][0]['action'], 'action normalized like fkey2.test');
+            if ($action === 'CASCADE') {
+                $t->same(false, in_array($deletedKey, $fkdynColumn($result['child'], 'parent_setting_id'), true), 'cascade removes referencing child');
+                $t->same('cascade-delete-child', $result['commit_actions'][0]['action'], 'cascade action recorded');
+            } elseif ($action === 'SET NULL') {
+                $t->same(true, in_array(null, $fkdynColumn($result['child'], 'parent_setting_id'), true), 'set null rewrites referencing child');
+                $t->same('set-null-child', $result['commit_actions'][0]['action'], 'set null action recorded');
+            } elseif ($action === 'SET DEFAULT') {
+                $t->same(true, in_array(0, $fkdynColumn($result['child'], 'parent_setting_id'), true), 'set default rewrites referencing child');
+                $t->same('set-default-child', $result['commit_actions'][0]['action'], 'set default action recorded');
+            } else {
+                $t->same($deletedKey, $result['violations'][0]['child_key'], 'no action defers missing parent violation');
+                $t->same([], $result['commit_actions'], 'no action records no child rewrite');
+            }
+            $t->same([], array_values(array_filter($result['child'], static fn (array $child): bool => ($child['parent_setting_id'] ?? null) === 'missing')), 'no synthetic child keys');
+        };
+    }
+}
+
+for ($seed = 1; $seed <= 125; $seed++) {
+    foreach ($fkdynActions as $action) {
+        $tests[sprintf('real upstream corpus fkey2.test fkey2-4/fkey2-11 dynamic update action %s seed %03d', strtolower(str_replace(' ', '-', $action)), $seed)] = static function (TestRunner $t) use ($fkdynRows, $fkdynColumn, $fkdynUpdateSpec, $action, $seed): void {
+            $rows = $fkdynRows($seed);
+            $oldKey = ($seed * 100) + (($seed % 6) + 1);
+            $newKey = $oldKey + 7000;
+            $spec = $fkdynUpdateSpec;
+            $spec['on_update'] = $action;
+            $spec['child_default'] = 0;
+            $result = SQLiteForeignKeyDeferredCascadePlan::updateParents($rows['parents'], $rows['children'], [['setting_id' => $oldKey, 'new' => $newKey]], $spec);
+
+            $t->same(true, in_array($newKey, $fkdynColumn($result['parent'], 'setting_id'), true), 'parent key updated');
+            $t->same('update-parent', $result['deferred'][0]['operation'], 'deferred parent update queued');
+            $t->same(strtolower($action), $result['deferred'][0]['action'], 'update action normalized like fkey2.test');
+            if ($action === 'CASCADE') {
+                $t->same(true, in_array($newKey, $fkdynColumn($result['child'], 'parent_setting_id'), true), 'cascade updates referencing child');
+                $t->same('cascade-update-child', $result['commit_actions'][0]['action'], 'cascade update action recorded');
+            } elseif ($action === 'SET NULL') {
+                $t->same(true, in_array(null, $fkdynColumn($result['child'], 'parent_setting_id'), true), 'set null update rewrites referencing child');
+                $t->same('set-null-child', $result['commit_actions'][0]['action'], 'set null update action recorded');
+            } elseif ($action === 'SET DEFAULT') {
+                $t->same(true, in_array(0, $fkdynColumn($result['child'], 'parent_setting_id'), true), 'set default update rewrites referencing child');
+                $t->same('set-default-child', $result['commit_actions'][0]['action'], 'set default update action recorded');
+            } else {
+                $t->same($oldKey, $result['violations'][0]['child_key'], 'no action update defers old child key violation');
+                $t->same([], $result['commit_actions'], 'no action update records no child rewrite');
+            }
+            $t->same($action === 'NO ACTION' ? 1 : 2, $result['changes'], 'parent update plus FK-visible child rewrite when the action rewrites children');
+        };
+    }
+}
+
+for ($seed = 1; $seed <= 250; $seed++) {
+    $tests[sprintf('real upstream corpus triggerB.test recursive after update cascades FK queue seed %03d', $seed)] = static function (TestRunner $t) use ($fkdynRows, $fkdynColumn, $fkdynUpdateSpec, $seed): void {
+        $rows = $fkdynRows($seed);
+        $first = ($seed * 100) + 1;
+        $second = ($seed * 100) + 2;
+        $result = SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents(
+            $rows['parents'],
+            $rows['children'],
+            [['match' => $first, 'set' => ['setting_id' => $first + 8000]]],
+            $fkdynUpdateSpec,
+            [[
+                'name' => 'after_parent_update_enqueue_next',
+                'timing' => 'after',
+                'event' => 'update',
+                'action' => 'enqueue-update',
+                'match' => $second,
+                'set' => ['setting_id' => $second + 9000],
+            ]],
+            ['setting_id'],
+            ['current_source' => 'triggerB.test', 'next_source' => 'fkey2.test']
+        );
+
+        $t->same([$first + 8000, $second + 9000], array_slice($fkdynColumn($result['returning_rows'], 'setting_id'), 0, 2), 'recursive trigger yielded parent keys in queue order');
+        $t->same([$first + 8000, $second + 9000], array_values(array_filter($fkdynColumn($result['child'], 'parent_setting_id'), static fn (mixed $value): bool => $value === $first + 8000 || $value === $second + 9000)), 'FK cascade follows recursive trigger updates');
+        $t->same(['cascade', 'cascade'], $fkdynColumn($result['foreign_key_actions'], 'action'), 'two FK cascades recorded');
+        $t->same('after_parent_update_enqueue_next', $result['trigger_effects'][0]['trigger'], 'after trigger fired');
+        $t->same('ok', $result['commit_status'], 'deferred FK check succeeds at commit');
+    };
+}
+
+for ($seed = 1; $seed <= 250; $seed++) {
+    $tests[sprintf('real upstream corpus triggerC.test delete trigger interacts with fkey2 cascade seed %03d', $seed)] = static function (TestRunner $t) use ($fkdynRows, $fkdynColumn, $fkdynDeleteSpec, $seed): void {
+        $rows = $fkdynRows($seed);
+        $first = ($seed * 100) + 1;
+        $second = ($seed * 100) + 2;
+        $result = SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::deleteParents(
+            $rows['parents'],
+            $rows['children'],
+            [$first],
+            $fkdynDeleteSpec,
+            [[
+                'name' => 'after_parent_delete_enqueue_next',
+                'timing' => 'after',
+                'event' => 'delete',
+                'action' => 'enqueue-delete',
+                'match' => $second,
+            ]],
+            ['current_source' => 'triggerC.test', 'next_source' => 'fkey2.test']
+        );
+
+        $t->same([$first, $second], $result['deleted_parent_keys'], 'recursive delete queue order');
+        $t->same(false, in_array($first, $fkdynColumn($result['child'], 'parent_setting_id'), true), 'first child cascaded away');
+        $t->same(false, in_array($second, $fkdynColumn($result['child'], 'parent_setting_id'), true), 'trigger-deleted child cascaded away');
+        $t->same(['cascade', 'cascade'], $fkdynColumn($result['foreign_key_actions'], 'action'), 'two delete cascades recorded');
+        $t->same('ok', $result['commit_status'], 'deferred delete FK check succeeds at commit');
+    };
+}
+
+for ($seed = 1; $seed <= 125; $seed++) {
+    $tests[sprintf('real upstream corpus trigger1.test returning rows freeze before after-trigger side effects seed %03d', $seed)] = static function (TestRunner $t) use ($fkdynRows, $fkdynRowForKey, $fkdynUpdateSpec, $seed): void {
+        $rows = $fkdynRows($seed);
+        $key = ($seed * 100) + 3;
+        $result = SQLiteTriggerForeignKeyReturningPlan::updateParents(
+            $rows['parents'],
+            $rows['children'],
+            ['setting_id' => $key + 5000, 'label' => 'returned-label'],
+            static fn (array $row): bool => $row['setting_id'] === $key,
+            $fkdynUpdateSpec,
+            [[
+                'name' => 'after_update_child_audit',
+                'timing' => 'after',
+                'event' => 'update',
+                'action' => 'insert-child',
+                'row' => ['child_id' => $seed + 70000, 'parent_setting_id' => 'new.parent_key', 'payload' => 'audit'],
+            ]],
+            ['setting_id', 'label'],
+            'setting_id'
+        );
+
+        $t->same(['setting_id' => $key + 5000, 'label' => 'returned-label'], $result['yielded'][0]['returning'], 'RETURNING image is statement image');
+        $t->same('after_update_child_audit', $result['trigger_effects'][0]['trigger'], 'after trigger effect recorded');
+        $t->same($key + 5000, $fkdynRowForKey($result['child'], 'child_id', $seed + 70000)['parent_setting_id'] ?? null, 'after trigger inserted child using NEW key');
+        $t->same('cascade', $result['foreign_key_actions'][0]['action'], 'FK cascade precedes after trigger audit row');
+        $t->same(1, $result['changes'], 'one parent update counted');
     };
 }
 

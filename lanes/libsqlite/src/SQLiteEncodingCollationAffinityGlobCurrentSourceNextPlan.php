@@ -68,7 +68,7 @@ final class SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan
         return [
             'status' => 'encoding-collation-affinity-glob-current-source-next239',
             'operator' => 'GLOB',
-            'expression' => 'CAST(option_value AS TEXT) GLOB ? /* malformed-byte bracket range current-source fence */',
+            'expression' => 'CAST(key_value AS TEXT) GLOB ? /* malformed-byte bracket range current-source fence */',
             'pattern' => $pattern,
             'patternBytesHex' => bin2hex($pattern),
             'patternTokens' => self::tokenHexList($pattern),
@@ -122,20 +122,20 @@ final class SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan
     {
         $matched = [];
         foreach ($rows as $index => $row) {
-            if (!array_key_exists('option_value', $row)) {
-                throw new \InvalidArgumentException('SQLite malformed-byte GLOB next239 row requires option_value');
+            if (!array_key_exists('key_value', $row)) {
+                throw new \InvalidArgumentException('SQLite malformed-byte GLOB next239 row requires key_value');
             }
-            $text = self::coerceText($row['option_value']);
+            $text = self::coerceText($row['key_value']);
             if ($text === null || !SQLiteDatabase::globMatches($text, $pattern)) {
                 continue;
             }
             $matched[] = [
-                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'rowid' => is_int($row['setting_id'] ?? null) ? $row['setting_id'] : $index + 1,
                 'bytesHex' => bin2hex($text),
                 'tokenCount' => self::sqlitePatternLength($text),
                 'patternTokens' => self::tokenHexList($text),
                 'malformed' => preg_match('//u', $text) !== 1,
-                'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                'storage' => SQLiteAffinityComparison::storageClass($row['key_value']),
                 'payload' => $row,
             ];
         }
@@ -163,7 +163,7 @@ final class SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan
             return $value ? '1' : '0';
         }
 
-        throw new \InvalidArgumentException('SQLite malformed-byte GLOB next239 option_value must be scalar text-affinity input');
+        throw new \InvalidArgumentException('SQLite malformed-byte GLOB next239 key_value must be scalar text-affinity input');
     }
 
     /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */

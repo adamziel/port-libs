@@ -7,19 +7,19 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan;
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'legacy_plugin_payload', 'option_value' => "plugin_\xe2legacy"],
-    ['option_id' => 2, 'option_name' => 'legacy_plugin_pair', 'option_value' => "plugin_\xe2("],
-    ['option_id' => 3, 'option_name' => 'legacy_plugin_valid_euro', 'option_value' => "plugin_\xe2\x82\xac"],
+    ['setting_id' => 1, 'key_name' => 'legacy_plugin_payload', 'key_value' => "plugin_\xe2legacy"],
+    ['setting_id' => 2, 'key_name' => 'legacy_plugin_pair', 'key_value' => "plugin_\xe2("],
+    ['setting_id' => 3, 'key_name' => 'legacy_plugin_valid_euro', 'key_value' => "plugin_\xe2\x82\xac"],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'legacy_plugin_payload', 'option_value' => "plugin_\xe2legacy2"],
-    ['option_id' => 2, 'option_name' => 'legacy_plugin_pair', 'option_value' => "plugin_\xe2("],
-    ['option_id' => 3, 'option_name' => 'legacy_plugin_truncated_euro', 'option_value' => "plugin_\xe2\x82"],
-    ['option_id' => 4, 'option_name' => 'new_legacy_plugin', 'option_value' => "plugin_\xe2new"],
+    ['setting_id' => 1, 'key_name' => 'legacy_plugin_payload', 'key_value' => "plugin_\xe2legacy2"],
+    ['setting_id' => 2, 'key_name' => 'legacy_plugin_pair', 'key_value' => "plugin_\xe2("],
+    ['setting_id' => 3, 'key_name' => 'legacy_plugin_truncated_euro', 'key_value' => "plugin_\xe2\x82"],
+    ['setting_id' => 4, 'key_name' => 'new_legacy_plugin', 'key_value' => "plugin_\xe2new"],
 ];
 
-$plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::optionRowValueMalformedGlobPlan(
+$plan = SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan(
     $currentRows,
     $nextRows,
     "plugin_[\xe2-\xe2]*",

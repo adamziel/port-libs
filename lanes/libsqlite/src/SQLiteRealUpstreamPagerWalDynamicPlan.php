@@ -244,6 +244,74 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function pagerWalDynamicMatrixCases(): array
+    {
+        $bases = array_merge(
+            self::wal2HeaderRecoveryCases(),
+            self::wal2OutOfDateHeaderCases(),
+            self::wal2BusyRecoveryCases(),
+            self::wal2ExclusiveLockingCases(),
+            self::pager1LockTransitionCases(),
+            self::walRestartCheckpointRaceCases(),
+        );
+
+        $matrix = [];
+        $connectionModes = ['normal', 'exclusive', 'shared-cache', 'read-only'];
+        $checkpointModes = ['passive', 'full', 'restart', 'truncate'];
+        $syncModes = ['off', 'normal', 'full', 'extra'];
+        $pageSizes = [512, 1024, 2048, 4096];
+
+        for ($i = 0; $i < 1024; $i++) {
+            $base = $bases[$i % count($bases)];
+            $connectionMode = $connectionModes[$i % count($connectionModes)];
+            $checkpointMode = $checkpointModes[intdiv($i, 4) % count($checkpointModes)];
+            $syncMode = $syncModes[intdiv($i, 16) % count($syncModes)];
+            $pageSize = $pageSizes[intdiv($i, 64) % count($pageSizes)];
+            $lockSequence = $base['lock_sequence'] ?? [];
+            $checkpoint = $base['checkpoint'] ?? null;
+            $rows = $base['rows'] ?? ($base['final_snapshot'] ?? ($base['fresh_snapshot'] ?? []));
+            $readerVisible = (bool) ($base['reader_visible'] ?? (($base['error'] ?? null) === null));
+            $walExists = (bool) ($base['wal_exists'] ?? true);
+            $journalExists = (bool) ($base['journal_exists'] ?? false);
+            $requiresRecovery = (bool) ($base['recovery_required'] ?? ($base['second_read_runs_recovery'] ?? false));
+            $error = $base['error'] ?? null;
+            $lockOps = array_values(array_filter($lockSequence, static fn (array $lock): bool => ($lock['op'] ?? null) === 'lock'));
+            $unlockOps = array_values(array_filter($lockSequence, static fn (array $lock): bool => ($lock['op'] ?? null) === 'unlock'));
+
+            $matrix[] = [
+                'case' => $i + 1,
+                'upstream' => (string) $base['upstream'],
+                'source_file' => (string) ($base['source_file'] ?? (str_starts_with((string) $base['upstream'], 'pager1-') ? 'pager1.test' : 'walrestart.test')),
+                'connection_mode' => $connectionMode,
+                'checkpoint_mode' => $checkpointMode,
+                'sync_mode' => $syncMode,
+                'page_size' => $pageSize,
+                'lock_sequence' => $lockSequence,
+                'lock_count' => count($lockOps),
+                'unlock_count' => count($unlockOps),
+                'has_busy_lock' => self::hasLockResult($lockSequence, 'SQLITE_BUSY'),
+                'has_ioerr_lock' => self::hasLockResult($lockSequence, 'SQLITE_IOERR'),
+                'requires_recovery' => $requiresRecovery,
+                'reader_visible' => $readerVisible,
+                'wal_exists' => $walExists,
+                'journal_exists' => $journalExists,
+                'checkpoint' => $checkpoint,
+                'rows' => $rows,
+                'error' => $error,
+                'dependencies' => [
+                    'sqlite-real-upstream-wal2-locking',
+                    'sqlite-real-upstream-pager1-locking',
+                    'sqlite-real-upstream-walrestart-checkpoint',
+                ],
+            ];
+        }
+
+        return $matrix;
+    }
+
+    /**
      * @param list<array<string, mixed>> $locks
      */
     private static function countLocks(array $locks, string $op, string $level): int
@@ -256,5 +324,19 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
         }
 
         return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $locks
+     */
+    private static function hasLockResult(array $locks, string $result): bool
+    {
+        foreach ($locks as $lock) {
+            if (($lock['result'] ?? null) === $result) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

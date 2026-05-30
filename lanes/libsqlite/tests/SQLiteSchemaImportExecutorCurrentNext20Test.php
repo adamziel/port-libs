@@ -53,8 +53,8 @@ return [
         $executor = new SQLiteSchemaImportExecutor();
         $executor->executeScript($applicationSchema, 'main');
         $records = $executor->schemaRecords('main');
-        $t->same(['wp_options', 'sqlite_autoindex_wp_options_1', 'sqlite_autoindex_wp_options_2', 'wp_options_autoload_name', 'wp_options_name_value'], $recordNames($records));
-        $t->same(['table', 'index', 'index', 'index', 'index'], $recordTypes($records));
+        $t->same(['wp_options', 'sqlite_autoindex_wp_options_1', 'wp_options_autoload_name', 'wp_options_name_value'], $recordNames($records));
+        $t->same(['table', 'index', 'index', 'index'], $recordTypes($records));
     },
     'main table record preserves original create sql' => static function (TestRunner $t) use ($applicationSchema, $recordByName): void {
         $executor = new SQLiteSchemaImportExecutor();
@@ -64,17 +64,15 @@ return [
         $t->same('wp_options', $table->tableName);
         $t->same(true, str_contains($table->sql ?? '', 'CHECK(autoload IN'));
     },
-    'main autoindexes are generated for inline primary key and unique constraints' => static function (TestRunner $t) use ($applicationSchema, $recordByName): void {
+    'main autoindexes are generated for inline unique constraints without rowid primary key alias' => static function (TestRunner $t) use ($applicationSchema, $recordByName, $recordNames): void {
         $executor = new SQLiteSchemaImportExecutor();
         $executor->executeScript($applicationSchema, 'main');
-        $primary = $recordByName($executor->schemaRecords('main'), 'sqlite_autoindex_wp_options_1');
-        $unique = $recordByName($executor->schemaRecords('main'), 'sqlite_autoindex_wp_options_2');
-        $t->same('index', $primary->type);
-        $t->same('wp_options', $primary->tableName);
-        $t->same(null, $primary->sql);
+        $records = $executor->schemaRecords('main');
+        $unique = $recordByName($records, 'sqlite_autoindex_wp_options_1');
         $t->same('index', $unique->type);
         $t->same('wp_options', $unique->tableName);
         $t->same(null, $unique->sql);
+        $t->same(false, in_array('sqlite_autoindex_wp_options_2', $recordNames($records), true));
     },
     'explicit indexes preserve target table and uniqueness' => static function (TestRunner $t) use ($applicationSchema, $recordByName): void {
         $executor = new SQLiteSchemaImportExecutor();
@@ -91,13 +89,13 @@ return [
         $executor = new SQLiteSchemaImportExecutor();
         $executor->executeScript($applicationSchema, 'main');
         $rootPages = array_map(static fn (SQLiteSchemaRecord $record): ?int => $record->rootPage, $executor->schemaRecords('main'));
-        $t->same([2, 3, 4, 5, 6], $rootPages);
+        $t->same([2, 3, 4, 5], $rootPages);
     },
     'rowids are allocated monotonically per schema' => static function (TestRunner $t) use ($applicationSchema): void {
         $executor = new SQLiteSchemaImportExecutor();
         $executor->executeScript($applicationSchema, 'main');
         $rowIds = array_map(static fn (SQLiteSchemaRecord $record): int => $record->rowId, $executor->schemaRecords('main'));
-        $t->same([1, 2, 3, 4, 5], $rowIds);
+        $t->same([1, 2, 3, 4], $rowIds);
     },
     'temp schema receives temporary staging table and index' => static function (TestRunner $t) use ($applicationSchema, $recordNames): void {
         $executor = new SQLiteSchemaImportExecutor();
@@ -128,7 +126,7 @@ return [
         $second = $executor->execute('CREATE TABLE IF NOT EXISTS wp_terms(term_id INTEGER PRIMARY KEY, slug TEXT UNIQUE)');
         $t->same(true, $first['created']);
         $t->same(false, $second['created']);
-        $t->same(3, count($executor->schemaRecords('main')));
+        $t->same(2, count($executor->schemaRecords('main')));
     },
     'if not exists index is a no-op for existing import index' => static function (TestRunner $t): void {
         $executor = new SQLiteSchemaImportExecutor();
@@ -137,14 +135,14 @@ return [
         $second = $executor->execute('CREATE INDEX IF NOT EXISTS wp_terms_slug ON wp_terms(slug)');
         $t->same(true, $first['created']);
         $t->same(false, $second['created']);
-        $t->same(3, count($executor->schemaRecords('main')));
+        $t->same(2, count($executor->schemaRecords('main')));
     },
     'current schema routes unqualified imported objects' => static function (TestRunner $t): void {
         $executor = new SQLiteSchemaImportExecutor();
         $executor->execute('CREATE TABLE wp_blogmeta(meta_id INTEGER PRIMARY KEY, meta_key TEXT UNIQUE)', 'site2');
         $executor->execute('CREATE INDEX wp_blogmeta_key ON wp_blogmeta(meta_key)', 'site2');
         $t->same([], $executor->schemaRecords('main'));
-        $t->same(['wp_blogmeta', 'sqlite_autoindex_wp_blogmeta_1', 'sqlite_autoindex_wp_blogmeta_2', 'wp_blogmeta_key'], array_map(static fn (SQLiteSchemaRecord $record): string => $record->name, $executor->schemaRecords('site2')));
+        $t->same(['wp_blogmeta', 'sqlite_autoindex_wp_blogmeta_1', 'wp_blogmeta_key'], array_map(static fn (SQLiteSchemaRecord $record): string => $record->name, $executor->schemaRecords('site2')));
     },
     'qualified index must stay in target table schema' => static function (TestRunner $t): void {
         $executor = new SQLiteSchemaImportExecutor();
@@ -188,7 +186,7 @@ return [
         $executor->executeScript("CREATE TABLE wp_messages(id INTEGER PRIMARY KEY, body TEXT DEFAULT 'a;b', CHECK(body <> ';')); CREATE INDEX wp_messages_body ON wp_messages(body);");
         $table = $recordByName($executor->schemaRecords('main'), 'wp_messages');
         $t->same(true, str_contains($table->sql ?? '', "DEFAULT 'a;b'"));
-        $t->same(3, count($executor->schemaRecords('main')));
+        $t->same(2, count($executor->schemaRecords('main')));
     },
     'quoted identifiers are unquoted in schema records' => static function (TestRunner $t) use ($recordByName): void {
         $executor = new SQLiteSchemaImportExecutor();
@@ -225,6 +223,6 @@ return [
         $executor = new SQLiteSchemaImportExecutor(['main' => [$seed]]);
         $plan = $executor->execute('CREATE TABLE wp_next(id INTEGER PRIMARY KEY)');
         $t->same(10, $plan['rootpage']);
-        $t->same([4, 5, 6], array_map(static fn (SQLiteSchemaRecord $record): int => $record->rowId, $executor->schemaRecords('main')));
+        $t->same([4, 5], array_map(static fn (SQLiteSchemaRecord $record): int => $record->rowId, $executor->schemaRecords('main')));
     },
 ];
