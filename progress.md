@@ -48,6 +48,31 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 23:52 UTC):
+  Latest libsqlite source is integrated as `5b28f965d`
+  (`libsqlite: add twenty-seventh current corpus sweep`). The batch accepted
+  13 behavior-producing handoffs: row-value UPDATE/DELETE LIMIT dynamic
+  expression parity, B-tree malformed schema and index5 lifecycle behavior,
+  date unixepoch fraction and invalid strftime NULL behavior, expression
+  affinity parameter handling, JSON102 operator path stress behavior, pager/WAL
+  dynamic recovery planning, SELECT G scalar VALUES and SELECT F union-copy
+  behavior, trigger/FK fkey1 behavior, and window pushdown behavior.
+  Verification passed PHP lint for `20` changed/new PHP files, focused selected
+  tests `13 files / 137739 assertions / 0 failures / 37090 PASS lines`,
+  `SQLiteNoDomainSpecificApiTest.php` with `1 file / 3 assertions / 0
+  failures`, accepted-base overlap `2 files / 10258 assertions / 0 failures /
+  1484 PASS lines`, row-value related tests `4 files / 1103 assertions / 0
+  failures / 476 PASS lines`, expression related tests `4 files / 59430
+  assertions / 0 failures / 25982 PASS lines`, SELECT related tests `5 files /
+  35050 assertions / 0 failures / 5011 PASS lines`, and trigger related tests
+  `4 files / 45241 assertions / 0 failures / 43722 PASS lines`. Honest
+  selected movement is `+35606`, so the public row should move to `1238317 pass
+  / 0 fail` with coverage still `1589 / 1589`. Mapped inventory is complete;
+  this does not mean full functional/release/all-runner SQLite parity is
+  complete. A visible side worker `side-pdo-trust-20260530T234724Z` is running
+  to remove PDO-layer INSERT syntax gating and trust the libsqlite layer for
+  failures.
+
 - 2026-05-30 supervisor continuation (integration sample 23:45 UTC):
   Latest libsqlite source is integrated as `4f38a10f`
   (`libsqlite: add twenty-sixth current corpus sweep`). The batch accepted 10
