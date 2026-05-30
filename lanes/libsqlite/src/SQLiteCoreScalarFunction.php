@@ -1240,7 +1240,10 @@ final class SQLiteCoreScalarFunction
                 $floorCandidate = null;
                 continue;
             }
-            if (preg_match('/\A([+-])(\d{4})-(\d{2})-(\d{2})\z/', $modifierText, $matches) === 1) {
+            if (preg_match('/\A([+-])(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?\z/', $modifierText, $matches) === 1) {
+                if ((int) $matches[3] > 11 || (int) $matches[4] > 30) {
+                    return null;
+                }
                 [$instant, $floorCandidate] = self::applyDateTimeYearMonthDayModifier(
                     $instant,
                     $matches[1] === '-' ? -1 : 1,
@@ -1248,6 +1251,14 @@ final class SQLiteCoreScalarFunction
                     (int) $matches[3],
                     (int) $matches[4]
                 );
+                if (isset($matches[5]) && $matches[5] !== '') {
+                    $seconds = ((int) $matches[5] * 3600) + ((int) $matches[6] * 60) + (isset($matches[7]) && $matches[7] !== '' ? (int) $matches[7] : 0);
+                    if ($matches[1] === '-') {
+                        $seconds *= -1;
+                    }
+                    $instant = self::modifyBySeconds($instant, (float) $seconds);
+                    $floorCandidate = null;
+                }
                 continue;
             }
             if (preg_match('/\A([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s+(second|seconds|minute|minutes|hour|hours|day|days|month|months|year|years)\z/', $modifierText, $matches) === 1) {

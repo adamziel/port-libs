@@ -15,7 +15,10 @@ final class SQLitePDOStatement extends \PDOStatement
         \PDO::FETCH_BOUND,
         \PDO::FETCH_CLASS,
         \PDO::FETCH_INTO,
+        \PDO::FETCH_KEY_PAIR,
     ];
+
+    private const FETCH_FLAG_MASK = \PDO::FETCH_UNIQUE | \PDO::FETCH_GROUP;
 
     /** @var array<int|string,mixed> */
     private array $boundValues = [];
@@ -98,6 +101,21 @@ final class SQLitePDOStatement extends \PDOStatement
     public function fetchAll(int $mode = \PDO::FETCH_DEFAULT, mixed ...$args): array
     {
         $mode = $this->effectiveFetchMode($mode);
+        if ($mode === \PDO::FETCH_KEY_PAIR) {
+            if ($this->columnCount() !== 2) {
+                throw new \PDOException('SQLitePDOStatement FETCH_KEY_PAIR needs exactly two columns');
+            }
+            $pairs = [];
+            while (array_key_exists($this->cursor, $this->rows)) {
+                $values = array_values($this->rows[$this->cursor++]);
+                $pairs[$values[0]] = $values[1];
+            }
+
+            return $pairs;
+        }
+        if (($mode & \PDO::FETCH_UNIQUE) === \PDO::FETCH_UNIQUE) {
+            return $this->fetchAllUnique($mode, ...$args);
+        }
         if ($mode === \PDO::FETCH_COLUMN) {
             $column = isset($args[0]) ? (int) $args[0] : $this->fetchColumnIndex;
             $values = [];
@@ -106,6 +124,9 @@ final class SQLitePDOStatement extends \PDOStatement
             }
 
             return $values;
+        }
+        if ($mode === \PDO::FETCH_CLASS || $mode === \PDO::FETCH_INTO) {
+            $this->setFetchMode($mode, ...$args);
         }
         $rows = [];
         while (($row = $this->fetch($mode)) !== false) {
@@ -265,6 +286,43 @@ final class SQLitePDOStatement extends \PDOStatement
         return $mode === \PDO::FETCH_DEFAULT
             ? ($this->fetchMode ?? $this->connection->defaultFetchMode())
             : $mode;
+    }
+
+    private function baseFetchMode(int $mode): int
+    {
+        return $mode & ~self::FETCH_FLAG_MASK;
+    }
+
+    private function fetchAllUnique(int $mode, mixed ...$args): array
+    {
+        $baseMode = $this->baseFetchMode($mode);
+        if ($baseMode === 0) {
+            $baseMode = $this->connection->defaultFetchMode();
+        }
+        if (!in_array($baseMode, [\PDO::FETCH_ASSOC, \PDO::FETCH_NUM, \PDO::FETCH_BOTH, \PDO::FETCH_OBJ, \PDO::FETCH_CLASS, \PDO::FETCH_INTO], true)) {
+            throw new \PDOException('SQLitePDOStatement FETCH_UNIQUE mode is not supported');
+        }
+        if ($baseMode === \PDO::FETCH_CLASS || $baseMode === \PDO::FETCH_INTO) {
+            $this->setFetchMode($baseMode, ...$args);
+        }
+
+        $rows = [];
+        while (array_key_exists($this->cursor, $this->rows)) {
+            $row = $this->rows[$this->cursor++];
+            $values = array_values($row);
+            $key = array_shift($values);
+            $tail = array_slice($row, 1, null, true);
+            if ($baseMode === \PDO::FETCH_NUM) {
+                $tail = $values;
+            } elseif ($baseMode === \PDO::FETCH_BOTH) {
+                foreach ($values as $index => $value) {
+                    $tail[$index] = $value;
+                }
+            }
+            $rows[$key] = $this->formatRow($tail, $baseMode);
+        }
+
+        return $rows;
     }
 
     /** @param array<string,mixed> $row */

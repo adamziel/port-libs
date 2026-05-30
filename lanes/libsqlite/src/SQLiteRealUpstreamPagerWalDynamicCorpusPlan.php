@@ -121,6 +121,158 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walCheckpointNoopRows(): array
+    {
+        $value = 123;
+        $rows = [];
+
+        for ($rowid = 1; $rowid <= 1000; $rowid++) {
+            $bytes = '';
+            $sum = 0;
+            for ($i = 0; $i < 64; $i++) {
+                $value = (int) ((1103515245 * $value + 12345) % 2147483648);
+                $byte = $value % 256;
+                $sum += $byte;
+                $bytes .= chr($byte);
+            }
+
+            $rows[] = [
+                'upstream' => 'walckptnoop.test 1.0 row ' . $rowid,
+                'rowid' => $rowid,
+                'hex' => strtoupper(bin2hex($bytes)),
+                'byte_sum' => $sum,
+                'length' => 64,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walCheckpointNoopCases(): array
+    {
+        return [
+            [
+                'upstream' => 'walckptnoop.test 1.1',
+                'statement' => 'PRAGMA wal_checkpoint = noop',
+                'checkpoint' => [0, 298, 0],
+                'mode' => 'noop',
+                'log_frame_count' => 298,
+                'checkpointed_frame_count' => 0,
+                'busy' => 0,
+                'changes_database' => false,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.2',
+                'statement' => 'PRAGMA wal_checkpoint = noop',
+                'checkpoint' => [0, 298, 0],
+                'mode' => 'noop',
+                'log_frame_count' => 298,
+                'checkpointed_frame_count' => 0,
+                'busy' => 0,
+                'changes_database' => false,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.3',
+                'statement' => 'PRAGMA wal_checkpoint = passive',
+                'checkpoint' => [0, 298, 298],
+                'mode' => 'passive',
+                'log_frame_count' => 298,
+                'checkpointed_frame_count' => 298,
+                'busy' => 0,
+                'changes_database' => true,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-passive'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.4',
+                'statement' => 'PRAGMA wal_checkpoint = noop',
+                'checkpoint' => [0, 298, 298],
+                'mode' => 'noop',
+                'log_frame_count' => 298,
+                'checkpointed_frame_count' => 298,
+                'busy' => 0,
+                'changes_database' => false,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.5',
+                'statement' => 'PRAGMA wal_checkpoint = noop after restore',
+                'checkpoint' => [0, 298, 0],
+                'mode' => 'noop',
+                'log_frame_count' => 298,
+                'checkpointed_frame_count' => 0,
+                'busy' => 0,
+                'changes_database' => false,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.6',
+                'statement' => 'PRAGMA wal_checkpoint = noop without wal frames',
+                'checkpoint' => [0, 0, 0],
+                'mode' => 'noop',
+                'log_frame_count' => 0,
+                'checkpointed_frame_count' => 0,
+                'busy' => 0,
+                'changes_database' => false,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.7',
+                'statement' => 'DELETE transaction then PRAGMA wal_checkpoint = noop',
+                'checkpoint' => [1, 'database table is locked'],
+                'mode' => 'noop',
+                'log_frame_count' => 0,
+                'checkpointed_frame_count' => 0,
+                'busy' => 1,
+                'changes_database' => false,
+                'error' => 'database table is locked',
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop-locked'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.8',
+                'statement' => 'COMMIT then PRAGMA wal_checkpoint = noop',
+                'checkpoint' => [0, 5, 0],
+                'mode' => 'noop',
+                'log_frame_count' => 5,
+                'checkpointed_frame_count' => 0,
+                'busy' => 0,
+                'changes_database' => false,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.9',
+                'statement' => 'sqlite3_wal_checkpoint_v2 db noop',
+                'checkpoint' => [0, 5, 0],
+                'mode' => 'noop',
+                'log_frame_count' => 5,
+                'checkpointed_frame_count' => 0,
+                'busy' => 0,
+                'changes_database' => false,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-v2-noop'],
+            ],
+            [
+                'upstream' => 'walckptnoop.test 1.10',
+                'statement' => 'PRAGMA journal_mode = delete; PRAGMA wal_checkpoint = noop',
+                'checkpoint' => [0, -1, -1],
+                'mode' => 'noop',
+                'journal_mode' => 'delete',
+                'log_frame_count' => -1,
+                'checkpointed_frame_count' => -1,
+                'busy' => 0,
+                'changes_database' => false,
+                'dependencies' => ['real-upstream-corpus-walckptnoop', 'sqlite-wal-checkpoint-noop-rollback-mode'],
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function caseRow(string $upstream, int $inserted, int $count, int $sum, int $headerField, array $locks, string $behavior): array

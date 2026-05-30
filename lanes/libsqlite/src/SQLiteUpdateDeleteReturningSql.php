@@ -671,6 +671,9 @@ final class SQLiteUpdateDeleteReturningSql
         if (str_starts_with($expression, '+')) {
             return self::limitExpressionValue(substr($expression, 1));
         }
+        if (str_starts_with($expression, '-')) {
+            return -self::limitNumericValue(substr($expression, 1));
+        }
         if (preg_match('/^-?\d+$/', $expression) === 1) {
             return (int) $expression;
         }
@@ -1120,6 +1123,11 @@ final class SQLiteUpdateDeleteReturningSql
             || preg_match('/^-?(?:\d+|\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $expression) === 1
         ) {
             return self::literal($expression);
+        }
+        if (preg_match('/^length\s*\((.+)\)$/is', $expression, $match) === 1) {
+            $value = self::evaluateExpression(trim($match[1]), $row);
+
+            return $value === null ? null : strlen((string) $value);
         }
         if (preg_match('/^CASE\s+(.+?)\s+WHEN\s+(.+?)\s+THEN\s+(.+?)\s+ELSE\s+(.+?)\s+END$/is', $expression, $match) === 1) {
             $caseValue = self::evaluateExpression($match[1], $row);

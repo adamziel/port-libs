@@ -8,9 +8,10 @@ Supported subset:
 - Connection methods: `query()`, `prepare()`, `exec()`, `lastInsertId()`, `beginTransaction()`, `commit()`, `rollBack()`.
 - Connection attributes: `PDO::ATTR_ERRMODE` (`PDO::ERRMODE_EXCEPTION` only), `PDO::ATTR_DEFAULT_FETCH_MODE`, and `PDO::ATTR_DRIVER_NAME`.
 - Statement methods: `execute()`, `fetch()`, `fetchAll()`, `fetchColumn()`, `rowCount()`, `columnCount()`, `bindValue()`, `bindParam()`, `bindColumn()`, and `setFetchMode()`.
-- Fetch modes: `PDO::FETCH_ASSOC`, `PDO::FETCH_NUM`, `PDO::FETCH_BOTH`, `PDO::FETCH_COLUMN` including column indexes passed through `query()`, `PDO::FETCH_OBJ`, `PDO::FETCH_BOUND`, `PDO::FETCH_CLASS`, and `PDO::FETCH_INTO`.
+- Fetch modes: `PDO::FETCH_ASSOC`, `PDO::FETCH_NUM`, `PDO::FETCH_BOTH`, `PDO::FETCH_COLUMN` including column indexes passed through `query()`, `PDO::FETCH_OBJ`, `PDO::FETCH_BOUND`, `PDO::FETCH_CLASS`, `PDO::FETCH_INTO`, `PDO::FETCH_KEY_PAIR`, and `PDO::FETCH_UNIQUE` with common row modes.
 - SQL subset: simple `CREATE TABLE`, `INSERT INTO ... VALUES`, `SELECT`/`VALUES`/`WITH` through the existing libsqlite select executor, plus simple `UPDATE ... SET ... WHERE ...` and `DELETE FROM ... WHERE ...`.
 - Parameters: positional `?` and named `:name` scalar bindings.
+- Prepare options: default forward-only cursor option is accepted as a no-op.
 
 Unsupported native PDO features raise `PDOException`, including existing on-disk SQLite image loading, prepare options, nested transactions, non-forward cursors, unsupported attributes, BLOB streams, scrollable cursors, native SQLite pragmas, and full SQLite DDL/DML syntax.
 
@@ -29,3 +30,4 @@ Native comparison coverage:
 
 - `PDO::getAvailableDrivers()` included `sqlite` in the local PHP environment used for this slice.
 - `SQLitePdoPolyfillTest.php` compares the polyfill with native `pdo_sqlite` for `sqlite::memory:`, `exec()`, named and positional prepared parameters, `query()`, fetched rows, and transaction rollback. The comparison case returns early when the driver is unavailable.
+- Native comparison coverage now includes `PDO::FETCH_KEY_PAIR` and `PDO::FETCH_UNIQUE | PDO::FETCH_ASSOC`.

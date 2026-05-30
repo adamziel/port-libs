@@ -99,4 +99,62 @@ foreach ($checkpoint['expected_locks'] as $ordinal => $lock) {
     };
 }
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walCheckpointNoopRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' deterministic payload'] = static function (TestRunner $t) use ($row): void {
+        $t->same(64, $row['length']);
+        $t->same(128, strlen($row['hex']));
+        $t->same(true, ctype_xdigit($row['hex']));
+        $t->same($row['hex'], strtoupper($row['hex']));
+        $t->same($row['byte_sum'], array_sum(array_map('hexdec', str_split($row['hex'], 2))));
+        $t->same(true, $row['rowid'] >= 1 && $row['rowid'] <= 1000);
+        $t->same(true, in_array('real-upstream-corpus-walckptnoop', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-checkpoint-noop', $row['dependencies'], true));
+    };
+}
+
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walCheckpointNoopCases() as $case) {
+    $tests['real upstream corpus pager wal dynamic ' . $case['upstream'] . ' checkpoint state'] = static function (TestRunner $t) use ($case): void {
+        $t->same($case['busy'], $case['checkpoint'][0]);
+        if (isset($case['error'])) {
+            $t->same($case['error'], $case['checkpoint'][1]);
+        } else {
+            $t->same($case['log_frame_count'], $case['checkpoint'][1]);
+            $t->same($case['checkpointed_frame_count'], $case['checkpoint'][2]);
+        }
+        $t->same($case['mode'], str_contains($case['statement'], 'passive') ? 'passive' : 'noop');
+        $t->same(true, in_array('real-upstream-corpus-walckptnoop', $case['dependencies'], true));
+        $t->same(true, str_starts_with($case['upstream'], 'walckptnoop.test 1.'));
+    };
+
+    $tests['real upstream corpus pager wal dynamic ' . $case['upstream'] . ' noop/passive backfill semantics'] = static function (TestRunner $t) use ($case): void {
+        $t->same($case['changes_database'], $case['mode'] === 'passive');
+        $t->same($case['busy'] === 1, isset($case['error']));
+        $t->same($case['busy'] === 1 ? 'database table is locked' : null, $case['error'] ?? null);
+        $noopDidNotBackfill = $case['mode'] === 'noop'
+            && $case['log_frame_count'] > 0
+            && $case['checkpointed_frame_count'] === 0;
+        $upstreamNoopNoBackfill = $case['upstream'] !== 'walckptnoop.test 1.3'
+            && in_array(
+                $case['upstream'],
+                ['walckptnoop.test 1.1', 'walckptnoop.test 1.2', 'walckptnoop.test 1.5', 'walckptnoop.test 1.8', 'walckptnoop.test 1.9'],
+                true
+            );
+        $expectedDependency = $case['mode'] === 'passive'
+            ? 'sqlite-wal-checkpoint-passive'
+            : ($case['busy'] === 1
+                ? 'sqlite-wal-checkpoint-noop-locked'
+                : ($case['log_frame_count'] === -1
+                    ? 'sqlite-wal-checkpoint-noop-rollback-mode'
+                    : 'sqlite-wal-checkpoint-noop'));
+
+        $t->same($noopDidNotBackfill, $upstreamNoopNoBackfill);
+        $t->same('delete', $case['journal_mode'] ?? 'delete');
+        $t->same(
+            true,
+            in_array($expectedDependency, $case['dependencies'], true)
+                || in_array('sqlite-wal-checkpoint-v2-noop', $case['dependencies'], true)
+        );
+    };
+}
+
 return $tests;

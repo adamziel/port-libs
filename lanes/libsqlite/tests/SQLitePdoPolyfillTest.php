@@ -191,6 +191,28 @@ return [
         $t->same('HY000', $bad->errorInfo()[0]);
     },
 
+    'SQLitePDO supports common fetchAll shapes prepare cursor option and quoted batch exec' => static function (TestRunner $t): void {
+        $pdo = new SQLitePDO('sqlite::memory:');
+        $t->true($pdo->prepare('SELECT 1', [PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY]) instanceof PDOStatement);
+        $pdo->exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER)');
+        $t->same(2, $pdo->exec("INSERT INTO items (name, qty) VALUES ('semi;colon', 4); INSERT INTO items (name, qty) VALUES ('plain', 6);"));
+
+        $pairs = $pdo->query('SELECT id, name FROM items ORDER BY id')->fetchAll(PDO::FETCH_KEY_PAIR);
+        $t->same([1 => 'semi;colon', 2 => 'plain'], $pairs);
+
+        $unique = $pdo->query('SELECT id, name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_UNIQUE | PDO::FETCH_ASSOC);
+        $t->same([1 => ['name' => 'semi;colon', 'qty' => 4], 2 => ['name' => 'plain', 'qty' => 6]], $unique);
+
+        $classRows = $pdo->query('SELECT id, name, qty FROM items ORDER BY id')->fetchAll(PDO::FETCH_CLASS, SQLitePdoFetchTarget::class);
+        $t->true($classRows[0] instanceof SQLitePdoFetchTarget);
+        $t->same('semi;colon', $classRows[0]->name);
+
+        $target = new SQLitePdoFetchTarget();
+        $intoRows = $pdo->query('SELECT id, name, qty FROM items WHERE id = 2')->fetchAll(PDO::FETCH_INTO, $target);
+        $t->same([$target], $intoRows);
+        $t->same('plain', $target->name);
+    },
+
     'SQLitePDO matches native PDO sqlite for common query prepare exec and transaction flows when available' => static function (TestRunner $t) use ($sqlitePdoNativeAvailable): void {
         if (!$sqlitePdoNativeAvailable()) {
             return;
@@ -218,6 +240,14 @@ return [
         $t->true($nativePositional->execute([5]));
         $t->same($nativePositional->fetchColumn(), $polyfillPositional->fetchColumn());
         $t->same('alpha', $polyfill->query('SELECT id, label FROM records ORDER BY id', PDO::FETCH_COLUMN, 1)->fetch());
+        $t->same(
+            $native->query('SELECT id, label FROM records ORDER BY id')->fetchAll(PDO::FETCH_KEY_PAIR),
+            $polyfill->query('SELECT id, label FROM records ORDER BY id')->fetchAll(PDO::FETCH_KEY_PAIR)
+        );
+        $t->same(
+            $native->query('SELECT id, label, amount FROM records ORDER BY id')->fetchAll(PDO::FETCH_UNIQUE | PDO::FETCH_ASSOC),
+            $polyfill->query('SELECT id, label, amount FROM records ORDER BY id')->fetchAll(PDO::FETCH_UNIQUE | PDO::FETCH_ASSOC)
+        );
 
         $polyfill->beginTransaction();
         $native->beginTransaction();

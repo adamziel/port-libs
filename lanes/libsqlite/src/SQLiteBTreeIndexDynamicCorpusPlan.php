@@ -705,6 +705,53 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream:string,table_columns:int,row_count:int,indexed_columns:int,ordered_columns:int,limit:int,result_column:string,result_values:list<int>,sum_column:string,rounded_sum:float,uses_wide_index:bool,detail:string}>
+     */
+    public static function index2DynamicWideColumnOrderCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index2 dynamic corpus requires at least one case');
+        }
+
+        $out = [];
+        $rowCount = 101;
+        $tableColumns = 1000;
+        $roundedSum = 0.0;
+        for ($row = 0; $row < $rowCount; $row++) {
+            $roundedSum += $row === 0 ? 1000 : ($row * 10000) + 1000;
+        }
+
+        for ($case = 1; $case <= $cases; $case++) {
+            $resultColumnNumber = (($case - 1) % $tableColumns) + 1;
+            $orderedColumns = 1 + (($case - 1) % 12);
+            $limit = 1 + (intdiv($case - 1, 12) % 8);
+            $resultValues = [];
+            for ($row = 0; $row < min($limit, $rowCount); $row++) {
+                $resultValues[] = $row === 0 ? $resultColumnNumber : ($row * 10000) + $resultColumnNumber;
+            }
+
+            $out[] = [
+                'source' => 'index2.test sections index2-1.1 through index2-2.2',
+                'case' => $case,
+                'upstream' => 'index2-2.2.dynamic-' . $case,
+                'table_columns' => $tableColumns,
+                'row_count' => $rowCount,
+                'indexed_columns' => $tableColumns,
+                'ordered_columns' => $orderedColumns,
+                'limit' => $limit,
+                'result_column' => 'c' . $resultColumnNumber,
+                'result_values' => $resultValues,
+                'sum_column' => 'c1000',
+                'rounded_sum' => $roundedSum,
+                'uses_wide_index' => true,
+                'detail' => 'SELECT ' . 'c' . $resultColumnNumber . ' FROM t1 ORDER BY c1..c' . $orderedColumns . ' LIMIT ' . $limit . ' using t1i1',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,scenario:string,result_rows:list<array<int,mixed>>,uses_partial_index:bool,integrity:string,detail:string}>
      */
     public static function index6PartialIndexRegressionCases(): array

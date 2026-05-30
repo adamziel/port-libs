@@ -368,6 +368,149 @@ final class SQLiteIndexLifecyclePlan
     }
 
     /**
+     * @return list<array{source:string,case:int,batch:int,upstream_section:string,scenario:string,table_name:string,index_name:string,constraint_shape:string,conflict_policy:string,transaction_before:string,statement_result:array{0:int,1:string},transaction_after:string,begin_after_result:array{0:int,1:string},commit_after_result:array{0:int,1:list<mixed>},catalog_names:list<string>,row_count:int,integrity:string}>
+     */
+    public static function conflictPolicySharedIndexCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index.test conflict-policy corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'index-19.1',
+                'UNIQUE PRIMARY KEY is implemented by one shared autoindex',
+                't7',
+                'sqlite_autoindex_t7_1',
+                'a UNIQUE PRIMARY KEY',
+                'ABORT',
+                'none',
+                [0, ''],
+                'none',
+                [0, ''],
+                [0, []],
+                ['t7', 'sqlite_autoindex_t7_1'],
+                1,
+                'ok',
+            ],
+            [
+                'index-19.2',
+                'duplicate insert into ABORT shared index leaves transaction open',
+                't7',
+                'sqlite_autoindex_t7_1',
+                'a UNIQUE PRIMARY KEY',
+                'ABORT',
+                'active',
+                [1, 'UNIQUE constraint failed: t7.a'],
+                'active',
+                [1, 'cannot start a transaction within a transaction'],
+                [0, []],
+                ['t7', 'sqlite_autoindex_t7_1'],
+                1,
+                'ok',
+            ],
+            [
+                'index-19.4',
+                'duplicate insert into ROLLBACK shared index rolls back transaction',
+                't8',
+                'sqlite_autoindex_t8_1',
+                'a UNIQUE PRIMARY KEY ON CONFLICT ROLLBACK',
+                'ROLLBACK',
+                'active',
+                [1, 'UNIQUE constraint failed: t8.a'],
+                'none',
+                [0, ''],
+                [0, []],
+                ['t8', 'sqlite_autoindex_t8_1'],
+                1,
+                'ok',
+            ],
+            [
+                'index-19.6',
+                'conflicting column constraint policies sharing one index are rejected',
+                't7',
+                'sqlite_autoindex_t7_1',
+                'a PRIMARY KEY ON CONFLICT FAIL, UNIQUE(a) ON CONFLICT IGNORE',
+                'CONFLICTING',
+                'none',
+                [1, 'conflicting ON CONFLICT clauses specified'],
+                'none',
+                [0, ''],
+                [0, []],
+                [],
+                0,
+                'not-created',
+            ],
+            [
+                'index-19.7',
+                'REINDEX keeps shared autoindex catalog and rows intact',
+                't7/t8',
+                'sqlite_autoindex_t7_1/sqlite_autoindex_t8_1',
+                'shared UNIQUE PRIMARY KEY autoindexes',
+                'PRESERVE',
+                'none',
+                [0, ''],
+                'none',
+                [0, ''],
+                [0, []],
+                ['t7', 'sqlite_autoindex_t7_1', 't8', 'sqlite_autoindex_t8_1'],
+                2,
+                'ok',
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [
+                $section,
+                $scenario,
+                $table,
+                $index,
+                $shape,
+                $policy,
+                $before,
+                $statement,
+                $after,
+                $beginAfter,
+                $commitAfter,
+                $catalog,
+                $rowCount,
+                $integrity,
+            ] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $suffix = $batch === 1 ? '' : '_' . $batch;
+
+            $rows[] = [
+                'source' => 'index.test sections index-19.1 through index-19.7',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'table_name' => str_replace(['t7', 't8'], ['t7' . $suffix, 't8' . $suffix], $table),
+                'index_name' => str_replace(['t7', 't8'], ['t7' . $suffix, 't8' . $suffix], $index),
+                'constraint_shape' => $shape,
+                'conflict_policy' => $policy,
+                'transaction_before' => $before,
+                'statement_result' => [
+                    $statement[0],
+                    str_replace(['t7.', 't8.'], ['t7' . $suffix . '.', 't8' . $suffix . '.'], $statement[1]),
+                ],
+                'transaction_after' => $after,
+                'begin_after_result' => $beginAfter,
+                'commit_after_result' => $commitAfter,
+                'catalog_names' => array_map(
+                    static fn (string $name): string => str_replace(['t7', 't8'], ['t7' . $suffix, 't8' . $suffix], $name),
+                    $catalog,
+                ),
+                'row_count' => $rowCount,
+                'integrity' => $integrity,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function wideIndexOrdering(int $columns = 1000, int $extraRows = 100): array

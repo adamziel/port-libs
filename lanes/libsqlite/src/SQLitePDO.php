@@ -55,7 +55,12 @@ final class SQLitePDO extends \PDO
 
     public function prepare(string $query, array $options = []): \PDOStatement|false
     {
-        if ($options !== []) {
+        foreach ($options as $attribute => $value) {
+            if ((int) $attribute !== \PDO::ATTR_CURSOR || $value !== \PDO::CURSOR_FWDONLY) {
+                throw new \PDOException('SQLitePDO prepare options are not supported');
+            }
+        }
+        if (count($options) > 1) {
             throw new \PDOException('SQLitePDO prepare options are not supported');
         }
 
@@ -270,9 +275,36 @@ final class SQLitePDO extends \PDO
     /** @return list<string> */
     private function splitStatements(string $sql): array
     {
-        $parts = array_filter(array_map('trim', explode(';', $sql)), static fn (string $part): bool => $part !== '');
+        $parts = [];
+        $start = 0;
+        $quote = false;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote) {
+                if ($char === "'" && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                } elseif ($char === "'") {
+                    $quote = false;
+                }
+                continue;
+            }
+            if ($char === "'") {
+                $quote = true;
+            } elseif ($char === ';') {
+                $part = trim(substr($sql, $start, $i - $start));
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+                $start = $i + 1;
+            }
+        }
+        $tail = trim(substr($sql, $start));
+        if ($tail !== '') {
+            $parts[] = $tail;
+        }
 
-        return array_values($parts);
+        return $parts;
     }
 
     private function createTable(string $sql): void
