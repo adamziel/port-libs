@@ -43,10 +43,35 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 267G available while workers and verification are active; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 376G available after bounded cache/log/worktree cleanup; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (shell samples 04:31 UTC):
+  Latest libsqlite consolidation is integrated as `b5e9b79b8e`
+  (`libsqlite: consolidate suffix cleanup batch`). The batch accepts 6
+  current-base-compatible handoffs covering B-tree overflow freeblock coalesce,
+  skipscan expression range recheck, JSON generated-path rowid cost early/late,
+  release-runner suite burnup stable naming, production GLOB cursor stable
+  naming, and STAT4 expression-partial range/order fence stable naming.
+  Verification passed PHP lint for 33 changed PHP files, focused changed tests
+  `15 files / 5332 assertions / 0 failures`, skipscan family `2 files / 120
+  assertions / 0 failures`, B-tree freeblock family `188 files / 118687
+  assertions / 0 failures`, GLOB/UTF-16 glob family `8 files / 436 assertions
+  / 0 failures`, STAT4 expression partial family `133 files / 7547 assertions
+  / 0 failures`, JSON table family `304 files / 20264 assertions / 0
+  failures`, and `git diff --check -- lanes/libsqlite`. Public pass/mapped
+  counters remain `154019 pass / 0 fail` and `830 / 1589` because this is
+  consolidation-only. Disk cleanup compressed old worker logs, pruned exact
+  patch-matched inactive ready worktrees, and removed non-priority upstream
+  caches after skipping registered dirty worktree parents; evidence is under
+  `.tmux-team/tmp/cleanup-evidence/log-compress-20260530T0410Z`,
+  `.tmux-team/tmp/cleanup-evidence/inactive-ready-worktree-prune-20260530T040804Z`,
+  and
+  `.tmux-team/tmp/cleanup-evidence/upstream-nonpriority-candidates-20260530T040913Z`.
+  `/home/claude` now has about `376G` free and the live pool reports 11
+  isolated libsqlite Codex workers with 0 long sleepers.
 
 - 2026-05-30 supervisor continuation (shell samples 03:39 UTC):
   Latest libsqlite consolidation is integrated as `cd2e8a089`
