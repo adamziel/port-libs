@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 17:31:28 UTC",
-    "sourceCommit": "0bcc6fa83fa332e744dc066bb925cf71024517b7",
-    "sourceCommitShort": "0bcc6fa83fa3",
+    "generated": "2026-05-30 17:49:01 UTC",
+    "sourceCommit": "10d482a5ed3d17fdf440ef1f885875af2f430ed3",
+    "sourceCommitShort": "10d482a5ed3d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0bcc6fa83fa332e744dc066bb925cf71024517b7",
-    "dashboardCommitShort": "0bcc6fa83fa3",
+    "dashboardCommit": "10d482a5ed3d17fdf440ef1f885875af2f430ed3",
+    "dashboardCommitShort": "10d482a5ed3d",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "958",
             "coverage": "958 / 1589",
-            "php": "218357 pass / 0 fail",
+            "php": "219557 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted current-base follow-up batch aft...",
-            "currentWork": "Published source 0bcc6fa83f with a +2211 focused PASS-line libsqlite batch. Continue poll...",
-            "nextTarget": "Consume this accepted batch, then integrate the next fresh current-head high-yield bundle...",
-            "blocker": "The active speed limiter is still handoff yield and freshness, not worker...",
-            "commit": "0bcc6fa"
+            "audit": "Accepted follow-up current-base batch aft...",
+            "currentWork": "Prepared source with a +1200 honest focused PASS-line libsqlite batch and native text RAN...",
+            "nextTarget": "Publish this source/dashboard batch, consume its handoffs, then integrate the next fresh...",
+            "blocker": "The active speed limiter is handoff yield per worker, not worker idleness.",
+            "commit": "10d482a"
         },
         {
             "library": "LightningCSS",

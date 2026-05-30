@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 17:44 UTC):
+  Prepared the next libsqlite source batch on top of `0bcc6fa83`. The batch
+  applied 12 compatible current-base handoffs and a native SQLite text `RANGE`
+  peer-group fix, moving the honest focused estimate from `218357` to `219557
+  pass / 0 fail` (`+1200`). Verification passed PHP lint for 55 changed/new
+  PHP files, `git diff --check -- lanes/libsqlite`, focused gate `30 files /
+  14565 assertions / 0 failures / 3131 PASS lines`, accepted-base comparison
+  at `0bcc6fa83` of `22 files / 3867 assertions / 1 pre-existing failure /
+  1931 PASS lines`, changed-file domain-neutral scans with SQLite
+  compile-option exceptions, no numbered production-source suffix scan,
+  declaration scan, focused no-domain API guard, and a native SQLite CLI check
+  for nonnumeric `RANGE` peer grouping. A broader 302-file window family sample
+  still has historical/stale expectation failures, so it is not being used as
+  the publication gate for this small current-base batch. Refill policy was
+  adjusted to prefer bulk upstream burnup and larger real-corpus batches over
+  low-yield cleanup so the next hour can target `+10000` PASS lines.
+
 - 2026-05-30 supervisor continuation (integration sample 17:31 UTC):
   Latest accepted libsqlite source is `0bcc6fa83`
   (`libsqlite: add current-base corpus followups`). Together with the preceding

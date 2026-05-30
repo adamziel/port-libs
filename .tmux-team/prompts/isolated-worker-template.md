@@ -25,6 +25,14 @@ Current supervisor override, 2026-05-30 13:20 UTC:
   denominator rows, and upstream runner pass/fail rows. Do not spend these
   slices on suffix cleanup, cosmetic renames, dashboard edits, or tiny
   one-test plans.
+- High-yield correction, 2026-05-30 17:36 UTC:
+  the accepted-dashboard target is at least 10,000 new libsqlite PASS lines per
+  hour. Fresh `real-upstream-corpus-*` workers should batch multiple upstream
+  sections before handing off. Target at least 1,000 distinct TestRunner PASS
+  cases or 5,000 behavior assertions per handoff. A smaller handoff is only
+  acceptable when it fixes or precisely removes a blocker that lets the next
+  accepted batch admit at least 2,000 PASS lines or 10,000 assertions. Do not
+  stop after a tiny green slice just because one local file passes.
 
 - User rule: the libsqlite port must have zero WordPress-specific classes,
   interfaces, traits, functions, or methods. Do not create declarations whose
