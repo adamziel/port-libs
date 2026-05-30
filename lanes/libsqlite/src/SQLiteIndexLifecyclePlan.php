@@ -142,6 +142,46 @@ final class SQLiteIndexLifecyclePlan
     }
 
     /**
+     * @return list<array{source:string,case:int,batch:int,upstream_section:string,scenario:string,table_name:string,index_name:string,corrupt_sql:string,drop_sql:string,result_code:int,error:string,catalog_names:list<string>,integrity_before_corruption:string,integrity_after_corruption:string,defensive_disabled:bool,writable_schema:bool,drop_blocked:bool}>
+     */
+    public static function malformedSchemaDropIndexCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index3 malformed schema corpus requires at least one case');
+        }
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $batch = intdiv($case - 1, 24) + 1;
+            $slot = (($case - 1) % 24) + 1;
+            $table = 't_malformed_' . $batch;
+            $index = 'i_malformed_' . $slot;
+
+            $rows[] = [
+                'source' => 'index3.test index3-99.1',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => 'index3-99.1',
+                'scenario' => 'DROP INDEX reparses schema and rejects a malformed sqlite_schema SQL record',
+                'table_name' => $table,
+                'index_name' => $index,
+                'corrupt_sql' => 'nonsense',
+                'drop_sql' => 'DROP INDEX ' . $index,
+                'result_code' => 1,
+                'error' => 'malformed database schema (' . $index . ')',
+                'catalog_names' => [$table, $index],
+                'integrity_before_corruption' => 'ok',
+                'integrity_after_corruption' => 'malformed-schema',
+                'defensive_disabled' => true,
+                'writable_schema' => true,
+                'drop_blocked' => true,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function duplicateKeyLookup(): array

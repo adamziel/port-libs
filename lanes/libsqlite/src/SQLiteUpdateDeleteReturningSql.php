@@ -668,19 +668,9 @@ final class SQLiteUpdateDeleteReturningSql
         if (strcasecmp($expression, 'NULL') === 0 || preg_match('/^X\'[0-9A-F]*\'$/i', $expression) === 1) {
             return null;
         }
-        if (preg_match('/^CAST\s*\((.+)\s+AS\s+(?:INT|INTEGER)\s*\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^CAST\s*\((.+)\s+AS\s+([A-Za-z]+)\s*\)$/is', $expression, $match) === 1) {
             $value = self::limitExpressionValue(trim($match[1]));
-            if (is_string($value)) {
-                return (int) $value;
-            }
-            if (is_float($value)) {
-                return (int) $value;
-            }
-            if ($value === null) {
-                return null;
-            }
-
-            return $value;
+            return self::castLimitExpressionValue($value, strtoupper($match[2]));
         }
         if (str_starts_with($expression, '+')) {
             return self::limitExpressionValue(substr($expression, 1));
@@ -723,6 +713,15 @@ final class SQLiteUpdateDeleteReturningSql
             }
         }
 
+        try {
+            $value = self::evaluateExpression($expression, []);
+        } catch (\InvalidArgumentException) {
+            $value = null;
+        }
+        if (is_int($value) || is_float($value) || is_string($value) || $value === null) {
+            return $value;
+        }
+
         throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT expression is not supported');
     }
 
@@ -734,6 +733,35 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $value;
+    }
+
+    private static function castLimitExpressionValue(int|float|string|null $value, string $type): int|float|string|null
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($type === 'INT' || $type === 'INTEGER') {
+            return (int) $value;
+        }
+        if ($type === 'REAL' || $type === 'FLOAT' || $type === 'DOUBLE') {
+            return (float) $value;
+        }
+        if ($type === 'TEXT' || $type === 'CHAR' || $type === 'CLOB') {
+            return (string) $value;
+        }
+        if ($type === 'NUMERIC') {
+            if (is_int($value)) {
+                return $value;
+            }
+            $numeric = is_string($value) ? (float) $value : $value;
+            return floor($numeric) === $numeric ? (int) $numeric : $numeric;
+        }
+        if ($type === 'BLOB' || $type === 'NONE') {
+            return null;
+        }
+
+        throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT CAST type {$type} is not supported");
     }
 
     /**

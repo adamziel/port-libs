@@ -3731,6 +3731,10 @@ final class SQLiteSelectSql
         }
         $unwrapped = self::unwrapParenthesizedExpression($sql);
         if ($unwrapped !== $sql) {
+            if (preg_match('/^values\s+/i', $unwrapped) === 1) {
+                return self::scalarValuesExpression($unwrapped);
+            }
+
             $rowTerms = self::splitTopLevel($unwrapped, ',');
             if (count($rowTerms) > 1) {
                 return [
@@ -3982,6 +3986,23 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not supported");
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function scalarValuesExpression(string $sql): array
+    {
+        $rows = self::executeValuesClause($sql);
+        $first = $rows[0] ?? null;
+        if (!is_array($first) || !array_key_exists('column1', $first)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL scalar VALUES expression needs at least one row and column');
+        }
+        if (count($first) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL scalar VALUES expression must return one column');
+        }
+
+        return ['type' => 'literal', 'value' => $first['column1']];
     }
 
     private static function realLiteralText(string $sql): string

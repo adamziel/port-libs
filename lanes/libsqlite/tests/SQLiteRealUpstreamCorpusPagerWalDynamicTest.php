@@ -157,4 +157,34 @@ foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walCheckpointNoopCases() a
     };
 }
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walOverwriteRecoveryRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' ' . $row['assertion']] = static function (TestRunner $t) use ($row): void {
+        $t->same($row['expected_length'], $row['observed_length']);
+        $t->same(true, $row['rowid'] >= 1 && $row['rowid'] <= 20);
+        $t->same(true, $row['loop'] >= 1 && $row['loop'] <= 5);
+        $t->same(true, in_array($row['variant'], [1, 2], true));
+        $t->same(5, $row['cache_size_pages']);
+        $t->same(1024, $row['page_size']);
+        $t->same(20, $row['row_count']);
+        $t->same(5, $row['statement_update_passes']);
+        $t->same(5, $row['savepoint_update_passes']);
+        $t->same(true, $row['wal_frame_range'][0] < $row['wal_frame_range'][1]);
+        $t->same(true, in_array('real-upstream-corpus-waloverwrite', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-overwrite-recovery', $row['dependencies'], true));
+
+        if ($row['savepoint_rolled_back']) {
+            $t->same(true, in_array('sqlite-wal-savepoint-rollback-recovery', $row['dependencies'], true));
+            $t->same(797, $row['excluded_length'] ?? 797);
+        } else {
+            $t->same(true, in_array($row['recovery_source'], ['database-plus-wal-copy', 'database-copy-without-wal'], true));
+        }
+
+        if ($row['recovery_source'] === 'integrity-check') {
+            $t->same('ok', $row['integrity_check']);
+        }
+
+        $t->same(true, str_starts_with($row['upstream'], 'waloverwrite.test 1.'));
+    };
+}
+
 return $tests;

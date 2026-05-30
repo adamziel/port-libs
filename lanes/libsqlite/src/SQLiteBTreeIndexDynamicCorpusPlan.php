@@ -3774,6 +3774,71 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,page_size:int,row_count:int,page_number:int,write_offset:int,previous_page:int|null,transition:string,forward_writes:int,backward_writes:int,noncontiguous_writes:int,forward_dominates:bool,operation:string,index_name:string,integrity:string}>
+     */
+    public static function index5SequentialCreateIndexWriteCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index5 write-order corpus requires at least one case');
+        }
+
+        $pageSize = 1024;
+        $rowCount = 100000;
+        $forward = 0;
+        $backward = 0;
+        $noncontiguous = 0;
+        $previous = null;
+        $rows = [];
+
+        for ($case = 1; $case <= $cases; $case++) {
+            $run = intdiv($case - 1, 250);
+            $slot = ($case - 1) % 250;
+            if ($slot < 210) {
+                $page = ($run * 251) + $slot + 2;
+            } elseif ($slot < 230) {
+                $page = ($run * 251) + 210 - ($slot - 210);
+            } else {
+                $page = ($run * 389) + 4096 + (($slot - 230) * 37);
+            }
+
+            if ($previous === null) {
+                $transition = 'first';
+            } elseif ($page === $previous + 1) {
+                $transition = 'forward';
+                $forward++;
+            } elseif ($page === $previous - 1) {
+                $transition = 'backward';
+                $backward++;
+            } else {
+                $transition = 'noncontiguous';
+                $noncontiguous++;
+            }
+
+            $rows[] = [
+                'source' => 'index5.test index5-1.1 through index5-1.3',
+                'case' => $case,
+                'upstream_section' => 'index5-1.' . (1 + (($case - 1) % 3)),
+                'page_size' => $pageSize,
+                'row_count' => $rowCount,
+                'page_number' => $page,
+                'write_offset' => ($page - 1) * $pageSize,
+                'previous_page' => $previous,
+                'transition' => $transition,
+                'forward_writes' => $forward,
+                'backward_writes' => $backward,
+                'noncontiguous_writes' => $noncontiguous,
+                'forward_dominates' => $forward > 2 * ($backward + $noncontiguous),
+                'operation' => 'CREATE INDEX i1 ON t1(x)',
+                'index_name' => 'i1',
+                'integrity' => 'ok',
+            ];
+            $previous = $page;
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

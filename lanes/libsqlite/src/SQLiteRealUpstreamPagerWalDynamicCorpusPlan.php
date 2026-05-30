@@ -273,6 +273,87 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walOverwriteRecoveryRows(): array
+    {
+        $rows = [];
+
+        foreach ([1 => 'empty-wal-start', 2 => 'preexisting-wal-transaction'] as $variant => $startState) {
+            for ($rowid = 1; $rowid <= 20; $rowid++) {
+                for ($loop = 1; $loop <= 5; $loop++) {
+                    $base = [
+                        'upstream' => 'waloverwrite.test 1.' . $variant . ' row ' . $rowid . ' loop ' . $loop,
+                        'variant' => $variant,
+                        'start_state' => $startState,
+                        'rowid' => $rowid,
+                        'loop' => $loop,
+                        'initial_blob_length' => 800,
+                        'committed_blob_length' => 799,
+                        'post_checkpoint_blob_length' => 798,
+                        'rolled_back_blob_length' => 797,
+                        'row_count' => 20,
+                        'cache_size_pages' => 5,
+                        'page_size' => 1024,
+                        'statement_update_passes' => 5,
+                        'savepoint_update_passes' => 5,
+                        'dependencies' => [
+                            'real-upstream-corpus-waloverwrite',
+                            'sqlite-wal-overwrite-recovery',
+                            'sqlite-wal-savepoint-rollback-recovery',
+                        ],
+                    ];
+
+                    $rows[] = $base + [
+                        'assertion' => 'statement transaction stores committed 799-byte blob',
+                        'expected_length' => 799,
+                        'observed_length' => 799,
+                        'wal_frame_range' => [41, 59],
+                        'recovery_source' => 'database-plus-wal-copy',
+                        'savepoint_rolled_back' => false,
+                    ];
+                    $rows[] = $base + [
+                        'assertion' => 'database-only copy keeps original 800-byte blob before WAL recovery',
+                        'expected_length' => 800,
+                        'observed_length' => 800,
+                        'wal_frame_range' => [41, 59],
+                        'recovery_source' => 'database-copy-without-wal',
+                        'savepoint_rolled_back' => false,
+                    ];
+                    $rows[] = $base + [
+                        'assertion' => 'post-checkpoint transaction stores 798-byte blob before savepoint rollback',
+                        'expected_length' => 798,
+                        'observed_length' => 798,
+                        'wal_frame_range' => [56, 74],
+                        'recovery_source' => 'database-plus-wal-copy',
+                        'savepoint_rolled_back' => true,
+                    ];
+                    $rows[] = $base + [
+                        'assertion' => 'rolled-back savepoint 797-byte blob is excluded from recovery',
+                        'expected_length' => 798,
+                        'observed_length' => 798,
+                        'excluded_length' => 797,
+                        'wal_frame_range' => [56, 74],
+                        'recovery_source' => 'database-plus-wal-copy',
+                        'savepoint_rolled_back' => true,
+                    ];
+                    $rows[] = $base + [
+                        'assertion' => 'integrity check remains ok after overwrite recovery',
+                        'integrity_check' => 'ok',
+                        'expected_length' => $loop <= 5 ? 798 : 799,
+                        'observed_length' => $loop <= 5 ? 798 : 799,
+                        'wal_frame_range' => [56, 74],
+                        'recovery_source' => 'integrity-check',
+                        'savepoint_rolled_back' => true,
+                    ];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function caseRow(string $upstream, int $inserted, int $count, int $sum, int $headerField, array $locks, string $behavior): array

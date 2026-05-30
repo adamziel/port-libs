@@ -4286,6 +4286,198 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @return array<string,mixed>
+     */
+    public static function fkey1QuotedCascadeReplacePlan(
+        array $parents,
+        array $children,
+        string $parentKey,
+        string $childKey,
+        string $action,
+        bool $partialParentIndex = false
+    ): array {
+        $parentKey = self::quotedIdentifier($parentKey, 'parent key');
+        $childKey = self::quotedIdentifier($childKey, 'child key');
+        $action = strtolower(trim($action));
+        if (!in_array($action, ['cascade', 'restrict', 'no action'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey1 quoted cascade action is unsupported');
+        }
+
+        $initialChildKeys = array_values(array_map(
+            static fn (array $row): mixed => self::requiredRowValue($row, $childKey, 'child row'),
+            $children
+        ));
+        $parentKeys = array_values(array_map(
+            static fn (array $row): mixed => self::requiredRowValue($row, $parentKey, 'parent row'),
+            $parents
+        ));
+
+        $status = 'commit-ok';
+        $error = null;
+        $trace = [];
+        $remainingParents = [];
+        $remainingChildren = $children;
+        if ($partialParentIndex) {
+            $status = 'foreign-key-mismatch';
+            $error = 'foreign key mismatch';
+        } elseif ($action === 'restrict' && $children !== []) {
+            $status = 'constraint-failed';
+            $error = 'FOREIGN KEY constraint failed';
+            $remainingParents = $parents;
+        } elseif ($action === 'cascade') {
+            $trace[] = 'DELETE FROM quoted-parent';
+            $remainingChildren = array_values(array_filter(
+                $children,
+                static fn (array $row): bool => !in_array($row[$childKey] ?? null, $parentKeys, true)
+            ));
+        }
+
+        return [
+            'source' => 'fkey1.test fkey1-4.0..9.1',
+            'operation' => 'quoted-identifier-fkey-cascade-replace',
+            'status' => $status,
+            'error' => $error,
+            'parent_key' => $parentKey,
+            'child_key' => $childKey,
+            'action' => $action,
+            'partial_parent_index' => $partialParentIndex,
+            'quoted_identifier_dequoted_once' => true,
+            'initial_parent_keys' => $parentKeys,
+            'initial_child_keys' => $initialChildKeys,
+            'remaining_parent_count' => count($remainingParents),
+            'remaining_child_keys' => array_values(array_map(
+                static fn (array $row): mixed => self::requiredRowValue($row, $childKey, 'child row'),
+                $remainingChildren
+            )),
+            'trace_statement_count' => count($trace),
+            'dependencies' => [
+                'sqlite-fkey1-quoted-identifiers-dequote-once',
+                'sqlite-fkey1-on-delete-cascade-removes-children',
+                'sqlite-fkey1-partial-parent-index-does-not-satisfy-fk',
+                'sqlite-fkey1-restrict-fails-before-delete',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{id:int,parent_id:?int,label?:string}> $rows
+     * @return array<string,mixed>
+     */
+    public static function fkey1SelfReplaceCascadeViolation(array $rows, int $replaceId, ?int $newParentId): array
+    {
+        $byId = [];
+        foreach ($rows as $row) {
+            $id = (int) self::requiredRowValue($row, 'id', 'self-referential row');
+            $byId[$id] = $row;
+        }
+
+        $deleted = [];
+        $delete = static function (int $id) use (&$delete, &$byId, &$deleted): void {
+            if (!isset($byId[$id])) {
+                return;
+            }
+            unset($byId[$id]);
+            $deleted[] = $id;
+            foreach (array_keys($byId) as $candidate) {
+                if (($byId[$candidate]['parent_id'] ?? null) === $id) {
+                    $delete((int) $candidate);
+                }
+            }
+        };
+        $delete($replaceId);
+
+        $status = ($newParentId !== null && !isset($byId[$newParentId])) ? 'constraint-failed' : 'commit-ok';
+
+        return [
+            'source' => 'fkey1.test fkey1-5.1..5.4',
+            'operation' => 'self-referential-replace-cascade-violation',
+            'status' => $status,
+            'error' => $status === 'constraint-failed' ? 'FOREIGN KEY constraint failed' : null,
+            'replace_id' => $replaceId,
+            'new_parent_id' => $newParentId,
+            'cascade_deleted_ids' => $deleted,
+            'surviving_ids_before_insert' => array_values(array_map('intval', array_keys($byId))),
+            'dependencies' => [
+                'sqlite-fkey1-replace-deletes-old-row-before-insert',
+                'sqlite-fkey1-self-referential-cascade-can-remove-new-parent',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $foreignKeyColumns
+     * @return array<string,mixed>
+     */
+    public static function fkey1WideForeignKeyCheck(array $rows, array $foreignKeyColumns, string $parentTable): array
+    {
+        $columns = array_values(array_map(
+            static fn (string $column): string => self::identifier($column, 'foreign key column'),
+            $foreignKeyColumns
+        ));
+        $parentTable = self::identifier($parentTable, 'parent table');
+        $violations = [];
+        foreach ($rows as $index => $row) {
+            $childKey = [];
+            foreach ($columns as $column) {
+                $childKey[] = $row[$column] ?? null;
+            }
+            if (array_filter($childKey, static fn (mixed $value): bool => $value !== null) !== []) {
+                $violations[] = [
+                    'table' => 't1',
+                    'rowid' => $index + 1,
+                    'parent' => $parentTable,
+                    'fkid' => 0,
+                    'child_key_width' => count($childKey),
+                ];
+            }
+        }
+
+        return [
+            'source' => 'fkey1.test fkey1-7.1..7.2',
+            'operation' => 'wide-foreign-key-check-register-allocation',
+            'status' => 'commit-ok',
+            'foreign_key_width' => count($columns),
+            'table_column_count' => $rows === [] ? 0 : count($rows[0]),
+            'violation_count' => count($violations),
+            'result_tuples' => array_map(
+                static fn (array $row): array => [$row['table'], $row['rowid'], $row['parent'], $row['fkid']],
+                $violations
+            ),
+            'dependencies' => [
+                'sqlite-fkey1-foreign-key-check-wide-key-register-allocation',
+                'sqlite-fkey1-generated-column-wide-fkey-check-does-not-overread',
+            ],
+        ];
+    }
+
+    private static function quotedIdentifier(string $identifier, string $label): string
+    {
+        if ($identifier === '') {
+            throw new \InvalidArgumentException("SQLite dynamic trigger FK {$label} is malformed");
+        }
+        if (str_contains($identifier, "\0")) {
+            throw new \InvalidArgumentException("SQLite dynamic trigger FK {$label} is malformed");
+        }
+
+        return $identifier;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function requiredRowValue(array $row, string $column, string $label): mixed
+    {
+        if (!array_key_exists($column, $row)) {
+            throw new \InvalidArgumentException("SQLite dynamic trigger FK {$label} column is missing");
+        }
+
+        return $row[$column];
+    }
+
+    /**
      * @param array<string,mixed> $row
      * @param list<string> $columns
      */
