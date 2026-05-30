@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:51 UTC):
+  Latest accepted libsqlite source is `f876e883a4`
+  (`libsqlite: add speed batch corpus coverage`). This batch accepts 30 clean
+  queue handoffs on top of `7e63d4798` and skips 2 stale/overlapping JSON and
+  B-tree handoffs. It adds B-tree index dynamic plan coverage, select predicate
+  coverage, UPSERT/RETURNING dynamic plan coverage, VFS IO dynamic plan
+  coverage, and suite-evidence admission rows. Focused verification passed `4
+  files / 50074 assertions / 0 failures / 4474 PASS lines`; the accepted-base
+  comparison on the same selected files passed `4 files / 30491 assertions / 0
+  failures / 2373 PASS lines`, so the honest selected PASS-line delta is
+  `+2101`. Public libsqlite should move to `345493 pass / 0 fail`; mapped
+  coverage remains `1189 / 1589`. The latest accepted batch is below the
+  `10000+` PASS-line/hour target because the ready queue has become
+  overlap-heavy, not because the worker pool collapsed: the visible `main`
+  tmux session still has 10-11 active libsqlite workers and no long sleepers.
+  The next throughput decision is to score fresh current-base bulk-suite,
+  veryquick, and suite-evidence handoffs first, quarantine duplicate/low-yield
+  shards immediately, and publish smaller high-yield batches as soon as focused
+  tests pass.
+
 - 2026-05-30 supervisor continuation (integration sample 18:47 UTC):
   Latest accepted libsqlite source is `325bbff80e`
   (`libsqlite: add focused corpus followup batch`). This batch accepts 14
