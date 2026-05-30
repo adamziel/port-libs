@@ -256,10 +256,19 @@ final class SQLiteSelectPredicate
         $matched = false;
         $collation = self::expressionCollations($predicate['left'] ?? null)
             ?? self::expressionCollation($predicate['left'] ?? null);
+        $leftAffinity = self::operandAffinity($row, $predicate['left'] ?? null);
         foreach ($values as $candidateExpression) {
-            $candidate = is_array($candidateExpression) && array_is_list($candidateExpression)
-                ? $candidateExpression
-                : self::valueExpression($row, $candidateExpression);
+            $candidateAffinity = null;
+            if (is_array($candidateExpression) && array_key_exists('__sqlite_in_value', $candidateExpression)) {
+                $candidate = $candidateExpression['__sqlite_in_value'];
+                $candidateAffinity = isset($candidateExpression['__sqlite_in_affinity']) && is_string($candidateExpression['__sqlite_in_affinity'])
+                    ? $candidateExpression['__sqlite_in_affinity']
+                    : null;
+            } else {
+                $candidate = is_array($candidateExpression) && array_is_list($candidateExpression)
+                    ? $candidateExpression
+                    : self::valueExpression($row, $candidateExpression);
+            }
             if ($candidate === null) {
                 $sawNull = true;
                 continue;
@@ -267,7 +276,11 @@ final class SQLiteSelectPredicate
             $candidateCollation = $collation
                 ?? self::expressionCollations($candidateExpression)
                 ?? self::expressionCollation($candidateExpression);
-            $comparison = $value === null ? null : self::compareValues($value, $candidate, false, $candidateCollation);
+            $comparison = $value === null ? null : (
+                $leftAffinity !== null || $candidateAffinity !== null
+                    ? SQLiteAffinityComparison::compare($value, $candidate, $leftAffinity ?? 'NONE', $candidateAffinity ?? 'NONE', is_string($candidateCollation) ? $candidateCollation : 'BINARY')
+                    : self::compareValues($value, $candidate, false, $candidateCollation)
+            );
             if ($comparison === 0) {
                 $matched = true;
                 break;
@@ -818,7 +831,7 @@ final class SQLiteSelectPredicate
             if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite SELECT predicate rows must have named columns');
             }
-            if ($column === '__sqlite_column_affinities') {
+            if ($column === '__sqlite_column_affinities' || str_ends_with($column, '.__sqlite_column_affinities')) {
                 if (!is_array($value)) {
                     throw new \InvalidArgumentException('SQLite SELECT predicate column affinity metadata must be an array');
                 }

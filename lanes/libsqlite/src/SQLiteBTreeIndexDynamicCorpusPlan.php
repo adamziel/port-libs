@@ -1518,6 +1518,233 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,query_shape:string,automatic_index_enabled:bool,uses_automatic_index:bool,autoindex_target:string,step_count:int,autoindex_inserts:int,result_rows:list<array<int,mixed>>,detail:string,mutation_during_scan:bool,without_rowid:bool,integrity:string}>
+     */
+    public static function autoindex1PlannerCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite autoindex1 dynamic corpus requires at least one case');
+        }
+
+        $baseJoinRows = [
+            [11, 911],
+            [22, 922],
+            [33, 933],
+            [44, 944],
+            [55, 955],
+            [66, 966],
+            [77, 977],
+            [88, 988],
+        ];
+        $templates = [
+            [
+                'autoindex1-100/101/102',
+                'automatic_index off keeps join as full scan',
+                'join',
+                false,
+                false,
+                '',
+                63,
+                0,
+                $baseJoinRows,
+                'SCAN t1; SCAN t2',
+                false,
+                false,
+            ],
+            [
+                'autoindex1-110/111/112/113',
+                'automatic_index on builds one covering index for join',
+                'join',
+                true,
+                true,
+                't2(c)',
+                7,
+                7,
+                $baseJoinRows,
+                'SEARCH t2 USING AUTOMATIC COVERING INDEX (c=?)',
+                false,
+                false,
+            ],
+            [
+                'autoindex1-200/201/202',
+                'automatic_index off keeps scalar subquery as repeated scan',
+                'scalar-subquery',
+                false,
+                false,
+                '',
+                35,
+                0,
+                $baseJoinRows,
+                'CORRELATED SCALAR SUBQUERY; SCAN t2',
+                false,
+                false,
+            ],
+            [
+                'autoindex1-210/211/212',
+                'analyzed scalar subquery builds automatic index on small inner table',
+                'scalar-subquery',
+                true,
+                true,
+                't2(c)',
+                7,
+                7,
+                $baseJoinRows,
+                'CORRELATED SCALAR SUBQUERY; SEARCH t2 USING AUTOMATIC COVERING INDEX (c=?)',
+                false,
+                false,
+            ],
+            [
+                'autoindex1-299/300/310',
+                'automatic index remains snapshot-stable while scanned table mutates',
+                'cross-join-mutation',
+                true,
+                true,
+                't2(c)',
+                7,
+                7,
+                $baseJoinRows,
+                'CROSS JOIN t2 USING AUTOMATIC COVERING INDEX (c=?)',
+                true,
+                false,
+            ],
+            [
+                'autoindex1-400/401',
+                'ten-way unindexed join becomes tractable through automatic indexes',
+                'ten-way-join',
+                true,
+                true,
+                't4(a)',
+                4087,
+                4095,
+                [[4087]],
+                'CHAINED SEARCH x2..x10 USING AUTOMATIC COVERING INDEX (a=?)',
+                false,
+                false,
+            ],
+            [
+                'autoindex1-500.1/501/502',
+                'correlated IN subquery may use automatic index while list subquery must not',
+                'correlated-in',
+                true,
+                true,
+                't502(y)',
+                1000,
+                999,
+                [],
+                'CORRELATED LIST SUBQUERY; SEARCH t502 USING AUTOMATIC COVERING INDEX (y=?)',
+                false,
+                false,
+            ],
+            [
+                'autoindex1-600/600a',
+                'materialized subquery receives automatic covering index for outer LEFT JOIN',
+                'materialized-view-left-join',
+                true,
+                true,
+                'y(sheep_no)',
+                1600,
+                1599,
+                [],
+                'MATERIALIZE y; SEARCH y USING AUTOMATIC COVERING INDEX (sheep_no=?) LEFT-JOIN',
+                false,
+                false,
+            ],
+            [
+                'autoindex1-900/901',
+                'aggregate view/subquery autoindex prevents slow label and view joins',
+                'aggregate-view-join',
+                true,
+                true,
+                'agglabels(message_id)',
+                9819,
+                9818,
+                [],
+                'LEFT OUTER JOIN aggregate subquery USING AUTOMATIC COVERING INDEX',
+                false,
+                false,
+            ],
+            [
+                'autoindex1-1010/1020',
+                'LEFT JOIN IS term is not used as an RHS automatic-index driver',
+                'left-join-is-null',
+                true,
+                false,
+                '',
+                1,
+                0,
+                [[0]],
+                'LEFT JOIN t12; IS comparison remains post-join filter',
+                false,
+                false,
+            ],
+            [
+                'autoindex-1100/1110/1120',
+                'unary plus in LEFT JOIN preserves null-extended rows',
+                'left-join-unary-plus',
+                true,
+                false,
+                '',
+                1,
+                0,
+                [[1, 1, 1, 2, null, null]],
+                'LEFT JOIN t2 ON (t2.c=+t1.a)',
+                false,
+                false,
+            ],
+            [
+                'autoindex-1200/1210/1211',
+                'WITHOUT ROWID table can be probed through automatic covering index',
+                'without-rowid-left-join',
+                true,
+                true,
+                't1(b)',
+                3,
+                3,
+                [[null, null, null, 5, 55], [1, 3, 91, 3, 33], [1, 4, 92, 4, 44]],
+                'SEARCH t1 USING AUTOMATIC COVERING INDEX (b=?)',
+                false,
+                true,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $shape, $enabled, $uses, $target, $steps, $inserts, $resultRows, $detail, $mutates, $withoutRowid] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates));
+            $dynamicRows = array_map(
+                static function (array $row) use ($batch, $shape): array {
+                    if ($shape === 'join' || $shape === 'scalar-subquery' || $shape === 'cross-join-mutation') {
+                        return [$row[0] + ($batch * 1000), $row[1] + ($batch * 1000)];
+                    }
+
+                    return $row;
+                },
+                $resultRows,
+            );
+
+            $rows[] = [
+                'source' => 'autoindex1.test automatic-index planner sections 100 through 1211',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'query_shape' => $shape,
+                'automatic_index_enabled' => $enabled,
+                'uses_automatic_index' => $uses,
+                'autoindex_target' => $target,
+                'step_count' => $steps,
+                'autoindex_inserts' => $inserts,
+                'result_rows' => $dynamicRows,
+                'detail' => $detail,
+                'mutation_during_scan' => $mutates,
+                'without_rowid' => $withoutRowid,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table:string,autoindex_target:string,probe_column:string,probe_value:mixed,result_rows:list<array<int,mixed>>,detail:string,uses_automatic_index:bool,uses_coroutine:bool,order_by_preserved:bool,subquery_resolves_rowid:bool,integrity:string}>
      */
     public static function autoindex5CoroutineSubqueryCases(int $cases): array
@@ -2024,6 +2251,203 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 'selected_labels' => $labels,
                 'integrity' => 'ok',
                 'precision_boundary' => $boundary,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,automatic_index_enabled:bool,join_shape:string,autoindex_target:string,expected_rows:list<array<int,mixed>>,step_count:int|null,autoindex_inserts:int,detail:string,uses_automatic_index:bool,mutation:string|null,integrity:string}>
+     */
+    public static function autoindex1AutomaticIndexPlannerCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite autoindex1 dynamic corpus requires at least one case');
+        }
+
+        $joinedRows = [];
+        for ($i = 1; $i <= 8; $i++) {
+            $joinedRows[] = [$i * 11, 900 + ($i * 11)];
+        }
+
+        $templates = [
+            [
+                'autoindex1-100/110',
+                'join builds transient covering index only when PRAGMA automatic_index is enabled',
+                false,
+                't1 JOIN t2 ON a=c',
+                't2(c)',
+                $joinedRows,
+                63,
+                0,
+                'SCAN t1; SCAN t2',
+                false,
+                null,
+            ],
+            [
+                'autoindex1-110/113',
+                'enabled join emits SQLITE_WARNING_AUTOINDEX and probes t2(c)',
+                true,
+                't1 JOIN t2 ON a=c',
+                't2(c)',
+                $joinedRows,
+                7,
+                7,
+                'SEARCH t2 USING AUTOMATIC COVERING INDEX (c=?)',
+                true,
+                null,
+            ],
+            [
+                'autoindex1-200/210',
+                'correlated scalar subquery builds automatic index after ANALYZE statistics favor it',
+                true,
+                'SELECT b,(SELECT d FROM t2 WHERE c=a) FROM t1',
+                't2(c)',
+                $joinedRows,
+                7,
+                7,
+                'CORRELATED SCALAR SUBQUERY; SEARCH t2 USING AUTOMATIC COVERING INDEX (c=?)',
+                true,
+                null,
+            ],
+            [
+                'autoindex1-300/310',
+                'automatic index snapshot remains stable while the joined table is updated mid-scan',
+                true,
+                't1 CROSS JOIN t2 ON c=a',
+                't2(c)',
+                $joinedRows,
+                null,
+                7,
+                'SEARCH t2 USING AUTOMATIC COVERING INDEX (c=?)',
+                true,
+                'UPDATE t2 SET d=d+1 during each output row',
+            ],
+            [
+                'autoindex1-400/401',
+                'ten-way unindexed self join relies on automatic indexes for chained equality probes',
+                true,
+                't4 x1..x10 chained joins',
+                't4(a)',
+                [[4087]],
+                null,
+                9,
+                'SEARCH x2..x10 USING AUTOMATIC COVERING INDEX (a=?)',
+                true,
+                null,
+            ],
+            [
+                'autoindex1-500.1/501/502',
+                'automatic indexes are limited to correlated IN subqueries and not constant rowid probes',
+                true,
+                't501 rowid IN subquery',
+                't502(y)',
+                [],
+                null,
+                1,
+                'CORRELATED LIST SUBQUERY uses AUTOMATIC COVERING INDEX only when outer t501.b is referenced',
+                true,
+                null,
+            ],
+            [
+                'autoindex1-600a',
+                'materialized subquery for outer join receives an automatic covering index on sheep_no',
+                true,
+                'sheep LEFT JOIN materialized owner view',
+                'y(sheep_no)',
+                [],
+                null,
+                1,
+                'MATERIALIZE y; SEARCH y USING AUTOMATIC COVERING INDEX (sheep_no=?) LEFT-JOIN',
+                true,
+                null,
+            ],
+            [
+                'autoindex1-700a',
+                'single-table ORDER BY does not create an automatic index and uses a temporary btree sort',
+                true,
+                'single table filter plus ORDER BY',
+                '',
+                [],
+                null,
+                0,
+                'SCAN t5; USE TEMP B-TREE FOR ORDER BY',
+                false,
+                null,
+            ],
+            [
+                'autoindex1-900/901',
+                'aggregate view and grouped subquery joins may build automatic covering indexes',
+                true,
+                'join against aggregate subquery or view',
+                'agglabels(message_id)',
+                [],
+                null,
+                1,
+                'SEARCH agglabels USING AUTOMATIC COVERING INDEX; SEARCH agg2 USING AUTOMATIC COVERING INDEX',
+                true,
+                null,
+            ],
+            [
+                'autoindex1-920/1020',
+                'NULL-sensitive joins avoid using an IS term as a left-join RHS index driver',
+                true,
+                'VALUES source and LEFT JOIN IS comparison',
+                '',
+                [[5, 0, 9], [5, 0, 9], [5, 0, 9]],
+                null,
+                0,
+                'LEFT JOIN IS term remains residual so NULL does not incorrectly match notnull',
+                false,
+                null,
+            ],
+            [
+                'autoindex1-1110/1120',
+                'unary-plus join predicates preserve LEFT JOIN null-extension behavior',
+                true,
+                't1/t2/t3 LEFT JOIN with unary-plus equality',
+                '',
+                [[1, 1, 1, 2, null, null]],
+                null,
+                0,
+                'LEFT JOIN keeps t3 columns NULL when ON expression is false',
+                false,
+                null,
+            ],
+            [
+                'autoindex1-1210/1211',
+                'WITHOUT ROWID table can be the target of an automatic covering index in a left join',
+                true,
+                'view t2 LEFT OUTER JOIN t1 WITHOUT ROWID ON b=c',
+                't1(b)',
+                [[null, null, null, 5, 55], [1, 3, 91, 3, 33], [1, 4, 92, 4, 44]],
+                null,
+                1,
+                'SEARCH t1 USING AUTOMATIC COVERING INDEX (b=?)',
+                true,
+                null,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $enabled, $shape, $target, $expectedRows, $stepCount, $autoindexInserts, $detail, $usesAutomaticIndex, $mutation] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'autoindex1.test autoindex1-100 through autoindex-1211',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'automatic_index_enabled' => $enabled,
+                'join_shape' => $shape,
+                'autoindex_target' => $target,
+                'expected_rows' => $expectedRows,
+                'step_count' => $stepCount,
+                'autoindex_inserts' => $autoindexInserts,
+                'detail' => $detail,
+                'uses_automatic_index' => $usesAutomaticIndex,
+                'mutation' => $mutation,
+                'integrity' => 'ok',
             ];
         }
 

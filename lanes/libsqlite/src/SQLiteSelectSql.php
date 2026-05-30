@@ -3477,16 +3477,36 @@ final class SQLiteSelectSql
                         if ($rows === []) {
                             return [];
                         }
-                        $columns = array_keys($rows[0]);
+                        $columns = array_values(array_filter(
+                            array_keys($rows[0]),
+                            static fn (string $column): bool => $column !== 'rowid'
+                                && $column !== '__sqlite_column_affinities'
+                                && !str_contains($column, '.')
+                        ));
                         if (($left['type'] ?? null) === 'row') {
-                            return array_map(static fn (array $subqueryRow): array => array_values($subqueryRow), $rows);
+                            return array_map(
+                                static fn (array $subqueryRow): array => array_map(
+                                    static fn (string $column): mixed => $subqueryRow[$column],
+                                    $columns
+                                ),
+                                $rows
+                            );
                         }
                         if (count($columns) !== 1) {
                             throw new \InvalidArgumentException('SQLite SELECT SQL IN subquery must return one column');
                         }
                         $column = $columns[0];
 
-                        return array_map(static fn (array $subqueryRow): mixed => $subqueryRow[$column], $rows);
+                        return array_map(static function (array $subqueryRow) use ($column): array {
+                            $affinities = $subqueryRow['__sqlite_column_affinities'] ?? [];
+
+                            return [
+                                '__sqlite_in_value' => $subqueryRow[$column],
+                                '__sqlite_in_affinity' => is_array($affinities) && isset($affinities[$column]) && is_string($affinities[$column])
+                                    ? $affinities[$column]
+                                    : 'NONE',
+                            ];
+                        }, $rows);
                     },
                 ];
             }

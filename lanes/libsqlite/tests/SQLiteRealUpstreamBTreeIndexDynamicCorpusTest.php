@@ -360,6 +360,82 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index7PartialIndexStatMutationCases(
     };
 }
 
+// Source truth: SQLite upstream test/autoindex1.test sections 100 through
+// 1211. These cases preserve automatic-index planner decisions for joins,
+// scalar and IN subqueries, mutation during a scan, materialized views,
+// LEFT JOIN null-extension rules, and WITHOUT ROWID automatic-index probes.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::autoindex1PlannerCases(1000) as $case) {
+    $tests['real upstream autoindex1 planner dynamic case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('autoindex1.test automatic-index planner sections 100 through 1211', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'autoindex'));
+        $t->true($case['scenario'] !== '');
+        $t->true(in_array($case['query_shape'], [
+            'join',
+            'scalar-subquery',
+            'cross-join-mutation',
+            'ten-way-join',
+            'correlated-in',
+            'materialized-view-left-join',
+            'aggregate-view-join',
+            'left-join-is-null',
+            'left-join-unary-plus',
+            'without-rowid-left-join',
+        ], true));
+        $t->true($case['step_count'] >= 1);
+        $t->same($case['uses_automatic_index'], $case['autoindex_inserts'] > 0);
+        $t->same($case['uses_automatic_index'], str_contains($case['detail'], 'AUTOMATIC COVERING INDEX'));
+        $t->same('ok', $case['integrity']);
+        $t->true(array_values($case['result_rows']) === $case['result_rows']);
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_values($row) === $row);
+        }
+        if ($case['automatic_index_enabled'] === false) {
+            $t->same(false, $case['uses_automatic_index']);
+            $t->same('', $case['autoindex_target']);
+            $t->same(0, $case['autoindex_inserts']);
+        }
+        if ($case['query_shape'] === 'join') {
+            $t->same(8, count($case['result_rows']));
+            $t->same($case['automatic_index_enabled'] ? 7 : 63, $case['step_count']);
+        }
+        if ($case['query_shape'] === 'scalar-subquery') {
+            $t->same(8, count($case['result_rows']));
+            $t->same($case['automatic_index_enabled'] ? 7 : 35, $case['step_count']);
+        }
+        if ($case['mutation_during_scan']) {
+            $t->same('cross-join-mutation', $case['query_shape']);
+            $t->same(true, $case['uses_automatic_index']);
+            $t->same(8, count($case['result_rows']));
+        }
+        if ($case['query_shape'] === 'ten-way-join') {
+            $t->same([[4087]], $case['result_rows']);
+            $t->same('t4(a)', $case['autoindex_target']);
+        }
+        if ($case['query_shape'] === 'correlated-in') {
+            $t->true(str_contains($case['detail'], 'CORRELATED LIST SUBQUERY'));
+            $t->same('t502(y)', $case['autoindex_target']);
+        }
+        if ($case['query_shape'] === 'materialized-view-left-join') {
+            $t->true(str_contains($case['detail'], 'MATERIALIZE y'));
+            $t->true(str_contains($case['detail'], 'LEFT-JOIN'));
+        }
+        if ($case['query_shape'] === 'left-join-is-null') {
+            $t->same([[0]], $case['result_rows']);
+            $t->same(false, $case['uses_automatic_index']);
+        }
+        if ($case['query_shape'] === 'left-join-unary-plus') {
+            $t->same([[1, 1, 1, 2, null, null]], $case['result_rows']);
+            $t->same(false, $case['uses_automatic_index']);
+        }
+        if ($case['without_rowid']) {
+            $t->same('without-rowid-left-join', $case['query_shape']);
+            $t->same('t1(b)', $case['autoindex_target']);
+            $t->same([[null, null, null, 5, 55], [1, 3, 91, 3, 33], [1, 4, 92, 4, 44]], $case['result_rows']);
+        }
+    };
+}
+
 // Source truth: SQLite upstream test/autoindex5.test autoindex5-1.1 through
 // 3.3. These cases preserve automatic covering-index use for coroutine views
 // and the subquery/coroutine regressions that shared that planner path.

@@ -256,6 +256,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
     $t->same([
         'btree01.test',
         'btree02.test',
+        'autoindex1.test',
         'index.test',
         'index3.test',
         'index5.test',
@@ -269,6 +270,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
     ], [
         'btree01.test',
         'btree02.test',
+        'autoindex1.test',
         'index.test',
         'index3.test',
         'index5.test',
@@ -294,10 +296,11 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::index5SequentialWriteCases()));
     $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::index3QuotedIdentifierCompatibilityCases()));
     $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases()));
+    $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::autoindex1PlannerCases()));
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {
-    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, write-order, expression-index, quoted-identifier, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, partial-index, write-order, expression-index, quoted-identifier, and cursor-case helpers');
+    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, write-order, expression-index, quoted-identifier, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, write-order, expression-index, quoted-identifier, and cursor-case helpers');
 };
 
 return $tests;

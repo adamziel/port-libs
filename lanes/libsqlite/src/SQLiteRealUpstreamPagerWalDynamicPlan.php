@@ -312,6 +312,167 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walSetlkBlockingLockCases(): array
+    {
+        $scenarios = [
+            [
+                'upstream' => 'walsetlk.test 1.0..1.8',
+                'source_file' => 'walsetlk.test',
+                'phase' => 'writer-reserved-blocks-second-writer',
+                'holder' => 'writer-a',
+                'waiter' => 'writer-b',
+                'held_lock' => 'wal-write',
+                'requested_lock' => 'wal-write',
+                'blocking_call' => 'BEGIN IMMEDIATE',
+                'timeout_ms' => 0,
+                'expected_code' => 1,
+                'expected_message' => 'database is locked',
+                'busy_waits' => 0,
+                'setlk_timeout' => null,
+                'unlock_releases_waiter' => true,
+                'visible_rows_before_release' => [[1, 'one'], [2, 'two']],
+                'visible_rows_after_release' => [[1, 'one'], [2, 'two'], [3, 'three']],
+                'lock_trace' => ['writer-a:lock:wal-write', 'writer-b:try:wal-write:busy', 'writer-a:unlock:wal-write', 'writer-b:lock:wal-write'],
+            ],
+            [
+                'upstream' => 'walsetlk.test 2.*',
+                'source_file' => 'walsetlk.test',
+                'phase' => 'blocking-checkpoint-waits-for-reader',
+                'holder' => 'reader-a',
+                'waiter' => 'checkpoint-b',
+                'held_lock' => 'wal-readmark',
+                'requested_lock' => 'checkpoint',
+                'blocking_call' => 'PRAGMA wal_checkpoint(TRUNCATE)',
+                'timeout_ms' => 10000,
+                'expected_code' => 0,
+                'expected_message' => 'checkpoint completes after reader release',
+                'busy_waits' => 3,
+                'setlk_timeout' => 10000,
+                'unlock_releases_waiter' => true,
+                'visible_rows_before_release' => [[1, 'alpha'], [2, 'beta']],
+                'visible_rows_after_release' => [[1, 'alpha'], [2, 'beta'], [3, 'gamma']],
+                'lock_trace' => ['reader-a:lock:readmark', 'checkpoint-b:wait:checkpoint', 'reader-a:unlock:readmark', 'checkpoint-b:lock:checkpoint'],
+            ],
+            [
+                'upstream' => 'walsetlk2.test 1.3..1.5',
+                'source_file' => 'walsetlk2.test',
+                'phase' => 'shared-memory-lock-order-for-reader',
+                'holder' => 'writer-a',
+                'waiter' => 'reader-b',
+                'held_lock' => 'wal-write',
+                'requested_lock' => 'readmark',
+                'blocking_call' => 'SELECT * FROM t1',
+                'timeout_ms' => 0,
+                'expected_code' => 0,
+                'expected_message' => 'reader uses shared readmark after writer unlock',
+                'busy_waits' => 0,
+                'setlk_timeout' => null,
+                'unlock_releases_waiter' => true,
+                'visible_rows_before_release' => [[1, 2, 3], [4, 5, 6]],
+                'visible_rows_after_release' => [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+                'lock_trace' => ['0:1:lock:exclusive', '4:1:lock:shared', '0:1:unlock:exclusive', '4:1:unlock:shared'],
+            ],
+            [
+                'upstream' => 'walsetlk2.test 2.0..2.7',
+                'source_file' => 'walsetlk2.test',
+                'phase' => 'setlk-timeout-expires-on-write-lock',
+                'holder' => 'writer-a',
+                'waiter' => 'writer-b',
+                'held_lock' => 'wal-write',
+                'requested_lock' => 'wal-write',
+                'blocking_call' => 'INSERT INTO t1 VALUES(...)',
+                'timeout_ms' => 250,
+                'expected_code' => 1,
+                'expected_message' => 'database is locked',
+                'busy_waits' => 2,
+                'setlk_timeout' => 250,
+                'unlock_releases_waiter' => false,
+                'visible_rows_before_release' => [[1, 'held']],
+                'visible_rows_after_release' => [[1, 'held']],
+                'lock_trace' => ['writer-a:lock:wal-write', 'writer-b:wait:wal-write', 'writer-b:timeout:wal-write'],
+            ],
+            [
+                'upstream' => 'walblock.test 1.1.*',
+                'source_file' => 'walblock.test',
+                'phase' => 'read-while-writer-updates-wal-index',
+                'holder' => 'writer-a',
+                'waiter' => 'reader-b',
+                'held_lock' => 'wal-index-update',
+                'requested_lock' => 'readmark',
+                'blocking_call' => 'SELECT count(*) FROM t1',
+                'timeout_ms' => 500,
+                'expected_code' => 0,
+                'expected_message' => 'reader resumes after wal-index update',
+                'busy_waits' => 1,
+                'setlk_timeout' => 500,
+                'unlock_releases_waiter' => true,
+                'visible_rows_before_release' => [[1, 'stable']],
+                'visible_rows_after_release' => [[1, 'stable'], [2, 'committed']],
+                'lock_trace' => ['writer-a:lock:wal-index-update', 'reader-b:block:readmark', 'writer-a:unlock:wal-index-update', 'reader-b:lock:readmark'],
+            ],
+            [
+                'upstream' => 'walblock.test 1.2.*',
+                'source_file' => 'walblock.test',
+                'phase' => 'reader-blocks-until-checkpoint-state-stable',
+                'holder' => 'checkpoint-a',
+                'waiter' => 'reader-b',
+                'held_lock' => 'checkpoint',
+                'requested_lock' => 'readmark',
+                'blocking_call' => 'SELECT * FROM t1 ORDER BY a',
+                'timeout_ms' => 10000,
+                'expected_code' => 0,
+                'expected_message' => 'reader includes transaction committed during wait',
+                'busy_waits' => 4,
+                'setlk_timeout' => 10000,
+                'unlock_releases_waiter' => true,
+                'visible_rows_before_release' => [[1, 'before']],
+                'visible_rows_after_release' => [[1, 'before'], [2, 'during-wait']],
+                'lock_trace' => ['checkpoint-a:lock:checkpoint', 'reader-b:block:readmark', 'checkpoint-a:unlock:checkpoint', 'reader-b:lock:readmark'],
+            ],
+        ];
+
+        $cases = [];
+        $checkpointModes = ['passive', 'full', 'restart', 'truncate'];
+        $journalModes = ['wal', 'wal-persist'];
+        $syncModes = ['normal', 'full', 'extra', 'off'];
+        $pageSizes = [512, 1024, 2048, 4096];
+
+        for ($i = 0; $i < 1000; $i++) {
+            $scenario = $scenarios[$i % count($scenarios)];
+            $checkpointMode = $checkpointModes[$i % count($checkpointModes)];
+            $journalMode = $journalModes[intdiv($i, 4) % count($journalModes)];
+            $syncMode = $syncModes[intdiv($i, 8) % count($syncModes)];
+            $pageSize = $pageSizes[intdiv($i, 32) % count($pageSizes)];
+            $releaseDelayMs = (int) ($scenario['busy_waits'] * 25 + ($i % 5) * 10);
+            $timeoutMs = (int) $scenario['timeout_ms'];
+            $willTimeout = $timeoutMs > 0
+                && $releaseDelayMs > $timeoutMs
+                && $scenario['expected_code'] !== 0;
+
+            $cases[] = $scenario + [
+                'case' => $i + 1,
+                'checkpoint_mode' => $checkpointMode,
+                'journal_mode' => $journalMode,
+                'sync_mode' => $syncMode,
+                'page_size' => $pageSize,
+                'release_delay_ms' => $releaseDelayMs,
+                'will_timeout' => $willTimeout,
+                'waiter_blocks' => $scenario['busy_waits'] > 0 || $timeoutMs > 0,
+                'lock_trace_count' => count($scenario['lock_trace']),
+                'dependencies' => [
+                    'sqlite-upstream-walsetlk-blocking-locks',
+                    'sqlite-upstream-walblock-reader-waits',
+                    'sqlite-real-upstream-pager-wal-dynamic',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<array<string, mixed>> $locks
      */
     private static function countLocks(array $locks, string $op, string $level): int

@@ -676,6 +676,108 @@ final class SQLiteDynamicTriggerForeignKeyPlan
 
     /**
      * @param list<array{a:int,b:int,c:int}> $rows
+     * @param list<array{a:int,b:int,c:int}> $logRows
+     * @param array{type:string,row?:array{a:int,b:int,c:int},set?:array<string,int>,where?:callable(array{a:int,b:int,c:int}):bool} $statement
+     * @return array<string,mixed>
+     */
+    public static function triggerProgramStatementExecution(array $rows, array $logRows, array $statement, string $program, string $timing): array
+    {
+        $timing = strtolower(trim($timing));
+        $program = strtolower(trim($program));
+        $type = strtolower((string) ($statement['type'] ?? ''));
+        if (!in_array($timing, ['before', 'after'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger2 program timing is unsupported');
+        }
+        if (!in_array($type, ['insert', 'update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger2 statement type is unsupported');
+        }
+
+        $rows = array_values($rows);
+        $logRows = array_values($logRows);
+        $changes = 0;
+        $triggerChanges = 0;
+        $contexts = [];
+
+        if ($type === 'insert') {
+            $new = $statement['row'] ?? throw new \InvalidArgumentException('SQLite trigger2 insert row is required');
+            if ($timing === 'before') {
+                $triggerChanges += self::applyTrigger2Program($rows, $logRows, $program, [], $new);
+            }
+            $rows[] = $new;
+            ++$changes;
+            if ($timing === 'after') {
+                $triggerChanges += self::applyTrigger2Program($rows, $logRows, $program, [], $new);
+            }
+            $contexts[] = ['old' => [], 'new' => $new];
+        } elseif ($type === 'update') {
+            $where = $statement['where'] ?? static fn (array $row): bool => true;
+            $set = $statement['set'] ?? [];
+            foreach ($rows as $index => $row) {
+                if (!$where($row)) {
+                    continue;
+                }
+                $new = $row;
+                foreach ($set as $column => $value) {
+                    if (!in_array($column, ['a', 'b', 'c'], true)) {
+                        throw new \InvalidArgumentException('SQLite trigger2 update column is unsupported');
+                    }
+                    $new[$column] = $value;
+                }
+                if ($timing === 'before') {
+                    $triggerChanges += self::applyTrigger2Program($rows, $logRows, $program, $row, $new);
+                }
+                $rows[$index] = $new;
+                ++$changes;
+                if ($timing === 'after') {
+                    $triggerChanges += self::applyTrigger2Program($rows, $logRows, $program, $row, $new);
+                }
+                $contexts[] = ['old' => $row, 'new' => $new];
+            }
+        } else {
+            $where = $statement['where'] ?? static fn (array $row): bool => true;
+            foreach ($rows as $index => $row) {
+                if (!$where($row)) {
+                    continue;
+                }
+                if ($timing === 'before') {
+                    $triggerChanges += self::applyTrigger2Program($rows, $logRows, $program, $row, []);
+                }
+                unset($rows[$index]);
+                $rows = array_values($rows);
+                ++$changes;
+                if ($timing === 'after') {
+                    $triggerChanges += self::applyTrigger2Program($rows, $logRows, $program, $row, []);
+                }
+                $contexts[] = ['old' => $row, 'new' => []];
+                break;
+            }
+        }
+
+        return [
+            'source' => 'trigger2.test trigger2-2',
+            'operation' => 'trigger-program-statement-execution',
+            'status' => 'commit-ok',
+            'timing' => $timing,
+            'statement_type' => $type,
+            'program' => $program,
+            'statement_changes' => $changes,
+            'trigger_program_changes' => $triggerChanges,
+            'total_changes' => $changes + $triggerChanges,
+            'context_count' => count($contexts),
+            'contexts' => $contexts,
+            'final_rows' => self::sortRows($rows),
+            'log_rows' => self::sortRows($logRows),
+            'dependencies' => [
+                'sqlite-trigger2-before-program-runs-before-statement-row-change',
+                'sqlite-trigger2-after-program-runs-after-statement-row-change',
+                'sqlite-trigger2-trigger-program-can-update-insert-delete-select',
+                'sqlite-trigger2-old-new-row-values-feed-program',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $rows
      * @return array<string,mixed>
      */
     public static function raiseIgnoreMutationPlan(array $rows, string $operation): array
@@ -2920,6 +3022,68 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'rtrim' => rtrim($child) === rtrim($parent),
             default => $child === $parent,
         };
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $rows
+     * @param list<array{a:int,b:int,c:int}> $logRows
+     * @param array<string,int> $old
+     * @param array<string,int> $new
+     */
+    private static function applyTrigger2Program(array &$rows, array &$logRows, string $program, array $old, array $new): int
+    {
+        $changes = 0;
+        if ($program === 'update-b-from-old') {
+            foreach ($rows as &$row) {
+                if (array_key_exists('b', $old)) {
+                    $row['b'] = $old['b'];
+                    ++$changes;
+                }
+            }
+            unset($row);
+
+            return $changes;
+        }
+
+        if ($program === 'insert-log-new-c') {
+            $logRows[] = ['a' => (int) ($new['c'] ?? 0), 'b' => 2, 'c' => 3];
+
+            return 1;
+        }
+
+        if ($program === 'delete-log-a1') {
+            $before = count($logRows);
+            $logRows = array_values(array_filter($logRows, static fn (array $row): bool => $row['a'] !== 1));
+
+            return $before - count($logRows);
+        }
+
+        if ($program === 'compound-insert-update-delete-log') {
+            $rows[] = ['a' => 500, 'b' => (int) (($new['b'] ?? 0) * 10), 'c' => 700];
+            ++$changes;
+            if (array_key_exists('c', $old)) {
+                foreach ($rows as &$row) {
+                    $row['c'] = $old['c'];
+                    ++$changes;
+                }
+                unset($row);
+            }
+            $changes += count($logRows);
+            $logRows = [];
+
+            return $changes;
+        }
+
+        if ($program === 'insert-log-select-table') {
+            foreach ($rows as $row) {
+                $logRows[] = $row;
+                ++$changes;
+            }
+
+            return $changes;
+        }
+
+        throw new \InvalidArgumentException('SQLite trigger2 trigger program is unsupported');
     }
 
     /**
