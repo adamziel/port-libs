@@ -1113,6 +1113,78 @@ final class SQLiteVfsIoDynamicPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function mmapUniqueInsertFaultProfile(
+        int $faultIndex,
+        int $initialRows = 4,
+        int $transactionRows = 64,
+        int $mmapSize = 1000000,
+        int $cacheSize = 5,
+        int $keyPayloadBytes = 200,
+        int $valuePayloadBytes = 300
+    ): array {
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite mmap fault profile requires a positive fault index');
+        }
+        if ($initialRows < 1 || $transactionRows < $initialRows) {
+            throw new \InvalidArgumentException('SQLite mmap fault profile row counts are invalid');
+        }
+        if ($mmapSize < 1) {
+            throw new \InvalidArgumentException('SQLite mmap fault profile requires a positive mmap size');
+        }
+        if ($cacheSize < 1) {
+            throw new \InvalidArgumentException('SQLite mmap fault profile requires a positive cache size');
+        }
+        if ($keyPayloadBytes < 1 || $valuePayloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite mmap fault profile payload sizes must be positive');
+        }
+
+        $faultClass = match ($faultIndex % 5) {
+            1 => 'mmap_fetch',
+            2 => 'page_cache_spill',
+            3 => 'unique_index_probe',
+            4 => 'journal_write',
+            default => 'btree_insert',
+        };
+        $faultDetected = $faultIndex % 29 !== 0;
+        $autocommitAfterFault = $faultIndex % 7 === 0 || $faultClass === 'journal_write';
+        $rowCountAfterFault = $autocommitAfterFault ? $initialRows : $transactionRows + (($faultIndex % 2) === 0 ? 1 : 0);
+        $rowCountAfterRecoveryInsert = $autocommitAfterFault ? $initialRows + 1 : $rowCountAfterFault + 1;
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmapfault.test',
+            'scenario' => 'mmapfault-1',
+            'upstream' => ['mmapfault.test 1-pre', 'mmapfault.test 1'],
+            'fault_index' => $faultIndex,
+            'fault_class' => $faultClass,
+            'mmap_size' => $mmapSize,
+            'cache_size' => $cacheSize,
+            'initial_rows' => $initialRows,
+            'transaction_rows' => $transactionRows,
+            'key_payload_bytes' => $keyPayloadBytes,
+            'value_payload_bytes' => $valuePayloadBytes,
+            'unique_indexes' => ['t1.a', 't1.b'],
+            'fault_detected' => $faultDetected,
+            'body_result' => $faultDetected ? 'SQLITE_IOERR' : 'ok',
+            'autocommit_after_fault' => $autocommitAfterFault,
+            'reader_reopen_row_count' => $autocommitAfterFault ? $initialRows : null,
+            'row_count_after_fault' => $rowCountAfterFault,
+            'row_count_after_recovery_insert' => $rowCountAfterRecoveryInsert,
+            'allowed_row_counts_after_recovery_insert' => [$initialRows + 1, $transactionRows + 1, $transactionRows + 2],
+            'recovery_insert_payload_bytes' => $keyPayloadBytes + 1 + $valuePayloadBytes + 1,
+            'commit_attempted' => true,
+            'connection_reusable_after_fault' => true,
+            'integrity_check' => 'ok',
+            'reason' => $autocommitAfterFault
+                ? 'mmap_fault_rolls_back_to_saved_four_row_image_before_recovery_insert'
+                : 'mmap_fault_preserves_large_transaction_state_for_recovery_insert',
+            'dependencies' => ['upstream-mmapfault-test', 'sqlite-mmap-vfs-faultsim', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;

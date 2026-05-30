@@ -128,6 +128,20 @@ final class SQLiteCoreScalarFunction
 
     /**
      * @param list<mixed> $arguments
+     * @param list<array{utcStart:string, offsetMinutes:int}> $localtimeRules
+     */
+    public static function sqlFunctionArgumentsWithLocaltimeRules(string $functionName, array $arguments, array $localtimeRules): mixed
+    {
+        $normalized = strtolower($functionName);
+        if (!in_array($normalized, ['date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime'], true)) {
+            return self::sqlFunctionArguments($functionName, $arguments);
+        }
+
+        return self::dateTime($normalized, $arguments, self::normalizeLocaltimeRules($localtimeRules));
+    }
+
+    /**
+     * @param list<mixed> $arguments
      */
     public static function isDeterministicSqlFunctionCall(string $functionName, array $arguments): bool
     {
@@ -1113,9 +1127,9 @@ final class SQLiteCoreScalarFunction
     }
 
     /**
-     * @param list<mixed> $arguments
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}>|null $localtimeRules
      */
-    private static function dateTime(string $functionName, array $arguments): int|float|string|null
+    private static function dateTime(string $functionName, array $arguments, ?array $localtimeRules = null): int|float|string|null
     {
         $minimum = match ($functionName) {
             'strftime' => 2,
@@ -1162,12 +1176,29 @@ final class SQLiteCoreScalarFunction
         }
         $instant = $state['instant'];
         $floorCandidate = $state['floor'];
+        $utcTimeline = self::dateTimeValueHasExplicitUtcTimeline($timeValue);
+        $localtimeApplied = false;
         foreach ($modifiers as $modifier) {
             $modifierText = strtolower(trim(self::coerceText($functionName, $modifier, 'modifier')));
             if ($modifierText === 'unixepoch' || $modifierText === 'julianday' || $modifierText === 'auto' || $modifierText === 'subsec' || $modifierText === 'subsecond') {
                 continue;
             }
-            if ($modifierText === 'utc' || $modifierText === 'localtime') {
+            if ($modifierText === 'utc') {
+                if ($localtimeRules !== null && !$utcTimeline) {
+                    $instant = self::localtimeToUtc($instant, $localtimeRules);
+                }
+                $utcTimeline = true;
+                $localtimeApplied = false;
+                $floorCandidate = null;
+                continue;
+            }
+            if ($modifierText === 'localtime') {
+                if ($localtimeRules !== null && !$localtimeApplied) {
+                    $instant = self::utcToLocaltime($instant, $localtimeRules);
+                }
+                $utcTimeline = false;
+                $localtimeApplied = true;
+                $floorCandidate = null;
                 continue;
             }
             if ($modifierText === 'floor') {
@@ -1240,6 +1271,119 @@ final class SQLiteCoreScalarFunction
             'strftime' => self::strftimeSql(self::coerceText('strftime', $arguments[0], 'format'), $instant),
             default => throw new \InvalidArgumentException("Unsupported SQLite date/time function: {$functionName}"),
         };
+    }
+
+    private static function dateTimeValueHasExplicitUtcTimeline(mixed $value): bool
+    {
+        if (is_int($value) || is_float($value)) {
+            return true;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            $value = $value->bytes;
+        }
+        if (!is_string($value)) {
+            return false;
+        }
+        $text = trim($value);
+        if (strcasecmp($text, 'now') === 0) {
+            return true;
+        }
+        if (preg_match('/\A[+-]?(?:\d+(?:\.\d*)?|\.\d+)\z/', $text) === 1) {
+            return true;
+        }
+
+        return preg_match('/(?:Z|[+-]\d{2}:\d{2})\z/i', $text) === 1;
+    }
+
+    /**
+     * @param list<array{utcStart:string, offsetMinutes:int}> $rules
+     * @return list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}>
+     */
+    private static function normalizeLocaltimeRules(array $rules): array
+    {
+        if ($rules === []) {
+            throw new \InvalidArgumentException('SQLite localtime rules require at least one transition');
+        }
+        $timezone = new \DateTimeZone('UTC');
+        $normalized = [];
+        foreach ($rules as $rule) {
+            if (!isset($rule['utcStart']) || !is_string($rule['utcStart']) || !isset($rule['offsetMinutes']) || !is_int($rule['offsetMinutes'])) {
+                throw new \InvalidArgumentException('SQLite localtime rules require utcStart and offsetMinutes');
+            }
+            $normalized[] = [
+                'utcStart' => new \DateTimeImmutable($rule['utcStart'], $timezone),
+                'offsetMinutes' => $rule['offsetMinutes'],
+            ];
+        }
+        usort(
+            $normalized,
+            static fn (array $left, array $right): int => $left['utcStart'] <=> $right['utcStart']
+        );
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}> $rules
+     */
+    private static function utcToLocaltime(\DateTimeImmutable $instant, array $rules): \DateTimeImmutable
+    {
+        return self::modifyBySeconds($instant, (float) self::localtimeOffsetForUtc($instant, $rules) * 60.0);
+    }
+
+    /**
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}> $rules
+     */
+    private static function localtimeToUtc(\DateTimeImmutable $local, array $rules): \DateTimeImmutable
+    {
+        $candidates = [];
+        foreach ($rules as $rule) {
+            $offset = $rule['offsetMinutes'];
+            $candidate = self::modifyBySeconds($local, (float) -$offset * 60.0);
+            if (self::formatDateTime(self::utcToLocaltime($candidate, $rules), true) === self::formatDateTime($local, true)) {
+                $candidates[] = $candidate;
+            }
+        }
+        if ($candidates !== []) {
+            usort($candidates, static fn (\DateTimeImmutable $left, \DateTimeImmutable $right): int => $left <=> $right);
+
+            return $candidates[array_key_last($candidates)];
+        }
+
+        return self::modifyBySeconds($local, (float) -self::localtimeOffsetForLocal($local, $rules) * 60.0);
+    }
+
+    /**
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}> $rules
+     */
+    private static function localtimeOffsetForUtc(\DateTimeImmutable $instant, array $rules): int
+    {
+        $offset = $rules[0]['offsetMinutes'];
+        foreach ($rules as $rule) {
+            if ($instant < $rule['utcStart']) {
+                break;
+            }
+            $offset = $rule['offsetMinutes'];
+        }
+
+        return $offset;
+    }
+
+    /**
+     * @param list<array{utcStart:\DateTimeImmutable, offsetMinutes:int}> $rules
+     */
+    private static function localtimeOffsetForLocal(\DateTimeImmutable $local, array $rules): int
+    {
+        $offset = $rules[0]['offsetMinutes'];
+        foreach ($rules as $rule) {
+            $transitionLocal = self::modifyBySeconds($rule['utcStart'], (float) $rule['offsetMinutes'] * 60.0);
+            if ($local < $transitionLocal) {
+                break;
+            }
+            $offset = $rule['offsetMinutes'];
+        }
+
+        return $offset;
     }
 
     /**

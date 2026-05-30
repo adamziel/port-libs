@@ -126,9 +126,6 @@ final class SQLiteSelectSql
         $where = isset($clauseOffsets['WHERE'])
             ? self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'), $tables)
             : null;
-        $jsonConstraints = self::jsonTableHiddenConstraints($fromSql, $where);
-        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints, self::jsonTableErrorBoundaryColumns($where), $outerRow, $where);
-
         $groupBySql = isset($clauseOffsets['GROUP BY'])
             ? self::clauseText($tail, $clauseOffsets, 'GROUP BY')
             : null;
@@ -144,6 +141,15 @@ final class SQLiteSelectSql
         if ($namedWindows !== [] && $orderBySql !== null) {
             $orderBySql = self::expandNamedWindowReferences($orderBySql, $namedWindows);
         }
+        $jsonConstraints = self::jsonTableHiddenConstraints($fromSql, $where);
+        $requiredSourceColumns = self::requiredSourceColumns($selectSql, $groupBySql ?? '', $orderBySql ?? '', isset($clauseOffsets['HAVING']) ? self::clauseText($tail, $clauseOffsets, 'HAVING') : '');
+        if (isset($clauseOffsets['WHERE'])) {
+            $requiredSourceColumns = array_values(array_unique(array_merge(
+                $requiredSourceColumns,
+                self::requiredSourceColumns(self::clauseText($tail, $clauseOffsets, 'WHERE')),
+            )));
+        }
+        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints, self::jsonTableErrorBoundaryColumns($where), $outerRow, $where, $requiredSourceColumns);
         $select = self::selectList($selectSql, $tables);
         $select = self::annotateWildcardColumns($select, $source['from']);
         $plan = [
@@ -1523,6 +1529,35 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @return list<string>
+     */
+    private static function requiredSourceColumns(string ...$sqlParts): array
+    {
+        $keywords = array_fill_keys([
+            'as', 'asc', 'by', 'case', 'collate', 'count', 'desc', 'distinct', 'else', 'end',
+            'from', 'group', 'having', 'limit', 'max', 'min', 'null', 'offset', 'order',
+            'select', 'sum', 'then', 'where', 'when',
+        ], true);
+        $columns = [];
+        foreach ($sqlParts as $sql) {
+            if ($sql === '') {
+                continue;
+            }
+            preg_match_all('/[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?/', $sql, $matches);
+            foreach ($matches[0] as $identifier) {
+                $column = str_contains($identifier, '.') ? substr($identifier, strrpos($identifier, '.') + 1) : $identifier;
+                $normalized = strtolower($column);
+                if (isset($keywords[$normalized])) {
+                    continue;
+                }
+                $columns[$normalized] = $column;
+            }
+        }
+
+        return array_values($columns);
+    }
+
+    /**
      * @return list<array<string,mixed>>
      */
     private static function executeValuesClause(string $sql): array
@@ -1579,7 +1614,7 @@ final class SQLiteSelectSql
      * @param list<string> $jsonErrorBoundaryColumns
      * @return array{from:list<array<string,mixed>>,joins:list<array<string,mixed>>}
      */
-    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null, ?array $wherePredicate = null): array
+    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null, ?array $wherePredicate = null, array $requiredColumns = []): array
     {
         $commaSources = self::splitTopLevel($sql, ',');
         if (count($commaSources) > 1) {
@@ -1591,7 +1626,7 @@ final class SQLiteSelectSql
 
         $joinOffset = self::firstJoinOffset($sql);
         $baseSql = $joinOffset === null ? $sql : trim(substr($sql, 0, $joinOffset));
-        $base = self::tableReference($baseSql, $tables, $jsonConstraints, $jsonErrorBoundaryColumns, $outerRow);
+        $base = self::tableReference($baseSql, $tables, $jsonConstraints, $jsonErrorBoundaryColumns, $outerRow, $requiredColumns);
         $joins = [];
 
         if ($joinOffset !== null) {
@@ -1657,14 +1692,14 @@ final class SQLiteSelectSql
      * @param list<string> $jsonErrorBoundaryColumns
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}
      */
-    private static function tableReference(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): array
+    private static function tableReference(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null, array $requiredColumns = []): array
     {
         $valuesTable = self::valuesTableReference($sql);
         if ($valuesTable !== null) {
             return $valuesTable;
         }
 
-        $derivedTable = self::derivedTableReference($sql, $tables, $outerRow);
+        $derivedTable = self::derivedTableReference($sql, $tables, $outerRow, $requiredColumns);
         if ($derivedTable !== null) {
             return $derivedTable;
         }
@@ -1902,7 +1937,7 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
      */
-    private static function derivedTableReference(string $sql, array $tables, ?array $outerRow = null): ?array
+    private static function derivedTableReference(string $sql, array $tables, ?array $outerRow = null, array $requiredColumns = []): ?array
     {
         $sql = trim($sql);
         if (!str_starts_with($sql, '(')) {
@@ -1917,7 +1952,7 @@ final class SQLiteSelectSql
 
         [$alias, $columns] = self::derivedTableAlias(trim(substr($sql, $offset)));
         $rows = $outerRow === null
-            ? self::execute($body, $tables)
+            ? self::executeDerivedTableBody($body, $tables, $requiredColumns)
             : self::correlatedSubqueryRows($body, $tables, $outerRow);
         if ($columns !== []) {
             $rows = self::renameDerivedTableColumns($rows, $columns, $alias);
@@ -1928,6 +1963,69 @@ final class SQLiteSelectSql
             'alias' => $alias,
             'rows' => $rows,
         ];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $requiredColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function executeDerivedTableBody(string $body, array $tables, array $requiredColumns): array
+    {
+        $plan = self::plan($body, $tables);
+        if ($requiredColumns !== [] && isset($plan['compound']) && is_array($plan['compound'])) {
+            $plan = self::pruneUnusedDerivedCompoundCounters($plan, $requiredColumns);
+        }
+
+        return isset($plan['compound']) && is_array($plan['compound'])
+            ? self::executeCompoundPlan($plan)
+            : self::stripHiddenOrderColumns(SQLiteSelectQuery::execute($plan), $plan);
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param list<string> $requiredColumns
+     * @return array<string,mixed>
+     */
+    private static function pruneUnusedDerivedCompoundCounters(array $plan, array $requiredColumns): array
+    {
+        $required = array_fill_keys(array_map('strtolower', $requiredColumns), true);
+        if (!isset($plan['compound']['arms']) || !is_array($plan['compound']['arms'])) {
+            return $plan;
+        }
+
+        foreach ($plan['compound']['arms'] as $armIndex => $arm) {
+            if (!is_array($arm) || !isset($arm['select']) || !is_array($arm['select'])) {
+                continue;
+            }
+            $select = [];
+            foreach ($arm['select'] as $termIndex => $term) {
+                if (
+                    is_array($term)
+                    && self::isCounterProjection($term)
+                    && !isset($required[strtolower(self::compoundArmOutputColumn($term, $termIndex + 1))])
+                ) {
+                    continue;
+                }
+                $select[] = $term;
+            }
+            if ($select !== []) {
+                $plan['compound']['arms'][$armIndex]['select'] = $select;
+            }
+        }
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     */
+    private static function isCounterProjection(array $term): bool
+    {
+        return ($term['type'] ?? null) === 'function'
+            && isset($term['name'])
+            && is_string($term['name'])
+            && strcasecmp($term['name'], 'counter') === 0;
     }
 
     /**
@@ -3089,19 +3187,17 @@ final class SQLiteSelectSql
             return static fn (): bool => true;
         }
         $leftColumns = self::resolveJoinColumnSets($columns, self::collectColumns($leftRows), 'left');
-        $rightColumns = self::resolveJoinColumns($columns, self::collectColumns($rightRows), 'right');
+        $rightColumns = self::resolveJoinColumnSets($columns, self::collectColumns($rightRows), 'right');
 
         return static function (array $left, array $right) use ($leftColumns, $rightColumns): bool {
             foreach ($leftColumns as $index => $leftColumn) {
                 $rightColumn = $rightColumns[$index];
-                if (!array_key_exists($rightColumn, $right)) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING row is missing a comparison column');
-                }
                 $leftValue = self::coalescedJoinColumnValue($left, $leftColumn);
-                if ($leftValue === null || $right[$rightColumn] === null) {
+                $rightValue = self::coalescedJoinColumnValue($right, $rightColumn);
+                if ($leftValue === null || $rightValue === null) {
                     return false;
                 }
-                if (self::joinValueKey($leftValue) !== self::joinValueKey($right[$rightColumn])) {
+                if (self::joinValueKey($leftValue) !== self::joinValueKey($rightValue)) {
                     return false;
                 }
             }
