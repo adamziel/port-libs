@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 12:20 UTC):
+  Latest libsqlite source is integrated as `6c2db06db`
+  (`libsqlite: guard generic source api`). The batch accepts four current-base
+  handoffs on top of `035362104`: upstream veryquick shard next356 helper
+  consolidation, dynamic suite-evidence current-next root-gate coverage,
+  ROWS-frame-without-ORDER-BY window coverage, and STAT4 prepared-handoff helper
+  consolidation. It also adds
+  `SQLiteNoWordPressSpecificApiTest.php`, a regression guard that rejects
+  WordPress/wordpress/WP/wp_-named class, interface, trait, function, or method
+  declarations under `lanes/libsqlite` while allowing existing SQLite fixture
+  table names such as `wp_options` until a separate fixture-data rename is
+  accepted. Verification passed PHP lint for changed PHP files, focused gate
+  `7 files / 1750 assertions / 0 failures`, full libsqlite lane
+  `2 test files / 759069 assertions / 0 failures / 188331 PASS lines`, `git
+  diff --check -- lanes/libsqlite`, no `WordPress`/`wordpress` text in
+  `lanes/libsqlite/src` PHP, and no WordPress/WP/wp_ class or method
+  declarations under `lanes/libsqlite` PHP. Public pass/fail should move to
+  `188331 pass / 0 fail`; mapped coverage remains `830 / 1589` until a fresh
+  denominator-mapped SQLite suite row is accepted. The visible tmux worker pool
+  remains at 11 libsqlite Codex workers with no long sleepers in the latest
+  sample.
+
 - 2026-05-30 supervisor continuation (integration sample 11:30 UTC):
   Latest libsqlite source is integrated as `035362104`
   (`libsqlite: tighten suite and window helpers`). The batch accepts six
