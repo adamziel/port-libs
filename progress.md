@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 02:35 UTC):
+  Latest libsqlite consolidation is integrated as `c1293bf2a`
+  (`libsqlite: consolidate stat4 utf16 vfs json suffix names`). The batch
+  accepts 5 current-base-compatible handoffs covering STAT4 dynamic cursor
+  opcode/mode naming, STAT4 `Next219` peer-run/yield naming, UTF-16
+  supplementary wildcard helper naming, VFS current-source helper naming, and
+  JSON table generated-path rowid-cost final-range test/example naming.
+  Validation passed PHP lint for 42 existing changed PHP files, 3 changed
+  WordPress/self-test examples, `git diff --check -- lanes/libsqlite`,
+  focused changed tests `36 files / 1274 assertions / 0 failures`, STAT4
+  expression partial family `133 files / 7543 assertions / 0 failures`, UTF-16
+  RTRIM family `65 files / 4967 assertions / 0 failures`, VFS current-source
+  family `52 files / 1176 assertions / 0 failures`, and JSON rowid-cost family
+  `204 files / 14405 assertions / 0 failures`. Public pass/mapped counters
+  remain `154019 pass / 0 fail` and `830 / 1589` because this is
+  consolidation-only. Disk cleanup in the same supervisor pass archived
+  status/diffs/untracked-file lists and pruned 30 inactive libsqlite worker
+  worktrees, reclaiming `3925456947` bytes and leaving `.tmux-team/worktrees`
+  at about `2.8G`, `/home/claude` at about `258G` free, and `/tmp` at about
+  `12G` free. The live worker pool remains in the requested 10-11 isolated
+  libsqlite Codex band with 0 long sleepers.
+
 - 2026-05-30 supervisor continuation (shell samples 02:27 UTC):
   Latest libsqlite consolidation is integrated as `655751e57`
   (`libsqlite: consolidate pager upstream suffix names`). The batch accepts
