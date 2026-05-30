@@ -103,6 +103,18 @@ $tests['upstream corpus window groups range current next18 rejects named range f
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::plan('SELECT sum(bytes) OVER framed FROM wp_options WINDOW framed AS (RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING)', ['wp_options' => $options]));
 };
 
+$tests['upstream corpus window groups range current next18 named groups frame inherits order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT sum(bytes) OVER framed AS window_sum FROM wp_options WINDOW framed AS (ORDER BY bytes GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) ORDER BY option_id', ['wp_options' => $options]);
+
+    $t->same([40, 40, 80, 100, 100, 40], array_column($rows, 'window_sum'));
+};
+
+$tests['upstream corpus window groups range current next18 named range frame inherits order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT count(*) OVER framed AS window_count FROM wp_options WINDOW framed AS (ORDER BY bytes RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) ORDER BY option_id', ['wp_options' => $options]);
+
+    $t->same([3, 3, 3, 3, 3, 1], array_column($rows, 'window_count'));
+};
+
 $tests['upstream corpus window groups range current next18 rows frame without order remains valid'] = static function (TestRunner $t) use ($options): void {
     $t->same([20, 30, 50, 60, 70, 40], array_column(SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_sum FROM wp_options ORDER BY option_id', ['wp_options' => $options]), 'window_sum'));
 };

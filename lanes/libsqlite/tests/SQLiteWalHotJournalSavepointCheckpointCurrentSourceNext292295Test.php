@@ -41,21 +41,25 @@ $receiptFor = static function (array $base, int $next, string $name): array {
 };
 
 $chain = static function () use ($base291, $receiptFor): array {
-    $next292 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next292AfterCurrentCheckpoint(
+    $next292 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage(
         $base291,
-        [$receiptFor($base291, 292, 'next292-reader-epoch-carry')]
+        [$receiptFor($base291, 292, 'next292-reader-epoch-carry')],
+        292
     );
-    $next293 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next293AfterCurrentCheckpoint(
+    $next293 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage(
         $next292,
-        [$receiptFor($next292, 293, 'next293-savepoint-release-fence')]
+        [$receiptFor($next292, 293, 'next293-savepoint-release-fence')],
+        293
     );
-    $next294 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next294AfterCurrentCheckpoint(
+    $next294 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage(
         $next293,
-        [$receiptFor($next293, 294, 'next294-hot-journal-absence-fence')]
+        [$receiptFor($next293, 294, 'next294-hot-journal-absence-fence')],
+        294
     );
-    $next295 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next295AfterCurrentCheckpoint(
+    $next295 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage(
         $next294,
-        [$receiptFor($next294, 295, 'next295-current-source-seal')]
+        [$receiptFor($next294, 295, 'next295-current-source-seal')],
+        295
     );
 
     return [$next292, $next293, $next294, $next295];
@@ -81,7 +85,7 @@ $tests['wal hot journal savepoint checkpoint current source next292-295 chains a
 $tests['wal hot journal savepoint checkpoint current source next292 blocks stale receipt image'] = static function (TestRunner $t) use ($base291, $receiptFor, $digest): void {
     $receipt = $receiptFor($base291, 292, 'next292-stale-image');
     $receipt['database_digest'] = $digest('stale next292 database image');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next292AfterCurrentCheckpoint($base291, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage($base291, [$receipt], 292);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next292', $record['status']);
     $t->same(['checkpoint_database_digest_mismatch'], $record['blocked_reasons']);
@@ -90,16 +94,17 @@ $tests['wal hot journal savepoint checkpoint current source next292 blocks stale
 $tests['wal hot journal savepoint checkpoint current source next295 blocks duplicate receipt names'] = static function (TestRunner $t) use ($chain, $receiptFor): void {
     [, , $next294] = $chain();
     $receipt = $receiptFor($next294, 295, 'next295-current-source-seal');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next295AfterCurrentCheckpoint($next294, [$receipt, $receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage($next294, [$receipt, $receipt], 295);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next295', $record['status']);
     $t->contains('checkpoint_receipt_name_duplicate:next295-current-source-seal', implode(',', $record['blocked_reasons']));
 };
 
 $tests['wal hot journal savepoint checkpoint current source next292 rejects missing ready next291 base'] = static function (TestRunner $t) use ($base291, $receiptFor): void {
-    $t->throws(Throwable::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next292AfterCurrentCheckpoint(
+    $t->throws(Throwable::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointStage(
         array_replace($base291, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next290']),
-        [$receiptFor($base291, 292, 'next292-reader-epoch-carry')]
+        [$receiptFor($base291, 292, 'next292-reader-epoch-carry')],
+        292
     ));
 };
 

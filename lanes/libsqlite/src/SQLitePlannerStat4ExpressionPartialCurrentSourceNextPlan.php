@@ -34147,6 +34147,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             "selectedPlan" => [
                 "terminalPreparedHandoffAliasPrepared" => ($base["selectedPlan"]["terminalPreparedHandoffPrepared"] ?? null) === true,
                 "next958973Prepared" => ($base["selectedPlan"]["terminalPreparedHandoffPrepared"] ?? null) === true,
+                "terminalPreparedHandoffCanonicalFenceKey" => "stat4TerminalPreparedHandoffFence",
                 "finalPreparedHandoffPrepared" => $ready,
                 "finalPreparedHandoffSliceCount" => $fence["sliceCount"],
                 "finalPreparedHandoffPreparedSlices" => $fence["preparedSlices"],
@@ -34159,6 +34160,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "finalPreparedHandoffPrepared" => $ready,
                 "finalPreparedHandoffHandoffSignature" => $fence["handoffSignature"],
                 "finalPreparedHandoffCanonicalFenceKey" => "stat4FinalPreparedHandoffFence",
+                "terminalPreparedHandoffCanonicalFenceKey" => "stat4TerminalPreparedHandoffFence",
             ],
             "cursorProgram" => self::preparedHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(

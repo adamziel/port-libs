@@ -42,7 +42,7 @@ $tests = [];
 
 for ($i = 1; $i <= 42; $i++) {
     $tests['current next60 release gate admits accepted head artifact case ' . $i] = static function (TestRunner $t) use ($i, $acceptedHead60, $focusedPath60, $nonOverlap60): void {
-        $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateCurrentNext60(
+        $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateEvidence(
             [
                 libsqlite_release_gate60_artifact('all-zero-error-' . $i, $acceptedHead60, 'all', 10785 + $i),
                 libsqlite_release_gate60_artifact('release-zero-error-' . $i, $acceptedHead60, 'release', 22000 + $i),
@@ -79,7 +79,7 @@ for ($i = 1; $i <= 42; $i++) {
 }
 
 $tests['current next60 release gate keeps stale head artifact uncounted'] = static function (TestRunner $t) use ($acceptedHead60, $focusedPath60, $nonOverlap60): void {
-    $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateCurrentNext60(
+    $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateEvidence(
         [
             libsqlite_release_gate60_artifact('accepted-release', $acceptedHead60, 'release', 22000),
             libsqlite_release_gate60_artifact('stale-all', '36d0dc6f9ad9153a9cf6dd45f76c3dadd789ad3f', 'all', 10785),
@@ -105,7 +105,7 @@ $tests['current next60 release gate keeps stale head artifact uncounted'] = stat
 };
 
 $tests['current next60 release gate blocks failed and non release artifacts'] = static function (TestRunner $t) use ($acceptedHead60, $focusedPath60, $nonOverlap60): void {
-    $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateCurrentNext60(
+    $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateEvidence(
         [
             libsqlite_release_gate60_artifact('failed-release', $acceptedHead60, 'release', 21999, 1, 1, 'failed'),
             libsqlite_release_gate60_artifact('focused-veryquick', $acceptedHead60, 'veryquick', 1235),
@@ -134,7 +134,7 @@ $tests['current next60 release gate blocks failed and non release artifacts'] = 
 
 $tests['current next60 release gate blocks duplicate active broad runner'] = static function (TestRunner $t) use ($acceptedHead60, $focusedPath60, $nonOverlap60): void {
     $snapshot = '601001 599999 00:37 make -C .upstream-cache/libsqlite-build-port-libsqlite test';
-    $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateCurrentNext60(
+    $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateEvidence(
         [libsqlite_release_gate60_artifact('accepted-all', $acceptedHead60, 'all', 10785)],
         $acceptedHead60,
         22215,
@@ -156,7 +156,7 @@ $tests['current next60 release gate blocks duplicate active broad runner'] = sta
 };
 
 $tests['current next60 release gate blocks failed focused php admission'] = static function (TestRunner $t) use ($acceptedHead60, $focusedPath60, $nonOverlap60): void {
-    $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateCurrentNext60(
+    $record = libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateEvidence(
         [libsqlite_release_gate60_artifact('accepted-release', $acceptedHead60, 'release', 22000)],
         $acceptedHead60,
         22215,
@@ -179,7 +179,7 @@ $tests['current next60 release gate blocks failed focused php admission'] = stat
 
 $tests['current next60 release gate rejects missing accepted head'] = static function (TestRunner $t) use ($focusedPath60, $nonOverlap60): void {
     try {
-        libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateCurrentNext60(
+        libsqlite_release_gate60_evidence()->upstreamSuiteReleaseGateEvidence(
             [],
             '',
             22215,

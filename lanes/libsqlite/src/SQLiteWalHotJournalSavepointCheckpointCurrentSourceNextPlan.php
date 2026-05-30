@@ -28338,26 +28338,6 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 291, 'seal_after_ready_checkpoint_current_source_next_delta');
     }
 
-    public static function next292AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 292, 'verify_after_ready_checkpoint_reader_epoch_carry');
-    }
-
-    public static function next293AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 293, 'verify_after_ready_checkpoint_savepoint_release_fence');
-    }
-
-    public static function next294AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 294, 'verify_after_ready_checkpoint_hot_journal_absence_fence');
-    }
-
-    public static function next295AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 295, 'seal_after_ready_checkpoint_current_source_next292_295');
-    }
-
     public static function next300AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
     {
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 300, 'verify_after_ready_checkpoint_wal_index_epoch');
@@ -28759,7 +28739,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
     public static function afterCurrentCheckpointStage(array $checkpointPlan, array $checkpointReceipts, int $stage): array
     {
-        if ($stage < 388 || $stage > 1123) {
+        if ($stage < 292 || $stage > 1123) {
             throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source stage {$stage} is outside the after-current checkpoint range");
         }
 
@@ -28805,6 +28785,10 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     private static function afterCurrentCheckpointVerificationStep(int $stage): string
     {
         $consolidatedEarlyStages = [
+            292 => 'verify_after_ready_checkpoint_reader_epoch_carry',
+            293 => 'verify_after_ready_checkpoint_savepoint_release_fence',
+            294 => 'verify_after_ready_checkpoint_hot_journal_absence_fence',
+            295 => 'seal_after_ready_checkpoint_current_source_next292_295',
             388 => 'verify_after_ready_checkpoint_restart_salt_receipt_generation',
             389 => 'verify_after_ready_checkpoint_reader_mark_release_generation',
             390 => 'verify_after_ready_checkpoint_page_cache_source_token_generation',
