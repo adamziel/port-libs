@@ -59,7 +59,7 @@ $plan = static fn (
     bool $deleted = true,
     int $recovery = 9,
     int $lockGeneration = 14,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext171(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterJournalRecoveryReaderCacheTicket(
     $path ?? $databasePath,
     $mjPath ?? $masterPath,
     $master ?? $masterBytes,

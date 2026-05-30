@@ -180,7 +180,7 @@ $plan = static fn (
     ?array $readerCache = null,
     ?array $readList = null,
     ?string $currentVectorToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext246(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planCurrentSourceVersionVectorFence(
     $database,
     $master,
     $masterBytes,

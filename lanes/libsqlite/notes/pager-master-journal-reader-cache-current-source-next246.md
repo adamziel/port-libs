@@ -4,15 +4,15 @@ Status: focused PHP behavior growth for `pager-master-journal-reader-cache-curre
 
 This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It layers a current-source version-vector fence after the accepted next243 provenance fence so a reader-cache page can only be reused after master-journal recovery when its multi-database source vector still matches the recovered current source. Cached schema/options pages with matching vectors are retained or refreshed, while stale attached-database vectors, stale reader tickets, and inherited stale provenance/schema/read-transaction fences reopen the next reader.
 
-WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next246.php` models copied `wp_options` import behavior where schema and options-root cache rows survive recovery only when the main and attached users database version vector is current; stale `active_plugins` reads reopen before plugin import continues.
+WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-version-vector-fence.php` models copied `wp_options` import behavior where schema and options-root cache rows survive recovery only when the main and attached users database version vector is current; stale `active_plugins` reads reopen before plugin import continues.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext246Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next246.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext246Test.php`
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next246.php`
+- `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceVersionVectorFenceTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-version-vector-fence.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceVersionVectorFenceTest.php`
+- `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-version-vector-fence.php`
 - `git diff --check -- lanes/libsqlite`
 
 Focused result: `1 test files, 69 assertions, 0 failures`.

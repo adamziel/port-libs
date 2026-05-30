@@ -127,7 +127,7 @@ $readTicket = static fn (int $pageNumber, array $ticket) => [
     'pager_header_ticket' => $ticket,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext221(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planPagerHeaderTicketFence(
     $database,
     $master,
     $masterBytes,

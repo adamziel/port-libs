@@ -128,7 +128,7 @@ $read = static fn (int $pageNumber, string $vectorToken = null): array => [
     'current_source_version_vector_token' => $vectorToken ?? $currentVersionVectorToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext246(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planCurrentSourceVersionVectorFence(
     $database,
     $master,
     $masterBytes,

@@ -4987,7 +4987,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext171(string $databasePath,
+    public static function masterJournalRecoveryReaderCacheTicket(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         int $pageSize,
@@ -17584,7 +17584,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext221(string $databasePath,
+    public static function planPagerHeaderTicketFence(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         string $databaseBytes,
@@ -22843,7 +22843,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext246(string $databasePath,
+    public static function planCurrentSourceVersionVectorFence(string $databasePath,
         string $masterJournalPath,
         string $currentMasterJournalBytes,
         string $databaseBytes,
@@ -23640,7 +23640,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     $cacheTokens = self::cacheHandoffTokens($readerCache);
                     $readTokens = self::readHandoffTokens($nextReads);
 
-                    $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext246(
+                    $base = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planCurrentSourceVersionVectorFence(
                         $databasePath,
                         $masterJournalPath,
                         $currentMasterJournalBytes,

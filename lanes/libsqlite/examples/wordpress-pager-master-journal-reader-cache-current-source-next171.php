@@ -21,7 +21,7 @@ $pages = [
     4 => $page('wp next171 rewrite_rules current after master recovery ticket'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext171(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterJournalRecoveryReaderCacheTicket(
     $databasePath,
     $masterPath,
     $masterBytes,
