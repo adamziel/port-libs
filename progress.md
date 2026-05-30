@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 22:00 UTC):
+  Latest libsqlite source is being advanced from dashboard head `e2fccb0f`
+  through a fourteenth rapid current-base corpus sweep. The scratch batch
+  accepted 31 behavior-producing real upstream corpus handoffs across SELECT,
+  JSON104/JSONB, expression affinity, date affinity, VFS IO/sysfault/atomic
+  edges, trigger/FK, PRAGMA runtime/schema, B-tree/index, UPSERT/RETURNING,
+  pager/WAL, and window-function coverage. Four handoffs were rejected as
+  note-only blocker outputs. Verification passed PHP lint for 37 changed/new
+  PHP files, `git diff --check -- lanes/libsqlite`, added-lines
+  source-neutral guards, and focused selected tests with `32 test files /
+  573726 assertions / 0 failures / 87956 PASS lines`. Accepted-base
+  comparison over the three pre-existing selected files passed with `3 test
+  files / 201223 assertions / 0 failures / 20313 PASS lines`, so selected
+  corpus throughput moves by `+67643` to `911920 pass / 0 fail`. Mapped
+  coverage remains `1589 / 1589`. Broad full-directory parity remains open
+  because the previous exploratory full run exposed pre-existing
+  application/WAL failures and a pre-existing
+  `SQLiteRowValueNestedSavepointReturningTest` fatal; dedicated parity workers
+  are active for those blockers.
+
 - 2026-05-30 supervisor continuation (PDO side slice 21:52 UTC):
   Accepted `59eefd04` (`libsqlite: expand SQLite PDO compatibility`) on top
   of the thirteenth rapid corpus publication. The patch expands the native-PHP

@@ -152,6 +152,35 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index8OrderByLimitPlannerCases() as 
     };
 }
 
+// Source truth: SQLite upstream test/index8.test sections 1.0, 1.0eqp, 1.1,
+// and 1.1eqp. This dynamic batch keeps the ORDER BY/LIMIT choice tied to
+// whether the candidate index covers the WHERE column without requiring a
+// table lookup.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index8DynamicOrderByLimitCases(1000) as $case) {
+    $tests['real upstream index8 dynamic order by limit planner case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index8.test sections 1.0, 1.0eqp, 1.1, and 1.1eqp', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->same('c', $case['where_column']);
+        $t->true($case['where_value'] >= 0 && $case['where_value'] < 19);
+        $t->same(['a', 'b'], $case['order_by']);
+        $t->true($case['limit'] >= 1 && $case['limit'] <= 8);
+        $t->same($case['uses_index'], $case['index_name'] === 't1abc');
+        $t->same($case['requires_table_lookup'], $case['index_name'] === 't1abd');
+        $t->same($case['uses_index'], str_contains($case['detail'], 'USING INDEX t1abc'));
+        $t->true(count($case['result_rows']) <= $case['limit']);
+        $t->true(count($case['result_rows']) <= $case['matching_count']);
+        if ($case['result_rows'] !== []) {
+            $t->same($case['first_d'], $case['result_rows'][0]['d']);
+            $t->same($case['last_d'], $case['result_rows'][count($case['result_rows']) - 1]['d']);
+        }
+        foreach ($case['result_rows'] as $row) {
+            $t->same($case['where_value'], $row['c']);
+            $t->same($row['a'], intdiv($row['d'], 10));
+            $t->same($row['b'], $row['d'] % 10);
+        }
+    };
+}
+
 // Source truth: SQLite upstream test/btree01.test btree01-2.1 and 2.2.
 foreach (SQLiteBTreeIndexDynamicCorpusPlan::btree01OverflowJoinCases() as $case) {
     $tests['real upstream btree01 overflow join ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
@@ -234,6 +263,27 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index6PartialIndexRegressionCases() 
     };
 }
 
+// Source truth: SQLite upstream test/index7.test index7-2.1 through 2.104.
+// These WITHOUT ROWID cases track partial-index membership before and after
+// the update that changes both the search key and primary-key payload.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index7WithoutRowidPartialIndexCases() as $case) {
+    $tests['real upstream index7 without rowid partial index dynamic value ' . $case['value']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index7.test index7-2.1 through index7-2.104', $case['source']);
+        $t->true($case['value'] >= 1 && $case['value'] < 1000);
+        $t->same($case['value'], $case['initial_b']);
+        $t->same($case['value'] % 5 !== 0, $case['partial_not_null_member']);
+        $t->same($case['partial_not_null_member'] ? $case['value'] : null, $case['initial_a']);
+        $t->same($case['value'], $case['post_update_a']);
+        $t->same($case['value'] + 10000, $case['post_update_b']);
+        $t->same($case['value'] < 100 || $case['value'] > 200, $case['or_partial_member']);
+        $t->same($case['partial_not_null_member'] ? [$case['value']] : [], $case['lookup_before']);
+        $t->same([$case['value'] + 10000], $case['lookup_after']);
+        $t->same($case['partial_not_null_member'], str_contains($case['detail_before'], 'INDEX t2a1'));
+        $t->same($case['or_partial_member'], str_contains($case['detail_after'], 'INDEX t2a2'));
+        $t->same('ok', $case['integrity']);
+    };
+}
+
 // Source truth: SQLite upstream test/indexA.test sections 2.1 and 3.1. The
 // upstream script repeats the same partial-index affinity matrix for rowid and
 // WITHOUT ROWID tables; the batches below keep those dynamic combinations
@@ -265,6 +315,45 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases(80)
             $t->true(str_contains($case['detail'], 'USING COVERING INDEX ' . $case['index_name']));
         } else {
             $t->true($case['index_setup'] === 0 || str_starts_with($case['detail'], 'SCAN '));
+        }
+    };
+}
+
+// Source truth: SQLite upstream test/indexA.test sections 1.1 through 1.7 and
+// 4.1 through 8.1. These cases cover partial-index equality, RIGHT/LEFT JOIN
+// routing, missing/custom collation guards, bloom-filtered joins, INDEXED BY,
+// and constant expression indexes.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexAJoinPlannerGuardCases(720) as $case) {
+    $tests['real upstream indexA join planner guard case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('indexA.test sections 1.1 through 1.7 and 4.1 through 8.1', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 720);
+        $t->true($case['batch'] >= 1);
+        $t->true($case['scenario'] !== '');
+        $t->true($case['index_name'] !== '');
+        $t->true($case['detail'] !== '');
+        $t->same('ok', $case['integrity']);
+        if ($case['error'] === null) {
+            $t->same($case['uses_index'], str_contains($case['detail'], $case['index_name']));
+        }
+        $t->true(array_values($case['result_rows']) === $case['result_rows']);
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_values($row) === $row);
+        }
+        if ($case['error'] !== null) {
+            $t->same(false, $case['uses_index']);
+            $t->same('g', $case['collation']);
+            $t->same('no such collation sequence: g', $case['error']);
+        }
+        if ($case['collation'] === 'xyz') {
+            $t->same(null, $case['error']);
+            $t->same(true, $case['uses_index']);
+        }
+        if (str_contains($case['scenario'], 'right join')) {
+            $t->true(str_contains($case['detail'], 'RIGHT-JOIN'));
+            $t->same('i2', $case['index_name']);
+        }
+        if (str_contains($case['scenario'], 'bloom filter')) {
+            $t->true(str_contains($case['detail'], 'BLOOM FILTER'));
         }
     };
 }
@@ -550,6 +639,36 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::autoindex4PartialJoinCases(1200) as 
         }
         if ($case['join_type'] === 'LEFT JOIN') {
             $t->true($case['null_extended_rows'] >= 0);
+        }
+    };
+}
+
+// Source truth: SQLite upstream test/indexfault.test sections 1.1, 2.1, 2.2,
+// 3.1, and 3.3. These focused cases preserve CREATE INDEX rollback/retry
+// expectations for sorter malloc, I/O, temp-open, and temp-write faults.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexFaultCreateIndexCases(1000) as $case) {
+    $tests['real upstream indexfault dynamic create index fault case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('indexfault.test sections 1.1, 2.1, 2.2, 3.1, and 3.3', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['section'], 'indexfault-'));
+        $t->true($case['table_shape'] !== '');
+        $t->true($case['index_columns'] !== []);
+        $t->true($case['row_count'] === 128 || $case['row_count'] === 256 || $case['row_count'] === 512);
+        $t->true($case['blob_bytes'] === 30 || $case['blob_bytes'] === 202 || $case['blob_bytes'] === 11000);
+        $t->true($case['injection_point'] >= 1);
+        $t->same($case['result_code'] === 1, $case['expected_retryable']);
+        $t->same($case['result_code'] === 0, $case['index_created']);
+        $t->same($case['expected_retryable'] ? 'disk I/O error' : null, $case['error']);
+        $t->same($case['row_count'], $case['row_count_preserved']);
+        $t->same('ok', $case['integrity']);
+        if ($case['section'] === 'indexfault-2.2') {
+            $t->same(50000, $case['soft_heap_limit']);
+        }
+        if ($case['section'] === 'indexfault-3.1' || $case['section'] === 'indexfault-3.3') {
+            $t->same(true, $case['temp_btree_spilled']);
+        }
+        if ($case['section'] === 'indexfault-3.3') {
+            $t->true(in_array('xWrite', $case['fault_filter'], true));
         }
     };
 }

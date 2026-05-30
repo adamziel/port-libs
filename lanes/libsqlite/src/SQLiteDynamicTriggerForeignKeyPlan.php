@@ -1154,6 +1154,116 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @param list<array{id:int|string,label?:string}> $parents
      * @param list<array{id:int|string,parent_id:int|string|null,label?:string}> $children
+     * @param array{kind:string,parent_id?:int|string,child_id?:int|string|null,replace_parent_id?:int|string|null,trigger_replaces_parent?:bool,self_referential?:bool} $statement
+     * @return array<string,mixed>
+     */
+    public static function withoutRowidReplaceForeignKeyCounter(array $parents, array $children, array $statement): array
+    {
+        $kind = strtolower((string) ($statement['kind'] ?? 'replace-parent-after-delete'));
+        if (!in_array($kind, ['replace-parent-after-delete', 'replace-child-cycle', 'delete-parent-trigger-replace'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey8 WITHOUT ROWID replace counter kind is unsupported');
+        }
+
+        $parents = self::sortRows(array_values($parents));
+        $children = self::sortRows(array_values($children));
+        $originalParents = $parents;
+        $originalChildren = $children;
+        $deferredViolations = [];
+        $implicitDeletes = [];
+        $triggerEffects = [];
+
+        if ($kind === 'replace-parent-after-delete') {
+            $deleteParentId = $statement['parent_id'] ?? throw new \InvalidArgumentException('SQLite fkey8 deleted parent id is required');
+            $replaceParentId = $statement['replace_parent_id'] ?? throw new \InvalidArgumentException('SQLite fkey8 replacement parent id is required');
+            $parents = array_values(array_filter($parents, static fn (array $row): bool => ($row['id'] ?? null) !== $deleteParentId));
+            $parents = array_values(array_filter($parents, static function (array $row) use ($replaceParentId, &$implicitDeletes): bool {
+                if (($row['id'] ?? null) === $replaceParentId) {
+                    $implicitDeletes[] = ['table' => 'parent', 'id' => $row['id'], 'reason' => 'replace-conflict'];
+                    return false;
+                }
+
+                return true;
+            }));
+            $parents[] = ['id' => $replaceParentId, 'label' => 'replacement-' . (string) $replaceParentId];
+        } elseif ($kind === 'replace-child-cycle') {
+            $childId = $statement['child_id'] ?? throw new \InvalidArgumentException('SQLite fkey8 child id is required');
+            $replacementParentId = $statement['replace_parent_id'] ?? null;
+            $children = array_values(array_filter($children, static function (array $row) use ($childId, &$implicitDeletes): bool {
+                if (($row['id'] ?? null) === $childId) {
+                    $implicitDeletes[] = ['table' => 'child', 'id' => $row['id'], 'reason' => 'replace-conflict'];
+                    return false;
+                }
+
+                return true;
+            }));
+            $children[] = ['id' => $childId, 'parent_id' => $replacementParentId, 'label' => 'replacement-child-' . (string) $childId];
+            if ($statement['self_referential'] ?? false) {
+                $parents[] = ['id' => $childId, 'label' => 'self-parent-' . (string) $childId];
+            }
+        } else {
+            $deleteParentId = $statement['parent_id'] ?? throw new \InvalidArgumentException('SQLite fkey8 deleted parent id is required');
+            $parents = array_values(array_filter($parents, static fn (array $row): bool => ($row['id'] ?? null) !== $deleteParentId));
+            if ($statement['trigger_replaces_parent'] ?? false) {
+                $replaceParentId = $statement['replace_parent_id'] ?? throw new \InvalidArgumentException('SQLite fkey8 trigger replacement parent id is required');
+                $parents = array_values(array_filter($parents, static function (array $row) use ($replaceParentId, &$implicitDeletes): bool {
+                    if (($row['id'] ?? null) === $replaceParentId) {
+                        $implicitDeletes[] = ['table' => 'parent', 'id' => $row['id'], 'reason' => 'trigger-replace-conflict'];
+                        return false;
+                    }
+
+                    return true;
+                }));
+                $parents[] = ['id' => $replaceParentId, 'label' => 'trigger-replacement-' . (string) $replaceParentId];
+                $triggerEffects[] = ['trigger' => 'after_parent_delete_replace', 'event' => 'delete', 'old_id' => $deleteParentId, 'replace_id' => $replaceParentId];
+            }
+        }
+
+        $parentIds = array_values(array_map(static fn (array $row): mixed => $row['id'], $parents));
+        foreach ($children as $index => $child) {
+            $parentId = $child['parent_id'] ?? null;
+            if ($parentId === null || in_array($parentId, $parentIds, true)) {
+                continue;
+            }
+            $deferredViolations[] = [
+                'child_index' => $index,
+                'child_id' => $child['id'] ?? null,
+                'missing_parent_id' => $parentId,
+                'phase' => 'deferred-commit',
+            ];
+        }
+
+        $failed = $deferredViolations !== [];
+
+        return [
+            'source' => match ($kind) {
+                'replace-parent-after-delete' => 'fkey8.test fkey8-2.1.0..2.1.2',
+                'replace-child-cycle' => 'fkey8.test fkey8-2.2.0..2.2.1',
+                default => 'fkey8.test fkey8-2.3.0..3.1',
+            },
+            'operation' => 'without-rowid-replace-foreign-key-counter',
+            'status' => $failed ? 'constraint-failed' : 'commit-ok',
+            'kind' => $kind,
+            'without_rowid' => true,
+            'deferred_counter_delta' => count($deferredViolations),
+            'implicit_delete_count' => count($implicitDeletes),
+            'implicit_deletes' => $implicitDeletes,
+            'trigger_effects' => $triggerEffects,
+            'parent_ids' => array_values(array_map(static fn (array $row): mixed => $row['id'], self::sortRows($parents))),
+            'child_parent_ids' => array_values(array_map(static fn (array $row): mixed => $row['parent_id'] ?? null, self::sortRows($children))),
+            'violations' => $deferredViolations,
+            'rollback_parent_ids' => $failed ? array_values(array_map(static fn (array $row): mixed => $row['id'], $originalParents)) : [],
+            'rollback_child_parent_ids' => $failed ? array_values(array_map(static fn (array $row): mixed => $row['parent_id'] ?? null, $originalChildren)) : [],
+            'dependencies' => [
+                'sqlite-fkey8-without-rowid-replace-updates-deferred-counter',
+                'sqlite-fkey8-replace-child-conflict-can-clear-deferred-counter',
+                'sqlite-fkey8-triggered-replace-delete-preserves-fk-failure',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{id:int|string,label?:string}> $parents
+     * @param list<array{id:int|string,parent_id:int|string|null,label?:string}> $children
      * @param array{operation:string,target?:int|string,repair_trigger?:bool,pragma_defer?:bool,transaction?:string,action?:string} $statement
      * @return array<string,mixed>
      */
@@ -2572,6 +2682,66 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $parentAssignments
+     * @param array<string,mixed> $triggerAssignments
+     * @return array<string,mixed>
+     */
+    public static function beforeUpdateSelfMutationPreservesColumns(array $row, array $parentAssignments, array $triggerAssignments): array
+    {
+        if ($row === []) {
+            throw new \InvalidArgumentException('SQLite triggerC before update row must not be empty');
+        }
+        if ($parentAssignments === []) {
+            throw new \InvalidArgumentException('SQLite triggerC parent update assignments must not be empty');
+        }
+        if ($triggerAssignments === []) {
+            throw new \InvalidArgumentException('SQLite triggerC trigger assignments must not be empty');
+        }
+
+        $original = $row;
+        $triggerRow = $row;
+        foreach ($triggerAssignments as $column => $value) {
+            self::identifier((string) $column, 'before update trigger assignment column');
+            $triggerRow[$column] = is_callable($value) ? $value($triggerRow, $original) : $value;
+        }
+
+        $final = $triggerRow;
+        foreach ($parentAssignments as $column => $value) {
+            self::identifier((string) $column, 'parent update assignment column');
+            $final[$column] = is_callable($value) ? $value($original, $triggerRow) : $value;
+        }
+
+        $preserved = [];
+        foreach ($triggerAssignments as $column => $_value) {
+            if (array_key_exists($column, $parentAssignments)) {
+                continue;
+            }
+            $preserved[(string) $column] = $final[$column] ?? null;
+        }
+
+        return [
+            'source' => 'triggerC.test triggerC-10.1..10.3',
+            'operation' => 'before-update-trigger-self-mutation-preserves-unassigned-columns',
+            'status' => 'commit-ok',
+            'original_row' => $original,
+            'trigger_row' => $triggerRow,
+            'parent_assignments' => array_keys($parentAssignments),
+            'trigger_assignments' => array_keys($triggerAssignments),
+            'final_row' => $final,
+            'preserved_trigger_columns' => $preserved,
+            'preserved_trigger_column_count' => count($preserved),
+            'parent_assignment_count' => count($parentAssignments),
+            'trigger_assignment_count' => count($triggerAssignments),
+            'dependencies' => [
+                'sqlite-triggerC-before-update-self-mutation',
+                'sqlite-triggerC-parent-update-does-not-clobber-unassigned-trigger-columns',
+                'sqlite-triggerC-wide-row-column-preservation',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int|null,b:int|float|string|null,c:int|null}> $rows
      * @return array<string,mixed>
      */
@@ -2865,6 +3035,51 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                 'sqlite-triggerC-before-trigger-can-delete-target-row',
                 'sqlite-triggerC-before-trigger-can-move-rowid-before-outer-statement',
                 'sqlite-triggerC-after-trigger-fires-only-for-surviving-outer-row-change',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function largeTriggerBodyExecution(int $statementCount, int $outerInsertValue = 5, int $outerRowCount = 1): array
+    {
+        if ($statementCount < 0) {
+            throw new \InvalidArgumentException('SQLite trigger8 statement count must be non-negative');
+        }
+        if ($outerRowCount < 1) {
+            throw new \InvalidArgumentException('SQLite trigger8 outer row count must be positive');
+        }
+
+        $triggerRows = [];
+        for ($row = 0; $row < $outerRowCount; ++$row) {
+            for ($statement = 0; $statement < $statementCount; ++$statement) {
+                $triggerRows[] = [
+                    'outer_row_index' => $row,
+                    'outer_value' => $outerInsertValue + $row,
+                    'statement_ordinal' => $statement,
+                    'y' => $statement,
+                ];
+            }
+        }
+
+        return [
+            'source' => 'trigger8.test trigger8-1.1',
+            'operation' => 'large-trigger-body-executes-all-statements',
+            'status' => 'commit-ok',
+            'statement_count' => $statementCount,
+            'outer_insert_value' => $outerInsertValue,
+            'outer_row_count' => $outerRowCount,
+            'trigger_row_count' => count($triggerRows),
+            'first_statement_ordinal' => $triggerRows[0]['statement_ordinal'] ?? null,
+            'last_statement_ordinal' => $statementCount === 0 ? null : $statementCount - 1,
+            'trigger_rows' => $triggerRows,
+            'trigger_values' => array_values(array_column($triggerRows, 'y')),
+            'per_outer_row_counts' => array_fill(0, $outerRowCount, $statementCount),
+            'dependencies' => [
+                'sqlite-trigger8-large-trigger-body-statement-drain',
+                'sqlite-trigger8-trigger-program-preserves-statement-order',
+                'sqlite-trigger8-each-outer-row-runs-full-trigger-body',
             ],
         ];
     }

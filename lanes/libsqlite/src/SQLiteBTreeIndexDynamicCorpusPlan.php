@@ -2306,6 +2306,166 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table_name:string,index_name:string,partial_predicate:string,mutation:string,result_rows:list<array<int,mixed>>,expected_error:string|null,uses_index:bool,detail:string,integrity:string,stat_rows:list<array<int,mixed>>,batch:int}>
+     */
+    public static function index7PartialUniqueAndPlannerCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index7 partial unique planner corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'index7-3.1/3.2',
+                'partial UNIQUE index rejects a duplicate non-excluded key',
+                't3',
+                't3a',
+                'a<>999',
+                'INSERT INTO t3(a,b) VALUES(150, ?)',
+                [],
+                'UNIQUE constraint failed: t3.a',
+                true,
+                'UNIQUE INDEX t3a ON t3(a) WHERE a<>999',
+                [[199, 160, 39]],
+                'ok',
+            ],
+            [
+                'index7-3.3/3.4',
+                'partial UNIQUE index admits repeated excluded sentinel rows',
+                't3',
+                't3a',
+                'a<>999',
+                'INSERT INTO t3(a,b) VALUES(999, ?), (999, ?)',
+                [[162]],
+                null,
+                false,
+                'COUNT rows where a=999 after duplicate excluded inserts',
+                [[201, 160, 41]],
+                'ok',
+            ],
+            [
+                'index7-5.0',
+                'database-name qualifier is ignored inside partial-index predicate',
+                't3',
+                't3b',
+                'qualified.t3.b BETWEEN 5 AND 10',
+                'CREATE INDEX t3b ON t3(b) WHERE qualified.t3.b BETWEEN 5 AND 10',
+                [[6], [6]],
+                null,
+                true,
+                'sqlite_stat1 row for t3b has six qualifying rows',
+                [[6, 6]],
+                'ok',
+            ],
+            [
+                'index7-6.1/6.2',
+                'partial index on joined table does not filter a nonqualifying joined row',
+                't4',
+                'i4',
+                "d='xyz'",
+                "CREATE INDEX i4 ON t4(c) WHERE d='xyz'",
+                [[1, 'xyz', 'abc', 'not xyz']],
+                null,
+                false,
+                'subquery result joins t4 row even though partial predicate is false',
+                [[1, 1]],
+                'ok',
+            ],
+            [
+                'index7-6.3/6.4',
+                'view predicate matching the partial index uses the indexed table route',
+                't4',
+                'i4',
+                "d='xyz'",
+                'CREATE VIEW v4 AS SELECT * FROM t4; SELECT * FROM v4 WHERE d=? AND c=?',
+                [['def', 'xyz']],
+                null,
+                true,
+                'SEARCH t4 USING INDEX i4 (c=?)',
+                [[1, 1]],
+                'ok',
+            ],
+            [
+                'index7-6.5',
+                'bad parameter token in partial-index predicate is a syntax error',
+                't5',
+                't5a',
+                'a=#1',
+                'CREATE INDEX t5a ON t5(a) WHERE a=#1',
+                [],
+                'near "#1": syntax error',
+                false,
+                'partial-index parser rejects hash-number parameter token',
+                [],
+                null,
+            ],
+            [
+                'index7-7.0/7.1',
+                'IS TRUE query remains unchanged after adding an IS NOT TRUE partial index',
+                't6',
+                'i6',
+                'y IS NOT TRUE',
+                'CREATE INDEX i6 ON t6(x) WHERE y IS NOT TRUE',
+                [[1, 1]],
+                null,
+                false,
+                'SELECT * FROM t6 WHERE y IS TRUE ORDER BY x',
+                [[2, 1]],
+                'ok',
+            ],
+            [
+                'index7-8.1',
+                'incomplete stat1 on tiny table still admits partial covering index lookup',
+                't1',
+                't1y',
+                'y IS NOT NULL',
+                'ANALYZE after inserting only null y rows',
+                [[1]],
+                null,
+                true,
+                'SEARCH t1 USING COVERING INDEX t1y (y=?)',
+                [[2, 0]],
+                'ok',
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $table, $index, $predicate, $mutation, $resultRows, $error, $usesIndex, $detail, $statRows, $integrity] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $dynamicRows = array_map(
+                static function (array $row) use ($batch): array {
+                    return array_map(
+                        static fn (mixed $value): mixed => is_int($value) && $value > 10 ? $value + (($batch - 1) * 1000) : $value,
+                        $row,
+                    );
+                },
+                $resultRows,
+            );
+
+            $rows[] = [
+                'source' => 'index7.test index7-3.1 through index7-8.1',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'table_name' => $table,
+                'index_name' => $index,
+                'partial_predicate' => $predicate,
+                'mutation' => $mutation,
+                'result_rows' => $dynamicRows,
+                'expected_error' => $error,
+                'uses_index' => $usesIndex,
+                'detail' => $detail,
+                'integrity' => $integrity,
+                'stat_rows' => $statRows,
+                'batch' => $batch,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,automatic_index_enabled:bool,join_shape:string,autoindex_target:string,expected_rows:list<array<int,mixed>>,step_count:int|null,autoindex_inserts:int,detail:string,uses_automatic_index:bool,mutation:string|null,integrity:string}>
      */
     public static function autoindex1AutomaticIndexPlannerCases(int $cases = 1000): array

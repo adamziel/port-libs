@@ -621,6 +621,94 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,syscall:string,errno:string,fault_index:int,persistent:bool,result_code:string,transient_retry:bool,readonly_possible:bool,large_file_possible:bool,lock_error_possible:bool,wal_rows_visible:bool,attached_rows_visible:bool,temp_rows_visible:bool,open_file_count:int,integrity_check:string,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function syscallFaultProfile(
+        string $scenario,
+        string $syscall,
+        string $errno,
+        int $faultIndex,
+        bool $persistent = false
+    ): array {
+        if ($scenario === '' || $syscall === '' || $errno === '') {
+            throw new \InvalidArgumentException('SQLite sysfault profile requires scenario, syscall, and errno');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite sysfault profile requires a positive fault index');
+        }
+
+        $syscall = strtolower(trim($syscall));
+        $errno = strtoupper(trim($errno));
+        $supported = [
+            'open' => true,
+            'getcwd' => true,
+            'fstat' => true,
+            'fcntl' => true,
+            'ftruncate' => true,
+            'close' => true,
+            'read' => true,
+            'pread' => true,
+            'pread64' => true,
+            'write' => true,
+            'fallocate' => true,
+            'mmap' => true,
+        ];
+        if (!isset($supported[$syscall])) {
+            throw new \InvalidArgumentException("Unsupported SQLite sysfault syscall: {$syscall}");
+        }
+
+        $transientRetry = $errno === 'EINTR';
+        $lockErrnos = ['EAGAIN' => true, 'ETIMEDOUT' => true, 'EBUSY' => true, 'EINTR' => true, 'ENOLCK' => true, 'EACCES' => true, 'EPERM' => true, 'EDEADLK' => true, 'ENOMEM' => true];
+        $lockFault = $syscall === 'fcntl';
+        $largeFile = $syscall === 'fstat' && $errno === 'EOVERFLOW';
+        $readonly = in_array($syscall, ['open', 'getcwd'], true) && $persistent && ($faultIndex % 2) === 0;
+        $mmapFault = $syscall === 'mmap';
+
+        $resultCode = 'ok';
+        if (!$transientRetry || $persistent) {
+            if ($readonly) {
+                $resultCode = 'attempt to write a readonly database';
+            } elseif ($largeFile) {
+                $resultCode = 'large file support is disabled';
+            } elseif ($lockFault && isset($lockErrnos[$errno])) {
+                $resultCode = $errno === 'EPERM' ? 'access permission denied' : (($errno === 'EDEADLK' || $errno === 'ENOMEM') ? 'disk I/O error' : 'database is locked');
+            } elseif ($mmapFault) {
+                $resultCode = 'disk I/O error';
+            } else {
+                $resultCode = in_array($syscall, ['open', 'getcwd'], true) ? 'unable to open database file' : 'disk I/O error';
+            }
+        }
+
+        $body = self::sysfaultBody($scenario);
+        $rowsVisible = $resultCode === 'ok';
+
+        return [
+            'script' => 'sysfault.test',
+            'scenario' => $scenario,
+            'syscall' => $syscall,
+            'errno' => $errno,
+            'fault_index' => $faultIndex,
+            'persistent' => $persistent,
+            'result_code' => $resultCode,
+            'transient_retry' => $transientRetry && !$persistent,
+            'readonly_possible' => $readonly,
+            'large_file_possible' => $largeFile,
+            'lock_error_possible' => $lockFault && isset($lockErrnos[$errno]),
+            'wal_rows_visible' => $rowsVisible && $body === 'wal_open_write',
+            'attached_rows_visible' => $rowsVisible && $body === 'attached_commit',
+            'temp_rows_visible' => $rowsVisible && $body === 'attached_commit',
+            'open_file_count' => 0,
+            'integrity_check' => $resultCode === 'ok' || $mmapFault ? 'ok' : 'not-run-after-fault',
+            'dependencies' => [
+                'sqlite-upstream-sysfault-test',
+                'sqlite-vfs-syscall-faultsim',
+                'sqlite-vfs-dynamic-fault-recovery',
+            ],
+            'upstream' => self::sysfaultUpstream($scenario, $syscall),
+        ];
+    }
+
+    /**
      * @param list<string> $flags
      * @return list<string>
      */
@@ -737,6 +825,54 @@ final class SQLiteVfsIoTrafficPlan
         };
 
         return "backup_ioerr.test backup_ioerr-{$scenarioNumber}.{$faultIndex}.{$subtest}";
+    }
+
+    private static function sysfaultBody(string $scenario): string
+    {
+        if (str_starts_with($scenario, 'sysfault-1')) {
+            return 'wal_open_write';
+        }
+        if (str_starts_with($scenario, 'sysfault-2')) {
+            return 'attached_commit';
+        }
+        if (str_starts_with($scenario, 'sysfault-3')) {
+            return 'large_insert';
+        }
+        if (str_starts_with($scenario, 'sysfault-4')) {
+            return 'mmap_read';
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite sysfault scenario: {$scenario}");
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function sysfaultUpstream(string $scenario, string $syscall): array
+    {
+        if (str_starts_with($scenario, 'sysfault-1.3')) {
+            return ["sysfault.test {$scenario} fcntl lock fault"];
+        }
+        if (str_starts_with($scenario, 'sysfault-1.2')) {
+            return ["sysfault.test {$scenario} fstat open/write fault"];
+        }
+        if (str_starts_with($scenario, 'sysfault-1')) {
+            return ["sysfault.test {$scenario} open/getcwd WAL open fault"];
+        }
+        if (str_starts_with($scenario, 'sysfault-2.1')) {
+            return ["sysfault.test {$scenario} transient EINTR retry for {$syscall}"];
+        }
+        if (str_starts_with($scenario, 'sysfault-2.2')) {
+            return ["sysfault.test {$scenario} persistent syscall fault during attached commit"];
+        }
+        if (str_starts_with($scenario, 'sysfault-3')) {
+            return ["sysfault.test {$scenario} fstat/fallocate large insert fault"];
+        }
+        if (str_starts_with($scenario, 'sysfault-4')) {
+            return ["sysfault.test {$scenario} mmap EACCES read fault"];
+        }
+
+        return ["sysfault.test {$scenario}"];
     }
 
     /**

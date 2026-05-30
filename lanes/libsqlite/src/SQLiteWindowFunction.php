@@ -654,6 +654,149 @@ final class SQLiteWindowFunction
 
     /**
      * @param iterable<mixed> $values
+     * @param iterable<mixed> $orderKeys
+     * @param callable(list<mixed>):mixed $callback
+     * @param iterable<bool|int|float|string|null>|null $filters
+     * @return list<mixed>
+     */
+    public static function customFrameBetweenValues(
+        iterable $values,
+        iterable $orderKeys,
+        string $frameUnit,
+        string $startBoundary,
+        string $endBoundary,
+        callable $callback,
+        string $exclude = 'NO OTHERS',
+        ?iterable $filters = null,
+    ): array {
+        $rows = self::rows($values);
+        $keys = self::rows($orderKeys);
+        if (count($rows) !== count($keys)) {
+            throw new \InvalidArgumentException('SQLite custom window values and ORDER BY keys must have the same row count');
+        }
+
+        $filterRows = $filters === null ? null : self::rows($filters);
+        if ($filterRows !== null && count($filterRows) !== count($rows)) {
+            throw new \InvalidArgumentException('SQLite window FILTER values must have the same row count');
+        }
+
+        $excludeMode = strtoupper(trim($exclude));
+        if (!in_array($excludeMode, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
+            throw new \InvalidArgumentException('SQLite window EXCLUDE mode is not supported');
+        }
+
+        $unit = strtoupper(trim($frameUnit));
+        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite window frame unit is not supported');
+        }
+
+        $start = self::parseFrameBoundary($startBoundary);
+        $end = self::parseFrameBoundary($endBoundary);
+        $result = [];
+        foreach (array_keys($rows) as $index) {
+            $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
+            $frameIndexes = self::applyExclude($frameIndexes, $keys, $index, $excludeMode);
+            if ($filterRows !== null) {
+                $frameIndexes = array_values(array_filter(
+                    $frameIndexes,
+                    static fn (int $frameIndex): bool => self::sqlTruthy($filterRows[$frameIndex]),
+                ));
+            }
+
+            $result[] = $callback(array_map(static fn (int $frameIndex): mixed => $rows[$frameIndex], $frameIndexes));
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param iterable<int|float> $values
+     * @param iterable<mixed> $orderKeys
+     * @param iterable<bool|int|float|string|null>|null $filters
+     * @return list<int|float|null>
+     */
+    public static function medianFrameBetweenValues(
+        iterable $values,
+        iterable $orderKeys,
+        string $frameUnit,
+        string $startBoundary,
+        string $endBoundary,
+        string $exclude = 'NO OTHERS',
+        ?iterable $filters = null,
+    ): array {
+        return self::customFrameBetweenValues(
+            $values,
+            $orderKeys,
+            $frameUnit,
+            $startBoundary,
+            $endBoundary,
+            static function (array $frameValues): int|float|null {
+                $numbers = [];
+                foreach ($frameValues as $value) {
+                    if ($value === null) {
+                        continue;
+                    }
+                    if (!is_int($value) && !is_float($value) && !is_bool($value)) {
+                        throw new \InvalidArgumentException('SQLite median window values must be numeric or NULL');
+                    }
+                    $numbers[] = is_bool($value) ? (int) $value : $value;
+                }
+                if ($numbers === []) {
+                    return null;
+                }
+
+                sort($numbers, SORT_REGULAR);
+                $middle = intdiv(count($numbers), 2);
+                if ((count($numbers) % 2) === 1) {
+                    return $numbers[$middle];
+                }
+
+                $sum = $numbers[$middle - 1] + $numbers[$middle];
+
+                return fmod((float) $sum, 2.0) === 0.0 ? (int) ($sum / 2) : $sum / 2.0;
+            },
+            $exclude,
+            $filters,
+        );
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @param iterable<mixed> $orderKeys
+     * @param iterable<bool|int|float|string|null>|null $filters
+     * @return list<string|null>
+     */
+    public static function sortedFrameTextValues(
+        iterable $values,
+        iterable $orderKeys,
+        string $frameUnit,
+        string $startBoundary,
+        string $endBoundary,
+        string $exclude = 'NO OTHERS',
+        ?iterable $filters = null,
+    ): array {
+        return self::customFrameBetweenValues(
+            $values,
+            $orderKeys,
+            $frameUnit,
+            $startBoundary,
+            $endBoundary,
+            static function (array $frameValues): ?string {
+                if ($frameValues === []) {
+                    return null;
+                }
+
+                sort($frameValues, SORT_REGULAR);
+
+                return implode(' ', array_map(static fn (mixed $value): string => self::valueText($value), $frameValues));
+            },
+            $exclude,
+            $filters,
+        );
+    }
+
+    /**
+     * @param iterable<mixed> $values
      * @param iterable<mixed> $separators
      * @param iterable<mixed> $orderKeys
      * @param iterable<bool|int|float|string|null>|null $filters

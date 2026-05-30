@@ -3431,18 +3431,9 @@ final class SQLiteSelectSql
             ];
         }
 
-        if (preg_match('/^(.+?)\s+(not\s+)?between\s+(.+)$/is', $sql, $match) === 1) {
-            $bounds = self::splitTopLevelByKeyword(trim($match[3]), 'AND');
-            if (count($bounds) !== 2 || $bounds[0] === '' || $bounds[1] === '') {
-                throw new \InvalidArgumentException('SQLite SELECT SQL BETWEEN predicate needs lower and upper operands');
-            }
-
-            return [
-                'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT BETWEEN' : 'BETWEEN',
-                'left' => self::valueExpression(trim($match[1]), $tables),
-                'lower' => self::valueExpression($bounds[0], $tables),
-                'upper' => self::valueExpression($bounds[1], $tables),
-            ];
+        $betweenPredicate = self::betweenPredicateSql($sql, $tables, 'predicate');
+        if ($betweenPredicate !== null) {
+            return $betweenPredicate;
         }
 
         foreach (['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '==', '=', '>', '<'] as $operator) {
@@ -3627,6 +3618,38 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return ?array<string,mixed>
+     */
+    private static function betweenPredicateSql(string $sql, array $tables, string $context): ?array
+    {
+        $betweenOffset = self::keywordOffset($sql, 'BETWEEN');
+        if ($betweenOffset === null) {
+            return null;
+        }
+
+        $leftSql = rtrim(substr($sql, 0, $betweenOffset));
+        $negate = false;
+        $notOffset = self::trailingKeywordOffset($leftSql, 'NOT');
+        if ($notOffset !== null) {
+            $negate = true;
+            $leftSql = rtrim(substr($leftSql, 0, $notOffset));
+        }
+
+        $bounds = self::splitTopLevelByKeyword(trim(substr($sql, $betweenOffset + strlen('BETWEEN'))), 'AND');
+        if (count($bounds) !== 2 || $leftSql === '' || $bounds[0] === '' || $bounds[1] === '') {
+            throw new \InvalidArgumentException("SQLite SELECT SQL BETWEEN {$context} needs lower and upper operands");
+        }
+
+        return [
+            'operator' => $negate ? 'NOT BETWEEN' : 'BETWEEN',
+            'left' => self::valueExpression($leftSql, $tables),
+            'lower' => self::valueExpression($bounds[0], $tables),
+            'upper' => self::valueExpression($bounds[1], $tables),
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     private static function valueExpression(string $sql, array $tables = []): array
@@ -3664,20 +3687,11 @@ final class SQLiteSelectSql
             return $case;
         }
 
-        if (preg_match('/^(.+?)\s+(not\s+)?between\s+(.+)$/is', $sql, $match) === 1) {
-            $bounds = self::splitTopLevelByKeyword(trim($match[3]), 'AND');
-            if (count($bounds) !== 2 || $bounds[0] === '' || $bounds[1] === '') {
-                throw new \InvalidArgumentException('SQLite SELECT SQL BETWEEN expression needs lower and upper operands');
-            }
-
+        $betweenPredicate = self::betweenPredicateSql($sql, $tables, 'expression');
+        if ($betweenPredicate !== null) {
             return [
                 'type' => 'predicate',
-                'predicate' => [
-                    'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT BETWEEN' : 'BETWEEN',
-                    'left' => self::valueExpression(trim($match[1]), $tables),
-                    'lower' => self::valueExpression($bounds[0], $tables),
-                    'upper' => self::valueExpression($bounds[1], $tables),
-                ],
+                'predicate' => $betweenPredicate,
             ];
         }
 
@@ -3699,6 +3713,18 @@ final class SQLiteSelectSql
                 'predicate' => [
                     'operator' => 'AND',
                     'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $andTerms),
+                ],
+            ];
+        }
+
+        if (preg_match('/^(.+?)\s+is\s+(not\s+)?(true|false)$/is', $sql, $match) === 1) {
+            $expected = strtoupper($match[3]);
+
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => 'IS ' . (isset($match[2]) && trim($match[2]) !== '' ? 'NOT ' : '') . $expected,
+                    'left' => self::valueExpression(trim($match[1]), $tables),
                 ],
             ];
         }
@@ -5712,6 +5738,18 @@ final class SQLiteSelectSql
         }
 
         return null;
+    }
+
+    private static function trailingKeywordOffset(string $sql, string $keyword): ?int
+    {
+        $offset = self::keywordOffset($sql, $keyword);
+        if ($offset === null) {
+            return null;
+        }
+
+        $tail = trim(substr($sql, $offset + strlen($keyword)));
+
+        return $tail === '' ? $offset : null;
     }
 
     private static function operatorOffset(string $sql, string $operator): ?int

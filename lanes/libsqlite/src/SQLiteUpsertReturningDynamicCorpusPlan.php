@@ -465,6 +465,87 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
     }
 
     /**
+     * @return array{upstream:string,source:string,statement:string,error:string,resolved_before_execution:bool}
+     */
+    public static function unresolvedConflictTargetCase(): array
+    {
+        return [
+            'upstream' => 'upsert5-2.1',
+            'source' => 'upsert5.test',
+            'statement' => 'INSERT INTO t2(a,b,c,e,d) VALUES(1,2,3,4,5) ON CONFLICT(c) DO UPDATE SET b=\'\' ON CONFLICT((SELECT t2 FROM nosuchtable)) DO NOTHING',
+            'error' => 'no such table: nosuchtable',
+            'resolved_before_execution' => true,
+        ];
+    }
+
+    /**
+     * @return list<array{upstream:string,source:string,seed:int,table:string,replace_row:array<string,int>,before:list<array<string,int>>,after:list<array<string,int>>,table_scan:list<array<string,int>>,indexes:array<string,list<array<string,int>>>,integrity:string,redundant_targets:list<string>,changed:int,deleted:int,inserted:int}>
+     */
+    public static function redundantConflictIntegrityCases(int $seedCount = 24): array
+    {
+        $cases = [];
+        for ($seed = 1; $seed <= $seedCount; ++$seed) {
+            $offset = $seed * 1000;
+            $singleBefore = [
+                ['aa' => $offset + 11, 'bb' => $offset + 22],
+            ];
+            $singleReplace = ['aa' => $offset + 11, 'bb' => $offset + 33];
+            $singleAfter = [$singleReplace];
+            $cases[] = [
+                'upstream' => 'upsert5-3.0',
+                'source' => 'upsert5.test',
+                'seed' => $seed,
+                'table' => 't1',
+                'replace_row' => $singleReplace,
+                'before' => $singleBefore,
+                'after' => $singleAfter,
+                'table_scan' => $singleAfter,
+                'indexes' => [
+                    't1bb' => self::orderedRows($singleAfter, ['aa']),
+                ],
+                'integrity' => 'ok',
+                'redundant_targets' => ['bb', 'bb'],
+                'changed' => 1,
+                'deleted' => 1,
+                'inserted' => 1,
+            ];
+
+            $tripleBefore = [
+                ['aa' => $offset + 10, 'bb' => $offset + 21, 'cc' => $offset + 32],
+                ['aa' => $offset + 11, 'bb' => $offset + 22, 'cc' => $offset + 33],
+                ['aa' => $offset + 12, 'bb' => $offset + 23, 'cc' => $offset + 34],
+            ];
+            $tripleReplace = ['aa' => $offset + 11, 'bb' => $offset + 44, 'cc' => $offset + 55];
+            $tripleAfter = [
+                $tripleBefore[0],
+                $tripleReplace,
+                $tripleBefore[2],
+            ];
+            $cases[] = [
+                'upstream' => 'upsert5-3.3/3.4/3.5/3.6',
+                'source' => 'upsert5.test',
+                'seed' => $seed,
+                'table' => 't1',
+                'replace_row' => $tripleReplace,
+                'before' => $tripleBefore,
+                'after' => $tripleAfter,
+                'table_scan' => self::orderedRows($tripleAfter, ['aa']),
+                'indexes' => [
+                    't1bb' => self::orderedRows($tripleAfter, ['aa']),
+                    't1cc' => self::orderedRows($tripleAfter, ['aa']),
+                ],
+                'integrity' => 'ok',
+                'redundant_targets' => ['bb', 'cc', 'bb'],
+                'changed' => 1,
+                'deleted' => 1,
+                'inserted' => 1,
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<string> $order
      * @return list<array<string,mixed>>
      */
@@ -490,5 +571,26 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
         }
 
         return $arms;
+    }
+
+    /**
+     * @param list<array<string,int>> $rows
+     * @param list<string> $columns
+     * @return list<array<string,int>>
+     */
+    private static function orderedRows(array $rows, array $columns): array
+    {
+        usort($rows, static function (array $left, array $right) use ($columns): int {
+            foreach ($columns as $column) {
+                $comparison = $left[$column] <=> $right[$column];
+                if ($comparison !== 0) {
+                    return $comparison;
+                }
+            }
+
+            return 0;
+        });
+
+        return array_values($rows);
     }
 }
