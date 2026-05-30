@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 10:20 UTC):
+  Latest libsqlite source is integrated as `da18beb61`
+  (`libsqlite: tighten stat4 and window root gates`). The batch accepts two
+  current-base handoffs from published head `39fc798`: STAT4 prepared handoff
+  range-stage helper cleanup and direct SELECT validation for explicit
+  `RANGE`/`GROUPS` window frames without a window `ORDER BY`. Verification
+  passed PHP lint for changed PHP files, focused combined gate `5 files / 226
+  assertions / 0 failures`, broader STAT4/window family gate `142 selected
+  files / 8055 assertions / 0 failures`, full libsqlite lane `3193 selected
+  files / 758972 assertions / 0 failures / 188310 PASS lines`, `git diff
+  --check`, and source guards confirming no numbered `CurrentSourceNext` or
+  `CurrentNext` production filenames/classes and no numbered range helper
+  references remain. Public pass/fail should move to `188310 pass / 0 fail`;
+  mapped coverage remains `830 / 1589` until a fresh denominator-mapped SQLite
+  suite row is accepted. Disk cleanup removed one clean inactive generated
+  worktree and compressed older isolated-worker logs while preserving dirty
+  inactive lane outputs and active integration evidence.
+
 - 2026-05-30 supervisor continuation (integration sample 10:05 UTC):
   Latest libsqlite source is integrated as `cbf533127`
   (`libsqlite: consolidate current-source helper batch`). The batch accepts 11
