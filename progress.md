@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (strict generic API sample 13:48 UTC):
+  Latest libsqlite source is integrated and pushed as `63f5b2a67`
+  (`libsqlite: remove wordpress-shaped api declarations`). This follows
+  `551c89125` and removes the remaining WordPress-shaped generated helper
+  method names: `optionRowName*` and `optionRowValue*` are now generic
+  `keyValueRowKey*` / `keyValueRowValue*`, lower-case `autoload*` helper
+  names are now load-policy names, and `*BlogIdOrNull` helpers are now tenant
+  ID helpers. The no-WordPress API guard, worker prompt, and worker handoff
+  guard now reject those lower-case declaration names in addition to
+  `WordPress`/`WP`/`wp_`, `OptionRow`, `Multisite`, `Network`, and
+  `Autoload`. Verification passed PHP lint for all changed PHP files,
+  `bash -n scripts/run-isolated-lane-worker.sh`, `git diff --check`, the
+  stricter `SQLiteNoWordPressSpecificApiTest.php`, focused changed gate `133
+  selected files / 9574 assertions / 0 failures`, and full libsqlite lane
+  under `php -d memory_limit=1024M`: `2 test files / 759201 assertions / 0
+  failures / 188353 PASS lines`. A default 128M full-lane run hit PHP's memory
+  ceiling after `159055` PASS lines, so the accepted full-suite signal is the
+  bounded higher-memory rerun. Public pass/fail is `188353 pass / 0 fail`;
+  mapped coverage remains `830 / 1589`.
+
 - 2026-05-30 supervisor continuation (API hygiene sample 12:58 UTC):
   Latest libsqlite source is integrated as `f4871f323`
   (`libsqlite: genericize application-specific api names`). This is a
