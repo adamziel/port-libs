@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 20:48 UTC):
+  Latest accepted libsqlite source is `f6ba0cde`
+  (`libsqlite: add sixth rapid current corpus sweep`). This sixth rapid
+  current-base batch was replayed on dashboard head `1f31dce16`; 34 handoffs
+  initially applied cleanly, one older trigger handoff conflicted, and the
+  selectH omit-unused handoff was backed out after it produced `1000` focused
+  failures. Final accepted subset is 33 handoffs. Accepted coverage adds the
+  final mapped upstream runner gap-closure rows, moving mapped denominator
+  coverage from `1472 / 1589` to `1589 / 1589`, plus real upstream
+  B-tree/index, VFS checksum/ioerr, date weekday, expression LIKE/GLOB and
+  types2, JSON107/JSON109, pager persist-mode, PRAGMA schema4, trigger/FK
+  deferred restrict and trigger5, UPSERT/RETURNING target/tail, and
+  window4/window8/windowerr coverage. Focused verification passed `22 files /
+  351099 assertions / 0 failures / 57398 PASS lines`; the accepted-base
+  comparison over existing selected tests passed `5 files / 143407 assertions
+  / 0 failures / 12548 PASS lines`, so the honest selected PASS-line delta is
+  `+44850`. Public libsqlite should move to `684212 pass / 0 fail`; mapped
+  coverage is now `1589 / 1589`. This completes mapped inventory coverage, but
+  it does not claim full SQLite release/all runner parity. Gates also passed
+  PHP lint for 28 changed/new PHP files, `git diff --check`, and
+  `SQLiteNoDomainSpecificApiTest`.
+
 - 2026-05-30 supervisor continuation (side PDO sample 20:40 UTC):
   Latest accepted libsqlite source is `84833275`
   (`libsqlite: add SQLite PDO polyfill slice`). The side PDO worker handoff was
