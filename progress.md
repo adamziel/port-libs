@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 05:55 UTC):
+  Latest libsqlite consolidation source is integrated as `57c03e195`
+  (`libsqlite: consolidate vfs stat4 suite suffix helpers`). The batch accepts
+  four current-base handoffs from `0d1b56d26`, consolidating VFS current-source
+  private helper suffixes, STAT4 final prepared handoff canonical aliases,
+  release/suite denominator helper names, and upstream veryquick shard next351
+  onto stable helper surfaces without claiming new denominator rows. Rehearsal
+  in
+  `.tmux-team/worktrees/rehearse-libsqlite-current-consolidation-20260530T055220Z`
+  and exact integration gates passed PHP lint for 10 changed PHP files,
+  `git diff --check -- lanes/libsqlite`, VFS current-source family `6 files /
+  120 assertions / 0 failures`, STAT4 expression partial family `133 files /
+  7554 assertions / 0 failures`, release/suite denominator family `32 files /
+  14232 assertions / 0 failures`, upstream suite next351 evidence `2 files /
+  5257 assertions / 0 failures`, and the STAT4 WordPress self-test. Public
+  counters remain `154019 pass / 0 fail` and `830 / 1589` mapped because this
+  is consolidation-only. The pool remains visible in tmux `main` with 11
+  isolated libsqlite worker windows and no long sleepers in the latest sample.
+  Disk remains healthy after cleanup: `/home/claude` about 403G free and `/tmp`
+  about 12G free.
+
 - 2026-05-30 supervisor continuation (shell samples 05:40 UTC):
   Latest libsqlite consolidation source is integrated as `ff648eab4`
   (`libsqlite: consolidate wal stat4 suffix helpers`). The batch accepts three
