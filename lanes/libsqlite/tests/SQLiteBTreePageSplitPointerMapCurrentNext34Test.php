@@ -32,26 +32,26 @@ $setPointerMapEntry = static function (string $pointerMapPage, int $pageNumber, 
     return substr_replace($pointerMapPage, chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - 3), 5);
 };
 
-$buildRootSplitFixture = static function (string $replacementValue, string $autoload) use ($makeFirstPage, $setPointerMapEntry): array {
+$buildRootSplitFixture = static function (string $replacementValue, string $loadPolicy) use ($makeFirstPage, $setPointerMapEntry): array {
     $pageSize = 512;
     $firstPage = $makeFirstPage($pageSize, 3);
     $pointerMapPage = $setPointerMapEntry(str_repeat("\0", $pageSize), 3, SQLitePointerMapEntry::ROOT_PAGE, 0);
     $schemaPage = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
             'table',
-            'wp_options',
-            'wp_options',
+            'app_settings',
+            'app_settings',
             3,
-            'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            'CREATE TABLE app_settings(setting_id integer primary key, key_name text, key_value text, load_policy text)',
         ])),
     ], $pageSize, 100, $firstPage);
     $rootLeafPage = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
-        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'blogname', 'Stale Site', 'yes'])),
-        SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, '_transient_migration_lock', 'old-lock', 'no'])),
+        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'site_name', 'Stale Site', 'yes'])),
+        SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'migration_lock', 'old-lock', 'no'])),
     ], $pageSize);
     $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $rootLeafPage);
-    $plan = $database->planKeyValueRowReplace('blogname', $replacementValue, $autoload);
+    $plan = $database->planKeyValueRowReplace('site_name', $replacementValue, $loadPolicy);
     $postPages = [];
     for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
         $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -72,7 +72,7 @@ $assertRootSplitPointerMap = static function (
     SQLiteKeyValueRowReplacementPlan $plan,
     SQLiteDatabase $postDatabase,
     string $replacementValue,
-    string $autoload,
+    string $loadPolicy,
 ): void {
     $rootHeader = $postDatabase->pageHeader(3);
     $rootCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(3), $rootHeader);
@@ -80,7 +80,7 @@ $assertRootSplitPointerMap = static function (
     $rightChildPage = $rootHeader->rightMostPointer;
     $leftRows = $postDatabase->tableRows($leftChildPage);
     $rightRows = $postDatabase->tableRows($rightChildPage);
-    $option = $postDatabase->tableRowByRowIdByName('wp_options', 2);
+    $setting = $postDatabase->tableRowByRowIdByName('app_settings', 2);
     $summary = $plan->toArray();
 
     $t->same(SQLiteKeyValueRowReplacementPlan::class, get_class($plan));
@@ -104,10 +104,10 @@ $assertRootSplitPointerMap = static function (
     $t->same([1], array_map(static fn (SQLiteTableRow $row): int => $row->rowId, $leftRows));
     $t->same([2, 3], array_map(static fn (SQLiteTableRow $row): int => $row->rowId, $rightRows));
     $t->same(['siteurl'], array_map(static fn (SQLiteTableRow $row): mixed => $row->values()[1] ?? null, $leftRows));
-    $t->same(['blogname', '_transient_migration_lock'], array_map(static fn (SQLiteTableRow $row): mixed => $row->values()[1] ?? null, $rightRows));
-    $t->true($option !== null);
-    $t->same([null, 'blogname', $replacementValue, $autoload], $option?->values());
-    $t->same(strlen(SQLiteRecord::encode([null, 'blogname', $replacementValue, $autoload])), $plan->localPayloadLength);
+    $t->same(['site_name', 'migration_lock'], array_map(static fn (SQLiteTableRow $row): mixed => $row->values()[1] ?? null, $rightRows));
+    $t->true($setting !== null);
+    $t->same([null, 'site_name', $replacementValue, $loadPolicy], $setting?->values());
+    $t->same(strlen(SQLiteRecord::encode([null, 'site_name', $replacementValue, $loadPolicy])), $plan->localPayloadLength);
     $t->same([], $plan->overflowPageNumbers);
     $t->same([], $plan->obsoleteOverflowPageNumbers);
     $t->same([1, 2, 3, 4, 5], $summary['updated_page_numbers']);
@@ -131,16 +131,16 @@ foreach (range(0, 48) as $index) {
     ];
 }
 
-foreach ($cases as $label => [$replacementValue, $autoload]) {
+foreach ($cases as $label => [$replacementValue, $loadPolicy]) {
     $tests['preserves split pointer-map current/next pages for ' . $label] = static function (TestRunner $t) use (
         $buildRootSplitFixture,
         $assertRootSplitPointerMap,
         $replacementValue,
-        $autoload,
+        $loadPolicy,
     ): void {
-        [$database, $plan, $postDatabase] = $buildRootSplitFixture($replacementValue, $autoload);
+        [$database, $plan, $postDatabase] = $buildRootSplitFixture($replacementValue, $loadPolicy);
 
-        $assertRootSplitPointerMap($t, $database, $plan, $postDatabase, $replacementValue, $autoload);
+        $assertRootSplitPointerMap($t, $database, $plan, $postDatabase, $replacementValue, $loadPolicy);
     };
 }
 

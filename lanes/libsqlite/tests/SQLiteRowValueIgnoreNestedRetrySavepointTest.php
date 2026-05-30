@@ -70,8 +70,8 @@ $cases180 = [
     'retry starts from inner image row seven outer value' => [static fn (): mixed => $innerRetry180()['returning'][0]['option_value'], 'theme:outer180:retry180'],
 
     'plan status' => [static fn (): mixed => $plan180()['status'], 'inner-ignore-rollback-to-retry-current-source'],
-    'plan outer savepoint' => [static fn (): mixed => $plan180()['outer_savepoint'], 'wp_options_outer_rowvalue_ignore_retry'],
-    'plan inner savepoint' => [static fn (): mixed => $plan180()['inner_savepoint'], 'wp_options_inner_rowvalue_ignore_retry'],
+    'plan outer savepoint' => [static fn (): mixed => $plan180()['outer_savepoint'], 'app_settings_outer_rowvalue_ignore_retry'],
+    'plan inner savepoint' => [static fn (): mixed => $plan180()['inner_savepoint'], 'app_settings_inner_rowvalue_ignore_retry'],
     'plan rolled back to inner' => [static fn (): mixed => $plan180()['rolled_back_to_inner_savepoint'], true],
     'plan outer preserved after inner rollback' => [static fn (): mixed => $plan180()['outer_savepoint_preserved_after_inner_rollback_to'], true],
     'plan inner preserved after rollback' => [static fn (): mixed => $plan180()['inner_savepoint_preserved_after_rollback_to'], true],

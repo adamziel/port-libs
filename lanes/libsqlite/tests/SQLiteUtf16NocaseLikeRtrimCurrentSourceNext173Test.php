@@ -159,7 +159,7 @@ $tests['utf16 nocase like rtrim current source nextOneSevenThree byte only trail
 $tests['utf16 nocase like rtrim current source nextOneSevenThree source change remains semantic even when bytes only'] = static function (TestRunner $t) use ($row173): void {
     $current = [$row173(1, 'Plugin_Cache  ', 2)];
     $next = [$row173(1, 'Plugin_Cache', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePlan($current, $next, 'plugin!_cache', '!', 'main.wp_options@172', 'main.wp_options@173', 172, 173);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourcePlan($current, $next, 'plugin!_cache', '!', 'main.app_settings@172', 'main.app_settings@173', 172, 173);
     $t->same(['decoded-text', 'trailing-space-bytes', 'text-encoding', 'encoded-bytes'], $result['byteReprepareReasons']);
     $t->same(['source-name', 'schema-cookie'], $result['semanticInvalidationReasons']);
     $t->same(false, $result['byteOnlyReprepare']);

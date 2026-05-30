@@ -24,7 +24,7 @@ $plan = SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute(
     $tables,
     $statements,
     [['blog_id', 'option_name'], ['option_id']],
-    'wp_options_rowvalue_conflict_import'
+    'app_settings_rowvalue_conflict_import'
 );
 
 $summary = [

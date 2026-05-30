@@ -57,7 +57,7 @@ $statement147 = static function (
     string $collation = 'NOCASE',
     ?string $escape = '!',
     bool $caseSensitiveLike = false,
-    string $source = 'main.wp_options@cookie147',
+    string $source = 'main.app_settings@cookie147',
 ): array {
     return [
         'source' => $source,
@@ -106,7 +106,7 @@ $cases147 = [
     'escaped next candidate bytes expose utf16le uppercase row' => [$escaped147, $escaped147, 'next.candidateBytesHex.3', '50006c007500670069006e005f0025005f0043006100630068006500'],
     'escaped current candidate encoding row four is utf16le' => [$escaped147, $escaped147, 'current.candidateEncodings.4', 'UTF-16LE'],
     'escaped next candidate encoding row four is utf8' => [$escaped147, $escaped147, 'next.candidateEncodings.4', 'UTF-8'],
-    'escaped source switch reason precedes row changes' => [$escaped147, $statement147('plugin!_!%!_cache%', source: 'main.wp_options@cookie148'), 'reprepareReasons.0', 'source-name'],
+    'escaped source switch reason precedes row changes' => [$escaped147, $statement147('plugin!_!%!_cache%', source: 'main.app_settings@cookie148'), 'reprepareReasons.0', 'source-name'],
     'escape character switch records pattern' => [$escaped147, $statement147('plugin#_#%#_cache%', escape: '#'), 'reprepareReasons.0', 'pattern'],
     'escape character switch records escape' => [$escaped147, $statement147('plugin#_#%#_cache%', escape: '#'), 'reprepareReasons.1', 'escape'],
     'case sensitive like has binary-style candidate lower' => [$statement147('plugin!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), $statement147('plugin!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), 'current.range.lowerInclusive', 'plugin_%_cache'],

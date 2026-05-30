@@ -41,7 +41,7 @@ $cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepoint
     [$cleanSql],
     [$retryDeleteSql],
     $unique,
-    'wp_options_rowvalue_clean_next173',
+    'app_settings_rowvalue_clean_next173',
 );
 
 $cases = [
@@ -72,7 +72,7 @@ $cases = [
     'retry update increments bytes' => [static fn (): mixed => array_column($retryUpdateOnly()['returning'], 'bytes'), [10, 12]],
 
     'plan status records rollback retry' => [static fn (): mixed => $plan()['status'], 'fail-stream-rolled-back-retried-current-source-next173'],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_fail_retry_next173'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_fail_retry_next173'],
     'plan failed ordinal zero' => [static fn (): mixed => $plan()['failed_statement_ordinal'], 0],
     'plan failed conflict row nine' => [static fn (): mixed => $plan()['failed_conflict']['row_id'], 9],
     'plan rolled back flag' => [static fn (): mixed => $plan()['rolled_back_to_savepoint'], true],

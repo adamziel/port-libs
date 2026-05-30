@@ -18,7 +18,7 @@ final class SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan
         array $statements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_retry_batch',
+        string $savepoint = 'app_settings_rowvalue_retry_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {

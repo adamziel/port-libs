@@ -59,7 +59,7 @@ $cases = [
     'discard delete after stage sees staged source' => [static fn (): mixed => array_column($discardDeleteAfterStage()['tables']['wp_options'], 'option_id'), [1, 2, 5, 6, 7, 8]],
 
     'plan status released after rollback retry' => [static fn (): mixed => $plan()['status'], 'released-after-rollback-to-retry'],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_retry_batch'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_retry_batch'],
     'plan rolled back to savepoint' => [static fn (): mixed => $plan()['rolled_back_to_savepoint'], true],
     'plan savepoint remains active after rollback to' => [static fn (): mixed => $plan()['savepoint_preserved_after_rollback_to'], true],
     'plan released true' => [static fn (): mixed => $plan()['released'], true],

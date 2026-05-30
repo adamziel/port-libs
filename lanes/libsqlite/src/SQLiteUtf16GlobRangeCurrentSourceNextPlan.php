@@ -37,8 +37,8 @@ final class SQLiteUtf16GlobRangeCurrentSourceNextPlan
         string $collation = 'BINARY',
         string $currentEncoding = 'UTF-16LE',
         string $nextEncoding = 'UTF-16LE',
-        string $currentSource = 'main.wp_options@current',
-        string $nextSource = 'main.wp_options@next',
+        string $currentSource = 'main.app_settings@current',
+        string $nextSource = 'main.app_settings@next',
         int $currentSchemaCookie = 1,
         int $nextSchemaCookie = 1,
     ): array {

@@ -48,8 +48,8 @@ $cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepoint
     [$innerUpdateSql],
     [$cleanAfterSql],
     $unique,
-    'wp_outer_clean',
-    'wp_inner_clean',
+    'app_outer_clean',
+    'app_inner_clean',
 );
 
 $cases = [
@@ -76,8 +76,8 @@ $cases = [
     'inner update row ten value inner' => [static fn (): mixed => array_column($innerUpdateOnly()['tables']['wp_options'], 'option_value', 'option_id')[10], 'a:0:{}:inner'],
 
     'plan status inner rolled back' => [static fn (): mixed => $plan()['status'], 'inner-rolled-back-outer-current-source-preserved'],
-    'plan outer savepoint name' => [static fn (): mixed => $plan()['outer_savepoint'], 'wp_outer_rowvalue_import'],
-    'plan inner savepoint name' => [static fn (): mixed => $plan()['inner_savepoint'], 'wp_inner_returning_batch'],
+    'plan outer savepoint name' => [static fn (): mixed => $plan()['outer_savepoint'], 'app_outer_rowvalue_import'],
+    'plan inner savepoint name' => [static fn (): mixed => $plan()['inner_savepoint'], 'app_inner_returning_batch'],
     'plan rolled back inner true' => [static fn (): mixed => $plan()['rolled_back_inner_savepoint'], true],
     'plan outer statements one' => [static fn (): mixed => count($plan()['outer_statements']), 1],
     'plan inner statements two before rollback' => [static fn (): mixed => count($plan()['inner_statements_before_rollback']), 2],
@@ -118,8 +118,8 @@ $cases = [
     'plan dependency returning discard' => [static fn (): mixed => in_array('sqlite-rollback-to-inner-savepoint-discards-returning-stream', $plan()['dependencies'], true), true],
     'plan dependency outer survives' => [static fn (): mixed => in_array('sqlite-outer-savepoint-current-source-survives-inner-rollback', $plan()['dependencies'], true), true],
 
-    'clean plan custom outer savepoint' => [static fn (): mixed => $cleanPlan()['outer_savepoint'], 'wp_outer_clean'],
-    'clean plan custom inner savepoint' => [static fn (): mixed => $cleanPlan()['inner_savepoint'], 'wp_inner_clean'],
+    'clean plan custom outer savepoint' => [static fn (): mixed => $cleanPlan()['outer_savepoint'], 'app_outer_clean'],
+    'clean plan custom inner savepoint' => [static fn (): mixed => $cleanPlan()['inner_savepoint'], 'app_inner_clean'],
     'clean plan discards one inner stream' => [static fn (): mixed => count($cleanPlan()['inner_returning_before_rollback']), 1],
     'clean plan after starts from outer source not inner row ten' => [static fn (): mixed => array_column($cleanPlan()['post_inner_rollback_current_source_tables']['wp_options'], 'status', 'option_id')[10], 'live'],
     'clean plan final row seven clean from outer source' => [static fn (): mixed => array_column($cleanPlan()['current_source_tables']['wp_options'], 'option_value', 'option_id')[7], 'theme:outer:clean'],

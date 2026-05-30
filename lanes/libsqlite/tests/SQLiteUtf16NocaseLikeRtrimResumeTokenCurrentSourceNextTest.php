@@ -145,7 +145,7 @@ $tests['utf16 nocase like rtrim resume token current source nextOneSevenZero tok
 };
 
 $tests['utf16 nocase like rtrim resume token current source nextOneSevenZero source change still forces range restart'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan(currentSource: 'main.wp_options@169', nextSource: 'main.wp_options@170');
+    $result = $plan(currentSource: 'main.app_settings@169', nextSource: 'main.app_settings@170');
     $t->same(['semantic-invalidation'], $result['baseResumeReasons']);
     $t->same(['semantic-invalidation'], $result['resumeReasons']);
     $t->same(false, $result['byteOnlyTokenReprepare']);

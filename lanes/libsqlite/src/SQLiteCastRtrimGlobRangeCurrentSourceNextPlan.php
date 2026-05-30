@@ -16,8 +16,8 @@ final class SQLiteCastRtrimGlobRangeCurrentSourceNextPlan
         array $nextRows,
         string $castTarget,
         string $pattern,
-        string $currentSource = 'main.wp_options@126',
-        string $nextSource = 'main.wp_options@127',
+        string $currentSource = 'main.app_settings@126',
+        string $nextSource = 'main.app_settings@127',
         int $currentSchemaCookie = 126,
         int $nextSchemaCookie = 127,
     ): array {

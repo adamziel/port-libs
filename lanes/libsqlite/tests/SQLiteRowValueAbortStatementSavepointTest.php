@@ -72,7 +72,7 @@ $cases200 = [
     'retry delete network home flag' => [static fn (): mixed => array_column($retryDeleteResult200()['returning'], 'dropped_network_home'), [0, 1]],
 
     'plan status' => [static fn (): mixed => $plan200()['status'], 'rowvalue-update-delete-returning-abort-statement-current-source'],
-    'plan savepoint' => [static fn (): mixed => $plan200()['savepoint'], 'wp_options_rowvalue_abort_statement'],
+    'plan savepoint' => [static fn (): mixed => $plan200()['savepoint'], 'app_settings_rowvalue_abort_statement'],
     'plan statement aborted' => [static fn (): mixed => $plan200()['statement_aborted'], true],
     'plan not rolled back to savepoint' => [static fn (): mixed => $plan200()['rolled_back_to_savepoint'], false],
     'plan savepoint preserved after abort' => [static fn (): mixed => $plan200()['savepoint_preserved_after_abort'], true],

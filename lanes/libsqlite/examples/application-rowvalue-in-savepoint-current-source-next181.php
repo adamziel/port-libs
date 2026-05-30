@@ -26,7 +26,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInPredicateRetr
         "UPDATE wp_options SET (status, option_value) = ('kept181', option_value || ':kept181') WHERE (blog_id, status, option_name) IN ((1, NULL, 'active_plugins'), (2, NULL, 'rewrite_rules'), (4, 'queued', 'siteurl')) RETURNING option_id, option_name, status, option_value ORDER BY option_id",
     ],
     [['blog_id', 'option_name']],
-    'wp_options_rowvalue_in_retry_next181',
+    'app_settings_rowvalue_in_retry_next181',
 );
 
 $summary = [

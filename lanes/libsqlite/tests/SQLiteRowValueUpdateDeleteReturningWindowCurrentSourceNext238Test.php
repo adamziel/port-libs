@@ -68,7 +68,7 @@ $cases238 = [
     'direct retry update row ten value' => [static fn (): mixed => array_column($retryUpdateResult238()['tables']['wp_options'], 'option_value', 'option_id')[10], 'network:retry238'],
 
     'plan status' => [static fn (): mixed => $plan238()['status'], 'rowvalue-update-delete-returning-window-current-source-next238'],
-    'plan savepoint' => [static fn (): mixed => $plan238()['savepoint'], 'wp_options_rowvalue_returning_window_next238'],
+    'plan savepoint' => [static fn (): mixed => $plan238()['savepoint'], 'app_settings_rowvalue_returning_window_next238'],
     'plan inherited next235 flag' => [static fn (): mixed => $plan238()['returning_window_current_source_next235'], true],
     'plan next238 flag' => [static fn (): mixed => $plan238()['returning_window_current_source_next238'], true],
     'plan rollback flags' => [static fn (): mixed => [$plan238()['rolled_back_to_savepoint'], $plan238()['retry_reads_savepoint_image'], $plan238()['savepoint_released_after_retry']], [true, true, true]],
@@ -103,7 +103,7 @@ $cases238 = [
     'plan next row yielded flags' => [static fn (): mixed => array_unique(array_column($plan238()['next_source_window_rows_next238'], 'window_yielded_after_retry_next238')), [true]],
     'plan current source keys' => [static fn (): mixed => array_column($plan238()['current_source_window_rows_next238'], 'window_source_key_next238'), ['delete:3', 'delete:4', 'update:7', 'update:8', 'update:9']],
     'plan next source keys' => [static fn (): mixed => array_column($plan238()['next_source_window_rows_next238'], 'window_source_key_next238'), ['delete:2', 'delete:5', 'delete:11', 'update:8', 'update:9', 'update:10']],
-    'plan source fence savepoint' => [static fn (): mixed => $plan238()['window_source_fence_next238']['savepoint'], 'wp_options_rowvalue_returning_window_next238'],
+    'plan source fence savepoint' => [static fn (): mixed => $plan238()['window_source_fence_next238']['savepoint'], 'app_settings_rowvalue_returning_window_next238'],
     'plan source fence rollback' => [static fn (): mixed => $plan238()['window_source_fence_next238']['rolled_back_to_savepoint'], true],
     'plan source fence retry image' => [static fn (): mixed => $plan238()['window_source_fence_next238']['retry_reads_savepoint_image'], true],
     'plan source fence digests length' => [static fn (): mixed => [strlen($plan238()['window_source_fence_next238']['current_source_digest']), strlen($plan238()['window_source_fence_next238']['next_source_digest']), strlen($plan238()['window_source_fence_next238']['pair_digest'])], [64, 64, 64]],

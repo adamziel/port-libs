@@ -60,8 +60,8 @@ $customPlan230 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavep
     [$afterReleaseDeleteSql230],
     [$retryUpdateSql230],
     $unique230,
-    'wp_outer_custom',
-    'wp_inner_custom',
+    'app_outer_custom',
+    'app_inner_custom',
 );
 
 $cases230 = [
@@ -88,7 +88,7 @@ $cases230 = [
     'null tuple list does not match migration batch' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'null_guard') RETURNING option_id ORDER BY option_id", $tables230, 'option_id', $unique230)['plan']->selectedIds, []],
 
     'plan status' => [static fn (): mixed => $plan230()['status'], 'rowvalue-update-delete-returning-nested-release-outer-rollback-savepoint'],
-    'plan savepoints' => [static fn (): mixed => [$plan230()['outer_savepoint'], $plan230()['inner_savepoint']], ['wp_options_rowvalue_outer_release_rollback', 'wp_options_rowvalue_inner_release_rollback']],
+    'plan savepoints' => [static fn (): mixed => [$plan230()['outer_savepoint'], $plan230()['inner_savepoint']], ['app_settings_rowvalue_outer_release_rollback', 'app_settings_rowvalue_inner_release_rollback']],
     'plan flags' => [static fn (): mixed => [$plan230()['inner_released_before_outer_rollback'], $plan230()['rolled_back_to_outer_savepoint'], $plan230()['retry_reads_outer_savepoint_image']], [true, true, true]],
     'plan release flag' => [static fn (): mixed => $plan230()['outer_savepoint_released_after_retry'], true],
     'plan initial count' => [static fn (): mixed => count($plan230()['initial_tables']['wp_options']), 12],
@@ -121,7 +121,7 @@ $cases230 = [
     'plan dependency application current source' => [static fn (): mixed => in_array('application-rowvalue-nested-release-outer-rollback-savepoint', $plan230()['dependencies'], true), true],
     'plan non overlap mentions simple rollback' => [static fn (): mixed => str_contains($plan230()['non_overlap'], 'simple rollback'), true],
     'plan dependency closure says no new support' => [static fn (): mixed => str_contains($plan230()['dependency_closure'], 'no new support component needed'), true],
-    'custom savepoints' => [static fn (): mixed => [$customPlan230()['outer_savepoint'], $customPlan230()['inner_savepoint']], ['wp_outer_custom', 'wp_inner_custom']],
+    'custom savepoints' => [static fn (): mixed => [$customPlan230()['outer_savepoint'], $customPlan230()['inner_savepoint']], ['app_outer_custom', 'app_inner_custom']],
     'custom yielded count' => [static fn (): mixed => $customPlan230()['yielded_after_retry_count'], 2],
     'custom discarded count' => [static fn (): mixed => $customPlan230()['discarded_inner_release_returning_count'], 3],
     'malformed empty pre rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedReleaseOuterRollbackSavepoint($tables230, [], [$innerUpdateSql230], [$afterReleaseDeleteSql230], [$retryUpdateSql230], $unique230), InvalidArgumentException::class],

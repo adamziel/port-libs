@@ -20,8 +20,8 @@ final class SQLiteRowValueNestedSavepointReturningPlan
         array $outerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_outer_import',
-        string $innerSavepoint = 'wp_inner_plugin',
+        string $outerSavepoint = 'app_outer_import',
+        string $innerSavepoint = 'app_inner_plugin',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($innerStatements === []) {

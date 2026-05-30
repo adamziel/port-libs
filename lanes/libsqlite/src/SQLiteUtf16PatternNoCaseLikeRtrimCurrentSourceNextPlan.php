@@ -22,8 +22,8 @@ final class SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan
         int|string|null $currentEscapeEncoding = null,
         ?string $nextEscapeBytes = null,
         int|string|null $nextEscapeEncoding = null,
-        string $currentSource = 'main.wp_options@158',
-        string $nextSource = 'main.wp_options@159',
+        string $currentSource = 'main.app_settings@158',
+        string $nextSource = 'main.app_settings@159',
         int $currentSchemaCookie = 158,
         int $nextSchemaCookie = 159,
     ): array {

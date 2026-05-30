@@ -59,8 +59,8 @@ $cases = [
     'outer update bytes incremented' => [static fn (): mixed => $outerUpdateAfterDelete()['returning'][0]['bytes'], 15],
 
     'rollback plan status' => [static fn (): mixed => $plan()['status'], 'transaction-rolled-back-retried'],
-    'rollback plan transaction name' => [static fn (): mixed => $plan()['transaction'], 'wp_options_import_txn'],
-    'rollback plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_rollback_batch'],
+    'rollback plan transaction name' => [static fn (): mixed => $plan()['transaction'], 'app_settings_import_txn'],
+    'rollback plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_rollback_batch'],
     'rollback plan rolls back transaction' => [static fn (): mixed => $plan()['rolled_back_transaction'], true],
     'rollback plan rolls back savepoint' => [static fn (): mixed => $plan()['rolled_back_savepoint'], true],
     'rollback plan savepoint not preserved after rollback conflict' => [static fn (): mixed => $plan()['savepoint_preserved_after_rollback'], false],

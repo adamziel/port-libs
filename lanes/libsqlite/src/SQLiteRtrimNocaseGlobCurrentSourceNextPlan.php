@@ -30,8 +30,8 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextPlainImpl
         array $nextRows,
         string $pattern,
         string $collation,
-        string $currentSource = 'main.wp_options@current',
-        string $nextSource = 'main.wp_options@next',
+        string $currentSource = 'main.app_settings@current',
+        string $nextSource = 'main.app_settings@next',
     ): array {
         $collation = strtoupper($collation);
         if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
@@ -232,8 +232,8 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl
         array $currentRows,
         array $nextRows,
         string $pattern,
-        string $currentSource = 'main.wp_options@current',
-        string $nextSource = 'main.wp_options@next',
+        string $currentSource = 'main.app_settings@current',
+        string $nextSource = 'main.app_settings@next',
         int $currentSchemaCookie = 1,
         int $nextSchemaCookie = 1,
         int $currentCollationVersion = 1,

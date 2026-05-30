@@ -15,10 +15,10 @@ final class SQLiteImportTransactionErrorYieldPlan
     public static function plan(array $currentRows, array $stagedRows, array $options = []): array
     {
         $beginSql = (string) ($options['begin'] ?? 'BEGIN IMMEDIATE');
-        $databasePath = (string) ($options['database_path'] ?? '/tmp/wp-import-current-next.sqlite');
+        $databasePath = (string) ($options['database_path'] ?? '/tmp/app-import-current-next.sqlite');
         $pageSize = (int) ($options['page_size'] ?? 4096);
         $failOnError = (bool) ($options['fail_on_error'] ?? true);
-        $statementPrefix = (string) ($options['statement_prefix'] ?? 'wp_import_row');
+        $statementPrefix = (string) ($options['statement_prefix'] ?? 'app_import_row');
 
         self::assertSafeDatabasePath($databasePath);
         self::assertPageSize($pageSize);
@@ -36,7 +36,7 @@ final class SQLiteImportTransactionErrorYieldPlan
         $nameToId = [];
         $maxId = 0;
         foreach ($finalRows as $id => $row) {
-            $nameToId[$row['option_name']] = $id;
+            $nameToId[$row['key_name']] = $id;
             $maxId = max($maxId, $id);
         }
 
@@ -54,30 +54,30 @@ final class SQLiteImportTransactionErrorYieldPlan
 
             try {
                 $stage = self::normalizeStagedRow($row);
-                $targetId = $stage['option_id'] ?? ($nameToId[$stage['option_name']] ?? null);
+                $targetId = $stage['setting_id'] ?? ($nameToId[$stage['key_name']] ?? null);
                 $event = $targetId !== null && isset($finalRows[$targetId]) ? 'update' : 'insert';
                 if ($targetId === null) {
                     $targetId = $maxId + 1;
                 }
                 if ($targetId <= 0) {
-                    throw new \InvalidArgumentException('Staged wp_options option_id must be positive when supplied');
+                    throw new \InvalidArgumentException('Staged app_settings setting_id must be positive when supplied');
                 }
 
-                $conflictingId = self::conflictingKeyNameId($finalRows, $stage['option_name'], $targetId);
+                $conflictingId = self::conflictingKeyNameId($finalRows, $stage['key_name'], $targetId);
                 if ($conflictingId !== null) {
-                    throw new \LogicException("UNIQUE constraint failed: wp_options.option_name ({$stage['option_name']})");
+                    throw new \LogicException("UNIQUE constraint failed: app_settings.key_name ({$stage['key_name']})");
                 }
 
                 $before = $finalRows[$targetId] ?? null;
                 $after = [
-                    'option_id' => $targetId,
-                    'option_name' => $stage['option_name'],
-                    'option_value' => $stage['option_value'],
-                    'autoload' => $stage['autoload'],
+                    'setting_id' => $targetId,
+                    'key_name' => $stage['key_name'],
+                    'key_value' => $stage['key_value'],
+                    'load_policy' => $stage['load_policy'],
                 ];
                 $finalRows[$targetId] = $after;
-                unset($nameToId[$before['option_name'] ?? '']);
-                $nameToId[$after['option_name']] = $targetId;
+                unset($nameToId[$before['key_name'] ?? '']);
+                $nameToId[$after['key_name']] = $targetId;
                 $maxId = max($maxId, $targetId);
                 $nextKeyValueId = $maxId + 1;
                 $pageNumber = self::pageForKeyValueId($targetId);
@@ -87,8 +87,8 @@ final class SQLiteImportTransactionErrorYieldPlan
                     'ordinal' => $ordinal,
                     'statement' => $statement,
                     'event' => $event,
-                    'option_id' => $targetId,
-                    'option_name' => $after['option_name'],
+                    'setting_id' => $targetId,
+                    'key_name' => $after['key_name'],
                     'dirty_page' => $pageNumber,
                 ];
                 $yielded[] = self::yieldRow($ordinal, $statement, 'applied', $event, $currentKeyValueId, $nextKeyValueId, $after, null);
@@ -132,7 +132,7 @@ final class SQLiteImportTransactionErrorYieldPlan
             ],
             'dependencies' => [
                 'sqlite-application-import-transaction-error-yield-current-next29',
-                'sqlite-statement-error-wp-error-shape',
+                'sqlite-statement-error-app-error-shape',
                 'sqlite-begin-transaction-lock-mode',
             ],
         ];
@@ -140,7 +140,7 @@ final class SQLiteImportTransactionErrorYieldPlan
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array<int,array{option_id:int,option_name:string,option_value:mixed,autoload:string}>
+     * @return array<int,array{setting_id:int,key_name:string,key_value:mixed,load_policy:string}>
      */
     private static function normalizeCurrentRows(array $rows): array
     {
@@ -148,18 +148,18 @@ final class SQLiteImportTransactionErrorYieldPlan
         $names = [];
         foreach ($rows as $row) {
             $current = self::normalizeStagedRow($row);
-            if (!isset($current['option_id'])) {
-                throw new \InvalidArgumentException('Current wp_options rows require option_id');
+            if (!isset($current['setting_id'])) {
+                throw new \InvalidArgumentException('Current app_settings rows require setting_id');
             }
-            $id = $current['option_id'];
+            $id = $current['setting_id'];
             if (isset($normalized[$id])) {
-                throw new \InvalidArgumentException("Duplicate current wp_options option_id {$id}");
+                throw new \InvalidArgumentException("Duplicate current app_settings setting_id {$id}");
             }
-            if (isset($names[$current['option_name']])) {
-                throw new \InvalidArgumentException("Duplicate current wp_options option_name {$current['option_name']}");
+            if (isset($names[$current['key_name']])) {
+                throw new \InvalidArgumentException("Duplicate current app_settings key_name {$current['key_name']}");
             }
             $normalized[$id] = $current;
-            $names[$current['option_name']] = true;
+            $names[$current['key_name']] = true;
         }
         ksort($normalized);
 
@@ -168,47 +168,47 @@ final class SQLiteImportTransactionErrorYieldPlan
 
     /**
      * @param array<string,mixed> $row
-     * @return array{option_id?:int,option_name:string,option_value:mixed,autoload:string}
+     * @return array{setting_id?:int,key_name:string,key_value:mixed,load_policy:string}
      */
     private static function normalizeStagedRow(array $row): array
     {
         $normalized = [];
-        if (array_key_exists('option_id', $row) && $row['option_id'] !== null) {
-            $id = $row['option_id'];
+        if (array_key_exists('setting_id', $row) && $row['setting_id'] !== null) {
+            $id = $row['setting_id'];
             if (!is_int($id) && !(is_string($id) && ctype_digit($id))) {
-                throw new \InvalidArgumentException('wp_options option_id must be an integer');
+                throw new \InvalidArgumentException('app_settings setting_id must be an integer');
             }
             $id = (int) $id;
             if ($id <= 0) {
-                throw new \InvalidArgumentException('wp_options option_id must be positive');
+                throw new \InvalidArgumentException('app_settings setting_id must be positive');
             }
-            $normalized['option_id'] = $id;
+            $normalized['setting_id'] = $id;
         }
 
-        $name = $row['option_name'] ?? null;
+        $name = $row['key_name'] ?? null;
         if (!is_string($name) || $name === '' || str_contains($name, "\0")) {
-            throw new \InvalidArgumentException('wp_options option_name must be non-empty text');
+            throw new \InvalidArgumentException('app_settings key_name must be non-empty text');
         }
 
-        $autoload = $row['autoload'] ?? 'no';
-        if (!is_string($autoload) || !in_array($autoload, ['yes', 'no', 'auto', 'on', 'off'], true)) {
-            throw new \InvalidArgumentException('wp_options autoload must be a supported SQLite import value');
+        $load_policy = $row['load_policy'] ?? 'no';
+        if (!is_string($load_policy) || !in_array($load_policy, ['yes', 'no', 'auto', 'on', 'off'], true)) {
+            throw new \InvalidArgumentException('app_settings load_policy must be a supported SQLite import value');
         }
 
-        $normalized['option_name'] = $name;
-        $normalized['option_value'] = $row['option_value'] ?? '';
-        $normalized['autoload'] = $autoload;
+        $normalized['key_name'] = $name;
+        $normalized['key_value'] = $row['key_value'] ?? '';
+        $normalized['load_policy'] = $load_policy;
 
         return $normalized;
     }
 
     /**
-     * @param array<int,array{option_id:int,option_name:string,option_value:mixed,autoload:string}> $rows
+     * @param array<int,array{setting_id:int,key_name:string,key_value:mixed,load_policy:string}> $rows
      */
     private static function conflictingKeyNameId(array $rows, string $name, int $exceptId): ?int
     {
         foreach ($rows as $id => $row) {
-            if ($id !== $exceptId && $row['option_name'] === $name) {
+            if ($id !== $exceptId && $row['key_name'] === $name) {
                 return $id;
             }
         }
@@ -222,11 +222,11 @@ final class SQLiteImportTransactionErrorYieldPlan
      */
     private static function currentKeyValueId(array $row, array $nameToId): ?int
     {
-        if (isset($row['option_id']) && (is_int($row['option_id']) || (is_string($row['option_id']) && ctype_digit($row['option_id'])))) {
-            return (int) $row['option_id'];
+        if (isset($row['setting_id']) && (is_int($row['setting_id']) || (is_string($row['setting_id']) && ctype_digit($row['setting_id'])))) {
+            return (int) $row['setting_id'];
         }
-        if (isset($row['option_name']) && is_string($row['option_name']) && isset($nameToId[$row['option_name']])) {
-            return $nameToId[$row['option_name']];
+        if (isset($row['key_name']) && is_string($row['key_name']) && isset($nameToId[$row['key_name']])) {
+            return $nameToId[$row['key_name']];
         }
 
         return null;
@@ -244,15 +244,15 @@ final class SQLiteImportTransactionErrorYieldPlan
             'statement' => $statement,
             'status' => $status,
             'event' => $event,
-            'current_option_id' => $currentKeyValueId,
-            'next_option_id' => $nextKeyValueId,
+            'current_setting_id' => $currentKeyValueId,
+            'next_setting_id' => $nextKeyValueId,
             'row' => $row,
-            'wp_error' => $error,
+            'error' => $error,
         ];
     }
 
     /**
-     * @return array{code:string,message:string,data:array{ordinal:int,statement:string,current_option_id:int|null,next_option_id:int,exception:string,sqlite_abort:string}}
+     * @return array{code:string,message:string,data:array{ordinal:int,statement:string,current_setting_id:int|null,next_setting_id:int,exception:string,sqlite_abort:string}}
      */
     private static function sqliteError(\Throwable $throwable, int $ordinal, string $statement, ?int $currentKeyValueId, int $nextKeyValueId): array
     {
@@ -264,8 +264,8 @@ final class SQLiteImportTransactionErrorYieldPlan
             'data' => [
                 'ordinal' => $ordinal,
                 'statement' => $statement,
-                'current_option_id' => $currentKeyValueId,
-                'next_option_id' => $nextKeyValueId,
+                'current_setting_id' => $currentKeyValueId,
+                'next_setting_id' => $nextKeyValueId,
                 'exception' => $throwable::class,
                 'sqlite_abort' => 'statement',
             ],

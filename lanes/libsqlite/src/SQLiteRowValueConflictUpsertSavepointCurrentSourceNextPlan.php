@@ -18,7 +18,7 @@ final class SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan
         array $statements,
         array $uniqueConstraints,
         array $conflictKeyColumns,
-        string $savepoint = 'wp_options_rowvalue_conflict',
+        string $savepoint = 'app_settings_rowvalue_conflict',
         string $rowIdColumn = 'option_id',
     ): array {
         self::validateColumns($conflictKeyColumns, 'conflict key');

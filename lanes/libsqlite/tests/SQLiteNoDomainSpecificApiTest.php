@@ -28,6 +28,7 @@ $relativePath = static fn (string $path): string => str_replace($libsqliteRoot .
 
 $sourceFiles = $phpFiles($sourceRoot);
 $libsqlitePhpFiles = $phpFiles($libsqliteRoot);
+$forbiddenNamePattern = 'WordPress|wordpress|WP|Wp|wp_|wpError|wp_error|OptionRow|optionRow|optionImport|optionsWalRows|upsertRecursiveViewSourceOption|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
 
 $sourceTextMatches = static function () use ($sourceFiles, $relativePath): array {
     $matches = [];
@@ -46,13 +47,12 @@ $sourceTextMatches = static function () use ($sourceFiles, $relativePath): array
     return $matches;
 };
 
-$sourceFilenameMatches = static function () use ($sourceFiles, $relativePath): array {
+$filenameMatches = static function () use ($libsqlitePhpFiles, $relativePath, $forbiddenNamePattern): array {
     $matches = [];
-    $specificName = 'WordPress|wordpress|WP|Wp|wp_|wpError|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
 
-    foreach ($sourceFiles as $file) {
+    foreach ($libsqlitePhpFiles as $file) {
         $relative = $relativePath($file);
-        if (preg_match('/' . $specificName . '/', $relative) === 1) {
+        if (preg_match('/' . $forbiddenNamePattern . '/', $relative) === 1) {
             $matches[] = $relative;
         }
     }
@@ -60,10 +60,9 @@ $sourceFilenameMatches = static function () use ($sourceFiles, $relativePath): a
     return $matches;
 };
 
-$wordpressDeclarationMatches = static function () use ($libsqlitePhpFiles, $relativePath): array {
+$domainSpecificDeclarationMatches = static function () use ($libsqlitePhpFiles, $relativePath, $forbiddenNamePattern): array {
     $matches = [];
-    $specificName = 'WordPress|wordpress|WP|Wp|wp_|wpError|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
-    $pattern = '/^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:' . $specificName . ')\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:' . $specificName . ')\w*\s*\(/m';
+    $pattern = '/^\s*(?:(?:final|abstract|readonly)\s+)?(?:class|interface|trait|enum)\s+\w*(?:' . $forbiddenNamePattern . ')\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:' . $forbiddenNamePattern . ')\w*\s*\(/m';
 
     foreach ($libsqlitePhpFiles as $file) {
         $contents = file_get_contents($file);
@@ -83,6 +82,6 @@ $wordpressDeclarationMatches = static function () use ($libsqlitePhpFiles, $rela
 
 return [
     'libsqlite source has no WordPress-named text' => static fn (TestRunner $t) => $t->same([], $sourceTextMatches()),
-    'libsqlite source filenames have no WordPress-specific names' => static fn (TestRunner $t) => $t->same([], $sourceFilenameMatches()),
-    'libsqlite php declarations have no WordPress-specific class or method names' => static fn (TestRunner $t) => $t->same([], $wordpressDeclarationMatches()),
+    'libsqlite filenames have no WordPress-specific names' => static fn (TestRunner $t) => $t->same([], $filenameMatches()),
+    'libsqlite php declarations have no WordPress-specific class or method names' => static fn (TestRunner $t) => $t->same([], $domainSpecificDeclarationMatches()),
 ];

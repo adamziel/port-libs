@@ -52,8 +52,8 @@ $plan = static fn (
     string $collation = 'NOCASE',
     ?string $escape = null,
     bool $caseSensitive = false,
-    string $currentSource = 'main.wp_options@cookie92',
-    string $nextSource = 'main.wp_options@cookie93',
+    string $currentSource = 'main.app_settings@cookie92',
+    string $nextSource = 'main.app_settings@cookie93',
 ): array => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::keyValueRowKeyLikeRange(
     $currentRows,
     $nextRows,
@@ -117,8 +117,8 @@ $cases = [
 foreach ($cases as $name => $case) {
     $tests['malformed utf16 like range current source next93 ' . $name] = static function (TestRunner $t) use ($plan, $case): void {
         [$pattern, $collation, $escape, $caseSensitive, $path, $expected] = $case;
-        $currentSource = $case[6] ?? 'main.wp_options@cookie92';
-        $nextSource = $case[7] ?? 'main.wp_options@cookie93';
+        $currentSource = $case[6] ?? 'main.app_settings@cookie92';
+        $nextSource = $case[7] ?? 'main.app_settings@cookie93';
         $value = $plan($pattern, $collation, $escape, $caseSensitive, $currentSource, $nextSource);
         foreach (explode('.', $path) as $part) {
             $value = $value[$part];

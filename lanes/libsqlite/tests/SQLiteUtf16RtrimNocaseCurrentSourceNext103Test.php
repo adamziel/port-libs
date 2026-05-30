@@ -58,8 +58,8 @@ $nextRows = [
 
 $plan = static fn (
     string $probe = 'plugin_cache',
-    string $currentSource = 'main.wp_options@cookie102',
-    string $nextSource = 'main.wp_options@cookie103',
+    string $currentSource = 'main.app_settings@cookie102',
+    string $nextSource = 'main.app_settings@cookie103',
 ): array => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext(
     $currentRows,
     $nextRows,
@@ -69,8 +69,8 @@ $plan = static fn (
 );
 
 $cases = [
-    'records current source' => ['plugin_cache', 'currentSource', 'main.wp_options@cookie102'],
-    'records next source' => ['plugin_cache', 'nextSource', 'main.wp_options@cookie103'],
+    'records current source' => ['plugin_cache', 'currentSource', 'main.app_settings@cookie102'],
+    'records next source' => ['plugin_cache', 'nextSource', 'main.app_settings@cookie103'],
     'records probe text' => ['plugin_cache', 'probe', 'plugin_cache'],
     'records ascii rtrim nocase probe key' => ['Plugin_Cache   ', 'probeKey', 'plugin_cache'],
     'source changed is true' => ['plugin_cache', 'sourceChanged', true],

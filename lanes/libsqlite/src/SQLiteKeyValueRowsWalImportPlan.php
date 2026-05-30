@@ -7,10 +7,10 @@ namespace PortLibs\LibSqlite;
 final class SQLiteKeyValueRowsWalImportPlan
 {
     /**
-     * @param list<array{option_id?:int,option_name:string,option_value:string,autoload?:string}> $currentRows
-     * @param list<array{option_id?:int,option_name:string,option_value:string,autoload?:string}> $importRows
+     * @param list<array{setting_id?:int,key_name:string,key_value:string,load_policy?:string}> $currentRows
+     * @param list<array{setting_id?:int,key_name:string,key_value:string,load_policy?:string}> $importRows
      * @param list<int> $pageNumbers
-     * @return array{status:string,reason:string,database_path:string,wal_path:string,current_rows:list<array<string,mixed>>,next_rows:list<array<string,mixed>>,inserted_names:list<string>,updated_names:list<string>,deleted_names:list<string>,autoload_yes_names:list<string>,option_page_numbers:array<string,int>,database_page_count:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,append:array<string,mixed>,dependencies:list<string>}
+     * @return array{status:string,reason:string,database_path:string,wal_path:string,current_rows:list<array<string,mixed>>,next_rows:list<array<string,mixed>>,inserted_key_names:list<string>,updated_key_names:list<string>,deleted_key_names:list<string>,load_policy_yes_key_names:list<string>,setting_page_numbers:array<string,int>,database_page_count:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,append:array<string,mixed>,dependencies:list<string>}
      */
     public static function currentNext(
         SQLiteWal $wal,
@@ -19,25 +19,25 @@ final class SQLiteKeyValueRowsWalImportPlan
         array $currentRows,
         array $importRows,
         array $pageNumbers,
-        int $firstOptionPageNumber = 2,
+        int $firstSettingPageNumber = 2,
         ?int $loadPolicyIndexPageNumber = null,
     ): array {
         if ($databasePath === '') {
-            throw new \InvalidArgumentException('SQLite Application options WAL import requires a database path');
+            throw new \InvalidArgumentException('SQLite Application settings WAL import requires a database path');
         }
         if ($importRows === []) {
-            throw new \InvalidArgumentException('SQLite Application options WAL import requires at least one imported row');
+            throw new \InvalidArgumentException('SQLite Application settings WAL import requires at least one imported row');
         }
         if ($pageNumbers === []) {
-            throw new \InvalidArgumentException('SQLite Application options WAL import current/next requires at least one page number');
+            throw new \InvalidArgumentException('SQLite Application settings WAL import current/next requires at least one page number');
         }
-        if ($firstOptionPageNumber < 2) {
-            throw new \InvalidArgumentException('SQLite Application options WAL import option pages must start after page one');
+        if ($firstSettingPageNumber < 2) {
+            throw new \InvalidArgumentException('SQLite Application settings WAL import setting pages must start after page one');
         }
 
         $pageSize = $wal->header->pageSize;
         if ($pageSize < 512) {
-            throw new \InvalidArgumentException('SQLite Application options WAL import requires a concrete WAL page size');
+            throw new \InvalidArgumentException('SQLite Application settings WAL import requires a concrete WAL page size');
         }
 
         $normalizedCurrent = self::normalizeRows($currentRows, true);
@@ -46,20 +46,20 @@ final class SQLiteKeyValueRowsWalImportPlan
         $updated = [];
 
         foreach (self::normalizeRows($importRows, false) as $row) {
-            $name = (string) $row['option_name'];
+            $name = (string) $row['key_name'];
             if (array_key_exists($name, $nextRows)) {
                 $updated[$name] = true;
-                $row['option_id'] = $nextRows[$name]['option_id'];
+                $row['setting_id'] = $nextRows[$name]['setting_id'];
             } else {
                 $inserted[$name] = true;
-                $row['option_id'] = self::nextKeyValueId($nextRows);
+                $row['setting_id'] = self::nextKeyValueId($nextRows);
             }
             $nextRows[$name] = $row;
         }
 
         ksort($nextRows, SORT_STRING);
-        $keyValuePageNumbers = self::keyValuePageNumbers($nextRows, $firstOptionPageNumber);
-        $loadPolicyIndexPageNumber ??= $firstOptionPageNumber + count($keyValuePageNumbers);
+        $keyValuePageNumbers = self::keyValuePageNumbers($nextRows, $firstSettingPageNumber);
+        $loadPolicyIndexPageNumber ??= $firstSettingPageNumber + count($keyValuePageNumbers);
         $databasePageCount = max([$loadPolicyIndexPageNumber, ...array_values($keyValuePageNumbers)]);
 
         $pages = [];
@@ -82,7 +82,7 @@ final class SQLiteKeyValueRowsWalImportPlan
         $next = [];
         foreach ($pageNumbers as $pageNumber) {
             if (!is_int($pageNumber)) {
-                throw new \InvalidArgumentException('SQLite Application options WAL import pages must be integers');
+                throw new \InvalidArgumentException('SQLite Application settings WAL import pages must be integers');
             }
             $current[] = self::safeReaderVisibility($wal, $databaseBytes, $pageNumber, $currentEndFrame);
             $next[] = self::safeReaderVisibility($nextWal, $databaseBytes, $pageNumber, $nextEndFrame);
@@ -90,16 +90,16 @@ final class SQLiteKeyValueRowsWalImportPlan
 
         return [
             'status' => 'planned',
-            'reason' => 'application_options_import_wal_commit_current_next_visibility',
+            'reason' => 'application_settings_import_wal_commit_current_next_visibility',
             'database_path' => $databasePath,
             'wal_path' => $databasePath . '-wal',
             'current_rows' => array_values($normalizedCurrent),
             'next_rows' => array_values($nextRows),
-            'inserted_names' => array_keys($inserted),
-            'updated_names' => array_keys($updated),
-            'deleted_names' => [],
-            'autoload_yes_names' => self::loadPolicyNames($nextRows),
-            'option_page_numbers' => $keyValuePageNumbers,
+            'inserted_key_names' => array_keys($inserted),
+            'updated_key_names' => array_keys($updated),
+            'deleted_key_names' => [],
+            'load_policy_yes_key_names' => self::loadPolicyNames($nextRows),
+            'setting_page_numbers' => $keyValuePageNumbers,
             'database_page_count' => $databasePageCount,
             'current_reader' => $current,
             'next_reader' => $next,
@@ -112,32 +112,32 @@ final class SQLiteKeyValueRowsWalImportPlan
             'append' => $append,
             'dependencies' => array_values(array_unique(array_merge(
                 $append['dependencies'],
-                ['application-options-wal-import-current-next']
+                ['application-settings-wal-import-current-next']
             ))),
         ];
     }
 
     /**
-     * @param list<array{option_id?:int,option_name:string,option_value:string,autoload?:string}> $rows
-     * @return array<string,array{option_id:int,option_name:string,option_value:string,autoload:string}>
+     * @param list<array{setting_id?:int,key_name:string,key_value:string,load_policy?:string}> $rows
+     * @return array<string,array{setting_id:int,key_name:string,key_value:string,load_policy:string}>
      */
     private static function normalizeRows(array $rows, bool $requireIds): array
     {
         $normalized = [];
         foreach ($rows as $index => $row) {
-            $name = trim((string) ($row['option_name'] ?? ''));
+            $name = trim((string) ($row['key_name'] ?? ''));
             if ($name === '') {
-                throw new \InvalidArgumentException('SQLite Application options WAL import requires option_name');
+                throw new \InvalidArgumentException('SQLite Application settings WAL import requires key_name');
             }
-            $optionId = $row['option_id'] ?? ($index + 1);
-            if ($requireIds && (!is_int($optionId) || $optionId < 1)) {
-                throw new \InvalidArgumentException('SQLite Application options WAL import requires positive current option_id values');
+            $settingId = $row['setting_id'] ?? ($index + 1);
+            if ($requireIds && (!is_int($settingId) || $settingId < 1)) {
+                throw new \InvalidArgumentException('SQLite Application settings WAL import requires positive current setting_id values');
             }
             $normalized[$name] = [
-                'option_id' => is_int($optionId) && $optionId > 0 ? $optionId : 0,
-                'option_name' => $name,
-                'option_value' => (string) ($row['option_value'] ?? ''),
-                'autoload' => self::normalizeLoadPolicy((string) ($row['autoload'] ?? 'yes')),
+                'setting_id' => is_int($settingId) && $settingId > 0 ? $settingId : 0,
+                'key_name' => $name,
+                'key_value' => (string) ($row['key_value'] ?? ''),
+                'load_policy' => self::normalizeLoadPolicy((string) ($row['load_policy'] ?? 'yes')),
             ];
         }
         ksort($normalized, SORT_STRING);
@@ -146,33 +146,33 @@ final class SQLiteKeyValueRowsWalImportPlan
     }
 
     /**
-     * @param array<string,array{option_id:int}> $rows
+     * @param array<string,array{setting_id:int}> $rows
      */
     private static function nextKeyValueId(array $rows): int
     {
         $max = 0;
         foreach ($rows as $row) {
-            $max = max($max, (int) $row['option_id']);
+            $max = max($max, (int) $row['setting_id']);
         }
 
         return $max + 1;
     }
 
-    private static function normalizeLoadPolicy(string $autoload): string
+    private static function normalizeLoadPolicy(string $loadPolicy): string
     {
-        $autoload = strtolower(trim($autoload));
+        $loadPolicy = strtolower(trim($loadPolicy));
 
-        return in_array($autoload, ['yes', 'on', 'true', '1'], true) ? 'yes' : 'no';
+        return in_array($loadPolicy, ['yes', 'on', 'true', '1'], true) ? 'yes' : 'no';
     }
 
     /**
-     * @param array<string,array{option_id:int,option_name:string,option_value:string,autoload:string}> $rows
+     * @param array<string,array{setting_id:int,key_name:string,key_value:string,load_policy:string}> $rows
      * @return array<string,int>
      */
-    private static function keyValuePageNumbers(array $rows, int $firstOptionPageNumber): array
+    private static function keyValuePageNumbers(array $rows, int $firstSettingPageNumber): array
     {
         $pages = [];
-        $page = $firstOptionPageNumber;
+        $page = $firstSettingPageNumber;
         foreach ($rows as $name => $_row) {
             $pages[$name] = $page++;
         }
@@ -181,60 +181,60 @@ final class SQLiteKeyValueRowsWalImportPlan
     }
 
     /**
-     * @param array{option_id:int,option_name:string,option_value:string,autoload:string} $row
+     * @param array{setting_id:int,key_name:string,key_value:string,load_policy:string} $row
      */
     private static function rowPage(array $row, int $pageNumber, int $pageSize): string
     {
         $json = json_encode([
             'page' => $pageNumber,
-            'table' => 'wp_options',
-            'option_id' => $row['option_id'],
-            'option_name' => $row['option_name'],
-            'option_value' => $row['option_value'],
-            'autoload' => $row['autoload'],
+            'table' => 'app_settings',
+            'setting_id' => $row['setting_id'],
+            'key_name' => $row['key_name'],
+            'key_value' => $row['key_value'],
+            'load_policy' => $row['load_policy'],
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
-            throw new \RuntimeException('Unable to encode Application options WAL import row');
+            throw new \RuntimeException('Unable to encode Application settings WAL import row');
         }
         if (strlen($json) > $pageSize) {
-            throw new \InvalidArgumentException('SQLite Application options WAL import row page exceeds page size');
+            throw new \InvalidArgumentException('SQLite Application settings WAL import row page exceeds page size');
         }
 
         return str_pad($json, $pageSize, "\0");
     }
 
     /**
-     * @param array<string,array{option_name:string,autoload:string}> $rows
+     * @param array<string,array{key_name:string,load_policy:string}> $rows
      */
     private static function loadPolicyIndexPage(array $rows, int $pageNumber, int $pageSize): string
     {
         $names = self::loadPolicyNames($rows);
         $json = json_encode([
             'page' => $pageNumber,
-            'index' => 'wp_options_autoload',
-            'autoload' => 'yes',
-            'option_names' => $names,
+            'index' => 'app_settings_load_policy',
+            'load_policy' => 'yes',
+            'key_names' => $names,
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
-            throw new \RuntimeException('Unable to encode Application options WAL import autoload page');
+            throw new \RuntimeException('Unable to encode Application settings WAL import load_policy page');
         }
         if (strlen($json) > $pageSize) {
-            throw new \InvalidArgumentException('SQLite Application options WAL import autoload page exceeds page size');
+            throw new \InvalidArgumentException('SQLite Application settings WAL import load_policy page exceeds page size');
         }
 
         return str_pad($json, $pageSize, "\0");
     }
 
     /**
-     * @param array<string,array{option_name:string,autoload:string}> $rows
+     * @param array<string,array{key_name:string,load_policy:string}> $rows
      * @return list<string>
      */
     private static function loadPolicyNames(array $rows): array
     {
         $names = [];
         foreach ($rows as $row) {
-            if ($row['autoload'] === 'yes') {
-                $names[] = $row['option_name'];
+            if ($row['load_policy'] === 'yes') {
+                $names[] = $row['key_name'];
             }
         }
         sort($names, SORT_STRING);

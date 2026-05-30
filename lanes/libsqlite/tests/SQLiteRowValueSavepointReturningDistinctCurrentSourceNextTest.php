@@ -69,7 +69,7 @@ $cases = [
 
     'plan status rolled back distinct returning retried' => [static fn (): mixed => $plan()['status'], 'rolled-back-distinct-returning-retried'],
     'plan rolled back flag true' => [static fn (): mixed => $plan()['rolled_back'], true],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_distinct_current_source'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_distinct_current_source'],
     'plan rollback reason records malformed row-value arity' => [static fn (): mixed => $plan()['rollback_reason'], 'SQLite UPDATE/DELETE row-value expressions need at least two columns'],
     'plan rollback statement ordinal one' => [static fn (): mixed => $plan()['rollback_statement_ordinal'], 1],
     'plan distinct columns surfaced' => [static fn (): mixed => $plan()['distinct_columns'], ['status', 'bucket']],

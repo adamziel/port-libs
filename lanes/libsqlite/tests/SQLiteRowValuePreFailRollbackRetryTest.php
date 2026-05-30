@@ -79,7 +79,7 @@ $casespreFailRetry = [
     'retry update row nine includes pre then retry' => [static fn (): mixed => array_column($retryUpdateResultpreFailRetry()['tables']['wp_options'], 'option_value', 'option_id')[9], 'plugin:prepreFailRetry:retrypreFailRetry'],
 
     'plan status' => [static fn (): mixed => $planpreFailRetry()['status'], 'rowvalue-update-delete-returning-or-fail-savepoint-current-source-pre-fail-rollback-retry'],
-    'plan savepoint' => [static fn (): mixed => $planpreFailRetry()['savepoint'], 'wp_options_rowvalue_fail_statement_pre_fail_rollback_retry'],
+    'plan savepoint' => [static fn (): mixed => $planpreFailRetry()['savepoint'], 'app_settings_rowvalue_fail_statement_pre_fail_rollback_retry'],
     'plan or fail preserved prior rows' => [static fn (): mixed => $planpreFailRetry()['or_fail_statement_preserved_prior_rows'], true],
     'plan or fail stopped at conflict' => [static fn (): mixed => $planpreFailRetry()['or_fail_statement_stopped_at_conflict'], true],
     'plan returning visible before rollback' => [static fn (): mixed => $planpreFailRetry()['or_fail_statement_stopped_at_conflict'], true],

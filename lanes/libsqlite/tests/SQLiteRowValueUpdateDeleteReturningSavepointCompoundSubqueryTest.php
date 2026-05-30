@@ -90,7 +90,7 @@ $cases231 = [
     'retry delete removes network row' => [static fn (): mixed => in_array(10, array_column($retryDeleteResult231()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $plan231()['status'], 'rowvalue-update-delete-returning-compound-subquery-savepoint-current-source'],
-    'plan savepoint' => [static fn (): mixed => $plan231()['savepoint'], 'wp_options_rowvalue_compound_subquery'],
+    'plan savepoint' => [static fn (): mixed => $plan231()['savepoint'], 'app_settings_rowvalue_compound_subquery'],
     'plan compound flag' => [static fn (): mixed => $plan231()['compound_subquery_source'], true],
     'plan operators' => [static fn (): mixed => $plan231()['compound_operators'], ['UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT']],
     'plan rollback flags' => [static fn (): mixed => [$plan231()['rolled_back_to_savepoint'], $plan231()['savepoint_preserved_after_rollback_to']], [true, true]],

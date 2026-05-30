@@ -40,7 +40,7 @@ $blockedPlan205 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSave
     [$releaseReplace205, $releaseDelete205],
     [$nextUpdate205],
     $unique205,
-    'wp_options_rowvalue_release_release_followup_read',
+    'app_settings_rowvalue_release_release_followup_read',
     'option_id',
     ['release_token' => 'wp.rowvalue.release.followup.read', 'expected_release_token' => 'stale.release.followup.read'],
 );
@@ -49,7 +49,7 @@ $cursorBlockedPlan205 = static fn (): array => SQLiteRowValueUpdateDeleteReturni
     [$releaseReplace205, $releaseDelete205],
     [$nextUpdate205],
     $unique205,
-    'wp_options_rowvalue_release_release_followup_read',
+    'app_settings_rowvalue_release_release_followup_read',
     'option_id',
     ['next_cursor' => 'wp.rowvalue.followup.cursor', 'expected_next_cursor' => 'stale.followup.cursor'],
 );
@@ -85,7 +85,7 @@ $cases205 = [
     'next delete final ids' => [static fn (): mixed => array_column($nextDeleteResult205()['tables']['wp_options'], 'option_id'), [1, 3, 5, 6]],
 
     'plan status' => [static fn (): mixed => $plan205()['status'], 'rowvalue-update-delete-returning-release-current-source-release_followup_read'],
-    'plan savepoint' => [static fn (): mixed => $plan205()['savepoint'], 'wp_options_rowvalue_release_release_followup_read'],
+    'plan savepoint' => [static fn (): mixed => $plan205()['savepoint'], 'app_settings_rowvalue_release_release_followup_read'],
     'plan release admitted' => [static fn (): mixed => $plan205()['release_admitted_release_followup_read'], true],
     'plan next cursor matches' => [static fn (): mixed => $plan205()['next_cursor_matches_release_followup_read'], true],
     'plan released before next source' => [static fn (): mixed => $plan205()['savepoint_released_before_next_source_release_followup_read'], true],
@@ -123,7 +123,7 @@ $cases205 = [
     'malformed empty next statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeReleaseFollowupReadSavepoint($tables205, [$releaseReplace205], [], $unique205), InvalidArgumentException::class],
     'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeReleaseFollowupReadSavepoint($tables205, [$releaseReplace205], [$nextUpdate205], []), InvalidArgumentException::class],
     'malformed savepoint name rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeReleaseFollowupReadSavepoint($tables205, [$releaseReplace205], [$nextUpdate205], $unique205, 'bad-name'), InvalidArgumentException::class],
-    'malformed release token rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeReleaseFollowupReadSavepoint($tables205, [$releaseReplace205], [$nextUpdate205], $unique205, 'wp_options_rowvalue_release_release_followup_read', 'option_id', ['release_token' => 'bad token']), InvalidArgumentException::class],
+    'malformed release token rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeReleaseFollowupReadSavepoint($tables205, [$releaseReplace205], [$nextUpdate205], $unique205, 'app_settings_rowvalue_release_release_followup_read', 'option_id', ['release_token' => 'bad token']), InvalidArgumentException::class],
     'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeReleaseFollowupReadSavepoint(['wp_options' => ['bad']], [$releaseReplace205], [$nextUpdate205], $unique205), InvalidArgumentException::class],
 ];
 

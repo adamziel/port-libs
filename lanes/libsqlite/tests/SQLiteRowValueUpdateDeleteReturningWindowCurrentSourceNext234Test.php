@@ -77,7 +77,7 @@ $cases234 = [
     'retry delete removes network plugin' => [static fn (): mixed => in_array(12, array_column($retryDeleteResult234()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $plan234()['status'], 'rowvalue-update-delete-returning-window-current-source-next234'],
-    'plan savepoint' => [static fn (): mixed => $plan234()['savepoint'], 'wp_options_rowvalue_returning_window_next234'],
+    'plan savepoint' => [static fn (): mixed => $plan234()['savepoint'], 'app_settings_rowvalue_returning_window_next234'],
     'plan partition column' => [static fn (): mixed => $plan234()['partition_column'], 'blog_id'],
     'plan order column' => [static fn (): mixed => $plan234()['order_column'], 'option_id'],
     'plan rollback flags' => [static fn (): mixed => [$plan234()['rolled_back_to_savepoint'], $plan234()['retry_reads_savepoint_image'], $plan234()['savepoint_released_after_retry']], [true, true, true]],

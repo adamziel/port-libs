@@ -69,7 +69,7 @@ $cases203 = [
     'delete after replace final ids' => [static fn (): mixed => array_column($deleteResult203()['tables']['wp_options'], 'option_id'), [1, 3, 4, 5, 6]],
 
     'plan status' => [static fn (): mixed => $plan203()['status'], 'rowvalue-update-delete-returning-ignore-replace-savepoint-current-source-ignore_replace_delete'],
-    'plan savepoint name' => [static fn (): mixed => $plan203()['savepoint'], 'wp_options_rowvalue_ignore_replace_ignore_replace_delete'],
+    'plan savepoint name' => [static fn (): mixed => $plan203()['savepoint'], 'app_settings_rowvalue_ignore_replace_ignore_replace_delete'],
     'plan savepoint image original' => [static fn (): mixed => $plan203()['savepoint_image_tables'], $tables203],
     'plan savepoint active after ignore' => [static fn (): mixed => $plan203()['savepoint_active_after_ignore'], true],
     'plan savepoint active after replace' => [static fn (): mixed => $plan203()['savepoint_active_after_replace'], true],

@@ -19,8 +19,8 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
         string $nextPatternBytes,
         int $nextPatternEncoding,
         ?string $escape = '\\',
-        string $currentSource = 'main.wp_options@162',
-        string $nextSource = 'main.wp_options@163',
+        string $currentSource = 'main.app_settings@162',
+        string $nextSource = 'main.app_settings@163',
         int $currentSchemaCookie = 162,
         int $nextSchemaCookie = 163,
     ): array {

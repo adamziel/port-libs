@@ -51,7 +51,7 @@ final class SQLiteTriggerUpsertReturningRecursiveViewPlan
             $yielded = $topLevelByOrdinal[$ordinal] ?? null;
             $current = $yielded === null
                 ? null
-                : self::findRow((array) $plan['current_parent'], (string) $yielded['option_name']);
+                : self::findRow((array) $plan['current_parent'], (string) $yielded['key_name']);
             $recursive = self::recursiveRowsForOrdinal((array) $plan['yielded'], (int) $ordinal);
             $trace[] = [
                 'ordinal' => (int) $ordinal,
@@ -60,10 +60,10 @@ final class SQLiteTriggerUpsertReturningRecursiveViewPlan
                 'status' => $yielded === null ? 'skipped' : (string) $yielded['status'],
                 'event' => $yielded['event'] ?? null,
                 'current_row' => $current,
-                'current_option_id' => $current['option_id'] ?? null,
+                'current_setting_id' => $current['setting_id'] ?? null,
                 'returning_row' => $plan['returning_rows'][$ordinal] ?? null,
                 'next_recursive_rows' => $recursive,
-                'next_recursive_names' => array_column($recursive, 'option_name'),
+                'next_recursive_names' => array_column($recursive, 'key_name'),
                 'next_recursive_source_triggers' => array_values(array_unique(array_filter(array_column($recursive, 'source_trigger')))),
             ];
         }
@@ -76,8 +76,8 @@ final class SQLiteTriggerUpsertReturningRecursiveViewPlan
         $plan['current_next_trace'] = $trace;
         $plan['recursive_yielded'] = $recursiveRows;
         $plan['recursive_returning_suppressed'] = count($recursiveRows);
-        $plan['statement_returning_names'] = array_column((array) $plan['returning_rows'], 'option_name');
-        $plan['statement_current_option_ids'] = array_column($trace, 'current_option_id');
+        $plan['statement_returning_names'] = array_column((array) $plan['returning_rows'], 'key_name');
+        $plan['statement_current_setting_ids'] = array_column($trace, 'current_setting_id');
         $plan['dependencies'] = array_values(array_unique(array_merge(
             (array) ($plan['dependencies'] ?? []),
             [
@@ -96,7 +96,7 @@ final class SQLiteTriggerUpsertReturningRecursiveViewPlan
     private static function findRow(array $rows, string $optionName): ?array
     {
         foreach ($rows as $row) {
-            if (($row['option_name'] ?? null) === $optionName) {
+            if (($row['key_name'] ?? null) === $optionName) {
                 return $row;
             }
         }
@@ -119,8 +119,8 @@ final class SQLiteTriggerUpsertReturningRecursiveViewPlan
         }
 
         usort($rows, static function (array $left, array $right): int {
-            return [(int) ($left['depth'] ?? 0), (string) ($left['option_name'] ?? '')]
-                <=> [(int) ($right['depth'] ?? 0), (string) ($right['option_name'] ?? '')];
+            return [(int) ($left['depth'] ?? 0), (string) ($left['key_name'] ?? '')]
+                <=> [(int) ($right['depth'] ?? 0), (string) ($right['key_name'] ?? '')];
         });
 
         return $rows;

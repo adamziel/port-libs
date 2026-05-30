@@ -12,12 +12,12 @@ $tests = [];
 $pageSize = 512;
 $salt1 = 0x34343434;
 $salt2 = 0x56565656;
-$databasePath = 'wp-content/database/.ht.sqlite';
+$databasePath = 'app-data/database/.ht.sqlite';
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
-$databaseBytes = $page('sqlite header and wp_options root before import')
+$databaseBytes = $page('sqlite header and app_settings root before import')
     . $page('current siteurl option before import')
     . $page('current active_plugins option before import')
-    . $page('current autoload index before import');
+    . $page('current load_policy index before import');
 
 $walHeaderBytes = static function () use ($pageSize, $salt1, $salt2): string {
     $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 34, $salt1, $salt2);
@@ -44,14 +44,14 @@ $baseWalBytes = static function () use ($walHeaderBytes, $appendFrame, $page): s
 
 $baseWal = static fn (): SQLiteWal => SQLiteWal::parse($baseWalBytes(), null, true);
 $currentRows = static fn (): array => [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'active_plugins', 'option_value' => 'a:0:{}', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'blog_public', 'option_value' => '1', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://old.example', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'active_plugins', 'key_value' => 'a:0:{}', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'tenant_public', 'key_value' => '1', 'load_policy' => 'no'],
 ];
 $importRows = static fn (): array => [
-    ['option_name' => 'active_plugins', 'option_value' => 'a:1:{i:0;s:19:"akismet/akismet.php";}', 'autoload' => 'yes'],
-    ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true,"mode":"safe"}', 'autoload' => 'no'],
-    ['option_name' => 'siteurl', 'option_value' => 'https://new.example', 'autoload' => 'yes'],
+    ['key_name' => 'active_plugins', 'key_value' => 'a:1:{i:0;s:19:"akismet/akismet.php";}', 'load_policy' => 'yes'],
+    ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true,"mode":"safe"}', 'load_policy' => 'no'],
+    ['key_name' => 'siteurl', 'key_value' => 'https://new.example', 'load_policy' => 'yes'],
 ];
 $plan = static fn (): array => SQLiteKeyValueRowsWalImportPlan::currentNext(
     $baseWal(),
@@ -65,20 +65,20 @@ $nextWal = static fn (): SQLiteWal => SQLiteWal::parse($plan()['append']['wal_by
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'planned'],
-    'reason' => [static fn (): mixed => $plan()['reason'], 'application_options_import_wal_commit_current_next_visibility'],
+    'reason' => [static fn (): mixed => $plan()['reason'], 'application_settings_import_wal_commit_current_next_visibility'],
     'database path' => [static fn (): mixed => $plan()['database_path'], $databasePath],
     'wal path' => [static fn (): mixed => $plan()['wal_path'], $databasePath . '-wal'],
     'current row count' => [static fn (): mixed => count($plan()['current_rows']), 3],
     'next row count' => [static fn (): mixed => count($plan()['next_rows']), 4],
-    'inserted names' => [static fn (): mixed => $plan()['inserted_names'], ['plugin_settings']],
-    'updated names preserve import order' => [static fn (): mixed => $plan()['updated_names'], ['active_plugins', 'siteurl']],
-    'deleted names empty' => [static fn (): mixed => $plan()['deleted_names'], []],
-    'autoload names sorted' => [static fn (): mixed => $plan()['autoload_yes_names'], ['active_plugins', 'siteurl']],
-    'option page active plugins' => [static fn (): mixed => $plan()['option_page_numbers']['active_plugins'], 2],
-    'option page blog public' => [static fn (): mixed => $plan()['option_page_numbers']['blog_public'], 3],
-    'option page plugin settings' => [static fn (): mixed => $plan()['option_page_numbers']['plugin_settings'], 4],
-    'option page siteurl' => [static fn (): mixed => $plan()['option_page_numbers']['siteurl'], 5],
-    'database page count includes autoload index' => [static fn (): mixed => $plan()['database_page_count'], 6],
+    'inserted names' => [static fn (): mixed => $plan()['inserted_key_names'], ['plugin_settings']],
+    'updated names preserve import order' => [static fn (): mixed => $plan()['updated_key_names'], ['active_plugins', 'siteurl']],
+    'deleted names empty' => [static fn (): mixed => $plan()['deleted_key_names'], []],
+    'load_policy names sorted' => [static fn (): mixed => $plan()['load_policy_yes_key_names'], ['active_plugins', 'siteurl']],
+    'setting page active plugins' => [static fn (): mixed => $plan()['setting_page_numbers']['active_plugins'], 2],
+    'setting page tenant public' => [static fn (): mixed => $plan()['setting_page_numbers']['tenant_public'], 5],
+    'setting page plugin settings' => [static fn (): mixed => $plan()['setting_page_numbers']['plugin_settings'], 3],
+    'setting page siteurl' => [static fn (): mixed => $plan()['setting_page_numbers']['siteurl'], 4],
+    'database page count includes load_policy index' => [static fn (): mixed => $plan()['database_page_count'], 6],
     'append start frame' => [static fn (): mixed => $plan()['append']['start_frame'], 3],
     'append end frame' => [static fn (): mixed => $plan()['append']['end_frame'], 7],
     'append frame count' => [static fn (): mixed => $plan()['append']['appended_frame_count'], 5],
@@ -98,22 +98,22 @@ $cases = [
     'next errors count' => [static fn (): mixed => count($plan()['next_reader_errors']), 0],
     'current page three contains old plugins' => [static fn (): mixed => str_contains($plan()['current_reader'][1]['image'], 'active_plugins before import'), true],
     'next page active plugins value' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], 'akismet/akismet.php'), true],
-    'next page active plugins id preserved' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], '"option_id":2'), true],
-    'next page blog public retained' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], '"blog_public"'), true],
-    'next page plugin settings inserted' => [static fn (): mixed => str_contains($plan()['next_reader'][2]['image'], '"plugin_settings"'), true],
-    'next page plugin settings new id' => [static fn (): mixed => str_contains($plan()['next_reader'][2]['image'], '"option_id":4'), true],
-    'next page siteurl updated' => [static fn (): mixed => str_contains($plan()['next_reader'][3]['image'], 'https://new.example'), true],
-    'next autoload index names' => [static fn (): mixed => str_contains($plan()['next_reader'][4]['image'], '"option_names":["active_plugins","siteurl"]'), true],
-    'next autoload excludes plugin settings' => [static fn (): mixed => !str_contains($plan()['next_reader'][4]['image'], 'plugin_settings'), true],
-    'dependency includes wp import' => [static fn (): mixed => in_array('application-options-wal-import-current-next', $plan()['dependencies'], true), true],
+    'next page active plugins id preserved' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], '"setting_id":2'), true],
+    'next page tenant public retained' => [static fn (): mixed => str_contains($plan()['next_reader'][3]['image'], '"tenant_public"'), true],
+    'next page plugin settings inserted' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], '"plugin_settings"'), true],
+    'next page plugin settings new id' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], '"setting_id":4'), true],
+    'next page siteurl updated' => [static fn (): mixed => str_contains($plan()['next_reader'][2]['image'], 'https://new.example'), true],
+    'next load_policy index names' => [static fn (): mixed => str_contains($plan()['next_reader'][4]['image'], '"key_names":["active_plugins","siteurl"]'), true],
+    'next load_policy excludes plugin settings' => [static fn (): mixed => !str_contains($plan()['next_reader'][4]['image'], 'plugin_settings'), true],
+    'dependency includes wp import' => [static fn (): mixed => in_array('application-settings-wal-import-current-next', $plan()['dependencies'], true), true],
     'dependency includes wal append' => [static fn (): mixed => in_array('sqlite-wal-append-transaction', $plan()['dependencies'], true), true],
     'next wal frame count' => [static fn (): mixed => $nextWal()->frameCount(), 7],
     'next wal uncommitted count' => [static fn (): mixed => $nextWal()->uncommittedFrameCount(), 0],
     'next wal last commit frame' => [static fn (): mixed => $nextWal()->lastCommitFrame()?->index, 7],
     'next wal reader page count' => [static fn (): mixed => $nextWal()->readerSnapshot($databaseBytes, 7)['database_page_count'], 6],
     'next wal map count' => [static fn (): mixed => count($nextWal()->readerSnapshotPageMap($databaseBytes, 7)), 6],
-    'next wal page five image' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 5, 7)['image'], 'new.example'), true],
-    'next wal page six autoload image' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 6, 7)['image'], 'wp_options_autoload'), true],
+    'next wal page four image' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 4, 7)['image'], 'new.example'), true],
+    'next wal page six load_policy image' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 6, 7)['image'], 'app_settings_load_policy'), true],
     'current snapshot remains at frame two' => [static fn (): mixed => $baseWal()->readerSnapshot($databaseBytes, 2)['database_page_count'], 4],
     'current snapshot cannot see plugin settings page' => [static function () use ($baseWal, $databaseBytes): mixed {
         try {
@@ -127,13 +127,13 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['application options import wal current next34 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['application settings import wal current next34 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
-$tests['application options import wal current next34 applies append through vfs writer'] = static function (TestRunner $t) use ($baseWalBytes, $baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
-    $root = sys_get_temp_dir() . '/port-libsqlite-wp-options-wal34-' . bin2hex(random_bytes(4));
+$tests['application settings import wal current next34 applies append through vfs writer'] = static function (TestRunner $t) use ($baseWalBytes, $baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
+    $root = sys_get_temp_dir() . '/port-libsqlite-app-settings-wal34-' . bin2hex(random_bytes(4));
     $localWal = $root . '/' . $databasePath . '-wal';
     $directory = dirname($localWal);
     if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
@@ -155,16 +155,16 @@ $tests['application options import wal current next34 applies append through vfs
     $t->same('applied', $applied['status']);
     $t->same(5, $applied['append']['appended_frame_count']);
     $t->same(7, $afterWal->lastCommitFrame()?->index);
-    $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 5, 7)['image'], 'https://new.example'));
-    $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 6, 7)['image'], 'wp_options_autoload'));
+    $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 4, 7)['image'], 'https://new.example'));
+    $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 6, 7)['image'], 'app_settings_load_policy'));
 };
 
-$tests['application options import wal current next34 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
+$tests['application settings import wal current next34 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['option_name' => '', 'option_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['setting_id' => 0, 'key_name' => 'bad', 'key_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['key_name' => '', 'key_value' => 'x']], [2]));
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
 };
 

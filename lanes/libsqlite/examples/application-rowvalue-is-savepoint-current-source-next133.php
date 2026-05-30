@@ -24,7 +24,7 @@ $plan = SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute(
         "DELETE FROM wp_options WHERE (status, bucket) IS (NULL, 'staged') RETURNING option_id, option_name, (status, bucket) IS (NULL, 'staged') AS old_tuple_is",
     ],
     [['table' => 'wp_options', 'columns' => ['blog_id', 'option_name']]],
-    'wp_options_rowvalue_is_batch',
+    'app_settings_rowvalue_is_batch',
 );
 
 $summary = [

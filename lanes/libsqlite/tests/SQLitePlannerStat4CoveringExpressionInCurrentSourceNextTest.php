@@ -5,13 +5,13 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLitePlannerStat4CoveringExpressionInCurrentSourceNextPlan;
 
 $expr126 = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
-$lower126 = $expr126('lower', 'option_name');
+$lower126 = $expr126('lower', 'key_name');
 $predicate126 = [
     'operator' => 'IN',
     'left' => $lower126,
     'values' => ['plugin_cache', 'plugin_forms', 'plugin_mail', 'plugin_seo'],
 ];
-$needed126 = ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id'];
+$needed126 = ['key_name', 'load_policy', 'key_value', 'setting_id', 'tenant_id'];
 
 $preparedSource126 = static function (array $overrides = []): array {
     return $overrides + [
@@ -19,17 +19,17 @@ $preparedSource126 = static function (array $overrides = []): array {
         'schemaCookie' => 1260,
         'stat4Generation' => 42,
         'indexes' => [[
-            'name' => 'idx_wp_options_lower_in_covering_stat4_',
+            'name' => 'idx_app_settings_lower_in_covering_stat4_',
             'rootPage' => 12601,
             'estimatedRows' => 480,
-            'coveringColumns' => ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id'],
-            'coveringExpressions' => [['function' => 'lower', 'column' => 'option_name']],
+            'coveringColumns' => ['key_name', 'load_policy', 'key_value', 'setting_id', 'tenant_id'],
+            'coveringExpressions' => [['function' => 'lower', 'column' => 'key_name']],
             'stat4Samples' => [
                 ['neq' => '1 1', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_cache', 201]],
                 ['neq' => '2 1', 'nlt' => '1 1', 'ndlt' => '1 1', 'sample' => ['plugin_forms', 202]],
                 ['neq' => '1 1', 'nlt' => '3 2', 'ndlt' => '2 2', 'sample' => ['plugin_seo', 203]],
             ],
-            'sql' => 'CREATE INDEX idx_wp_options_lower_in_covering_stat4_ ON wp_options(lower(option_name), option_id, option_value, blog_id, autoload)',
+            'sql' => 'CREATE INDEX idx_app_settings_lower_in_covering_stat4_ ON app_settings(lower(key_name), setting_id, key_value, tenant_id, load_policy)',
         ]],
     ];
 };
@@ -53,13 +53,13 @@ $currentSource126 = static function () use ($preparedSource126): array {
 };
 
 $rows126 = static fn (): array => [
-    ['rowid' => 51, 'option_name' => 'plugin_seo', 'autoload' => 'yes', 'option_value' => 'seo-enabled', 'option_id' => 51, 'blog_id' => 1],
-    ['rowid' => 21, 'option_name' => 'plugin_cache', 'autoload' => 'yes', 'option_value' => 'cache-enabled', 'option_id' => 21, 'blog_id' => 1],
-    ['rowid' => 41, 'option_name' => 'Plugin_Mail', 'autoload' => 'yes', 'option_value' => 'mail-enabled', 'option_id' => 41, 'blog_id' => 2],
-    ['rowid' => 31, 'option_name' => 'Plugin_Forms', 'autoload' => 'yes', 'option_value' => 'forms-enabled', 'option_id' => 31, 'blog_id' => 1],
-    ['rowid' => 22, 'option_name' => 'Plugin_Cache', 'autoload' => 'no', 'option_value' => 'cache-disabled', 'option_id' => 22, 'blog_id' => 3],
-    ['rowid' => 61, 'option_name' => 'theme_mods', 'autoload' => 'yes', 'option_value' => 'theme', 'option_id' => 61, 'blog_id' => 1],
-    ['rowid' => 71, 'option_name' => 'plugin_beta', 'autoload' => 'yes', 'option_value' => 'beta', 'option_id' => 71, 'blog_id' => 1],
+    ['rowid' => 51, 'key_name' => 'plugin_seo', 'load_policy' => 'yes', 'key_value' => 'seo-enabled', 'setting_id' => 51, 'tenant_id' => 1],
+    ['rowid' => 21, 'key_name' => 'plugin_cache', 'load_policy' => 'yes', 'key_value' => 'cache-enabled', 'setting_id' => 21, 'tenant_id' => 1],
+    ['rowid' => 41, 'key_name' => 'Plugin_Mail', 'load_policy' => 'yes', 'key_value' => 'mail-enabled', 'setting_id' => 41, 'tenant_id' => 2],
+    ['rowid' => 31, 'key_name' => 'Plugin_Forms', 'load_policy' => 'yes', 'key_value' => 'forms-enabled', 'setting_id' => 31, 'tenant_id' => 1],
+    ['rowid' => 22, 'key_name' => 'Plugin_Cache', 'load_policy' => 'no', 'key_value' => 'cache-disabled', 'setting_id' => 22, 'tenant_id' => 3],
+    ['rowid' => 61, 'key_name' => 'theme_mods', 'load_policy' => 'yes', 'key_value' => 'theme', 'setting_id' => 61, 'tenant_id' => 1],
+    ['rowid' => 71, 'key_name' => 'plugin_beta', 'load_policy' => 'yes', 'key_value' => 'beta', 'setting_id' => 71, 'tenant_id' => 1],
 ];
 
 $plan126 = static fn (
@@ -80,7 +80,7 @@ $plan126 = static fn (
 $fresh126 = static fn (): array => $plan126($preparedSource126(), $preparedSource126(['name' => 'current-fresh-stat4-covering-expression-in-']));
 $nonCovering126 = static function () use ($currentSource126, $plan126): array {
     $current = $currentSource126();
-    $current['indexes'][0]['coveringColumns'] = ['option_name'];
+    $current['indexes'][0]['coveringColumns'] = ['key_name'];
 
     return $plan126(null, $current);
 };
@@ -108,10 +108,10 @@ $tests = [
     'planner stat4 covering expression in current source schema changed' => static fn (TestRunner $t) => $t->same(true, $plan126()['schemaCookieChanged']),
     'planner stat4 covering expression in current source stat4 changed' => static fn (TestRunner $t) => $t->same(true, $plan126()['stat4GenerationChanged']),
     'planner stat4 covering expression in current source signature changed' => static fn (TestRunner $t) => $t->same(true, $plan126()['indexSignatureChanged']),
-    'planner stat4 covering expression in current source selected index' => static fn (TestRunner $t) => $t->same('idx_wp_options_lower_in_covering_stat4_', $plan126()['selectedPlan']['name']),
+    'planner stat4 covering expression in current source selected index' => static fn (TestRunner $t) => $t->same('idx_app_settings_lower_in_covering_stat4_', $plan126()['selectedPlan']['name']),
     'planner stat4 covering expression in current source selected root' => static fn (TestRunner $t) => $t->same(12644, $plan126()['selectedPlan']['rootPage']),
     'planner stat4 covering expression in current source type lower' => static fn (TestRunner $t) => $t->same('lower', $plan126()['selectedPlan']['type']),
-    'planner stat4 covering expression in current source column option name' => static fn (TestRunner $t) => $t->same('option_name', $plan126()['selectedPlan']['column']),
+    'planner stat4 covering expression in current source column key name' => static fn (TestRunner $t) => $t->same('key_name', $plan126()['selectedPlan']['column']),
     'planner stat4 covering expression in current source operator in' => static fn (TestRunner $t) => $t->same('IN', $plan126()['selectedPlan']['operator']),
     'planner stat4 covering expression in current source values preserved' => static fn (TestRunner $t) => $t->same(['plugin_cache', 'plugin_forms', 'plugin_mail', 'plugin_seo'], $plan126()['selectedPlan']['values']),
     'planner stat4 covering expression in current source covering true' => static fn (TestRunner $t) => $t->same(true, $plan126()['selectedPlan']['covering']),
@@ -124,14 +124,14 @@ $tests = [
     'planner stat4 covering expression in current source last next eof' => static fn (TestRunner $t) => $t->same(null, $plan126()['currentNextRows'][4]['next']),
     'planner stat4 covering expression in current source excludes value without stat4' => static fn (TestRunner $t) => $t->same(false, in_array(71, array_map(static fn (array $pair): mixed => $pair['current']['rowid'], $plan126()['currentNextRows']), true)),
     'planner stat4 covering expression in current source excludes outside value' => static fn (TestRunner $t) => $t->same(false, in_array(61, array_map(static fn (array $pair): mixed => $pair['current']['rowid'], $plan126()['currentNextRows']), true)),
-    'planner stat4 covering expression in current source covering value' => static fn (TestRunner $t) => $t->same('forms-enabled', $plan126()['currentNextRows'][2]['current']['covering']['option_value']),
-    'planner stat4 covering expression in current source covering blog id' => static fn (TestRunner $t) => $t->same(2, $plan126()['currentNextRows'][3]['current']['covering']['blog_id']),
-    'planner stat4 covering expression in current source expression payload' => static fn (TestRunner $t) => $t->same('plugin_mail', $plan126()['currentNextRows'][3]['current']['coveringExpressions']['lower(option_name)']),
+    'planner stat4 covering expression in current source covering value' => static fn (TestRunner $t) => $t->same('forms-enabled', $plan126()['currentNextRows'][2]['current']['covering']['key_value']),
+    'planner stat4 covering expression in current source covering tenant id' => static fn (TestRunner $t) => $t->same(2, $plan126()['currentNextRows'][3]['current']['covering']['tenant_id']),
+    'planner stat4 covering expression in current source expression payload' => static fn (TestRunner $t) => $t->same('plugin_mail', $plan126()['currentNextRows'][3]['current']['coveringExpressions']['lower(key_name)']),
     'planner stat4 covering expression in current source table lookup elided' => static fn (TestRunner $t) => $t->same(true, $plan126()['tableLookupElided']),
     'planner stat4 covering expression in current source no deferred seek' => static fn (TestRunner $t) => $t->same(null, $plan126()['deferredTableSeekOpcode']),
     'planner stat4 covering expression in current source sorter elided' => static fn (TestRunner $t) => $t->same(true, $plan126()['tempSorterElided']),
     'planner stat4 covering expression in current source cursor source' => static fn (TestRunner $t) => $t->same('current', $plan126()['cursorTape']['source']),
-    'planner stat4 covering expression in current source cursor index' => static fn (TestRunner $t) => $t->same('idx_wp_options_lower_in_covering_stat4_', $plan126()['cursorTape']['indexName']),
+    'planner stat4 covering expression in current source cursor index' => static fn (TestRunner $t) => $t->same('idx_app_settings_lower_in_covering_stat4_', $plan126()['cursorTape']['indexName']),
     'planner stat4 covering expression in current source cursor root' => static fn (TestRunner $t) => $t->same(12644, $plan126()['cursorTape']['rootPage']),
     'planner stat4 covering expression in current source cursor expression type' => static fn (TestRunner $t) => $t->same('lower', $plan126()['cursorTape']['expressionType']),
     'planner stat4 covering expression in current source seek keys' => static fn (TestRunner $t) => $t->same(['plugin_cache', 'plugin_forms', 'plugin_mail', 'plugin_seo'], $plan126()['cursorTape']['seekKeys']),
@@ -146,7 +146,7 @@ $tests = [
     'planner stat4 covering expression in current source fence stat4' => static fn (TestRunner $t) => $t->same(45, $plan126()['currentSourceFence']['stat4Generation']),
     'planner stat4 covering expression in current source fence signature length' => static fn (TestRunner $t) => $t->same(64, strlen($plan126()['currentSourceFence']['indexSignature'])),
     'planner stat4 covering expression in current source predicate signature length' => static fn (TestRunner $t) => $t->same(64, strlen($plan126()['currentSourceFence']['predicateSignature'])),
-    'planner stat4 covering expression in current source covering signature' => static fn (TestRunner $t) => $t->same('option_name,autoload,option_value,option_id,blog_id', $plan126()['currentSourceFence']['coveringSignature']),
+    'planner stat4 covering expression in current source covering signature' => static fn (TestRunner $t) => $t->same('key_name,load_policy,key_value,setting_id,tenant_id', $plan126()['currentSourceFence']['coveringSignature']),
     'planner stat4 covering expression in current source prepared summary root' => static fn (TestRunner $t) => $t->same(12601, $plan126()['preparedSource']['rootPage']),
     'planner stat4 covering expression in current source current summary root' => static fn (TestRunner $t) => $t->same(12644, $plan126()['currentSource']['rootPage']),
     'planner stat4 covering expression in current source detail reprepare' => static fn (TestRunner $t) => $t->contains('REPREPARE COVERING EXPRESSION STAT4 IN', $plan126()['detail']),

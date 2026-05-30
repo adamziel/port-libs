@@ -6,32 +6,32 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLitePlannerStat4CoveringExpressionInCurrentSourceNextPlan;
 
-$lower = ['function' => 'lower', 'column' => 'option_name'];
+$lower = ['function' => 'lower', 'column' => 'key_name'];
 $predicate = [
     'operator' => 'IN',
     'left' => $lower,
     'values' => ['plugin_cache', 'plugin_forms', 'plugin_mail', 'plugin_seo'],
 ];
 $prepared = [
-    'name' => 'prepared-wp-options-stat4-covering-expression-in-',
+    'name' => 'prepared-app-settings-stat4-covering-expression-in-',
     'schemaCookie' => 1260,
     'stat4Generation' => 42,
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_in_covering_stat4_',
+        'name' => 'idx_app_settings_lower_in_covering_stat4_',
         'rootPage' => 12601,
         'estimatedRows' => 480,
-        'coveringColumns' => ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id'],
+        'coveringColumns' => ['key_name', 'load_policy', 'key_value', 'setting_id', 'tenant_id'],
         'coveringExpressions' => [$lower],
         'stat4Samples' => [
             ['neq' => '1 1', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_cache', 201]],
             ['neq' => '2 1', 'nlt' => '1 1', 'ndlt' => '1 1', 'sample' => ['plugin_forms', 202]],
             ['neq' => '1 1', 'nlt' => '3 2', 'ndlt' => '2 2', 'sample' => ['plugin_seo', 203]],
         ],
-        'sql' => 'CREATE INDEX idx_wp_options_lower_in_covering_stat4_ ON wp_options(lower(option_name), option_id, option_value, blog_id, autoload)',
+        'sql' => 'CREATE INDEX idx_app_settings_lower_in_covering_stat4_ ON app_settings(lower(key_name), setting_id, key_value, tenant_id, load_policy)',
     ]],
 ];
 $current = $prepared;
-$current['name'] = 'current-wp-options-stat4-covering-expression-in-';
+$current['name'] = 'current-app-settings-stat4-covering-expression-in-';
 $current['schemaCookie'] = 1264;
 $current['stat4Generation'] = 45;
 $current['indexes'][0]['rootPage'] = 12644;
@@ -42,11 +42,11 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '2 1', 'nlt' => '6 3', 'ndlt' => '3 3', 'sample' => ['plugin_seo', 404]],
 ];
 $rows = [
-    ['rowid' => 51, 'option_name' => 'plugin_seo', 'autoload' => 'yes', 'option_value' => 'seo-enabled', 'option_id' => 51, 'blog_id' => 1],
-    ['rowid' => 21, 'option_name' => 'plugin_cache', 'autoload' => 'yes', 'option_value' => 'cache-enabled', 'option_id' => 21, 'blog_id' => 1],
-    ['rowid' => 41, 'option_name' => 'Plugin_Mail', 'autoload' => 'yes', 'option_value' => 'mail-enabled', 'option_id' => 41, 'blog_id' => 2],
-    ['rowid' => 31, 'option_name' => 'Plugin_Forms', 'autoload' => 'yes', 'option_value' => 'forms-enabled', 'option_id' => 31, 'blog_id' => 1],
-    ['rowid' => 71, 'option_name' => 'plugin_beta', 'autoload' => 'yes', 'option_value' => 'beta', 'option_id' => 71, 'blog_id' => 1],
+    ['rowid' => 51, 'key_name' => 'plugin_seo', 'load_policy' => 'yes', 'key_value' => 'seo-enabled', 'setting_id' => 51, 'tenant_id' => 1],
+    ['rowid' => 21, 'key_name' => 'plugin_cache', 'load_policy' => 'yes', 'key_value' => 'cache-enabled', 'setting_id' => 21, 'tenant_id' => 1],
+    ['rowid' => 41, 'key_name' => 'Plugin_Mail', 'load_policy' => 'yes', 'key_value' => 'mail-enabled', 'setting_id' => 41, 'tenant_id' => 2],
+    ['rowid' => 31, 'key_name' => 'Plugin_Forms', 'load_policy' => 'yes', 'key_value' => 'forms-enabled', 'setting_id' => 31, 'tenant_id' => 1],
+    ['rowid' => 71, 'key_name' => 'plugin_beta', 'load_policy' => 'yes', 'key_value' => 'beta', 'setting_id' => 71, 'tenant_id' => 1],
 ];
 
 $plan = SQLitePlannerStat4CoveringExpressionInCurrentSourceNextPlan::materialize(
@@ -54,7 +54,7 @@ $plan = SQLitePlannerStat4CoveringExpressionInCurrentSourceNextPlan::materialize
     $current,
     $predicate,
     $rows,
-    ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id'],
+    ['key_name', 'load_policy', 'key_value', 'setting_id', 'tenant_id'],
     [$lower],
 );
 
@@ -76,5 +76,5 @@ echo json_encode([
     'seekKeys' => $plan['cursorTape']['seekKeys'],
     'matchedKeys' => $plan['cursorTape']['matchedKeys'],
     'tableLookupElided' => $plan['tableLookupElided'],
-    'applicationUse' => 'Preview copied wp_options plugin option-name IN scans after ANALYZE refresh: stale prepared expression-index plans reprepare to current STAT4 samples and read option payload columns from the covering index cursor.',
+    'applicationUse' => 'Preview copied app_settings plugin key-name IN scans after ANALYZE refresh: stale prepared expression-index plans reprepare to current STAT4 samples and read setting payload columns from the covering index cursor.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

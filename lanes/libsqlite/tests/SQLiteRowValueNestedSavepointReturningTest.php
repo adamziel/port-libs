@@ -46,8 +46,8 @@ $customPlan = static fn (): array => SQLiteRowValueNestedSavepointReturningPlan:
     [$outerDeleteSql],
     [$retryUpdateSql],
     $unique,
-    'wp_outer_custom',
-    'wp_inner_custom',
+    'app_outer_custom',
+    'app_inner_custom',
 );
 
 $cases = [
@@ -63,8 +63,8 @@ $cases = [
     'inner released only current ids omit transients' => [static fn (): mixed => array_column($innerReleasedOnly()['tables']['wp_options'], 'option_id'), [1, 2, 5, 6, 7, 8, 9]],
 
     'plan status' => [static fn (): mixed => $plan()['status'], 'nested-release-rolled-back-retried-current-source'],
-    'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'wp_outer_import'],
-    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'wp_inner_plugin'],
+    'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'app_outer_import'],
+    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'app_inner_plugin'],
     'plan inner released into outer' => [static fn (): mixed => $plan()['inner_released_into_outer'], true],
     'plan rolled back to outer' => [static fn (): mixed => $plan()['rolled_back_to_outer_savepoint'], true],
     'plan inner inactive after release' => [static fn (): mixed => $plan()['inner_savepoint_no_longer_active_after_release'], true],
@@ -117,8 +117,8 @@ $cases = [
     'plan dependency release nested' => [static fn (): mixed => in_array('sqlite-release-nested-savepoint-merges-rowvalue-returning', $plan()['dependencies'], true), true],
     'plan dependency outer rollback discards inner' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-discards-released-inner-returning', $plan()['dependencies'], true), true],
     'plan dependency retry current source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-retry-after-nested-rollback-current-source', $plan()['dependencies'], true), true],
-    'custom outer savepoint accepted' => [static fn (): mixed => $customPlan()['outer_savepoint'], 'wp_outer_custom'],
-    'custom inner savepoint accepted' => [static fn (): mixed => $customPlan()['inner_savepoint'], 'wp_inner_custom'],
+    'custom outer savepoint accepted' => [static fn (): mixed => $customPlan()['outer_savepoint'], 'app_outer_custom'],
+    'custom inner savepoint accepted' => [static fn (): mixed => $customPlan()['inner_savepoint'], 'app_inner_custom'],
     'custom plan yielded retry count' => [static fn (): mixed => $customPlan()['yielded_after_retry_count'], 2],
     'custom plan final retains transients without retry delete' => [static fn (): mixed => array_column($customPlan()['current_source_tables']['wp_options'], 'option_id'), [1, 2, 3, 4, 5, 6, 7, 8, 9]],
     'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningPlan::execute($tables, [], [$outerDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],

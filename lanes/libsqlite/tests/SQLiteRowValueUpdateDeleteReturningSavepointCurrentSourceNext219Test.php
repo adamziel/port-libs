@@ -83,7 +83,7 @@ $cases219 = [
     'retry delete keeps first network row' => [static fn (): mixed => in_array(10, array_column($retryDeleteResult219()['tables']['wp_options'], 'option_id'), true), true],
 
     'plan status' => [static fn (): mixed => $plan219()['status'], 'rowvalue-update-delete-returning-negative-limit-offset-subquery-savepoint-current-source-next219'],
-    'plan savepoint' => [static fn (): mixed => $plan219()['savepoint'], 'wp_options_rowvalue_negative_limit_offset_next219'],
+    'plan savepoint' => [static fn (): mixed => $plan219()['savepoint'], 'app_settings_rowvalue_negative_limit_offset_next219'],
     'plan negative limit flag' => [static fn (): mixed => $plan219()['negative_limit_offset_subquery_source'], true],
     'plan rollback flags' => [static fn (): mixed => [$plan219()['rolled_back_to_savepoint'], $plan219()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan retry release flags' => [static fn (): mixed => [$plan219()['retry_reads_savepoint_image'], $plan219()['savepoint_released_after_retry']], [true, true]],

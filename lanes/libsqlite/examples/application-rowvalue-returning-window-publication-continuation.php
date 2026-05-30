@@ -23,7 +23,7 @@ $retryStatements = [
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
 $planFor = static fn (int $step): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadyPublicationStep(
     $step,
-    ...array_merge($args, ['wp_options_rowvalue_window_current_next' . $step]),
+    ...array_merge($args, ['app_settings_rowvalue_window_current_next' . $step]),
 );
 $next350 = $planFor(350);
 $next351 = $planFor(351);

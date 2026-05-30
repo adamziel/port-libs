@@ -131,8 +131,8 @@ final class SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan
                 'ordinal' => (int) $ordinal,
                 'status' => 'changed',
                 'event' => $applied['event'],
-                'option_name' => $applied['new']['option_name'] ?? null,
-                'old_option_name' => $applied['old']['option_name'] ?? null,
+                'key_name' => $applied['new']['key_name'] ?? null,
+                'old_key_name' => $applied['old']['key_name'] ?? null,
                 'returning' => $applied['returning'],
             ];
         }

@@ -46,8 +46,8 @@ $customPlan186 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavep
     [$attemptUpdate186],
     [$retryUpdate186],
     $unique186,
-    'wp_outer_empty_in_custom186',
-    'wp_inner_empty_in_custom186',
+    'app_outer_empty_in_custom186',
+    'app_inner_empty_in_custom186',
 );
 
 $cases186 = [
@@ -75,8 +75,8 @@ $cases186 = [
     'retry update values start from original rows' => [static fn (): mixed => array_column($retryUpdate()['returning'], 'option_value'), ['feed:retry186', 'timeout:retry186']],
 
     'plan status' => [static fn (): mixed => $plan186()['status'], 'empty-rowvalue-in-savepoint-current-source-retry-next186'],
-    'plan outer savepoint name' => [static fn (): mixed => $plan186()['outer_savepoint'], 'wp_options_outer_empty_rowvalue_next186'],
-    'plan inner savepoint name' => [static fn (): mixed => $plan186()['inner_savepoint'], 'wp_options_inner_empty_rowvalue_next186'],
+    'plan outer savepoint name' => [static fn (): mixed => $plan186()['outer_savepoint'], 'app_settings_outer_empty_rowvalue_next186'],
+    'plan inner savepoint name' => [static fn (): mixed => $plan186()['inner_savepoint'], 'app_settings_inner_empty_rowvalue_next186'],
     'plan rolled back to inner' => [static fn (): mixed => $plan186()['rolled_back_to_inner_savepoint'], true],
     'plan outer release flag' => [static fn (): mixed => $plan186()['outer_released_after_retry'], true],
     'plan discards attempt stream flag' => [static fn (): mixed => $plan186()['inner_rollback_discards_attempt_stream'], true],
@@ -114,7 +114,7 @@ $cases186 = [
     'plan dependency empty in' => [static fn (): mixed => in_array('sqlite-rowvalue-empty-in-false-not-in-true-next186', $plan186()['dependencies'], true), true],
     'plan dependency nullable not in' => [static fn (): mixed => in_array('sqlite-empty-rowvalue-not-in-selects-null-tuples-next186', $plan186()['dependencies'], true), true],
     'plan dependency rollback' => [static fn (): mixed => in_array('sqlite-empty-rowvalue-rollback-discards-attempt-returning-next186', $plan186()['dependencies'], true), true],
-    'custom savepoint names' => [static fn (): mixed => [$customPlan186()['outer_savepoint'], $customPlan186()['inner_savepoint']], ['wp_outer_empty_in_custom186', 'wp_inner_empty_in_custom186']],
+    'custom savepoint names' => [static fn (): mixed => [$customPlan186()['outer_savepoint'], $customPlan186()['inner_savepoint']], ['app_outer_empty_in_custom186', 'app_inner_empty_in_custom186']],
     'custom retry count' => [static fn (): mixed => $customPlan186()['yielded_after_retry_count'], 2],
     'custom keeps row one because no retry delete' => [static fn (): mixed => array_column($customPlan186()['current_source_tables']['wp_options'], 'status', 'option_id')[1], 'retry186'],
     'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeEmptyRowValueInSavepointRetry($tables186, [], [$attemptUpdate186], [$retryUpdate186], $unique186), InvalidArgumentException::class],

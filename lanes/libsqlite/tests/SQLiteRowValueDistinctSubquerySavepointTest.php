@@ -82,7 +82,7 @@ $casesbounded = [
     'retry delete removes network row once' => [static fn (): mixed => in_array(10, array_column($retryDeleteResultbounded()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $planbounded()['status'], 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source'],
-    'plan savepoint' => [static fn (): mixed => $planbounded()['savepoint'], 'wp_options_rowvalue_distinct_subquery'],
+    'plan savepoint' => [static fn (): mixed => $planbounded()['savepoint'], 'app_settings_rowvalue_distinct_subquery'],
     'plan distinct flag' => [static fn (): mixed => $planbounded()['distinct_subquery_source'], true],
     'plan rollback flags' => [static fn (): mixed => [$planbounded()['rolled_back_to_savepoint'], $planbounded()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan retry release flags' => [static fn (): mixed => [$planbounded()['retry_reads_savepoint_image'], $planbounded()['savepoint_released_after_retry']], [true, true]],

@@ -32,7 +32,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeRowValuePredica
     ['wp_options' => $rows],
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],
-    'wp_options_rowvalue_between_savepoint_next198',
+    'app_settings_rowvalue_between_savepoint_next198',
 );
 
 $summary = [

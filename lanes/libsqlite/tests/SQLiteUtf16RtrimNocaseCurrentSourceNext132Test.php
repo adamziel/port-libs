@@ -54,8 +54,8 @@ $plan = static fn (
     string $probe = 'plugin_cache',
     ?array $current = null,
     ?array $next = null,
-    string $currentSource = 'main.wp_options@131',
-    string $nextSource = 'main.wp_options@132',
+    string $currentSource = 'main.app_settings@131',
+    string $nextSource = 'main.app_settings@132',
 ): array => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext(
     $current ?? $currentRows,
     $next ?? $nextRows,
@@ -73,8 +73,8 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'records current source' => ['plugin_cache', 'currentSource', 'main.wp_options@131'],
-    'records next source' => ['plugin_cache', 'nextSource', 'main.wp_options@132'],
+    'records current source' => ['plugin_cache', 'currentSource', 'main.app_settings@131'],
+    'records next source' => ['plugin_cache', 'nextSource', 'main.app_settings@132'],
     'probe key trims and folds ascii' => ['Plugin_Cache   ', 'probeKey', 'plugin_cache'],
     'current matched rowids' => ['plugin_cache', 'currentRowids', [1, 2, 3]],
     'next matched rowids include repaired nbsp and new row' => ['plugin_cache', 'nextRowids', [1, 2, 3, 5, 10]],

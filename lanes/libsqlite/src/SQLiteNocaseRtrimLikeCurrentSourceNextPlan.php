@@ -21,8 +21,8 @@ final class SQLiteNocaseRtrimLikeCurrentSourceNextPlan
         ?string $currentEscape = null,
         ?string $nextEscape = null,
         bool $caseSensitiveLike = false,
-        string $currentSource = 'main.wp_options@current',
-        string $nextSource = 'main.wp_options@next',
+        string $currentSource = 'main.app_settings@current',
+        string $nextSource = 'main.app_settings@next',
     ): array {
         $currentCollation = self::assertCollation($currentCollation);
         $nextCollation = self::assertCollation($nextCollation);

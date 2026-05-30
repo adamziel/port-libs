@@ -60,8 +60,8 @@ $plan = static fn (
     null,
     null,
     false,
-    'main.wp_options@current',
-    'main.wp_options@next',
+    'main.app_settings@current',
+    'main.app_settings@next',
     $currentRangeEncoding,
     $nextRangeEncoding,
 );

@@ -193,7 +193,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightFour malformed token 
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightFour source change still defeats escaped token continuation'] = static function (TestRunner $t) use ($plan184): void {
-    $result = $plan184(null, null, null, 'plugin!_!%cache%', '!', 'main.wp_options@183', 'main.wp_options@184', 183, 184);
+    $result = $plan184(null, null, null, 'plugin!_!%cache%', '!', 'main.app_settings@183', 'main.app_settings@184', 183, 184);
     $t->same(['source-or-schema-changed'], $result['basePeerReplayUnsafeReasons']);
     $t->same(['source-or-schema-changed'], $result['peerReplayUnsafeReasons']);
     $t->same([1, 2, 3, 6, 5], $result['replayPlanRowids']);

@@ -17,8 +17,8 @@ final class SQLiteCastRtrimLikeCurrentSourceNextPlan
         string $castTarget,
         string $pattern,
         ?string $escape = null,
-        string $currentSource = 'main.wp_options@130',
-        string $nextSource = 'main.wp_options@131',
+        string $currentSource = 'main.app_settings@130',
+        string $nextSource = 'main.app_settings@131',
         int $currentSchemaCookie = 130,
         int $nextSchemaCookie = 131,
     ): array {

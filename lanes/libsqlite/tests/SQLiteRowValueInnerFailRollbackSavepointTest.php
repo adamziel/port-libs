@@ -82,7 +82,7 @@ $cases = [
     'retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResult()['tables']['wp_options'], 'option_id'), [1, 2, 5, 6, 7, 8, 9]],
 
     'plan status' => [static fn (): mixed => $plan()['status'], 'rowvalue-update-delete-returning-inner-fail-rollback-current-source'],
-    'plan savepoints' => [static fn (): mixed => [$plan()['outer_savepoint'], $plan()['inner_savepoint']], ['wp_options_outer_rowvalue_fail_rollback', 'wp_options_inner_rowvalue_fail_rollback']],
+    'plan savepoints' => [static fn (): mixed => [$plan()['outer_savepoint'], $plan()['inner_savepoint']], ['app_settings_outer_rowvalue_fail_rollback', 'app_settings_inner_rowvalue_fail_rollback']],
     'plan outer survives' => [static fn (): mixed => $plan()['outer_changes_survive_inner_rollback'], true],
     'plan inner rolled back' => [static fn (): mixed => $plan()['inner_changes_rolled_back_after_fail'], true],
     'plan fail rows rolled back' => [static fn (): mixed => $plan()['fail_prior_rows_rolled_back_by_savepoint'], true],

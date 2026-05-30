@@ -53,7 +53,7 @@ $cases = [
     'stage row eight value staged' => [static fn (): mixed => $stageOnly()['returning'][1]['option_value'], 'rules:stage'],
 
     'plan status transaction rolled back retried' => [static fn (): mixed => $plan()['status'], 'transaction-rolled-back-retried-current-source-next164'],
-    'plan savepoint default name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_rollback_batch'],
+    'plan savepoint default name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_rollback_batch'],
     'plan transaction rolled back' => [static fn (): mixed => $plan()['transaction_rolled_back'], true],
     'plan savepoint not preserved after rollback conflict' => [static fn (): mixed => $plan()['savepoint_preserved_after_rollback'], false],
     'plan rollback statement ordinal one' => [static fn (): mixed => $plan()['rollback_statement_ordinal'], 1],

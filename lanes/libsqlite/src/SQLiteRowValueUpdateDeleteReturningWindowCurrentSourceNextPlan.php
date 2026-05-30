@@ -23,7 +23,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next232',
+        string $savepoint = 'app_settings_rowvalue_window_current_next232',
         string $rowIdColumn = 'option_id',
     ): array {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
@@ -42,7 +42,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
         $retryRows = $plan['retry_rows_after_release'];
         $windowRows = self::retryWindowRows($retryRows, $rowIdColumn);
-        $currentRows = $plan['current_source_tables']['wp_options'] ?? [];
+        $currentRows = self::primarySourceRows($plan['current_source_tables'] ?? [], $rowIdColumn);
 
         return array_merge($plan, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next232',
@@ -96,6 +96,26 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<array<string,mixed>>
+     */
+    private static function primarySourceRows(array $tables, string $rowIdColumn): array
+    {
+        $fallback = [];
+        foreach ($tables as $rows) {
+            if (!is_array($rows) || !array_is_list($rows)) {
+                continue;
+            }
+            $fallback = $fallback === [] ? $rows : $fallback;
+            if ($rows === [] || array_key_exists($rowIdColumn, $rows[0])) {
+                return $rows;
+            }
+        }
+
+        return $fallback;
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,int|string|null>>
      */
@@ -133,7 +153,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_window_next233',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next233',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($yieldStatements === []) {
@@ -499,7 +519,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $partitionColumn = 'blog_id',
         string $orderColumn = 'option_id',
         string $rowIdColumn = 'option_id',
-        string $savepoint = 'wp_options_rowvalue_returning_window_next234',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next234',
     ): array {
         self::validateTablesPartitionedRetryWindow($tables);
         self::validateStatementsPartitionedRetryWindow($attemptStatements, 'attempt');
@@ -856,7 +876,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_window_next235',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next235',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
@@ -981,7 +1001,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next236',
+        string $savepoint = 'app_settings_rowvalue_window_current_next236',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowRollbackRetry(
@@ -1080,7 +1100,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'retry_running_final' => $retryFrame === [] ? 0 : $retryFrame[array_key_last($retryFrame)]['running_bytes'],
             'retry_following_final' => $retryFrame === [] ? 0 : $retryFrame[array_key_last($retryFrame)]['following_bytes'],
             'rolled_back_attempt_ids' => $base['all_window_receipt_next233']['suppressed_ids'],
-            'released_table_count' => count($base['current_source_tables']['wp_options'] ?? []),
+            'released_table_count' => count(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn)),
             'next_source_matches_current' => $base['next_source_tables'] === $base['current_source_tables'],
         ];
     }
@@ -1130,7 +1150,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $partitionColumn = 'blog_id',
         string $orderColumn = 'bytes',
         string $rowIdColumn = 'option_id',
-        string $savepoint = 'wp_options_rowvalue_returning_window_next237',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next237',
     ): array {
         self::validateTablesExcludeCurrentRetryWindow($tables);
         self::validateStatementsExcludeCurrentRetryWindow($attemptStatements, 'attempt');
@@ -1479,7 +1499,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_window_next238',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next238',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowDigests(
@@ -1781,7 +1801,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next239',
+        string $savepoint = 'app_settings_rowvalue_window_current_next239',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
@@ -2078,7 +2098,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_groups_next240',
+        string $savepoint = 'app_settings_rowvalue_window_groups_next240',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
@@ -2243,7 +2263,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_window_next241',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next241',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReplayPairWindow(
@@ -2442,7 +2462,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next242',
+        string $savepoint = 'app_settings_rowvalue_window_current_next242',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics(
@@ -2547,7 +2567,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $retryIds = self::flatIdsChainedStatementWindows($retryWindows, $rowIdColumn);
         $suppressedIds = self::flatIdsChainedStatementWindows($suppressedWindows, $rowIdColumn);
         $yieldIds = self::flatIdsChainedStatementWindows($yieldWindows, $rowIdColumn);
-        $finalIds = self::tableIdsChainedStatementWindows($base['current_source_tables']['wp_options'] ?? [], $rowIdColumn);
+        $finalIds = self::tableIdsChainedStatementWindows(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn), $rowIdColumn);
 
         return [
             'savepoint' => (string) ($base['savepoint'] ?? ''),
@@ -2725,7 +2745,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next243',
+        string $savepoint = 'app_settings_rowvalue_window_current_next243',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics(
@@ -2921,7 +2941,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_window_next244',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next244',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePairCurrentRowFrames(
@@ -3176,7 +3196,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next245',
+        string $savepoint = 'app_settings_rowvalue_window_current_next245',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
     ): array {
@@ -3346,7 +3366,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next246',
+        string $savepoint = 'app_settings_rowvalue_window_current_next246',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeChainedStatementWindows(
@@ -3460,7 +3480,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $retryIds = self::filteredReleaseFlatIds($retryRows, $rowIdColumn);
         $suppressedIds = self::filteredReleaseFlatIds($suppressedRows, $rowIdColumn);
         $yieldIds = self::filteredReleaseFlatIds($yieldRows, $rowIdColumn);
-        $finalRows = $base['current_source_tables']['wp_options'] ?? [];
+        $finalRows = self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn);
         if (!is_array($finalRows) || !array_is_list($finalRows)) {
             throw new \InvalidArgumentException('SQLite row-value window next246 final source rows are malformed');
         }
@@ -3657,7 +3677,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_window_next247',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next247',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow(
@@ -3905,7 +3925,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next248',
+        string $savepoint = 'app_settings_rowvalue_window_current_next248',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -4149,7 +4169,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next249',
+        string $savepoint = 'app_settings_rowvalue_window_current_next249',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         int $chunkSize = 2,
@@ -4326,7 +4346,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_window_next250',
+        string $savepoint = 'app_settings_rowvalue_returning_window_next250',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeGroupWindow(
@@ -4582,7 +4602,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next251',
+        string $savepoint = 'app_settings_rowvalue_window_current_next251',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -4773,7 +4793,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next252',
+        string $savepoint = 'app_settings_rowvalue_window_current_next252',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -4959,7 +4979,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next253',
+        string $savepoint = 'app_settings_rowvalue_window_current_next253',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         int $chunkSize = 2,
@@ -5149,7 +5169,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next254',
+        string $savepoint = 'app_settings_rowvalue_window_current_next254',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -5483,7 +5503,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next255',
+        string $savepoint = 'app_settings_rowvalue_window_current_next255',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -5758,7 +5778,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_retry_commit',
+        string $savepoint = 'app_settings_rowvalue_window_retry_commit',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         int $chunkSize = 2,
@@ -5945,7 +5965,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next257',
+        string $savepoint = 'app_settings_rowvalue_window_current_next257',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         int $chunkSize = 2,
@@ -6191,7 +6211,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next258',
+        string $savepoint = 'app_settings_rowvalue_window_current_next258',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -6408,7 +6428,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next259',
+        string $savepoint = 'app_settings_rowvalue_window_current_next259',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -6720,7 +6740,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next260',
+        string $savepoint = 'app_settings_rowvalue_window_current_next260',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -7017,7 +7037,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next261',
+        string $savepoint = 'app_settings_rowvalue_window_current_next261',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -7299,7 +7319,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next262',
+        string $savepoint = 'app_settings_rowvalue_window_current_next262',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
@@ -7560,7 +7580,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next263',
+        string $savepoint = 'app_settings_rowvalue_window_current_next263',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedPeerTokens = null,
         array $peerColumns = ['status'],
@@ -7607,7 +7627,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             ],
             'peer_checkpoints_next263' => $checkpoints,
             'peer_checkpoint_resume_next263' => $resume,
-            'dependency_closure_next263' => 'no new support component needed; next263 reuses next262 row-value RETURNING peer groups and records restartable peer checkpoints for current-source copied wp_options batches',
+            'dependency_closure_next263' => 'no new support component needed; next263 reuses next262 row-value RETURNING peer groups and records restartable peer checkpoints for current-source application settings batches',
             'dependencies_next263' => [
                 'sqlite-rowvalue-returning-peer-checkpoint-next263',
                 'sqlite-rowvalue-returning-window-peer-groups-next262',
@@ -7632,7 +7652,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next264',
+        string $savepoint = 'app_settings_rowvalue_window_current_next264',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedFinalReceipts = null,
     ): array {
@@ -7704,7 +7724,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next265',
+        string $savepoint = 'app_settings_rowvalue_window_current_next265',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeFinalReceiptAdmission($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -7753,7 +7773,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next266',
+        string $savepoint = 'app_settings_rowvalue_window_current_next266',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeReceiptLedgerHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -7797,7 +7817,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next267',
+        string $savepoint = 'app_settings_rowvalue_window_current_next267',
         string $rowIdColumn = 'option_id',
         int $batchSize = 3,
     ): array {
@@ -7851,7 +7871,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next268',
+        string $savepoint = 'app_settings_rowvalue_window_current_next268',
         string $rowIdColumn = 'option_id',
         int $batchSize = 3,
     ): array {
@@ -7895,7 +7915,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next269',
+        string $savepoint = 'app_settings_rowvalue_window_current_next269',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeHandoffManifest($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn, 2);
@@ -7934,7 +7954,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next270',
+        string $savepoint = 'app_settings_rowvalue_window_current_next270',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeCurrentSourceClosure($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -7975,7 +7995,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next271',
+        string $savepoint = 'app_settings_rowvalue_window_current_next271',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeDeleteReturningGuard($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8018,7 +8038,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next272',
+        string $savepoint = 'app_settings_rowvalue_window_current_next272',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeUpdateReturningFence($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8059,7 +8079,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next273',
+        string $savepoint = 'app_settings_rowvalue_window_current_next273',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentSummary($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8098,7 +8118,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next274',
+        string $savepoint = 'app_settings_rowvalue_window_current_next274',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeCurrentSourceAdmission($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8146,14 +8166,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next275',
+        string $savepoint = 'app_settings_rowvalue_window_current_next275',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeReturningBalance($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $package = [
             'savepoint' => $savepoint,
             'returning_balance_receipt_next274' => $base['returning_balance_next274']['returning_balance_receipt_next274'],
-            'current_source_rows_after_release' => count($base['current_source_tables']['wp_options'] ?? []),
+            'current_source_rows_after_release' => count(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn)),
             'changed_tables' => array_keys($base['changed_tables_after_release']),
         ];
         sort($package['changed_tables']);
@@ -8186,7 +8206,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next276',
+        string $savepoint = 'app_settings_rowvalue_window_current_next276',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executePublicationSourcePackage($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8229,7 +8249,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next277',
+        string $savepoint = 'app_settings_rowvalue_window_current_next277',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8269,7 +8289,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next278',
+        string $savepoint = 'app_settings_rowvalue_window_current_next278',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentAttestation($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8311,7 +8331,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next279',
+        string $savepoint = 'app_settings_rowvalue_window_current_next279',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentManifest($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8319,7 +8339,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'savepoint' => $savepoint,
             'returning_manifest_next278' => $base['returning_manifest_next278']['returning_manifest_next278'],
             'next_source_package_next275' => $base['next_source_package_next275']['next_source_package_next275'],
-            'current_source_rows_after_release' => count($base['current_source_tables']['wp_options'] ?? []),
+            'current_source_rows_after_release' => count(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn)),
             'retry_window_rows' => count($base['retry_window']),
         ];
         $bridge['after_current_bridge_next279'] = hash('sha256', json_encode($bridge, JSON_THROW_ON_ERROR));
@@ -8351,7 +8371,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next280',
+        string $savepoint = 'app_settings_rowvalue_window_current_next280',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentBridge($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8394,7 +8414,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next281',
+        string $savepoint = 'app_settings_rowvalue_window_current_next281',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8403,7 +8423,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'after_current_seal_next280' => $base['after_current_seal_next280']['after_current_seal_next280'],
             'after_current_ready_next280' => $base['after_current_ready_next280'],
             'retry_returning_count' => $base['retry_returning_count'],
-            'current_source_rows_after_release' => count($base['current_source_tables']['wp_options'] ?? []),
+            'current_source_rows_after_release' => count(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn)),
         ];
         $receipt['current_source_receipt_next281'] = hash('sha256', json_encode($receipt, JSON_THROW_ON_ERROR));
 
@@ -8434,7 +8454,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next282',
+        string $savepoint = 'app_settings_rowvalue_window_current_next282',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeCurrentSourceReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8476,7 +8496,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next283',
+        string $savepoint = 'app_settings_rowvalue_window_current_next283',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeReturningWindowLedger($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8484,7 +8504,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'savepoint' => $savepoint,
             'returning_window_ledger_next282' => $base['returning_window_ledger_next282']['returning_window_ledger_next282'],
             'retry_window_rows' => count($base['retry_window']),
-            'retry_window_ids' => array_column($base['retry_window'], 'option_id'),
+            'retry_window_ids' => array_column($base, $rowIdColumn),
             'after_current_ready_next280' => $base['after_current_ready_next280'],
         ];
         $window['after_current_window_receipt_next283'] = hash('sha256', json_encode($window, JSON_THROW_ON_ERROR));
@@ -8516,7 +8536,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next284',
+        string $savepoint = 'app_settings_rowvalue_window_current_next284',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentWindowReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8559,7 +8579,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next285',
+        string $savepoint = 'app_settings_rowvalue_window_current_next285',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeCurrentSourceReadySeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8568,7 +8588,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'current_source_next284' => $base['current_source_next284']['current_source_next284'],
             'current_source_ready_next284' => $base['current_source_ready_next284'],
             'retry_change_count' => $base['retry_change_count'],
-            'current_source_rows_after_release' => count($base['current_source_tables']['wp_options'] ?? []),
+            'current_source_rows_after_release' => count(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn)),
         ];
         $receipt['after_current_receipt_next285'] = hash('sha256', json_encode($receipt, JSON_THROW_ON_ERROR));
 
@@ -8599,7 +8619,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next286',
+        string $savepoint = 'app_settings_rowvalue_window_current_next286',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8641,7 +8661,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next287',
+        string $savepoint = 'app_settings_rowvalue_window_current_next287',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentLedger($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8682,7 +8702,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next288',
+        string $savepoint = 'app_settings_rowvalue_window_current_next288',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentWindowCoverage($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8725,7 +8745,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next294',
+        string $savepoint = 'app_settings_rowvalue_window_current_next294',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentFinalSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8734,7 +8754,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'after_current_next288' => $base['after_current_next288']['after_current_next288'],
             'retry_statement_count' => count($base['retry_statements']),
             'retry_returning_count' => $base['retry_returning_count'],
-            'current_source_rows_after_release' => count($base['current_source_tables']['wp_options'] ?? []),
+            'current_source_rows_after_release' => count(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn)),
             'ready' => $base['after_current_ready_next288'],
         ];
         $handoff['next294_handoff'] = hash('sha256', json_encode($handoff, JSON_THROW_ON_ERROR));
@@ -8766,7 +8786,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next295',
+        string $savepoint = 'app_settings_rowvalue_window_current_next295',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentSourceHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8807,7 +8827,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next296',
+        string $savepoint = 'app_settings_rowvalue_window_current_next296',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentWindowAudit($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8848,7 +8868,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next297',
+        string $savepoint = 'app_settings_rowvalue_window_current_next297',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentSourceAudit($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8891,7 +8911,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_source_continuation',
+        string $savepoint = 'app_settings_rowvalue_window_current_source_continuation',
         string $rowIdColumn = 'option_id',
     ): array {
         $base = self::executeAfterCurrentIntegrationSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
@@ -8901,7 +8921,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'awaited_ready_range' => 'after-ready-window-metadata',
             'retry_window_rows' => count($base['retry_window']),
             'retry_returning_count' => $base['retry_returning_count'],
-            'current_source_row_count' => count($base['current_source_tables']['wp_options'] ?? []),
+            'current_source_row_count' => count(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn)),
             'next_source_matches_current_source' => $base['next_source_tables'] === $base['current_source_tables'],
             'ready' => $base['next297_ready'] === true,
         ];
@@ -9011,7 +9031,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source pre-publication step must be between 306 and 341');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_current_pre_publication_' . $targetStep;
+        $savepoint ??= 'app_settings_rowvalue_window_current_pre_publication_' . $targetStep;
         $base = self::executeCurrentSourceContinuationSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 306; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 306) % 4);
@@ -9043,7 +9063,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window after-ready publication step must be between 342 and 365');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_after_ready_publication_' . $targetStep;
+        $savepoint ??= 'app_settings_rowvalue_window_after_ready_publication_' . $targetStep;
         $base = self::executeCurrentSourcePrePublicationStep(341, $tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 342; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 342) % 4);
@@ -9074,7 +9094,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source handoff continuation step must be between 366 and 373');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_current_handoff_' . $targetStep;
+        $savepoint ??= 'app_settings_rowvalue_window_current_handoff_' . $targetStep;
         $base = self::executeAfterReadyPublicationStep(365, $tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 366; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 366) % 4);
@@ -9106,7 +9126,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source ready-seal step must be between 374 and 381');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_current_ready_seal_' . $targetStep;
+        $savepoint ??= 'app_settings_rowvalue_window_current_ready_seal_' . $targetStep;
         $base = self::executeCurrentSourceHandoffContinuationStep(373, $tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 374; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 374) % 4);
@@ -9138,7 +9158,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source follow-on step must be between 382 and 445');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_current_follow_on_' . $targetStep;
+        $savepoint ??= 'app_settings_rowvalue_window_current_follow_on_' . $targetStep;
         $base = self::executeCurrentSourceReadySealStep(381, $tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 382; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 382) % 4);
@@ -9163,7 +9183,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source continuation step must be between 446 and 493');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_current_continuation_' . $targetStep;
+        $savepoint ??= 'app_settings_rowvalue_window_current_continuation_' . $targetStep;
         $base = self::executeCurrentSourceFollowOnStep(445, $tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 446; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 446) % 4);
@@ -9188,7 +9208,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source publication handoff step must be between 494 and 509');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_current_publication_handoff_' . $targetStep;
+        $savepoint ??= 'app_settings_rowvalue_window_current_publication_handoff_' . $targetStep;
         $base = self::executeWindowCurrentSourceContinuation(493, $tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 494; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 494) % 4);
@@ -9213,7 +9233,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source publication seal step must be between 510 and 541');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_current_publication_seal_' . $targetStep;
+        $savepoint ??= 'app_settings_rowvalue_window_current_publication_seal_' . $targetStep;
         $base = self::executeCurrentSourcePublicationHandoffStep(509, $tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 510; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 510) % 4);
@@ -9238,7 +9258,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         int $targetStep,
-        string $savepoint = 'wp_options_rowvalue_window_current_publication',
+        string $savepoint = 'app_settings_rowvalue_window_current_publication',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($targetStep < 542 || $targetStep > 669) {
@@ -9514,7 +9534,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'yield_window_rows' => count($base['yield_window']),
                 'suppressed_attempt_window_rows' => count($base['suppressed_attempt_window']),
                 'retry_window_rows' => count($base['retry_window']),
-                'current_source_row_count' => count($base['current_source_tables']['wp_options'] ?? []),
+                'current_source_row_count' => count(self::primarySourceRows($base['current_source_tables'] ?? [], $rowIdColumn)),
             ];
             $handoff['next' . $next . '_handoff'] = hash('sha256', json_encode($handoff, JSON_THROW_ON_ERROR));
 
@@ -9703,7 +9723,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_source_next289',
+        string $savepoint = 'app_settings_rowvalue_window_current_source_next289',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -9993,7 +10013,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_statement_partitioned_window',
+        string $savepoint = 'app_settings_rowvalue_statement_partitioned_window',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {

@@ -36,8 +36,8 @@ $nextRows = [
 $plan = static fn (
     string $pattern = 'plugin_*',
     string $collation = 'NOCASE',
-    string $currentSource = 'main.wp_options@cookie118',
-    string $nextSource = 'main.wp_options@cookie119',
+    string $currentSource = 'main.app_settings@cookie118',
+    string $nextSource = 'main.app_settings@cookie119',
 ): array => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::keyValueRowKeyPlan(
     $currentRows,
     $nextRows,
@@ -48,8 +48,8 @@ $plan = static fn (
 );
 
 $cases = [
-    'records current source' => ['plugin_*', 'NOCASE', 'currentSource', 'main.wp_options@cookie118'],
-    'records next source' => ['plugin_*', 'NOCASE', 'nextSource', 'main.wp_options@cookie119'],
+    'records current source' => ['plugin_*', 'NOCASE', 'currentSource', 'main.app_settings@cookie118'],
+    'records next source' => ['plugin_*', 'NOCASE', 'nextSource', 'main.app_settings@cookie119'],
     'records pattern' => ['plugin_*', 'NOCASE', 'pattern', 'plugin_*'],
     'records collation' => ['plugin_*', 'NOCASE', 'collation', 'NOCASE'],
     'records lower range' => ['plugin_*', 'NOCASE', 'range.lowerInclusive', 'plugin_'],
@@ -104,8 +104,8 @@ $cases = [
 foreach ($cases as $name => $case) {
     $tests['rtrim nocase glob current source nextOneOneNine ' . $name] = static function (TestRunner $t) use ($plan, $case): void {
         [$pattern, $collation, $path, $expected] = $case;
-        $currentSource = $case[4] ?? 'main.wp_options@cookie118';
-        $nextSource = $case[5] ?? 'main.wp_options@cookie119';
+        $currentSource = $case[4] ?? 'main.app_settings@cookie118';
+        $nextSource = $case[5] ?? 'main.app_settings@cookie119';
         $value = $plan($pattern, $collation, $currentSource, $nextSource);
         foreach (explode('.', $path) as $part) {
             $value = $value[$part];

@@ -6926,7 +6926,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             ];
             $program[] = ($selected['covering'] ?? false)
                 ? ['opcode' => 'ColumnFromIndex', 'columns' => $selected['coveringColumns'] ?? []]
-                : ['opcode' => 'DeferredSeek', 'table' => 'wp_options'];
+                : ['opcode' => 'DeferredSeek', 'table' => 'app_settings'];
             $program[] = ['opcode' => 'ResultRow', 'rowids' => array_column($selected['matchedRows'] ?? [], 'rowid')];
             $program[] = ['opcode' => 'Next', 'source' => 'partial-expression-index'];
 

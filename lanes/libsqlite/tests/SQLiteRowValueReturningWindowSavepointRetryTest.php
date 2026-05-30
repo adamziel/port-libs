@@ -43,7 +43,7 @@ $customPlan289 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindo
 
 $cases289 = [
     'status' => [static fn (): mixed => $plan289()['status'], 'rowvalue-update-delete-returning-window-current-source-next289'],
-    'savepoint' => [static fn (): mixed => $plan289()['savepoint'], 'wp_options_rowvalue_window_current_source_next289'],
+    'savepoint' => [static fn (): mixed => $plan289()['savepoint'], 'app_settings_rowvalue_window_current_source_next289'],
     'rollback flags' => [static fn (): mixed => [$plan289()['rolled_back_to_savepoint'], $plan289()['savepoint_preserved_after_rollback_to']], [true, true]],
     'window flags' => [static fn (): mixed => [$plan289()['attempt_returning_window_suppressed_by_rollback'], $plan289()['retry_returning_window_yielded_from_current_source']], [true, true]],
     'attempt update selected ids' => [static fn (): mixed => $plan289()['attempt_statements'][0]['selected_ids'], [5, 6, 7]],

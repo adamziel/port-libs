@@ -67,8 +67,8 @@ $plan = static fn (
     ?string $escape = null,
     ?string $escapeEncoding = null,
     bool $caseSensitiveLike = true,
-    string $currentSource = 'main.wp_options@137',
-    string $nextSource = 'main.wp_options@138',
+    string $currentSource = 'main.app_settings@137',
+    string $nextSource = 'main.app_settings@138',
 ): array => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan(
     $currentRows,
     $nextRows,

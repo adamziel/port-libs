@@ -127,8 +127,8 @@ final class SQLiteTriggerFkReturningUpsertSavepointCurrentNextPlan
     {
         $byKey = [];
         foreach ($rows as $row) {
-            if (array_key_exists('option_id', $row)) {
-                $byKey[(string) $row['option_id']] = $row;
+            if (array_key_exists('setting_id', $row)) {
+                $byKey[(string) $row['setting_id']] = $row;
             }
         }
 

@@ -18,7 +18,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_rollback_batch',
+        string $savepoint = 'app_settings_rowvalue_rollback_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {
@@ -228,7 +228,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_yield_batch',
+        string $savepoint = 'app_settings_rowvalue_yield_batch',
         string $rowIdColumn = 'option_id',
         ?int $rollbackToAfterOrdinal = null,
     ): array {
@@ -462,8 +462,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerStatements,
         array $afterRollbackStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_outer_rowvalue_import',
-        string $innerSavepoint = 'wp_inner_returning_batch',
+        string $outerSavepoint = 'app_outer_rowvalue_import',
+        string $innerSavepoint = 'app_inner_returning_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === [] || $innerStatements === [] || $afterRollbackStatements === []) {
@@ -737,7 +737,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $beforeRollbackStatements,
         array $afterRollbackStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_retry_batch',
+        string $savepoint = 'app_settings_rowvalue_retry_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeRollbackStatements === []) {
@@ -956,7 +956,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $beforeRollbackStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_retry_batch',
+        string $savepoint = 'app_settings_rowvalue_fail_retry_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeRollbackStatements === []) {
@@ -1227,7 +1227,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_batch',
+        string $savepoint = 'app_settings_rowvalue_fail_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {
@@ -1446,7 +1446,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $beforeRollbackStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_rowvalue_between_retry',
+        string $savepoint = 'app_rowvalue_between_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeRollbackStatements === []) {
@@ -1655,7 +1655,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_rollback_batch',
+        string $savepoint = 'app_settings_rowvalue_rollback_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -1930,7 +1930,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_ignore_batch',
+        string $savepoint = 'app_settings_rowvalue_ignore_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {
@@ -2164,8 +2164,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $outerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_import_nested_retry',
-        string $innerSavepoint = 'wp_options_inner_cleanup_nested_retry',
+        string $outerSavepoint = 'app_settings_outer_import_nested_retry',
+        string $innerSavepoint = 'app_settings_inner_cleanup_nested_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($innerStatements === []) {
@@ -2426,8 +2426,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerAttemptStatements,
         array $innerRetryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_nested_ignore_retry',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_nested_ignore_retry',
+        string $outerSavepoint = 'app_settings_outer_rowvalue_nested_ignore_retry',
+        string $innerSavepoint = 'app_settings_inner_rowvalue_nested_ignore_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -2688,7 +2688,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_abort_batch',
+        string $savepoint = 'app_settings_rowvalue_abort_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -2970,7 +2970,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $statements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_abort_batch',
+        string $savepoint = 'app_settings_rowvalue_abort_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {
@@ -3244,7 +3244,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $discardedBeforeRollbackStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_rowvalue_yield_retry_next172',
+        string $savepoint = 'app_rowvalue_yield_retry_next172',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($yieldedBeforeRollbackStatements === []) {
@@ -3505,7 +3505,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_retry_next173',
+        string $savepoint = 'app_settings_rowvalue_fail_retry_next173',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -3791,8 +3791,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_next174',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_next174',
+        string $outerSavepoint = 'app_settings_outer_rowvalue_next174',
+        string $innerSavepoint = 'app_settings_inner_rowvalue_next174',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -4031,8 +4031,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerDiscardedStatements,
         array $innerRetryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_next177',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_next177',
+        string $outerSavepoint = 'app_settings_outer_rowvalue_next177',
+        string $innerSavepoint = 'app_settings_inner_rowvalue_next177',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -4285,8 +4285,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $savepointStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $transaction = 'wp_options_import_txn',
-        string $savepoint = 'wp_options_rowvalue_rollback_batch',
+        string $transaction = 'app_settings_import_txn',
+        string $savepoint = 'app_settings_rowvalue_rollback_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -4610,8 +4610,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerDiscardedStatements,
         array $innerRetryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_ignore_retry',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_ignore_retry',
+        string $outerSavepoint = 'app_settings_outer_rowvalue_ignore_retry',
+        string $innerSavepoint = 'app_settings_inner_rowvalue_ignore_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -4864,8 +4864,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_next182',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_next182',
+        string $outerSavepoint = 'app_settings_outer_rowvalue_next182',
+        string $innerSavepoint = 'app_settings_inner_rowvalue_next182',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -5112,8 +5112,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerAttemptStatements,
         array $innerRetryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_delete_inner_retry',
-        string $innerSavepoint = 'wp_options_inner_delete_inner_retry',
+        string $outerSavepoint = 'app_settings_outer_delete_inner_retry',
+        string $innerSavepoint = 'app_settings_inner_delete_inner_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerDeleteStatements === []) {
@@ -5372,7 +5372,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $failStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_next185',
+        string $savepoint = 'app_settings_rowvalue_fail_next185',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($preFailStatements === []) {
@@ -5642,8 +5642,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $savepointStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $transaction = 'wp_options_rowvalue_abort_txn_next187',
-        string $savepoint = 'wp_options_rowvalue_abort_savepoint_next187',
+        string $transaction = 'app_settings_rowvalue_abort_txn_next187',
+        string $savepoint = 'app_settings_rowvalue_abort_savepoint_next187',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === [] || $savepointStatements === [] || $retryStatements === []) {
@@ -5961,7 +5961,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $tables,
         array $attemptStatements,
         array $retryStatements,
-        string $savepoint = 'wp_options_rowvalue_empty_in_next188',
+        string $savepoint = 'app_settings_rowvalue_empty_in_next188',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -6196,8 +6196,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerAttemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_rowvalue_not_between_outer_next189',
-        string $innerSavepoint = 'wp_options_rowvalue_not_between_inner_next189',
+        string $outerSavepoint = 'app_settings_rowvalue_not_between_outer_next189',
+        string $innerSavepoint = 'app_settings_rowvalue_not_between_inner_next189',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -6462,8 +6462,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $rollbackStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $releaseSavepoint = 'wp_options_rowvalue_release_next190',
-        string $rollbackSavepoint = 'wp_options_rowvalue_rollback_next190',
+        string $releaseSavepoint = 'app_settings_rowvalue_release_next190',
+        string $rollbackSavepoint = 'app_settings_rowvalue_rollback_next190',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($releaseStatements === [] || $rollbackStatements === [] || $retryStatements === []) {
@@ -6727,8 +6727,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $abortStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_rowvalue_abort_outer_next192',
-        string $innerSavepoint = 'wp_options_rowvalue_abort_inner_next192',
+        string $outerSavepoint = 'app_settings_rowvalue_abort_outer_next192',
+        string $innerSavepoint = 'app_settings_rowvalue_abort_inner_next192',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -7040,7 +7040,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $failAttemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_stream_next193',
+        string $savepoint = 'app_settings_rowvalue_fail_stream_next193',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -7304,7 +7304,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $failStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_next196',
+        string $savepoint = 'app_settings_rowvalue_fail_next196',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($preFailStatements === []) {
@@ -7599,7 +7599,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $abortStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_abort_statement',
+        string $savepoint = 'app_settings_rowvalue_abort_statement',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -7967,7 +7967,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints = [],
-        string $savepoint = 'wp_options_rowvalue_parenthesized_next202',
+        string $savepoint = 'app_settings_rowvalue_parenthesized_next202',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -8204,7 +8204,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $replaceStatements,
         array $deleteStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_ignore_replace_ignore_replace_delete',
+        string $savepoint = 'app_settings_rowvalue_ignore_replace_ignore_replace_delete',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($ignoreStatements === []) {
@@ -8502,7 +8502,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $savepointStatements,
         array $nextStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_release_release_followup_read',
+        string $savepoint = 'app_settings_rowvalue_release_release_followup_read',
         string $rowIdColumn = 'option_id',
         array $options = [],
     ): array {
@@ -8796,8 +8796,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $releasedInnerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_released_inner_retry',
-        string $innerSavepoint = 'wp_options_inner_released_rowvalue_released_inner_retry',
+        string $outerSavepoint = 'app_settings_outer_rowvalue_released_inner_retry',
+        string $innerSavepoint = 'app_settings_inner_released_rowvalue_released_inner_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -9072,7 +9072,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $failStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_or_fail_savepoint_retry',
+        string $savepoint = 'app_settings_rowvalue_fail_or_fail_savepoint_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -9359,7 +9359,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $failStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_statement_pre_fail_rollback_retry',
+        string $savepoint = 'app_settings_rowvalue_fail_statement_pre_fail_rollback_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -9655,7 +9655,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $failStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_fail_statement_retry',
+        string $savepoint = 'app_settings_rowvalue_fail_fail_statement_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeFailStatements === []) {
@@ -9948,7 +9948,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_ignore_next210',
+        string $savepoint = 'app_settings_rowvalue_ignore_next210',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -10235,7 +10235,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $ignoreStatement,
         array $afterIgnoreStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_ignore_next211',
+        string $savepoint = 'app_settings_rowvalue_ignore_next211',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeIgnoreStatements === []) {
@@ -10522,7 +10522,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_subquery_next212',
+        string $savepoint = 'app_settings_rowvalue_subquery_next212',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -10764,7 +10764,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_order_limit_next213',
+        string $savepoint = 'app_settings_rowvalue_order_limit_next213',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
@@ -10824,9 +10824,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $rollbackStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $transactionName = 'wp_options_rowvalue_transaction_next217',
-        string $savepoint = 'wp_options_rowvalue_rollback_next217',
-        string $retrySavepoint = 'wp_options_rowvalue_retry_next217',
+        string $transactionName = 'app_settings_rowvalue_transaction_next217',
+        string $savepoint = 'app_settings_rowvalue_rollback_next217',
+        string $retrySavepoint = 'app_settings_rowvalue_retry_next217',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeRollbackStatements === []) {
@@ -11138,7 +11138,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptedStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_rollback_to_next218',
+        string $savepoint = 'app_settings_rowvalue_rollback_to_next218',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($savepointStatements === []) {
@@ -11398,7 +11398,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_negative_limit_offset_next219',
+        string $savepoint = 'app_settings_rowvalue_negative_limit_offset_next219',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
@@ -11460,7 +11460,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $abortStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_abort_next220',
+        string $savepoint = 'app_settings_rowvalue_abort_next220',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeAbortStatements === []) {
@@ -11758,8 +11758,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $outerAttemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_next224',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_next224',
+        string $outerSavepoint = 'app_settings_outer_rowvalue_next224',
+        string $innerSavepoint = 'app_settings_inner_rowvalue_next224',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($innerStatements === []) {
@@ -12036,7 +12036,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_distinct_subquery_next225',
+        string $savepoint = 'app_settings_rowvalue_distinct_subquery_next225',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
@@ -12097,7 +12097,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_distinct_subquery',
+        string $savepoint = 'app_settings_rowvalue_distinct_subquery',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
@@ -12162,8 +12162,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $failStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_fail_rollback',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_fail_rollback',
+        string $outerSavepoint = 'app_settings_outer_rowvalue_fail_rollback',
+        string $innerSavepoint = 'app_settings_inner_rowvalue_fail_rollback',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -12496,7 +12496,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_select_retry',
+        string $savepoint = 'app_settings_rowvalue_select_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($yieldStatements === []) {
@@ -12795,8 +12795,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $afterReleaseStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_rowvalue_outer_release_rollback',
-        string $innerSavepoint = 'wp_options_rowvalue_inner_release_rollback',
+        string $outerSavepoint = 'app_settings_rowvalue_outer_release_rollback',
+        string $innerSavepoint = 'app_settings_rowvalue_inner_release_rollback',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($preStatements === []) {
@@ -13081,7 +13081,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_compound_subquery',
+        string $savepoint = 'app_settings_rowvalue_compound_subquery',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
@@ -13143,7 +13143,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $protectedStatements,
         array $afterStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_savepoint',
+        string $savepoint = 'app_settings_rowvalue_returning_savepoint',
         ?int $rollbackToProtectedOrdinal = null,
         string $rowIdColumn = 'option_id',
     ): array {
@@ -13432,8 +13432,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_empty_rowvalue_next186',
-        string $innerSavepoint = 'wp_options_inner_empty_rowvalue_next186',
+        string $outerSavepoint = 'app_settings_outer_empty_rowvalue_next186',
+        string $innerSavepoint = 'app_settings_inner_empty_rowvalue_next186',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -13694,8 +13694,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $innerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_rowvalue_rollback_outer_next197',
-        string $innerSavepoint = 'wp_options_rowvalue_rollback_inner_next197',
+        string $outerSavepoint = 'app_settings_rowvalue_rollback_outer_next197',
+        string $innerSavepoint = 'app_settings_rowvalue_rollback_inner_next197',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -13954,7 +13954,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $tables,
         array $attemptStatements,
         array $retryStatements,
-        string $savepoint = 'wp_options_rowvalue_order_expr_next199',
+        string $savepoint = 'app_settings_rowvalue_order_expr_next199',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -14188,7 +14188,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $savepointStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_rollback_to_next201',
+        string $savepoint = 'app_settings_rowvalue_rollback_to_next201',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -14434,8 +14434,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $rollbackStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $transaction = 'wp_options_rowvalue_rollback_txn_next204',
-        string $savepoint = 'wp_options_rowvalue_rollback_savepoint_next204',
+        string $transaction = 'app_settings_rowvalue_rollback_txn_next204',
+        string $savepoint = 'app_settings_rowvalue_rollback_savepoint_next204',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
@@ -14808,7 +14808,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_ordered_subquery_next214',
+        string $savepoint = 'app_settings_rowvalue_ordered_subquery_next214',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
@@ -15038,7 +15038,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_subquery_limit_next215',
+        string $savepoint = 'app_settings_rowvalue_subquery_limit_next215',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
@@ -15080,7 +15080,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_distinct_subquery',
+        string $savepoint = 'app_settings_rowvalue_distinct_subquery',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
@@ -15140,7 +15140,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_distinct_tuple',
+        string $savepoint = 'app_settings_rowvalue_distinct_tuple',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {

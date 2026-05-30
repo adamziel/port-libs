@@ -77,7 +77,7 @@ $cases235 = [
     'direct retry delete removes home' => [static fn (): mixed => in_array(2, array_column($retryDeleteResult235()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $plan235()['status'], 'rowvalue-update-delete-returning-window-current-source-next235'],
-    'plan savepoint' => [static fn (): mixed => $plan235()['savepoint'], 'wp_options_rowvalue_returning_window_next235'],
+    'plan savepoint' => [static fn (): mixed => $plan235()['savepoint'], 'app_settings_rowvalue_returning_window_next235'],
     'plan window flag' => [static fn (): mixed => $plan235()['returning_window_current_source_next235'], true],
     'plan partition keys' => [static fn (): mixed => $plan235()['window_partition_keys_next235'], ['phase', 'action']],
     'plan order keys' => [static fn (): mixed => $plan235()['window_order_keys_next235'], ['option_id']],

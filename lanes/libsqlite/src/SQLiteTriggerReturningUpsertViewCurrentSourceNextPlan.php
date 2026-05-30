@@ -31,8 +31,8 @@ final class SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::identifier((string) ($options['key'] ?? 'option_name'), 'key column');
-        $savepoint = self::token((string) ($options['savepoint'] ?? 'wp_view_trigger_upsert_next149'), 'savepoint');
+        $key = self::identifier((string) ($options['key'] ?? 'key_name'), 'key column');
+        $savepoint = self::token((string) ($options['savepoint'] ?? 'app_view_trigger_upsert_next149'), 'savepoint');
         $admitNext = (bool) ($options['admit_next_source'] ?? false);
         self::validateColumns($uniqueColumns, 'unique column');
         self::validateColumns(array_keys($assignments), 'assignment column');
@@ -203,9 +203,9 @@ final class SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan
                 'trigger_source' => $view['trigger_source'],
                 'audit_label' => $view['audit_label'],
                 'event' => $event,
-                'option_name' => $new['option_name'] ?? null,
-                'old_option_value' => $old['option_value'] ?? null,
-                'new_option_value' => $new['option_value'] ?? null,
+                'key_name' => $new['key_name'] ?? null,
+                'old_key_value' => $old['key_value'] ?? null,
+                'new_key_value' => $new['key_value'] ?? null,
             ];
             ++$changes;
         }

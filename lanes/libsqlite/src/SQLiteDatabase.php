@@ -978,21 +978,21 @@ final class SQLiteDatabase
 
     public function planKeyValueRowInsert(
         int $rowId,
-        string $optionName,
-        string $optionValue,
-        ?string $autoload = 'yes',
+        string $keyName,
+        string $keyValue,
+        ?string $loadPolicy = 'yes',
         bool $allowAppend = true,
     ): SQLiteKeyValueRowWritePlan {
         if ($rowId < 1) {
-            throw new \InvalidArgumentException('SQLite wp_options insert rowid must be positive');
+            throw new \InvalidArgumentException('SQLite app_settings insert rowid must be positive');
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table is not present');
+            throw new \InvalidArgumentException('SQLite app_settings table is not present');
         }
         if ($tableRootPage === 1) {
-            throw new \InvalidArgumentException('SQLite wp_options insert planning requires a table root page separate from sqlite_schema');
+            throw new \InvalidArgumentException('SQLite app_settings insert planning requires a table root page separate from sqlite_schema');
         }
 
         $tablePage = $this->page($tableRootPage);
@@ -1002,19 +1002,19 @@ final class SQLiteDatabase
             $tableRootPage === 1 ? 100 : 0,
         );
         if ($tableHeader->pageType !== 'table-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options insert planning currently requires a single table leaf root page');
+            throw new \InvalidArgumentException('SQLite app_settings insert planning currently requires a single table leaf root page');
         }
 
-        $insertIndexes = $this->supportedKeyValueRowIndexesForInsert($optionName, $autoload);
+        $insertIndexes = $this->supportedKeyValueRowIndexesForInsert($keyName, $loadPolicy);
         $existingCells = [];
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
         foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
             if ($cell->rowId === $rowId) {
-                throw new \InvalidArgumentException("SQLite wp_options rowid {$rowId} already exists");
+                throw new \InvalidArgumentException("SQLite app_settings rowid {$rowId} already exists");
             }
             $option = SQLiteKeyValueRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
-            if ($option->optionName === $optionName) {
-                throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} already exists");
+            if ($option->keyName === $keyName) {
+                throw new \InvalidArgumentException("SQLite app_settings key_name {$keyName} already exists");
             }
 
             $existingCells[] = [
@@ -1023,7 +1023,7 @@ final class SQLiteDatabase
             ];
         }
 
-        $payload = SQLiteRecord::encode([null, $optionName, $optionValue, $autoload], $this->header->textEncoding);
+        $payload = SQLiteRecord::encode([null, $keyName, $keyValue, $loadPolicy], $this->header->textEncoding);
         $usableSize = $this->usablePageSize();
         $localPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
         $overflowPayload = substr($payload, $localPayloadLength);
@@ -1102,9 +1102,9 @@ final class SQLiteDatabase
         return new SQLiteKeyValueRowWritePlan(
             $tableRootPage,
             $rowId,
-            $optionName,
-            $optionValue,
-            $autoload,
+            $keyName,
+            $keyValue,
+            $loadPolicy,
             $overflowPageNumbers,
             $localPayloadLength,
             $databasePageCount,
@@ -1114,21 +1114,21 @@ final class SQLiteDatabase
 
     public function planKeyValueRowInsertOrReplaceCurrent(
         int $rowId,
-        string $optionName,
-        string $optionValue,
-        ?string $autoload = 'yes',
+        string $keyName,
+        string $keyValue,
+        ?string $loadPolicy = 'yes',
         bool $allowAppend = true,
     ): SQLiteKeyValueRowInsertOrReplacePlan {
         if ($rowId < 1) {
-            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace rowid must be positive');
+            throw new \InvalidArgumentException('SQLite app_settings insert-or-replace rowid must be positive');
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table is not present');
+            throw new \InvalidArgumentException('SQLite app_settings table is not present');
         }
         if ($tableRootPage === 1) {
-            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning requires a table root page separate from sqlite_schema');
+            throw new \InvalidArgumentException('SQLite app_settings insert-or-replace planning requires a table root page separate from sqlite_schema');
         }
 
         $tablePage = $this->page($tableRootPage);
@@ -1138,19 +1138,19 @@ final class SQLiteDatabase
             0,
         );
         if ($tableHeader->pageType !== 'table-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning currently requires a single table leaf root page');
+            throw new \InvalidArgumentException('SQLite app_settings insert-or-replace planning currently requires a single table leaf root page');
         }
 
-        $insertIndexes = $this->supportedKeyValueRowIndexesForInsert($optionName, $autoload);
+        $insertIndexes = $this->supportedKeyValueRowIndexesForInsert($keyName, $loadPolicy);
         $remainingCells = [];
         $deletedRowIds = [];
-        $deletedOptionNames = [];
+        $deletedKeyNames = [];
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
         foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
             $option = SQLiteKeyValueRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
-            if ($cell->rowId === $rowId || $option->optionName === $optionName) {
+            if ($cell->rowId === $rowId || $option->keyName === $keyName) {
                 $deletedRowIds[$cell->rowId] = true;
-                $deletedOptionNames[$option->optionName] = true;
+                $deletedKeyNames[$option->keyName] = true;
                 continue;
             }
 
@@ -1162,7 +1162,7 @@ final class SQLiteDatabase
 
         if ($deletedRowIds === []) {
             return new SQLiteKeyValueRowInsertOrReplacePlan(
-                $this->planKeyValueRowInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend),
+                $this->planKeyValueRowInsert($rowId, $keyName, $keyValue, $loadPolicy, $allowAppend),
                 [],
                 [],
             );
@@ -1182,12 +1182,12 @@ final class SQLiteDatabase
             $record = $index['record'];
             $rootPage = $record->rootPage;
             if ($rootPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
+                throw new \InvalidArgumentException('SQLite app_settings index root page is missing');
             }
             $indexPage = $this->page($rootPage);
             $indexHeader = SQLiteBTreePageHeader::parsePage($indexPage, $this->header->pageSize, $rootPage === 1 ? 100 : 0);
             if ($indexHeader->pageType !== 'index-leaf') {
-                throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning currently deletes conflicts from single-leaf indexes only');
+                throw new \InvalidArgumentException('SQLite app_settings insert-or-replace planning currently deletes conflicts from single-leaf indexes only');
             }
 
             $entries = array_values(array_filter(
@@ -1200,47 +1200,47 @@ final class SQLiteDatabase
         ksort($pageImages);
         $insertPlan = $this
             ->withPageImages($pageImages)
-            ->planKeyValueRowInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend);
+            ->planKeyValueRowInsert($rowId, $keyName, $keyValue, $loadPolicy, $allowAppend);
 
         return new SQLiteKeyValueRowInsertOrReplacePlan(
             $insertPlan,
             array_map('intval', array_keys($deletedRowIds)),
-            array_map('strval', array_keys($deletedOptionNames)),
+            array_map('strval', array_keys($deletedKeyNames)),
         );
     }
 
     public function planKeyValueRowReplace(
-        string $optionName,
-        string $optionValue,
-        ?string $autoload = null,
+        string $keyName,
+        string $keyValue,
+        ?string $loadPolicy = null,
         bool $allowAppend = true,
         bool $secureDelete = false,
     ): SQLiteKeyValueRowReplacementPlan {
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table is not present');
+            throw new \InvalidArgumentException('SQLite app_settings table is not present');
         }
         if ($tableRootPage === 1) {
-            throw new \InvalidArgumentException('SQLite wp_options replacement planning requires a table root page separate from sqlite_schema');
+            throw new \InvalidArgumentException('SQLite app_settings replacement planning requires a table root page separate from sqlite_schema');
         }
 
         $usableSize = $this->usablePageSize();
-        $targetLeaf = $this->writableKeyValueRowTableLeafForReplacement($tableRootPage, $optionName, $usableSize);
+        $targetLeaf = $this->writableKeyValueRowTableLeafForReplacement($tableRootPage, $keyName, $usableSize);
         $replacementIndexes = $this->supportedKeyValueRowIndexesForReplacement();
         $existingCells = $targetLeaf['entries'];
         $matchedRowId = $targetLeaf['rowid'];
-        $matchedAutoload = $targetLeaf['autoload'];
-        $replacementAutoload = $autoload ?? $matchedAutoload;
+        $matchedLoadPolicy = $targetLeaf['load_policy'];
+        $replacementLoadPolicy = $loadPolicy ?? $matchedLoadPolicy;
         $replacementLocalPayloadLength = 0;
         $replacementOverflowPayload = '';
         $overflowPageNumbers = [];
         $obsoleteOverflowPageNumbers = $targetLeaf['obsoleteOverflowPageNumbers'];
         $values = $targetLeaf['values'];
         $values[0] = $values[0] ?? null;
-        $values[1] = $optionName;
-        $values[2] = $optionValue;
-        if (array_key_exists(3, $values) || $replacementAutoload !== null) {
-            $values[3] = $replacementAutoload;
+        $values[1] = $keyName;
+        $values[2] = $keyValue;
+        if (array_key_exists(3, $values) || $replacementLoadPolicy !== null) {
+            $values[3] = $replacementLoadPolicy;
         }
         $payload = SQLiteRecord::encode(array_values($values), $this->header->textEncoding);
         $replacementLocalPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
@@ -1306,9 +1306,9 @@ final class SQLiteDatabase
             $pageImages,
             $replacementIndexes,
             $matchedRowId,
-            $optionName,
-            $matchedAutoload,
-            $replacementAutoload,
+            $keyName,
+            $matchedLoadPolicy,
+            $replacementLoadPolicy,
             $allowAppend,
             $obsoleteOverflowPageNumbers,
         );
@@ -1355,9 +1355,9 @@ final class SQLiteDatabase
         return new SQLiteKeyValueRowReplacementPlan(
             $tableRootPage,
             $matchedRowId,
-            $optionName,
-            $optionValue,
-            $replacementAutoload,
+            $keyName,
+            $keyValue,
+            $replacementLoadPolicy,
             $overflowPageNumbers,
             $obsoleteOverflowPageNumbers,
             $replacementLocalPayloadLength,
@@ -1524,18 +1524,18 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>,parent:?array}
+     * @return array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,load_policy:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>,parent:?array}
      */
     private function writableKeyValueRowTableLeafForReplacement(
         int $rootPage,
-        string $optionName,
+        string $keyName,
         int $usableSize,
     ): array {
         $visited = [];
         $target = null;
         $this->collectWritableKeyValueRowTableLeafForReplacement(
             $rootPage,
-            $optionName,
+            $keyName,
             $usableSize,
             $visited,
             $target,
@@ -1543,7 +1543,7 @@ final class SQLiteDatabase
         );
 
         if ($target === null) {
-            throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not present");
+            throw new \InvalidArgumentException("SQLite app_settings key_name {$keyName} is not present");
         }
 
         return $target;
@@ -1551,19 +1551,19 @@ final class SQLiteDatabase
 
     /**
      * @param array<int, true> $visited
-     * @param null|array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>,parent:?array} $target
+     * @param null|array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,load_policy:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>,parent:?array} $target
      * @param null|array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int,parent:?array} $parentContext
      */
     private function collectWritableKeyValueRowTableLeafForReplacement(
         int $pageNumber,
-        string $optionName,
+        string $keyName,
         int $usableSize,
         array &$visited,
         ?array &$target,
         ?array $parentContext,
     ): void {
         if (isset($visited[$pageNumber])) {
-            throw new \InvalidArgumentException("SQLite wp_options replacement planning reached table page {$pageNumber} more than once");
+            throw new \InvalidArgumentException("SQLite app_settings replacement planning reached table page {$pageNumber} more than once");
         }
         $visited[$pageNumber] = true;
 
@@ -1587,11 +1587,11 @@ final class SQLiteDatabase
 
                 $row = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
                 $option = SQLiteKeyValueRow::fromTableRow($row);
-                if ($option->optionName !== $optionName) {
+                if ($option->keyName !== $keyName) {
                     continue;
                 }
                 if ($matched !== null || $target !== null) {
-                    throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} is not unique");
+                    throw new \InvalidArgumentException("SQLite app_settings key_name {$keyName} is not unique");
                 }
 
                 $obsoleteOverflowPageNumbers = [];
@@ -1604,7 +1604,7 @@ final class SQLiteDatabase
 
                 $matched = [
                     'rowid' => $cell->rowId,
-                    'autoload' => $option->autoload,
+                    'load_policy' => $option->loadPolicy,
                     'values' => $row->values(),
                     'obsoleteOverflowPageNumbers' => $obsoleteOverflowPageNumbers,
                 ];
@@ -1617,7 +1617,7 @@ final class SQLiteDatabase
                     'headerOffset' => $headerOffset,
                     'entries' => $entries,
                     'rowid' => $matched['rowid'],
-                    'autoload' => $matched['autoload'],
+                    'load_policy' => $matched['load_policy'],
                     'values' => $matched['values'],
                     'obsoleteOverflowPageNumbers' => $matched['obsoleteOverflowPageNumbers'],
                     'parent' => $parentContext,
@@ -1638,7 +1638,7 @@ final class SQLiteDatabase
         foreach ($interiorCells as $cellIndex => $interiorCell) {
             $this->collectWritableKeyValueRowTableLeafForReplacement(
                 $interiorCell->leftChildPage,
-                $optionName,
+                $keyName,
                 $usableSize,
                 $visited,
                 $target,
@@ -1654,7 +1654,7 @@ final class SQLiteDatabase
         }
         $this->collectWritableKeyValueRowTableLeafForReplacement(
             $header->rightMostPointer,
-            $optionName,
+            $keyName,
             $usableSize,
             $visited,
             $target,
@@ -1715,7 +1715,7 @@ final class SQLiteDatabase
         } catch (\InvalidArgumentException $exception) {
             if (str_contains($exception->getMessage(), 'overlap')) {
                 throw new \InvalidArgumentException(
-                    'SQLite wp_options table replacement planning does not yet split table leaf pages',
+                    'SQLite app_settings table replacement planning does not yet split table leaf pages',
                     0,
                     $exception,
                 );
@@ -1743,7 +1743,7 @@ final class SQLiteDatabase
             return $this->withGrownRootWritableTableLeafPage($pageImages, $rootPage, $leaf, $entries, $allowAppend);
         }
         if ($parent['header']->pageType !== 'table-interior') {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning can split only children of table interior pages');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning can split only children of table interior pages');
         }
 
         [$leftEntries, $rightEntries] = $this->partitionWritableTableLeafEntriesForSplit(
@@ -1760,7 +1760,7 @@ final class SQLiteDatabase
         }
         $newLeafPageNumber = $allocationPlan->allocatedPageNumbers[0] ?? null;
         if ($newLeafPageNumber === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning could not allocate a split table leaf page');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning could not allocate a split table leaf page');
         }
 
         $pageImages[$leaf['pageNumber']] = SQLiteTableLeafPage::assemble(
@@ -1805,7 +1805,7 @@ final class SQLiteDatabase
         bool $allowAppend,
     ): array {
         if ($leaf['pageNumber'] !== $rootPage) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning can grow only a table leaf root page');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning can grow only a table leaf root page');
         }
 
         [$leftEntries, $rightEntries] = $this->partitionWritableTableLeafEntriesForSplit(
@@ -1824,7 +1824,7 @@ final class SQLiteDatabase
         $leftLeafPageNumber = $allocatedPageNumbers[0] ?? null;
         $rightLeafPageNumber = $allocatedPageNumbers[1] ?? null;
         if ($leftLeafPageNumber === null || $rightLeafPageNumber === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning could not allocate root split leaf pages');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning could not allocate root split leaf pages');
         }
 
         $pageImages[$leftLeafPageNumber] = SQLiteTableLeafPage::assemble(
@@ -1862,7 +1862,7 @@ final class SQLiteDatabase
     {
         $entryCount = count($entries);
         if ($entryCount < 2) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning cannot split fewer than two table rows');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning cannot split fewer than two table rows');
         }
 
         $best = null;
@@ -1898,7 +1898,7 @@ final class SQLiteDatabase
         }
 
         if ($best === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning cannot split these table rows within page capacity');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning cannot split these table rows within page capacity');
         }
 
         return $best;
@@ -1975,10 +1975,10 @@ final class SQLiteDatabase
     ): array {
         $grandparent = $parent['parent'] ?? null;
         if ($grandparent === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning cannot split a non-root parent without a grandparent page');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning cannot split a non-root parent without a grandparent page');
         }
         if ($parent['header']->pageType !== 'table-interior') {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning can split only table interior parent pages');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning can split only table interior parent pages');
         }
 
         [$leftEntries, $dividerEntry, $leftRightMostPointer, $rightEntries, $rightRightMostPointer] =
@@ -1991,7 +1991,7 @@ final class SQLiteDatabase
         }
         $newInteriorPageNumber = $allocationPlan->allocatedPageNumbers[0] ?? null;
         if ($newInteriorPageNumber === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning could not allocate a split parent table page');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning could not allocate a split parent table page');
         }
 
         $pageImages[$parent['pageNumber']] = $this->assembleWritableTableInteriorPageFromEntries(
@@ -2030,20 +2030,20 @@ final class SQLiteDatabase
     ): array {
         $header = $parent['header'];
         if ($header->pageType !== 'table-interior' || $header->rightMostPointer === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning requires a table interior parent page');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning requires a table interior parent page');
         }
 
         $parentCells = SQLiteTableInteriorCell::parsePageCells($parent['page'], $header);
         $childIndex = $parent['childIndex'];
         if ($childIndex < 0 || $childIndex > count($parentCells)) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning found an invalid parent child slot');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning found an invalid parent child slot');
         }
         if ($childIndex === count($parentCells)) {
             if ($header->rightMostPointer !== $oldLeafPageNumber) {
-                throw new \InvalidArgumentException('SQLite wp_options table replacement planning parent right-most pointer does not match the split leaf');
+                throw new \InvalidArgumentException('SQLite app_settings table replacement planning parent right-most pointer does not match the split leaf');
             }
         } elseif ($parentCells[$childIndex]->leftChildPage !== $oldLeafPageNumber) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning parent child pointer does not match the split leaf');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning parent child pointer does not match the split leaf');
         }
 
         $entries = [];
@@ -2102,7 +2102,7 @@ final class SQLiteDatabase
         } catch (\InvalidArgumentException $exception) {
             if (str_contains($exception->getMessage(), 'overlap')) {
                 throw new \InvalidArgumentException(
-                    'SQLite wp_options table replacement planning does not yet split parent table pages',
+                    'SQLite app_settings table replacement planning does not yet split parent table pages',
                     0,
                     $exception,
                 );
@@ -2126,7 +2126,7 @@ final class SQLiteDatabase
         bool $allowAppend,
     ): array {
         if ($root['header']->pageType !== 'table-interior') {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning can grow only a table interior root page');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning can grow only a table interior root page');
         }
 
         [$leftEntries, $dividerEntry, $leftRightMostPointer, $rightEntries, $rightRightMostPointer] =
@@ -2141,7 +2141,7 @@ final class SQLiteDatabase
         $leftInteriorPageNumber = $allocatedPageNumbers[0] ?? null;
         $rightInteriorPageNumber = $allocatedPageNumbers[1] ?? null;
         if ($leftInteriorPageNumber === null || $rightInteriorPageNumber === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning could not allocate root split interior pages');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning could not allocate root split interior pages');
         }
 
         $pageImages[$leftInteriorPageNumber] = $this->assembleWritableTableInteriorPageFromEntries(
@@ -2177,7 +2177,7 @@ final class SQLiteDatabase
     {
         $entryCount = count($entries);
         if ($entryCount < 3) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning cannot split fewer than three parent table entries');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning cannot split fewer than three parent table entries');
         }
 
         $best = null;
@@ -2213,7 +2213,7 @@ final class SQLiteDatabase
         }
 
         if ($best === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning cannot split these parent table entries within page capacity');
+            throw new \InvalidArgumentException('SQLite app_settings table replacement planning cannot split these parent table entries within page capacity');
         }
 
         return $best;
@@ -2222,12 +2222,12 @@ final class SQLiteDatabase
     /**
      * @return list<array{record:SQLiteSchemaRecord,columns:non-empty-list<SQLiteIndexColumn>,values:list<mixed>}>
      */
-    private function supportedKeyValueRowIndexesForInsert(string $optionName, ?string $autoload): array
+    private function supportedKeyValueRowIndexesForInsert(string $keyName, ?string $loadPolicy): array
     {
         $indexes = [];
         $automaticIndexColumns = null;
         $automaticIndexOrdinal = 0;
-        foreach ($this->indexRecordsForTable('wp_options') as $record) {
+        foreach ($this->indexRecordsForTable('app_settings') as $record) {
             $columns = $this->wordPressWriteIndexColumns(
                 $record,
                 $automaticIndexColumns,
@@ -2237,17 +2237,17 @@ final class SQLiteDatabase
 
             if (
                 count($columns) === 1
-                && strcasecmp($columns[0]->columnName, 'option_name') === 0
+                && strcasecmp($columns[0]->columnName, 'key_name') === 0
             ) {
-                $indexValues = [$optionName];
+                $indexValues = [$keyName];
             } elseif (
                 count($columns) === 2
-                && strcasecmp($columns[0]->columnName, 'autoload') === 0
-                && strcasecmp($columns[1]->columnName, 'option_name') === 0
+                && strcasecmp($columns[0]->columnName, 'load_policy') === 0
+                && strcasecmp($columns[1]->columnName, 'key_name') === 0
             ) {
-                $indexValues = [$autoload, $optionName];
+                $indexValues = [$loadPolicy, $keyName];
             } else {
-                throw new \InvalidArgumentException('SQLite wp_options insert planning currently supports only option_name or autoload, option_name indexes');
+                throw new \InvalidArgumentException('SQLite app_settings insert planning currently supports only key_name or load_policy, key_name indexes');
             }
 
             self::assertSupportedApplicationWriteIndexColumns($columns);
@@ -2271,7 +2271,7 @@ final class SQLiteDatabase
         $indexes = [];
         $automaticIndexColumns = null;
         $automaticIndexOrdinal = 0;
-        foreach ($this->indexRecordsForTable('wp_options') as $record) {
+        foreach ($this->indexRecordsForTable('app_settings') as $record) {
             $columns = $this->wordPressWriteIndexColumns(
                 $record,
                 $automaticIndexColumns,
@@ -2281,14 +2281,14 @@ final class SQLiteDatabase
 
             $isSupported = (
                 count($columns) === 1
-                && strcasecmp($columns[0]->columnName, 'option_name') === 0
+                && strcasecmp($columns[0]->columnName, 'key_name') === 0
             ) || (
                 count($columns) === 2
-                && strcasecmp($columns[0]->columnName, 'autoload') === 0
-                && strcasecmp($columns[1]->columnName, 'option_name') === 0
+                && strcasecmp($columns[0]->columnName, 'load_policy') === 0
+                && strcasecmp($columns[1]->columnName, 'key_name') === 0
             );
             if (!$isSupported) {
-                throw new \InvalidArgumentException('SQLite wp_options replacement planning currently supports only option_name or autoload, option_name indexes');
+                throw new \InvalidArgumentException('SQLite app_settings replacement planning currently supports only key_name or load_policy, key_name indexes');
             }
 
             self::assertSupportedApplicationWriteIndexColumns($columns);
@@ -2316,23 +2316,23 @@ final class SQLiteDatabase
         if ($record->sql !== null) {
             $columns = SQLiteCreateIndex::columns($record->sql);
             if ($columns === null) {
-                throw new \InvalidArgumentException("SQLite wp_options {$operation} planning currently supports only ordinary column indexes");
+                throw new \InvalidArgumentException("SQLite app_settings {$operation} planning currently supports only ordinary column indexes");
             }
 
             return $columns;
         }
 
-        if (!self::isAutomaticIndex($record, 'wp_options')) {
-            throw new \InvalidArgumentException("SQLite wp_options {$operation} planning currently supports only explicit or automatic option_name indexes");
+        if (!self::isAutomaticIndex($record, 'app_settings')) {
+            throw new \InvalidArgumentException("SQLite app_settings {$operation} planning currently supports only explicit or automatic key_name indexes");
         }
 
         if ($automaticIndexColumns === null) {
-            $automaticIndexColumns = $this->automaticIndexColumnsForTable('wp_options');
+            $automaticIndexColumns = $this->automaticIndexColumnsForTable('app_settings');
         }
         $columns = $automaticIndexColumns[$automaticIndexOrdinal] ?? null;
         $automaticIndexOrdinal++;
         if ($columns === null) {
-            throw new \InvalidArgumentException("SQLite wp_options {$operation} planning cannot infer automatic index columns from CREATE TABLE");
+            throw new \InvalidArgumentException("SQLite app_settings {$operation} planning cannot infer automatic index columns from CREATE TABLE");
         }
 
         return $columns;
@@ -2345,7 +2345,7 @@ final class SQLiteDatabase
     {
         foreach ($columns as $column) {
             if (!in_array(strtoupper($column->collation), ['BINARY', 'NOCASE', 'RTRIM'], true)) {
-                throw new \InvalidArgumentException('SQLite wp_options write planning does not yet maintain custom-collation indexes');
+                throw new \InvalidArgumentException('SQLite app_settings write planning does not yet maintain custom-collation indexes');
             }
         }
     }
@@ -2359,14 +2359,14 @@ final class SQLiteDatabase
                 || !self::partialPredicateCoversAllKeyValueNameRows($column->partialPredicate)
             )
         ) {
-            throw new \InvalidArgumentException('SQLite wp_options write planning currently supports only option_name IS NOT NULL partial indexes');
+            throw new \InvalidArgumentException('SQLite app_settings write planning currently supports only key_name IS NOT NULL partial indexes');
         }
     }
 
     private static function partialPredicateCoversAllKeyValueNameRows(SQLiteIndexPredicate $predicate): bool
     {
         if ($predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL) {
-            return strcasecmp($predicate->columnName, 'option_name') === 0;
+            return strcasecmp($predicate->columnName, 'key_name') === 0;
         }
 
         if ($predicate->operator === SQLiteIndexPredicate::OR) {
@@ -2401,13 +2401,13 @@ final class SQLiteDatabase
             $indexValues = $index['values'];
             $rootPage = $record->rootPage;
             if ($rootPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
+                throw new \InvalidArgumentException('SQLite app_settings index root page is missing');
             }
 
             $newEntryValues = array_merge($indexValues, [$rowId]);
             $newPayload = SQLiteRecord::encode($newEntryValues, $this->header->textEncoding);
             if (SQLiteIndexCell::localPayloadLength(strlen($newPayload), $this->usablePageSize()) !== strlen($newPayload)) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed insert planning does not yet allocate index overflow pages');
+                throw new \InvalidArgumentException('SQLite app_settings indexed insert planning does not yet allocate index overflow pages');
             }
             $this->assertIndexDoesNotContainRowId($rootPage, $rowId);
 
@@ -2451,9 +2451,9 @@ final class SQLiteDatabase
         array $pageImages,
         array $indexes,
         int $rowId,
-        string $optionName,
-        ?string $oldAutoload,
-        ?string $newAutoload,
+        string $keyName,
+        ?string $oldLoadPolicy,
+        ?string $newLoadPolicy,
         bool $allowAppend,
         array &$obsoleteOverflowPageNumbers,
     ): array
@@ -2461,12 +2461,12 @@ final class SQLiteDatabase
         foreach ($indexes as $index) {
             $rootPage = $index['record']->rootPage;
             if ($rootPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
+                throw new \InvalidArgumentException('SQLite app_settings index root page is missing');
             }
 
             $columns = $index['columns'];
-            $oldValues = self::keyValueRowIndexValuesForColumns($columns, $optionName, $oldAutoload);
-            $newValues = self::keyValueRowIndexValuesForColumns($columns, $optionName, $newAutoload);
+            $oldValues = self::keyValueRowIndexValuesForColumns($columns, $keyName, $oldLoadPolicy);
+            $newValues = self::keyValueRowIndexValuesForColumns($columns, $keyName, $newLoadPolicy);
             $keyColumnCount = count($columns);
             $mutatesKey = $oldValues !== $newValues;
 
@@ -2498,14 +2498,14 @@ final class SQLiteDatabase
                         continue;
                     }
                 } elseif ($indexRowId === $rowId) {
-                    throw new \InvalidArgumentException("SQLite wp_options index does not reference rowid {$rowId} with the expected key");
+                    throw new \InvalidArgumentException("SQLite app_settings index does not reference rowid {$rowId} with the expected key");
                 }
 
                 $entries[] = $entry;
             }
 
             if (!$found) {
-                throw new \InvalidArgumentException("SQLite wp_options index does not reference rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index does not reference rowid {$rowId}");
             }
 
             if (!$mutatesKey) {
@@ -2515,7 +2515,7 @@ final class SQLiteDatabase
             $newEntryValues = array_merge($newValues, [$rowId]);
             $newPayload = SQLiteRecord::encode($newEntryValues, $this->header->textEncoding);
             if (SQLiteIndexCell::localPayloadLength(strlen($newPayload), $this->usablePageSize()) !== strlen($newPayload)) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet allocate index overflow pages');
+                throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning does not yet allocate index overflow pages');
             }
 
             $newLeaf = $this->writableIndexLeafForEntry($rootPage, $newEntryValues, $columns);
@@ -2546,7 +2546,7 @@ final class SQLiteDatabase
                 $entries = $workingDatabase->writableIndexLeafEntries($newLeaf['page'], $newLeaf['header'], $columns);
                 foreach ($entries as $entry) {
                     if (($entry['values'][$keyColumnCount] ?? null) === $rowId) {
-                        throw new \InvalidArgumentException("SQLite wp_options index already contains rowid {$rowId}");
+                        throw new \InvalidArgumentException("SQLite app_settings index already contains rowid {$rowId}");
                     }
                 }
             }
@@ -2666,7 +2666,7 @@ final class SQLiteDatabase
             $parent['headerOffset'],
         );
         if ($parentHeader->pageType !== 'index-interior' || $parentHeader->rightMostPointer === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning requires an index interior parent page');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning requires an index interior parent page');
         }
 
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $workingDatabase->readOverflowPayload($firstOverflowPage, $byteCount);
@@ -2675,7 +2675,7 @@ final class SQLiteDatabase
         $parentEntries = [];
         foreach ($parentCells as $cell) {
             if ($cell->leftChildPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found a parent cell without a child pointer');
+                throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found a parent cell without a child pointer');
             }
             $childPages[] = $cell->leftChildPage;
             $parentEntries[] = [
@@ -2692,23 +2692,23 @@ final class SQLiteDatabase
             || $childIndex >= count($childPages)
             || $childPages[$childIndex] !== $leaf['pageNumber']
         ) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found an invalid source leaf slot');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found an invalid source leaf slot');
         }
 
         $siblingIndex = $childIndex > 0 ? $childIndex - 1 : $childIndex + 1;
         if (!isset($childPages[$siblingIndex])) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning needs an adjacent sibling leaf');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning needs an adjacent sibling leaf');
         }
         $dividerIndex = min($childIndex, $siblingIndex);
         if (!isset($parentEntries[$dividerIndex])) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found a missing sibling divider');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found a missing sibling divider');
         }
 
         $siblingPageNumber = $childPages[$siblingIndex];
         $siblingPage = $workingDatabase->page($siblingPageNumber);
         $siblingHeader = SQLiteBTreePageHeader::parsePage($siblingPage, $this->header->pageSize, $siblingPageNumber === 1 ? 100 : 0);
         if ($siblingHeader->pageType !== 'index-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can redistribute only leaf siblings');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can redistribute only leaf siblings');
         }
 
         $siblingEntries = $workingDatabase->writableIndexLeafEntries($siblingPage, $siblingHeader, $columns);
@@ -2811,7 +2811,7 @@ final class SQLiteDatabase
             $parent['headerOffset'],
         );
         if ($parentHeader->pageType !== 'index-interior' || $parentHeader->rightMostPointer === null || $parentHeader->cellCount < 2) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning requires a mergeable index interior parent');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning requires a mergeable index interior parent');
         }
 
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $workingDatabase->readOverflowPayload($firstOverflowPage, $byteCount);
@@ -2820,7 +2820,7 @@ final class SQLiteDatabase
         $parentEntries = [];
         foreach ($parentCells as $cell) {
             if ($cell->leftChildPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found a parent cell without a child pointer');
+                throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found a parent cell without a child pointer');
             }
             $childPages[] = $cell->leftChildPage;
             $parentEntries[] = [
@@ -2837,18 +2837,18 @@ final class SQLiteDatabase
             || $childIndex >= count($childPages)
             || $childPages[$childIndex] !== $leaf['pageNumber']
         ) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found an invalid source leaf slot');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found an invalid source leaf slot');
         }
 
         $siblingIndex = $childIndex > 0 ? $childIndex - 1 : $childIndex + 1;
         if (!isset($childPages[$siblingIndex])) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning needs an adjacent sibling leaf to merge');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning needs an adjacent sibling leaf to merge');
         }
 
         $leftIndex = min($childIndex, $siblingIndex);
         $rightIndex = max($childIndex, $siblingIndex);
         if (!isset($parentEntries[$leftIndex])) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found a missing sibling divider');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found a missing sibling divider');
         }
 
         $siblingPageNumber = $childPages[$siblingIndex];
@@ -2860,7 +2860,7 @@ final class SQLiteDatabase
             $siblingHeaderOffset,
         );
         if ($siblingHeader->pageType !== 'index-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can merge only leaf siblings');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can merge only leaf siblings');
         }
 
         $siblingEntries = $workingDatabase->writableIndexLeafEntries($siblingPage, $siblingHeader, $columns);
@@ -2907,14 +2907,14 @@ final class SQLiteDatabase
         $newParentEntries = $parentEntries;
         array_splice($newParentEntries, $leftIndex, 1);
         if (count($newChildPages) !== count($newParentEntries) + 1) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning produced an invalid merged parent shape');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning produced an invalid merged parent shape');
         }
         foreach ($newParentEntries as $index => $entry) {
             $newParentEntries[$index]['leftChild'] = $newChildPages[$index];
         }
         $rightMostPointer = $newChildPages[array_key_last($newChildPages)] ?? null;
         if (!is_int($rightMostPointer)) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning lost the parent right-most pointer');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning lost the parent right-most pointer');
         }
 
         if (($parent['parent'] ?? null) !== null && count($newParentEntries) < 3) {
@@ -2974,7 +2974,7 @@ final class SQLiteDatabase
             || $rootContext['pageNumber'] !== $rootPage
             || $rootContext['header']->pageType !== 'index-interior'
         ) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only a root parent underflow');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can collapse only a root parent underflow');
         }
 
         $rootPageBytes = $this->page($rootPage);
@@ -2984,7 +2984,7 @@ final class SQLiteDatabase
             $rootContext['headerOffset'],
         );
         if ($rootHeader->pageType !== 'index-interior' || $rootHeader->rightMostPointer === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning requires an index-interior root');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning requires an index-interior root');
         }
 
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
@@ -2993,7 +2993,7 @@ final class SQLiteDatabase
         $rootChildPages = [];
         foreach ($rootCells as $rootCell) {
             if ($rootCell->leftChildPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found an invalid root divider');
+                throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found an invalid root divider');
             }
             $rootChildPages[] = $rootCell->leftChildPage;
             $rootEntries[] = [
@@ -3010,7 +3010,7 @@ final class SQLiteDatabase
             || $rootChildIndex >= count($rootChildPages)
             || $rootChildPages[$rootChildIndex] !== $underfilledParent['pageNumber']
         ) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found an invalid underfilled parent slot');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found an invalid underfilled parent slot');
         }
 
         if ($rootHeader->cellCount !== 1) {
@@ -3041,14 +3041,14 @@ final class SQLiteDatabase
             $siblingHeaderOffset,
         );
         if ($siblingHeader->pageType !== 'index-interior' || $siblingHeader->rightMostPointer === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only sibling index-interior parents');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can collapse only sibling index-interior parents');
         }
 
         $siblingCells = SQLiteIndexCell::parsePageCells($siblingPage, $siblingHeader, $this->usablePageSize(), $overflowReader);
         $siblingEntries = [];
         foreach ($siblingCells as $siblingCell) {
             if ($siblingCell->leftChildPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found a sibling parent cell without a child pointer');
+                throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found a sibling parent cell without a child pointer');
             }
             $siblingEntries[] = [
                 'values' => $this->indexEntryValuesForColumns($siblingCell, count($columns)),
@@ -3059,7 +3059,7 @@ final class SQLiteDatabase
 
         $rootDivider = $rootEntries[0] ?? null;
         if ($rootDivider === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found an invalid root divider');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found an invalid root divider');
         }
 
         $rootDividerEntry = [
@@ -3125,14 +3125,14 @@ final class SQLiteDatabase
     ): array {
         $siblingIndex = $rootChildIndex > 0 ? $rootChildIndex - 1 : $rootChildIndex + 1;
         if (!isset($rootChildPages[$siblingIndex])) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning needs an adjacent root child parent');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning needs an adjacent root child parent');
         }
 
         $leftRootChildIndex = min($rootChildIndex, $siblingIndex);
         $rightRootChildIndex = max($rootChildIndex, $siblingIndex);
         $rootDivider = $rootEntries[$leftRootChildIndex] ?? null;
         if ($rootDivider === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found a missing root divider');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found a missing root divider');
         }
 
         $siblingPageNumber = $rootChildPages[$siblingIndex];
@@ -3144,7 +3144,7 @@ final class SQLiteDatabase
             $siblingHeaderOffset,
         );
         if ($siblingHeader->pageType !== 'index-interior' || $siblingHeader->rightMostPointer === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can merge only sibling index-interior parents');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can merge only sibling index-interior parents');
         }
 
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
@@ -3152,7 +3152,7 @@ final class SQLiteDatabase
         $siblingEntries = [];
         foreach ($siblingCells as $siblingCell) {
             if ($siblingCell->leftChildPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found a sibling parent cell without a child pointer');
+                throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found a sibling parent cell without a child pointer');
             }
             $siblingEntries[] = [
                 'values' => $this->indexEntryValuesForColumns($siblingCell, count($columns)),
@@ -3200,14 +3200,14 @@ final class SQLiteDatabase
         $newRootEntries = $rootEntries;
         array_splice($newRootEntries, $leftRootChildIndex, 1);
         if (count($newRootChildPages) !== count($newRootEntries) + 1) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning produced an invalid merged root shape');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning produced an invalid merged root shape');
         }
         foreach ($newRootEntries as $index => $entry) {
             $newRootEntries[$index]['leftChild'] = $newRootChildPages[$index];
         }
         $newRootRightMostPointer = $newRootChildPages[array_key_last($newRootChildPages)] ?? null;
         if (!is_int($newRootRightMostPointer)) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning lost the root right-most pointer');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning lost the root right-most pointer');
         }
 
         $newRootPage = $this->assembleWritableIndexInteriorPageFromEntries(
@@ -3245,7 +3245,7 @@ final class SQLiteDatabase
     ): array {
         $entryCount = count($entries);
         if ($entryCount < 3) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning cannot redistribute fewer than three index entries');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning cannot redistribute fewer than three index entries');
         }
 
         $best = null;
@@ -3290,7 +3290,7 @@ final class SQLiteDatabase
         }
 
         if ($best === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning cannot redistribute these index leaf entries within page capacity');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning cannot redistribute these index leaf entries within page capacity');
         }
 
         return $best;
@@ -3328,7 +3328,7 @@ final class SQLiteDatabase
             || $oldParent['header']->pageType !== 'index-interior'
             || $newParent['header']->pageType !== 'index-interior'
         ) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only empty leaves directly below an index root');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can collapse only empty leaves directly below an index root');
         }
 
         $workingDatabase = $this->withPageImages($pageImages);
@@ -3339,7 +3339,7 @@ final class SQLiteDatabase
             $rootPage === 1 ? 100 : 0,
         );
         if ($rootHeader->pageType !== 'index-interior' || $rootHeader->cellCount !== 1 || $rootHeader->rightMostPointer === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only two-child index roots');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can collapse only two-child index roots');
         }
 
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $workingDatabase->readOverflowPayload($firstOverflowPage, $byteCount);
@@ -3347,7 +3347,7 @@ final class SQLiteDatabase
         $leftChildPage = $rootCells[0]->leftChildPage ?? null;
         $rightChildPage = $rootHeader->rightMostPointer;
         if ($leftChildPage === null || $leftChildPage < 2 || $rightChildPage < 2) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found an invalid collapsible root child');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning found an invalid collapsible root child');
         }
 
         $childPages = [$leftChildPage, $rightChildPage];
@@ -3357,19 +3357,19 @@ final class SQLiteDatabase
             || !in_array($newLeaf['pageNumber'], $childPages, true)
             || $oldLeaf['pageNumber'] === $newLeaf['pageNumber']
         ) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only sibling leaves below the same root');
+            throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can collapse only sibling leaves below the same root');
         }
 
         foreach ($childPages as $childPage) {
             $childHeader = $workingDatabase->pageHeader($childPage);
             if ($childHeader->pageType !== 'index-leaf') {
-                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only leaf children');
+                throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning can collapse only leaf children');
             }
         }
 
         $rowId = $newEntryValues[array_key_last($newEntryValues)] ?? null;
         if (!is_int($rowId)) {
-            throw new \InvalidArgumentException('SQLite wp_options index replacement entry must end with a rowid');
+            throw new \InvalidArgumentException('SQLite app_settings index replacement entry must end with a rowid');
         }
         $keyColumnCount = count($columns);
         $entries = [];
@@ -3389,10 +3389,10 @@ final class SQLiteDatabase
                 continue;
             }
             if ($indexRowId === $rowId) {
-                throw new \InvalidArgumentException("SQLite wp_options index does not reference rowid {$rowId} with the expected key");
+                throw new \InvalidArgumentException("SQLite app_settings index does not reference rowid {$rowId} with the expected key");
             }
             if (SQLiteIndexCell::localPayloadLength(strlen($cell->payload), $workingDatabase->usablePageSize()) !== strlen($cell->payload)) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet collapse overflow index cells');
+                throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning does not yet collapse overflow index cells');
             }
 
             $entries[] = [
@@ -3402,7 +3402,7 @@ final class SQLiteDatabase
         }
 
         if (!$foundOldEntry) {
-            throw new \InvalidArgumentException("SQLite wp_options index does not reference rowid {$rowId}");
+            throw new \InvalidArgumentException("SQLite app_settings index does not reference rowid {$rowId}");
         }
 
         $entries[] = [
@@ -3440,21 +3440,21 @@ final class SQLiteDatabase
      */
     private static function keyValueRowIndexValuesForColumns(
         array $columns,
-        string $optionName,
-        ?string $autoload,
+        string $keyName,
+        ?string $loadPolicy,
     ): array {
         $values = [];
         foreach ($columns as $column) {
-            if (strcasecmp($column->columnName, 'option_name') === 0) {
-                $values[] = $optionName;
+            if (strcasecmp($column->columnName, 'key_name') === 0) {
+                $values[] = $keyName;
                 continue;
             }
-            if (strcasecmp($column->columnName, 'autoload') === 0) {
-                $values[] = $autoload;
+            if (strcasecmp($column->columnName, 'load_policy') === 0) {
+                $values[] = $loadPolicy;
                 continue;
             }
 
-            throw new \InvalidArgumentException('SQLite wp_options write planning supports only option_name and autoload index columns');
+            throw new \InvalidArgumentException('SQLite app_settings write planning supports only key_name and load_policy index columns');
         }
 
         return $values;
@@ -3487,7 +3487,7 @@ final class SQLiteDatabase
     {
         foreach ($this->indexCells($rootPage) as $cell) {
             if ($this->rowIdFromIndexCell($cell) === $rowId) {
-                throw new \InvalidArgumentException("SQLite wp_options index already contains rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index already contains rowid {$rowId}");
             }
         }
     }
@@ -3508,7 +3508,7 @@ final class SQLiteDatabase
         $parentContext = null;
         while (true) {
             if (isset($visited[$pageNumber])) {
-                throw new \InvalidArgumentException("SQLite wp_options index write planning reached page {$pageNumber} more than once");
+                throw new \InvalidArgumentException("SQLite app_settings index write planning reached page {$pageNumber} more than once");
             }
             $visited[$pageNumber] = true;
 
@@ -3549,7 +3549,7 @@ final class SQLiteDatabase
                     $columns,
                 );
                 if ($comparison === 0 && $rejectInteriorMatch) {
-                    throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet delete index entries from interior pages');
+                    throw new \InvalidArgumentException('SQLite app_settings indexed replacement planning does not yet delete index entries from interior pages');
                 }
                 if ($comparison < 0) {
                     $parentContext = [
@@ -3584,7 +3584,7 @@ final class SQLiteDatabase
     private function writableIndexLeafEntries(string $page, SQLiteBTreePageHeader $header, array $columns): array
     {
         if ($header->pageType !== 'index-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options index write planning requires leaf page entries');
+            throw new \InvalidArgumentException('SQLite app_settings index write planning requires leaf page entries');
         }
 
         $entries = [];
@@ -3609,7 +3609,7 @@ final class SQLiteDatabase
     {
         $recordValues = $cell->record($this->header->textEncoding)->values;
         if (count($recordValues) < $keyColumnCount + 1) {
-            throw new \InvalidArgumentException('SQLite wp_options index record must contain all keys and rowid');
+            throw new \InvalidArgumentException('SQLite app_settings index record must contain all keys and rowid');
         }
 
         return array_merge(array_slice($recordValues, 0, $keyColumnCount), [$this->rowIdFromIndexCell($cell)]);
@@ -3631,7 +3631,7 @@ final class SQLiteDatabase
         } catch (\InvalidArgumentException $exception) {
             if (str_contains($exception->getMessage(), 'overlap')) {
                 throw new \InvalidArgumentException(
-                    'SQLite wp_options indexed write planning does not yet split index leaf pages',
+                    'SQLite app_settings indexed write planning does not yet split index leaf pages',
                     0,
                     $exception,
                 );
@@ -3693,7 +3693,7 @@ final class SQLiteDatabase
             return $this->withGrownRootWritableIndexLeafPage($pageImages, $rootPage, $leaf, $entries, $allowAppend);
         }
         if ($parent['header']->pageType !== 'index-interior') {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning can split only children of index interior pages');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning can split only children of index interior pages');
         }
 
         [$leftEntries, $dividerEntry, $rightEntries] = $this->partitionWritableIndexLeafEntriesForSplit(
@@ -3709,7 +3709,7 @@ final class SQLiteDatabase
         }
         $newLeafPageNumber = $allocationPlan->allocatedPageNumbers[0] ?? null;
         if ($newLeafPageNumber === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning could not allocate a split index leaf page');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning could not allocate a split index leaf page');
         }
 
         $pageImages[$leaf['pageNumber']] = SQLiteIndexLeafPage::assemble(
@@ -3755,7 +3755,7 @@ final class SQLiteDatabase
         bool $allowAppend,
     ): array {
         if ($leaf['pageNumber'] !== $rootPage || $leaf['header']->pageType !== 'index-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning can grow only an index leaf root page');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning can grow only an index leaf root page');
         }
 
         [$leftEntries, $dividerEntry, $rightEntries] = $this->partitionWritableIndexLeafEntriesForSplit(
@@ -3773,7 +3773,7 @@ final class SQLiteDatabase
         $leftLeafPageNumber = $allocatedPageNumbers[0] ?? null;
         $rightLeafPageNumber = $allocatedPageNumbers[1] ?? null;
         if ($leftLeafPageNumber === null || $rightLeafPageNumber === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning could not allocate root split leaf pages');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning could not allocate root split leaf pages');
         }
 
         $pageImages[$leftLeafPageNumber] = SQLiteIndexLeafPage::assemble(
@@ -3813,7 +3813,7 @@ final class SQLiteDatabase
     {
         $entryCount = count($entries);
         if ($entryCount < 3) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning cannot split fewer than three index entries');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning cannot split fewer than three index entries');
         }
 
         $best = null;
@@ -3850,7 +3850,7 @@ final class SQLiteDatabase
         }
 
         if ($best === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning cannot split these index leaf entries within page capacity');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning cannot split these index leaf entries within page capacity');
         }
 
         return $best;
@@ -3934,10 +3934,10 @@ final class SQLiteDatabase
     ): array {
         $grandparent = $parent['parent'] ?? null;
         if ($grandparent === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning cannot split a non-root parent without a grandparent page');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning cannot split a non-root parent without a grandparent page');
         }
         if ($parent['header']->pageType !== 'index-interior') {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning can split only index interior parent pages');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning can split only index interior parent pages');
         }
 
         [$leftEntries, $dividerEntry, $leftRightMostPointer, $rightEntries, $rightRightMostPointer] =
@@ -3950,7 +3950,7 @@ final class SQLiteDatabase
         }
         $newInteriorPageNumber = $allocationPlan->allocatedPageNumbers[0] ?? null;
         if ($newInteriorPageNumber === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning could not allocate a split parent index page');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning could not allocate a split parent index page');
         }
 
         $pageImages[$parent['pageNumber']] = $this->assembleWritableIndexInteriorPageFromEntries(
@@ -3993,28 +3993,28 @@ final class SQLiteDatabase
     ): array {
         $header = $parent['header'];
         if ($header->pageType !== 'index-interior' || $header->rightMostPointer === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning requires an index interior parent page');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning requires an index interior parent page');
         }
 
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
         $parentCells = SQLiteIndexCell::parsePageCells($parent['page'], $header, $this->usablePageSize(), $overflowReader);
         $childIndex = $parent['childIndex'];
         if ($childIndex < 0 || $childIndex > count($parentCells)) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning found an invalid parent child slot');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning found an invalid parent child slot');
         }
         if ($childIndex === count($parentCells)) {
             if ($header->rightMostPointer !== $oldLeafPageNumber) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed write planning parent right-most pointer does not match the split leaf');
+                throw new \InvalidArgumentException('SQLite app_settings indexed write planning parent right-most pointer does not match the split leaf');
             }
         } elseif ($parentCells[$childIndex]->leftChildPage !== $oldLeafPageNumber) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning parent child pointer does not match the split leaf');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning parent child pointer does not match the split leaf');
         }
 
         $dividerPayload = SQLiteRecord::encode($dividerEntry['values'], $this->header->textEncoding);
         $entries = [];
         foreach ($parentCells as $index => $cell) {
             if ($cell->leftChildPage === null) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed write planning found a parent cell without a child pointer');
+                throw new \InvalidArgumentException('SQLite app_settings indexed write planning found a parent cell without a child pointer');
             }
             $existingEntry = [
                 'values' => $this->indexEntryValuesForColumns($cell, count($columns)),
@@ -4082,7 +4082,7 @@ final class SQLiteDatabase
         } catch (\InvalidArgumentException $exception) {
             if (str_contains($exception->getMessage(), 'overlap')) {
                 throw new \InvalidArgumentException(
-                    'SQLite wp_options indexed write planning does not yet split parent index pages',
+                    'SQLite app_settings indexed write planning does not yet split parent index pages',
                     0,
                     $exception,
                 );
@@ -4106,7 +4106,7 @@ final class SQLiteDatabase
         bool $allowAppend,
     ): array {
         if ($root['header']->pageType !== 'index-interior') {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning can grow only an index interior root page');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning can grow only an index interior root page');
         }
 
         [$leftEntries, $dividerEntry, $leftRightMostPointer, $rightEntries, $rightRightMostPointer] =
@@ -4121,7 +4121,7 @@ final class SQLiteDatabase
         $leftInteriorPageNumber = $allocatedPageNumbers[0] ?? null;
         $rightInteriorPageNumber = $allocatedPageNumbers[1] ?? null;
         if ($leftInteriorPageNumber === null || $rightInteriorPageNumber === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning could not allocate root split interior pages');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning could not allocate root split interior pages');
         }
 
         $pageImages[$leftInteriorPageNumber] = $this->assembleWritableIndexInteriorPageFromEntries(
@@ -4157,7 +4157,7 @@ final class SQLiteDatabase
     {
         $entryCount = count($entries);
         if ($entryCount < 3) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning cannot split fewer than three parent index entries');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning cannot split fewer than three parent index entries');
         }
 
         $best = null;
@@ -4193,7 +4193,7 @@ final class SQLiteDatabase
         }
 
         if ($best === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed write planning cannot split these parent index entries within page capacity');
+            throw new \InvalidArgumentException('SQLite app_settings indexed write planning cannot split these parent index entries within page capacity');
         }
 
         return $best;
@@ -6246,15 +6246,15 @@ final class SQLiteDatabase
     public function keyValueRows(int $limit = 100): array
     {
         if ($limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings limit cannot be negative');
         }
 
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', $limit) as $row) {
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
+        $settings = [];
+        foreach ($this->tableRowsByName('app_settings', $limit) as $row) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -6267,22 +6267,22 @@ final class SQLiteDatabase
         int $offset = 0,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options ordered scan limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings ordered scan limit cannot be negative');
         }
         if ($offset < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options ordered scan offset cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings ordered scan offset cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
         $column = self::normalizeKeyValueRowOrderColumn($orderBy);
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
+        $settings = [];
+        foreach ($this->tableRowsByName('app_settings', null) as $row) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
         }
 
-        usort($options, static function (SQLiteKeyValueRow $left, SQLiteKeyValueRow $right) use ($column, $descending): int {
+        usort($settings, static function (SQLiteKeyValueRow $left, SQLiteKeyValueRow $right) use ($column, $descending): int {
             $comparison = self::compareKeyValueRowOrderValues(
                 self::keyValueRowOrderValue($left, $column),
                 self::keyValueRowOrderValue($right, $column),
@@ -6295,10 +6295,10 @@ final class SQLiteDatabase
         });
 
         if ($offset !== 0 || $limit !== null) {
-            $options = array_slice($options, $offset, $limit);
+            $settings = array_slice($settings, $offset, $limit);
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -6311,26 +6311,26 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options rowid range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings rowid range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->tableRowsByRowIdRangeByName(
-                'wp_options',
+                'app_settings',
                 $lowerInclusive,
                 $upperBound,
                 $limit,
                 $upperInclusive,
             ) as $row
         ) {
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -6343,26 +6343,26 @@ final class SQLiteDatabase
         bool $caseSensitive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options LIKE lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings LIKE lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', null) as $row) {
+        $settings = [];
+        foreach ($this->tableRowsByName('app_settings', null) as $row) {
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::likeMatches($option->optionName, $pattern, $escape, $caseSensitive)) {
+            if (!self::likeMatches($option->keyName, $pattern, $escape, $caseSensitive)) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -6374,7 +6374,7 @@ final class SQLiteDatabase
         ?int $limit = null,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed LIKE prefix lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings indexed LIKE prefix lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
@@ -6382,22 +6382,22 @@ final class SQLiteDatabase
 
         $bounds = self::likePrefixRangeBounds($pattern, $escape);
         if ($bounds === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed LIKE prefix lookup requires a leading literal prefix');
+            throw new \InvalidArgumentException('SQLite app_settings indexed LIKE prefix lookup requires a leading literal prefix');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->keyValueRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
-            if (!self::likeMatches($option->optionName, $pattern, $escape, true)) {
+            if (!self::likeMatches($option->keyName, $pattern, $escape, true)) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -6409,7 +6409,7 @@ final class SQLiteDatabase
         ?int $limit = null,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options NOCASE indexed LIKE prefix lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings NOCASE indexed LIKE prefix lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
@@ -6417,29 +6417,29 @@ final class SQLiteDatabase
 
         $bounds = self::likeNoCasePrefixRangeBounds($pattern, $escape);
         if ($bounds === null) {
-            throw new \InvalidArgumentException('SQLite wp_options NOCASE indexed LIKE prefix lookup requires a leading literal prefix');
+            throw new \InvalidArgumentException('SQLite app_settings NOCASE indexed LIKE prefix lookup requires a leading literal prefix');
         }
 
         $compareNoCase = static fn (string $left, string $right): int => strcmp(self::asciiLower($left), self::asciiLower($right));
 
-        $options = [];
+        $settings = [];
         foreach ($this->keyValueRowsByIndexedNameRangeWithCollation(
             $bounds['lowerInclusive'],
             $bounds['upperBound'],
             'NOCASE',
             $compareNoCase,
         ) as $option) {
-            if (!self::likeMatches($option->optionName, $pattern, $escape, false)) {
+            if (!self::likeMatches($option->keyName, $pattern, $escape, false)) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -6448,26 +6448,26 @@ final class SQLiteDatabase
     public function keyValueRowsByNameGlob(string $pattern, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options GLOB lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings GLOB lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', null) as $row) {
+        $settings = [];
+        foreach ($this->tableRowsByName('app_settings', null) as $row) {
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::globMatches($option->optionName, $pattern)) {
+            if (!self::globMatches($option->keyName, $pattern)) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -6476,7 +6476,7 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedNameGlobPrefixRange(string $pattern, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed GLOB prefix lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings indexed GLOB prefix lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
@@ -6484,40 +6484,40 @@ final class SQLiteDatabase
 
         $bounds = self::globPrefixRangeBounds($pattern);
         if ($bounds === null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed GLOB prefix lookup requires a leading literal prefix');
+            throw new \InvalidArgumentException('SQLite app_settings indexed GLOB prefix lookup requires a leading literal prefix');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->keyValueRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
-            if (!self::globMatches($option->optionName, $pattern)) {
+            if (!self::globMatches($option->keyName, $pattern)) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     private static function normalizeKeyValueRowOrderColumn(string $orderBy): string
     {
         $column = strtolower($orderBy);
         return match ($column) {
-            'option_id', 'option_name', 'option_value', 'autoload', 'rowid' => $column,
-            default => throw new \InvalidArgumentException("SQLite wp_options ordered scan cannot order by {$orderBy}"),
+            'setting_id', 'key_name', 'key_value', 'load_policy', 'rowid' => $column,
+            default => throw new \InvalidArgumentException("SQLite app_settings ordered scan cannot order by {$orderBy}"),
         };
     }
 
     private static function keyValueRowOrderValue(SQLiteKeyValueRow $option, string $column): int|string|null
     {
         return match ($column) {
-            'option_id' => $option->optionId,
-            'option_name' => $option->optionName,
-            'option_value' => $option->optionValue,
-            'autoload' => $option->autoload,
+            'setting_id' => $option->settingId,
+            'key_name' => $option->keyName,
+            'key_value' => $option->keyValue,
+            'load_policy' => $option->loadPolicy,
             'rowid' => $option->rowId,
         };
     }
@@ -6541,44 +6541,44 @@ final class SQLiteDatabase
     public function keyValueRowsByNameRegexp(string $pattern, callable $regexp, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options REGEXP lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings REGEXP lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $options = [];
-        foreach ($this->tableRowsByName('wp_options', null) as $row) {
+        $settings = [];
+        foreach ($this->tableRowsByName('app_settings', null) as $row) {
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::regexpMatches($option->optionName, $pattern, $regexp)) {
+            if (!self::regexpMatches($option->keyName, $pattern, $regexp)) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
-    public function keyValueRowByIndexedName(string $optionName): ?SQLiteKeyValueRow
+    public function keyValueRowByIndexedName(string $keyName): ?SQLiteKeyValueRow
     {
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForColumn('wp_options', 'option_name', $optionName, true);
+        $indexLookup = $this->indexLookupForColumn('app_settings', 'key_name', $keyName, true);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options option_name index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings key_name index is not present');
         }
 
         $visited = [];
         $indexCell = $this->findIndexCellByFirstValue(
             $indexLookup['rootPage'],
-            $optionName,
+            $keyName,
             $visited,
             $indexLookup['collation'],
             $indexLookup['descending'],
@@ -6590,7 +6590,7 @@ final class SQLiteDatabase
         $rowId = $this->rowIdFromIndexCell($indexCell);
         $row = $this->tableRowByRowId($tableRootPage, $rowId);
         if ($row === null) {
-            throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+            throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
         }
 
         return SQLiteKeyValueRow::fromTableRow($row);
@@ -6601,56 +6601,56 @@ final class SQLiteDatabase
      * @return list<SQLiteKeyValueRow>
      */
     public function keyValueRowsByIndexedNameWithCollation(
-        string $optionName,
+        string $keyName,
         string $collationName,
         callable $compare,
         ?int $limit = null,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForColumnWithCollation(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $collationName,
-            $optionName,
+            $keyName,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException("SQLite wp_options option_name index with collation {$collationName} is not present");
+            throw new \InvalidArgumentException("SQLite app_settings key_name index with collation {$collationName} is not present");
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
             $record = $indexCell->record($this->header->textEncoding);
             if ($record->values === []) {
                 throw new \InvalidArgumentException('SQLite index record must contain at least one key column');
             }
-            if (self::compareSQLiteScalarWithCustomTextCollation($record->values[0], $optionName, $compare) !== 0) {
+            if (self::compareSQLiteScalarWithCustomTextCollation($record->values[0], $keyName, $compare) !== 0) {
                 continue;
             }
 
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -6666,26 +6666,26 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForColumnRangeWithCollation(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $collationName,
             $lowerInclusive,
             $upperBound,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException("SQLite wp_options option_name range index with collation {$collationName} is not present");
+            throw new \InvalidArgumentException("SQLite app_settings key_name range index with collation {$collationName} is not present");
         }
 
         if ($lowerInclusive !== null && $upperBound !== null) {
@@ -6695,7 +6695,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
             $record = $indexCell->record($this->header->textEncoding);
             if ($record->values === []) {
@@ -6708,109 +6708,109 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
-     * @param list<?string> $optionNames
+     * @param list<?string> $keyNames
      * @return list<SQLiteKeyValueRow>
      */
-    public function keyValueRowsByIndexedNames(array $optionNames, ?int $limit = null): array
+    public function keyValueRowsByIndexedNames(array $keyNames, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed IN lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings indexed IN lookup limit cannot be negative');
         }
-        if ($limit === 0 || $optionNames === []) {
+        if ($limit === 0 || $keyNames === []) {
             return [];
         }
 
         $hasNonNullName = false;
-        foreach ($optionNames as $optionName) {
-            if ($optionName !== null && !is_string($optionName)) {
-                throw new \InvalidArgumentException('SQLite wp_options indexed IN lookup names must be strings or null');
+        foreach ($keyNames as $keyName) {
+            if ($keyName !== null && !is_string($keyName)) {
+                throw new \InvalidArgumentException('SQLite app_settings indexed IN lookup names must be strings or null');
             }
-            $hasNonNullName = $hasNonNullName || $optionName !== null;
+            $hasNonNullName = $hasNonNullName || $keyName !== null;
         }
         if (!$hasNonNullName) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForColumnInList('wp_options', 'option_name', $optionNames);
+        $indexLookup = $this->indexLookupForColumnInList('app_settings', 'key_name', $keyNames);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options option_name IN-list index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings key_name IN-list index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCellsByFirstValueList(
             $indexLookup['rootPage'],
-            $optionNames,
+            $keyNames,
             $indexLookup['collation'],
             $indexLookup['descending'],
         ) as $indexCell) {
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
-     * @param list<?string> $optionNames
+     * @param list<?string> $keyNames
      * @return list<SQLiteKeyValueRow>
      */
-    public function keyValueRowsByIndexedLowercaseNames(array $optionNames, ?int $limit = null): array
+    public function keyValueRowsByIndexedLowercaseNames(array $keyNames, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options lower expression indexed IN lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings lower expression indexed IN lookup limit cannot be negative');
         }
-        if ($limit === 0 || $optionNames === []) {
+        if ($limit === 0 || $keyNames === []) {
             return [];
         }
 
         $lookupValues = [];
-        foreach ($optionNames as $optionName) {
-            if ($optionName !== null && !is_string($optionName)) {
-                throw new \InvalidArgumentException('SQLite wp_options lower expression indexed IN lookup names must be strings or null');
+        foreach ($keyNames as $keyName) {
+            if ($keyName !== null && !is_string($keyName)) {
+                throw new \InvalidArgumentException('SQLite app_settings lower expression indexed IN lookup names must be strings or null');
             }
-            $lookupValues[] = $optionName === null ? null : self::asciiLower($optionName);
+            $lookupValues[] = $keyName === null ? null : self::asciiLower($keyName);
         }
         if (!self::containsNonNullValue($lookupValues)) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForLowerExpressionColumnInList('wp_options', 'option_name', $lookupValues);
+        $indexLookup = $this->indexLookupForLowerExpressionColumnInList('app_settings', 'key_name', $lookupValues);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options lower(option_name) expression IN-list index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings lower(key_name) expression IN-list index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCellsByFirstValueList(
             $indexLookup['rootPage'],
             $lookupValues,
@@ -6820,56 +6820,56 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiLower($option->optionName), $indexLookup['collation'])) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiLower($option->keyName), $indexLookup['collation'])) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
-     * @param list<?string> $optionNames
+     * @param list<?string> $keyNames
      * @return list<SQLiteKeyValueRow>
      */
-    public function keyValueRowsByIndexedUppercaseNames(array $optionNames, ?int $limit = null): array
+    public function keyValueRowsByIndexedUppercaseNames(array $keyNames, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options upper expression indexed IN lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings upper expression indexed IN lookup limit cannot be negative');
         }
-        if ($limit === 0 || $optionNames === []) {
+        if ($limit === 0 || $keyNames === []) {
             return [];
         }
 
         $lookupValues = [];
-        foreach ($optionNames as $optionName) {
-            if ($optionName !== null && !is_string($optionName)) {
-                throw new \InvalidArgumentException('SQLite wp_options upper expression indexed IN lookup names must be strings or null');
+        foreach ($keyNames as $keyName) {
+            if ($keyName !== null && !is_string($keyName)) {
+                throw new \InvalidArgumentException('SQLite app_settings upper expression indexed IN lookup names must be strings or null');
             }
-            $lookupValues[] = $optionName === null ? null : self::asciiUpper($optionName);
+            $lookupValues[] = $keyName === null ? null : self::asciiUpper($keyName);
         }
         if (!self::containsNonNullValue($lookupValues)) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForUpperExpressionColumnInList('wp_options', 'option_name', $lookupValues);
+        $indexLookup = $this->indexLookupForUpperExpressionColumnInList('app_settings', 'key_name', $lookupValues);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options upper(option_name) expression IN-list index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings upper(key_name) expression IN-list index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCellsByFirstValueList(
             $indexLookup['rootPage'],
             $lookupValues,
@@ -6879,39 +6879,39 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiUpper($option->optionName), $indexLookup['collation'])) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+            if (self::inListContainsSQLiteScalar($lookupValues, self::asciiUpper($option->keyName), $indexLookup['collation'])) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
-    public function keyValueRowByIndexedNameForLoadPolicy(string $optionName, string $autoload): ?SQLiteKeyValueRow
+    public function keyValueRowByIndexedNameForLoadPolicy(string $keyName, string $loadPolicy): ?SQLiteKeyValueRow
     {
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForColumn('wp_options', 'option_name', $optionName, true, [
-            'autoload' => $autoload,
+        $indexLookup = $this->indexLookupForColumn('app_settings', 'key_name', $keyName, true, [
+            'load_policy' => $loadPolicy,
         ]);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options option_name index matching the autoload constraint is not present');
+            throw new \InvalidArgumentException('SQLite app_settings key_name index matching the load_policy constraint is not present');
         }
 
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
-                $optionName,
+                $keyName,
                 $indexLookup['collation'],
                 $indexLookup['descending'],
             ) as $indexCell
@@ -6919,13 +6919,13 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
-                $option->autoload === $autoload
-                && self::compareSQLiteScalar($option->optionName, $optionName, $indexLookup['collation']) === 0
+                $option->loadPolicy === $loadPolicy
+                && self::compareSQLiteScalar($option->keyName, $keyName, $indexLookup['collation']) === 0
             ) {
                 return $option;
             }
@@ -6934,19 +6934,19 @@ final class SQLiteDatabase
         return null;
     }
 
-    public function keyValueRowByIndexedLowercaseName(string $optionName): ?SQLiteKeyValueRow
+    public function keyValueRowByIndexedLowercaseName(string $keyName): ?SQLiteKeyValueRow
     {
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForLowerExpressionColumn('wp_options', 'option_name', $optionName);
+        $indexLookup = $this->indexLookupForLowerExpressionColumn('app_settings', 'key_name', $keyName);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options lower(option_name) expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings lower(key_name) expression index is not present');
         }
 
-        $lookupValue = self::asciiLower($optionName);
+        $lookupValue = self::asciiLower($keyName);
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -6958,11 +6958,11 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::compareSQLiteScalar(self::asciiLower($option->optionName), $lookupValue, $indexLookup['collation']) === 0) {
+            if (self::compareSQLiteScalar(self::asciiLower($option->keyName), $lookupValue, $indexLookup['collation']) === 0) {
                 return $option;
             }
         }
@@ -6975,35 +6975,35 @@ final class SQLiteDatabase
      * @return list<SQLiteKeyValueRow>
      */
     public function keyValueRowsByIndexedLowercaseNameWithCollation(
-        string $optionName,
+        string $keyName,
         string $collationName,
         callable $compare,
         ?int $limit = null,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation lower expression lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation lower expression lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLowerExpressionColumnWithCollation(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $collationName,
-            $optionName,
+            $keyName,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException("SQLite wp_options lower(option_name) expression index with collation {$collationName} is not present");
+            throw new \InvalidArgumentException("SQLite app_settings lower(key_name) expression index with collation {$collationName} is not present");
         }
 
-        $lookupValue = self::asciiLower($optionName);
-        $options = [];
+        $lookupValue = self::asciiLower($keyName);
+        $settings = [];
         foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
             $record = $indexCell->record($this->header->textEncoding);
             if ($record->values === []) {
@@ -7016,68 +7016,68 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::compareSQLiteScalarWithCustomTextCollation(self::asciiLower($option->optionName), $lookupValue, $compare) !== 0) {
+            if (self::compareSQLiteScalarWithCustomTextCollation(self::asciiLower($option->keyName), $lookupValue, $compare) !== 0) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
-     * @param list<?string> $optionNames
+     * @param list<?string> $keyNames
      * @param callable(string, string): int $compare
      * @return list<SQLiteKeyValueRow>
      */
     public function keyValueRowsByIndexedLowercaseNamesWithCollation(
-        array $optionNames,
+        array $keyNames,
         string $collationName,
         callable $compare,
         ?int $limit = null,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation lower expression IN-list lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation lower expression IN-list lookup limit cannot be negative');
         }
-        if ($limit === 0 || $optionNames === []) {
+        if ($limit === 0 || $keyNames === []) {
             return [];
         }
 
         $lookupValues = [];
-        foreach ($optionNames as $optionName) {
-            if ($optionName !== null && !is_string($optionName)) {
-                throw new \InvalidArgumentException('SQLite wp_options custom-collation lower expression IN-list names must be strings or null');
+        foreach ($keyNames as $keyName) {
+            if ($keyName !== null && !is_string($keyName)) {
+                throw new \InvalidArgumentException('SQLite app_settings custom-collation lower expression IN-list names must be strings or null');
             }
-            $lookupValues[] = $optionName === null ? null : self::asciiLower($optionName);
+            $lookupValues[] = $keyName === null ? null : self::asciiLower($keyName);
         }
         if (!self::containsNonNullValue($lookupValues)) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLowerExpressionColumnInListWithCollation(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $collationName,
             $lookupValues,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException("SQLite wp_options lower(option_name) expression IN-list index with collation {$collationName} is not present");
+            throw new \InvalidArgumentException("SQLite app_settings lower(key_name) expression IN-list index with collation {$collationName} is not present");
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
             $record = $indexCell->record($this->header->textEncoding);
             if ($record->values === []) {
@@ -7090,21 +7090,21 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::inListContainsSQLiteScalarWithCustomTextCollation($lookupValues, self::asciiLower($option->optionName), $compare)) {
+            if (!self::inListContainsSQLiteScalarWithCustomTextCollation($lookupValues, self::asciiLower($option->keyName), $compare)) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7120,27 +7120,27 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation lower expression range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation lower expression range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLowerExpressionColumnRangeWithCollation(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $collationName,
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException("SQLite wp_options lower(option_name) expression range index with collation {$collationName} is not present");
+            throw new \InvalidArgumentException("SQLite app_settings lower(key_name) expression range index with collation {$collationName} is not present");
         }
 
         $lowerKey = $lowerInclusive === null ? null : self::asciiLower($lowerInclusive);
@@ -7152,7 +7152,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
             $record = $indexCell->record($this->header->textEncoding);
             if ($record->values === []) {
@@ -7165,36 +7165,36 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (!self::customFirstValueIsInRange(self::asciiLower($option->optionName), $lowerKey, $upperKey, $upperInclusive, $compare)) {
+            if (!self::customFirstValueIsInRange(self::asciiLower($option->keyName), $lowerKey, $upperKey, $upperInclusive, $compare)) {
                 continue;
             }
 
-            $options[] = $option;
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = $option;
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
-    public function keyValueRowByIndexedUppercaseName(string $optionName): ?SQLiteKeyValueRow
+    public function keyValueRowByIndexedUppercaseName(string $keyName): ?SQLiteKeyValueRow
     {
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForUpperExpressionColumn('wp_options', 'option_name');
+        $indexLookup = $this->indexLookupForUpperExpressionColumn('app_settings', 'key_name');
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options upper(option_name) expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings upper(key_name) expression index is not present');
         }
 
-        $lookupValue = self::asciiUpper($optionName);
+        $lookupValue = self::asciiUpper($keyName);
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -7206,11 +7206,11 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::compareSQLiteScalar(self::asciiUpper($option->optionName), $lookupValue, $indexLookup['collation']) === 0) {
+            if (self::compareSQLiteScalar(self::asciiUpper($option->keyName), $lookupValue, $indexLookup['collation']) === 0) {
                 return $option;
             }
         }
@@ -7219,21 +7219,21 @@ final class SQLiteDatabase
     }
 
     public function keyValueRowByIndexedTrimmedName(
-        string $optionName,
+        string $keyName,
         string $functionName = 'trim',
         ?string $characters = null,
     ): ?SQLiteKeyValueRow {
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForTrimExpressionColumn('wp_options', 'option_name', $functionName, $characters);
+        $indexLookup = $this->indexLookupForTrimExpressionColumn('app_settings', 'key_name', $functionName, $characters);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options trim(option_name) expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings trim(key_name) expression index is not present');
         }
 
-        $lookupValue = self::sqliteTrim($optionName, $functionName, $characters);
+        $lookupValue = self::sqliteTrim($keyName, $functionName, $characters);
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -7245,12 +7245,12 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::compareSQLiteScalar(
-                self::sqliteTrim($option->optionName, $functionName, $characters),
+                self::sqliteTrim($option->keyName, $functionName, $characters),
                 $lookupValue,
                 $indexLookup['collation'],
             ) === 0) {
@@ -7267,32 +7267,32 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedNamePrefix(string $prefix, ?int $limit = null): array
     {
         if ($prefix === '') {
-            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix lookup requires a non-empty prefix');
+            throw new \InvalidArgumentException('SQLite app_settings substr(key_name) prefix lookup requires a non-empty prefix');
         }
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings substr(key_name) prefix lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $length = strlen($prefix);
         $indexLookup = $this->indexLookupForSubstringExpressionColumn(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             1,
             $length,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings substr(key_name) expression index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -7304,25 +7304,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteSubstring($option->optionName, 1, $length),
+                    self::sqliteSubstring($option->keyName, 1, $length),
                     $prefix,
                     $indexLookup['collation'],
                 ) === 0
             ) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7332,7 +7332,7 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedNamePrefixes(array $prefixes, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings substr(key_name) prefix IN-list lookup limit cannot be negative');
         }
         if ($limit === 0 || $prefixes === []) {
             return [];
@@ -7341,13 +7341,13 @@ final class SQLiteDatabase
         $prefixLength = null;
         foreach ($prefixes as $prefix) {
             if ($prefix !== null && !is_string($prefix)) {
-                throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list values must be strings or null');
+                throw new \InvalidArgumentException('SQLite app_settings substr(key_name) prefix IN-list values must be strings or null');
             }
             if ($prefix === null) {
                 continue;
             }
             if ($prefix === '') {
-                throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list values must be non-empty');
+                throw new \InvalidArgumentException('SQLite app_settings substr(key_name) prefix IN-list values must be non-empty');
             }
             $currentLength = self::sqliteLength($prefix);
             if ($prefixLength === null) {
@@ -7355,30 +7355,30 @@ final class SQLiteDatabase
                 continue;
             }
             if ($currentLength !== $prefixLength) {
-                throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list values must share one prefix length');
+                throw new \InvalidArgumentException('SQLite app_settings substr(key_name) prefix IN-list values must share one prefix length');
             }
         }
         if ($prefixLength === null) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForSubstringExpressionColumnInList(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             1,
             $prefixLength,
             $prefixes,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) expression IN-list index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings substr(key_name) expression IN-list index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCellsByFirstValueList(
             $indexLookup['rootPage'],
             $prefixes,
@@ -7388,23 +7388,23 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::inListContainsSQLiteScalar(
                 $prefixes,
-                self::sqliteSubstring($option->optionName, 1, $prefixLength),
+                self::sqliteSubstring($option->keyName, 1, $prefixLength),
                 $indexLookup['collation'],
             )) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7413,32 +7413,32 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedNameSuffix(string $suffix, ?int $limit = null): array
     {
         if ($suffix === '') {
-            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) suffix lookup requires a non-empty suffix');
+            throw new \InvalidArgumentException('SQLite app_settings substr(key_name) suffix lookup requires a non-empty suffix');
         }
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) suffix lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings substr(key_name) suffix lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $start = -self::sqliteLength($suffix);
         $indexLookup = $this->indexLookupForSubstringExpressionColumn(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $start,
             null,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options substr(option_name) suffix expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings substr(key_name) suffix expression index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -7450,25 +7450,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteSubstring($option->optionName, $start, null),
+                    self::sqliteSubstring($option->keyName, $start, null),
                     $suffix,
                     $indexLookup['collation'],
                 ) === 0
             ) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7477,26 +7477,26 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedNameLength(int $length, ?int $limit = null): array
     {
         if ($length < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options length(option_name) lookup length cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings length(key_name) lookup length cannot be negative');
         }
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options length(option_name) lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings length(key_name) lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForLengthExpressionColumn('wp_options', 'option_name', $length);
+        $indexLookup = $this->indexLookupForLengthExpressionColumn('app_settings', 'key_name', $length);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options length(option_name) expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings length(key_name) expression index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -7508,19 +7508,19 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::sqliteLength($option->optionName) === $length) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+            if (self::sqliteLength($option->keyName) === $length) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7530,7 +7530,7 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedNameLengths(array $lengths, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options length(option_name) IN-list lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings length(key_name) IN-list lookup limit cannot be negative');
         }
         if ($limit === 0 || $lengths === []) {
             return [];
@@ -7541,27 +7541,27 @@ final class SQLiteDatabase
                 continue;
             }
             if (!is_int($length)) {
-                throw new \InvalidArgumentException('SQLite wp_options length(option_name) IN-list values must be integers or null');
+                throw new \InvalidArgumentException('SQLite app_settings length(key_name) IN-list values must be integers or null');
             }
             if ($length < 0) {
-                throw new \InvalidArgumentException('SQLite wp_options length(option_name) IN-list values cannot be negative');
+                throw new \InvalidArgumentException('SQLite app_settings length(key_name) IN-list values cannot be negative');
             }
         }
         if (!self::containsNonNullValue($lengths)) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForLengthExpressionColumnInList('wp_options', 'option_name', $lengths);
+        $indexLookup = $this->indexLookupForLengthExpressionColumnInList('app_settings', 'key_name', $lengths);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options length(option_name) expression IN-list index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings length(key_name) expression IN-list index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCellsByFirstValueList(
             $indexLookup['rootPage'],
             $lengths,
@@ -7571,19 +7571,19 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::inListContainsSQLiteScalar($lengths, self::sqliteLength($option->optionName), $indexLookup['collation'])) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+            if (self::inListContainsSQLiteScalar($lengths, self::sqliteLength($option->keyName), $indexLookup['collation'])) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7596,26 +7596,26 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options length(option_name) range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings length(key_name) range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLengthExpressionColumnRange(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options length(option_name) expression range index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings length(key_name) expression range index is not present');
         }
         if ($lowerInclusive !== null && $upperBound !== null) {
             $boundaryComparison = self::compareSQLiteScalar($lowerInclusive, $upperBound, $indexLookup['collation']);
@@ -7624,7 +7624,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueRange(
                 $indexLookup['rootPage'],
@@ -7638,25 +7638,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::sqliteLength($option->optionName),
+                self::sqliteLength($option->keyName),
                 $lowerInclusive,
                 $upperBound,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7665,23 +7665,23 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedIntegerValue(int $value, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForIntegerCastExpressionColumn('wp_options', 'option_value', $value);
+        $indexLookup = $this->indexLookupForIntegerCastExpressionColumn('app_settings', 'key_value', $value);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) expression index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -7693,19 +7693,19 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::sqliteCastAsInteger($option->optionValue) === $value) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+            if (self::sqliteCastAsInteger($option->keyValue) === $value) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7715,7 +7715,7 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedIntegerValues(array $values, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) IN-list lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) IN-list lookup limit cannot be negative');
         }
         if ($limit === 0 || $values === []) {
             return [];
@@ -7723,24 +7723,24 @@ final class SQLiteDatabase
 
         foreach ($values as $value) {
             if ($value !== null && !is_int($value)) {
-                throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) IN-list values must be integers or null');
+                throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) IN-list values must be integers or null');
             }
         }
         if (!self::containsNonNullValue($values)) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForIntegerCastExpressionColumnInList('wp_options', 'option_value', $values);
+        $indexLookup = $this->indexLookupForIntegerCastExpressionColumnInList('app_settings', 'key_value', $values);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) expression IN-list index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) expression IN-list index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCellsByFirstValueList(
             $indexLookup['rootPage'],
             $values,
@@ -7750,19 +7750,19 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            if (self::inListContainsSQLiteScalar($values, self::sqliteCastAsInteger($option->optionValue), $indexLookup['collation'])) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+            if (self::inListContainsSQLiteScalar($values, self::sqliteCastAsInteger($option->keyValue), $indexLookup['collation'])) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7775,26 +7775,26 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForIntegerCastExpressionColumnRange(
-            'wp_options',
-            'option_value',
+            'app_settings',
+            'key_value',
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) expression range index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) expression range index is not present');
         }
         if ($lowerInclusive !== null && $upperBound !== null) {
             $boundaryComparison = self::compareSQLiteScalar($lowerInclusive, $upperBound, $indexLookup['collation']);
@@ -7803,7 +7803,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueRange(
                 $indexLookup['rootPage'],
@@ -7817,25 +7817,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::sqliteCastAsInteger($option->optionValue),
+                self::sqliteCastAsInteger($option->keyValue),
                 $lowerInclusive,
                 $upperBound,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7844,28 +7844,28 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedJsonValue(string $jsonPath, mixed $value, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings json_extract(key_value) lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
         $lookupValue = self::sqliteJsonScalar($value);
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonExtractExpressionColumn(
-            'wp_options',
-            'option_value',
+            'app_settings',
+            'key_value',
             $jsonPath,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings json_extract(key_value) expression index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -7877,25 +7877,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteJsonExtract($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
+                    self::sqliteJsonExtract($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $lookupValue,
                     $indexLookup['collation'],
                 ) === 0
             ) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7904,28 +7904,28 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedJsonFragment(string $jsonPath, mixed $value, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options JSON -> lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings JSON -> lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
         $lookupValue = self::sqliteJsonTextValue($value);
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonValueOperatorExpressionColumn(
-            'wp_options',
-            'option_value',
+            'app_settings',
+            'key_value',
             $jsonPath,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options JSON -> expression index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings JSON -> expression index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -7937,25 +7937,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
+                    self::sqliteJsonValueOperator($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $lookupValue,
                     $indexLookup['collation'],
                 ) === 0
             ) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -7965,28 +7965,28 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedJsonFragments(string $jsonPath, array $values, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options JSON -> IN-list lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings JSON -> IN-list lookup limit cannot be negative');
         }
         if ($limit === 0 || $values === []) {
             return [];
         }
 
         $lookupValues = self::sqliteJsonTextValueList($values);
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonValueOperatorExpressionColumn(
-            'wp_options',
-            'option_value',
+            'app_settings',
+            'key_value',
             $jsonPath,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options JSON -> expression IN-list index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings JSON -> expression IN-list index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueList(
                 $indexLookup['rootPage'],
@@ -7998,23 +7998,23 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null);
+            $fragment = self::sqliteJsonValueOperator($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null);
             if (
                 $fragment !== null
                 && self::inListContainsSQLiteScalar($lookupValues, $fragment, $indexLookup['collation'])
             ) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -8028,7 +8028,7 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options JSON -> range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings JSON -> range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
@@ -8037,24 +8037,24 @@ final class SQLiteDatabase
         $lowerKey = $lowerInclusive === null ? null : self::sqliteJsonTextValue($lowerInclusive);
         $upperKey = $upperBound === null ? null : self::sqliteJsonTextValue($upperBound);
         if ($lowerKey === null && $upperKey === null) {
-            throw new \InvalidArgumentException('SQLite wp_options JSON -> range lookup requires at least one bound');
+            throw new \InvalidArgumentException('SQLite app_settings JSON -> range lookup requires at least one bound');
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonValueOperatorExpressionColumnRange(
-            'wp_options',
-            'option_value',
+            'app_settings',
+            'key_value',
             $jsonPath,
             $lowerKey,
             $upperKey,
             $upperInclusive,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options JSON -> expression range index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings JSON -> expression range index is not present');
         }
         if ($lowerKey !== null && $upperKey !== null) {
             $boundaryComparison = self::compareSQLiteScalar($lowerKey, $upperKey, $indexLookup['collation']);
@@ -8063,7 +8063,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueRange(
                 $indexLookup['rootPage'],
@@ -8077,11 +8077,11 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
-            $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null);
+            $fragment = self::sqliteJsonValueOperator($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null);
             if (
                 $fragment !== null
                 && self::firstValueIsInRange(
@@ -8092,14 +8092,14 @@ final class SQLiteDatabase
                     $indexLookup['collation'],
                 )
             ) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -8109,7 +8109,7 @@ final class SQLiteDatabase
     public function keyValueRowsByIndexedJsonValues(string $jsonPath, array $values, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) IN-list lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings json_extract(key_value) IN-list lookup limit cannot be negative');
         }
         if ($limit === 0 || $values === []) {
             return [];
@@ -8120,21 +8120,21 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonExtractExpressionColumn(
-            'wp_options',
-            'option_value',
+            'app_settings',
+            'key_value',
             $jsonPath,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) expression IN-list index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings json_extract(key_value) expression IN-list index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueList(
                 $indexLookup['rootPage'],
@@ -8146,25 +8146,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::inListContainsSQLiteScalar(
                     $lookupValues,
-                    self::sqliteJsonExtract($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
+                    self::sqliteJsonExtract($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $indexLookup['collation'],
                 )
             ) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -8178,7 +8178,7 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings json_extract(key_value) range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
@@ -8187,24 +8187,24 @@ final class SQLiteDatabase
         $lowerKey = $lowerInclusive === null ? null : self::sqliteJsonScalar($lowerInclusive);
         $upperKey = $upperBound === null ? null : self::sqliteJsonScalar($upperBound);
         if ($lowerKey === null && $upperKey === null) {
-            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) range lookup requires at least one bound');
+            throw new \InvalidArgumentException('SQLite app_settings json_extract(key_value) range lookup requires at least one bound');
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonExtractExpressionColumnRange(
-            'wp_options',
-            'option_value',
+            'app_settings',
+            'key_value',
             $jsonPath,
             $lowerKey,
             $upperKey,
             $upperInclusive,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) expression range index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings json_extract(key_value) expression range index is not present');
         }
         if ($lowerKey !== null && $upperKey !== null) {
             $boundaryComparison = self::compareSQLiteScalar($lowerKey, $upperKey, $indexLookup['collation']);
@@ -8213,7 +8213,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueRange(
                 $indexLookup['rootPage'],
@@ -8227,25 +8227,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::sqliteJsonExtract($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
+                self::sqliteJsonExtract($option->keyValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                 $lowerKey,
                 $upperKey,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -8258,26 +8258,26 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options lower expression indexed range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings lower expression indexed range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLowerExpressionColumnRange(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options lower(option_name) expression range index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings lower(key_name) expression range index is not present');
         }
 
         $lowerKey = $lowerInclusive === null ? null : self::asciiLower($lowerInclusive);
@@ -8289,7 +8289,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueRange(
                 $indexLookup['rootPage'],
@@ -8303,25 +8303,25 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::asciiLower($option->optionName),
+                self::asciiLower($option->keyName),
                 $lowerKey,
                 $upperKey,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -8334,26 +8334,26 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options upper expression indexed range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings upper expression indexed range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForUpperExpressionColumnRange(
-            'wp_options',
-            'option_name',
+            'app_settings',
+            'key_name',
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options upper(option_name) expression range index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings upper(key_name) expression range index is not present');
         }
 
         $lowerKey = $lowerInclusive === null ? null : self::asciiUpper($lowerInclusive);
@@ -8365,7 +8365,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueRange(
                 $indexLookup['rootPage'],
@@ -8379,58 +8379,58 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings expression index points to missing rowid {$rowId}");
             }
 
             $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::asciiUpper($option->optionName),
+                self::asciiUpper($option->keyName),
                 $lowerKey,
                 $upperKey,
                 $upperInclusive,
                 $indexLookup['collation'],
             )) {
-                $options[] = $option;
-                if ($limit !== null && count($options) >= $limit) {
+                $settings[] = $option;
+                if ($limit !== null && count($settings) >= $limit) {
                     break;
                 }
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
      * @return list<SQLiteKeyValueRow>
      */
-    public function keyValueRowsByIndexedLoadPolicy(string $autoload, ?int $limit = null): array
+    public function keyValueRowsByIndexedLoadPolicy(string $loadPolicy, ?int $limit = null): array
     {
-        return $this->keyValueRowsByIndexedFirstColumn('autoload', $autoload, $limit);
+        return $this->keyValueRowsByIndexedFirstColumn('load_policy', $loadPolicy, $limit);
     }
 
-    public function keyValueRowByIndexedLoadPolicyAndName(string $autoload, string $optionName): ?SQLiteKeyValueRow
+    public function keyValueRowByIndexedLoadPolicyAndName(string $loadPolicy, string $keyName): ?SQLiteKeyValueRow
     {
-        $options = $this->keyValueRowsByIndexedColumnPrefix([
-            'autoload' => $autoload,
-            'option_name' => $optionName,
+        $settings = $this->keyValueRowsByIndexedColumnPrefix([
+            'load_policy' => $loadPolicy,
+            'key_name' => $keyName,
         ], 1);
 
-        return $options[0] ?? null;
+        return $settings[0] ?? null;
     }
 
     /**
      * @return list<SQLiteKeyValueRow>
      */
     public function keyValueRowsByIndexedLoadPolicyAndNameRange(
-        string $autoload,
+        string $loadPolicy,
         ?string $lowerInclusive,
         ?string $upperBound,
         ?int $limit = null,
         bool $upperInclusive = false,
     ): array {
         return $this->keyValueRowsByIndexedColumnPrefixRange(
-            ['autoload' => $autoload],
-            'option_name',
+            ['load_policy' => $loadPolicy],
+            'key_name',
             $lowerInclusive,
             $upperBound,
             $limit,
@@ -8450,12 +8450,12 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($equalityPrefix === []) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed name range lookup requires at least one equality column');
+            throw new \InvalidArgumentException('SQLite app_settings indexed name range lookup requires at least one equality column');
         }
 
         return $this->keyValueRowsByIndexedColumnPrefixRange(
             $equalityPrefix,
-            'option_name',
+            'key_name',
             $lowerInclusive,
             $upperBound,
             $limit,
@@ -8478,12 +8478,12 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($equalityPrefix === []) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed name range lookup requires at least one equality column');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation indexed name range lookup requires at least one equality column');
         }
 
         return $this->keyValueRowsByIndexedColumnPrefixRangeWithCollation(
             $equalityPrefix,
-            'option_name',
+            'key_name',
             $lowerInclusive,
             $upperBound,
             $collationName,
@@ -8507,12 +8507,12 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($equalityPrefix === []) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed name range lookup requires at least one equality column');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation indexed name range lookup requires at least one equality column');
         }
 
         return $this->keyValueRowsByIndexedColumnPrefixRangeWithCollations(
             $equalityPrefix,
-            'option_name',
+            'key_name',
             $lowerInclusive,
             $upperBound,
             $customCollations,
@@ -8532,7 +8532,7 @@ final class SQLiteDatabase
     ): array
     {
         return $this->keyValueRowsByIndexedFirstColumnRange(
-            'option_name',
+            'key_name',
             $lowerInclusive,
             $upperBound,
             $limit,
@@ -8942,23 +8942,23 @@ final class SQLiteDatabase
     private function keyValueRowsByIndexedFirstColumn(string $columnName, mixed $value, ?int $limit): array
     {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings indexed lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForColumn('wp_options', $columnName, $value, true);
+        $indexLookup = $this->indexLookupForColumn('app_settings', $columnName, $value, true);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException("SQLite wp_options {$columnName} index is not present");
+            throw new \InvalidArgumentException("SQLite app_settings {$columnName} index is not present");
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValue(
                 $indexLookup['rootPage'],
@@ -8970,16 +8970,16 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -8993,20 +8993,20 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings indexed range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForColumnRange('wp_options', $columnName, $lowerInclusive, $upperBound, $upperInclusive);
+        $indexLookup = $this->indexLookupForColumnRange('app_settings', $columnName, $lowerInclusive, $upperBound, $upperInclusive);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException("SQLite wp_options {$columnName} range index is not present");
+            throw new \InvalidArgumentException("SQLite app_settings {$columnName} range index is not present");
         }
         if ($lowerInclusive !== null && $upperBound !== null) {
             $boundaryComparison = self::compareSQLiteScalar($lowerInclusive, $upperBound, $indexLookup['collation']);
@@ -9015,7 +9015,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByFirstValueRange(
                 $indexLookup['rootPage'],
@@ -9029,16 +9029,16 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -9048,42 +9048,42 @@ final class SQLiteDatabase
     private function keyValueRowsByIndexedColumnPrefix(array $columnValues, ?int $limit): array
     {
         if ($columnValues === []) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed lookup requires at least one column');
+            throw new \InvalidArgumentException('SQLite app_settings indexed lookup requires at least one column');
         }
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings indexed lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
 
         $columnNames = array_keys($columnValues);
         $values = array_values($columnValues);
-        $indexLookup = $this->indexLookupForColumnPrefix('wp_options', $columnNames, $values);
+        $indexLookup = $this->indexLookupForColumnPrefix('app_settings', $columnNames, $values);
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options composite index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings composite index is not present');
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCellsByColumnPrefix($indexLookup['rootPage'], $values, $indexLookup['columns']) as $indexCell) {
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -9099,16 +9099,16 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($equalityColumnValues === []) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed range lookup requires at least one equality column');
+            throw new \InvalidArgumentException('SQLite app_settings indexed range lookup requires at least one equality column');
         }
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings indexed range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
@@ -9116,7 +9116,7 @@ final class SQLiteDatabase
         $equalityColumnNames = array_keys($equalityColumnValues);
         $equalityValues = array_values($equalityColumnValues);
         $indexLookup = $this->indexLookupForColumnPrefixRange(
-            'wp_options',
+            'app_settings',
             $equalityColumnNames,
             $equalityValues,
             $rangeColumnName,
@@ -9125,11 +9125,11 @@ final class SQLiteDatabase
             $upperInclusive,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options composite range index is not present');
+            throw new \InvalidArgumentException('SQLite app_settings composite range index is not present');
         }
         $rangeColumn = $indexLookup['columns'][count($equalityValues)] ?? null;
         if ($rangeColumn === null) {
-            throw new \InvalidArgumentException('SQLite wp_options composite range index is missing the range column');
+            throw new \InvalidArgumentException('SQLite app_settings composite range index is missing the range column');
         }
         if ($lowerInclusive !== null && $upperBound !== null) {
             $boundaryComparison = self::compareSQLiteScalar($lowerInclusive, $upperBound, $rangeColumn->collation);
@@ -9138,7 +9138,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByColumnPrefixRange(
                 $indexLookup['rootPage'],
@@ -9152,16 +9152,16 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -9180,7 +9180,7 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($equalityColumnValues === []) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed range lookup requires at least one equality column');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation indexed range lookup requires at least one equality column');
         }
         if ($collationName === '') {
             throw new \InvalidArgumentException('SQLite custom collation name cannot be empty');
@@ -9189,13 +9189,13 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires at least one bound');
         }
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation indexed range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
@@ -9203,20 +9203,20 @@ final class SQLiteDatabase
         $equalityColumnNames = array_keys($equalityColumnValues);
         $equalityValues = array_values($equalityColumnValues);
         $indexLookup = $this->indexLookupForColumnPrefixRangeWithRangeCollation(
-            'wp_options',
+            'app_settings',
             $equalityColumnNames,
             $equalityValues,
             $rangeColumnName,
             $collationName,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException("SQLite wp_options composite range index with collation {$collationName} is not present");
+            throw new \InvalidArgumentException("SQLite app_settings composite range index with collation {$collationName} is not present");
         }
 
         $rangeIndex = count($equalityValues);
         $rangeColumn = $indexLookup['columns'][$rangeIndex] ?? null;
         if (!$rangeColumn instanceof SQLiteIndexColumn) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation composite range index is missing the range column');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation composite range index is missing the range column');
         }
 
         if ($lowerInclusive !== null && $upperBound !== null) {
@@ -9226,7 +9226,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
             $record = $indexCell->record($this->header->textEncoding);
             if (count($record->values) <= $rangeIndex) {
@@ -9252,16 +9252,16 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -9279,20 +9279,20 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         if ($equalityColumnValues === []) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed range lookup requires at least one equality column');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation indexed range lookup requires at least one equality column');
         }
         if ($lowerInclusive === null && $upperBound === null) {
             throw new \InvalidArgumentException('SQLite custom-collation index prefix range lookup requires at least one bound');
         }
         if ($limit !== null && $limit < 0) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed range lookup limit cannot be negative');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation indexed range lookup limit cannot be negative');
         }
         if ($limit === 0) {
             return [];
         }
 
         $normalizedCollations = self::normalizeCustomCollations($customCollations);
-        $tableRootPage = $this->tableRootPage('wp_options');
+        $tableRootPage = $this->tableRootPage('app_settings');
         if ($tableRootPage === null) {
             return [];
         }
@@ -9300,7 +9300,7 @@ final class SQLiteDatabase
         $equalityColumnNames = array_keys($equalityColumnValues);
         $equalityValues = array_values($equalityColumnValues);
         $indexLookup = $this->indexLookupForColumnPrefixRangeWithCollations(
-            'wp_options',
+            'app_settings',
             $equalityColumnNames,
             $equalityValues,
             $rangeColumnName,
@@ -9310,12 +9310,12 @@ final class SQLiteDatabase
             $normalizedCollations,
         );
         if ($indexLookup === null) {
-            throw new \InvalidArgumentException('SQLite wp_options composite range index with supplied collations is not present');
+            throw new \InvalidArgumentException('SQLite app_settings composite range index with supplied collations is not present');
         }
 
         $rangeColumn = $indexLookup['columns'][count($equalityValues)] ?? null;
         if (!$rangeColumn instanceof SQLiteIndexColumn) {
-            throw new \InvalidArgumentException('SQLite wp_options custom-collation composite range index is missing the range column');
+            throw new \InvalidArgumentException('SQLite app_settings custom-collation composite range index is missing the range column');
         }
         if ($lowerInclusive !== null && $upperBound !== null) {
             $boundaryComparison = self::compareSQLiteScalarForIndexColumn(
@@ -9329,7 +9329,7 @@ final class SQLiteDatabase
             }
         }
 
-        $options = [];
+        $settings = [];
         foreach (
             $this->indexCellsByColumnPrefixRange(
                 $indexLookup['rootPage'],
@@ -9344,16 +9344,16 @@ final class SQLiteDatabase
             $rowId = $this->rowIdFromIndexCell($indexCell);
             $row = $this->tableRowByRowId($tableRootPage, $rowId);
             if ($row === null) {
-                throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
+                throw new \InvalidArgumentException("SQLite app_settings index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteKeyValueRow::fromTableRow($row);
-            if ($limit !== null && count($options) >= $limit) {
+            $settings[] = SQLiteKeyValueRow::fromTableRow($row);
+            if ($limit !== null && count($settings) >= $limit) {
                 break;
             }
         }
 
-        return $options;
+        return $settings;
     }
 
     /**
@@ -12322,7 +12322,7 @@ final class SQLiteDatabase
         $visited = [];
         $pageNumber = $this->findTableLeafPageNumberForRowIdInPlannedImages($rootPageNumber, $rowId, $pageImages, $visited);
         if ($pageNumber === null) {
-            throw new \InvalidArgumentException("SQLite wp_options replacement rowid {$rowId} is not present in the planned table image");
+            throw new \InvalidArgumentException("SQLite app_settings replacement rowid {$rowId} is not present in the planned table image");
         }
 
         return $pageNumber;

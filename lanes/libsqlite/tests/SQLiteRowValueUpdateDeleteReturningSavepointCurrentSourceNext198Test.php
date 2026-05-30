@@ -31,7 +31,7 @@ $plan198 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPl
     $tables198,
     [$attemptUpdate198, $attemptDelete198],
     [$retryUpdate198, $retryDelete198],
-    'wp_options_rowvalue_between_savepoint_next198',
+    'app_settings_rowvalue_between_savepoint_next198',
 );
 
 $cases198 = [
@@ -57,7 +57,7 @@ $cases198 = [
     'retry delete selected same low transient' => [static fn (): mixed => $retryDeleteAfterUpdate198()['plan']->selectedIds, [3]],
 
     'plan status reuses current source rollback model' => [static fn (): mixed => $plan198()['status'], 'rowvalue-empty-in-returning-rolled-back-retried-next188'],
-    'plan custom savepoint' => [static fn (): mixed => $plan198()['savepoint'], 'wp_options_rowvalue_between_savepoint_next198'],
+    'plan custom savepoint' => [static fn (): mixed => $plan198()['savepoint'], 'app_settings_rowvalue_between_savepoint_next198'],
     'plan rolled back to savepoint' => [static fn (): mixed => $plan198()['rolled_back_to_savepoint'], true],
     'plan released after retry' => [static fn (): mixed => $plan198()['released_after_retry'], true],
     'plan attempt statement actions' => [static fn (): mixed => array_column($plan198()['attempt_statements'], 'action'), ['update', 'delete']],

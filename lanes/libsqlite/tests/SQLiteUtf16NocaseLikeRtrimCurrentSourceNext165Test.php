@@ -152,7 +152,7 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['utf16 nocase like rtrim current source nextOneSixFive source change forces reprepare from range start'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan(currentSource: 'main.wp_options@164', nextSource: 'main.wp_options@165');
+    $result = $plan(currentSource: 'main.app_settings@164', nextSource: 'main.app_settings@165');
     $t->same(['source-name', 'candidate-rowset', 'matched-rowset'], $result['semanticInvalidationReasons']);
     $t->same(['semantic-invalidation'], $result['resumeReasons']);
     $t->same(true, $result['mustReprepareBeforeResume']);

@@ -80,7 +80,7 @@ $cases223 = [
     'retry delete returning flags' => [static fn (): mixed => array_column($retryDeleteResult223()['returning'], 'retry_keep'), [1, 0]],
     'retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResult223()['tables']['wp_options'], 'option_id'), [1, 2, 4, 5, 6, 7, 8, 9]],
     'plan status' => [static fn (): mixed => $plan223()['status'], 'rowvalue-update-delete-returning-yield-savepoint-current-source'],
-    'plan savepoint' => [static fn (): mixed => $plan223()['savepoint'], 'wp_options_rowvalue_yield'],
+    'plan savepoint' => [static fn (): mixed => $plan223()['savepoint'], 'app_settings_rowvalue_yield'],
     'plan yielded survives flag' => [static fn (): mixed => $plan223()['yielded_rows_survive_rollback'], true],
     'plan attempted suppressed flag' => [static fn (): mixed => $plan223()['attempted_rows_suppressed'], true],
     'plan retry image flag' => [static fn (): mixed => $plan223()['retry_reads_savepoint_image'], true],

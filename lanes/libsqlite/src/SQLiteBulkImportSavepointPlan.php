@@ -18,7 +18,7 @@ final class SQLiteBulkImportSavepointPlan
             throw new \InvalidArgumentException('SQLite Application bulk import savepoint plan requires at least one batch');
         }
 
-        $databasePath = (string) ($options['database_path'] ?? '/tmp/wp-bulk-import.sqlite');
+        $databasePath = (string) ($options['database_path'] ?? '/tmp/app-bulk-import.sqlite');
         $pageSize = (int) ($options['page_size'] ?? 4096);
         $journalMode = strtolower((string) ($options['journal_mode'] ?? 'delete'));
         $syncMode = strtolower((string) ($options['sync_mode'] ?? 'full'));
@@ -39,7 +39,7 @@ final class SQLiteBulkImportSavepointPlan
         $rolledBackNames = [];
         $dirtyPages = [];
         $savepointStack = new SQLiteSavepointStack();
-        $savepointStack->beginTransaction('wp_bulk_import');
+        $savepointStack->beginTransaction('app_bulk_import');
         $maxWalFrame = 0;
 
         foreach (array_values($batches) as $batchIndex => $batch) {
@@ -51,7 +51,7 @@ final class SQLiteBulkImportSavepointPlan
 
             $savepointStack->savepoint($name);
             $beforeRows = $visibleRows;
-            $beforeNames = array_column(array_values($beforeRows), 'option_name');
+            $beforeNames = array_column(array_values($beforeRows), 'key_name');
             $stagePlan = null;
             $error = null;
             try {
@@ -84,7 +84,7 @@ final class SQLiteBulkImportSavepointPlan
                     'status' => 'rolled_back',
                     'error' => $error,
                     'before_names' => $beforeNames,
-                    'after_names' => array_column(array_values($visibleRows), 'option_name'),
+                    'after_names' => array_column(array_values($visibleRows), 'key_name'),
                     'updated' => 0,
                     'inserted' => 0,
                     'deleted' => 0,
@@ -108,7 +108,7 @@ final class SQLiteBulkImportSavepointPlan
                 'status' => $shouldRelease ? 'released' : 'open',
                 'error' => null,
                 'before_names' => $beforeNames,
-                'after_names' => array_column(array_values($visibleRows), 'option_name'),
+                'after_names' => array_column(array_values($visibleRows), 'key_name'),
                 'updated' => count($stagePlan['updated']),
                 'inserted' => count($stagePlan['inserted']),
                 'deleted' => count($stagePlan['deleted']),
@@ -134,8 +134,8 @@ final class SQLiteBulkImportSavepointPlan
             'current_rows' => array_values($currentRows),
             'final_rows' => array_values($visibleRows),
             'released_rows' => array_values($releasedRows),
-            'final_option_names' => array_column(array_values($visibleRows), 'option_name'),
-            'released_option_names' => array_column(array_values($releasedRows), 'option_name'),
+            'final_key_names' => array_column(array_values($visibleRows), 'key_name'),
+            'released_key_names' => array_column(array_values($releasedRows), 'key_name'),
             'dirty_pages' => array_map('intval', array_keys($dirtyPages)),
             'journal_bytes' => $dirtyPages === [] ? 0 : 28 + (count($dirtyPages) * ($pageSize + 8)),
             'dependencies' => [
@@ -151,7 +151,7 @@ final class SQLiteBulkImportSavepointPlan
      */
     private static function batchName(array $batch, int $index): string
     {
-        $name = (string) ($batch['name'] ?? 'wp_bulk_' . ($index + 1));
+        $name = (string) ($batch['name'] ?? 'app_bulk_' . ($index + 1));
         if ($name === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
             throw new \InvalidArgumentException('SQLite Application bulk import savepoint names must be SQL identifiers');
         }
@@ -171,9 +171,9 @@ final class SQLiteBulkImportSavepointPlan
     {
         $byId = [];
         foreach ($rows as $row) {
-            $id = $row['option_id'] ?? null;
+            $id = $row['setting_id'] ?? null;
             if (!is_int($id)) {
-                throw new \InvalidArgumentException('SQLite Application bulk import rows require integer option_id values');
+                throw new \InvalidArgumentException('SQLite Application bulk import rows require integer setting_id values');
             }
             $byId[$id] = $row;
         }

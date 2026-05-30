@@ -20,8 +20,8 @@ final class SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan
         ?string $escape = null,
         bool $caseSensitiveLike = false,
         bool $explicitCastToText = false,
-        string $currentSource = 'main.wp_options@233',
-        string $nextSource = 'main.wp_options@234',
+        string $currentSource = 'main.app_settings@233',
+        string $nextSource = 'main.app_settings@234',
         int $currentSchemaCookie = 233,
         int $nextSchemaCookie = 234,
     ): array {

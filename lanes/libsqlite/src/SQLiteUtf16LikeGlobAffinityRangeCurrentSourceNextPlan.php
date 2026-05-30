@@ -23,8 +23,8 @@ final class SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan
         ?string $escapeBytes = null,
         int|string|null $escapeEncoding = null,
         bool $caseSensitiveLike = true,
-        string $currentSource = 'main.wp_options',
-        string $nextSource = 'main.wp_options',
+        string $currentSource = 'main.app_settings',
+        string $nextSource = 'main.app_settings',
         int $currentSchemaCookie = 1,
         int $nextSchemaCookie = 1,
     ): array {

@@ -65,8 +65,8 @@ $plan = static fn (
     string $collation = 'NOCASE',
     ?string $escape = null,
     bool $caseSensitiveLike = false,
-    string $currentSource = 'main.wp_options@cookie96',
-    string $nextSource = 'main.wp_options@cookie97',
+    string $currentSource = 'main.app_settings@cookie96',
+    string $nextSource = 'main.app_settings@cookie97',
 ): array => SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext(
     $currentRows,
     $nextRows,
@@ -80,8 +80,8 @@ $plan = static fn (
 );
 
 $cases = [
-    'like records current source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'currentSource', 'main.wp_options@cookie96'],
-    'like records next source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'nextSource', 'main.wp_options@cookie97'],
+    'like records current source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'currentSource', 'main.app_settings@cookie96'],
+    'like records next source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'nextSource', 'main.app_settings@cookie97'],
     'like records pattern' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'pattern', 'plugin%'],
     'like records operator' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'operator', 'LIKE'],
     'like records collation' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'collation', 'NOCASE'],
@@ -139,8 +139,8 @@ $cases = [
 foreach ($cases as $name => $case) {
     $tests['malformed utf16 like range current source next97 ' . $name] = static function (TestRunner $t) use ($plan, $case): void {
         [$pattern, $operator, $collation, $escape, $caseSensitive, $path, $expected] = $case;
-        $currentSource = $case[7] ?? 'main.wp_options@cookie96';
-        $nextSource = $case[8] ?? 'main.wp_options@cookie97';
+        $currentSource = $case[7] ?? 'main.app_settings@cookie96';
+        $nextSource = $case[8] ?? 'main.app_settings@cookie97';
         $value = $plan($pattern, $operator, $collation, $escape, $caseSensitive, $currentSource, $nextSource);
         foreach (explode('.', $path) as $part) {
             $value = $value[$part];

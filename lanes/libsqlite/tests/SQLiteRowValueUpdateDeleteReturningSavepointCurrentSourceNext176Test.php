@@ -32,7 +32,7 @@ $plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan:
     [$stageSql, $rollbackSql],
     [$retryDeleteSql, $retryUpdateSql],
     $unique,
-    'wp_options_rowvalue_null_inequality_next176',
+    'app_settings_rowvalue_null_inequality_next176',
 );
 
 $cases = [
@@ -56,7 +56,7 @@ $cases = [
     'unknown equality delete leaves all ids' => [static fn (): mixed => array_column($unknownDelete()['tables']['wp_options'], 'option_id'), [1, 2, 3, 4, 5, 6, 7]],
 
     'plan status rolled back retried' => [static fn (): mixed => $plan()['status'], 'transaction-rolled-back-retried-current-source-next164'],
-    'plan custom savepoint' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_null_inequality_next176'],
+    'plan custom savepoint' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_null_inequality_next176'],
     'plan rollback ordinal after stage' => [static fn (): mixed => $plan()['rollback_statement_ordinal'], 1],
     'plan rollback reason names active plugins conflict' => [static fn (): mixed => str_contains((string) $plan()['rollback_reason'], 'blog_id,option_name=1|active_plugins using OR ROLLBACK'), true],
     'plan attempted stage selected deterministic ids' => [static fn (): mixed => $plan()['attempt_statements'][0]['selected_ids'], [1, 3, 4, 5, 6, 7]],

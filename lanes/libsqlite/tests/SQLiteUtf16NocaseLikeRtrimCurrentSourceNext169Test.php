@@ -159,7 +159,7 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['utf16 nocase like rtrim current source nextOneSixNine source change restarts from range start'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan(currentSource: 'main.wp_options@168', nextSource: 'main.wp_options@169');
+    $result = $plan(currentSource: 'main.app_settings@168', nextSource: 'main.app_settings@169');
     $t->same('restart-then-yield-page', $result['yieldMode']);
     $t->same(['semantic-invalidation'], $result['resumeReasons']);
     $t->same(['semantic-invalidation', 'would-duplicate-yield'], $result['restartReasons']);

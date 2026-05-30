@@ -53,7 +53,7 @@ $cases = [
     'replace result keeps row nine' => [static fn (): mixed => array_column($replaceOnly()['tables']['wp_options'], 'status', 'option_id')[9], 'rewrite_rules:replaced'],
 
     'release plan status released' => [static fn (): mixed => $releasePlan()['status'], 'released'],
-    'release plan savepoint name' => [static fn (): mixed => $releasePlan()['savepoint'], 'wp_options_rowvalue_yield_batch'],
+    'release plan savepoint name' => [static fn (): mixed => $releasePlan()['savepoint'], 'app_settings_rowvalue_yield_batch'],
     'release plan not rolled back' => [static fn (): mixed => $releasePlan()['rolled_back_to_savepoint'], false],
     'release plan does not preserve savepoint' => [static fn (): mixed => $releasePlan()['savepoint_preserved'], false],
     'release plan executes three statements' => [static fn (): mixed => count($releasePlan()['executed_statements']), 3],

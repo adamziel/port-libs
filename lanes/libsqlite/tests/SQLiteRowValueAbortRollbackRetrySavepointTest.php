@@ -47,7 +47,7 @@ $cleanAbortPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSave
     [$cleanSql],
     [$deleteSql],
     $abortUnique,
-    'wp_options_rowvalue_abort_clean_batch',
+    'app_settings_rowvalue_abort_clean_batch',
 );
 
 $abortCases = [
@@ -62,7 +62,7 @@ $abortCases = [
     'abort direct throws unique constraint' => [$abortOnly, InvalidArgumentException::class],
 
     'plan status statement aborted preserved' => [static fn (): mixed => $abortPlan()['status'], 'statement-aborted-savepoint-preserved-retried-current-source'],
-    'plan savepoint name' => [static fn (): mixed => $abortPlan()['savepoint'], 'wp_options_rowvalue_abort_batch'],
+    'plan savepoint name' => [static fn (): mixed => $abortPlan()['savepoint'], 'app_settings_rowvalue_abort_batch'],
     'plan statement aborted' => [static fn (): mixed => $abortPlan()['statement_aborted'], true],
     'plan transaction not rolled back' => [static fn (): mixed => $abortPlan()['transaction_rolled_back'], false],
     'plan did not rollback to savepoint' => [static fn (): mixed => $abortPlan()['rolled_back_to_savepoint'], false],
@@ -110,7 +110,7 @@ $abortCases = [
     'plan dependency savepoint preserved' => [static fn (): mixed => in_array('sqlite-abort-conflict-preserves-savepoint-and-prior-returning-streams', $abortPlan()['dependencies'], true), true],
     'plan dependency retry current source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-retry-continues-from-abort-current-source-abort-retry', $abortPlan()['dependencies'], true), true],
 
-    'clean plan custom savepoint' => [static fn (): mixed => $cleanAbortPlan()['savepoint'], 'wp_options_rowvalue_abort_clean_batch'],
+    'clean plan custom savepoint' => [static fn (): mixed => $cleanAbortPlan()['savepoint'], 'app_settings_rowvalue_abort_clean_batch'],
     'clean plan no statement abort' => [static fn (): mixed => $cleanAbortPlan()['statement_aborted'], false],
     'clean plan no abort ordinal' => [static fn (): mixed => $cleanAbortPlan()['abort_statement_ordinal'], null],
     'clean plan yielded before abort ids' => [static fn (): mixed => array_column($cleanAbortPlan()['yielded_before_abort'][0]['rows'], 'option_id'), [7, 8]],

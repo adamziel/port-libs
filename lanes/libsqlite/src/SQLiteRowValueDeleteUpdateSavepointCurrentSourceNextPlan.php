@@ -17,7 +17,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_delete_update',
+        string $savepoint = 'app_settings_rowvalue_delete_update',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {
@@ -192,7 +192,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_between_cleanup',
+        string $savepoint = 'app_settings_rowvalue_between_cleanup',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {

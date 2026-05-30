@@ -76,7 +76,7 @@ $cases216 = [
     'retry delete removes network row' => [static fn (): mixed => in_array(10, array_column($retryDeleteResult216()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $plan216()['status'], 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source'],
-    'plan savepoint' => [static fn (): mixed => $plan216()['savepoint'], 'wp_options_rowvalue_distinct_subquery'],
+    'plan savepoint' => [static fn (): mixed => $plan216()['savepoint'], 'app_settings_rowvalue_distinct_subquery'],
     'plan distinct flag' => [static fn (): mixed => $plan216()['distinct_subquery_source'], true],
     'plan rollback flags' => [static fn (): mixed => [$plan216()['rolled_back_to_savepoint'], $plan216()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan retry release flags' => [static fn (): mixed => [$plan216()['retry_reads_savepoint_image'], $plan216()['savepoint_released_after_retry']], [true, true]],

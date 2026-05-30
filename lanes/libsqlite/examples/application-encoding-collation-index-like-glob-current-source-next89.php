@@ -49,7 +49,7 @@ $nextRows = [
     $makeRow(12, 'Plugin_Éclair', 'UTF-16LE', 'no'),
 ];
 
-$likePlan = SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::optionRowNameIndexPlan(
+$likePlan = SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::keyValueRowKeyIndexPlan(
     $currentRows,
     $nextRows,
     'plugin!_100!%%',
@@ -57,15 +57,15 @@ $likePlan = SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::optionRow
     'NOCASE',
     '!',
     false,
-    'main.wp_options',
-    'main.wp_options',
+    'main.app_settings',
+    'main.app_settings',
     21,
     22,
     3,
     4,
 );
 
-$globPlan = SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::optionRowNameIndexPlan(
+$globPlan = SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::keyValueRowKeyIndexPlan(
     $currentRows,
     $nextRows,
     'plugin_😀*',

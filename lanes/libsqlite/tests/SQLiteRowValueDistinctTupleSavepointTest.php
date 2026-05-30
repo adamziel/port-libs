@@ -87,7 +87,7 @@ $casestuple = [
     'retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResulttuple()['tables']['wp_options'], 'option_id'), [1, 2, 3, 4, 5, 6, 7, 8, 10]],
 
     'plan status' => [static fn (): mixed => $plantuple()['status'], 'rowvalue-update-delete-returning-distinct-tuple-savepoint-current-source'],
-    'plan savepoint' => [static fn (): mixed => $plantuple()['savepoint'], 'wp_options_rowvalue_distinct_tuple'],
+    'plan savepoint' => [static fn (): mixed => $plantuple()['savepoint'], 'app_settings_rowvalue_distinct_tuple'],
     'plan distinct flag' => [static fn (): mixed => $plantuple()['distinct_tuple_subquery_deduped'], true],
     'plan rollback flag' => [static fn (): mixed => $plantuple()['rollback_to_savepoint_restores_distinct_tuple_source'], true],
     'plan retry image flag' => [static fn (): mixed => $plantuple()['retry_reads_savepoint_image'], true],

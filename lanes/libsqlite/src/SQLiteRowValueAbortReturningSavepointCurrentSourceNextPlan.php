@@ -16,7 +16,7 @@ final class SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_abort_batch',
+        string $savepoint = 'app_settings_rowvalue_abort_batch',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {

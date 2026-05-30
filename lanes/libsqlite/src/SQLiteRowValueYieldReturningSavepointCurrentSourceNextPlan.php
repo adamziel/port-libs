@@ -20,7 +20,7 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_yield',
+        string $savepoint = 'app_settings_rowvalue_yield',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($yieldStatements === []) {

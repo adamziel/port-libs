@@ -37,7 +37,7 @@ $releasedSavepoint = static function () use ($updateSql, $deleteSql, $savepointI
     $delete = SQLiteUpdateDeleteReturningSql::execute($deleteSql, $update['tables'], 'option_id', $unique);
 
     return [
-        'savepoint' => 'wp_options_rowvalue_or_predicate_next171',
+        'savepoint' => 'app_settings_rowvalue_or_predicate_next171',
         'status' => 'released-after-rowvalue-or-predicate-cleanup',
         'savepoint_image_tables' => $savepointImage,
         'current_source_tables' => $delete['tables'],

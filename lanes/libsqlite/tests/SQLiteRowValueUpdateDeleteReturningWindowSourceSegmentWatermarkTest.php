@@ -39,7 +39,7 @@ $plan261 = static fn (
     [$attemptUpdate261, $attemptDelete261],
     [$retryUpdate261, $retryDelete261],
     $unique261,
-    'wp_options_rowvalue_window_current_next261',
+    'app_settings_rowvalue_window_current_next261',
     'option_id',
     $ack,
     $resume,
@@ -79,7 +79,7 @@ $cases261 = [
     'status' => [static fn (): mixed => $plan261()['status'], 'rowvalue-update-delete-returning-window-current-source-next261'],
     'inherits next254 admitted state' => [static fn (): mixed => $plan261()['admission_state_next254'], 'current-source-next254-window-receipts-admitted'],
     'source window state ready' => [static fn (): mixed => $plan261()['source_window_state_next261'], 'current-source-window-watermarks-admit-next-source-next261'],
-    'barrier savepoint' => [static fn (): mixed => $plan261()['source_window_barrier_next261']['savepoint'], 'wp_options_rowvalue_window_current_next261'],
+    'barrier savepoint' => [static fn (): mixed => $plan261()['source_window_barrier_next261']['savepoint'], 'app_settings_rowvalue_window_current_next261'],
     'barrier rowid column' => [static fn (): mixed => $plan261()['source_window_barrier_next261']['rowid_column'], 'option_id'],
     'barrier current epoch' => [static fn (): mixed => $plan261()['source_window_barrier_next261']['current_source_epoch'], 'wp-current-source-261'],
     'barrier next epoch' => [static fn (): mixed => $plan261()['source_window_barrier_next261']['next_source_epoch'], 'wp-next-source-261'],
@@ -132,7 +132,7 @@ $cases261 = [
     'non overlap mentions next254' => [static fn (): mixed => str_contains($plan261()['non_overlap_next261'], 'next254'), true],
     'non overlap mentions next251' => [static fn (): mixed => str_contains($plan261()['non_overlap_next261'], 'next251'), true],
     'bad resume rejected' => [static fn (): mixed => $plan261(null, 'missing-ticket-next261'), InvalidArgumentException::class],
-    'bad rowid column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeSourceSegmentWatermark($tables261, [$yieldUpdate261], [$attemptUpdate261], [$retryUpdate261], $unique261, 'wp_options_rowvalue_window_current_next261', 'missing_id'), InvalidArgumentException::class],
+    'bad rowid column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeSourceSegmentWatermark($tables261, [$yieldUpdate261], [$attemptUpdate261], [$retryUpdate261], $unique261, 'app_settings_rowvalue_window_current_next261', 'missing_id'), InvalidArgumentException::class],
 ];
 
 $tests = [];

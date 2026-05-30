@@ -70,7 +70,7 @@ $cases196 = [
     'retry delete removes current rows' => [static fn (): mixed => array_intersect([2, 10], array_column($retryDeleteResult196()['tables']['wp_options'], 'option_id')), []],
 
     'plan status' => [static fn (): mixed => $plan196()['status'], 'rowvalue-or-fail-preserves-statement-prefix-next196'],
-    'plan savepoint name' => [static fn (): mixed => $plan196()['savepoint'], 'wp_options_rowvalue_fail_next196'],
+    'plan savepoint name' => [static fn (): mixed => $plan196()['savepoint'], 'app_settings_rowvalue_fail_next196'],
     'plan savepoint active after fail' => [static fn (): mixed => $plan196()['savepoint_active_after_fail'], true],
     'plan savepoint released after retry' => [static fn (): mixed => $plan196()['savepoint_released_after_retry'], true],
     'plan savepoint image original' => [static fn (): mixed => $plan196()['savepoint_image_tables'], $tables196],

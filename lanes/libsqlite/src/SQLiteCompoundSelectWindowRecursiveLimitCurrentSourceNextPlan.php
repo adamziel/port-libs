@@ -2671,9 +2671,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         private static function loadPolicyLabelsDistinctUnionWindowLimitOffset(array $tables): array
         {
             $labels = [];
-            foreach ($tables['wp_options'] ?? [] as $row) {
-                if (($row['autoload'] ?? null) === 'yes' && isset($row['option_name'])) {
-                    $labels[] = (string) $row['option_name'];
+            foreach ($tables['app_settings'] ?? [] as $row) {
+                if (($row['load_policy'] ?? null) === 'eager' && isset($row['key_name'])) {
+                    $labels[] = (string) $row['key_name'];
                 }
             }
 

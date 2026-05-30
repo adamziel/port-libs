@@ -37,7 +37,7 @@ foreach ($rangeStarts as $rangeIndex => $firstStep) {
         $attemptStatements,
         $retryStatements,
         [['blog_id', 'option_name']],
-        'wp_options_rowvalue_window_ready_publication_final_' . $firstStep,
+        'app_settings_rowvalue_window_ready_publication_final_' . $firstStep,
     );
 
     foreach ($rangePlans as $step => $plan) {

@@ -71,7 +71,7 @@ $cases201 = [
     'retry delete network home flag' => [static fn (): mixed => array_column($retryDeleteFromRetry201()['returning'], 'dropped_network_home'), [0, 1]],
 
     'plan status' => [static fn (): mixed => $plan201()['status'], 'rowvalue-update-delete-returning-rollback-to-current-source-next201'],
-    'plan savepoint' => [static fn (): mixed => $plan201()['savepoint'], 'wp_options_rowvalue_rollback_to_next201'],
+    'plan savepoint' => [static fn (): mixed => $plan201()['savepoint'], 'app_settings_rowvalue_rollback_to_next201'],
     'plan rolled back to savepoint' => [static fn (): mixed => $plan201()['rolled_back_to_savepoint'], true],
     'plan savepoint preserved after rollback' => [static fn (): mixed => $plan201()['savepoint_preserved_after_rollback_to'], true],
     'plan savepoint released after retry' => [static fn (): mixed => $plan201()['savepoint_released_after_retry'], true],

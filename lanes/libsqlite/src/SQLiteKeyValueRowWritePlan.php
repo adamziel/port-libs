@@ -13,9 +13,9 @@ final class SQLiteKeyValueRowWritePlan
     public function __construct(
         public readonly int $tableRootPage,
         public readonly int $rowId,
-        public readonly string $optionName,
-        public readonly string $optionValue,
-        public readonly ?string $autoload,
+        public readonly string $keyName,
+        public readonly string $keyValue,
+        public readonly ?string $loadPolicy,
         public readonly array $overflowPageNumbers,
         public readonly int $localPayloadLength,
         public readonly int $databasePageCount,
@@ -32,15 +32,15 @@ final class SQLiteKeyValueRowWritePlan
     }
 
     /**
-     * @return array{table_root_page:int,rowid:int,option_name:string,autoload:?string,overflow_page_numbers:list<int>,local_payload_length:int,database_page_count:int,updated_page_numbers:list<int>}
+     * @return array{table_root_page:int,rowid:int,key_name:string,load_policy:?string,overflow_page_numbers:list<int>,local_payload_length:int,database_page_count:int,updated_page_numbers:list<int>}
      */
     public function toArray(): array
     {
         return [
             'table_root_page' => $this->tableRootPage,
             'rowid' => $this->rowId,
-            'option_name' => $this->optionName,
-            'autoload' => $this->autoload,
+            'key_name' => $this->keyName,
+            'load_policy' => $this->loadPolicy,
             'overflow_page_numbers' => $this->overflowPageNumbers,
             'local_payload_length' => $this->localPayloadLength,
             'database_page_count' => $this->databasePageCount,

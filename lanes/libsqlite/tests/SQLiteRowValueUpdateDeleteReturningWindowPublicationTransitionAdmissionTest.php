@@ -32,7 +32,7 @@ $plan258 = static fn (?array $ack = null, ?string $resume = null, ?string $trans
     [$attemptUpdate258, $attemptDelete258],
     [$retryUpdate258, $retryDelete258],
     $unique258,
-    'wp_options_rowvalue_window_current_next258',
+    'app_settings_rowvalue_window_current_next258',
     'option_id',
     $ack,
     $resume,

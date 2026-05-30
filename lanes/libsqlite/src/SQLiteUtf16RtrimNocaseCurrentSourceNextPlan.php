@@ -15,8 +15,8 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
         array $currentRows,
         array $nextRows,
         string $probe,
-        string $currentSource = 'main.wp_options@current',
-        string $nextSource = 'main.wp_options@next',
+        string $currentSource = 'main.app_settings@current',
+        string $nextSource = 'main.app_settings@next',
     ): array {
         $current = self::sourceRows($currentRows, $probe);
         $next = self::sourceRows($nextRows, $probe);

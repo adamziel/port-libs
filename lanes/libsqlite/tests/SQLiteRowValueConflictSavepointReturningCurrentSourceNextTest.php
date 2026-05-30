@@ -65,7 +65,7 @@ $cases = [
 
     'plan status rolled back then retried' => [static fn (): mixed => $plan()['status'], 'rolled-back-to-savepoint-then-retried'],
     'plan rolled back flag true' => [static fn (): mixed => $plan()['rolled_back_to_savepoint'], true],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_retry_batch'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_retry_batch'],
     'plan failed statement ordinal after cleanup' => [static fn (): mixed => $plan()['failed_statement']['ordinal'], 2],
     'plan failed reason records abort' => [static fn (): mixed => $plan()['failed_statement']['reason'], 'SQLite UPDATE RETURNING unique constraint failed: blog_id,option_name=1|siteurl using OR ABORT'],
     'plan executed two statements before failure' => [static fn (): mixed => count($plan()['executed_statements']), 2],

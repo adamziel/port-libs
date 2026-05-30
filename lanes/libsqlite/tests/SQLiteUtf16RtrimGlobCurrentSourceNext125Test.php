@@ -60,8 +60,8 @@ $nextRows = [
 
 $plan = static fn (
     string $pattern,
-    string $currentSource = 'main.wp_options@124',
-    string $nextSource = 'main.wp_options@125',
+    string $currentSource = 'main.app_settings@124',
+    string $nextSource = 'main.app_settings@125',
     ?array $current = null,
     ?array $next = null,
 ): array => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan(

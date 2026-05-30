@@ -68,7 +68,7 @@ $cases213 = [
     'retry delete removes network row' => [static fn (): mixed => in_array(10, array_column($retryDeleteResult213()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $plan213()['status'], 'rowvalue-update-delete-returning-order-limit-subquery-savepoint-current-source-next213'],
-    'plan savepoint' => [static fn (): mixed => $plan213()['savepoint'], 'wp_options_rowvalue_order_limit_next213'],
+    'plan savepoint' => [static fn (): mixed => $plan213()['savepoint'], 'app_settings_rowvalue_order_limit_next213'],
     'plan ordered limited source flag' => [static fn (): mixed => $plan213()['ordered_limited_subquery_source'], true],
     'plan rollback flags' => [static fn (): mixed => [$plan213()['rolled_back_to_savepoint'], $plan213()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan retry release flags' => [static fn (): mixed => [$plan213()['retry_reads_savepoint_image'], $plan213()['savepoint_released_after_retry']], [true, true]],

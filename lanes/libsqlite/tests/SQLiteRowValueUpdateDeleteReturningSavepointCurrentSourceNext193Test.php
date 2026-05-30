@@ -74,7 +74,7 @@ $cases193 = [
     'retry delete removes plugin conflict source' => [static fn (): mixed => in_array(11, array_column($retryDeleteResult193()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $plan193()['status'], 'rowvalue-update-delete-returning-fail-stream-savepoint-current-source-next193'],
-    'plan savepoint' => [static fn (): mixed => $plan193()['savepoint'], 'wp_options_rowvalue_fail_stream_next193'],
+    'plan savepoint' => [static fn (): mixed => $plan193()['savepoint'], 'app_settings_rowvalue_fail_stream_next193'],
     'plan rolled back' => [static fn (): mixed => $plan193()['rolled_back_to_savepoint'], true],
     'plan savepoint preserved' => [static fn (): mixed => $plan193()['savepoint_preserved_after_rollback_to'], true],
     'plan savepoint released' => [static fn (): mixed => $plan193()['savepoint_released_after_retry'], true],

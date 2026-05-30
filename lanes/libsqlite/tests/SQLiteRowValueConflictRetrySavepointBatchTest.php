@@ -60,7 +60,7 @@ $cases = [
     'preserved fail conflict key' => [static fn (): mixed => $preservedFail()['failed_conflict']['key'], '4|siteurl'],
 
     'plan status fail rollback retry' => [static fn (): mixed => $plan()['status'], 'failed-rolled-back-to-savepoint-retried'],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_fail_retry_batch'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_fail_retry_batch'],
     'plan failed before rollback true' => [static fn (): mixed => $plan()['failed_before_rollback'], true],
     'plan failed statement ordinal zero' => [static fn (): mixed => $plan()['failed_statement_ordinal'], 0],
     'plan failed conflict row eight' => [static fn (): mixed => $plan()['failed_conflict']['row_id'], 8],

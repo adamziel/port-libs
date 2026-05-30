@@ -75,7 +75,7 @@ $cases218 = [
     'retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResult218()['tables']['wp_options'], 'option_id'), [1, 2, 4, 5, 6, 7, 8, 9]],
 
     'plan status' => [static fn (): mixed => $plan218()['status'], 'rowvalue-update-delete-returning-rollback-to-current-source-next218'],
-    'plan savepoint' => [static fn (): mixed => $plan218()['savepoint'], 'wp_options_rowvalue_rollback_to_next218'],
+    'plan savepoint' => [static fn (): mixed => $plan218()['savepoint'], 'app_settings_rowvalue_rollback_to_next218'],
     'plan rollback true' => [static fn (): mixed => $plan218()['rollback_to_savepoint_next218'], true],
     'plan savepoint remains active' => [static fn (): mixed => $plan218()['savepoint_remains_active_next218'], true],
     'plan attempted suppressed' => [static fn (): mixed => $plan218()['attempted_returning_suppressed_by_rollback_next218'], true],

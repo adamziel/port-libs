@@ -71,8 +71,8 @@ $cases204 = [
     'retry delete direct network flag' => [static fn (): mixed => array_column($retryDeleteResult204()['returning'], 'deleted_network_home'), [0, 0, 1]],
 
     'plan status' => [static fn (): mixed => $plan204()['status'], 'rowvalue-update-delete-returning-rollback-savepoint-current-source-next204'],
-    'plan transaction name' => [static fn (): mixed => $plan204()['transaction'], 'wp_options_rowvalue_rollback_txn_next204'],
-    'plan savepoint name' => [static fn (): mixed => $plan204()['savepoint'], 'wp_options_rowvalue_rollback_savepoint_next204'],
+    'plan transaction name' => [static fn (): mixed => $plan204()['transaction'], 'app_settings_rowvalue_rollback_txn_next204'],
+    'plan savepoint name' => [static fn (): mixed => $plan204()['savepoint'], 'app_settings_rowvalue_rollback_savepoint_next204'],
     'plan transaction rolled back' => [static fn (): mixed => $plan204()['transaction_rolled_back'], true],
     'plan savepoint invalidated' => [static fn (): mixed => $plan204()['savepoint_invalidated_by_rollback'], true],
     'plan retry source flag' => [static fn (): mixed => $plan204()['retry_started_from_transaction_image'], true],

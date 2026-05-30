@@ -60,8 +60,8 @@ $cases182 = [
     'retry update returns rows seven and nine' => [static fn (): mixed => array_column($retryUpdateAfterRollback182()['returning'], 'option_id'), [7, 9]],
 
     'plan status' => [static fn (): mixed => $plan182()['status'], 'released-inner-returning-suppressed-by-outer-rollback-next182'],
-    'plan outer savepoint' => [static fn (): mixed => $plan182()['outer_savepoint'], 'wp_options_outer_rowvalue_next182'],
-    'plan inner savepoint' => [static fn (): mixed => $plan182()['inner_savepoint'], 'wp_options_inner_rowvalue_next182'],
+    'plan outer savepoint' => [static fn (): mixed => $plan182()['outer_savepoint'], 'app_settings_outer_rowvalue_next182'],
+    'plan inner savepoint' => [static fn (): mixed => $plan182()['inner_savepoint'], 'app_settings_inner_rowvalue_next182'],
     'plan inner released before rollback' => [static fn (): mixed => $plan182()['inner_released_into_outer_before_rollback'], true],
     'plan rolled back to outer' => [static fn (): mixed => $plan182()['rolled_back_to_outer_savepoint'], true],
     'plan outer preserved after rollback to' => [static fn (): mixed => $plan182()['outer_savepoint_preserved_after_rollback_to'], true],

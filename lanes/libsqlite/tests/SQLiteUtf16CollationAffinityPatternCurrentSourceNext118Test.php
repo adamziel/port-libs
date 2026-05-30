@@ -61,8 +61,8 @@ $plan = static fn (
     bool $caseSensitiveLike = false,
     string $currentRangeEncoding = 'UTF-16LE',
     string $nextRangeEncoding = 'UTF-16BE',
-    string $currentSource = 'main.wp_options',
-    string $nextSource = 'main.wp_options',
+    string $currentSource = 'main.app_settings',
+    string $nextSource = 'main.app_settings',
 ): array => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
@@ -136,7 +136,7 @@ $cases = [
     'numeric storage changed' => ['10', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'changedStorageRowids', [7]],
     'bool true current rowid' => ['1', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'currentRowids', [9]],
     'bool false exits next' => ['1', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRowids', []],
-    'source switch reason first' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.0', 'source-name', 'main.wp_options', 'temp.wp_options'],
+    'source switch reason first' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.0', 'source-name', 'main.app_settings', 'temp.app_settings'],
     'dependency pattern decode' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.0', 'sqlite-utf16-pattern-decode'],
     'dependency collation nextOneOneEight' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.2', 'sqlite-collation-range-current-source-nextoneOneEight'],
 ];
@@ -144,8 +144,8 @@ $cases = [
 foreach ($cases as $name => $case) {
     $tests['utf16 collation affinity pattern current source nextOneOneEight ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $case): void {
         [$pattern, $patternEncoding, $operator, $collation, $escape, $escapeEncoding, $caseSensitiveLike, $path, $expected] = $case;
-        $currentSource = $case[9] ?? 'main.wp_options';
-        $nextSource = $case[10] ?? 'main.wp_options';
+        $currentSource = $case[9] ?? 'main.app_settings';
+        $nextSource = $case[10] ?? 'main.app_settings';
         $t->same($expected, $valueAt($plan($pattern, $patternEncoding, $operator, $collation, $escape, $escapeEncoding, $caseSensitiveLike, 'UTF-16LE', 'UTF-16BE', $currentSource, $nextSource), $path));
     };
 }

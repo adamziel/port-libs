@@ -413,7 +413,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         foreach ($recursiveRows as $ordinal => $viewRow) {
             $incoming = self::recursiveViewSourceTriggerRow($viewRow, $view, $phase);
-            $rows = self::upsertRecursiveViewSourceOption($rows, $incoming);
+            $rows = self::upsertRecursiveViewSourceRow($rows, $incoming);
             $returningRow = self::recursiveViewSourceReturningRow($returning, $incoming, $viewRow, $view['trigger_source'], $ordinal);
             $returningRows[] = [
                 'phase' => $phase,
@@ -539,7 +539,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function upsertRecursiveViewSourceOption(array $rows, array $incoming): array
+    private static function upsertRecursiveViewSourceRow(array $rows, array $incoming): array
     {
         foreach ($rows as $index => $row) {
             if (($row['option_name'] ?? null) === $incoming['option_name']) {

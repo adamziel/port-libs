@@ -94,7 +94,7 @@ $cases = [
     'retry delete returning flags' => [static fn (): mixed => array_column($retryDeleteResult()['returning'], 'retry_keep'), [1, 0]],
     'retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResult()['tables']['wp_options'], 'option_id'), [1, 2, 4, 5, 6, 7, 8, 9]],
     'plan status' => [static fn (): mixed => $plan()['status'], 'rowvalue-update-delete-returning-subquery-savepoint-release-current-source'],
-    'plan savepoint' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_select_retry'],
+    'plan savepoint' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_select_retry'],
     'plan subquery flag' => [static fn (): mixed => $plan()['rowvalue_subquery_targets'], true],
     'plan rollback flag' => [static fn (): mixed => $plan()['rollback_to_savepoint'], true],
     'plan release flag' => [static fn (): mixed => $plan()['release_commits_retry'], true],

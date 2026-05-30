@@ -18,8 +18,8 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNextPlan
         string $pattern,
         string $operator = 'LIKE',
         ?string $escape = null,
-        string $currentSource = 'main.wp_options@132',
-        string $nextSource = 'main.wp_options@133',
+        string $currentSource = 'main.app_settings@132',
+        string $nextSource = 'main.app_settings@133',
         int $currentSchemaCookie = 132,
         int $nextSchemaCookie = 133,
     ): array {

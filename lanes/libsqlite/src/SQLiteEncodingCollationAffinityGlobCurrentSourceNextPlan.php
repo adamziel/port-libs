@@ -15,8 +15,8 @@ final class SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan
         array $currentRows,
         array $nextRows,
         string $pattern,
-        string $currentSource = 'main.wp_options@238',
-        string $nextSource = 'main.wp_options@239',
+        string $currentSource = 'main.app_settings@238',
+        string $nextSource = 'main.app_settings@239',
         int $currentSchemaCookie = 238,
         int $nextSchemaCookie = 239,
     ): array {

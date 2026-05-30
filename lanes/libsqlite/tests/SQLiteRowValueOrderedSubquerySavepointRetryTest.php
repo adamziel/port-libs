@@ -84,7 +84,7 @@ $cases214 = [
     'retry delete removes offset network rows' => [static fn (): mixed => array_values(array_intersect([5, 11], array_column($retryDeleteResult214()['tables']['wp_options'], 'option_id'))), []],
 
     'plan status' => [static fn (): mixed => $plan214()['status'], 'rowvalue-update-delete-returning-ordered-subquery-savepoint-current-source-next214'],
-    'plan savepoint' => [static fn (): mixed => $plan214()['savepoint'], 'wp_options_rowvalue_ordered_subquery_next214'],
+    'plan savepoint' => [static fn (): mixed => $plan214()['savepoint'], 'app_settings_rowvalue_ordered_subquery_next214'],
     'plan rollback flags' => [static fn (): mixed => [$plan214()['rolled_back_to_savepoint'], $plan214()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan ordered retry flags' => [static fn (): mixed => [$plan214()['ordered_subquery_limit_respected'], $plan214()['retry_reads_savepoint_image'], $plan214()['savepoint_released_after_retry']], [true, true, true]],
     'plan savepoint image row eight original' => [static fn (): mixed => array_column($plan214()['savepoint_image_tables']['wp_options'], 'option_value', 'option_id')[8], 'rules'],

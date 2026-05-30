@@ -66,7 +66,7 @@ $cases = [
     'discard after yield outside range flags true' => [static fn (): mixed => array_column($discardAfterYield()['returning'], 'outside_yield_range'), [1, 1, 1]],
 
     'plan status' => [static fn (): mixed => $plan()['status'], 'yielded-rowvalue-returning-stream-rolled-back-and-retried'],
-    'plan savepoint' => [static fn (): mixed => $plan()['savepoint'], 'wp_rowvalue_yield_retry_next172'],
+    'plan savepoint' => [static fn (): mixed => $plan()['savepoint'], 'app_rowvalue_yield_retry_next172'],
     'plan returning observable before rollback' => [static fn (): mixed => $plan()['returning_stream_was_observable_before_rollback'], true],
     'plan observable returning not durable' => [static fn (): mixed => $plan()['observable_returning_is_not_durable_after_rollback_to'], true],
     'plan rolled back to savepoint' => [static fn (): mixed => $plan()['rolled_back_to_savepoint'], true],

@@ -12,7 +12,7 @@ final class SQLiteCurrentSmokePlan
      * @param array{begin?:string,database_path?:string,page_size?:int,fail_on_error?:bool,statement_prefix?:string} $options
      * @return array<string,mixed>
      */
-    public static function optionImport(array $currentRows, array $stagedRows, array $options = []): array
+    public static function keyValueImport(array $currentRows, array $stagedRows, array $options = []): array
     {
         $plan = SQLiteImportTransactionErrorYieldPlan::plan($currentRows, $stagedRows, $options);
 
@@ -22,17 +22,17 @@ final class SQLiteCurrentSmokePlan
         foreach ($plan['yielded'] as $yielded) {
             $yieldedStatuses[] = $yielded['status'];
             $yieldedEvents[] = $yielded['event'];
-            if (is_array($yielded['wp_error'] ?? null)) {
-                $errorCodes[] = $yielded['wp_error']['code'];
+            if (is_array($yielded['error'] ?? null)) {
+                $errorCodes[] = $yielded['error']['code'];
             }
         }
 
         $finalNames = [];
-        $autoloadByName = [];
+        $loadPolicyByName = [];
         foreach ($plan['final_rows'] as $row) {
-            $name = (string) $row['option_name'];
+            $name = (string) $row['key_name'];
             $finalNames[] = $name;
-            $autoloadByName[$name] = (string) $row['autoload'];
+            $loadPolicyByName[$name] = (string) $row['load_policy'];
         }
         sort($finalNames, SORT_STRING);
 
@@ -46,13 +46,13 @@ final class SQLiteCurrentSmokePlan
             'error_count' => $plan['error_count'],
             'yielded_statuses' => $yieldedStatuses,
             'yielded_events' => $yieldedEvents,
-            'wp_error_codes' => $errorCodes,
-            'final_option_names' => $finalNames,
-            'autoload_by_name' => $autoloadByName,
+            'error_codes' => $errorCodes,
+            'final_key_names' => $finalNames,
+            'load_policy_by_name' => $loadPolicyByName,
             'dirty_pages' => $plan['dirty_pages'],
             'rollback' => $plan['rollback'],
             'dependencies' => array_values(array_unique(array_merge($plan['dependencies'], [
-                'sqlite-application-current-smoke-option-import',
+                'sqlite-application-current-smoke-key-value-import',
                 'sqlite-application-current-smoke-yield-summary',
             ]))),
         ];

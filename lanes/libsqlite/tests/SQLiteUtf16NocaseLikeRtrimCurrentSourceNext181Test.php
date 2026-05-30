@@ -136,7 +136,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightOne rowid tie breaker
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightOne source change reparses duplicate peers'] = static function (TestRunner $t) use ($plan181): void {
-    $result = $plan181(null, null, null, 'main.wp_options@180', 'main.wp_options@181', 180, 181);
+    $result = $plan181(null, null, null, 'main.app_settings@180', 'main.app_settings@181', 180, 181);
     $t->same(['source-or-schema-changed'], $result['peerReplayUnsafeReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
     $t->same('reprepare-from-range-start', $result['replayPlanMode']);

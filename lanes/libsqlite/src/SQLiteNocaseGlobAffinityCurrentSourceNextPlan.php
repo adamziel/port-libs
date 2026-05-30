@@ -17,8 +17,8 @@ final class SQLiteNocaseGlobAffinityCurrentSourceNextPlan
         string $pattern,
         string $affinity = 'TEXT',
         string $collation = 'NOCASE',
-        string $currentSource = 'main.wp_options@138',
-        string $nextSource = 'main.wp_options@139',
+        string $currentSource = 'main.app_settings@138',
+        string $nextSource = 'main.app_settings@139',
         int $currentSchemaCookie = 138,
         int $nextSchemaCookie = 139,
     ): array {

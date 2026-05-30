@@ -97,7 +97,7 @@ final class SQLiteSchemaJsonSavepointWalPlan
         return [
             'status' => 'planned',
             'schema_json_savepoint_wal' => true,
-            'database_path' => (string) ($options['database_path'] ?? '/tmp/wp-schema-json-savepoint.sqlite'),
+            'database_path' => (string) ($options['database_path'] ?? '/tmp/app-schema-json-savepoint.sqlite'),
             'schema' => $schema,
             'batch_count' => count($batches),
             'released_batches' => $released,
@@ -107,10 +107,10 @@ final class SQLiteSchemaJsonSavepointWalPlan
             'current_rows' => array_values($currentRows),
             'final_rows' => array_values($visibleRows),
             'released_rows' => array_values($releasedRows),
-            'final_option_names' => array_column(array_values($visibleRows), 'option_name'),
-            'released_option_names' => array_column(array_values($releasedRows), 'option_name'),
+            'final_key_names' => array_column(array_values($visibleRows), 'key_name'),
+            'released_key_names' => array_column(array_values($releasedRows), 'key_name'),
             'wal' => [
-                'path' => (string) ($options['database_path'] ?? '/tmp/wp-schema-json-savepoint.sqlite') . '-wal',
+                'path' => (string) ($options['database_path'] ?? '/tmp/app-schema-json-savepoint.sqlite') . '-wal',
                 'current_frame' => $currentWalFrame,
                 'frame_count' => count($walFrames),
                 'frames' => $walFrames,
@@ -127,20 +127,20 @@ final class SQLiteSchemaJsonSavepointWalPlan
 
     /**
      * @param array<string,mixed> $schema
-     * @return array{required:list<string>,allowed:list<string>,autoload:list<string>,json_option_patterns:list<string>,reject_unknown:bool}
+     * @return array{required:list<string>,allowed:list<string>,load_policy:list<string>,json_key_patterns:list<string>,reject_unknown:bool}
      */
     private static function schema(array $schema): array
     {
-        $required = self::stringList($schema['required'] ?? ['option_name', 'option_value']);
-        $allowed = self::stringList($schema['allowed'] ?? ['option_id', 'option_name', 'option_value', 'autoload']);
-        $autoload = self::stringList($schema['autoload'] ?? ['yes', 'no', 'auto', 'on', 'off']);
-        $patterns = self::stringList($schema['json_option_patterns'] ?? ['/^theme_mods_/', '/_settings$/', '/^widget_/']);
+        $required = self::stringList($schema['required'] ?? ['key_name', 'key_value']);
+        $allowed = self::stringList($schema['allowed'] ?? ['setting_id', 'key_name', 'key_value', 'load_policy']);
+        $load_policy = self::stringList($schema['load_policy'] ?? ['yes', 'no', 'auto', 'on', 'off']);
+        $patterns = self::stringList($schema['json_key_patterns'] ?? ['/^theme_mods_/', '/_settings$/', '/^widget_/']);
 
         return [
             'required' => $required,
             'allowed' => $allowed,
-            'autoload' => $autoload,
-            'json_option_patterns' => $patterns,
+            'load_policy' => $load_policy,
+            'json_key_patterns' => $patterns,
             'reject_unknown' => (bool) ($schema['reject_unknown'] ?? true),
         ];
     }
@@ -170,7 +170,7 @@ final class SQLiteSchemaJsonSavepointWalPlan
      */
     private static function savepointName(array $import, int $index): string
     {
-        $name = (string) ($import['name'] ?? 'wp_schema_json_' . ($index + 1));
+        $name = (string) ($import['name'] ?? 'app_schema_json_' . ($index + 1));
         if ($name === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
             throw new \InvalidArgumentException('SQLite Application schema JSON savepoint names must be SQL identifiers');
         }
@@ -179,7 +179,7 @@ final class SQLiteSchemaJsonSavepointWalPlan
     }
 
     /**
-     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,option_names:list<string>,row_count:int,error:?string}
+     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,key_names:list<string>,row_count:int,error:?string}
      */
     private static function jsonRows(mixed $json, string $path): array
     {
@@ -219,7 +219,7 @@ final class SQLiteSchemaJsonSavepointWalPlan
                 'valid' => true,
                 'path' => $path,
                 'rows' => $normalized,
-                'option_names' => array_values(array_filter(array_map(static fn (array $row): mixed => $row['option_name'] ?? $row['name'] ?? null, $normalized), 'is_string')),
+                'key_names' => array_values(array_filter(array_map(static fn (array $row): mixed => $row['key_name'] ?? $row['name'] ?? null, $normalized), 'is_string')),
                 'row_count' => count($normalized),
                 'error' => null,
             ];
@@ -229,7 +229,7 @@ final class SQLiteSchemaJsonSavepointWalPlan
     }
 
     /**
-     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,option_names:list<string>,row_count:int,error:string}
+     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,key_names:list<string>,row_count:int,error:string}
      */
     private static function invalidJson(string $path, string $error): array
     {
@@ -237,7 +237,7 @@ final class SQLiteSchemaJsonSavepointWalPlan
             'valid' => false,
             'path' => $path,
             'rows' => [],
-            'option_names' => [],
+            'key_names' => [],
             'row_count' => 0,
             'error' => $error,
         ];
@@ -245,7 +245,7 @@ final class SQLiteSchemaJsonSavepointWalPlan
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @param array{required:list<string>,allowed:list<string>,autoload:list<string>,json_option_patterns:list<string>,reject_unknown:bool} $schema
+     * @param array{required:list<string>,allowed:list<string>,load_policy:list<string>,json_key_patterns:list<string>,reject_unknown:bool} $schema
      * @return array{valid:bool,accepted_rows:int,rejected_rows:int,violations:list<array<string,mixed>>,error:?string}
      */
     private static function validateRows(array $rows, array $schema): array
@@ -253,31 +253,31 @@ final class SQLiteSchemaJsonSavepointWalPlan
         $violations = [];
         foreach ($rows as $index => $row) {
             foreach ($schema['required'] as $field) {
-                if (!array_key_exists($field, $row) && !($field === 'option_name' && array_key_exists('name', $row))) {
+                if (!array_key_exists($field, $row) && !($field === 'key_name' && array_key_exists('name', $row))) {
                     $violations[] = ['row' => $index, 'field' => $field, 'rule' => 'required'];
                 }
             }
             if ($schema['reject_unknown']) {
                 foreach (array_keys($row) as $field) {
-                    if (!in_array((string) $field, $schema['allowed'], true) && !($field === 'name' && in_array('option_name', $schema['allowed'], true))) {
+                    if (!in_array((string) $field, $schema['allowed'], true) && !($field === 'name' && in_array('key_name', $schema['allowed'], true))) {
                         $violations[] = ['row' => $index, 'field' => (string) $field, 'rule' => 'unknown'];
                     }
                 }
             }
 
-            $name = $row['option_name'] ?? $row['name'] ?? null;
+            $name = $row['key_name'] ?? $row['name'] ?? null;
             if (!is_string($name) || $name === '' || str_contains($name, "\0")) {
-                $violations[] = ['row' => $index, 'field' => 'option_name', 'rule' => 'non_empty_text'];
+                $violations[] = ['row' => $index, 'field' => 'key_name', 'rule' => 'non_empty_text'];
             }
 
-            $autoload = $row['autoload'] ?? 'no';
-            if (!is_string($autoload) || !in_array($autoload, $schema['autoload'], true)) {
-                $violations[] = ['row' => $index, 'field' => 'autoload', 'rule' => 'enum'];
+            $load_policy = $row['load_policy'] ?? 'no';
+            if (!is_string($load_policy) || !in_array($load_policy, $schema['load_policy'], true)) {
+                $violations[] = ['row' => $index, 'field' => 'load_policy', 'rule' => 'enum'];
             }
 
-            $value = $row['option_value'] ?? $row['value'] ?? '';
+            $value = $row['key_value'] ?? $row['value'] ?? '';
             if (self::expectsJsonValue(is_string($name) ? $name : '', $schema) && !self::isJsonText($value)) {
-                $violations[] = ['row' => $index, 'field' => 'option_value', 'rule' => 'json_text'];
+                $violations[] = ['row' => $index, 'field' => 'key_value', 'rule' => 'json_text'];
             }
         }
 
@@ -291,11 +291,11 @@ final class SQLiteSchemaJsonSavepointWalPlan
     }
 
     /**
-     * @param array{json_option_patterns:list<string>} $schema
+     * @param array{json_key_patterns:list<string>} $schema
      */
     private static function expectsJsonValue(string $name, array $schema): bool
     {
-        foreach ($schema['json_option_patterns'] as $pattern) {
+        foreach ($schema['json_key_patterns'] as $pattern) {
             if (@preg_match($pattern, $name) === 1) {
                 return true;
             }
@@ -323,9 +323,9 @@ final class SQLiteSchemaJsonSavepointWalPlan
     {
         $byId = [];
         foreach ($rows as $row) {
-            $id = $row['option_id'] ?? null;
+            $id = $row['setting_id'] ?? null;
             if (!is_int($id)) {
-                throw new \InvalidArgumentException('SQLite Application schema JSON import rows require integer option_id values');
+                throw new \InvalidArgumentException('SQLite Application schema JSON import rows require integer setting_id values');
             }
             $byId[$id] = $row;
         }
@@ -346,8 +346,8 @@ final class SQLiteSchemaJsonSavepointWalPlan
             'status' => 'rolled_back',
             'error' => $error,
             'json' => $jsonPlan,
-            'before_option_names' => array_column(array_values($beforeRows), 'option_name'),
-            'after_option_names' => array_column(array_values($beforeRows), 'option_name'),
+            'before_key_names' => array_column(array_values($beforeRows), 'key_name'),
+            'after_key_names' => array_column(array_values($beforeRows), 'key_name'),
             'updated' => 0,
             'inserted' => 0,
             'deleted' => 0,

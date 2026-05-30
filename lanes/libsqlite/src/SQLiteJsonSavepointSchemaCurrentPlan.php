@@ -131,8 +131,8 @@ final class SQLiteJsonSavepointSchemaCurrentPlan
                 'wal_frames' => $offsetFrames,
                 'before_schema_names' => array_keys($beforeSchema),
                 'after_schema_names' => array_keys($visibleSchema),
-                'before_option_names' => array_column(array_values($beforeRows), 'option_name'),
-                'after_option_names' => array_column(array_values($visibleRows), 'option_name'),
+                'before_key_names' => array_column(array_values($beforeRows), 'key_name'),
+                'after_key_names' => array_column(array_values($visibleRows), 'key_name'),
                 'released' => $shouldRelease,
             ];
         }
@@ -140,7 +140,7 @@ final class SQLiteJsonSavepointSchemaCurrentPlan
         return [
             'status' => 'planned',
             'schema_current' => true,
-            'database_path' => (string) ($options['database_path'] ?? '/tmp/wp-json-schema-current.sqlite'),
+            'database_path' => (string) ($options['database_path'] ?? '/tmp/app-json-schema-current.sqlite'),
             'batch_count' => count($plans),
             'released_batches' => $released,
             'rolled_back_batches' => $rolledBack,
@@ -153,14 +153,14 @@ final class SQLiteJsonSavepointSchemaCurrentPlan
             'current_rows' => array_values($currentRows),
             'final_rows' => array_values($visibleRows),
             'released_rows' => array_values($releasedRows),
-            'final_option_names' => array_column(array_values($visibleRows), 'option_name'),
-            'released_option_names' => array_column(array_values($releasedRows), 'option_name'),
+            'final_key_names' => array_column(array_values($visibleRows), 'key_name'),
+            'released_key_names' => array_column(array_values($releasedRows), 'key_name'),
             'schema_rows' => array_values($visibleSchema),
             'released_schema_rows' => array_values($releasedSchema),
             'schema_names' => array_keys($visibleSchema),
             'released_schema_names' => array_keys($releasedSchema),
             'wal' => [
-                'path' => (string) ($options['database_path'] ?? '/tmp/wp-json-schema-current.sqlite') . '-wal',
+                'path' => (string) ($options['database_path'] ?? '/tmp/app-json-schema-current.sqlite') . '-wal',
                 'current_frame' => $currentWalFrame,
                 'frame_count' => count($walFrames),
                 'frames' => $walFrames,
@@ -192,9 +192,9 @@ final class SQLiteJsonSavepointSchemaCurrentPlan
     {
         $byId = [];
         foreach ($rows as $row) {
-            $id = $row['option_id'] ?? null;
+            $id = $row['setting_id'] ?? null;
             if (!is_int($id)) {
-                throw new \InvalidArgumentException('SQLite Application JSON schema-current rows require integer option_id values');
+                throw new \InvalidArgumentException('SQLite Application JSON schema-current rows require integer setting_id values');
             }
             $byId[$id] = $row;
         }
@@ -270,7 +270,7 @@ final class SQLiteJsonSavepointSchemaCurrentPlan
      */
     private static function savepointName(array $batch, int $index): string
     {
-        $name = (string) ($batch['name'] ?? 'wp_json_schema_' . ($index + 1));
+        $name = (string) ($batch['name'] ?? 'app_json_schema_' . ($index + 1));
         if ($name === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
             throw new \InvalidArgumentException('SQLite Application JSON schema-current savepoint names must be SQL identifiers');
         }
@@ -391,8 +391,8 @@ final class SQLiteJsonSavepointSchemaCurrentPlan
             'discarded_wal_frames' => [],
             'before_schema_names' => array_keys($beforeSchema),
             'after_schema_names' => array_keys($beforeSchema),
-            'before_option_names' => array_column(array_values($beforeRows), 'option_name'),
-            'after_option_names' => array_column(array_values($beforeRows), 'option_name'),
+            'before_key_names' => array_column(array_values($beforeRows), 'key_name'),
+            'after_key_names' => array_column(array_values($beforeRows), 'key_name'),
             'released' => false,
         ];
     }

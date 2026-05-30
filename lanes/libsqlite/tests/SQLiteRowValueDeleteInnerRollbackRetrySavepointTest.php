@@ -45,8 +45,8 @@ $customDeleteRetryPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturn
     [$innerUpdateSql],
     [$retryUpdateSql],
     $deleteUnique,
-    'wp_outer_custom_delete_inner',
-    'wp_inner_custom_delete_inner',
+    'app_outer_custom_delete_inner',
+    'app_inner_custom_delete_inner',
 );
 
 $deleteRetryCases = [
@@ -75,8 +75,8 @@ $deleteRetryCases = [
     'retry delete leaves row ten because limit one' => [static fn (): mixed => in_array(10, array_column($retryDelete()['tables']['wp_options'], 'option_id'), true), true],
 
     'plan status' => [static fn (): mixed => $deleteRetryPlan()['status'], 'outer-delete-preserved-inner-rowvalue-rollback-retry'],
-    'plan outer savepoint' => [static fn (): mixed => $deleteRetryPlan()['outer_savepoint'], 'wp_options_outer_delete_inner_retry'],
-    'plan inner savepoint' => [static fn (): mixed => $deleteRetryPlan()['inner_savepoint'], 'wp_options_inner_delete_inner_retry'],
+    'plan outer savepoint' => [static fn (): mixed => $deleteRetryPlan()['outer_savepoint'], 'app_settings_outer_delete_inner_retry'],
+    'plan inner savepoint' => [static fn (): mixed => $deleteRetryPlan()['inner_savepoint'], 'app_settings_inner_delete_inner_retry'],
     'plan rolled back to inner' => [static fn (): mixed => $deleteRetryPlan()['rolled_back_to_inner_savepoint'], true],
     'plan outer delete preserved' => [static fn (): mixed => $deleteRetryPlan()['outer_delete_preserved_after_inner_rollback_to'], true],
     'plan inner preserved' => [static fn (): mixed => $deleteRetryPlan()['inner_savepoint_preserved_after_rollback_to'], true],
@@ -115,7 +115,7 @@ $deleteRetryCases = [
     'plan dependency outer delete' => [static fn (): mixed => in_array('sqlite-outer-delete-returning-current-source-preserved-delete-inner-retry', $deleteRetryPlan()['dependencies'], true), true],
     'plan dependency rollback stream' => [static fn (): mixed => in_array('sqlite-inner-rowvalue-update-delete-returning-rollback-discards-stream-delete-inner-retry', $deleteRetryPlan()['dependencies'], true), true],
     'plan dependency retry source' => [static fn (): mixed => in_array('sqlite-inner-retry-reads-post-delete-current-source-delete-inner-retry', $deleteRetryPlan()['dependencies'], true), true],
-    'custom plan savepoint names' => [static fn (): mixed => [$customDeleteRetryPlan()['outer_savepoint'], $customDeleteRetryPlan()['inner_savepoint']], ['wp_outer_custom_delete_inner', 'wp_inner_custom_delete_inner']],
+    'custom plan savepoint names' => [static fn (): mixed => [$customDeleteRetryPlan()['outer_savepoint'], $customDeleteRetryPlan()['inner_savepoint']], ['app_outer_custom_delete_inner', 'app_inner_custom_delete_inner']],
     'custom plan retry count three' => [static fn (): mixed => $customDeleteRetryPlan()['inner_yielded_after_retry_count'], 3],
     'custom plan retains row six without retry delete' => [static fn (): mixed => in_array(6, array_column($customDeleteRetryPlan()['current_source_tables']['wp_options'], 'option_id'), true), true],
     'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDeleteInnerRollbackRetrySavepoint($deleteTables, [], [$innerUpdateSql], [$retryUpdateSql], $deleteUnique), InvalidArgumentException::class],

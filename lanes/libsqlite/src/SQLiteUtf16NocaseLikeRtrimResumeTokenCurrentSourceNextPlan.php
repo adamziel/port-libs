@@ -28,8 +28,8 @@ final class SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan
         int $currentEscapeEncoding = 1,
         ?string $nextEscapeBytes = null,
         int $nextEscapeEncoding = 1,
-        string $currentSource = 'main.wp_options@169',
-        string $nextSource = 'main.wp_options@170',
+        string $currentSource = 'main.app_settings@169',
+        string $nextSource = 'main.app_settings@170',
         int $currentSchemaCookie = 169,
         int $nextSchemaCookie = 170,
     ): array {

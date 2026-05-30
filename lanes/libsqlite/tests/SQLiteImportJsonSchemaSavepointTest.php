@@ -8,16 +8,16 @@ use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteImportJsonSchemaSavepointPlan;
 
 $currentRows = static fn (): array => [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'active_plugins', 'option_value' => '[]', 'autoload' => 'yes'],
-    ['option_id' => 70, 'option_name' => 'theme_mods_old', 'option_value' => '{"color":"blue"}', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'app_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'enabled_modules', 'key_value' => '[]', 'load_policy' => 'yes'],
+    ['setting_id' => 70, 'key_name' => 'ui_theme_old', 'key_value' => '{"color":"blue"}', 'load_policy' => 'no'],
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
 $plan = static fn (array $imports, array $options = []) => SQLiteImportJsonSchemaSavepointPlan::plan(
     $currentRows(),
     $imports,
-    $options + ['database_path' => '/tmp/wp-import-json-schema-savepoint.sqlite', 'page_size' => 1024],
+    $options + ['database_path' => '/tmp/app-import-json-schema-savepoint.sqlite', 'page_size' => 1024],
 );
 
 $tests = [
@@ -31,13 +31,13 @@ $tests = [
         $t->same('planned', $result['status']);
         $t->same(true, $result['schema_savepoint_import']);
         $t->same(['defaults'], $result['released_batches']);
-        $t->same(['plugin_default_settings'], $result['batches'][0]['json']['option_names']);
-        $t->same(71, $result['batches'][0]['schema_generated_ids'][0]['option_id']);
+        $t->same(['plugin_default_settings'], $result['batches'][0]['json']['key_names']);
+        $t->same(71, $result['batches'][0]['schema_generated_ids'][0]['setting_id']);
     },
     'records current and next savepoint snapshots around generated import rows' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'snapshot', 'json' => $jsonRows([
-                ['option_name' => 'snapshot_settings', 'option_value' => '{"snapshot":true}'],
+                ['key_name' => 'snapshot_settings', 'key_value' => '{"snapshot":true}'],
             ]), 'path' => '$.rows'],
         ]);
 
@@ -45,23 +45,23 @@ $tests = [
         $t->same(0, $result['batches'][0]['current_savepoint']['wal_frame']);
         $t->same('snapshot_next', $result['batches'][0]['next_savepoint']['name']);
         $t->same(1, $result['batches'][0]['next_savepoint']['wal_frame']);
-        $t->same(true, in_array('snapshot_settings', $result['batches'][0]['next_savepoint']['option_names'], true));
+        $t->same(true, in_array('snapshot_settings', $result['batches'][0]['next_savepoint']['key_names'], true));
     },
     'keeps open schema import rows visible but unreleased' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'open_schema', 'json' => $jsonRows([
-                ['option_name' => 'open_schema_settings', 'option_value' => '{"open":true}'],
+                ['key_name' => 'open_schema_settings', 'key_value' => '{"open":true}'],
             ]), 'path' => '$.rows', 'release' => false],
         ]);
 
         $t->same('open', $result['batches'][0]['status']);
-        $t->same(['siteurl', 'active_plugins', 'theme_mods_old', 'open_schema_settings'], $result['final_option_names']);
-        $t->same(['siteurl', 'active_plugins', 'theme_mods_old'], $result['released_option_names']);
+        $t->same(['app_url', 'enabled_modules', 'ui_theme_old', 'open_schema_settings'], $result['final_key_names']);
+        $t->same(['app_url', 'enabled_modules', 'ui_theme_old'], $result['released_key_names']);
     },
     'rolls schema failures back without advancing current or next WAL frames' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'bad_schema', 'json' => $jsonRows([
-                ['option_name' => 'widget_recent', 'option_value' => 'not-json'],
+                ['key_name' => 'widget_recent', 'key_value' => 'not-json'],
             ]), 'path' => '$.rows'],
         ]);
 
@@ -73,61 +73,61 @@ $tests = [
     'preserves released batches when the next schema import rolls back' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'release_first', 'json' => $jsonRows([
-                ['option_name' => 'plugin_one_settings', 'option_value' => '{"ok":true}'],
+                ['key_name' => 'plugin_one_settings', 'key_value' => '{"ok":true}'],
             ]), 'path' => '$.rows'],
             ['name' => 'reject_next', 'json' => $jsonRows([
-                ['option_name' => 'theme_mods_bad', 'option_value' => '{bad'],
+                ['key_name' => 'ui_theme_bad', 'key_value' => '{bad'],
             ]), 'path' => '$.rows'],
         ]);
 
         $t->same(['release_first'], $result['released_batches']);
         $t->same(['reject_next'], $result['rolled_back_batches']);
-        $t->same(['siteurl', 'active_plugins', 'theme_mods_old', 'plugin_one_settings'], $result['released_option_names']);
+        $t->same(['app_url', 'enabled_modules', 'ui_theme_old', 'plugin_one_settings'], $result['released_key_names']);
         $t->same(1, $result['wal']['current_frame']);
     },
     'reports replace-conflict schema imports separately from defaults' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
-            ['name' => 'replace_siteurl', 'json' => $jsonRows([
-                ['option_id' => 90, 'option_name' => 'siteurl', 'option_value' => 'https://imported.test', 'autoload' => 'yes'],
+            ['name' => 'replace_app_url', 'json' => $jsonRows([
+                ['setting_id' => 90, 'key_name' => 'app_url', 'key_value' => 'https://imported.test', 'load_policy' => 'yes'],
             ]), 'path' => '$.rows'],
         ], ['replace_conflicts' => true]);
 
         $t->same(1, $result['batches'][0]['deleted']);
-        $t->same('siteurl', $result['batches'][0]['schema_conflicts'][0]['option_name']);
+        $t->same('app_url', $result['batches'][0]['schema_conflicts'][0]['key_name']);
         $t->same('delete_conflicting_current', $result['batches'][0]['schema_conflicts'][0]['action']);
-        $t->same(true, in_array('siteurl', $result['final_option_names'], true));
+        $t->same(true, in_array('app_url', $result['final_key_names'], true));
     },
-    'rolls duplicate option-name conflicts back when replacement is disabled' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'rolls duplicate key-name conflicts back when replacement is disabled' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'conflict_no_replace', 'json' => $jsonRows([
-                ['option_id' => 90, 'option_name' => 'siteurl', 'option_value' => 'https://duplicate.test', 'autoload' => 'yes'],
+                ['setting_id' => 90, 'key_name' => 'app_url', 'key_value' => 'https://duplicate.test', 'load_policy' => 'yes'],
             ]), 'path' => '$.rows'],
         ], ['replace_conflicts' => false]);
 
         $t->same(['conflict_no_replace'], $result['rolled_back_batches']);
         $t->same(0, $result['wal']['frame_count']);
-        $t->same(['siteurl', 'active_plugins', 'theme_mods_old'], $result['final_option_names']);
+        $t->same(['app_url', 'enabled_modules', 'ui_theme_old'], $result['final_key_names']);
     },
     'accepts JSONB schema import sources' => static function (TestRunner $t) use ($currentRows): void {
         $blob = new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
-            ['option_name' => 'jsonb_schema_settings', 'option_value' => '{"mode":"jsonb"}'],
+            ['key_name' => 'jsonb_schema_settings', 'key_value' => '{"mode":"jsonb"}'],
         ]]));
         $result = SQLiteImportJsonSchemaSavepointPlan::plan($currentRows(), [
             ['name' => 'jsonb_schema', 'json' => $blob, 'path' => '$.rows'],
         ]);
 
         $t->same(['jsonb_schema'], $result['released_batches']);
-        $t->same(['jsonb_schema_settings'], $result['batches'][0]['json']['option_names']);
+        $t->same(['jsonb_schema_settings'], $result['batches'][0]['json']['key_names']);
         $t->same(1, $result['wal']['frame_count']);
     },
     'accepts JSON subtype schema import sources' => static function (TestRunner $t) use ($currentRows): void {
-        $subtype = new SQLiteJsonSubtypeValue('{"rows":[{"option_name":"subtype_schema_settings","option_value":"{\"mode\":\"subtype\"}"}]}');
+        $subtype = new SQLiteJsonSubtypeValue('{"rows":[{"key_name":"subtype_schema_settings","key_value":"{\"mode\":\"subtype\"}"}]}');
         $result = SQLiteImportJsonSchemaSavepointPlan::plan($currentRows(), [
             ['name' => 'subtype_schema', 'json' => $subtype, 'path' => '$.rows'],
         ]);
 
         $t->same(['subtype_schema'], $result['released_batches']);
-        $t->same(['subtype_schema_settings'], $result['batches'][0]['json']['option_names']);
+        $t->same(['subtype_schema_settings'], $result['batches'][0]['json']['key_names']);
         $t->same(1, $result['wal']['frame_count']);
     },
     'rejects malformed JSON sources as savepoint rollbacks' => static function (TestRunner $t) use ($plan): void {
@@ -159,17 +159,17 @@ foreach (range(1, 18) as $batch) {
 
         $t->same('generated_' . $batch, $result['wal']['frames'][0]['savepoint']);
         $t->same(1, $result['wal']['current_frame']);
-        $t->same('autoload', $result['batches'][0]['schema_defaulted_fields'][1]['field']);
+        $t->same('load_policy', $result['batches'][0]['schema_defaulted_fields'][1]['field']);
     };
 }
 
 foreach ([
-    'missing option value' => [['option_name' => 'missing_settings']],
-    'empty option name' => [['option_name' => '', 'option_value' => '{"ok":true}']],
-    'unknown field' => [['option_name' => 'unknown_settings', 'option_value' => '{"ok":true}', 'extra' => true]],
-    'bad autoload' => [['option_name' => 'bad_autoload_settings', 'option_value' => '{"ok":true}', 'autoload' => 'maybe']],
-    'bad widget json text' => [['option_name' => 'widget_text', 'option_value' => 'plain']],
-    'bad theme mods json text' => [['option_name' => 'theme_mods_current', 'option_value' => '{bad']],
+    'missing setting value' => [['key_name' => 'missing_settings']],
+    'empty setting name' => [['key_name' => '', 'key_value' => '{"ok":true}']],
+    'unknown field' => [['key_name' => 'unknown_settings', 'key_value' => '{"ok":true}', 'extra' => true]],
+    'bad load_policy' => [['key_name' => 'bad_load_policy_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'maybe']],
+    'bad widget json text' => [['key_name' => 'widget_text', 'key_value' => 'plain']],
+    'bad theme mods json text' => [['key_name' => 'ui_theme_current', 'key_value' => '{bad']],
 ] as $label => $rows) {
     $tests["schema savepoint rollback for {$label}"] = static function (TestRunner $t) use ($plan, $jsonRows, $label, $rows): void {
         $result = $plan([
@@ -184,16 +184,16 @@ foreach ([
 
 foreach ([
     'allows migration metadata when configured' => [
-        ['option_name' => 'migration_meta_settings', 'option_value' => '{"ok":true}', 'migration_source' => 'wxr'],
-        ['allowed' => ['option_id', 'option_name', 'option_value', 'autoload', 'migration_source']],
+        ['key_name' => 'migration_meta_settings', 'key_value' => '{"ok":true}', 'migration_source' => 'wxr'],
+        ['allowed' => ['setting_id', 'key_name', 'key_value', 'load_policy', 'migration_source']],
     ],
     'allows scalar plugin values when JSON patterns are narrowed' => [
-        ['option_name' => 'plugin_plain_settings', 'option_value' => 'plain'],
-        ['json_option_patterns' => ['/^theme_mods_/']],
+        ['key_name' => 'plugin_plain_settings', 'key_value' => 'plain'],
+        ['json_key_patterns' => ['/^ui_theme_/']],
     ],
-    'uses configured autoload default' => [
-        ['option_name' => 'default_auto_settings', 'option_value' => '{"ok":true}'],
-        ['defaults' => ['autoload' => 'auto']],
+    'uses configured load_policy default' => [
+        ['key_name' => 'default_auto_settings', 'key_value' => '{"ok":true}'],
+        ['defaults' => ['load_policy' => 'auto']],
     ],
 ] as $label => [$row, $schema]) {
     $tests[$label] = static function (TestRunner $t) use ($plan, $jsonRows, $row, $schema): void {
@@ -207,24 +207,24 @@ foreach ([
     };
 }
 
-foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5] as $optionId => $pageNumber) {
-    $tests["explicit schema option {$optionId} maps to WAL page {$pageNumber}"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $optionId, $pageNumber): void {
+foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5] as $settingId => $pageNumber) {
+    $tests["explicit schema setting {$settingId} maps to WAL page {$pageNumber}"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $settingId, $pageNumber): void {
         $rows = $currentRows();
         $result = SQLiteImportJsonSchemaSavepointPlan::plan($rows, [
-            ['name' => 'explicit_' . $optionId, 'json' => $jsonRows([
-                ['option_id' => $optionId, 'option_name' => 'explicit_' . $optionId . '_settings', 'option_value' => '{"id":' . $optionId . '}'],
+            ['name' => 'explicit_' . $settingId, 'json' => $jsonRows([
+                ['setting_id' => $settingId, 'key_name' => 'explicit_' . $settingId . '_settings', 'key_value' => '{"id":' . $settingId . '}'],
             ]), 'path' => '$.rows'],
-        ], ['database_path' => '/tmp/wp-schema-explicit-savepoint.sqlite']);
+        ], ['database_path' => '/tmp/app-schema-explicit-savepoint.sqlite']);
 
         $t->same([$pageNumber], $result['batches'][0]['dirty_pages']);
         $t->same($pageNumber, $result['wal']['frames'][0]['page_number']);
-        $t->same($optionId, $result['batches'][0]['schema_generated_ids'][0]['option_id']);
+        $t->same($settingId, $result['batches'][0]['schema_generated_ids'][0]['setting_id']);
     };
 }
 
 foreach (['$', '$.rows', '$.payload.rows'] as $pathIndex => $path) {
     $tests["schema import savepoint extracts rows from {$path}"] = static function (TestRunner $t) use ($plan, $path, $pathIndex): void {
-        $row = ['option_name' => 'path_' . $pathIndex . '_settings', 'option_value' => '{"path":' . $pathIndex . '}'];
+        $row = ['key_name' => 'path_' . $pathIndex . '_settings', 'key_value' => '{"path":' . $pathIndex . '}'];
         $json = match ($path) {
             '$' => json_encode([$row], JSON_THROW_ON_ERROR),
             '$.rows' => json_encode(['rows' => [$row]], JSON_THROW_ON_ERROR),
@@ -234,7 +234,7 @@ foreach (['$', '$.rows', '$.payload.rows'] as $pathIndex => $path) {
             ['name' => 'path_' . $pathIndex, 'json' => $json, 'path' => $path],
         ]);
 
-        $t->same(['path_' . $pathIndex . '_settings'], $result['batches'][0]['json']['option_names']);
+        $t->same(['path_' . $pathIndex . '_settings'], $result['batches'][0]['json']['key_names']);
         $t->same(1, $result['batches'][0]['json']['schema']['accepted_rows']);
     };
 }
@@ -242,7 +242,7 @@ foreach (['$', '$.rows', '$.payload.rows'] as $pathIndex => $path) {
 $tests['dependency marker names schema savepoint import'] = static function (TestRunner $t) use ($plan, $jsonRows): void {
     $result = $plan([
         ['name' => 'deps', 'json' => $jsonRows([
-            ['option_name' => 'deps_settings', 'option_value' => '{"ok":true}'],
+            ['key_name' => 'deps_settings', 'key_value' => '{"ok":true}'],
         ]), 'path' => '$.rows'],
     ]);
 

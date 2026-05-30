@@ -29,7 +29,7 @@ final class SQLiteRecursiveViewReturningPlan
         ?array $returning = null,
         array $options = [],
     ): array {
-        $viewName = self::identifier((string) ($options['view_name'] ?? 'active_options'), 'view name');
+        $viewName = self::identifier((string) ($options['view_name'] ?? 'active_settings'), 'view name');
         $savepoint = trim((string) ($options['savepoint'] ?? 'view-returning'));
         if ($savepoint === '') {
             throw new \InvalidArgumentException('SQLite recursive view RETURNING savepoint cannot be empty');
@@ -96,18 +96,18 @@ final class SQLiteRecursiveViewReturningPlan
      */
     private static function viewToBaseRow(array $viewRow, int $ordinal): array
     {
-        foreach (['option_id', 'option_name', 'option_value'] as $column) {
+        foreach (['setting_id', 'key_name', 'key_value'] as $column) {
             if (!array_key_exists($column, $viewRow)) {
                 throw new \InvalidArgumentException("SQLite recursive view RETURNING row {$ordinal} missing {$column}");
             }
         }
 
         return [
-            'option_id' => $viewRow['option_id'],
-            'option_name' => $viewRow['option_name'],
-            'option_value' => $viewRow['option_value'],
+            'setting_id' => $viewRow['setting_id'],
+            'key_name' => $viewRow['key_name'],
+            'key_value' => $viewRow['key_value'],
             'level' => (int) ($viewRow['level'] ?? 1),
-            'autoload' => $viewRow['autoload'] ?? 'yes',
+            'load_policy' => $viewRow['load_policy'] ?? 'yes',
         ];
     }
 
@@ -118,10 +118,10 @@ final class SQLiteRecursiveViewReturningPlan
     {
         return [
             'view' => $viewName,
-            'option_id' => $baseRow['option_id'],
-            'option_name' => $baseRow['option_name'],
-            'option_value' => $baseRow['option_value'],
-            'autoload' => $baseRow['autoload'],
+            'setting_id' => $baseRow['setting_id'],
+            'key_name' => $baseRow['key_name'],
+            'key_value' => $baseRow['key_value'],
+            'load_policy' => $baseRow['load_policy'],
             'level' => $baseRow['level'],
             'source' => $viewRow['source'] ?? 'view',
         ];

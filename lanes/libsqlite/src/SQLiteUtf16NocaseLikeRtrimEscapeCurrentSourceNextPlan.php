@@ -36,8 +36,8 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
         int $currentEscapeEncoding,
         string $nextEscapeBytes,
         int $nextEscapeEncoding,
-        string $currentSource = 'main.wp_options@165',
-        string $nextSource = 'main.wp_options@166',
+        string $currentSource = 'main.app_settings@165',
+        string $nextSource = 'main.app_settings@166',
         int $currentSchemaCookie = 165,
         int $nextSchemaCookie = 166,
     ): array {
@@ -223,8 +223,8 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl
         ?string $nextEscapeBytes,
         int $nextEscapeEncoding,
         ?array $lastYielded = null,
-        string $currentSource = 'main.wp_options@181',
-        string $nextSource = 'main.wp_options@182',
+        string $currentSource = 'main.app_settings@181',
+        string $nextSource = 'main.app_settings@182',
         int $currentSchemaCookie = 181,
         int $nextSchemaCookie = 182,
     ): array {

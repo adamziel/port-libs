@@ -16,45 +16,45 @@ require __DIR__ . '/../src/SQLiteTenantJsonWalCurrentNextPlan.php';
 use PortLibs\LibSqlite\SQLiteTenantJsonWalCurrentNextPlan;
 
 $currentRows = [
-    ['scope' => 'blog', 'blog_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['scope' => 'blog', 'blog_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://sub.example.test', 'autoload' => 'yes'],
-    ['scope' => 'network', 'site_id' => 1, 'meta_key' => 'site_name', 'meta_value' => 'Example Network'],
+    ['scope' => 'tenant', 'tenant_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['scope' => 'tenant', 'tenant_id' => 2, 'key_name' => 'siteurl', 'key_value' => 'https://sub.example.test', 'load_policy' => 'yes'],
+    ['scope' => 'global', 'group_id' => 1, 'key_name' => 'site_name', 'key_value' => 'Example Network'],
 ];
 
-$blogJson = json_encode(['rows' => [
-    ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true}', 'autoload' => 'yes'],
+$tenantJson = json_encode(['rows' => [
+    ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
 ]], JSON_THROW_ON_ERROR);
-$networkJson = json_encode(['rows' => [
-    ['meta_key' => 'network_plugins', 'meta_value' => '["akismet/akismet.php"]'],
+$globalJson = json_encode(['rows' => [
+    ['key_name' => 'global_plugins', 'key_value' => '["cache/cache.php"]'],
 ]], JSON_THROW_ON_ERROR);
 
 $plan = SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows, [
     [
-        'scope' => 'blog',
-        'blog_id' => 2,
-        'json' => $blogJson,
+        'scope' => 'tenant',
+        'tenant_id' => 2,
+        'json' => $tenantJson,
         'path' => '$.rows',
     ],
     [
-        'scope' => 'network',
-        'site_id' => 1,
-        'json' => $networkJson,
+        'scope' => 'global',
+        'group_id' => 1,
+        'json' => $globalJson,
         'path' => '$.rows',
     ],
     [
-        'scope' => 'network',
-        'site_id' => 1,
+        'scope' => 'global',
+        'group_id' => 1,
         'json' => '{"rows":[',
         'path' => '$.rows',
     ],
 ], [
-    'database_path' => '/tmp/wp-network-json-current-next45.sqlite',
+    'database_path' => '/tmp/app-global-json-current-next.sqlite',
     'page_size' => 1024,
     'first_frame' => 40,
 ]);
 
 echo json_encode([
-    'scenario' => 'application-network-json-wal-current-next45',
+    'scenario' => 'application-tenant-json-wal-current-next',
     'planned' => [
         'status' => $plan['status'],
         'releasedBatches' => $plan['released_batches'],
@@ -64,5 +64,5 @@ echo json_encode([
         'tables' => array_values(array_unique(array_column($plan['batches'], 'table'))),
         'nextRowsVisible' => $plan['reader_visibility']['next_rows_visible'],
     ],
-    'applicationUse' => 'A multisite wp_options/wp_sitemeta JSON import can stage blog and network rows through WAL current/next frame accounting while malformed network payloads roll back without advancing the reader-visible WAL frame.',
+    'applicationUse' => 'A tenant settings JSON import can stage tenant and global rows through WAL current/next frame accounting while malformed global payloads roll back without advancing the reader-visible WAL frame.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

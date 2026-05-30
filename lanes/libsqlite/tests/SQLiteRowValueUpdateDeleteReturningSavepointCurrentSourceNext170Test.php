@@ -45,7 +45,7 @@ $cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepoint
     [$cleanSql, $deleteSql],
     [],
     $unique,
-    'wp_options_rowvalue_abort_clean',
+    'app_settings_rowvalue_abort_clean',
 );
 
 $cases = [
@@ -64,7 +64,7 @@ $cases = [
 
     'plan status aborted statement preserved savepoint' => [static fn (): mixed => $plan()['status'], 'aborted-statement-preserved-savepoint'],
     'plan statement aborted flag true' => [static fn (): mixed => $plan()['statement_aborted'], true],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_abort_batch'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_abort_batch'],
     'plan not rolled back to savepoint' => [static fn (): mixed => $plan()['rolled_back_to_savepoint'], false],
     'plan savepoint preserved after abort' => [static fn (): mixed => $plan()['savepoint_preserved_after_abort'], true],
     'plan released after retry' => [static fn (): mixed => $plan()['released_after_retry'], true],
@@ -106,7 +106,7 @@ $cases = [
 
     'clean plan status released cleanly' => [static fn (): mixed => $cleanPlan()['status'], 'released-cleanly'],
     'clean plan statement aborted false' => [static fn (): mixed => $cleanPlan()['statement_aborted'], false],
-    'clean plan custom savepoint' => [static fn (): mixed => $cleanPlan()['savepoint'], 'wp_options_rowvalue_abort_clean'],
+    'clean plan custom savepoint' => [static fn (): mixed => $cleanPlan()['savepoint'], 'app_settings_rowvalue_abort_clean'],
     'clean plan yielded count four' => [static fn (): mixed => $cleanPlan()['yielded_returning_count_before_abort'], 4],
     'clean plan retry count zero' => [static fn (): mixed => $cleanPlan()['retry_returning_count'], 0],
     'clean plan final ids omit transients' => [static fn (): mixed => array_column($cleanPlan()['current_source_tables']['wp_options'], 'option_id'), [1, 2, 5, 6, 7, 8, 9]],

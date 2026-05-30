@@ -36,7 +36,7 @@ $admitted = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::exec
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],
     [['blog_id', 'option_name']],
-    'wp_options_rowvalue_window_current_next258',
+    'app_settings_rowvalue_window_current_next258',
     'option_id',
     null,
     null,

@@ -93,7 +93,7 @@ $cases225 = [
     'retry delete keeps lower network row' => [static fn (): mixed => in_array(10, array_column($retryDeleteResult225()['tables']['wp_options'], 'option_id'), true), true],
 
     'plan status' => [static fn (): mixed => $plan225()['status'], 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source-next225'],
-    'plan savepoint' => [static fn (): mixed => $plan225()['savepoint'], 'wp_options_rowvalue_distinct_subquery_next225'],
+    'plan savepoint' => [static fn (): mixed => $plan225()['savepoint'], 'app_settings_rowvalue_distinct_subquery_next225'],
     'plan distinct source flag' => [static fn (): mixed => $plan225()['distinct_subquery_source'], true],
     'plan rollback flags' => [static fn (): mixed => [$plan225()['rolled_back_to_savepoint'], $plan225()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan retry release flags' => [static fn (): mixed => [$plan225()['retry_reads_savepoint_image'], $plan225()['savepoint_released_after_retry']], [true, true]],

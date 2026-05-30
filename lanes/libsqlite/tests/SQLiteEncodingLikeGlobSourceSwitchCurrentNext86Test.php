@@ -53,8 +53,8 @@ $plan = static fn (
     string $collation = 'NOCASE',
     ?string $escape = null,
     bool $caseSensitiveLike = false,
-    string $currentSource = 'main.wp_options@cookie10',
-    string $nextSource = 'main.wp_options@cookie11',
+    string $currentSource = 'main.app_settings@cookie10',
+    string $nextSource = 'main.app_settings@cookie11',
 ): array => SQLiteEncodingLikeGlobSourceSwitchPlan::keyValueRowKeySourceSwitch(
     $currentRows,
     $nextRows,
@@ -68,8 +68,8 @@ $plan = static fn (
 );
 
 $cases = [
-    'like nocase reports current source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'currentSource', 'main.wp_options@cookie10'],
-    'like nocase reports next source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'nextSource', 'main.wp_options@cookie11'],
+    'like nocase reports current source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'currentSource', 'main.app_settings@cookie10'],
+    'like nocase reports next source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'nextSource', 'main.app_settings@cookie11'],
     'like nocase source changes' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'sourceChanged', true],
     'like nocase invalidates cursor' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'cursorInvalidated', true],
     'like nocase invalidates by source name' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'invalidationReasons.0', 'source-name'],
@@ -126,8 +126,8 @@ $cases = [
 foreach ($cases as $name => $case) {
     $tests['encoding like glob source current next86 ' . $name] = static function (TestRunner $t) use ($plan, $case): void {
         [$pattern, $operator, $collation, $escape, $caseSensitive, $path, $expected] = $case;
-        $currentSource = $case[7] ?? 'main.wp_options@cookie10';
-        $nextSource = $case[8] ?? 'main.wp_options@cookie11';
+        $currentSource = $case[7] ?? 'main.app_settings@cookie10';
+        $nextSource = $case[8] ?? 'main.app_settings@cookie11';
         $value = $plan($pattern, $operator, $collation, $escape, $caseSensitive, $currentSource, $nextSource);
         foreach (explode('.', $path) as $part) {
             $value = $value[$part];

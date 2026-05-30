@@ -57,7 +57,7 @@ $cases246 = [
     'direct retry update ids' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($retryUpdate246, $tables246, 'option_id', $unique246)['plan']->selectedIds, [5, 7, 9, 11]],
     'direct retry delete ids' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($retryDelete246, $tables246, 'option_id', $unique246)['plan']->selectedIds, [4, 10]],
     'plan status' => [static fn (): mixed => $plan246()['status'], 'rowvalue-update-delete-returning-window-current-source-next246'],
-    'plan savepoint' => [static fn (): mixed => $plan246()['savepoint'], 'wp_options_rowvalue_window_current_next246'],
+    'plan savepoint' => [static fn (): mixed => $plan246()['savepoint'], 'app_settings_rowvalue_window_current_next246'],
     'inherits next242 flag' => [static fn (): mixed => $plan246()['returning_window_current_source_next242'], true],
     'next246 flag' => [static fn (): mixed => $plan246()['returning_window_current_source_next246'], true],
     'retry partition keys' => [static fn (): mixed => array_keys($plan246()['retry_filter_windows_next246']), [$retryUpdateKey246, $retryDeleteKey246]],

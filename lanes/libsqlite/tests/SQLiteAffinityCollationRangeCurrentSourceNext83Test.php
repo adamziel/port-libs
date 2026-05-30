@@ -8,17 +8,17 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 $tests = [];
 
 $entries = [
-    ['key' => null, 'rowid' => 1, 'payload' => ['option_name' => 'nullish']],
-    ['key' => '001', 'rowid' => 2, 'payload' => ['option_name' => 'leading_zero']],
-    ['key' => '2', 'rowid' => 3, 'payload' => ['option_name' => 'two_text']],
-    ['key' => 2, 'rowid' => 4, 'payload' => ['option_name' => 'two_int']],
-    ['key' => '2.0', 'rowid' => 5, 'payload' => ['option_name' => 'two_real_text']],
-    ['key' => '09', 'rowid' => 6, 'payload' => ['option_name' => 'nine']],
-    ['key' => '10', 'rowid' => 7, 'payload' => ['option_name' => 'ten']],
-    ['key' => 10.0, 'rowid' => 8, 'payload' => ['option_name' => 'ten_real']],
-    ['key' => '10e0', 'rowid' => 9, 'payload' => ['option_name' => 'ten_exp']],
-    ['key' => 'not-a-number', 'rowid' => 10, 'payload' => ['option_name' => 'text']],
-    ['key' => new SQLiteBlobValue('5'), 'rowid' => 11, 'payload' => ['option_name' => 'blob']],
+    ['key' => null, 'rowid' => 1, 'payload' => ['key_name' => 'nullish']],
+    ['key' => '001', 'rowid' => 2, 'payload' => ['key_name' => 'leading_zero']],
+    ['key' => '2', 'rowid' => 3, 'payload' => ['key_name' => 'two_text']],
+    ['key' => 2, 'rowid' => 4, 'payload' => ['key_name' => 'two_int']],
+    ['key' => '2.0', 'rowid' => 5, 'payload' => ['key_name' => 'two_real_text']],
+    ['key' => '09', 'rowid' => 6, 'payload' => ['key_name' => 'nine']],
+    ['key' => '10', 'rowid' => 7, 'payload' => ['key_name' => 'ten']],
+    ['key' => 10.0, 'rowid' => 8, 'payload' => ['key_name' => 'ten_real']],
+    ['key' => '10e0', 'rowid' => 9, 'payload' => ['key_name' => 'ten_exp']],
+    ['key' => 'not-a-number', 'rowid' => 10, 'payload' => ['key_name' => 'text']],
+    ['key' => new SQLiteBlobValue('5'), 'rowid' => 11, 'payload' => ['key_name' => 'blob']],
 ];
 
 $numericCursor = static fn (): SQLiteAffinityRangeCurrentSourceCursor => new SQLiteAffinityRangeCurrentSourceCursor($entries, 2, 10, 'NUMERIC', 'BINARY');
@@ -60,14 +60,14 @@ $tests['affinity collation range current source next83 numeric matched storage r
 };
 
 $nameEntries = [
-    ['key' => 'Alpha', 'rowid' => 20, 'payload' => ['option_name' => 'Alpha']],
-    ['key' => 'alpha ', 'rowid' => 21, 'payload' => ['option_name' => 'alpha ']],
-    ['key' => 'ALPHA', 'rowid' => 22, 'payload' => ['option_name' => 'ALPHA']],
-    ['key' => 'beta', 'rowid' => 23, 'payload' => ['option_name' => 'beta']],
-    ['key' => 'Beta ', 'rowid' => 24, 'payload' => ['option_name' => 'Beta ']],
-    ['key' => 'delta', 'rowid' => 25, 'payload' => ['option_name' => 'delta']],
-    ['key' => 'éclair', 'rowid' => 26, 'payload' => ['option_name' => 'éclair']],
-    ['key' => new SQLiteBlobValue('beta'), 'rowid' => 27, 'payload' => ['option_name' => 'blob_beta']],
+    ['key' => 'Alpha', 'rowid' => 20, 'payload' => ['key_name' => 'Alpha']],
+    ['key' => 'alpha ', 'rowid' => 21, 'payload' => ['key_name' => 'alpha ']],
+    ['key' => 'ALPHA', 'rowid' => 22, 'payload' => ['key_name' => 'ALPHA']],
+    ['key' => 'beta', 'rowid' => 23, 'payload' => ['key_name' => 'beta']],
+    ['key' => 'Beta ', 'rowid' => 24, 'payload' => ['key_name' => 'Beta ']],
+    ['key' => 'delta', 'rowid' => 25, 'payload' => ['key_name' => 'delta']],
+    ['key' => 'éclair', 'rowid' => 26, 'payload' => ['key_name' => 'éclair']],
+    ['key' => new SQLiteBlobValue('beta'), 'rowid' => 27, 'payload' => ['key_name' => 'blob_beta']],
 ];
 
 $nocaseCursor = static fn (): SQLiteAffinityRangeCurrentSourceCursor => new SQLiteAffinityRangeCurrentSourceCursor($nameEntries, 'alpha', 'delta', 'TEXT', 'NOCASE');
@@ -111,27 +111,27 @@ $tests['affinity collation range current source next83 rtrim trims padded alpha 
 };
 
 $wpRows = [
-    ['option_id' => 101, 'option_name' => 'siteurl', 'option_value' => '10', 'autoload' => 'yes'],
-    ['option_id' => 102, 'option_name' => 'home', 'option_value' => '02', 'autoload' => 'yes'],
-    ['option_id' => 103, 'option_name' => 'blog_public', 'option_value' => '1', 'autoload' => 'yes'],
-    ['option_id' => 104, 'option_name' => 'cron', 'option_value' => 'not-a-number', 'autoload' => 'yes'],
-    ['option_id' => 105, 'option_name' => 'plugin_alpha', 'option_value' => '9', 'autoload' => 'no'],
-    ['option_id' => 106, 'option_name' => 'PLUGIN_ALPHA', 'option_value' => '09', 'autoload' => 'yes'],
-    ['option_id' => 107, 'option_name' => 'theme_mods_twenty', 'option_value' => '10e0', 'autoload' => 'yes'],
+    ['setting_id' => 101, 'key_name' => 'siteurl', 'key_value' => '10', 'load_policy' => 'yes'],
+    ['setting_id' => 102, 'key_name' => 'home', 'key_value' => '02', 'load_policy' => 'yes'],
+    ['setting_id' => 103, 'key_name' => 'blog_public', 'key_value' => '1', 'load_policy' => 'yes'],
+    ['setting_id' => 104, 'key_name' => 'cron', 'key_value' => 'not-a-number', 'load_policy' => 'yes'],
+    ['setting_id' => 105, 'key_name' => 'plugin_alpha', 'key_value' => '9', 'load_policy' => 'no'],
+    ['setting_id' => 106, 'key_name' => 'PLUGIN_ALPHA', 'key_value' => '09', 'load_policy' => 'yes'],
+    ['setting_id' => 107, 'key_name' => 'theme_mods_twenty', 'key_value' => '10e0', 'load_policy' => 'yes'],
 ];
 
-$tests['affinity collation range current source next83 application numeric autoload range'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteAffinityRangeCurrentSourceCursor::optionRowRange($wpRows, 'option_value', 2, 10, 'NUMERIC', 'BINARY', ['autoload' => 'yes']);
+$tests['affinity collation range current source next83 application numeric load_policy range'] = static function (TestRunner $t) use ($wpRows): void {
+    $rows = SQLiteAffinityRangeCurrentSourceCursor::keyValueRowRange($wpRows, 'key_value', 2, 10, 'NUMERIC', 'BINARY', ['load_policy' => 'yes']);
     $t->same([102, 106], array_column($rows, 'rowid'));
 };
 
-$tests['affinity collation range current source next83 application nocase option name range'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteAffinityRangeCurrentSourceCursor::optionRowRange($wpRows, 'option_name', 'plugin_', 'theme_', 'TEXT', 'NOCASE');
+$tests['affinity collation range current source next83 application nocase key name range'] = static function (TestRunner $t) use ($wpRows): void {
+    $rows = SQLiteAffinityRangeCurrentSourceCursor::keyValueRowRange($wpRows, 'key_name', 'plugin_', 'theme_', 'TEXT', 'NOCASE');
     $t->same([105, 106, 101], array_column($rows, 'rowid'));
 };
 
-$tests['affinity collation range current source next83 application filter excludes non autoload peer'] = static function (TestRunner $t) use ($wpRows): void {
-    $rows = SQLiteAffinityRangeCurrentSourceCursor::optionRowRange($wpRows, 'option_name', 'plugin_', 'theme_', 'TEXT', 'NOCASE', ['autoload' => 'yes']);
+$tests['affinity collation range current source next83 application filter excludes non load_policy peer'] = static function (TestRunner $t) use ($wpRows): void {
+    $rows = SQLiteAffinityRangeCurrentSourceCursor::keyValueRowRange($wpRows, 'key_name', 'plugin_', 'theme_', 'TEXT', 'NOCASE', ['load_policy' => 'yes']);
     $t->same([106, 101], array_column($rows, 'rowid'));
 };
 
@@ -154,7 +154,7 @@ $tests['affinity collation range current source next83 rejects unsupported colla
 };
 
 $tests['affinity collation range current source next83 rejects missing application column'] = static function (TestRunner $t) use ($wpRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAffinityRangeCurrentSourceCursor::optionRowRange($wpRows, 'missing_column', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAffinityRangeCurrentSourceCursor::keyValueRowRange($wpRows, 'missing_column', 1, 2));
 };
 
 $tests['affinity collation range current source next83 rejects non scalar row key'] = static function (TestRunner $t): void {

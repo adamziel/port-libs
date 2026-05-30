@@ -77,8 +77,8 @@ $plan = static fn (
     $currentEscape,
     $nextEscape,
     true,
-    'main.wp_options@127',
-    'main.wp_options@128',
+    'main.app_settings@127',
+    'main.app_settings@128',
 );
 
 $valueAt = static function (array $value, string $path): mixed {

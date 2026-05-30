@@ -16,8 +16,8 @@ final class SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan
         array $nextRows,
         string $pattern,
         ?string $escape = null,
-        string $currentSource = 'main.wp_options@173',
-        string $nextSource = 'main.wp_options@174',
+        string $currentSource = 'main.app_settings@173',
+        string $nextSource = 'main.app_settings@174',
         int $currentSchemaCookie = 173,
         int $nextSchemaCookie = 174,
     ): array {

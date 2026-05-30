@@ -46,8 +46,8 @@ $customPlan197 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavep
     [$innerUpdate197],
     [$retryUpdate197],
     $unique197,
-    'wp_outer_custom197',
-    'wp_inner_custom197',
+    'app_outer_custom197',
+    'app_inner_custom197',
 );
 
 $cases197 = [
@@ -75,7 +75,7 @@ $cases197 = [
     'retry delete removes rows' => [static fn (): mixed => array_intersect([2, 10], array_column($retryDeleteFromRetry197()['tables']['wp_options'], 'option_id')), []],
 
     'plan status' => [static fn (): mixed => $plan197()['status'], 'rowvalue-update-delete-returning-rollback-to-current-source-next197'],
-    'plan savepoint names' => [static fn (): mixed => [$plan197()['outer_savepoint'], $plan197()['inner_savepoint']], ['wp_options_rowvalue_rollback_outer_next197', 'wp_options_rowvalue_rollback_inner_next197']],
+    'plan savepoint names' => [static fn (): mixed => [$plan197()['outer_savepoint'], $plan197()['inner_savepoint']], ['app_settings_rowvalue_rollback_outer_next197', 'app_settings_rowvalue_rollback_inner_next197']],
     'plan rollback flag' => [static fn (): mixed => $plan197()['rollback_to_inner_savepoint'], true],
     'plan inner preserved after rollback' => [static fn (): mixed => $plan197()['inner_savepoint_preserved_after_rollback_to'], true],
     'plan release flags' => [static fn (): mixed => [$plan197()['inner_released_after_retry'], $plan197()['outer_released_after_inner_retry']], [true, true]],
@@ -121,7 +121,7 @@ $cases197 = [
     'plan dependency rollback to' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-rollback-to-savepoint-next197', $plan197()['dependencies'], true), true],
     'plan dependency delete restore' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-rollback-to-restores-current-source-next197', $plan197()['dependencies'], true), true],
     'plan dependency retry update' => [static fn (): mixed => in_array('sqlite-rowvalue-update-returning-retry-after-rollback-to-next197', $plan197()['dependencies'], true), true],
-    'custom plan savepoints' => [static fn (): mixed => [$customPlan197()['outer_savepoint'], $customPlan197()['inner_savepoint']], ['wp_outer_custom197', 'wp_inner_custom197']],
+    'custom plan savepoints' => [static fn (): mixed => [$customPlan197()['outer_savepoint'], $customPlan197()['inner_savepoint']], ['app_outer_custom197', 'app_inner_custom197']],
     'custom plan inner rolled back count' => [static fn (): mixed => $customPlan197()['inner_rolled_back_returning_count'], 2],
     'custom plan retry count' => [static fn (): mixed => $customPlan197()['yielded_after_retry_count'], 3],
     'custom plan final row count' => [static fn (): mixed => $customPlan197()['row_counts']['wp_options'], 11],

@@ -23,7 +23,7 @@ $nextRows = [
     ['option_id' => 6, 'option_name' => 'retry_limit_new', 'option_value' => '0010'],
 ];
 
-$numericPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValueComparisonPlan(
+$numericPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -34,13 +34,13 @@ $numericPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValu
     'BINARY',
     'UTF-16LE',
     'UTF-16BE',
-    'main.wp_options@cookie107',
-    'main.wp_options@cookie108',
+    'main.app_settings@cookie107',
+    'main.app_settings@cookie108',
     107,
     108,
 );
 
-$rtrimPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValueComparisonPlan(
+$rtrimPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -51,14 +51,14 @@ $rtrimPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::optionRowValueC
     'RTRIM',
     'UTF-16LE',
     'UTF-16BE',
-    'main.wp_options@cookie107',
-    'main.wp_options@cookie108',
+    'main.app_settings@cookie107',
+    'main.app_settings@cookie108',
     107,
     108,
 );
 
 echo json_encode([
-    'applicationUse' => 'Preview wp_options numeric-affinity comparisons across current/next schema sources before rebuilding UTF-16 option-value cursors.',
+    'applicationUse' => 'Preview app_settings numeric-affinity comparisons across current/next schema sources before rebuilding UTF-16 key-value cursors.',
     'numericProbe' => 10,
     'numericCurrentRowids' => $numericPlan['currentRowids'],
     'numericNextRowids' => $numericPlan['nextRowids'],

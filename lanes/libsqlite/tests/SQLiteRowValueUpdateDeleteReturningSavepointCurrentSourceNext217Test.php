@@ -78,7 +78,7 @@ $cases217 = [
     'direct retry delete removes transients' => [static fn (): mixed => array_intersect([3, 4], array_column($retryDeleteResult217()['tables']['wp_options'], 'option_id')), []],
 
     'plan status' => [static fn (): mixed => $plan217()['status'], 'rowvalue-update-delete-returning-or-rollback-current-source-next217'],
-    'plan transaction names' => [static fn (): mixed => [$plan217()['transaction'], $plan217()['savepoint'], $plan217()['retry_savepoint']], ['wp_options_rowvalue_transaction_next217', 'wp_options_rowvalue_rollback_next217', 'wp_options_rowvalue_retry_next217']],
+    'plan transaction names' => [static fn (): mixed => [$plan217()['transaction'], $plan217()['savepoint'], $plan217()['retry_savepoint']], ['app_settings_rowvalue_transaction_next217', 'app_settings_rowvalue_rollback_next217', 'app_settings_rowvalue_retry_next217']],
     'plan rollback aborted transaction' => [static fn (): mixed => $plan217()['or_rollback_aborted_transaction'], true],
     'plan savepoint closed' => [static fn (): mixed => $plan217()['savepoint_closed_by_rollback'], true],
     'plan pre changes discarded' => [static fn (): mixed => $plan217()['pre_rollback_changes_discarded'], true],

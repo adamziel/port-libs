@@ -78,7 +78,7 @@ $cases220 = [
     'direct retry delete removes timeout' => [static fn (): mixed => in_array(4, array_column($retryDeleteResult220()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $plan220()['status'], 'rowvalue-update-delete-returning-or-abort-savepoint-current-source-next220'],
-    'plan savepoint' => [static fn (): mixed => $plan220()['savepoint'], 'wp_options_rowvalue_abort_next220'],
+    'plan savepoint' => [static fn (): mixed => $plan220()['savepoint'], 'app_settings_rowvalue_abort_next220'],
     'plan savepoint preserved' => [static fn (): mixed => $plan220()['savepoint_preserved_after_statement_abort'], true],
     'plan pre changes preserved flag' => [static fn (): mixed => $plan220()['pre_abort_changes_preserved'], true],
     'plan abort rolled back flag' => [static fn (): mixed => $plan220()['abort_statement_changes_rolled_back'], true],

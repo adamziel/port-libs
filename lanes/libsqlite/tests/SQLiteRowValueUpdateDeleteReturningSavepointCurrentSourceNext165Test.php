@@ -41,7 +41,7 @@ $cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepoint
     $tables,
     [$cleanSql, $deleteSql],
     $unique,
-    'wp_options_rowvalue_clean_batch',
+    'app_settings_rowvalue_clean_batch',
 );
 
 $cases = [
@@ -65,7 +65,7 @@ $cases = [
     'delete after ignore keeps ignored candidate rows' => [static fn (): mixed => array_intersect([7, 8], array_column($afterIgnoreDelete()['tables']['wp_options'], 'option_id')), [7, 8]],
 
     'plan status released after ignore conflicts' => [static fn (): mixed => $plan()['status'], 'released-after-rowvalue-ignore-conflicts'],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_ignore_batch'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_ignore_batch'],
     'plan no rollback to savepoint' => [static fn (): mixed => $plan()['rolled_back_to_savepoint'], false],
     'plan savepoint released' => [static fn (): mixed => $plan()['savepoint_preserved'], false],
     'plan executed actions' => [static fn (): mixed => array_column($plan()['executed_statements'], 'action'), ['update', 'delete', 'update']],
@@ -100,7 +100,7 @@ $cases = [
     'plan dependency delete continues' => [static fn (): mixed => in_array('sqlite-delete-returning-after-ignored-rowvalue-conflict-continues', $plan()['dependencies'], true), true],
     'plan dependency source released' => [static fn (): mixed => in_array('sqlite-savepoint-current-source-released-after-ignore-conflict', $plan()['dependencies'], true), true],
 
-    'clean plan custom savepoint' => [static fn (): mixed => $cleanPlan()['savepoint'], 'wp_options_rowvalue_clean_batch'],
+    'clean plan custom savepoint' => [static fn (): mixed => $cleanPlan()['savepoint'], 'app_settings_rowvalue_clean_batch'],
     'clean plan no ignored rows' => [static fn (): mixed => $cleanPlan()['ignored_returning_count'], 0],
     'clean plan yielded ids update' => [static fn (): mixed => array_column($cleanPlan()['yielded_returning'][0]['rows'], 'option_id'), [7, 8]],
     'clean plan yielded ids delete' => [static fn (): mixed => array_column($cleanPlan()['yielded_returning'][1]['rows'], 'option_id'), [3, 4]],

@@ -57,8 +57,8 @@ $plan = static fn (
     ?string $escape = null,
     ?string $escapeEncoding = null,
     bool $caseSensitiveLike = false,
-    string $currentSource = 'main.wp_options',
-    string $nextSource = 'main.wp_options',
+    string $currentSource = 'main.app_settings',
+    string $nextSource = 'main.app_settings',
 ): array => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
@@ -124,8 +124,8 @@ $cases = [
     'glob greek gamma next' => ['plugin_[γ]:*', 'UTF-16LE', 'GLOB', null, null, false, 'nextRowids', [5]],
     'glob emoji current' => ['emoji:😀:*', 'UTF-16BE', 'GLOB', null, null, false, 'currentRowids', [6]],
     'glob emoji pattern encoding' => ['emoji:😀:*', 'UTF-16BE', 'GLOB', null, null, false, 'patternEncoding', 'UTF-16BE'],
-    'source switch reason' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'invalidationReasons.0', 'source-name', 'main.wp_options', 'temp.wp_options'],
-    'source switch next source' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'nextSource', 'temp.wp_options', 'main.wp_options', 'temp.wp_options'],
+    'source switch reason' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'invalidationReasons.0', 'source-name', 'main.app_settings', 'temp.app_settings'],
+    'source switch next source' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'nextSource', 'temp.app_settings', 'main.app_settings', 'temp.app_settings'],
     'dependency decode' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'dependencies.0', 'sqlite-utf16-pattern-decode'],
     'dependency affinity' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'dependencies.1', 'sqlite-like-glob-affinity'],
     'dependency marker' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'dependencies.2', 'sqlite-current-source-nextoneOneFour'],
@@ -134,8 +134,8 @@ $cases = [
 foreach ($cases as $name => $case) {
     $tests['utf16 pattern like glob affinity current source nextOneOneFour ' . $name] = static function (TestRunner $t) use ($plan, $case): void {
         [$pattern, $patternEncoding, $operator, $escape, $escapeEncoding, $caseSensitiveLike, $path, $expected] = $case;
-        $currentSource = $case[8] ?? 'main.wp_options';
-        $nextSource = $case[9] ?? 'main.wp_options';
+        $currentSource = $case[8] ?? 'main.app_settings';
+        $nextSource = $case[9] ?? 'main.app_settings';
         $value = $plan($pattern, $patternEncoding, $operator, $escape, $escapeEncoding, $caseSensitiveLike, $currentSource, $nextSource);
         foreach (explode('.', $path) as $part) {
             $value = $value[$part];

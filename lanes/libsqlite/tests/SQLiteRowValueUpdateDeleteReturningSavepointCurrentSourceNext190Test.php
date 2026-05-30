@@ -60,8 +60,8 @@ $cases190 = [
     'retry update starts from release value for theme' => [static fn (): mixed => $retryUpdateResult190()['returning'][2]['option_value'], 'theme:released190:retry190'],
 
     'plan status' => [static fn (): mixed => $plan190()['status'], 'rowvalue-negated-predicate-release-rollback-retry-next190'],
-    'plan release savepoint name' => [static fn (): mixed => $plan190()['release_savepoint'], 'wp_options_rowvalue_release_next190'],
-    'plan rollback savepoint name' => [static fn (): mixed => $plan190()['rollback_savepoint'], 'wp_options_rowvalue_rollback_next190'],
+    'plan release savepoint name' => [static fn (): mixed => $plan190()['release_savepoint'], 'app_settings_rowvalue_release_next190'],
+    'plan rollback savepoint name' => [static fn (): mixed => $plan190()['rollback_savepoint'], 'app_settings_rowvalue_rollback_next190'],
     'plan release savepoint released' => [static fn (): mixed => $plan190()['release_savepoint_released'], true],
     'plan rollback to second savepoint' => [static fn (): mixed => $plan190()['rollback_to_second_savepoint'], true],
     'plan rollback savepoint preserved' => [static fn (): mixed => $plan190()['rollback_savepoint_preserved_after_rollback_to'], true],

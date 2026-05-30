@@ -67,7 +67,7 @@ $cases233 = [
     'retry delete tuple flags' => [static fn (): mixed => array_column($retryDeleteResult233()['returning'], 'tuple_hit'), [1, 0]],
     'retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResult233()['tables']['wp_options'], 'option_id'), [1, 2, 3, 5, 6, 7, 8, 9]],
     'plan status' => [static fn (): mixed => $plan233()['status'], 'rowvalue-update-delete-returning-window-current-source-next233'],
-    'plan savepoint' => [static fn (): mixed => $plan233()['savepoint'], 'wp_options_rowvalue_returning_window_next233'],
+    'plan savepoint' => [static fn (): mixed => $plan233()['savepoint'], 'app_settings_rowvalue_returning_window_next233'],
     'plan yield current row five changed' => [static fn (): mixed => array_column($plan233()['yield_current_source_tables']['wp_options'], 'status', 'option_id')[5], 'yield233'],
     'plan yield current deleted row three' => [static fn (): mixed => in_array(3, array_column($plan233()['yield_current_source_tables']['wp_options'], 'option_id'), true), false],
     'plan attempt current row five chained' => [static fn (): mixed => array_column($plan233()['attempt_current_source_tables']['wp_options'], 'bytes', 'option_id')[5], 42],

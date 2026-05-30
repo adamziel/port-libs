@@ -57,8 +57,8 @@ $plan = static fn (
     string $collation = 'BINARY',
     int|string $currentEncoding = 'UTF-16LE',
     int|string $nextEncoding = 'UTF-16BE',
-    string $currentSource = 'main.wp_options@cookie107',
-    string $nextSource = 'main.wp_options@cookie108',
+    string $currentSource = 'main.app_settings@cookie107',
+    string $nextSource = 'main.app_settings@cookie108',
     int $currentCookie = 107,
     int $nextCookie = 108,
 ): array => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
@@ -96,8 +96,8 @@ $cases = [
     'records probe coerced value' => ['probeCoercedValue', 10],
     'records probe coerced storage' => ['probeCoercedStorage', 'integer'],
     'records collation' => ['collation', 'BINARY'],
-    'records current source' => ['currentSource', 'main.wp_options@cookie107'],
-    'records next source' => ['nextSource', 'main.wp_options@cookie108'],
+    'records current source' => ['currentSource', 'main.app_settings@cookie107'],
+    'records next source' => ['nextSource', 'main.app_settings@cookie108'],
     'records current cookie' => ['currentSchemaCookie', 107],
     'records next cookie' => ['nextSchemaCookie', 108],
     'records current encoding' => ['currentEncoding', 'UTF-16LE'],
@@ -147,22 +147,22 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['encoding numeric affinity current source next107 less than includes numeric lows only'] = static function (TestRunner $t) use ($plan): void {
-    $lt = $plan(10, '<', 'NUMERIC', 'NONE', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'main.wp_options', 'main.wp_options', 107, 107);
+    $lt = $plan(10, '<', 'NUMERIC', 'NONE', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'main.app_settings', 'main.app_settings', 107, 107);
     $t->same([11, 12, 13], $lt['currentRowids']);
 };
 
 $tests['encoding numeric affinity current source next107 greater than includes nonnumeric text after numeric'] = static function (TestRunner $t) use ($plan): void {
-    $gt = $plan(10, '>', 'NUMERIC', 'NONE', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'main.wp_options', 'main.wp_options', 107, 107);
+    $gt = $plan(10, '>', 'NUMERIC', 'NONE', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'main.app_settings', 'main.app_settings', 107, 107);
     $t->same([14, 8, 16, 17, 10], $gt['currentRowids']);
 };
 
 $tests['encoding numeric affinity current source next107 rtrim collation collapses padded text fallback'] = static function (TestRunner $t) use ($plan): void {
-    $rtrim = $plan('Ten', '=', 'NUMERIC', 'NONE', 'RTRIM', 'UTF-16LE', 'UTF-16LE', 'main.wp_options', 'main.wp_options', 107, 107);
+    $rtrim = $plan('Ten', '=', 'NUMERIC', 'NONE', 'RTRIM', 'UTF-16LE', 'UTF-16LE', 'main.app_settings', 'main.app_settings', 107, 107);
     $t->same([16, 17], $rtrim['currentRowids']);
 };
 
 $tests['encoding numeric affinity current source next107 nocase collation matches next text fallback'] = static function (TestRunner $t) use ($plan): void {
-    $nocase = $plan('TEN', '=', 'NUMERIC', 'NONE', 'NOCASE', 'UTF-16LE', 'UTF-16LE', 'main.wp_options', 'main.wp_options', 107, 107);
+    $nocase = $plan('TEN', '=', 'NUMERIC', 'NONE', 'NOCASE', 'UTF-16LE', 'UTF-16LE', 'main.app_settings', 'main.app_settings', 107, 107);
     $t->same([16], $nocase['nextRowids']);
 };
 
@@ -178,8 +178,8 @@ $tests['encoding numeric affinity current source next107 stable source reusable 
         'BINARY',
         'UTF-16LE',
         'UTF-16LE',
-        'main.wp_options',
-        'main.wp_options',
+        'main.app_settings',
+        'main.app_settings',
         107,
         107,
     );

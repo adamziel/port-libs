@@ -32,7 +32,7 @@ $plan262 = static fn (?array $peerAck = null, array $peerColumns = ['status'], ?
     [$attemptUpdate262, $attemptDelete262],
     [$retryUpdate262, $retryDelete262],
     $unique262,
-    'wp_options_rowvalue_window_current_next262',
+    'app_settings_rowvalue_window_current_next262',
     'option_id',
     null,
     null,

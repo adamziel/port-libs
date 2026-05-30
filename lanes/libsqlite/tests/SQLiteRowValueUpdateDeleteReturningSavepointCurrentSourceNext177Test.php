@@ -64,8 +64,8 @@ $cases177 = [
     'retry starts from inner image row seven outer value' => [static fn (): mixed => $innerRetry177()['returning'][0]['option_value'], 'theme:outer177:retry177'],
 
     'plan status' => [static fn (): mixed => $plan177()['status'], 'inner-rollback-to-retry-current-source-next177'],
-    'plan outer savepoint' => [static fn (): mixed => $plan177()['outer_savepoint'], 'wp_options_outer_rowvalue_next177'],
-    'plan inner savepoint' => [static fn (): mixed => $plan177()['inner_savepoint'], 'wp_options_inner_rowvalue_next177'],
+    'plan outer savepoint' => [static fn (): mixed => $plan177()['outer_savepoint'], 'app_settings_outer_rowvalue_next177'],
+    'plan inner savepoint' => [static fn (): mixed => $plan177()['inner_savepoint'], 'app_settings_inner_rowvalue_next177'],
     'plan rolled back to inner' => [static fn (): mixed => $plan177()['rolled_back_to_inner_savepoint'], true],
     'plan outer preserved after inner rollback' => [static fn (): mixed => $plan177()['outer_savepoint_preserved_after_inner_rollback_to'], true],
     'plan inner preserved after rollback' => [static fn (): mixed => $plan177()['inner_savepoint_preserved_after_rollback_to'], true],

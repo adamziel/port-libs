@@ -38,7 +38,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySa
     $preRollback,
     $retry,
     [['blog_id', 'option_name']],
-    'wp_options_rowvalue_literal_clause_retry_next167',
+    'app_settings_rowvalue_literal_clause_retry_next167',
 );
 
 if (($argv[1] ?? null) === '--self-test') {

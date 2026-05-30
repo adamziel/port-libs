@@ -17,8 +17,8 @@ final class SQLiteCastNocaseCurrentSourceNextPlan
         string $castTarget,
         string $pattern,
         ?string $escape = null,
-        string $currentSource = 'main.wp_options@128',
-        string $nextSource = 'main.wp_options@129',
+        string $currentSource = 'main.app_settings@128',
+        string $nextSource = 'main.app_settings@129',
         int $currentSchemaCookie = 128,
         int $nextSchemaCookie = 129,
     ): array {

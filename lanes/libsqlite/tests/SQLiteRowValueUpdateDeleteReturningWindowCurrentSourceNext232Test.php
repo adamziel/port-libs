@@ -92,7 +92,7 @@ $cases232 = [
     'retry delete flags' => [static fn (): mixed => array_column($retryDeleteResult232()['returning'], 'retry_keep'), [1, 0]],
     'retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResult232()['tables']['wp_options'], 'option_id'), [1, 2, 4, 5, 6, 7, 8, 10]],
     'plan status' => [static fn (): mixed => $plan232()['status'], 'rowvalue-update-delete-returning-window-current-source-next232'],
-    'plan savepoint' => [static fn (): mixed => $plan232()['savepoint'], 'wp_options_rowvalue_window_current_next232'],
+    'plan savepoint' => [static fn (): mixed => $plan232()['savepoint'], 'app_settings_rowvalue_window_current_next232'],
     'plan base subquery flag' => [static fn (): mixed => $plan232()['rowvalue_subquery_targets_next229'], true],
     'plan window flag' => [static fn (): mixed => $plan232()['window_current_source_next232'], true],
     'plan rollback flag' => [static fn (): mixed => $plan232()['rollback_to_savepoint_next229'], true],

@@ -21,8 +21,8 @@ final class SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan
         ?string $currentEscape = null,
         ?string $nextEscape = null,
         bool $caseSensitiveLike = true,
-        string $currentSource = 'main.wp_options@current',
-        string $nextSource = 'main.wp_options@next',
+        string $currentSource = 'main.app_settings@current',
+        string $nextSource = 'main.app_settings@next',
     ): array {
         $currentOperator = strtoupper($currentOperator);
         $nextOperator = strtoupper($nextOperator);

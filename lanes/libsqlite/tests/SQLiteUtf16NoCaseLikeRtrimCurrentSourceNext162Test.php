@@ -141,7 +141,7 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['utf16 nocase like rtrim current source nextOneSixTwo source change remains semantic'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan(null, null, currentSource: 'main.wp_options@161', nextSource: 'main.wp_options@162');
+    $result = $plan(null, null, currentSource: 'main.app_settings@161', nextSource: 'main.app_settings@162');
     $t->same(['pattern-encoding', 'pattern-bytes', 'escape-bytes'], $result['byteReprepareReasons']);
     $t->same(['source-name'], $result['semanticInvalidationReasons']);
     $t->same(true, $result['cursorInvalidated']);

@@ -64,7 +64,7 @@ $cases215 = [
     'retry delete removes network siteurl' => [static fn (): mixed => in_array(10, array_column($retryDeleteResult215()['tables']['wp_options'], 'option_id'), true), false],
     'retry delete keeps retry rows eight nine' => [static fn (): mixed => [array_column($retryDeleteResult215()['tables']['wp_options'], 'option_value', 'option_id')[8], array_column($retryDeleteResult215()['tables']['wp_options'], 'option_value', 'option_id')[9]], ['rules:retry215', 'plugin:retry215']],
     'plan status' => [static fn (): mixed => $plan215()['status'], 'rowvalue-update-delete-returning-subquery-limit-savepoint-current-source-next215'],
-    'plan savepoint' => [static fn (): mixed => $plan215()['savepoint'], 'wp_options_rowvalue_subquery_limit_next215'],
+    'plan savepoint' => [static fn (): mixed => $plan215()['savepoint'], 'app_settings_rowvalue_subquery_limit_next215'],
     'plan rollback flags' => [static fn (): mixed => [$plan215()['rolled_back_to_savepoint'], $plan215()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan retry release flags' => [static fn (): mixed => [$plan215()['retry_reads_savepoint_image'], $plan215()['savepoint_released_after_retry']], [true, true]],
     'plan savepoint image row eight original' => [static fn (): mixed => array_column($plan215()['savepoint_image_tables']['wp_options'], 'option_value', 'option_id')[8], 'rules'],

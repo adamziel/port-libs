@@ -54,7 +54,7 @@ $cases188 = [
     'retry update after delete starts from original value' => [static fn (): mixed => $retryUpdateAfterDelete188()['returning'][0]['option_value'], 'https://old.test:retry188'],
 
     'plan status' => [static fn (): mixed => $plan188()['status'], 'rowvalue-empty-in-returning-rolled-back-retried-next188'],
-    'plan savepoint name' => [static fn (): mixed => $plan188()['savepoint'], 'wp_options_rowvalue_empty_in_next188'],
+    'plan savepoint name' => [static fn (): mixed => $plan188()['savepoint'], 'app_settings_rowvalue_empty_in_next188'],
     'plan rolled back' => [static fn (): mixed => $plan188()['rolled_back_to_savepoint'], true],
     'plan savepoint preserved' => [static fn (): mixed => $plan188()['savepoint_preserved_after_rollback_to'], true],
     'plan released after retry' => [static fn (): mixed => $plan188()['released_after_retry'], true],

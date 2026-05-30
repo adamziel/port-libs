@@ -68,7 +68,7 @@ $cases185 = [
     'retry update from original value starts without staged suffix' => [static fn (): mixed => $retryUpdateResult185()['returning'][0]['option_value'], 'theme:retry185'],
 
     'plan status' => [static fn (): mixed => $plan185()['status'], 'or-fail-partial-rowvalue-returning-rolled-back-retried-next185'],
-    'plan savepoint name' => [static fn (): mixed => $plan185()['savepoint'], 'wp_options_rowvalue_fail_next185'],
+    'plan savepoint name' => [static fn (): mixed => $plan185()['savepoint'], 'app_settings_rowvalue_fail_next185'],
     'plan rolled back' => [static fn (): mixed => $plan185()['rolled_back_to_savepoint'], true],
     'plan savepoint preserved after rollback' => [static fn (): mixed => $plan185()['savepoint_preserved_after_rollback_to'], true],
     'plan released after retry' => [static fn (): mixed => $plan185()['released_after_retry'], true],

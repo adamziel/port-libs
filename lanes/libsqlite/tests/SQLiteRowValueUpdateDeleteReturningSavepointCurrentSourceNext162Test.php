@@ -47,7 +47,7 @@ $cases = [
     'preserved fail deletes no conflict rows' => [static fn (): mixed => $preservedFail()['deleted_conflict_rows'], []],
 
     'plan rolls back after fail' => [static fn (): mixed => $plan()['status'], 'rolled-back-after-or-fail'],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_fail_batch'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_fail_batch'],
     'plan rolled back flag' => [static fn (): mixed => $plan()['rolled_back_to_savepoint'], true],
     'plan preserves savepoint' => [static fn (): mixed => $plan()['savepoint_preserved'], true],
     'plan no committed executed statements' => [static fn (): mixed => $plan()['executed_statements'], []],

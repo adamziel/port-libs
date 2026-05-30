@@ -33,7 +33,7 @@ $plan181 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPl
     [$stageSql181, $rollbackSql181],
     [$retryDeleteSql181, $retryUpdateSql181],
     $unique181,
-    'wp_options_rowvalue_in_retry_next181',
+    'app_settings_rowvalue_in_retry_next181',
 );
 
 $cases181 = [
@@ -52,7 +52,7 @@ $cases181 = [
     'delete not in leaves tuple list members' => [static fn (): mixed => array_column($deleteNotIn181()['tables']['wp_options'], 'option_id'), [1, 6, 8]],
 
     'plan status rolled back retried' => [static fn (): mixed => $plan181()['status'], 'fail-stream-rolled-back-retried-current-source-next173'],
-    'plan custom savepoint' => [static fn (): mixed => $plan181()['savepoint'], 'wp_options_rowvalue_in_retry_next181'],
+    'plan custom savepoint' => [static fn (): mixed => $plan181()['savepoint'], 'app_settings_rowvalue_in_retry_next181'],
     'plan failed ordinal after stage' => [static fn (): mixed => $plan181()['failed_statement_ordinal'], 1],
     'plan rolled back to savepoint' => [static fn (): mixed => $plan181()['rolled_back_to_savepoint'], true],
     'plan preserves savepoint after rollback to' => [static fn (): mixed => $plan181()['savepoint_preserved_after_rollback_to'], true],

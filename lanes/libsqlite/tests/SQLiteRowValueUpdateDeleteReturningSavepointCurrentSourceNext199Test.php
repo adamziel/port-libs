@@ -77,7 +77,7 @@ $cases199 = [
     'malformed unknown order expression rejected at execution' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options RETURNING option_id ORDER BY missing + 1", $tables199), InvalidArgumentException::class],
 
     'plan status' => [static fn (): mixed => $plan199()['status'], 'rowvalue-order-expression-returning-rolled-back-retried-next199'],
-    'plan savepoint' => [static fn (): mixed => $plan199()['savepoint'], 'wp_options_rowvalue_order_expr_next199'],
+    'plan savepoint' => [static fn (): mixed => $plan199()['savepoint'], 'app_settings_rowvalue_order_expr_next199'],
     'plan rolled back' => [static fn (): mixed => $plan199()['rolled_back_to_savepoint'], true],
     'plan savepoint preserved' => [static fn (): mixed => $plan199()['savepoint_preserved_after_rollback_to'], true],
     'plan released after retry' => [static fn (): mixed => $plan199()['released_after_retry'], true],

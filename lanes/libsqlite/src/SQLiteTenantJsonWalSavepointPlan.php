@@ -7,26 +7,27 @@ namespace PortLibs\LibSqlite;
 final class SQLiteTenantJsonWalSavepointPlan
 {
     /**
-     * @param list<array{blog_id:int|string,current_rows:list<array<string,mixed>>,json_imports:list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}>}> $sites
-     * @param array{database_path?:string,page_size?:int,journal_mode?:string,sync_mode?:string,replace_conflicts?:bool,continue_on_site_error?:bool,global_json_imports?:list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}>} $options
+     * @param list<array{tenant_id:int|string,table_name?:string,current_rows:list<array<string,mixed>>,json_imports:list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}>}> $sites
+     * @param array{database_path?:string,page_size?:int,journal_mode?:string,sync_mode?:string,replace_conflicts?:bool,continue_on_site_error?:bool,global_table_name?:string,global_json_imports?:list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}>} $options
      * @return array<string,mixed>
      */
     public static function plan(array $sites, array $options = []): array
     {
         if ($sites === []) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL savepoint plan requires at least one site');
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL savepoint plan requires at least one tenant');
         }
 
-        $databasePath = (string) ($options['database_path'] ?? '/tmp/wp-network-json-import.sqlite');
+        $databasePath = (string) ($options['database_path'] ?? '/tmp/sqlite-tenant-json-import.sqlite');
         $pageSize = (int) ($options['page_size'] ?? 4096);
         $journalMode = strtolower((string) ($options['journal_mode'] ?? 'wal'));
         $syncMode = strtolower((string) ($options['sync_mode'] ?? 'normal'));
         $replaceConflicts = (bool) ($options['replace_conflicts'] ?? true);
         $continueOnSiteError = (bool) ($options['continue_on_site_error'] ?? true);
+        $globalTableName = self::identifier((string) ($options['global_table_name'] ?? 'kv_global'), 'global table name');
         $globalImports = $options['global_json_imports'] ?? [];
 
         if (!is_array($globalImports)) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL global imports must be a list');
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL global imports must be a list');
         }
 
         $sitePlans = [];
@@ -41,21 +42,21 @@ final class SQLiteTenantJsonWalSavepointPlan
         $walBytes = 0;
 
         foreach (array_values($sites) as $siteIndex => $site) {
-            $blogId = self::tenantId($site);
-            if (isset($sitePlans[$blogId])) {
-                throw new \InvalidArgumentException("Duplicate Application network blog_id {$blogId}");
+            $tenantId = self::tenantId($site);
+            if (isset($sitePlans[$tenantId])) {
+                throw new \InvalidArgumentException("Duplicate SQLite tenant id {$tenantId}");
             }
 
             $imports = $site['json_imports'] ?? null;
             if (!is_array($imports)) {
-                throw new \InvalidArgumentException('SQLite Application network JSON WAL site imports must be a list');
+                throw new \InvalidArgumentException('SQLite tenant JSON WAL imports must be a list');
             }
 
-            $tableName = self::keyValueTableName($blogId);
+            $tableName = self::keyValueTableName($site, $tenantId);
             $tableNames[] = $tableName;
             $prefixedImports = [];
             foreach (array_values($imports) as $importIndex => $import) {
-                $prefixedImports[] = self::prefixedImport($import, "blog{$blogId}", $importIndex);
+                $prefixedImports[] = self::prefixedImport($import, "tenant{$tenantId}", $importIndex);
             }
 
             try {
@@ -68,9 +69,9 @@ final class SQLiteTenantJsonWalSavepointPlan
                 ]);
                 $status = $sitePlan['rolled_back_batches'] === [] ? 'released' : 'partial';
                 if ($status === 'released') {
-                    $releasedSites[] = $blogId;
+                    $releasedSites[] = $tenantId;
                 } else {
-                    $rolledBackSites[] = $blogId;
+                    $rolledBackSites[] = $tenantId;
                 }
             } catch (\Throwable $exception) {
                 if (!$continueOnSiteError) {
@@ -79,26 +80,26 @@ final class SQLiteTenantJsonWalSavepointPlan
 
                 $sitePlan = self::rolledBackTenantPlan($site['current_rows'], $prefixedImports, $exception->getMessage());
                 $status = 'rolled_back';
-                $rolledBackSites[] = $blogId;
+                $rolledBackSites[] = $tenantId;
             }
 
             foreach (($sitePlan['dirty_pages'] ?? []) as $pageNumber) {
-                $dirtyPages[self::tenantPageNumber($blogId, (int) $pageNumber)] = true;
+                $dirtyPages[self::tenantPageNumber($tenantId, (int) $pageNumber)] = true;
             }
 
             foreach (($sitePlan['wal']['frames'] ?? []) as $frame) {
                 $walFrameCount++;
-                $walFrames[] = self::tenantWalFrame($blogId, $tableName, $walFrameCount, $frame);
+                $walFrames[] = self::tenantWalFrame($tenantId, $tableName, $walFrameCount, $frame);
             }
             $walBytes += (int) ($sitePlan['wal']['bytes'] ?? 0);
 
             $finalRowsByTable[$tableName] = $sitePlan['final_rows'];
             $releasedRowsByTable[$tableName] = $sitePlan['released_rows'];
-            $sitePlans[$blogId] = [
-                'blog_id' => $blogId,
+            $sitePlans[$tenantId] = [
+                'tenant_id' => $tenantId,
                 'table' => $tableName,
                 'status' => $status,
-                'savepoint_prefix' => "blog{$blogId}",
+                'savepoint_prefix' => "tenant{$tenantId}",
                 'plan' => $sitePlan,
             ];
             unset($siteIndex);
@@ -123,11 +124,11 @@ final class SQLiteTenantJsonWalSavepointPlan
             }
             foreach ($globalPlan['wal']['frames'] as $frame) {
                 $walFrameCount++;
-                $walFrames[] = self::tenantWalFrame(0, 'wp_sitemeta', $walFrameCount, $frame);
+                $walFrames[] = self::tenantWalFrame(0, $globalTableName, $walFrameCount, $frame);
             }
             $walBytes += (int) $globalPlan['wal']['bytes'];
-            $finalRowsByTable['wp_sitemeta'] = $globalPlan['final_rows'];
-            $releasedRowsByTable['wp_sitemeta'] = $globalPlan['released_rows'];
+            $finalRowsByTable[$globalTableName] = $globalPlan['final_rows'];
+            $releasedRowsByTable[$globalTableName] = $globalPlan['released_rows'];
         }
 
         ksort($dirtyPages);
@@ -140,10 +141,12 @@ final class SQLiteTenantJsonWalSavepointPlan
             'page_size' => $pageSize,
             'journal_mode' => $journalMode,
             'sync_mode' => $syncMode,
+            'tenant_count' => count($sitePlans),
             'site_count' => count($sitePlans),
             'table_names' => $tableNames,
-            'released_sites' => $releasedSites,
-            'rolled_back_sites' => $rolledBackSites,
+            'released_tenants' => $releasedSites,
+            'rolled_back_tenants' => $rolledBackSites,
+            'tenants' => array_values($sitePlans),
             'sites' => array_values($sitePlans),
             'global_plan' => $globalPlan,
             'final_rows_by_table' => $finalRowsByTable,
@@ -154,11 +157,10 @@ final class SQLiteTenantJsonWalSavepointPlan
                 'frame_count' => count($walFrames),
                 'bytes' => $walBytes,
                 'frames' => $walFrames,
-                'current_next47' => true,
             ],
             'dependencies' => [
-                'sqlite-application-network-json-wal-savepoint',
-                'sqlite-application-json-import-wal-savepoint',
+                'sqlite-tenant-json-wal-savepoint',
+                'sqlite-json-import-wal-savepoint',
                 'sqlite-savepoint-wal-rollback',
             ],
         ];
@@ -169,24 +171,27 @@ final class SQLiteTenantJsonWalSavepointPlan
      */
     private static function tenantId(array $site): int
     {
-        $blogId = $site['blog_id'] ?? null;
-        if (!is_int($blogId) && !(is_string($blogId) && ctype_digit($blogId))) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL blog_id must be a positive integer');
+        $tenantId = $site['tenant_id'] ?? null;
+        if (!is_int($tenantId) && !(is_string($tenantId) && ctype_digit($tenantId))) {
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL tenant_id must be a positive integer');
         }
-        $blogId = (int) $blogId;
-        if ($blogId <= 0) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL blog_id must be positive');
+        $tenantId = (int) $tenantId;
+        if ($tenantId <= 0) {
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL tenant_id must be positive');
         }
         if (!isset($site['current_rows']) || !is_array($site['current_rows'])) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL current rows must be a list');
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL current rows must be a list');
         }
 
-        return $blogId;
+        return $tenantId;
     }
 
-    private static function keyValueTableName(int $blogId): string
+    /**
+     * @param array<string,mixed> $site
+     */
+    private static function keyValueTableName(array $site, int $tenantId): string
     {
-        return $blogId === 1 ? 'wp_options' : 'wp_' . $blogId . '_options';
+        return self::identifier((string) ($site['table_name'] ?? 'kv_tenant_' . $tenantId), 'tenant table name');
     }
 
     /**
@@ -222,8 +227,8 @@ final class SQLiteTenantJsonWalSavepointPlan
             'current_rows' => $currentRows,
             'final_rows' => $currentRows,
             'released_rows' => $currentRows,
-            'final_option_names' => array_column($currentRows, 'option_name'),
-            'released_option_names' => array_column($currentRows, 'option_name'),
+            'final_key_names' => array_column($currentRows, 'key_name'),
+            'released_key_names' => array_column($currentRows, 'key_name'),
             'dirty_pages' => [],
             'wal' => [
                 'path' => null,
@@ -240,20 +245,29 @@ final class SQLiteTenantJsonWalSavepointPlan
      * @param array<string,mixed> $frame
      * @return array<string,mixed>
      */
-    private static function tenantWalFrame(int $blogId, string $tableName, int $networkFrameIndex, array $frame): array
+    private static function tenantWalFrame(int $tenantId, string $tableName, int $networkFrameIndex, array $frame): array
     {
         $pageNumber = (int) ($frame['page_number'] ?? 0);
 
         return $frame + [
             'network_frame_index' => $networkFrameIndex,
-            'blog_id' => $blogId,
+            'tenant_id' => $tenantId,
             'table' => $tableName,
-            'network_page_number' => self::tenantPageNumber($blogId, $pageNumber),
+            'network_page_number' => self::tenantPageNumber($tenantId, $pageNumber),
         ];
     }
 
-    private static function tenantPageNumber(int $blogId, int $pageNumber): int
+    private static function tenantPageNumber(int $tenantId, int $pageNumber): int
     {
-        return ($blogId * 100000) + $pageNumber;
+        return ($tenantId * 100000) + $pageNumber;
+    }
+
+    private static function identifier(string $identifier, string $label): string
+    {
+        if ($identifier === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier) !== 1) {
+            throw new \InvalidArgumentException("SQLite tenant JSON WAL {$label} must be a SQL identifier");
+        }
+
+        return $identifier;
     }
 }

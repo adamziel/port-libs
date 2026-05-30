@@ -32,7 +32,7 @@ $plan252 = static fn (?array $ack = null, ?string $resume = null): array => SQLi
     [$attemptUpdate252, $attemptDelete252],
     [$retryUpdate252, $retryDelete252],
     $unique252,
-    'wp_options_rowvalue_window_current_next252',
+    'app_settings_rowvalue_window_current_next252',
     'option_id',
     $ack,
     $resume,

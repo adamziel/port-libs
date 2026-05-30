@@ -38,7 +38,7 @@ $rollbackPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepo
     [$protectedUpdateSql, $protectedDeleteSql],
     [$afterUpdateSql, $afterDeleteSql],
     $unique,
-    'wp_options_rowvalue_returning_savepoint',
+    'app_settings_rowvalue_returning_savepoint',
     1,
 );
 $releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeUpdateDeleteReturningSavepointBatch(
@@ -47,7 +47,7 @@ $releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepoi
     [$protectedUpdateSql],
     [$releaseAfterSql],
     $unique,
-    'wp_options_rowvalue_release_savepoint',
+    'app_settings_rowvalue_release_savepoint',
 );
 
 $cases = [
@@ -63,7 +63,7 @@ $cases = [
     'protected delete removes attempted and prepared rows' => [static fn (): mixed => array_column($protectedDeleteOnly()['tables']['wp_options'], 'option_id'), [1, 2, 3, 5, 6]],
 
     'rollback plan status' => [static fn (): mixed => $rollbackPlan()['status'], 'rolled-back-to-rowvalue-returning-savepoint-current-source'],
-    'rollback plan savepoint name' => [static fn (): mixed => $rollbackPlan()['savepoint'], 'wp_options_rowvalue_returning_savepoint'],
+    'rollback plan savepoint name' => [static fn (): mixed => $rollbackPlan()['savepoint'], 'app_settings_rowvalue_returning_savepoint'],
     'rollback plan flag true' => [static fn (): mixed => $rollbackPlan()['rolled_back_to_savepoint'], true],
     'rollback plan ordinal one' => [static fn (): mixed => $rollbackPlan()['rollback_protected_ordinal'], 1],
     'rollback plan before statements one' => [static fn (): mixed => count($rollbackPlan()['before_statements']), 1],

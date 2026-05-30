@@ -33,7 +33,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNullInequalityR
         "UPDATE wp_options SET (status, option_value) = ('kept176', option_value || ':kept') WHERE option_id = 2 RETURNING option_id, option_name, status, option_value",
     ],
     [['blog_id', 'option_name']],
-    'wp_options_rowvalue_null_inequality_next176',
+    'app_settings_rowvalue_null_inequality_next176',
 );
 
 $summary = [

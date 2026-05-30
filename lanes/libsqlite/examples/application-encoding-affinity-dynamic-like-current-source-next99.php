@@ -27,7 +27,7 @@ $nextRows = [
     ['option_id' => 5, 'option_name' => 'plugin_new', 'option_value' => 'plugin_new', 'like_pattern' => 'plugin%', 'like_escape' => null],
 ];
 
-$plan = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPatternPlan(
+$plan = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -36,8 +36,8 @@ $plan = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicPa
     false,
     'UTF-16LE',
     'UTF-16BE',
-    'main.wp_options',
-    'main.wp_options',
+    'main.app_settings',
+    'main.app_settings',
     99,
     100,
 );

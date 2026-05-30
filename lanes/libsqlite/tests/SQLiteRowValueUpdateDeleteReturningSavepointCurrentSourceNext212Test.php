@@ -69,7 +69,7 @@ $cases212 = [
     'retry delete removes network siteurl' => [static fn (): mixed => in_array(10, array_column($retryDeleteResult212()['tables']['wp_options'], 'option_id'), true), false],
 
     'plan status' => [static fn (): mixed => $plan212()['status'], 'rowvalue-update-delete-returning-subquery-savepoint-current-source-next212'],
-    'plan savepoint' => [static fn (): mixed => $plan212()['savepoint'], 'wp_options_rowvalue_subquery_next212'],
+    'plan savepoint' => [static fn (): mixed => $plan212()['savepoint'], 'app_settings_rowvalue_subquery_next212'],
     'plan rollback flags' => [static fn (): mixed => [$plan212()['rolled_back_to_savepoint'], $plan212()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan retry release flags' => [static fn (): mixed => [$plan212()['retry_reads_savepoint_image'], $plan212()['savepoint_released_after_retry']], [true, true]],
     'plan savepoint image original row seven' => [static fn (): mixed => array_column($plan212()['savepoint_image_tables']['wp_options'], 'option_value', 'option_id')[7], 'theme'],

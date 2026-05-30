@@ -7,8 +7,8 @@ namespace PortLibs\LibSqlite;
 final class SQLiteTenantKeyValueWalPlan
 {
     /**
-     * @param list<array{blog_id?:int,scope:string,option_id?:int,option_name:string,option_value:string,autoload?:string}> $currentRows
-     * @param list<array{blog_id?:int,scope:string,option_name:string,option_value:string,autoload?:string}> $importRows
+     * @param list<array{tenant_id?:int,scope:string,setting_id?:int,key_name:string,key_value:string,load_policy?:string}> $currentRows
+     * @param list<array{tenant_id?:int,scope:string,key_name:string,key_value:string,load_policy?:string}> $importRows
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
@@ -19,23 +19,23 @@ final class SQLiteTenantKeyValueWalPlan
         array $currentRows,
         array $importRows,
         array $pageNumbers,
-        int $firstOptionPageNumber = 2,
+        int $firstSettingPageNumber = 2,
     ): array {
         if ($databasePath === '') {
-            throw new \InvalidArgumentException('SQLite Application multisite options WAL import requires a database path');
+            throw new \InvalidArgumentException('SQLite Application tenant settings WAL import requires a database path');
         }
         if ($importRows === []) {
-            throw new \InvalidArgumentException('SQLite Application multisite options WAL import requires imported rows');
+            throw new \InvalidArgumentException('SQLite Application tenant settings WAL import requires imported rows');
         }
         if ($pageNumbers === []) {
-            throw new \InvalidArgumentException('SQLite Application multisite options WAL import requires current/next page numbers');
+            throw new \InvalidArgumentException('SQLite Application tenant settings WAL import requires current/next page numbers');
         }
-        if ($firstOptionPageNumber < 2) {
-            throw new \InvalidArgumentException('SQLite Application multisite options pages must start after page one');
+        if ($firstSettingPageNumber < 2) {
+            throw new \InvalidArgumentException('SQLite Application tenant settings pages must start after page one');
         }
         $pageSize = $wal->header->pageSize;
         if ($pageSize < 512) {
-            throw new \InvalidArgumentException('SQLite Application multisite options WAL import requires a concrete WAL page size');
+            throw new \InvalidArgumentException('SQLite Application tenant settings WAL import requires a concrete WAL page size');
         }
 
         $current = self::normalizeRows($currentRows, true);
@@ -46,16 +46,16 @@ final class SQLiteTenantKeyValueWalPlan
         foreach (self::normalizeRows($importRows, false) as $key => $row) {
             if (isset($next[$key])) {
                 $updated[] = $key;
-                $row['option_id'] = $next[$key]['option_id'];
+                $row['setting_id'] = $next[$key]['setting_id'];
             } else {
                 $inserted[] = $key;
-                $row['option_id'] = self::nextKeyValueIdForTable($next, $row['table']);
+                $row['setting_id'] = self::nextKeyValueIdForTable($next, $row['table']);
             }
             $next[$key] = $row;
         }
 
         ksort($next, SORT_STRING);
-        $pageMap = self::pageMap($next, $firstOptionPageNumber);
+        $pageMap = self::pageMap($next, $firstSettingPageNumber);
         $tablePages = self::tablePageMap($pageMap);
         $indexPages = self::loadPolicyIndexPageMap($tablePages);
         $databasePageCount = max([...array_values($pageMap), ...array_values($indexPages)]);
@@ -82,7 +82,7 @@ final class SQLiteTenantKeyValueWalPlan
         $nextReader = [];
         foreach ($pageNumbers as $pageNumber) {
             if (!is_int($pageNumber)) {
-                throw new \InvalidArgumentException('SQLite Application multisite options WAL import pages must be integers');
+                throw new \InvalidArgumentException('SQLite Application tenant settings WAL import pages must be integers');
             }
             $currentReader[] = self::safeReaderVisibility($wal, $databaseBytes, $pageNumber, $currentEndFrame);
             $nextReader[] = self::safeReaderVisibility($nextWal, $databaseBytes, $pageNumber, $nextEndFrame);
@@ -90,7 +90,7 @@ final class SQLiteTenantKeyValueWalPlan
 
         return [
             'status' => 'planned',
-            'reason' => 'application_multisite_options_wal_commit_current_next_visibility',
+            'reason' => 'application_tenant_settings_wal_commit_current_next_visibility',
             'database_path' => $databasePath,
             'wal_path' => $databasePath . '-wal',
             'current_rows' => array_values($current),
@@ -99,9 +99,9 @@ final class SQLiteTenantKeyValueWalPlan
             'updated_keys' => $updated,
             'tables' => array_keys($tablePages),
             'table_page_numbers' => $tablePages,
-            'autoload_index_page_numbers' => $indexPages,
-            'option_page_numbers' => $pageMap,
-            'autoload_yes_by_table' => self::loadPolicyNamesByTable($next),
+            'load_policy_index_page_numbers' => $indexPages,
+            'setting_page_numbers' => $pageMap,
+            'load_policy_yes_by_table' => self::loadPolicyNamesByTable($next),
             'database_page_count' => $databasePageCount,
             'current_reader' => $currentReader,
             'next_reader' => $nextReader,
@@ -114,46 +114,46 @@ final class SQLiteTenantKeyValueWalPlan
             'append' => $append,
             'dependencies' => array_values(array_unique(array_merge(
                 $append['dependencies'],
-                ['application-multisite-options-wal-current-next42']
+                ['application-tenant-settings-wal-current-next42']
             ))),
         ];
     }
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array<string,array{key:string,scope:string,blog_id:int|null,table:string,option_id:int,option_name:string,option_value:string,autoload:string}>
+     * @return array<string,array{key:string,scope:string,tenant_id:int|null,table:string,setting_id:int,key_name:string,key_value:string,load_policy:string}>
      */
     private static function normalizeRows(array $rows, bool $requireIds): array
     {
         $normalized = [];
         foreach ($rows as $index => $row) {
             $scope = strtolower(trim((string) ($row['scope'] ?? '')));
-            if (!in_array($scope, ['network', 'blog'], true)) {
-                throw new \InvalidArgumentException('SQLite Application multisite option scope must be network or blog');
+            if (!in_array($scope, ['global', 'tenant'], true)) {
+                throw new \InvalidArgumentException('SQLite Application tenant setting scope must be global or tenant');
             }
-            $blogId = $scope === 'blog' ? self::positiveInt($row['blog_id'] ?? null, 'blog_id') : null;
-            $name = trim((string) ($row['option_name'] ?? ''));
+            $tenantId = $scope === 'tenant' ? self::positiveInt($row['tenant_id'] ?? null, 'tenant_id') : null;
+            $name = trim((string) ($row['key_name'] ?? ''));
             if ($name === '') {
-                throw new \InvalidArgumentException('SQLite Application multisite option_name must be non-empty');
+                throw new \InvalidArgumentException('SQLite Application tenant key_name must be non-empty');
             }
-            $optionId = $row['option_id'] ?? ($index + 1);
-            if ($requireIds && (!is_int($optionId) || $optionId < 1)) {
-                throw new \InvalidArgumentException('SQLite Application multisite current rows require positive option_id values');
+            $settingId = $row['setting_id'] ?? ($index + 1);
+            if ($requireIds && (!is_int($settingId) || $settingId < 1)) {
+                throw new \InvalidArgumentException('SQLite Application tenant current rows require positive setting_id values');
             }
-            $table = self::tableName($scope, $blogId);
+            $table = self::tableName($scope, $tenantId);
             $key = $table . ':' . $name;
             if (isset($normalized[$key])) {
-                throw new \InvalidArgumentException("Duplicate Application multisite option row {$key}");
+                throw new \InvalidArgumentException("Duplicate Application tenant setting row {$key}");
             }
             $normalized[$key] = [
                 'key' => $key,
                 'scope' => $scope,
-                'blog_id' => $blogId,
+                'tenant_id' => $tenantId,
                 'table' => $table,
-                'option_id' => is_int($optionId) && $optionId > 0 ? $optionId : 0,
-                'option_name' => $name,
-                'option_value' => (string) ($row['option_value'] ?? ''),
-                'autoload' => self::normalizeLoadPolicy((string) ($row['autoload'] ?? 'yes')),
+                'setting_id' => is_int($settingId) && $settingId > 0 ? $settingId : 0,
+                'key_name' => $name,
+                'key_value' => (string) ($row['key_value'] ?? ''),
+                'load_policy' => self::normalizeLoadPolicy((string) ($row['load_policy'] ?? 'yes')),
             ];
         }
         ksort($normalized, SORT_STRING);
@@ -164,33 +164,33 @@ final class SQLiteTenantKeyValueWalPlan
     private static function positiveInt(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 1) {
-            throw new \InvalidArgumentException("SQLite Application multisite {$label} must be positive");
+            throw new \InvalidArgumentException("SQLite Application tenant {$label} must be positive");
         }
 
         return $value;
     }
 
-    private static function tableName(string $scope, ?int $blogId): string
+    private static function tableName(string $scope, ?int $tenantId): string
     {
-        return $scope === 'network' ? 'wp_sitemeta' : 'wp_' . $blogId . '_options';
+        return $scope === 'global' ? 'app_tenant_settings' : 'app_tenant_' . $tenantId . '_settings';
     }
 
-    private static function normalizeLoadPolicy(string $autoload): string
+    private static function normalizeLoadPolicy(string $loadPolicy): string
     {
-        $autoload = strtolower(trim($autoload));
+        $loadPolicy = strtolower(trim($loadPolicy));
 
-        return in_array($autoload, ['yes', 'on', 'true', '1'], true) ? 'yes' : 'no';
+        return in_array($loadPolicy, ['yes', 'on', 'true', '1'], true) ? 'yes' : 'no';
     }
 
     /**
-     * @param array<string,array{table:string,option_id:int}> $rows
+     * @param array<string,array{table:string,setting_id:int}> $rows
      */
     private static function nextKeyValueIdForTable(array $rows, string $table): int
     {
         $max = 0;
         foreach ($rows as $row) {
             if ($row['table'] === $table) {
-                $max = max($max, $row['option_id']);
+                $max = max($max, $row['setting_id']);
             }
         }
 
@@ -244,7 +244,7 @@ final class SQLiteTenantKeyValueWalPlan
     }
 
     /**
-     * @param array{key:string,scope:string,blog_id:int|null,table:string,option_id:int,option_name:string,option_value:string,autoload:string} $row
+     * @param array{key:string,scope:string,tenant_id:int|null,table:string,setting_id:int,key_name:string,key_value:string,load_policy:string} $row
      */
     private static function rowPage(array $row, int $pageNumber, int $pageSize): string
     {
@@ -252,46 +252,46 @@ final class SQLiteTenantKeyValueWalPlan
             'page' => $pageNumber,
             'table' => $row['table'],
             'scope' => $row['scope'],
-            'blog_id' => $row['blog_id'],
-            'option_id' => $row['option_id'],
-            'option_name' => $row['option_name'],
-            'option_value' => $row['option_value'],
-            'autoload' => $row['autoload'],
+            'tenant_id' => $row['tenant_id'],
+            'setting_id' => $row['setting_id'],
+            'key_name' => $row['key_name'],
+            'key_value' => $row['key_value'],
+            'load_policy' => $row['load_policy'],
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
-            throw new \RuntimeException('Unable to encode Application multisite option WAL row');
+            throw new \RuntimeException('Unable to encode Application tenant setting WAL row');
         }
         if (strlen($json) > $pageSize) {
-            throw new \InvalidArgumentException('SQLite Application multisite option page exceeds page size');
+            throw new \InvalidArgumentException('SQLite Application tenant setting page exceeds page size');
         }
 
         return str_pad($json, $pageSize, "\0");
     }
 
     /**
-     * @param array<string,array{table:string,option_name:string,autoload:string}> $rows
+     * @param array<string,array{table:string,key_name:string,load_policy:string}> $rows
      */
     private static function loadPolicyIndexPage(array $rows, string $table, int $pageNumber, int $pageSize): string
     {
         $json = json_encode([
             'page' => $pageNumber,
-            'index' => $table . '_autoload',
+            'index' => $table . '_load_policy',
             'table' => $table,
-            'autoload' => 'yes',
-            'option_names' => self::loadPolicyNamesForTable($rows, $table),
+            'load_policy' => 'yes',
+            'key_names' => self::loadPolicyNamesForTable($rows, $table),
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
-            throw new \RuntimeException('Unable to encode Application multisite autoload WAL page');
+            throw new \RuntimeException('Unable to encode Application tenant load_policy WAL page');
         }
         if (strlen($json) > $pageSize) {
-            throw new \InvalidArgumentException('SQLite Application multisite autoload page exceeds page size');
+            throw new \InvalidArgumentException('SQLite Application tenant load_policy page exceeds page size');
         }
 
         return str_pad($json, $pageSize, "\0");
     }
 
     /**
-     * @param array<string,array{table:string,option_name:string,autoload:string}> $rows
+     * @param array<string,array{table:string,key_name:string,load_policy:string}> $rows
      * @return array<string,list<string>>
      */
     private static function loadPolicyNamesByTable(array $rows): array
@@ -306,15 +306,15 @@ final class SQLiteTenantKeyValueWalPlan
     }
 
     /**
-     * @param array<string,array{table:string,option_name:string,autoload:string}> $rows
+     * @param array<string,array{table:string,key_name:string,load_policy:string}> $rows
      * @return list<string>
      */
     private static function loadPolicyNamesForTable(array $rows, string $table): array
     {
         $names = [];
         foreach ($rows as $row) {
-            if ($row['table'] === $table && $row['autoload'] === 'yes') {
-                $names[] = $row['option_name'];
+            if ($row['table'] === $table && $row['load_policy'] === 'yes') {
+                $names[] = $row['key_name'];
             }
         }
         sort($names, SORT_STRING);

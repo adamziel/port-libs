@@ -45,8 +45,8 @@ $customPlan189 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavep
     [$innerDelete189],
     [$retryUpdate189],
     $unique189,
-    'wp_outer_custom189',
-    'wp_inner_custom189',
+    'app_outer_custom189',
+    'app_inner_custom189',
 );
 
 $cases189 = [
@@ -75,8 +75,8 @@ $cases189 = [
     'retry delete returning star has bytes' => [static fn (): mixed => array_key_exists('bytes', $retryDeleteResult189()['returning'][0]), true],
 
     'plan status' => [static fn (): mixed => $plan189()['status'], 'rowvalue-not-between-returning-star-rollback-retry-next189'],
-    'plan outer savepoint' => [static fn (): mixed => $plan189()['outer_savepoint'], 'wp_options_rowvalue_not_between_outer_next189'],
-    'plan inner savepoint' => [static fn (): mixed => $plan189()['inner_savepoint'], 'wp_options_rowvalue_not_between_inner_next189'],
+    'plan outer savepoint' => [static fn (): mixed => $plan189()['outer_savepoint'], 'app_settings_rowvalue_not_between_outer_next189'],
+    'plan inner savepoint' => [static fn (): mixed => $plan189()['inner_savepoint'], 'app_settings_rowvalue_not_between_inner_next189'],
     'plan rolled back to inner' => [static fn (): mixed => $plan189()['rolled_back_to_inner_savepoint'], true],
     'plan outer preserved after rollback' => [static fn (): mixed => $plan189()['outer_savepoint_preserved_after_inner_rollback_to'], true],
     'plan inner preserved after rollback' => [static fn (): mixed => $plan189()['inner_savepoint_preserved_after_rollback_to'], true],
@@ -113,7 +113,7 @@ $cases189 = [
     'plan dependency not between' => [static fn (): mixed => in_array('sqlite-rowvalue-not-between-update-returning-star-next189', $plan189()['dependencies'], true), true],
     'plan dependency not in values rollback' => [static fn (): mixed => in_array('sqlite-rowvalue-not-in-values-delete-returning-rollback-next189', $plan189()['dependencies'], true), true],
     'plan dependency retry source' => [static fn (): mixed => in_array('sqlite-rowvalue-retry-after-inner-rollback-current-source-next189', $plan189()['dependencies'], true), true],
-    'custom plan savepoints' => [static fn (): mixed => [$customPlan189()['outer_savepoint'], $customPlan189()['inner_savepoint']], ['wp_outer_custom189', 'wp_inner_custom189']],
+    'custom plan savepoints' => [static fn (): mixed => [$customPlan189()['outer_savepoint'], $customPlan189()['inner_savepoint']], ['app_outer_custom189', 'app_inner_custom189']],
     'custom plan retry count' => [static fn (): mixed => $customPlan189()['yielded_after_retry_count'], 5],
     'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNotBetweenRollbackRetrySavepoint($tables189, [], [$innerDelete189], [$retryUpdate189], $unique189), InvalidArgumentException::class],
     'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNotBetweenRollbackRetrySavepoint($tables189, [$outerUpdate189], [], [$retryUpdate189], $unique189), InvalidArgumentException::class],

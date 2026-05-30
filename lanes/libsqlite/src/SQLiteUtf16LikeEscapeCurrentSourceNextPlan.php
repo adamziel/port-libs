@@ -17,8 +17,8 @@ final class SQLiteUtf16LikeEscapeCurrentSourceNextPlan
         string $pattern,
         ?string $escape = '\\',
         string $collation = 'BINARY',
-        string $currentSource = 'main.wp_options@142',
-        string $nextSource = 'main.wp_options@143',
+        string $currentSource = 'main.app_settings@142',
+        string $nextSource = 'main.app_settings@143',
         int $currentSchemaCookie = 142,
         int $nextSchemaCookie = 143,
     ): array {

@@ -57,8 +57,8 @@ $cases174 = [
     'retry starts from original row seven value' => [static fn (): mixed => $retry174()['returning'][0]['option_value'], 'theme:retry174'],
 
     'plan status' => [static fn (): mixed => $plan174()['status'], 'inner-released-outer-rollback-to-retry-current-source-next174'],
-    'plan outer savepoint' => [static fn (): mixed => $plan174()['outer_savepoint'], 'wp_options_outer_rowvalue_next174'],
-    'plan inner savepoint' => [static fn (): mixed => $plan174()['inner_savepoint'], 'wp_options_inner_rowvalue_next174'],
+    'plan outer savepoint' => [static fn (): mixed => $plan174()['outer_savepoint'], 'app_settings_outer_rowvalue_next174'],
+    'plan inner savepoint' => [static fn (): mixed => $plan174()['inner_savepoint'], 'app_settings_inner_rowvalue_next174'],
     'plan inner released into outer' => [static fn (): mixed => $plan174()['inner_released_into_outer'], true],
     'plan rolled back to outer' => [static fn (): mixed => $plan174()['rolled_back_to_outer_savepoint'], true],
     'plan outer preserved after rollback to' => [static fn (): mixed => $plan174()['outer_savepoint_preserved_after_rollback_to'], true],

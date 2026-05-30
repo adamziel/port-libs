@@ -7,16 +7,16 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 $currentTables = [
-    'wp_options' => [
-        ['option_id' => 1, 'option_name' => 'home', 'autoload' => 'yes', 'weight' => 30],
-        ['option_id' => 2, 'option_name' => 'siteurl', 'autoload' => 'yes', 'weight' => 20],
-        ['option_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'no', 'weight' => 15],
+    'app_settings' => [
+        ['setting_id' => 1, 'key_name' => 'home', 'load_policy' => 'eager', 'weight' => 30],
+        ['setting_id' => 2, 'key_name' => 'siteurl', 'load_policy' => 'eager', 'weight' => 20],
+        ['setting_id' => 3, 'key_name' => 'rewrite_rules', 'load_policy' => 'lazy', 'weight' => 15],
     ],
 ];
 $nextTables = [
-    'wp_options' => [
-        ...$currentTables['wp_options'],
-        ['option_id' => 4, 'option_name' => 'plugin_cache', 'autoload' => 'yes', 'weight' => 12],
+    'app_settings' => [
+        ...$currentTables['app_settings'],
+        ['setting_id' => 4, 'key_name' => 'plugin_cache', 'load_policy' => 'eager', 'weight' => 12],
     ],
 ];
 
@@ -41,11 +41,11 @@ SELECT label,
        row_number() OVER (ORDER BY pos) AS rn
   FROM wanted
 UNION
-SELECT option_name AS label,
-       option_id AS pos,
-       row_number() OVER (ORDER BY option_id) AS rn
-  FROM wp_options
- WHERE autoload = 'yes'
+SELECT key_name AS label,
+       setting_id AS pos,
+       row_number() OVER (ORDER BY setting_id) AS rn
+  FROM app_settings
+ WHERE load_policy = 'eager'
  ORDER BY rn, label
  LIMIT 4 OFFSET 1
 SQL;

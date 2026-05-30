@@ -78,7 +78,7 @@ $cases210 = [
     'retry delete returning transient ids' => [static fn (): mixed => array_column($retryDeleteResult210()['returning'], 'option_id'), [3, 4]],
 
     'plan status' => [static fn (): mixed => $plan210()['status'], 'rowvalue-update-delete-returning-ignore-rollback-current-source-next210'],
-    'plan savepoint' => [static fn (): mixed => $plan210()['savepoint'], 'wp_options_rowvalue_ignore_next210'],
+    'plan savepoint' => [static fn (): mixed => $plan210()['savepoint'], 'app_settings_rowvalue_ignore_next210'],
     'plan ignore preserves statement' => [static fn (): mixed => $plan210()['ignore_conflict_preserves_statement'], true],
     'plan ignored rows do not yield returning' => [static fn (): mixed => $plan210()['ignored_rows_do_not_yield_returning'], true],
     'plan rollback discards successful ignore rows' => [static fn (): mixed => $plan210()['rollback_to_savepoint_discards_successful_ignore_statement_rows'], true],

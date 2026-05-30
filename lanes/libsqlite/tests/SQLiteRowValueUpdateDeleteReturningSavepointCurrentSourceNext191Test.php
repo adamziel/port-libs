@@ -28,7 +28,7 @@ $plan191 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPl
     $tables191,
     [$attemptUpdate191, $attemptDelete191],
     [$retryUpdate191, $retryDelete191],
-    'wp_options_rowvalue_assignment_predicates_next191',
+    'app_settings_rowvalue_assignment_predicates_next191',
 );
 
 $cases191 = [
@@ -56,7 +56,7 @@ $cases191 = [
     'retry final ids after delete' => [static fn (): mixed => array_column($retryDeleteAfterUpdate191()['tables']['wp_options'], 'option_id'), [1, 2, 4, 6]],
 
     'plan status reuses savepoint retry model' => [static fn (): mixed => $plan191()['status'], 'rowvalue-empty-in-returning-rolled-back-retried-next188'],
-    'plan savepoint name' => [static fn (): mixed => $plan191()['savepoint'], 'wp_options_rowvalue_assignment_predicates_next191'],
+    'plan savepoint name' => [static fn (): mixed => $plan191()['savepoint'], 'app_settings_rowvalue_assignment_predicates_next191'],
     'plan rolled back to savepoint' => [static fn (): mixed => $plan191()['rolled_back_to_savepoint'], true],
     'plan savepoint preserved after rollback' => [static fn (): mixed => $plan191()['savepoint_preserved_after_rollback_to'], true],
     'plan released after retry' => [static fn (): mixed => $plan191()['released_after_retry'], true],

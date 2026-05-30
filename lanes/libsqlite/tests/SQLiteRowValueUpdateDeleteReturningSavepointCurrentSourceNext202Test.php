@@ -64,7 +64,7 @@ $cases202 = [
     'retry delete preserves kept ids' => [static fn (): mixed => array_values(array_intersect([1, 6, 8, 9, 10], array_column($retryDeleteResult202()['tables']['wp_options'], 'option_id'))), [1, 6, 8, 9, 10]],
 
     'plan status' => [static fn (): mixed => $plan202()['status'], 'rowvalue-parenthesized-returning-savepoint-current-source-next202'],
-    'plan savepoint' => [static fn (): mixed => $plan202()['savepoint'], 'wp_options_rowvalue_parenthesized_next202'],
+    'plan savepoint' => [static fn (): mixed => $plan202()['savepoint'], 'app_settings_rowvalue_parenthesized_next202'],
     'plan rolled back' => [static fn (): mixed => $plan202()['rolled_back_to_savepoint'], true],
     'plan savepoint preserved' => [static fn (): mixed => $plan202()['savepoint_preserved_after_rollback_to'], true],
     'plan released after retry' => [static fn (): mixed => $plan202()['savepoint_released_after_retry'], true],

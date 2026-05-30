@@ -39,14 +39,14 @@ $plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan:
     [$literalUpdateSql, $literalDeleteSql],
     [$retrySql, $retryDeleteSql],
     $unique,
-    'wp_options_rowvalue_literal_clause_retry',
+    'app_settings_rowvalue_literal_clause_retry',
 );
 $failPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySavepointBatch(
     $tables,
     [$failSql, $literalDeleteSql],
     [$retrySql],
     $unique,
-    'wp_options_rowvalue_literal_fail_retry',
+    'app_settings_rowvalue_literal_fail_retry',
 );
 
 $cases = [
@@ -78,7 +78,7 @@ $cases = [
     'literal delete leaves timeout transient' => [static fn (): mixed => array_column($literalDeleteAfterUpdate()['tables']['wp_options'], 'option_name', 'option_id')[4], '_transient_timeout_feed'],
 
     'plan status clean retry' => [static fn (): mixed => $plan()['status'], 'released-after-clean-retry'],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_literal_clause_retry'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_settings_rowvalue_literal_clause_retry'],
     'plan pre rollback actions update delete' => [static fn (): mixed => array_column($plan()['pre_rollback_statements'], 'action'), ['update', 'delete']],
     'plan pre update returning markers keep literal clauses' => [static fn (): mixed => array_column($plan()['discarded_returning'][0]['rows'], 'marker'), ['theme RETURNING literal ORDER BY literal', 'rules RETURNING literal ORDER BY literal']],
     'plan pre delete returning marker keeps literal limit' => [static fn (): mixed => $plan()['discarded_returning'][1]['rows'][0]['marker'], '_transient_feed LIMIT literal'],

@@ -5,17 +5,17 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
-$currentOptions171 = [
-    ['option_id' => 1, 'option_name' => 'home', 'autoload' => 'yes', 'weight' => 30],
-    ['option_id' => 2, 'option_name' => 'siteurl', 'autoload' => 'yes', 'weight' => 20],
-    ['option_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'no', 'weight' => 15],
+$currentSettings171 = [
+    ['setting_id' => 1, 'key_name' => 'home', 'load_policy' => 'eager', 'weight' => 30],
+    ['setting_id' => 2, 'key_name' => 'siteurl', 'load_policy' => 'eager', 'weight' => 20],
+    ['setting_id' => 3, 'key_name' => 'rewrite_rules', 'load_policy' => 'lazy', 'weight' => 15],
 ];
-$nextOptions171 = [
-    ...$currentOptions171,
-    ['option_id' => 4, 'option_name' => 'plugin_cache', 'autoload' => 'yes', 'weight' => 12],
+$nextSettings171 = [
+    ...$currentSettings171,
+    ['setting_id' => 4, 'key_name' => 'plugin_cache', 'load_policy' => 'eager', 'weight' => 12],
 ];
-$currentTables171 = ['wp_options' => $currentOptions171];
-$nextTables171 = ['wp_options' => $nextOptions171];
+$currentTables171 = ['app_settings' => $currentSettings171];
+$nextTables171 = ['app_settings' => $nextSettings171];
 
 $sql171 = <<<'SQL'
 WITH RECURSIVE wanted(pos, label, weight) AS (
@@ -38,11 +38,11 @@ SELECT label,
        row_number() OVER (ORDER BY pos) AS rn
   FROM wanted
 UNION
-SELECT option_name AS label,
-       option_id AS pos,
-       row_number() OVER (ORDER BY option_id) AS rn
-  FROM wp_options
- WHERE autoload = 'yes'
+SELECT key_name AS label,
+       setting_id AS pos,
+       row_number() OVER (ORDER BY setting_id) AS rn
+  FROM app_settings
+ WHERE load_policy = 'eager'
  ORDER BY rn, label
  LIMIT 4 OFFSET 1
 SQL;
@@ -143,7 +143,7 @@ $tests['compound select window recursive limit current source distinct-union-win
 
 $tests['compound select window recursive limit current source distinct-union-window-limit-offset rejects union all'] = static function (TestRunner $t) use ($currentTables171): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareDistinctUnionWindowLimitOffset(
-        "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2 OFFSET 1) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION ALL SELECT option_name, option_id, row_number() OVER (ORDER BY option_id) FROM wp_options ORDER BY rn, label LIMIT 1 OFFSET 0",
+        "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2 OFFSET 1) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION ALL SELECT key_name, setting_id, row_number() OVER (ORDER BY setting_id) FROM app_settings ORDER BY rn, label LIMIT 1 OFFSET 0",
         $currentTables171,
         $currentTables171,
     ));
@@ -151,7 +151,7 @@ $tests['compound select window recursive limit current source distinct-union-win
 
 $tests['compound select window recursive limit current source distinct-union-window-limit-offset rejects missing recursive offset'] = static function (TestRunner $t) use ($currentTables171): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareDistinctUnionWindowLimitOffset(
-        "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION SELECT option_name, option_id, row_number() OVER (ORDER BY option_id) FROM wp_options ORDER BY rn, label LIMIT 1 OFFSET 0",
+        "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION SELECT key_name, setting_id, row_number() OVER (ORDER BY setting_id) FROM app_settings ORDER BY rn, label LIMIT 1 OFFSET 0",
         $currentTables171,
         $currentTables171,
     ));
@@ -159,7 +159,7 @@ $tests['compound select window recursive limit current source distinct-union-win
 
 $tests['compound select window recursive limit current source distinct-union-window-limit-offset rejects missing final offset'] = static function (TestRunner $t) use ($currentTables171): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareDistinctUnionWindowLimitOffset(
-        "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2 OFFSET 1) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION SELECT option_name, option_id, row_number() OVER (ORDER BY option_id) FROM wp_options ORDER BY rn, label LIMIT 1",
+        "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2 OFFSET 1) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION SELECT key_name, setting_id, row_number() OVER (ORDER BY setting_id) FROM app_settings ORDER BY rn, label LIMIT 1",
         $currentTables171,
         $currentTables171,
     ));
@@ -168,14 +168,14 @@ $tests['compound select window recursive limit current source distinct-union-win
 foreach (range(1, 50) as $case) {
     $tests['compound select window recursive limit current source distinct-union-window-limit-offset generated union distinct boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $tables = [
-            'wp_options' => [
-                ['option_id' => 1, 'option_name' => 'home_' . $case, 'autoload' => 'yes', 'weight' => 30],
-                ['option_id' => 2, 'option_name' => 'siteurl_' . $case, 'autoload' => 'yes', 'weight' => 20],
-                ['option_id' => 3, 'option_name' => 'rewrite_' . $case, 'autoload' => 'no', 'weight' => 15],
-                ['option_id' => 4, 'option_name' => 'plugin_' . $case, 'autoload' => $case % 2 === 0 ? 'yes' : 'no', 'weight' => 12],
+            'app_settings' => [
+                ['setting_id' => 1, 'key_name' => 'home_' . $case, 'load_policy' => 'eager', 'weight' => 30],
+                ['setting_id' => 2, 'key_name' => 'siteurl_' . $case, 'load_policy' => 'eager', 'weight' => 20],
+                ['setting_id' => 3, 'key_name' => 'rewrite_' . $case, 'load_policy' => 'lazy', 'weight' => 15],
+                ['setting_id' => 4, 'key_name' => 'plugin_' . $case, 'load_policy' => $case % 2 === 0 ? 'eager' : 'lazy', 'weight' => 12],
             ],
         ];
-        $sql = "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip_{$case}', 99) UNION ALL SELECT pos + 1, CASE pos + 1 WHEN 1 THEN 'home_{$case}' WHEN 2 THEN 'siteurl_{$case}' WHEN 3 THEN 'rewrite_{$case}' WHEN 4 THEN 'plugin_{$case}' END, weight - 20 FROM wanted WHERE pos < 4 LIMIT 4 OFFSET 1) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION SELECT option_name AS label, option_id AS pos, row_number() OVER (ORDER BY option_id) AS rn FROM wp_options WHERE autoload = 'yes' ORDER BY rn, label LIMIT 4 OFFSET 1";
+        $sql = "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip_{$case}', 99) UNION ALL SELECT pos + 1, CASE pos + 1 WHEN 1 THEN 'home_{$case}' WHEN 2 THEN 'siteurl_{$case}' WHEN 3 THEN 'rewrite_{$case}' WHEN 4 THEN 'plugin_{$case}' END, weight - 20 FROM wanted WHERE pos < 4 LIMIT 4 OFFSET 1) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION SELECT key_name AS label, setting_id AS pos, row_number() OVER (ORDER BY setting_id) AS rn FROM app_settings WHERE load_policy = 'eager' ORDER BY rn, label LIMIT 4 OFFSET 1";
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $expectedLabels = $case % 2 === 0

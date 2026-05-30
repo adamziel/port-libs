@@ -28,7 +28,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeRowValuePredica
     ['wp_options' => $rows],
     [$attempt, $delete],
     [$retry, $delete],
-    'wp_options_rowvalue_assignment_predicates_next191',
+    'app_settings_rowvalue_assignment_predicates_next191',
 );
 
 if (($argv[1] ?? '') === '--self-test') {

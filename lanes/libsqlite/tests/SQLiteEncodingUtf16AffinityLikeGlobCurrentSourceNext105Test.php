@@ -45,8 +45,8 @@ $nextRows = [
 $plan = static fn (
     int|string $currentEncoding = 'UTF-16LE',
     int|string $nextEncoding = 'UTF-16BE',
-    string $currentSource = 'main.wp_options@cookie104',
-    string $nextSource = 'main.wp_options@cookie105',
+    string $currentSource = 'main.app_settings@cookie104',
+    string $nextSource = 'main.app_settings@cookie105',
     int $currentSchemaCookie = 104,
     int $nextSchemaCookie = 105,
 ): array => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan(
@@ -79,8 +79,8 @@ $cases = [
     'records value column' => ['valueColumn', 'option_value'],
     'records pattern column' => ['patternColumn', 'glob_pattern'],
     'records no escape column' => ['escapeColumn', null],
-    'records current source' => ['currentSource', 'main.wp_options@cookie104'],
-    'records next source' => ['nextSource', 'main.wp_options@cookie105'],
+    'records current source' => ['currentSource', 'main.app_settings@cookie104'],
+    'records next source' => ['nextSource', 'main.app_settings@cookie105'],
     'records current cookie' => ['currentSchemaCookie', 104],
     'records next cookie' => ['nextSchemaCookie', 105],
     'records current encoding' => ['currentEncoding', 'UTF-16LE'],
@@ -164,8 +164,8 @@ $tests['encoding utf16 affinity like glob current source next105 stable cursor r
         false,
         'UTF-16LE',
         'UTF-16LE',
-        'main.wp_options',
-        'main.wp_options',
+        'main.app_settings',
+        'main.app_settings',
         104,
         104,
     );
@@ -183,8 +183,8 @@ $tests['encoding utf16 affinity like glob current source next105 source switch i
         false,
         'UTF-16LE',
         'UTF-16LE',
-        'main.wp_options',
-        'temp.wp_options',
+        'main.app_settings',
+        'temp.app_settings',
         104,
         104,
     );

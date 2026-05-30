@@ -56,7 +56,7 @@ $cases = [
     'update after delete returning predicates true' => [static fn (): mixed => array_column($updateAfterDelete()['returning'], 'still_outside_range'), [1, 1]],
     'update after delete increments bytes per source row' => [static fn (): mixed => array_column($updateAfterDelete()['returning'], 'bytes'), [85, 13]],
     'commit status released' => [static fn (): mixed => $commit()['status'], 'released'],
-    'commit savepoint name' => [static fn (): mixed => $commit()['savepoint'], 'wp_options_rowvalue_between_cleanup'],
+    'commit savepoint name' => [static fn (): mixed => $commit()['savepoint'], 'app_settings_rowvalue_between_cleanup'],
     'commit executed action chain' => [static fn (): mixed => array_column($commit()['executed_statements'], 'action'), ['delete', 'update', 'delete']],
     'commit first selected row three' => [static fn (): mixed => $commit()['executed_statements'][0]['selected_ids'], [3]],
     'commit second selected ids after delete' => [static fn (): mixed => $commit()['executed_statements'][1]['selected_ids'], [5, 9]],

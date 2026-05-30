@@ -28,7 +28,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeRowValuePredica
     ['wp_options' => $rows],
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],
-    'wp_options_rowvalue_unary_not_distinct_next195',
+    'app_settings_rowvalue_unary_not_distinct_next195',
 );
 
 if (($argv[1] ?? null) === '--self-test') {

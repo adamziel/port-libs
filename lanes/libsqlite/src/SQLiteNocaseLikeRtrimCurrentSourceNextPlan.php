@@ -16,8 +16,8 @@ final class SQLiteNocaseLikeRtrimCurrentSourceNextPlan
         array $nextRows,
         string $pattern,
         ?string $escape = null,
-        string $currentSource = 'main.wp_options@145',
-        string $nextSource = 'main.wp_options@146',
+        string $currentSource = 'main.app_settings@145',
+        string $nextSource = 'main.app_settings@146',
         int $currentSchemaCookie = 145,
         int $nextSchemaCookie = 146,
     ): array {

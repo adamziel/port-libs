@@ -77,7 +77,7 @@ $cases224 = [
     'direct retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResult224()['tables']['wp_options'], 'option_id'), [1, 2, 4, 5, 6, 7, 8, 9]],
 
     'plan status' => [static fn (): mixed => $plan224()['status'], 'rowvalue-update-delete-returning-nested-release-rollback-current-source-next224'],
-    'plan savepoint names' => [static fn (): mixed => [$plan224()['outer_savepoint'], $plan224()['inner_savepoint']], ['wp_options_outer_rowvalue_next224', 'wp_options_inner_rowvalue_next224']],
+    'plan savepoint names' => [static fn (): mixed => [$plan224()['outer_savepoint'], $plan224()['inner_savepoint']], ['app_settings_outer_rowvalue_next224', 'app_settings_inner_rowvalue_next224']],
     'plan inner release merged' => [static fn (): mixed => $plan224()['inner_release_merged_into_outer_next224'], true],
     'plan outer rollback discards inner' => [static fn (): mixed => $plan224()['outer_rollback_discards_released_inner_next224'], true],
     'plan released returning suppressed' => [static fn (): mixed => $plan224()['released_inner_returning_suppressed_by_outer_rollback_next224'], true],

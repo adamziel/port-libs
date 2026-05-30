@@ -16,8 +16,8 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl
         array $nextRows,
         string $pattern,
         ?string $escape = '\\',
-        string $currentSource = 'main.wp_options@155',
-        string $nextSource = 'main.wp_options@156',
+        string $currentSource = 'main.app_settings@155',
+        string $nextSource = 'main.app_settings@156',
         int $currentSchemaCookie = 155,
         int $nextSchemaCookie = 156,
     ): array {
@@ -351,8 +351,8 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl
         int $currentEscapeEncoding = 1,
         ?string $nextEscapeBytes = null,
         int $nextEscapeEncoding = 1,
-        string $currentSource = 'main.wp_options@161',
-        string $nextSource = 'main.wp_options@162',
+        string $currentSource = 'main.app_settings@161',
+        string $nextSource = 'main.app_settings@162',
         int $currentSchemaCookie = 161,
         int $nextSchemaCookie = 162,
     ): array {

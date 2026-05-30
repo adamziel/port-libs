@@ -63,7 +63,7 @@ $cases = [
     'delete after stage removes old transient ids' => [static fn (): mixed => array_column($deleteOnly()['tables']['wp_options'], 'option_id'), [1, 2, 5, 6, 7, 8, 9]],
 
     'plan status released after retry' => [static fn (): mixed => $plan()['status'], 'released-after-rowvalue-between-retry'],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_rowvalue_between_retry'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'app_rowvalue_between_retry'],
     'plan rolled back to savepoint' => [static fn (): mixed => $plan()['rolled_back_to_savepoint'], true],
     'plan savepoint preserved after rollback to' => [static fn (): mixed => $plan()['savepoint_preserved_after_rollback_to'], true],
     'plan released true' => [static fn (): mixed => $plan()['released'], true],

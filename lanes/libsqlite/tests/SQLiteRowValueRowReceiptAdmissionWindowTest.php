@@ -32,7 +32,7 @@ $plan254 = static fn (?array $receipts = null, ?string $resume = null, ?array $a
     [$attemptUpdate254, $attemptDelete254],
     [$retryUpdate254, $retryDelete254],
     $unique254,
-    'wp_options_rowvalue_window_current_next254',
+    'app_settings_rowvalue_window_current_next254',
     'option_id',
     $ack,
     $resume,
@@ -78,7 +78,7 @@ $cases254 = [
     'status' => [static fn (): mixed => $plan254()['status'], 'rowvalue-update-delete-returning-window-current-source-next254'],
     'inherits next251 state' => [static fn (): mixed => $plan254()['source_handoff_state_next251'], 'current-source-drained-next-source-digest-ready-next251'],
     'admission state ready' => [static fn (): mixed => $plan254()['admission_state_next254'], 'current-source-next254-window-receipts-admitted'],
-    'barrier savepoint' => [static fn (): mixed => $plan254()['admission_barrier_next254']['savepoint'], 'wp_options_rowvalue_window_current_next254'],
+    'barrier savepoint' => [static fn (): mixed => $plan254()['admission_barrier_next254']['savepoint'], 'app_settings_rowvalue_window_current_next254'],
     'barrier rowid column' => [static fn (): mixed => $plan254()['admission_barrier_next254']['rowid_column'], 'option_id'],
     'barrier current epoch' => [static fn (): mixed => $plan254()['admission_barrier_next254']['current_source_epoch'], 'wp-current-source-254'],
     'barrier next epoch' => [static fn (): mixed => $plan254()['admission_barrier_next254']['next_source_epoch'], 'wp-next-source-254'],
@@ -132,9 +132,9 @@ $cases254 = [
     'empty receipt ticket rejected' => [static function () use ($receipts254): mixed {
         $receipts = $receipts254();
         $receipts[0]['ticket'] = '';
-        return SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRowReceiptAdmissionWindow($GLOBALS['tables254'], [$GLOBALS['yieldUpdate254'], $GLOBALS['yieldDelete254']], [$GLOBALS['attemptUpdate254'], $GLOBALS['attemptDelete254']], [$GLOBALS['retryUpdate254'], $GLOBALS['retryDelete254']], $GLOBALS['unique254'], 'wp_options_rowvalue_window_current_next254', 'option_id', null, null, 'wp-current-source-254', 'wp-next-source-254', null, null, $receipts);
+        return SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRowReceiptAdmissionWindow($GLOBALS['tables254'], [$GLOBALS['yieldUpdate254'], $GLOBALS['yieldDelete254']], [$GLOBALS['attemptUpdate254'], $GLOBALS['attemptDelete254']], [$GLOBALS['retryUpdate254'], $GLOBALS['retryDelete254']], $GLOBALS['unique254'], 'app_settings_rowvalue_window_current_next254', 'option_id', null, null, 'wp-current-source-254', 'wp-next-source-254', null, null, $receipts);
     }, InvalidArgumentException::class],
-    'bad rowid column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRowReceiptAdmissionWindow($tables254, [$yieldUpdate254], [$attemptUpdate254], [$retryUpdate254], $unique254, 'wp_options_rowvalue_window_current_next254', 'missing_id'), InvalidArgumentException::class],
+    'bad rowid column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRowReceiptAdmissionWindow($tables254, [$yieldUpdate254], [$attemptUpdate254], [$retryUpdate254], $unique254, 'app_settings_rowvalue_window_current_next254', 'missing_id'), InvalidArgumentException::class],
 ];
 
 $tests = [];

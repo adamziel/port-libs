@@ -66,7 +66,7 @@ $cases244 = [
     'direct retry update row ten value' => [static fn (): mixed => array_column($retryUpdateResult244()['tables']['wp_options'], 'option_value', 'option_id')[10], 'network:retry244'],
 
     'plan status' => [static fn (): mixed => $plan244()['status'], 'rowvalue-update-delete-returning-window-current-source-next244'],
-    'plan savepoint' => [static fn (): mixed => $plan244()['savepoint'], 'wp_options_rowvalue_returning_window_next244'],
+    'plan savepoint' => [static fn (): mixed => $plan244()['savepoint'], 'app_settings_rowvalue_returning_window_next244'],
     'plan inherited next241 flag' => [static fn (): mixed => $plan244()['returning_window_current_source_next241'], true],
     'plan next244 flag' => [static fn (): mixed => $plan244()['returning_window_current_source_next244'], true],
     'plan transition count' => [static fn (): mixed => $plan244()['window_transition_chain_count_next244'], 9],

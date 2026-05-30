@@ -296,9 +296,9 @@ final class SQLiteRecursiveSavepointUpsertPlan
             'event' => $event,
             'depth' => $depth,
             'source_trigger' => $sourceTrigger,
-            'old_key' => $old['option_id'] ?? null,
-            'new_key' => $new['option_id'] ?? null,
-            'option_name' => $new['option_name'] ?? null,
+            'old_key' => $old['setting_id'] ?? null,
+            'new_key' => $new['setting_id'] ?? null,
+            'key_name' => $new['key_name'] ?? null,
         ];
     }
 

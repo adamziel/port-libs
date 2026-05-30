@@ -8,39 +8,39 @@ use PortLibs\LibSqlite\SQLiteKeyValueRow;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $databasePath = $argv[1] ?? null;
-$autoload = $argv[2] ?? 'no';
+$loadPolicy = $argv[2] ?? 'no';
 $bound = static fn (?string $value, ?string $default): ?string => $value === null ? $default : ($value === '-' ? null : $value);
-$lowerInclusive = $bound($argv[3] ?? null, '_transient_');
-$upperBound = $bound($argv[4] ?? null, '_transient`');
+$lowerInclusive = $bound($argv[3] ?? null, '_cache_');
+$upperBound = $bound($argv[4] ?? null, '_cache`');
 $limit = isset($argv[5]) ? (int) $argv[5] : 100;
 $upperInclusive = filter_var($argv[6] ?? false, FILTER_VALIDATE_BOOLEAN);
 if ($databasePath === null) {
-    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/application-autoloaded-option-name-range.php path/to/application.sqlite [autoload] [lower_inclusive|-] [upper_bound|-] [limit] [upper_inclusive]\n");
-    fwrite(STDERR, "At least one option_name range bound is required; use - to omit only one side.\n");
+    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/application-load-policy-setting-key-range.php path/to/application.sqlite [load_policy] [lower_inclusive|-] [upper_bound|-] [limit] [upper_inclusive]\n");
+    fwrite(STDERR, "At least one key_name range bound is required; use - to omit only one side.\n");
     exit(1);
 }
 
 $database = SQLiteDatabase::fromFile($databasePath);
 $indexRootPage = $database->indexRootPageForPrefixRangeLookup(
-    'wp_options',
-    ['autoload' => $autoload],
-    'option_name',
+    'app_settings',
+    ['load_policy' => $loadPolicy],
+    'key_name',
     $lowerInclusive,
     $upperBound,
     $upperInclusive,
 );
-$options = array_map(
-    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
-    $database->keyValueRowsByIndexedLoadPolicyAndNameRange($autoload, $lowerInclusive, $upperBound, $limit, $upperInclusive),
+$settings = array_map(
+    static fn (SQLiteKeyValueRow $setting): array => $setting->toArray(),
+    $database->keyValueRowsByIndexedLoadPolicyAndNameRange($loadPolicy, $lowerInclusive, $upperBound, $limit, $upperInclusive),
 );
 
 echo json_encode([
     'path' => $databasePath,
-    'autoload' => $autoload,
+    'load_policy' => $loadPolicy,
     'lowerInclusive' => $lowerInclusive,
     'upperBound' => $upperBound,
     'upperInclusive' => $upperInclusive,
-    'wpOptionsAutoloadOptionNameRangeIndexRootPage' => $indexRootPage,
+    'appSettingsLoadPolicyKeyNameRangeIndexRootPage' => $indexRootPage,
     'limit' => $limit,
-    'options' => $options,
+    'settings' => $settings,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

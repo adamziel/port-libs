@@ -47,7 +47,7 @@ $cases = [
     'rollback plan status transaction rolled back' => [static fn (): mixed => $rollbackPlan()['status'], 'transaction-rolled-back'],
     'rollback plan transaction flag true' => [static fn (): mixed => $rollbackPlan()['transaction_rolled_back'], true],
     'rollback plan savepoint not preserved' => [static fn (): mixed => $rollbackPlan()['savepoint_preserved'], false],
-    'rollback plan savepoint name' => [static fn (): mixed => $rollbackPlan()['savepoint'], 'wp_options_rowvalue_rollback_batch'],
+    'rollback plan savepoint name' => [static fn (): mixed => $rollbackPlan()['savepoint'], 'app_settings_rowvalue_rollback_batch'],
     'rollback plan failed statement ordinal after cleanup' => [static fn (): mixed => $rollbackPlan()['rollback_statement']['ordinal'], 2],
     'rollback plan failed statement action update' => [static fn (): mixed => $rollbackPlan()['rollback_statement']['action'], 'update'],
     'rollback plan conflict action rollback' => [static fn (): mixed => $rollbackPlan()['rollback_statement']['conflict_action'], 'rollback'],

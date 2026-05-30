@@ -48,8 +48,8 @@ $plan = static fn (
     string $collation = 'BINARY',
     string $currentEncoding = 'UTF-16LE',
     string $nextEncoding = 'UTF-16LE',
-    string $currentSource = 'main.wp_options@cookie99',
-    string $nextSource = 'main.wp_options@cookie100',
+    string $currentSource = 'main.app_settings@cookie99',
+    string $nextSource = 'main.app_settings@cookie100',
     int $currentSchemaCookie = 99,
     int $nextSchemaCookie = 100,
     ?array $current = null,
@@ -76,8 +76,8 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'records pattern' => ['plugin_*', 'BINARY', 'currentSource', 'main.wp_options@cookie99'],
-    'records next source' => ['plugin_*', 'BINARY', 'nextSource', 'main.wp_options@cookie100'],
+    'records pattern' => ['plugin_*', 'BINARY', 'currentSource', 'main.app_settings@cookie99'],
+    'records next source' => ['plugin_*', 'BINARY', 'nextSource', 'main.app_settings@cookie100'],
     'records schema cookie' => ['plugin_*', 'BINARY', 'currentSchemaCookie', 99],
     'records next schema cookie' => ['plugin_*', 'BINARY', 'nextSchemaCookie', 100],
     'source changed on source or cookie' => ['plugin_*', 'BINARY', 'sourceChanged', true],

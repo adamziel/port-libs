@@ -66,8 +66,8 @@ $plan = static fn (
     string $collation = 'NOCASE',
     ?string $escape = null,
     bool $caseSensitiveLike = false,
-    string $currentSource = 'main.wp_options@cookie116',
-    string $nextSource = 'main.wp_options@cookie117',
+    string $currentSource = 'main.app_settings@cookie116',
+    string $nextSource = 'main.app_settings@cookie117',
 ): array => SQLiteMalformedLikeGlobSourceNextPlan::keyValueRowKeyCurrentNext(
     $currentRows,
     $nextRows,
@@ -81,8 +81,8 @@ $plan = static fn (
 );
 
 $cases = [
-    'records current source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'currentSource', 'main.wp_options@cookie116'],
-    'records next source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'nextSource', 'main.wp_options@cookie117'],
+    'records current source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'currentSource', 'main.app_settings@cookie116'],
+    'records next source' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'nextSource', 'main.app_settings@cookie117'],
     'records operator' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'operator', 'LIKE'],
     'records collation' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'collation', 'NOCASE'],
     'requires reprepare' => ['plugin%', 'LIKE', 'NOCASE', null, false, 'reprepareRequired', true],

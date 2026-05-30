@@ -68,8 +68,8 @@ $cases = [
     'delete after replace returns transients' => [static fn (): mixed => array_column($deleteAfterReplace()['returning'], 'option_id'), [3, 4]],
 
     'plan status' => [static fn (): mixed => $plan()['status'], 'outer-released-after-inner-rollback-to-retry-current-source-nested-ignore-retry'],
-    'plan outer savepoint name' => [static fn (): mixed => $plan()['outer_savepoint'], 'wp_options_outer_rowvalue_nested_ignore_retry'],
-    'plan inner savepoint name' => [static fn (): mixed => $plan()['inner_savepoint'], 'wp_options_inner_rowvalue_nested_ignore_retry'],
+    'plan outer savepoint name' => [static fn (): mixed => $plan()['outer_savepoint'], 'app_settings_outer_rowvalue_nested_ignore_retry'],
+    'plan inner savepoint name' => [static fn (): mixed => $plan()['inner_savepoint'], 'app_settings_inner_rowvalue_nested_ignore_retry'],
     'plan rolled back to inner' => [static fn (): mixed => $plan()['rolled_back_to_inner_savepoint'], true],
     'plan inner savepoint preserved' => [static fn (): mixed => $plan()['inner_savepoint_preserved_after_rollback_to'], true],
     'plan inner released after retry' => [static fn (): mixed => $plan()['inner_released_after_retry'], true],

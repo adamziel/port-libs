@@ -75,7 +75,7 @@ $cases211 = [
     'after delete network flag' => [static fn (): mixed => array_column($afterDeleteResult211()['returning'], 'dropped_network_siteurl'), [0, 1]],
 
     'plan status' => [static fn (): mixed => $plan211()['status'], 'rowvalue-update-delete-returning-or-ignore-current-source-next211'],
-    'plan savepoint' => [static fn (): mixed => $plan211()['savepoint'], 'wp_options_rowvalue_ignore_next211'],
+    'plan savepoint' => [static fn (): mixed => $plan211()['savepoint'], 'app_settings_rowvalue_ignore_next211'],
     'plan savepoint preserved' => [static fn (): mixed => $plan211()['savepoint_preserved_after_ignore'], true],
     'plan ignored conflicts suppressed' => [static fn (): mixed => $plan211()['ignored_conflicts_are_not_returned'], true],
     'plan ignored rows restored' => [static fn (): mixed => $plan211()['ignored_rows_restored_to_statement_start'], true],

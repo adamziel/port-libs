@@ -38,8 +38,8 @@ $plan = static fn (string $pattern, ?string $escape = '\\'): array => SQLiteUtf1
     $nextRows,
     $pattern,
     $escape,
-    'main.wp_options@canonical',
-    'main.wp_options@canonical',
+    'main.app_settings@canonical',
+    'main.app_settings@canonical',
     153,
     153,
 );

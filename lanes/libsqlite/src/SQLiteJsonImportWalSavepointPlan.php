@@ -10,7 +10,7 @@ final class SQLiteJsonImportWalSavepointPlan
      * @param list<array<string,mixed>> $currentRows
      * @param list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}> $imports
      * @param list<int> $pageNumbers
-     * @param array{database_path?:string,journal_mode?:string,page_size?:int,replace_conflicts?:bool,sync_mode?:string,first_option_page_number?:int,autoload_index_page_number?:int} $options
+     * @param array{database_path?:string,journal_mode?:string,page_size?:int,replace_conflicts?:bool,sync_mode?:string,first_setting_page_number?:int,load_policy_index_page_number?:int} $options
      * @return array<string,mixed>
      */
     public static function insertWalCurrentNext(SQLiteWal $wal, string $databaseBytes, array $currentRows, array $imports, array $pageNumbers, array $options = []): array
@@ -24,11 +24,11 @@ final class SQLiteJsonImportWalSavepointPlan
                 $wal,
                 $databaseBytes,
                 $databasePath,
-                self::optionsWalRows($jsonPlan['current_rows']),
-                self::optionsWalRows($changedRows),
+                self::keyValueWalRows($jsonPlan['current_rows']),
+                self::keyValueWalRows($changedRows),
                 $pageNumbers,
-                (int) ($options['first_option_page_number'] ?? 2),
-                isset($options['autoload_index_page_number']) ? (int) $options['autoload_index_page_number'] : null,
+                (int) ($options['first_setting_page_number'] ?? 2),
+                isset($options['load_policy_index_page_number']) ? (int) $options['load_policy_index_page_number'] : null,
             );
 
         return [
@@ -37,9 +37,9 @@ final class SQLiteJsonImportWalSavepointPlan
             'json_import' => $jsonPlan,
             'wal_import' => $walImport,
             'changed_rows' => array_values($changedRows),
-            'changed_option_names' => array_column(array_values($changedRows), 'option_name'),
-            'inserted_option_names' => self::changedNames($jsonPlan['current_rows'], array_values($changedRows), true),
-            'updated_option_names' => self::changedNames($jsonPlan['current_rows'], array_values($changedRows), false),
+            'changed_key_names' => array_column(array_values($changedRows), 'key_name'),
+            'inserted_key_names' => self::changedKeyNames($jsonPlan['current_rows'], array_values($changedRows), true),
+            'updated_key_names' => self::changedKeyNames($jsonPlan['current_rows'], array_values($changedRows), false),
             'released_batches' => $jsonPlan['released_batches'],
             'rolled_back_batches' => $jsonPlan['rolled_back_batches'],
             'current_reader_sources' => $walImport['current_reader_sources'] ?? [],
@@ -89,7 +89,7 @@ final class SQLiteJsonImportWalSavepointPlan
         $visibleRows = self::rowsById($currentRows);
         $releasedRows = $visibleRows;
         $savepoints = new SQLiteSavepointStack();
-        $savepoints->beginTransaction('wp_json_import');
+        $savepoints->beginTransaction('app_json_import');
 
         $batchPlans = [];
         $releasedNames = [];
@@ -171,8 +171,8 @@ final class SQLiteJsonImportWalSavepointPlan
                 'status' => $shouldRelease ? 'released' : 'open',
                 'error' => null,
                 'json' => $jsonPlan,
-                'before_option_names' => array_column(array_values($beforeRows), 'option_name'),
-                'after_option_names' => array_column(array_values($visibleRows), 'option_name'),
+                'before_key_names' => array_column(array_values($beforeRows), 'key_name'),
+                'after_key_names' => array_column(array_values($visibleRows), 'key_name'),
                 'updated' => count($stagePlan['updated']),
                 'inserted' => count($stagePlan['inserted']),
                 'deleted' => count($stagePlan['deleted']),
@@ -200,8 +200,8 @@ final class SQLiteJsonImportWalSavepointPlan
             'current_rows' => array_values($currentRows),
             'final_rows' => array_values($visibleRows),
             'released_rows' => array_values($releasedRows),
-            'final_option_names' => array_column(array_values($visibleRows), 'option_name'),
-            'released_option_names' => array_column(array_values($releasedRows), 'option_name'),
+            'final_key_names' => array_column(array_values($visibleRows), 'key_name'),
+            'released_key_names' => array_column(array_values($releasedRows), 'key_name'),
             'dirty_pages' => array_map('intval', array_keys($dirtyPages)),
             'wal' => [
                 'path' => $databasePath . '-wal',
@@ -225,7 +225,7 @@ final class SQLiteJsonImportWalSavepointPlan
      */
     private static function savepointName(array $import, int $index): string
     {
-        $name = (string) ($import['name'] ?? 'wp_json_' . ($index + 1));
+        $name = (string) ($import['name'] ?? 'app_json_' . ($index + 1));
         if ($name === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
             throw new \InvalidArgumentException('SQLite Application JSON import savepoint names must be SQL identifiers');
         }
@@ -234,7 +234,7 @@ final class SQLiteJsonImportWalSavepointPlan
     }
 
     /**
-     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,option_names:list<string>,row_count:int,error:string|null}
+     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,key_names:list<string>,row_count:int,error:string|null}
      */
     private static function jsonStageRows(mixed $json, string $path): array
     {
@@ -267,7 +267,7 @@ final class SQLiteJsonImportWalSavepointPlan
                 'valid' => true,
                 'path' => $path,
                 'rows' => $rows,
-                'option_names' => array_column($rows, 'option_name'),
+                'key_names' => array_column($rows, 'key_name'),
                 'row_count' => count($rows),
                 'error' => null,
             ];
@@ -277,7 +277,7 @@ final class SQLiteJsonImportWalSavepointPlan
     }
 
     /**
-     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,option_names:list<string>,row_count:int,error:string}
+     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,key_names:list<string>,row_count:int,error:string}
      */
     private static function invalidJsonPlan(string $path, string $error): array
     {
@@ -285,7 +285,7 @@ final class SQLiteJsonImportWalSavepointPlan
             'valid' => false,
             'path' => $path,
             'rows' => [],
-            'option_names' => [],
+            'key_names' => [],
             'row_count' => 0,
             'error' => $error,
         ];
@@ -306,15 +306,15 @@ final class SQLiteJsonImportWalSavepointPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException('SQLite Application JSON import rows must be objects');
             }
-            $name = $row['option_name'] ?? $row['name'] ?? null;
+            $name = $row['key_name'] ?? $row['name'] ?? null;
             if (!is_string($name) || $name === '') {
-                throw new \InvalidArgumentException('SQLite Application JSON import row requires option_name');
+                throw new \InvalidArgumentException('SQLite Application JSON import row requires key_name');
             }
             $normalized[] = [
-                'option_id' => isset($row['option_id']) ? (int) $row['option_id'] : null,
-                'option_name' => $name,
-                'option_value' => $row['option_value'] ?? $row['value'] ?? '',
-                'autoload' => isset($row['autoload']) && is_string($row['autoload']) ? $row['autoload'] : 'no',
+                'setting_id' => isset($row['setting_id']) ? (int) $row['setting_id'] : null,
+                'key_name' => $name,
+                'key_value' => $row['key_value'] ?? $row['value'] ?? '',
+                'load_policy' => isset($row['load_policy']) && is_string($row['load_policy']) ? $row['load_policy'] : 'no',
             ];
         }
 
@@ -329,9 +329,9 @@ final class SQLiteJsonImportWalSavepointPlan
     {
         $byId = [];
         foreach ($rows as $row) {
-            $id = $row['option_id'] ?? null;
+            $id = $row['setting_id'] ?? null;
             if (!is_int($id)) {
-                throw new \InvalidArgumentException('SQLite Application JSON import rows require integer option_id values');
+                throw new \InvalidArgumentException('SQLite Application JSON import rows require integer setting_id values');
             }
             $byId[$id] = $row;
         }
@@ -353,8 +353,8 @@ final class SQLiteJsonImportWalSavepointPlan
             'status' => 'rolled_back',
             'error' => $error,
             'json' => $jsonPlan,
-            'before_option_names' => array_column(array_values($beforeRows), 'option_name'),
-            'after_option_names' => array_column(array_values($beforeRows), 'option_name'),
+            'before_key_names' => array_column(array_values($beforeRows), 'key_name'),
+            'after_key_names' => array_column(array_values($beforeRows), 'key_name'),
             'updated' => 0,
             'inserted' => 0,
             'deleted' => 0,
@@ -381,7 +381,7 @@ final class SQLiteJsonImportWalSavepointPlan
     {
         $currentByName = [];
         foreach ($currentRows as $row) {
-            $name = (string) ($row['option_name'] ?? '');
+            $name = (string) ($row['key_name'] ?? '');
             if ($name !== '') {
                 $currentByName[$name] = $row;
             }
@@ -389,12 +389,12 @@ final class SQLiteJsonImportWalSavepointPlan
 
         $changed = [];
         foreach ($releasedRows as $row) {
-            $name = (string) ($row['option_name'] ?? '');
+            $name = (string) ($row['key_name'] ?? '');
             if ($name === '') {
                 continue;
             }
             $current = $currentByName[$name] ?? null;
-            if ($current === null || self::keyValueForComparison($current['option_value'] ?? '') !== self::keyValueForComparison($row['option_value'] ?? '') || self::loadPolicyForComparison($current['autoload'] ?? 'no') !== self::loadPolicyForComparison($row['autoload'] ?? 'no')) {
+            if ($current === null || self::keyValueForComparison($current['key_value'] ?? '') !== self::keyValueForComparison($row['key_value'] ?? '') || self::loadPolicyForComparison($current['load_policy'] ?? 'no') !== self::loadPolicyForComparison($row['load_policy'] ?? 'no')) {
                 $changed[] = $row;
             }
         }
@@ -404,18 +404,18 @@ final class SQLiteJsonImportWalSavepointPlan
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return list<array{option_id?:int,option_name:string,option_value:string,autoload?:string}>
+     * @return list<array{setting_id?:int,key_name:string,key_value:string,load_policy?:string}>
      */
-    private static function optionsWalRows(array $rows): array
+    private static function keyValueWalRows(array $rows): array
     {
         $out = [];
         foreach ($rows as $row) {
-            $value = $row['option_value'] ?? '';
+            $value = $row['key_value'] ?? '';
             $out[] = [
-                'option_id' => isset($row['option_id']) && is_int($row['option_id']) ? $row['option_id'] : null,
-                'option_name' => (string) ($row['option_name'] ?? ''),
-                'option_value' => self::keyValueForComparison($value),
-                'autoload' => self::loadPolicyForComparison($row['autoload'] ?? 'no'),
+                'setting_id' => isset($row['setting_id']) && is_int($row['setting_id']) ? $row['setting_id'] : null,
+                'key_name' => (string) ($row['key_name'] ?? ''),
+                'key_value' => self::keyValueForComparison($value),
+                'load_policy' => self::loadPolicyForComparison($row['load_policy'] ?? 'no'),
             ];
         }
 
@@ -427,16 +427,16 @@ final class SQLiteJsonImportWalSavepointPlan
      * @param list<array<string,mixed>> $changedRows
      * @return list<string>
      */
-    private static function changedNames(array $currentRows, array $changedRows, bool $inserted): array
+    private static function changedKeyNames(array $currentRows, array $changedRows, bool $inserted): array
     {
         $currentNames = [];
         foreach ($currentRows as $row) {
-            $currentNames[(string) ($row['option_name'] ?? '')] = true;
+            $currentNames[(string) ($row['key_name'] ?? '')] = true;
         }
 
         $names = [];
         foreach ($changedRows as $row) {
-            $name = (string) ($row['option_name'] ?? '');
+            $name = (string) ($row['key_name'] ?? '');
             if (($currentNames[$name] ?? false) !== $inserted) {
                 $names[] = $name;
             }
@@ -460,8 +460,8 @@ final class SQLiteJsonImportWalSavepointPlan
         return (string) $value;
     }
 
-    private static function loadPolicyForComparison(mixed $autoload): string
+    private static function loadPolicyForComparison(mixed $load_policy): string
     {
-        return in_array(strtolower(trim((string) $autoload)), ['yes', 'on', 'true', '1'], true) ? 'yes' : 'no';
+        return in_array(strtolower(trim((string) $load_policy)), ['yes', 'on', 'true', '1'], true) ? 'yes' : 'no';
     }
 }

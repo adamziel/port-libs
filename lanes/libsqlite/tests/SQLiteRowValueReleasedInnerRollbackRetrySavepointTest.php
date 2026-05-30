@@ -44,8 +44,8 @@ $customPlan206 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavep
     [$innerUpdate206],
     [$retryUpdate206],
     $unique206,
-    'wp_outer_custom206',
-    'wp_inner_custom206',
+    'app_outer_custom206',
+    'app_inner_custom206',
 );
 
 $cases206 = [
@@ -68,8 +68,8 @@ $cases206 = [
     'retry delete network flag' => [static fn (): mixed => array_column($retryDeleteResult206()['returning'], 'dropped_network_siteurl'), [0, 1]],
 
     'plan status' => [static fn (): mixed => $plan206()['status'], 'rowvalue-update-delete-returning-released-inner-outer-rollback-current-source-released_inner_retry'],
-    'plan outer savepoint' => [static fn (): mixed => $plan206()['outer_savepoint'], 'wp_options_outer_rowvalue_released_inner_retry'],
-    'plan inner savepoint' => [static fn (): mixed => $plan206()['inner_savepoint'], 'wp_options_inner_released_rowvalue_released_inner_retry'],
+    'plan outer savepoint' => [static fn (): mixed => $plan206()['outer_savepoint'], 'app_settings_outer_rowvalue_released_inner_retry'],
+    'plan inner savepoint' => [static fn (): mixed => $plan206()['inner_savepoint'], 'app_settings_inner_released_rowvalue_released_inner_retry'],
     'plan inner released' => [static fn (): mixed => $plan206()['inner_released_before_outer_rollback'], true],
     'plan rolled back outer' => [static fn (): mixed => $plan206()['rolled_back_to_outer_savepoint'], true],
     'plan outer preserved' => [static fn (): mixed => $plan206()['outer_savepoint_preserved_after_rollback_to'], true],
@@ -108,8 +108,8 @@ $cases206 = [
     'plan dependency release' => [static fn (): mixed => in_array('sqlite-release-inner-savepoint-merges-rowvalue-returning-released_inner_retry', $plan206()['dependencies'], true), true],
     'plan dependency outer rollback' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-released_inner_retry', $plan206()['dependencies'], true), true],
     'plan dependency retry' => [static fn (): mixed => in_array('sqlite-rowvalue-retry-after-outer-rollback-reads-outer-image-released_inner_retry', $plan206()['dependencies'], true), true],
-    'custom outer savepoint' => [static fn (): mixed => $customPlan206()['outer_savepoint'], 'wp_outer_custom206'],
-    'custom inner savepoint' => [static fn (): mixed => $customPlan206()['inner_savepoint'], 'wp_inner_custom206'],
+    'custom outer savepoint' => [static fn (): mixed => $customPlan206()['outer_savepoint'], 'app_outer_custom206'],
+    'custom inner savepoint' => [static fn (): mixed => $customPlan206()['inner_savepoint'], 'app_inner_custom206'],
     'custom retry count' => [static fn (): mixed => $customPlan206()['yielded_after_retry_count'], 2],
     'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeReleasedInnerRollbackRetry($tables206, [], [$innerUpdate206], [$retryUpdate206], $unique206), InvalidArgumentException::class],
     'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeReleasedInnerRollbackRetry($tables206, [$outerUpdate206], [], [$retryUpdate206], $unique206), InvalidArgumentException::class],

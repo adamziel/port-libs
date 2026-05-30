@@ -31,8 +31,8 @@ $commitStatements = [$nullSafeUpdateSql, $deleteSql, $notIsUpdateSql];
 $nullSafeUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($nullSafeUpdateSql, $tables);
 $delete = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($deleteSql, $tables);
 $notIsUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($notIsUpdateSql, $tables);
-$commit = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, $unique, 'wp_options_rowvalue_is_batch');
-$rollback = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique, 'wp_options_rowvalue_is_batch');
+$commit = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, $unique, 'app_settings_rowvalue_is_batch');
+$rollback = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique, 'app_settings_rowvalue_is_batch');
 
 $cases = [
     'parse row value is update where preserved' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($nullSafeUpdateSql)['where'], '(status, bucket) IS (NULL, NULL)'],
@@ -60,7 +60,7 @@ $cases = [
     'is not update first selected transient checked' => [static fn (): mixed => array_column($notIsUpdate()['tables']['wp_options'], 'status', 'option_id')[3], 'checked'],
     'is not update null null row not selected because limit stops first three' => [static fn (): mixed => array_column($notIsUpdate()['tables']['wp_options'], 'status', 'option_id')[7], null],
     'commit status released' => [static fn (): mixed => $commit()['status'], 'released'],
-    'commit savepoint named' => [static fn (): mixed => $commit()['savepoint'], 'wp_options_rowvalue_is_batch'],
+    'commit savepoint named' => [static fn (): mixed => $commit()['savepoint'], 'app_settings_rowvalue_is_batch'],
     'commit executed three statements' => [static fn (): mixed => count($commit()['executed_statements']), 3],
     'commit statement actions update delete update' => [static fn (): mixed => array_column($commit()['executed_statements'], 'action'), ['update', 'delete', 'update']],
     'commit first selected id seven' => [static fn (): mixed => $commit()['executed_statements'][0]['selected_ids'], [7]],

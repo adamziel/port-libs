@@ -145,7 +145,7 @@ foreach ($cases185 as $name => [$path, $expected]) {
 }
 
 $tests['utf16 nocase like rtrim current source nextOneEightFive source change reparses deleted token'] = static function (TestRunner $t) use ($plan185): void {
-    $result = $plan185(null, null, null, 'main.wp_options@184', 'main.wp_options@185', 184, 185);
+    $result = $plan185(null, null, null, 'main.app_settings@184', 'main.app_settings@185', 184, 185);
     $t->same(['source-or-schema-changed'], $result['resumeUnsafeReasons']);
     $t->same(false, $result['deletedTokenResumeSafe']);
     $t->same('reprepare-from-range-start', $result['replayPlanMode']);

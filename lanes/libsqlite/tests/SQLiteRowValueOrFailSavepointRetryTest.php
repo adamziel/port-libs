@@ -79,7 +79,7 @@ $casesorFailRetry = [
     'retry delete distinct flags' => [static fn (): mixed => array_column($retryDeleteAfterRollbackorFailRetry()['returning'], 'not_cleanup'), [1, 0]],
 
     'plan status' => [static fn (): mixed => $planorFailRetry()['status'], 'rowvalue-update-delete-returning-or-fail-savepoint-current-source-or-fail-savepoint-retry'],
-    'plan savepoint' => [static fn (): mixed => $planorFailRetry()['savepoint'], 'wp_options_rowvalue_fail_or_fail_savepoint_retry'],
+    'plan savepoint' => [static fn (): mixed => $planorFailRetry()['savepoint'], 'app_settings_rowvalue_fail_or_fail_savepoint_retry'],
     'plan fail prefix flag' => [static fn (): mixed => $planorFailRetry()['statement_fail_preserved_prefix_or-fail-savepoint-retry'], true],
     'plan rolled back' => [static fn (): mixed => $planorFailRetry()['rolled_back_to_savepoint'], true],
     'plan release after retry' => [static fn (): mixed => $planorFailRetry()['savepoint_released_after_retry'], true],

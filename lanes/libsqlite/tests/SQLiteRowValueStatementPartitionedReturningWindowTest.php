@@ -43,7 +43,7 @@ $customPlanStatementPartitioned = static fn (): array => SQLiteRowValueUpdateDel
 
 $casesStatementPartitioned = [
     'status' => [static fn (): mixed => $planStatementPartitioned()['status'], 'rowvalue-update-delete-returning-window-statement-partitioned'],
-    'savepoint' => [static fn (): mixed => $planStatementPartitioned()['savepoint'], 'wp_options_rowvalue_statement_partitioned_window'],
+    'savepoint' => [static fn (): mixed => $planStatementPartitioned()['savepoint'], 'app_settings_rowvalue_statement_partitioned_window'],
     'rollback flags' => [static fn (): mixed => [$planStatementPartitioned()['rolled_back_to_savepoint'], $planStatementPartitioned()['savepoint_preserved_after_rollback_to']], [true, true]],
     'window flags' => [static fn (): mixed => [$planStatementPartitioned()['attempt_returning_window_suppressed_by_rollback'], $planStatementPartitioned()['retry_returning_window_yielded_from_current_source']], [true, true]],
     'attempt update selected ids' => [static fn (): mixed => $planStatementPartitioned()['attempt_statements'][0]['selected_ids'], [5, 6, 7]],

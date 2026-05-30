@@ -8,27 +8,27 @@ final class SQLiteTenantJsonWalCurrentNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
-     * @param list<array{scope:string,blog_id?:int,site_id?:int,json:mixed,path?:string,release?:bool,on_error?:string}> $imports
+     * @param list<array{scope:string,tenant_id?:int,group_id?:int,json:mixed,path?:string,release?:bool,on_error?:string}> $imports
      * @param array{database_path?:string,page_size?:int,first_frame?:int} $options
      * @return array<string,mixed>
      */
     public static function plan(array $currentRows, array $imports, array $options = []): array
     {
         if ($imports === []) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL plan requires at least one import batch');
+            throw new \InvalidArgumentException('SQLite Application global JSON WAL plan requires at least one import batch');
         }
 
-        $databasePath = (string) ($options['database_path'] ?? '/tmp/wp-network-json.sqlite');
+        $databasePath = (string) ($options['database_path'] ?? '/tmp/app-global-json.sqlite');
         $pageSize = (int) ($options['page_size'] ?? 4096);
         $currentFrame = (int) ($options['first_frame'] ?? 0);
         if ($databasePath === '' || $databasePath[0] !== '/' || str_contains($databasePath, "\0") || str_contains($databasePath, '..')) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL plan requires a safe absolute database path');
+            throw new \InvalidArgumentException('SQLite Application global JSON WAL plan requires a safe absolute database path');
         }
         if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL page size must be a power of two at least 512');
+            throw new \InvalidArgumentException('SQLite Application global JSON WAL page size must be a power of two at least 512');
         }
         if ($currentFrame < 0) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL first frame cannot be negative');
+            throw new \InvalidArgumentException('SQLite Application global JSON WAL first frame cannot be negative');
         }
 
         $rows = self::normalizeCurrentRows($currentRows);
@@ -41,19 +41,19 @@ final class SQLiteTenantJsonWalCurrentNextPlan
 
         foreach (array_values($imports) as $batchIndex => $import) {
             $scope = strtolower((string) ($import['scope'] ?? ''));
-            if (!in_array($scope, ['blog', 'network'], true)) {
-                throw new \InvalidArgumentException('SQLite Application network JSON WAL import scope must be blog or network');
+            if (!in_array($scope, ['tenant', 'global'], true)) {
+                throw new \InvalidArgumentException('SQLite Application global JSON WAL import scope must be tenant or global');
             }
             $onError = strtolower((string) ($import['on_error'] ?? 'rollback'));
             if (!in_array($onError, ['rollback', 'abort'], true)) {
-                throw new \InvalidArgumentException('SQLite Application network JSON WAL import on_error must be rollback or abort');
+                throw new \InvalidArgumentException('SQLite Application global JSON WAL import on_error must be rollback or abort');
             }
 
             $beforeRows = $rows;
             $beforeFrame = $currentFrame;
-            $identity = $scope === 'network'
-                ? self::sharedTenantIdentity($import['site_id'] ?? 1)
-                : self::partitionIdentity($import['blog_id'] ?? 1);
+            $identity = $scope === 'global'
+                ? self::sharedTenantIdentity($import['group_id'] ?? 1)
+                : self::partitionIdentity($import['tenant_id'] ?? 1);
             $json = self::jsonRows($import['json'] ?? null, (string) ($import['path'] ?? '$.rows'), $scope);
 
             if (!$json['valid']) {
@@ -104,8 +104,8 @@ final class SQLiteTenantJsonWalCurrentNextPlan
                 'status' => $isReleased ? 'released' : 'open',
                 'scope' => $scope,
                 'table' => $identity['table'],
-                'blog_id' => $identity['blog_id'],
-                'site_id' => $identity['site_id'],
+                'tenant_id' => $identity['tenant_id'],
+                'group_id' => $identity['group_id'],
                 'json' => $json,
                 'changed_row_keys' => array_keys($changed),
                 'conflict_row_keys' => $conflicts,
@@ -138,7 +138,7 @@ final class SQLiteTenantJsonWalCurrentNextPlan
                 'frame_count' => count($frames),
                 'bytes' => 32 + (count($frames) * (24 + $pageSize)),
                 'frames' => $frames,
-                'current_next45' => true,
+                'current_next' => true,
             ],
             'reader_visibility' => [
                 'current_end_frame' => (int) ($options['first_frame'] ?? 0),
@@ -148,7 +148,7 @@ final class SQLiteTenantJsonWalCurrentNextPlan
                 'released_rows_visible' => count($releasedRows),
             ],
             'dependencies' => [
-                'sqlite-application-network-json-wal-current-next45',
+                'sqlite-application-global-json-wal-current-next',
                 'sqlite-json-validity',
                 'sqlite-wal-current-next-frame-accounting',
             ],
@@ -163,10 +163,10 @@ final class SQLiteTenantJsonWalCurrentNextPlan
     {
         $normalized = [];
         foreach ($rows as $row) {
-            $scope = strtolower((string) ($row['scope'] ?? (isset($row['site_id']) ? 'network' : 'blog')));
-            $identity = $scope === 'network'
-                ? self::sharedTenantIdentity($row['site_id'] ?? 1)
-                : self::partitionIdentity($row['blog_id'] ?? 1);
+            $scope = strtolower((string) ($row['scope'] ?? (isset($row['group_id']) ? 'global' : 'tenant')));
+            $identity = $scope === 'global'
+                ? self::sharedTenantIdentity($row['group_id'] ?? 1)
+                : self::partitionIdentity($row['tenant_id'] ?? 1);
             $normalized[self::rowKey($scope, $identity, $row)] = self::mergeRow($scope, $identity, $row, null);
         }
         ksort($normalized);
@@ -174,37 +174,37 @@ final class SQLiteTenantJsonWalCurrentNextPlan
         return $normalized;
     }
 
-    /** @return array{scope:string,table:string,blog_id:int|null,site_id:int|null,savepoint:string} */
-    private static function partitionIdentity(mixed $blogId): array
+    /** @return array{scope:string,table:string,tenant_id:int|null,group_id:int|null,savepoint:string} */
+    private static function partitionIdentity(mixed $tenantId): array
     {
-        $blogId = (int) $blogId;
-        if ($blogId < 1) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL blog_id must be positive');
+        $tenantId = (int) $tenantId;
+        if ($tenantId < 1) {
+            throw new \InvalidArgumentException('SQLite Application global JSON WAL tenant_id must be positive');
         }
 
         return [
-            'scope' => 'blog',
-            'table' => $blogId === 1 ? 'wp_options' : 'wp_' . $blogId . '_options',
-            'blog_id' => $blogId,
-            'site_id' => null,
-            'savepoint' => 'blog_' . $blogId . '_json',
+            'scope' => 'tenant',
+            'table' => $tenantId === 1 ? 'app_settings' : 'app_tenant_' . $tenantId . '_settings',
+            'tenant_id' => $tenantId,
+            'group_id' => null,
+            'savepoint' => 'tenant_' . $tenantId . '_json',
         ];
     }
 
-    /** @return array{scope:string,table:string,blog_id:int|null,site_id:int|null,savepoint:string} */
-    private static function sharedTenantIdentity(mixed $siteId): array
+    /** @return array{scope:string,table:string,tenant_id:int|null,group_id:int|null,savepoint:string} */
+    private static function sharedTenantIdentity(mixed $groupId): array
     {
-        $siteId = (int) $siteId;
-        if ($siteId < 1) {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL site_id must be positive');
+        $groupId = (int) $groupId;
+        if ($groupId < 1) {
+            throw new \InvalidArgumentException('SQLite Application global JSON WAL group_id must be positive');
         }
 
         return [
-            'scope' => 'network',
-            'table' => 'wp_sitemeta',
-            'blog_id' => null,
-            'site_id' => $siteId,
-            'savepoint' => 'network_' . $siteId . '_json',
+            'scope' => 'global',
+            'table' => 'app_tenant_settings',
+            'tenant_id' => null,
+            'group_id' => $groupId,
+            'savepoint' => 'global_' . $groupId . '_json',
         ];
     }
 
@@ -214,7 +214,7 @@ final class SQLiteTenantJsonWalCurrentNextPlan
     private static function jsonRows(mixed $json, string $path, string $scope): array
     {
         if (!is_string($json) && !$json instanceof SQLiteJsonSubtypeValue && !$json instanceof SQLiteBlobValue) {
-            return self::invalidJson($path, 'network JSON WAL import requires text JSON, JSON subtype, or JSONB blob');
+            return self::invalidJson($path, 'global JSON WAL import requires text JSON, JSON subtype, or JSONB blob');
         }
 
         try {
@@ -225,11 +225,11 @@ final class SQLiteTenantJsonWalCurrentNextPlan
                 $valid = SQLiteJsonValidity::jsonValid((string) $value, SQLiteJsonValidity::FLAG_STRICT_TEXT | SQLiteJsonValidity::FLAG_JSON5_TEXT);
             }
             if ($valid !== true) {
-                return self::invalidJson($path, 'network JSON WAL import source is malformed JSON');
+                return self::invalidJson($path, 'global JSON WAL import source is malformed JSON');
             }
             $extracted = SQLiteJsonExtract::extract($value, $path);
             if ($extracted === null) {
-                return self::invalidJson($path, 'network JSON WAL import path did not match rows');
+                return self::invalidJson($path, 'global JSON WAL import path did not match rows');
             }
             $decoded = is_string($extracted)
                 ? json_decode($extracted, true, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR)
@@ -252,73 +252,71 @@ final class SQLiteTenantJsonWalCurrentNextPlan
     private static function normalizeJsonRows(mixed $decoded, string $scope): array
     {
         if (!is_array($decoded)) {
-            throw new \InvalidArgumentException('network JSON WAL import path must resolve to an object or array of objects');
+            throw new \InvalidArgumentException('global JSON WAL import path must resolve to an object or array of objects');
         }
         $rows = array_is_list($decoded) ? $decoded : [$decoded];
         $normalized = [];
         foreach ($rows as $row) {
             if (!is_array($row)) {
-                throw new \InvalidArgumentException('network JSON WAL import rows must be objects');
+                throw new \InvalidArgumentException('global JSON WAL import rows must be objects');
             }
-            $nameKey = $scope === 'network' ? 'meta_key' : 'option_name';
-            $valueKey = $scope === 'network' ? 'meta_value' : 'option_value';
+            $nameKey = 'key_name';
+            $valueKey = 'key_value';
             $name = $row[$nameKey] ?? $row['name'] ?? null;
             if (!is_string($name) || $name === '') {
-                throw new \InvalidArgumentException("network JSON WAL import row requires {$nameKey}");
+                throw new \InvalidArgumentException("global JSON WAL import row requires {$nameKey}");
             }
             $normalized[] = [
                 $nameKey => $name,
                 $valueKey => $row[$valueKey] ?? $row['value'] ?? '',
-                'autoload' => $scope === 'blog' ? (string) ($row['autoload'] ?? 'no') : null,
+                'load_policy' => $scope === 'tenant' ? (string) ($row['load_policy'] ?? 'no') : null,
             ];
         }
 
         return $normalized;
     }
 
-    /** @param array{table:string,blog_id:int|null,site_id:int|null} $identity */
+    /** @param array{table:string,tenant_id:int|null,group_id:int|null} $identity */
     private static function rowKey(string $scope, array $identity, array $row): string
     {
-        $name = $scope === 'network'
-            ? (string) ($row['meta_key'] ?? $row['name'] ?? '')
-            : (string) ($row['option_name'] ?? $row['name'] ?? '');
+        $name = (string) ($row['key_name'] ?? $row['name'] ?? '');
         if ($name === '') {
-            throw new \InvalidArgumentException('SQLite Application network JSON WAL rows require non-empty names');
+            throw new \InvalidArgumentException('SQLite Application global JSON WAL rows require non-empty names');
         }
 
         return $identity['table'] . ':' . $name;
     }
 
-    /** @param array{table:string,blog_id:int|null,site_id:int|null} $identity */
+    /** @param array{table:string,tenant_id:int|null,group_id:int|null} $identity */
     private static function mergeRow(string $scope, array $identity, array $row, ?array $current): array
     {
-        if ($scope === 'network') {
-            $name = (string) ($row['meta_key'] ?? $row['name'] ?? $current['meta_key'] ?? '');
+        if ($scope === 'global') {
+            $name = (string) ($row['key_name'] ?? $row['name'] ?? $current['key_name'] ?? '');
             return [
-                'scope' => 'network',
+                'scope' => 'global',
                 'table' => $identity['table'],
-                'site_id' => $identity['site_id'],
-                'meta_key' => $name,
-                'meta_value' => $row['meta_value'] ?? $row['value'] ?? $current['meta_value'] ?? '',
+                'group_id' => $identity['group_id'],
+                'key_name' => $name,
+                'key_value' => $row['key_value'] ?? $row['value'] ?? $current['key_value'] ?? '',
             ];
         }
 
-        $name = (string) ($row['option_name'] ?? $row['name'] ?? $current['option_name'] ?? '');
+        $name = (string) ($row['key_name'] ?? $row['name'] ?? $current['key_name'] ?? '');
         return [
-            'scope' => 'blog',
+            'scope' => 'tenant',
             'table' => $identity['table'],
-            'blog_id' => $identity['blog_id'],
-            'option_name' => $name,
-            'option_value' => $row['option_value'] ?? $row['value'] ?? $current['option_value'] ?? '',
-            'autoload' => (string) ($row['autoload'] ?? $current['autoload'] ?? 'no'),
+            'tenant_id' => $identity['tenant_id'],
+            'key_name' => $name,
+            'key_value' => $row['key_value'] ?? $row['value'] ?? $current['key_value'] ?? '',
+            'load_policy' => (string) ($row['load_policy'] ?? $current['load_policy'] ?? 'no'),
         ];
     }
 
-    /** @param array{blog_id:int|null,site_id:int|null} $identity */
+    /** @param array{tenant_id:int|null,group_id:int|null} $identity */
     private static function pageNumber(string $scope, array $identity, array $row): int
     {
-        $name = $scope === 'network' ? (string) $row['meta_key'] : (string) $row['option_name'];
-        $base = $scope === 'network' ? 900 + ((int) $identity['site_id'] * 37) : 100 + ((int) $identity['blog_id'] * 53);
+        $name = (string) $row['key_name'];
+        $base = $scope === 'global' ? 900 + ((int) $identity['group_id'] * 37) : 100 + ((int) $identity['tenant_id'] * 53);
 
         return $base + (crc32($name) % 31);
     }
@@ -336,8 +334,8 @@ final class SQLiteTenantJsonWalCurrentNextPlan
             'status' => 'rolled_back',
             'scope' => $identity['scope'],
             'table' => $identity['table'],
-            'blog_id' => $identity['blog_id'],
-            'site_id' => $identity['site_id'],
+            'tenant_id' => $identity['tenant_id'],
+            'group_id' => $identity['group_id'],
             'json' => $json,
             'changed_row_keys' => [],
             'conflict_row_keys' => [],

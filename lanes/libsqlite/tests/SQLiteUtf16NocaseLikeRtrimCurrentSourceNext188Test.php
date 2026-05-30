@@ -178,7 +178,7 @@ $tests['utf16 nocase like rtrim current source nextOneEightEight malformed reuse
 };
 
 $tests['utf16 nocase like rtrim current source nextOneEightEight source change reason is preserved'] = static function (TestRunner $t) use ($plan188): void {
-    $result = $plan188(null, null, null, 'main.wp_options@187', 'main.wp_options@188', 187, 188);
+    $result = $plan188(null, null, null, 'main.app_settings@187', 'main.app_settings@188', 187, 188);
     $t->same('source-or-schema-changed', $result['resumeUnsafeReasons'][0]);
     $t->true(in_array('yield-token-rowid-reused', $result['resumeUnsafeReasons'], true));
     $t->same(false, $result['deletedTokenResumeSafe']);

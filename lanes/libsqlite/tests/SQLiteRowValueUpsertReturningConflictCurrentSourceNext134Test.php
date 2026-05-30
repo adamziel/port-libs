@@ -26,9 +26,9 @@ $plan = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPla
     $tables,
     [$updateWhereSql, $skipWhereSql, $doNothingSql, $partialUpdateSql, $partialInsertSql],
     $unique,
-    'wp_options_rowvalue_conflict_current_next134'
+    'app_settings_rowvalue_conflict_current_next134'
 );
-$nullSkip = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, [$nullWhereSql], $unique, 'wp_options_rowvalue_null_where_next134');
+$nullSkip = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, [$nullWhereSql], $unique, 'app_settings_rowvalue_null_where_next134');
 $parsedNothing = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse($doNothingSql);
 $parsedPartial = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse($partialUpdateSql);
 $parsedUpdateWhere = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse($updateWhereSql);

@@ -48,8 +48,8 @@ $customPlan192 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavep
     $abortUpdate192,
     [$retryUpdate192],
     $unique192,
-    'wp_outer_custom192',
-    'wp_inner_custom192',
+    'app_outer_custom192',
+    'app_inner_custom192',
 );
 
 $cases192 = [
@@ -73,7 +73,7 @@ $cases192 = [
     'retry delete removes home and site four' => [static fn (): mixed => array_intersect([2, 10], array_column($retryDeleteResult192()['tables']['wp_options'], 'option_id')), []],
 
     'plan status' => [static fn (): mixed => $plan192()['status'], 'rowvalue-abort-statement-current-source-retry-next192'],
-    'plan savepoint names' => [static fn (): mixed => [$plan192()['outer_savepoint'], $plan192()['inner_savepoint']], ['wp_options_rowvalue_abort_outer_next192', 'wp_options_rowvalue_abort_inner_next192']],
+    'plan savepoint names' => [static fn (): mixed => [$plan192()['outer_savepoint'], $plan192()['inner_savepoint']], ['app_settings_rowvalue_abort_outer_next192', 'app_settings_rowvalue_abort_inner_next192']],
     'plan abort rolled back statement' => [static fn (): mixed => $plan192()['inner_abort_statement_rolled_back'], true],
     'plan savepoints preserved' => [static fn (): mixed => [$plan192()['outer_savepoint_preserved_after_abort'], $plan192()['inner_savepoint_preserved_after_abort']], [true, true]],
     'plan inner pre abort changes preserved' => [static fn (): mixed => $plan192()['inner_pre_abort_changes_preserved'], true],
@@ -117,7 +117,7 @@ $cases192 = [
     'plan dependency abort statement' => [static fn (): mixed => in_array('sqlite-rowvalue-update-or-abort-statement-rollback-next192', $plan192()['dependencies'], true), true],
     'plan dependency preserves prior changes' => [static fn (): mixed => in_array('sqlite-rowvalue-abort-preserves-prior-savepoint-current-source-next192', $plan192()['dependencies'], true), true],
     'plan dependency retry delete' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-retry-after-abort-next192', $plan192()['dependencies'], true), true],
-    'custom plan savepoints' => [static fn (): mixed => [$customPlan192()['outer_savepoint'], $customPlan192()['inner_savepoint']], ['wp_outer_custom192', 'wp_inner_custom192']],
+    'custom plan savepoints' => [static fn (): mixed => [$customPlan192()['outer_savepoint'], $customPlan192()['inner_savepoint']], ['app_outer_custom192', 'app_inner_custom192']],
     'custom plan inner pre abort count' => [static fn (): mixed => $customPlan192()['inner_pre_abort_returning_count'], 1],
     'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedAbortRollbackRetrySavepoint($tables192, [], [$innerUpdate192], $abortUpdate192, [$retryUpdate192], $unique192), InvalidArgumentException::class],
     'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedAbortRollbackRetrySavepoint($tables192, [$outerUpdate192], [], $abortUpdate192, [$retryUpdate192], $unique192), InvalidArgumentException::class],

@@ -64,8 +64,8 @@ $cases = [
     'inner delete after update returns transient ids' => [static fn (): mixed => array_column($innerDeleteAfterUpdate()['returning'], 'option_id'), [3, 4]],
 
     'plan status' => [static fn (): mixed => $plan()['status'], 'inner-release-discarded-by-outer-rollback-retried'],
-    'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'wp_options_outer_import_nested_retry'],
-    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'wp_options_inner_cleanup_nested_retry'],
+    'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'app_settings_outer_import_nested_retry'],
+    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'app_settings_inner_cleanup_nested_retry'],
     'plan inner released true' => [static fn (): mixed => $plan()['inner_released'], true],
     'plan outer rolled back true' => [static fn (): mixed => $plan()['outer_rolled_back_to_savepoint'], true],
     'plan outer savepoint preserved' => [static fn (): mixed => $plan()['outer_savepoint_preserved_after_rollback_to'], true],

@@ -22,7 +22,7 @@ final class SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         array $distinctColumns,
-        string $savepoint = 'wp_options_rowvalue_distinct_current_source',
+        string $savepoint = 'app_settings_rowvalue_distinct_current_source',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($releasedStatements === []) {

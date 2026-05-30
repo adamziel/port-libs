@@ -20,8 +20,8 @@ final class SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan
         ?string $escapeBytes = null,
         int|string|null $escapeEncoding = null,
         bool $caseSensitiveLike = false,
-        string $currentSource = 'main.wp_options',
-        string $nextSource = 'main.wp_options',
+        string $currentSource = 'main.app_settings',
+        string $nextSource = 'main.app_settings',
     ): array {
         $operator = strtoupper($operator);
         if (!in_array($operator, ['LIKE', 'GLOB'], true)) {

@@ -17,8 +17,8 @@ final class SQLiteUtf16LikeRtrimCurrentSourceNextPlan
         string $pattern,
         ?string $escape = null,
         bool $caseSensitiveLike = true,
-        string $currentSource = 'main.wp_options@current',
-        string $nextSource = 'main.wp_options@next',
+        string $currentSource = 'main.app_settings@current',
+        string $nextSource = 'main.app_settings@next',
     ): array {
         $likePlan = SQLiteLikeCollationPlan::plan($pattern, 'RTRIM', $escape, $caseSensitiveLike);
         $current = self::scanSource($currentRows, $pattern, $escape, $caseSensitiveLike);

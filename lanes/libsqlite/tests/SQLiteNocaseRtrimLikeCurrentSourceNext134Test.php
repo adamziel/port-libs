@@ -68,8 +68,8 @@ $plan134 = static fn (
     ?string $currentEscape = null,
     ?string $nextEscape = null,
     bool $caseSensitiveLike = false,
-    string $currentSource = 'main.wp_options@133',
-    string $nextSource = 'main.wp_options@134',
+    string $currentSource = 'main.app_settings@133',
+    string $nextSource = 'main.app_settings@134',
 ): array => SQLiteNocaseRtrimLikeCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current ?? $current134,
     $next ?? $next134,
@@ -95,8 +95,8 @@ $value134 = static function (array $value, string $path): mixed {
 $cases134 = [
     'operator recorded' => ['operator', 'LIKE'],
     'case insensitive like recorded' => ['caseSensitiveLike', false],
-    'current source recorded' => ['currentSource', 'main.wp_options@133'],
-    'next source recorded' => ['nextSource', 'main.wp_options@134'],
+    'current source recorded' => ['currentSource', 'main.app_settings@133'],
+    'next source recorded' => ['nextSource', 'main.app_settings@134'],
     'current pattern recorded' => ['currentPattern', 'plugin_%'],
     'next pattern recorded' => ['nextPattern', 'plugin_%'],
     'current collation recorded' => ['currentCollation', 'NOCASE'],

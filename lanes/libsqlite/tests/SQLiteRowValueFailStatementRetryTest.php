@@ -74,7 +74,7 @@ $casesfailStatementRetry = [
     'retry delete network flag' => [static fn (): mixed => array_column($retryDeleteResultfailStatementRetry()['returning'], 'dropped_network_siteurl'), [0, 1]],
 
     'plan status' => [static fn (): mixed => $planfailStatementRetry()['status'], 'rowvalue-update-delete-returning-or-fail-current-source-fail-statement-retry'],
-    'plan savepoint' => [static fn (): mixed => $planfailStatementRetry()['savepoint'], 'wp_options_rowvalue_fail_fail_statement_retry'],
+    'plan savepoint' => [static fn (): mixed => $planfailStatementRetry()['savepoint'], 'app_settings_rowvalue_fail_fail_statement_retry'],
     'plan savepoint preserved' => [static fn (): mixed => $planfailStatementRetry()['savepoint_preserved_after_fail'], true],
     'plan pre fail changes preserved' => [static fn (): mixed => $planfailStatementRetry()['pre_fail_changes_preserved'], true],
     'plan failing row restored' => [static fn (): mixed => $planfailStatementRetry()['failing_row_restored_to_statement_start'], true],

@@ -15,7 +15,7 @@ final class SQLiteImportTransactionPlan
     public static function plan(array $currentRows, array $stagedRows, array $options = []): array
     {
         $beginSql = (string) ($options['begin'] ?? 'BEGIN IMMEDIATE');
-        $databasePath = (string) ($options['database_path'] ?? '/tmp/wp-options.sqlite');
+        $databasePath = (string) ($options['database_path'] ?? '/tmp/app-settings.sqlite');
         $deleteMissing = (bool) ($options['delete_missing'] ?? false);
         $replaceConflicts = (bool) ($options['replace_conflicts'] ?? false);
         $journalMode = strtolower((string) ($options['journal_mode'] ?? 'delete'));
@@ -45,13 +45,13 @@ final class SQLiteImportTransactionPlan
         $maxId = 0;
         foreach ($currentRows as $row) {
             $normalized = self::normalizeRow($row, false);
-            $id = $normalized['option_id'];
-            $name = $normalized['option_name'];
+            $id = $normalized['setting_id'];
+            $name = $normalized['key_name'];
             if (isset($currentById[$id])) {
-                throw new \InvalidArgumentException("Duplicate current wp_options option_id {$id}");
+                throw new \InvalidArgumentException("Duplicate current app_settings setting_id {$id}");
             }
             if (isset($currentNameToId[$name])) {
-                throw new \InvalidArgumentException("Duplicate current wp_options option_name {$name}");
+                throw new \InvalidArgumentException("Duplicate current app_settings key_name {$name}");
             }
             $currentById[$id] = $normalized;
             $currentNameToId[$name] = $id;
@@ -61,7 +61,7 @@ final class SQLiteImportTransactionPlan
         $stagedByKey = [];
         foreach ($stagedRows as $row) {
             $normalized = self::normalizeRow($row, true);
-            $key = $normalized['option_id'] !== null ? 'id:' . $normalized['option_id'] : 'name:' . $normalized['option_name'];
+            $key = $normalized['setting_id'] !== null ? 'id:' . $normalized['setting_id'] : 'name:' . $normalized['key_name'];
             $stagedByKey[$key] = $normalized;
         }
 
@@ -74,29 +74,29 @@ final class SQLiteImportTransactionPlan
         $dirtyPages = [];
 
         foreach ($stagedByKey as $stage) {
-            $targetId = $stage['option_id'];
-            if ($targetId === null && isset($currentNameToId[$stage['option_name']])) {
-                $targetId = $currentNameToId[$stage['option_name']];
+            $targetId = $stage['setting_id'];
+            if ($targetId === null && isset($currentNameToId[$stage['key_name']])) {
+                $targetId = $currentNameToId[$stage['key_name']];
             }
 
             if ($targetId !== null && isset($finalById[$targetId])) {
                 $before = $finalById[$targetId];
                 $after = [
-                    'option_id' => $targetId,
-                    'option_name' => $stage['option_name'],
-                    'option_value' => $stage['option_value'],
-                    'autoload' => $stage['autoload'],
+                    'setting_id' => $targetId,
+                    'key_name' => $stage['key_name'],
+                    'key_value' => $stage['key_value'],
+                    'load_policy' => $stage['load_policy'],
                 ];
-                $conflictingId = self::conflictingKeyNameId($finalById, $after['option_name'], $targetId);
+                $conflictingId = self::conflictingKeyNameId($finalById, $after['key_name'], $targetId);
                 if ($conflictingId !== null) {
                     $conflicts[] = [
-                        'option_name' => $after['option_name'],
-                        'incoming_option_id' => $targetId,
-                        'conflicting_option_id' => $conflictingId,
+                        'key_name' => $after['key_name'],
+                        'incoming_setting_id' => $targetId,
+                        'conflicting_setting_id' => $conflictingId,
                         'action' => $replaceConflicts ? 'delete_conflicting_current' : 'abort',
                     ];
                     if (!$replaceConflicts) {
-                        throw new \LogicException("SQLite Application import unique option_name conflict: {$after['option_name']}");
+                        throw new \LogicException("SQLite Application import unique key_name conflict: {$after['key_name']}");
                     }
                     $deleted[] = $finalById[$conflictingId] + ['reason' => 'replace_conflict'];
                     unset($finalById[$conflictingId]);
@@ -117,21 +117,21 @@ final class SQLiteImportTransactionPlan
             if ($newId === null) {
                 $newId = ++$maxId;
             } elseif ($newId <= 0) {
-                throw new \InvalidArgumentException('Staged wp_options option_id must be positive when supplied');
+                throw new \InvalidArgumentException('Staged app_settings setting_id must be positive when supplied');
             } else {
                 $maxId = max($maxId, $newId);
             }
 
-            $conflictingId = self::conflictingKeyNameId($finalById, $stage['option_name'], $newId);
+            $conflictingId = self::conflictingKeyNameId($finalById, $stage['key_name'], $newId);
             if ($conflictingId !== null) {
                 $conflicts[] = [
-                    'option_name' => $stage['option_name'],
-                    'incoming_option_id' => $newId,
-                    'conflicting_option_id' => $conflictingId,
+                    'key_name' => $stage['key_name'],
+                    'incoming_setting_id' => $newId,
+                    'conflicting_setting_id' => $conflictingId,
                     'action' => $replaceConflicts ? 'delete_conflicting_current' : 'abort',
                 ];
                 if (!$replaceConflicts) {
-                    throw new \LogicException("SQLite Application import unique option_name conflict: {$stage['option_name']}");
+                    throw new \LogicException("SQLite Application import unique key_name conflict: {$stage['key_name']}");
                 }
                 $deleted[] = $finalById[$conflictingId] + ['reason' => 'replace_conflict'];
                 unset($finalById[$conflictingId]);
@@ -139,10 +139,10 @@ final class SQLiteImportTransactionPlan
             }
 
             $insert = [
-                'option_id' => $newId,
-                'option_name' => $stage['option_name'],
-                'option_value' => $stage['option_value'],
-                'autoload' => $stage['autoload'],
+                'setting_id' => $newId,
+                'key_name' => $stage['key_name'],
+                'key_value' => $stage['key_value'],
+                'load_policy' => $stage['load_policy'],
             ];
             $inserted[] = $insert;
             $finalById[$newId] = $insert;
@@ -152,10 +152,10 @@ final class SQLiteImportTransactionPlan
         if ($deleteMissing) {
             $stagedNames = [];
             foreach ($stagedByKey as $stage) {
-                $stagedNames[$stage['option_name']] = true;
+                $stagedNames[$stage['key_name']] = true;
             }
             foreach ($currentById as $id => $row) {
-                if (!isset($stagedNames[$row['option_name']]) && isset($finalById[$id])) {
+                if (!isset($stagedNames[$row['key_name']]) && isset($finalById[$id])) {
                     $deleted[] = $row + ['reason' => 'missing_from_stage'];
                     unset($finalById[$id]);
                     $dirtyPages[self::pageForKeyValueId($id)] = true;
@@ -201,48 +201,48 @@ final class SQLiteImportTransactionPlan
 
     /**
      * @param array<string, mixed> $row
-     * @return array{option_id:int|null,option_name:string,option_value:mixed,autoload:string}
+     * @return array{setting_id:int|null,key_name:string,key_value:mixed,load_policy:string}
      */
     private static function normalizeRow(array $row, bool $allowNullId): array
     {
-        $id = $row['option_id'] ?? null;
+        $id = $row['setting_id'] ?? null;
         if ($id !== null) {
             if (!is_int($id) && !(is_string($id) && ctype_digit($id))) {
-                throw new \InvalidArgumentException('wp_options option_id must be an integer');
+                throw new \InvalidArgumentException('app_settings setting_id must be an integer');
             }
             $id = (int) $id;
             if ($id <= 0) {
-                throw new \InvalidArgumentException('wp_options option_id must be positive');
+                throw new \InvalidArgumentException('app_settings setting_id must be positive');
             }
         } elseif (!$allowNullId) {
-            throw new \InvalidArgumentException('Current wp_options rows require option_id');
+            throw new \InvalidArgumentException('Current app_settings rows require setting_id');
         }
 
-        $name = $row['option_name'] ?? null;
+        $name = $row['key_name'] ?? null;
         if (!is_string($name) || $name === '' || str_contains($name, "\0")) {
-            throw new \InvalidArgumentException('wp_options option_name must be non-empty text');
+            throw new \InvalidArgumentException('app_settings key_name must be non-empty text');
         }
 
-        $autoload = $row['autoload'] ?? 'no';
-        if (!is_string($autoload) || !in_array($autoload, ['yes', 'no', 'auto', 'on', 'off'], true)) {
-            throw new \InvalidArgumentException('wp_options autoload must be a supported SQLite import value');
+        $load_policy = $row['load_policy'] ?? 'no';
+        if (!is_string($load_policy) || !in_array($load_policy, ['yes', 'no', 'auto', 'on', 'off'], true)) {
+            throw new \InvalidArgumentException('app_settings load_policy must be a supported SQLite import value');
         }
 
         return [
-            'option_id' => $id,
-            'option_name' => $name,
-            'option_value' => $row['option_value'] ?? '',
-            'autoload' => $autoload,
+            'setting_id' => $id,
+            'key_name' => $name,
+            'key_value' => $row['key_value'] ?? '',
+            'load_policy' => $load_policy,
         ];
     }
 
     /**
-     * @param array<int, array{option_id:int,option_name:string,option_value:mixed,autoload:string}> $rows
+     * @param array<int, array{setting_id:int,key_name:string,key_value:mixed,load_policy:string}> $rows
      */
     private static function conflictingKeyNameId(array $rows, string $name, int $exceptId): ?int
     {
         foreach ($rows as $id => $row) {
-            if ($id !== $exceptId && $row['option_name'] === $name) {
+            if ($id !== $exceptId && $row['key_name'] === $name) {
                 return $id;
             }
         }
@@ -250,9 +250,9 @@ final class SQLiteImportTransactionPlan
         return null;
     }
 
-    private static function pageForKeyValueId(int $optionId): int
+    private static function pageForKeyValueId(int $settingId): int
     {
-        return 2 + intdiv($optionId - 1, 64);
+        return 2 + intdiv($settingId - 1, 64);
     }
 
     /**
@@ -266,10 +266,10 @@ final class SQLiteImportTransactionPlan
     {
         $statements = [];
         if ($updated !== []) {
-            $statements[] = ['op' => 'update', 'rows' => count($updated), 'reason' => 'apply_staged_current_option_rows'];
+            $statements[] = ['op' => 'update', 'rows' => count($updated), 'reason' => 'apply_staged_current_setting_rows'];
         }
         if ($inserted !== []) {
-            $statements[] = ['op' => 'insert', 'rows' => count($inserted), 'reason' => 'insert_new_staged_option_rows'];
+            $statements[] = ['op' => 'insert', 'rows' => count($inserted), 'reason' => 'insert_new_staged_setting_rows'];
         }
         if ($deleted !== []) {
             $statements[] = ['op' => 'delete', 'rows' => count($deleted), 'reason' => 'delete_replaced_or_missing_current_rows'];

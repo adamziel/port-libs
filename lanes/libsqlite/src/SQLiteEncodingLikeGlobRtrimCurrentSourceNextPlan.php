@@ -17,8 +17,8 @@ final class SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan
         string $operator,
         string $pattern,
         ?string $escape = null,
-        string $currentSource = 'main.wp_options@139',
-        string $nextSource = 'main.wp_options@140',
+        string $currentSource = 'main.app_settings@139',
+        string $nextSource = 'main.app_settings@140',
         int $currentSchemaCookie = 139,
         int $nextSchemaCookie = 140,
     ): array {

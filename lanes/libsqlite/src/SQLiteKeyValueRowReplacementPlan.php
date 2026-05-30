@@ -15,9 +15,9 @@ final class SQLiteKeyValueRowReplacementPlan
     public function __construct(
         public readonly int $tableRootPage,
         public readonly int $rowId,
-        public readonly string $optionName,
-        public readonly string $optionValue,
-        public readonly ?string $autoload,
+        public readonly string $keyName,
+        public readonly string $keyValue,
+        public readonly ?string $loadPolicy,
         public readonly array $overflowPageNumbers,
         public readonly array $obsoleteOverflowPageNumbers,
         public readonly int $localPayloadLength,
@@ -118,15 +118,15 @@ final class SQLiteKeyValueRowReplacementPlan
     }
 
     /**
-     * @return array{table_root_page:int,rowid:int,option_name:string,autoload:?string,overflow_page_numbers:list<int>,obsolete_overflow_page_numbers:list<int>,local_payload_length:int,database_page_count:int,updated_page_numbers:list<int>}
+     * @return array{table_root_page:int,rowid:int,key_name:string,load_policy:?string,overflow_page_numbers:list<int>,obsolete_overflow_page_numbers:list<int>,local_payload_length:int,database_page_count:int,updated_page_numbers:list<int>}
      */
     public function toArray(): array
     {
         return [
             'table_root_page' => $this->tableRootPage,
             'rowid' => $this->rowId,
-            'option_name' => $this->optionName,
-            'autoload' => $this->autoload,
+            'key_name' => $this->keyName,
+            'load_policy' => $this->loadPolicy,
             'overflow_page_numbers' => $this->overflowPageNumbers,
             'obsolete_overflow_page_numbers' => $this->obsoleteOverflowPageNumbers,
             'local_payload_length' => $this->localPayloadLength,

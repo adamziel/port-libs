@@ -7,10 +7,10 @@ namespace PortLibs\LibSqlite;
 final class SQLiteJsonSchemaWalPlan
 {
     /**
-     * @param list<array{option_id?:int,option_name:string,option_value:string,autoload?:string}> $currentRows
-     * @param list<array{option_id?:int,option_name:string,option_value:string,autoload?:string}> $importRows
+     * @param list<array{setting_id?:int,key_name:string,key_value:string,load_policy?:string}> $currentRows
+     * @param list<array{setting_id?:int,key_name:string,key_value:string,load_policy?:string}> $importRows
      * @param list<int> $pageNumbers
-     * @param list<string> $jsonOptionNames
+     * @param list<string> $jsonKeyNames
      * @return array<string,mixed>
      */
     public static function currentNext(
@@ -21,21 +21,21 @@ final class SQLiteJsonSchemaWalPlan
         array $currentRows,
         array $importRows,
         array $pageNumbers,
-        array $jsonOptionNames,
+        array $jsonKeyNames,
         array $schemaOptions = [],
     ): array {
-        if ($jsonOptionNames === []) {
+        if ($jsonKeyNames === []) {
             throw new \InvalidArgumentException('Application JSON schema WAL planning requires at least one JSON option name');
         }
 
         $schema = SQLiteSchemaBulkImportPlan::plan($schemaSql, [], $schemaOptions);
         $schemaNames = array_map('strtolower', $schema['ordered_names']);
-        if (!in_array('wp_options', $schemaNames, true)) {
-            throw new \InvalidArgumentException('Application JSON schema WAL planning requires a wp_options schema object');
+        if (!in_array('app_settings', $schemaNames, true)) {
+            throw new \InvalidArgumentException('Application JSON schema WAL planning requires a app_settings schema object');
         }
 
         $jsonNames = [];
-        foreach ($jsonOptionNames as $name) {
+        foreach ($jsonKeyNames as $name) {
             $normalized = trim($name);
             if ($normalized === '') {
                 throw new \InvalidArgumentException('Application JSON schema WAL planning requires non-empty JSON option names');
@@ -46,9 +46,9 @@ final class SQLiteJsonSchemaWalPlan
         $acceptedRows = [];
         $rejectedRows = [];
         foreach ($importRows as $row) {
-            $name = trim((string) ($row['option_name'] ?? ''));
+            $name = trim((string) ($row['key_name'] ?? ''));
             if ($name === '') {
-                throw new \InvalidArgumentException('Application JSON schema WAL planning requires option_name');
+                throw new \InvalidArgumentException('Application JSON schema WAL planning requires key_name');
             }
 
             if (!isset($jsonNames[$name])) {
@@ -56,12 +56,12 @@ final class SQLiteJsonSchemaWalPlan
                 continue;
             }
 
-            $value = (string) ($row['option_value'] ?? '');
+            $value = (string) ($row['key_value'] ?? '');
             $decoded = json_decode($value, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $rejectedRows[] = [
-                    'option_name' => $name,
-                    'reason' => 'malformed_json_option_value',
+                    'key_name' => $name,
+                    'reason' => 'malformed_json_key_value',
                     'error' => json_last_error_msg(),
                 ];
                 continue;
@@ -90,7 +90,7 @@ final class SQLiteJsonSchemaWalPlan
             'wal_path' => $databasePath . '-wal',
             'schema' => $schema,
             'schema_object_names' => $schema['ordered_names'],
-            'json_option_names' => array_keys($jsonNames),
+            'json_key_names' => array_keys($jsonNames),
             'accepted_import_count' => count($acceptedRows),
             'rejected_import_count' => count($rejectedRows),
             'rejected_rows' => $rejectedRows,
@@ -98,9 +98,9 @@ final class SQLiteJsonSchemaWalPlan
             'current_reader_sources' => $walPlan['current_reader_sources'],
             'next_reader_sources' => $walPlan['next_reader_sources'],
             'next_reader_frame_indexes' => $walPlan['next_reader_frame_indexes'],
-            'inserted_names' => $walPlan['inserted_names'],
-            'updated_names' => $walPlan['updated_names'],
-            'autoload_yes_names' => $walPlan['autoload_yes_names'],
+            'inserted_key_names' => $walPlan['inserted_key_names'],
+            'updated_key_names' => $walPlan['updated_key_names'],
+            'load_policy_yes_key_names' => $walPlan['load_policy_yes_key_names'],
             'schema_version_after' => $schema['schema_version_after'],
             'data_version_after' => $schema['data_version_after'],
             'wal_last_commit_frame' => $walPlan['append']['last_commit_frame'],

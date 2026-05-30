@@ -15,8 +15,8 @@ final class SQLiteUtf16CastGlobCurrentSourceNextPlan
         array $currentRows,
         array $nextRows,
         string $pattern,
-        string $currentSource = 'main.wp_options@134',
-        string $nextSource = 'main.wp_options@135',
+        string $currentSource = 'main.app_settings@134',
+        string $nextSource = 'main.app_settings@135',
         int $currentSchemaCookie = 134,
         int $nextSchemaCookie = 135,
     ): array {
