@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 12:50 UTC):
+  Latest libsqlite source is integrated as `c0a63cce8`
+  (`libsqlite: consolidate wal suite window helpers`). The batch accepts three
+  handoffs on top of `6c2db06`: suite-evidence mixed-separator dynamic parsing,
+  additional window-frame no-ORDER-BY regressions, and WAL hot-journal
+  checkpoint helper consolidation. Verification passed PHP lint for changed PHP
+  files, `git diff --check -- lanes/libsqlite`, focused changed gate `15 files /
+  622 assertions / 0 failures`, suite/WAL family gate `15288 assertions / 0
+  failures`, full libsqlite lane `2 test files / 759077 assertions / 0 failures
+  / 188334 PASS lines`, no `WordPress`/`wordpress` text in
+  `lanes/libsqlite/src` PHP, and no WordPress/WP/wp_ class or method
+  declarations under `lanes/libsqlite` PHP. Public pass/fail should move to
+  `188334 pass / 0 fail`; mapped coverage remains `830 / 1589` until a fresh
+  denominator-mapped SQLite suite row is accepted. The latest live sample
+  refilled the visible tmux worker pool back to 11 libsqlite Codex workers with
+  0 long sleepers.
+
 - 2026-05-30 supervisor continuation (integration sample 12:20 UTC):
   Latest libsqlite source is integrated as `6c2db06db`
   (`libsqlite: guard generic source api`). The batch accepts four current-base
