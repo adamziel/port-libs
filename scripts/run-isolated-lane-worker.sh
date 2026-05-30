@@ -34,6 +34,7 @@ LOG_FILE="$LOG_DIR/$SAFE_SESSION-$TIMESTAMP.log"
 PATCH_FILE="$HANDOFF_DIR/$SAFE_SESSION-$TIMESTAMP.patch"
 META_FILE="$HANDOFF_DIR/$SAFE_SESSION-$TIMESTAMP.md"
 READY_FILE="$HANDOFF_DIR/$SAFE_SESSION-$TIMESTAMP.ready"
+WORKTREE_SNAPSHOT_DIR="$ROOT/.tmux-team/tmp/pruned-worktree-diffs/auto-$SAFE_SESSION-$TIMESTAMP"
 
 cd "$ROOT" || exit 1
 
@@ -163,7 +164,7 @@ Integrator notes:
 - Apply from the main repo with \`git apply --check "$PATCH_FILE"\` first.
 - Inspect worker evidence in the log before accepting.
 - This launcher exports only \`lanes/$LANE/**\`; shared checkout dirt is not part of the handoff.
-- Cleanup is manual: after integration or rejection, remove inactive worktrees with \`git worktree remove "$WORKTREE"\` and then \`git worktree prune\`. Do not remove a worktree while its worker is active.
+- Successful handoffs snapshot and remove their generated worktree automatically. Failed handoffs leave the worktree in place for inspection.
 EOF
 
 cat > "$READY_FILE" <<EOF
@@ -183,3 +184,22 @@ EOF
 printf 'Ready marker written: %s\n' "$READY_FILE"
 printf 'Patch: %s\n' "$PATCH_FILE"
 printf 'Metadata: %s\n' "$META_FILE"
+
+if [[ "${ISOLATED_REMOVE_WORKTREE_ON_READY:-1}" != "0" ]]; then
+  mkdir -p "$WORKTREE_SNAPSHOT_DIR"
+  {
+    printf 'worktree=%s\n' "$WORKTREE"
+    printf 'base_sha=%s\n' "$BASE_SHA"
+    printf 'ready_file=%s\n' "$READY_FILE"
+    git -C "$WORKTREE" status --short --branch --untracked-files=all 2>/dev/null || true
+  } > "$WORKTREE_SNAPSHOT_DIR/status.txt"
+  git -C "$WORKTREE" diff --binary > "$WORKTREE_SNAPSHOT_DIR/diff.patch" 2>/dev/null || true
+  git -C "$WORKTREE" diff --cached --binary > "$WORKTREE_SNAPSHOT_DIR/diff-cached.patch" 2>/dev/null || true
+  git -C "$WORKTREE" ls-files --others --exclude-standard > "$WORKTREE_SNAPSHOT_DIR/untracked-files.txt" 2>/dev/null || true
+  if [[ -s "$WORKTREE_SNAPSHOT_DIR/untracked-files.txt" ]]; then
+    tar -C "$WORKTREE" -czf "$WORKTREE_SNAPSHOT_DIR/untracked.tar.gz" -T "$WORKTREE_SNAPSHOT_DIR/untracked-files.txt" 2>/dev/null || true
+  fi
+  git -C "$ROOT" worktree remove --force "$WORKTREE" || true
+  git -C "$ROOT" worktree prune || true
+  printf 'Worktree snapshot: %s\n' "$WORKTREE_SNAPSHOT_DIR"
+fi
