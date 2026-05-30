@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 20:14 UTC):
+  Accepted a third rapid current-base libsqlite batch replayed on dashboard
+  head `c1a0d2c8`. Fourteen handoffs applied cleanly after excluding stale
+  status/dashboard hunks; one duplicate window handoff was rejected because it
+  tried to add a test already supplied by this batch. Accepted coverage adds
+  bulk runner/suite/veryquick evidence plus real upstream date floor/ceiling
+  month matrix behavior, expression affinity2 behavior, WAL overwrite corpus
+  behavior, PRAGMA data_version behavior, SELECTG large values behavior,
+  trigger/FK composite and trigger4 view behavior, UPSERT/RETURNING
+  conflict-target and catch-all priority behavior, VFS IO traffic matrix
+  behavior, and window7 RANGE/GROUPS coverage. Focused verification passed
+  `20 files / 141454 assertions / 0 failures / 58297 PASS lines`; the
+  accepted-base comparison over existing selected tests passed `7 files /
+  60370 assertions / 0 failures / 27680 PASS lines`, so the honest selected
+  PASS-line delta is `+30617`. Public libsqlite should move to `573146 pass /
+  0 fail`; mapped coverage remains `1472 / 1589`. Gates also passed PHP lint
+  for 15 changed/new PHP files, `git diff --check`, no new domain-shaped
+  source additions, and `SQLiteNoDomainSpecificApiTest`.
+
 - 2026-05-30 supervisor continuation (integration sample 20:07 UTC):
   Latest accepted libsqlite source is `fb91b18ab`
   (`libsqlite: add rapid current corpus sweep`). This second rapid

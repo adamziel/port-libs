@@ -164,7 +164,8 @@ final class SQLiteAffinityComparison
             'REAL', 'FLOAT', 'DOUBLE' => 'REAL',
             'NUM', 'NUMERIC', 'BOOLEAN', 'DATE', 'DATETIME' => 'NUMERIC',
             'CHAR', 'CLOB', 'VARCHAR', 'TEXT' => 'TEXT',
-            'BLOB', 'NONE', '' => 'NONE',
+            'BLOB' => 'BLOB',
+            'NONE', '' => 'NONE',
             default => throw new \InvalidArgumentException("SQLite comparison affinity {$affinity} is not supported"),
         };
     }

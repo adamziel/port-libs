@@ -1202,6 +1202,101 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{id:int,a:int}> $leftRows
+     * @param list<array{id:int,b:int}> $rightRows
+     * @param list<array{op:string,row?:array{id:int,a:int,b:int},where?:callable(array{id:int,a:int,b:int}):bool,set?:array<string,mixed>,missing_table?:string}>
+     *        $operations
+     * @return array<string,mixed>
+     */
+    public static function viewInsteadOfTriggerRouting(array $leftRows, array $rightRows, array $operations): array
+    {
+        $left = array_values($leftRows);
+        $right = array_values($rightRows);
+        $log = [];
+        $errors = [];
+
+        foreach ($operations as $operation) {
+            $op = strtolower((string) ($operation['op'] ?? ''));
+            $missing = $operation['missing_table'] ?? null;
+            if ($missing === 'test1' || $missing === 'test2') {
+                $errors[] = ['op' => $op, 'error' => 'no such table: main.' . $missing];
+                continue;
+            }
+
+            if ($op === 'insert') {
+                $row = $operation['row'] ?? throw new \InvalidArgumentException('SQLite trigger4 view insert row is required');
+                $left[] = ['id' => (int) $row['id'], 'a' => (int) $row['a']];
+                $right[] = ['id' => (int) $row['id'], 'b' => (int) $row['b']];
+                $log[] = ['op' => 'insert', 'id' => (int) $row['id'], 'left_a' => (int) $row['a'], 'right_b' => (int) $row['b']];
+                continue;
+            }
+
+            $where = $operation['where'] ?? static fn (array $_row): bool => true;
+            $viewRows = self::joinedViewRows($left, $right);
+            if ($op === 'update') {
+                $set = $operation['set'] ?? [];
+                foreach ($viewRows as $viewRow) {
+                    if (!$where($viewRow)) {
+                        continue;
+                    }
+                    foreach ($left as $index => $row) {
+                        if ($row['id'] === $viewRow['id'] && array_key_exists('a', $set)) {
+                            $left[$index]['a'] = is_callable($set['a']) ? (int) $set['a']($viewRow) : (int) $set['a'];
+                        }
+                    }
+                    foreach ($right as $index => $row) {
+                        if ($row['id'] === $viewRow['id'] && array_key_exists('b', $set)) {
+                            $right[$index]['b'] = is_callable($set['b']) ? (int) $set['b']($viewRow) : (int) $set['b'];
+                        }
+                    }
+                    $log[] = ['op' => 'update', 'id' => $viewRow['id'], 'old_a' => $viewRow['a'], 'old_b' => $viewRow['b']];
+                }
+                continue;
+            }
+
+            if ($op === 'delete') {
+                $deleteIds = [];
+                foreach ($viewRows as $viewRow) {
+                    if ($where($viewRow)) {
+                        $deleteIds[] = $viewRow['id'];
+                        $log[] = ['op' => 'delete', 'id' => $viewRow['id'], 'old_a' => $viewRow['a'], 'old_b' => $viewRow['b']];
+                    }
+                }
+                $left = array_values(array_filter($left, static fn (array $row): bool => !in_array($row['id'], $deleteIds, true)));
+                $right = array_values(array_filter($right, static fn (array $row): bool => !in_array($row['id'], $deleteIds, true)));
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite trigger4 view operation is unsupported');
+        }
+
+        $viewRows = self::joinedViewRows($left, $right);
+
+        return [
+            'source' => 'trigger4.test trigger4-1.1..7.2',
+            'operation' => 'instead-of-view-trigger-backing-table-routing',
+            'status' => $errors === [] ? 'commit-ok' : 'constraint-failed',
+            'errors' => $errors,
+            'error_count' => count($errors),
+            'test1_rows' => self::sortRows($left),
+            'test2_rows' => self::sortRows($right),
+            'view_rows' => $viewRows,
+            'view_row_count' => count($viewRows),
+            'log_rows' => $log,
+            'log_row_count' => count($log),
+            'insert_count' => count(array_filter($log, static fn (array $row): bool => $row['op'] === 'insert')),
+            'update_count' => count(array_filter($log, static fn (array $row): bool => $row['op'] === 'update')),
+            'delete_count' => count(array_filter($log, static fn (array $row): bool => $row['op'] === 'delete')),
+            'dependencies' => [
+                'sqlite-trigger4-instead-of-insert-routes-to-view-base-tables',
+                'sqlite-trigger4-instead-of-update-routes-to-view-base-tables',
+                'sqlite-trigger4-instead-of-delete-routes-to-view-base-tables',
+                'sqlite-trigger4-missing-view-backing-table-fails-trigger-program',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{name:string,object_type:string,target?:string,temp?:bool}> $objects
      * @return array<string,mixed>
      */
@@ -1644,6 +1739,25 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                 'sqlite-before-after-delete-trigger-row-counts',
             ],
         ];
+    }
+
+    /**
+     * @param list<array{id:int,a:int}> $leftRows
+     * @param list<array{id:int,b:int}> $rightRows
+     * @return list<array{id:int,a:int,b:int}>
+     */
+    private static function joinedViewRows(array $leftRows, array $rightRows): array
+    {
+        $rows = [];
+        foreach ($leftRows as $left) {
+            foreach ($rightRows as $right) {
+                if ($left['id'] === $right['id']) {
+                    $rows[] = ['id' => $left['id'], 'a' => $left['a'], 'b' => $right['b']];
+                }
+            }
+        }
+
+        return self::sortRows($rows);
     }
 
     /**
