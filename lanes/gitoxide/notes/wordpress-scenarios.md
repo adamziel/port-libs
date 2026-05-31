@@ -146,6 +146,11 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 `examples/wordpress-packed-reference-transaction.php` starts from compacted `packed-refs`, promotes a packed production branch, prunes a reviewed plugin branch, removes the loose production source ref in explicit packed-update mode, rewrites the sorted packed-ref file, and records a deployment reflog line. This models shared-hosting or Playground deployment tools that need pack-refs/update-ref-style branch publication and audit trails without invoking `git update-ref`, `git pack-refs`, or shell commands.
 
+The packed-reference transaction example now also follows a symbolic
+release-candidate ref into a packed tag object and peels it to the release
+commit. This models release tooling resolving symbolic deployment refs through
+packed tags without invoking Git.
+
 The same example now keeps a long-lived path-backed reference store open while another process replaces and removes `packed-refs`. The store refreshes its parsed packed-ref buffer before subsequent lookups, so a WordPress deployment worker does not keep publishing decisions from stale compacted refs after another deploy process rewrites the packed ref file.
 
 ## WordPress Tree Merge Example
@@ -224,6 +229,10 @@ resolution can trust an inflated payload.
 `examples/wordpress-object-database.php` writes the deterministic WordPress pack fixture into a temporary `.git/objects/pack` directory, adds a loose draft object, links an alternate shared package object cache through `objects/info/alternates`, maps a draft object through `refs/replace`, then reads every source through one object database. This models package managers, Playground snapshot tools, and shared-hosting deployment code traversing packed, loose, shared-cache, and replacement repository content without invoking the Git binary.
 
 The example now also writes a deployment commit object through the object database. This models import, package, and Playground snapshot tooling that needs the same object-size/hash semantics Gitoxide applies when storing commits, but still must stay inside the native PHP object database boundary.
+
+The object database example now verifies loose object integrity across both the
+primary repository and the alternate shared package cache, including exact
+payload lengths, object IDs, and structured body decoding.
 
 ## WordPress Smart HTTP Follow Redirects Example
 

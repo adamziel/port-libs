@@ -1029,3 +1029,19 @@ Pack/config/pathspec/protocol batch accepted on 2026-05-31:
 - The mapped denominator moves from `1493 / 2886` to `1498 / 2886` for the five
   distinct upstream-backed behavior slices. Full Cargo workspace tests were not
   run for this slice.
+
+Loose-integrity/packed-peeling batch accepted on 2026-05-31:
+
+- Source commit `d47dc133c424b595a26aa0ce415c78f1aa11abeb` integrates two
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover loose object integrity verification across
+  primary/alternate stores and packed/loose reference peeling through symbolic
+  refs and tag chains.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  object/ref tests `4 files / 512 assertions / 0 failures`, full Gitoxide lane
+  tests `34 files / 3161 assertions / 0 failures`, and two touched examples
+  exiting 0.
+- The mapped denominator moves from `1498 / 2886` to `1500 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.

@@ -51,6 +51,19 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide batch sample 08:55 UTC):
+  Gitoxide source commit `d47dc133c424b595a26aa0ce415c78f1aa11abeb`
+  (`gitoxide: add loose integrity and packed ref peeling`) landed two handoffs
+  after excluding stale shared metadata: loose object integrity verification
+  across primary/alternate stores and packed/loose reference peeling through
+  symbolic refs and tag chains. Verification passed PHP lint for changed
+  Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused object/ref
+  tests `4 files / 512 assertions / 0 failures`, full Gitoxide lane `34 files /
+  3161 assertions / 0 failures`, and two touched examples. Public Gitoxide
+  evidence should move from `3124` to `3161 pass / 0 fail`; mapped coverage
+  moves from `1498 / 2886` to `1500 / 2886`. This is still not full Cargo
+  workspace pass parity.
+
 - 2026-05-31 supervisor continuation (Gitoxide batch sample 08:50 UTC):
   Gitoxide source commit `6d9f6effa53c12f844dc454fdad15307fa8e550d`
   (`gitoxide: add pack config pathspec protocol slices`) landed five handoffs
