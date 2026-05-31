@@ -52,6 +52,20 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (libsqlite batch sample 09:30 UTC):
+  libsqlite source commit `48f39766f1f40c97c3538f901bcdf8d04a1f1684`
+  (`libsqlite: add upsert and bigfile corpus slices`) landed two handoffs after
+  excluding stale lane-status metadata: SQL-text chained UPSERT RETURNING
+  multi-arm behavior and VFS bigfile sparse/overflow readback behavior.
+  Verification passed PHP lint for changed PHP files, `git diff --check --
+  lanes/libsqlite`, focused UPSERT regression set `7 files / 28745 assertions /
+  0 failures`, VFS bigfile corpus `1 file / 41413 assertions / 0 failures`,
+  and `SQLiteNoDomainSpecificApiTest` `1 file / 3 assertions / 0 failures`.
+  The changed libsqlite source diff adds no WordPress/wp or numbered
+  CurrentSourceNext source text. Public libsqlite evidence should move from
+  `2835919` to `2838123 pass / 0 fail`; mapped coverage stays `1589 / 1589`
+  because this is PASS-line growth over already mapped upstream corpus files.
+
 - 2026-05-31 supervisor continuation (Gitoxide batch sample 09:45 UTC):
   Gitoxide source commit `7539b4c34ec18c41ea9b795e0b7e353988f15922`
   (`gitoxide: tighten attributes pathspec states`) landed one handoff after
