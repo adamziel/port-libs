@@ -52,6 +52,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 11:36 UTC
+  plus LightningCSS scale-up): source commit
+  `ee5f118ab55ca11585062e478bb905d900e93d0b` (`ports: add sqlite pragma
+  select date and gitoxide parity`) landed six handoffs after excluding stale
+  shared metadata. Libsqlite gained PRAGMA trusted_schema result-shape
+  coverage, e_select compound ORDER BY arm-resolution coverage, and
+  date/timediff4 roundtrip affinity coverage; selected libsqlite evidence moves
+  from `2900340` to `2902665 pass / 0 fail`, mapped coverage stays `1589 /
+  1589`. Gitoxide gained sparse-checkout default pathspec mode, config include
+  POSIX bracket-class parity, and send-pack empty packet-line status rejection;
+  full Gitoxide evidence moves from `4414` to `4448 pass / 0 fail`, mapped
+  coverage moves from `1558 / 2886` to `1561 / 2886`. Verification passed PHP
+  lint, `git diff --check -- lanes/libsqlite lanes/gitoxide`, libsqlite
+  adjacent gate `11 files / 102664 assertions / 0 failures` including
+  `SQLiteNoDomainSpecificApiTest.php`, libsqlite new-only batch `3 files /
+  65651 assertions / 0 failures`, focused Gitoxide tests `3 files / 323
+  assertions / 0 failures`, full Gitoxide lane `39 files / 4448 assertions /
+  0 failures`, and three Gitoxide examples. The live tmux session now has five
+  visible LightningCSS workers on `gpt-5.5`, xhigh reasoning, and the priority
+  service tier, covering bundle import, CSS modules, CSSOM declaration
+  read/write, custom at-rules, and target-prefix boundaries.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 11:29 UTC
   plus LightningCSS refill): source commit
   `ea77e4e947688e0cfe3d8ae3fef4aeba03822a65` (`ports: add sqlite dynamic
