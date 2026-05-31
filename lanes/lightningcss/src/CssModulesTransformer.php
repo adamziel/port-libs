@@ -1624,8 +1624,9 @@ final class CssModulesTransformer
                 continue;
             }
 
-            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':global')) {
-                $open = $i + strlen(':global');
+            $globalPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'global') : null;
+            if ($globalPseudo !== null) {
+                $open = $globalPseudo['open'];
                 $close = $this->findMatchingParen($selector, $open);
                 $inner = substr($selector, $open + 1, $close - $open - 1);
                 if ($this->selectorHasLocalReference($inner, 'global')) {
@@ -1635,8 +1636,9 @@ final class CssModulesTransformer
                 continue;
             }
 
-            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':local')) {
-                $open = $i + strlen(':local');
+            $localPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'local') : null;
+            if ($localPseudo !== null) {
+                $open = $localPseudo['open'];
                 $close = $this->findMatchingParen($selector, $open);
                 $inner = substr($selector, $open + 1, $close - $open - 1);
                 if ($this->selectorHasLocalReference($inner, $mode === 'global' ? 'global' : 'local')) {
@@ -1736,16 +1738,18 @@ final class CssModulesTransformer
                 continue;
             }
 
-            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':global')) {
-                $open = $i + strlen(':global');
+            $globalPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'global') : null;
+            if ($globalPseudo !== null) {
+                $open = $globalPseudo['open'];
                 $close = $this->findMatchingParen($selector, $open);
                 $this->assertSelectorPseudoElementBoundaries(substr($selector, $open + 1, $close - $open - 1));
                 $i = $close;
                 continue;
             }
 
-            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':local')) {
-                $open = $i + strlen(':local');
+            $localPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'local') : null;
+            if ($localPseudo !== null) {
+                $open = $localPseudo['open'];
                 $close = $this->findMatchingParen($selector, $open);
                 $this->assertSelectorPseudoElementBoundaries(substr($selector, $open + 1, $close - $open - 1));
                 $i = $close;
@@ -1904,8 +1908,9 @@ final class CssModulesTransformer
                 continue;
             }
 
-            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':global')) {
-                $open = $i + strlen(':global');
+            $globalPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'global') : null;
+            if ($globalPseudo !== null) {
+                $open = $globalPseudo['open'];
                 $close = $this->findMatchingParen($selector, $open);
                 $inner = substr($selector, $open + 1, $close - $open - 1);
                 $this->assertCssModulesFunctionalSelector($inner);
@@ -1914,8 +1919,9 @@ final class CssModulesTransformer
                 continue;
             }
 
-            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':local')) {
-                $open = $i + strlen(':local');
+            $localPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'local') : null;
+            if ($localPseudo !== null) {
+                $open = $localPseudo['open'];
                 $close = $this->findMatchingParen($selector, $open);
                 $inner = substr($selector, $open + 1, $close - $open - 1);
                 $this->assertCssModulesFunctionalSelector($inner);
@@ -1965,8 +1971,8 @@ final class CssModulesTransformer
             }
 
             if ($bracketDepth === 0 && (
-                $this->startsWithCssModulesPseudoName($selector, $i, ':global')
-                || $this->startsWithCssModulesPseudoName($selector, $i, ':local')
+                $this->cssModulesBarePseudoNameAt($selector, $i, 'global')
+                || $this->cssModulesBarePseudoNameAt($selector, $i, 'local')
             )) {
                 throw new \InvalidArgumentException('CSS Modules :local and :global selectors must use functional syntax');
             }
@@ -3661,14 +3667,39 @@ final class CssModulesTransformer
         throw new \InvalidArgumentException('CSS selector pseudo-class is missing a closing parenthesis');
     }
 
-    private function startsWithPseudoFunction(string $selector, int $offset, string $name): bool
+    /**
+     * @return array{open:int}|null
+     */
+    private function cssModulesPseudoFunctionAt(string $selector, int $offset, string $name): ?array
     {
-        $length = strlen($name);
-        if (strncasecmp(substr($selector, $offset, $length), $name, $length) !== 0) {
+        if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || strcasecmp($token['decoded'], $name) !== 0) {
+            return null;
+        }
+
+        if (($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        return ['open' => $token['end']];
+    }
+
+    private function cssModulesBarePseudoNameAt(string $selector, int $offset, string $name): bool
+    {
+        if (($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
             return false;
         }
 
-        return ($selector[$offset + $length] ?? '') === '(';
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || strcasecmp($token['decoded'], $name) !== 0) {
+            return false;
+        }
+
+        return ($selector[$token['end']] ?? '') !== '(';
     }
 
     private function startsWithFunctionName(string $value, int $offset, string $name): bool
@@ -3684,21 +3715,6 @@ final class CssModulesTransformer
         }
 
         return ($value[$offset + $length] ?? '') === '(';
-    }
-
-    private function startsWithCssModulesPseudoName(string $selector, int $offset, string $name): bool
-    {
-        $length = strlen($name);
-        if (strncasecmp(substr($selector, $offset, $length), $name, $length) !== 0) {
-            return false;
-        }
-
-        $next = $selector[$offset + $length] ?? '';
-        if ($next === '(') {
-            return false;
-        }
-
-        return $next === '' || !$this->isIdentChar($next);
     }
 
     /**

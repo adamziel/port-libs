@@ -427,6 +427,20 @@ foreach ([
     }
 }
 
+$nullSourcesContentVectorGuard = true;
+foreach ([
+    static fn (): SourceMap => SourceMap::fromJson('{"version":3,"mappings":"A","sources":[],"sourcesContent":null,"names":[]}'),
+    static fn (): SourceMap => SourceMap::fromArray(['version' => 3, 'mappings' => 'A', 'sources' => [], 'sourcesContent' => null, 'names' => []]),
+] as $nullSourcesContentVector) {
+    try {
+        $nullSourcesContentVector();
+        $nullSourcesContentVectorGuard = false;
+        break;
+    } catch (InvalidArgumentException) {
+        continue;
+    }
+}
+
 $invalidVersionGuard = true;
 foreach ([
     static fn (): SourceMap => SourceMap::fromJson('{"mappings":";C","sources":[],"names":[]}'),
@@ -506,6 +520,7 @@ $actual = [
     'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
     'invalidVlqVectorGuard' => $invalidVlqVectorGuard,
     'missingVlqVectorGuard' => $missingVlqVectorGuard,
+    'nullSourcesContentVectorGuard' => $nullSourcesContentVectorGuard,
     'invalidVersionGuard' => $invalidVersionGuard,
     'lookup' => $lookup,
 ];
@@ -555,6 +570,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'invalidRelativeVlqGuard' => true,
         'invalidVlqVectorGuard' => true,
         'missingVlqVectorGuard' => true,
+        'nullSourcesContentVectorGuard' => true,
         'invalidVersionGuard' => true,
         'lookup' => [
             'sourceIndexes' => [0, 1, 2],

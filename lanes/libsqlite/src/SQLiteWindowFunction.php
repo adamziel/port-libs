@@ -462,7 +462,7 @@ final class SQLiteWindowFunction
         string $separator = ',',
     ): array {
         $function = strtolower($function);
-        if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
+        if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'string_agg'], true)) {
             throw new \InvalidArgumentException("SQLite window aggregate {$function} is not supported");
         }
         if ($preceding < 0 || $following < 0) {
@@ -516,7 +516,7 @@ final class SQLiteWindowFunction
                 'avg' => self::avgFrameValues($values),
                 'min' => self::minMaxFrameValues($values, true),
                 'max' => self::minMaxFrameValues($values, false),
-                'group_concat' => self::groupConcatFrameValues($values, $separator),
+                'group_concat', 'string_agg' => self::groupConcatFrameValues($values, $separator),
             };
         }
 
@@ -622,7 +622,7 @@ final class SQLiteWindowFunction
         string $separator = ',',
     ): array {
         $function = strtolower($function);
-        if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
+        if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'string_agg'], true)) {
             throw new \InvalidArgumentException("SQLite window aggregate {$function} is not supported");
         }
 
@@ -668,7 +668,7 @@ final class SQLiteWindowFunction
                 'avg' => self::avgFrameValues($frameValues),
                 'min' => self::minMaxFrameValues($frameValues, true),
                 'max' => self::minMaxFrameValues($frameValues, false),
-                'group_concat' => self::groupConcatFrameValues($frameValues, $separator),
+                'group_concat', 'string_agg' => self::groupConcatFrameValues($frameValues, $separator),
             };
         }
 
@@ -897,7 +897,7 @@ final class SQLiteWindowFunction
         ?callable $orderComparator = null,
     ): array {
         $function = strtolower($function);
-        if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
+        if (!in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'string_agg'], true)) {
             throw new \InvalidArgumentException("SQLite window aggregate {$function} is not supported");
         }
 
@@ -966,7 +966,7 @@ final class SQLiteWindowFunction
                 'avg' => self::avgFrameValues($frameValues),
                 'min' => self::minMaxFrameValues($frameValues, true),
                 'max' => self::minMaxFrameValues($frameValues, false),
-                'group_concat' => self::groupConcatFrameValues($frameValues, $separator),
+                'group_concat', 'string_agg' => self::groupConcatFrameValues($frameValues, $separator),
             };
         }
 

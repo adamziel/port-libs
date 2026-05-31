@@ -479,6 +479,14 @@ return [
             $map->addVlqMap('A', ['file.css'], [null], []);
         });
     },
+    'source map rejects upstream null sourcesContent vector before vlq import' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            SourceMap::fromJson('{"version":3,"mappings":"A","sources":[],"sourcesContent":null,"names":[]}');
+        });
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            SourceMap::fromArray(['version' => 3, 'mappings' => 'A', 'sources' => [], 'sourcesContent' => null, 'names' => []]);
+        });
+    },
     'source map validates upstream raw v3 json version before vlq import' => static function (TestRunner $t): void {
         foreach ([
             '{"mappings":";C","sources":[],"names":[]}',

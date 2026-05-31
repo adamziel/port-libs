@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class RemoteProgress
 {
+    private const MAX_PERCENTAGE = 4294967295;
+
     private function __construct(
         public readonly string $raw,
         public readonly string $action,
@@ -51,6 +53,10 @@ final class RemoteProgress
 
         if (($text[$offset] ?? null) === '%') {
             ++$offset;
+
+            if ($number > self::MAX_PERCENTAGE) {
+                return null;
+            }
 
             return $number;
         }

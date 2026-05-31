@@ -86,14 +86,14 @@ final class PushRefStatus
                 throw new \InvalidArgumentException('push response: old-oid option requires a value');
             }
 
-            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, strtolower($value), $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
+            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, self::normalizeObjectIdOption($value), $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
         }
         if ($name === 'new-oid') {
             if ($value === null) {
                 throw new \InvalidArgumentException('push response: new-oid option requires a value');
             }
 
-            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, strtolower($value), $this->forcedUpdate, $this->fallThrough, true);
+            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, self::normalizeObjectIdOption($value), $this->forcedUpdate, $this->fallThrough, true);
         }
         if ($name === 'forced-update') {
             return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, true, $this->fallThrough, true);
@@ -110,6 +110,17 @@ final class PushRefStatus
         }
 
         return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough, true);
+    }
+
+    private static function normalizeObjectIdOption(string $value): string
+    {
+        foreach ([64, 40] as $length) {
+            if (preg_match('/^([0-9a-fA-F]{' . $length . '})(?:[ \t\r].*)?$/', $value, $matches) === 1) {
+                return strtolower($matches[1]);
+            }
+        }
+
+        throw new \InvalidArgumentException('push response: option object id must be a 40- or 64-character hex object id');
     }
 
     private static function assertObjectId(string $oid): void

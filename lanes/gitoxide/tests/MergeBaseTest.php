@@ -285,6 +285,68 @@ return [
         );
         $t->throws(InvalidArgumentException::class, static fn () => $invalidGenerationFinder->mergeBase($left, $right));
     },
+    'maps upstream commit graph redundant pruning without inflating below result generation' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $missingGrandparent = $oid('0');
+        $staleParent = $oid('1');
+        $legacyBase = $oid('2');
+        $securityBase = $oid('3');
+        $pluginReview = $oid('4');
+        $themeReview = $oid('5');
+        $reads = [];
+        $generationReads = [];
+        $commits = [
+            $staleParent => $timedCommit(1699999900, [$missingGrandparent]),
+            $legacyBase => $timedCommit(1700000000, [$staleParent]),
+            $securityBase => $timedCommit(1700000100),
+            $pluginReview => $timedCommit(1700000200, [$legacyBase, $securityBase]),
+            $themeReview => $timedCommit(1700000300, [$securityBase, $legacyBase]),
+        ];
+        $generations = [
+            $staleParent => 1,
+            $legacyBase => 2,
+            $securityBase => 2,
+            $pluginReview => 3,
+            $themeReview => 3,
+        ];
+        $mergeBase = new MergeBaseFinder(
+            static function (string $oid) use ($commits, $missingGrandparent, &$reads): Commit {
+                $reads[] = $oid;
+                if ($oid === $missingGrandparent) {
+                    throw new RuntimeException('Commit-graph redundant pruning should stop below the lowest result generation');
+                }
+                if (!isset($commits[$oid])) {
+                    throw new RuntimeException("Missing commit fixture: {$oid}");
+                }
+
+                return $commits[$oid];
+            },
+            commitGraphGeneration: static function (string $oid) use ($generations, &$generationReads): ?int {
+                $generationReads[] = $oid;
+
+                return $generations[$oid] ?? null;
+            },
+        );
+
+        $t->same([$securityBase, $legacyBase], $mergeBase->mergeBases($pluginReview, $themeReview));
+        $t->same([$securityBase, $legacyBase], $mergeBase->mergeBasesAgainst($pluginReview, [$themeReview]));
+        $t->same(true, in_array($staleParent, $reads, true));
+        $t->same(true, in_array($staleParent, $generationReads, true));
+        $t->same(false, in_array($missingGrandparent, $reads, true));
+        $t->same(false, in_array($missingGrandparent, $generationReads, true));
+    },
     'maps upstream generated merge-base timestamp skew baselines' => static function (TestRunner $t) use ($oid, $finder): void {
         $timedCommit = static fn (int $offsetSeconds, array $parents = []): Commit => new Commit(
             str_repeat('f', 40),
@@ -741,6 +803,16 @@ BASELINE;
             },
             commitGraphGeneration: static fn (string $oid): ?int => $fixture['shallowCommitGraphGenerations'][$oid] ?? null,
         );
+        $redundantPruneFinder = new MergeBaseFinder(
+            static function (string $oid) use ($fixture): Commit {
+                if (!isset($fixture['commits'][$oid])) {
+                    throw new RuntimeException("Missing commit fixture: {$oid}");
+                }
+
+                return $fixture['commits'][$oid];
+            },
+            commitGraphGeneration: static fn (string $oid): ?int => $fixture['redundantPruneCommitGraphGenerations'][$oid] ?? null,
+        );
 
         $t->same($fixture['releaseBaseline'], $finder->mergeBaseMany($fixture['heads']));
         $t->same([$fixture['releaseBaseline']], $finder->mergeBasesMany($fixture['deploymentHeads']));
@@ -801,6 +873,9 @@ BASELINE;
         $t->same([$fixture['junctionThemeBase']], $example['junctionStableIntersectionBases']);
         $t->same(true, $example['junctionGraphWalkKeepsUnionSideContentBase']);
         $t->same(true, $example['junctionStableIntersectionPrunesContentBase']);
+        $t->same([$fixture['redundantSecurityBase'], $fixture['redundantLegacyBase']], $redundantPruneFinder->mergeBases($fixture['redundantPluginReview'], $fixture['redundantThemeReview']));
+        $t->same([$fixture['redundantSecurityBase'], $fixture['redundantLegacyBase']], $example['redundantPruneBases']);
+        $t->same(true, $example['redundantPruneKeepsIndependentBases']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

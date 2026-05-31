@@ -10,6 +10,7 @@ use PortLibs\Gitoxide\ProtocolV2FetchExchange;
 $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v2-fetch-response.php';
 $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
 $emptyErrorSidebandResponse = FetchResponse::fromV2PacketLines($fixture['emptyErrorSidebandResponse']);
+$overflowProgressResponse = FetchResponse::fromV2PacketLines($fixture['overflowProgressResponse']);
 $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
 $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
 $sha256Response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
@@ -53,6 +54,20 @@ return [
     'uploadPackError' => $uploadPackError,
     'emptyErrorKeepaliveIgnored' => $emptyErrorSidebandResponse->errorMessages() === []
         && $emptyErrorSidebandResponse->packData() === $fixture['packData'],
+    'overflowProgress' => array_map(
+        static fn ($progress): array => [
+            'action' => $progress->action,
+            'percent' => $progress->percent,
+            'step' => $progress->step,
+            'max' => $progress->max,
+        ],
+        $overflowProgressResponse->remoteProgress()
+    ),
+    'overflowPercentageBounded' => count($overflowProgressResponse->remoteProgress()) === 2
+        && $overflowProgressResponse->remoteProgress()[0]->percent === 4294967295
+        && $overflowProgressResponse->remoteProgress()[1]->percent === null
+        && $overflowProgressResponse->remoteProgress()[1]->step === 5
+        && $overflowProgressResponse->packData() === $fixture['packData'],
     'suffixlessAckParsed' => count($suffixlessAckResponse->acknowledgements()) === 3
         && $suffixlessAckResponse->acknowledgements()[0]->object === $fixture['objects']['installed']
         && $suffixlessAckResponse->acknowledgements()[1]->object === $fixture['objects']['main']

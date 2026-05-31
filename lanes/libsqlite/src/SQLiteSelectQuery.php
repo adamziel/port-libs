@@ -216,7 +216,7 @@ final class SQLiteSelectQuery
             $name = strtolower((string) ($expression['name'] ?? ''));
             $arguments = $expression['arguments'] ?? [];
             $argumentCount = is_array($arguments) && array_is_list($arguments) ? count($arguments) : 0;
-            if (in_array($name, ['count', 'sum', 'total', 'avg', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)) {
+            if (in_array($name, ['count', 'sum', 'total', 'avg', 'group_concat', 'string_agg', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)) {
                 return true;
             }
             if (($name === 'min' || $name === 'max') && $argumentCount === 1) {
@@ -525,7 +525,7 @@ final class SQLiteSelectQuery
         }
         if (
             $frame === null
-            && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)
+            && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'string_agg', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)
         ) {
             $frame = self::defaultAggregateWindowFrame($orderBy, count($orderedRows));
         }
@@ -551,7 +551,7 @@ final class SQLiteSelectQuery
         if ($distinct) {
             throw new \InvalidArgumentException("SQLite SELECT query DISTINCT window aggregate is not supported for {$function}");
         }
-        if ($frame !== null && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
+        if ($frame !== null && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'string_agg'], true)) {
             self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
             if ($function === 'count' && ($arguments === [] || (($arguments[0]['type'] ?? null) === 'wildcard'))) {
                 $values = array_fill(0, count($orderedRows), 1);
@@ -562,7 +562,7 @@ final class SQLiteSelectQuery
                 ? null
                 : array_map(static fn (array $row): bool => SQLiteSelectPredicate::filter([$row], $filter) !== [], $orderedRows);
 
-            $separator = $function === 'group_concat' && isset($arguments[1])
+            $separator = in_array($function, ['group_concat', 'string_agg'], true) && isset($arguments[1])
                 ? (string) SQLiteSelectExpression::evaluate($orderedRows[0] ?? [], $arguments[1])
                 : ',';
 

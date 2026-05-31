@@ -649,7 +649,10 @@ final class SourceMap
         }
 
         $sources = self::listOfStrings($data['sources'] ?? null, 'sources');
-        $rawSourcesContent = self::listOfNullableStrings($data['sourcesContent'] ?? [], 'sourcesContent');
+        $rawSourcesContent = self::listOfNullableStrings(
+            array_key_exists('sourcesContent', $data) ? $data['sourcesContent'] : [],
+            'sourcesContent'
+        );
         $sourcesContent = [];
         foreach ($sources as $index => $_source) {
             $sourcesContent[] = $rawSourcesContent[$index] ?? '';
@@ -681,7 +684,10 @@ final class SourceMap
         }
 
         $sources = self::listOfStrings($data->sources ?? null, 'sources');
-        $rawSourcesContent = self::listOfNullableStrings($data->sourcesContent ?? [], 'sourcesContent');
+        $rawSourcesContent = self::listOfNullableStrings(
+            property_exists($data, 'sourcesContent') ? $data->sourcesContent : [],
+            'sourcesContent'
+        );
         $sourcesContent = [];
         foreach ($sources as $index => $_source) {
             $sourcesContent[] = $rawSourcesContent[$index] ?? '';

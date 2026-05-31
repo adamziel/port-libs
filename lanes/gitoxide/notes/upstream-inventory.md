@@ -1433,3 +1433,26 @@ Pack-index/MIDX prefix candidate collection slice prepared on 2026-05-31:
   PHP lint, and `git diff --check -- lanes/gitoxide` passed. Full upstream
   Cargo workspace runner was not executed.
 - Expected mapped denominator movement: `1644 / 2886` to `1645 / 2886`.
+
+Send-pack receive-status object-option trailing text slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-send-pack-receive-status-parity-20260531T223228Z`
+  on accepted base `457d8df75c82fef3de304d8652d979a0fd3d1346` maps the
+  send-pack report-status-v2 boundary where `old-oid` and `new-oid` options
+  can carry a valid object id followed by remote hook diagnostics.
+- Source truth: upstream Gitoxide `gix-transport/tests/client/git.rs::push_v1_simulated`
+  and `gix-transport/tests/fixtures/v1/push.response` provide the nested
+  sideband receive-status transport boundary; Git
+  `send-pack.c::receive_status()` at source
+  `866e6a391f466baeeb98bc585845ea638322c04b` parses object-id option values
+  with `parse_oid_hex_algop()` before any trailing text.
+- Native PHP delta: `PushRefStatus` now normalizes a leading 40- or 64-hex
+  object id before trailing whitespace-delimited diagnostics for `old-oid` and
+  `new-oid`, while preserving the existing contiguous malformed-hex rejection.
+- Verification: focused `PushResponseTest.php` passed `1 file / 172
+  assertions / 0 failures`; focused `ReceivePackTransportTest.php` passed `1
+  file / 623 assertions / 0 failures`; full Gitoxide lane verification passed
+  `39 files / 6022 assertions / 0 failures`; the touched push-response
+  example, PHP lint, and `git diff --check -- lanes/gitoxide` passed. Full
+  upstream Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1653 / 2886` to `1654 / 2886`.

@@ -1395,6 +1395,28 @@ return [
             $block->setProperty('flex-flow: row wrap', 'flex-direction', 'column', true)
         );
     },
+    'declaration block rejects mixed priority cssom shorthand reads' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $mixedMargin = 'margin: 1px; margin-top: 2px !important; margin-right: 2px !important; margin-bottom: 2px !important; margin-left: 2px !important';
+        $mixedLogicalMargin = 'margin-inline: 1px 2px; margin-inline-start: 3px !important; margin-inline-end: 4px !important';
+        $mixedFlexFlow = 'flex-flow: row wrap; flex-direction: column !important; flex-wrap: nowrap !important';
+        $mixedFlex = 'flex: 1 0 auto; flex-grow: 2 !important; flex-shrink: 2 !important; flex-basis: 10px !important';
+        $writtenMargin = $block->setProperty('margin: 1px', 'margin-top', '2px', true);
+        $writtenFlexFlow = $block->setProperty('flex-flow: row wrap', 'flex-direction', 'column', true);
+
+        $t->same(null, $block->getProperty($mixedMargin, 'margin'));
+        $t->same(['value' => '2px', 'important' => true], $block->getProperty($mixedMargin, 'margin-top'));
+        $t->same(null, $block->getProperty($mixedLogicalMargin, 'margin-inline'));
+        $t->same(['value' => '3px', 'important' => true], $block->getProperty($mixedLogicalMargin, 'margin-inline-start'));
+        $t->same(null, $block->getProperty($mixedFlexFlow, 'flex-flow'));
+        $t->same(['value' => 'column', 'important' => true], $block->getProperty($mixedFlexFlow, 'flex-direction'));
+        $t->same(null, $block->getProperty($mixedFlex, 'flex'));
+        $t->same(['value' => '2', 'important' => true], $block->getProperty($mixedFlex, 'flex-grow'));
+        $t->same('margin: 1px; margin-top: 2px !important', $writtenMargin);
+        $t->same(null, $block->getProperty($writtenMargin, 'margin'));
+        $t->same('flex-flow: row wrap; flex-direction: column !important', $writtenFlexFlow);
+        $t->same(null, $block->getProperty($writtenFlexFlow, 'flex-flow'));
+    },
     'declaration block sets upstream logical box properties after physical fallbacks' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

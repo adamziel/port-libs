@@ -1254,6 +1254,223 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
         ];
     }
 
+    /** @return array<string,mixed> */
+    public static function lastInsertRowidTriggerFrames(int $variantCount = 200): array
+    {
+        if ($variantCount < 1 || $variantCount > 2000) {
+            throw new \InvalidArgumentException('SQLite lastinsert trigger corpus variant count is out of range');
+        }
+
+        $cases = [];
+        foreach (range(1, $variantCount) as $variant) {
+            $prior = 1000 + $variant;
+            $outerInsert = 2000 + $variant;
+            $afterUpdateNew = 3000 + $variant;
+            $insteadInsertNew = 4000 + $variant;
+            $insteadUpdateNew = 5000 + $variant;
+
+            $cases[] = self::lastInsertRowidSimpleCase(
+                'lastinsert-2.1..2.4',
+                $variant,
+                'after-insert-table',
+                'AFTER',
+                'INSERT',
+                'table',
+                $prior,
+                $outerInsert,
+                $outerInsert,
+                $outerInsert * 2,
+                $outerInsert,
+                true
+            );
+            $cases[] = self::lastInsertRowidSimpleCase(
+                'lastinsert-3.1..3.4',
+                $variant,
+                'after-update-table',
+                'AFTER',
+                'UPDATE',
+                'table',
+                $prior,
+                $afterUpdateNew,
+                $prior,
+                $afterUpdateNew * 2,
+                $prior,
+                false
+            );
+            $cases[] = self::lastInsertRowidSimpleCase(
+                'lastinsert-4.1..4.4',
+                $variant,
+                'instead-of-insert-view',
+                'INSTEAD OF',
+                'INSERT',
+                'view',
+                $prior,
+                $insteadInsertNew,
+                $prior,
+                $insteadInsertNew * 2,
+                $prior,
+                false
+            );
+            $cases[] = self::lastInsertRowidSimpleCase(
+                'lastinsert-5.1..5.4',
+                $variant,
+                'before-delete-table',
+                'BEFORE',
+                'DELETE',
+                'table',
+                $prior,
+                7000 + $variant,
+                $prior,
+                77,
+                $prior,
+                false
+            );
+            $cases[] = self::lastInsertRowidSimpleCase(
+                'lastinsert-6.1..6.4',
+                $variant,
+                'instead-of-update-view',
+                'INSTEAD OF',
+                'UPDATE',
+                'view',
+                $prior,
+                $insteadUpdateNew,
+                $prior,
+                $insteadUpdateNew * 2,
+                $prior,
+                false
+            );
+
+            $viewInput = 5 + $variant;
+            $firstTriggerInsert = 100 + $viewInput;
+            $secondViewInput = 100 + $firstTriggerInsert;
+            $secondTriggerInsert = 1000 + $secondViewInput;
+            $cases[] = [
+                'case' => 'lastinsert-7.1..7.6',
+                'variant' => $variant,
+                'source' => 'lastinsert.test',
+                'kind' => 'nested-instead-of-view',
+                'operation' => 'nested-temp-view-trigger-last-insert-rowid',
+                'initial_last_insert_rowid' => $prior,
+                'outer_statement' => 'INSERT INTO v1 VALUES(?)',
+                'outer_view_input' => $viewInput,
+                'post_statement_last_insert_rowid' => $prior,
+                'outer_view_dml_changes_connection_lirid' => false,
+                'r1' => [
+                    'trigger' => 'r1',
+                    'target' => 'v1',
+                    'entry_last_insert_rowid' => $prior,
+                    'inserted_t1_rowid' => $firstTriggerInsert,
+                    'nested_view_input' => $secondViewInput,
+                    'exit_last_insert_rowid' => $firstTriggerInsert,
+                ],
+                'r2' => [
+                    'trigger' => 'r2',
+                    'target' => 'v2',
+                    'entry_last_insert_rowid' => $firstTriggerInsert,
+                    'inserted_t2_rowid' => $secondTriggerInsert,
+                    'exit_last_insert_rowid' => $secondTriggerInsert,
+                ],
+                'rid_rows' => [
+                    1 => ['rin' => $prior, 'rout' => $firstTriggerInsert],
+                    2 => ['rin' => $firstTriggerInsert, 'rout' => $secondTriggerInsert],
+                ],
+                'inner_trigger_insert_restored_to_outer_trigger_frame' => true,
+                'outer_trigger_insert_restored_to_connection_frame' => true,
+            ];
+
+            $wideRowid = 5000000000 + $variant;
+            $veryWideRowid = 123456789012345 + $variant;
+            $cases[] = [
+                'case' => 'lastinsert-8.1/9.1',
+                'variant' => $variant,
+                'source' => 'lastinsert.test',
+                'kind' => 'wide-rowid-after-trigger',
+                'operation' => 'wide-rowid-after-trigger-last-insert-rowid',
+                'first_insert_rowid' => $wideRowid,
+                'first_trigger_log_row' => ['a' => $wideRowid, 'b' => 1],
+                'last_insert_rowid_after_first_trigger' => $wideRowid,
+                'second_insert_rowid' => $veryWideRowid,
+                'last_insert_rowid_after_second_insert' => $veryWideRowid,
+                'after_trigger_insert_does_not_clobber_outer_rowid' => true,
+                'supports_64_bit_rowid' => true,
+            ];
+        }
+
+        return [
+            'source' => 'lastinsert.test',
+            'scenarios' => [
+                'lastinsert-2.1..2.4',
+                'lastinsert-3.1..3.4',
+                'lastinsert-4.1..4.4',
+                'lastinsert-5.1..5.4',
+                'lastinsert-6.1..6.4',
+                'lastinsert-7.1..7.6',
+                'lastinsert-8.1',
+                'lastinsert-9.1',
+            ],
+            'cases' => $cases,
+            'variant_count' => $variantCount,
+            'case_count' => count($cases),
+            'dependencies' => [
+                'sqlite-upstream-lastinsert-trigger-entry-uses-current-frame-rowid',
+                'sqlite-upstream-lastinsert-trigger-inner-insert-updates-trigger-frame',
+                'sqlite-upstream-lastinsert-trigger-exit-restores-caller-frame-rowid',
+                'sqlite-upstream-lastinsert-view-dml-does-not-change-connection-rowid',
+                'sqlite-upstream-lastinsert-nested-instead-of-trigger-frames',
+                'sqlite-upstream-lastinsert-64-bit-rowid-preserved-through-after-trigger',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private static function lastInsertRowidSimpleCase(
+        string $case,
+        int $variant,
+        string $operation,
+        string $timing,
+        string $event,
+        string $targetKind,
+        int $prior,
+        int $statementRowid,
+        int $entryRowid,
+        int $triggerInsertRowid,
+        int $postStatementRowid,
+        bool $outerStatementChangesLirid
+    ): array {
+        return [
+            'case' => $case,
+            'variant' => $variant,
+            'source' => 'lastinsert.test',
+            'kind' => 'single-trigger-frame',
+            'operation' => $operation,
+            'trigger_timing' => $timing,
+            'trigger_event' => $event,
+            'target_kind' => $targetKind,
+            'initial_last_insert_rowid' => $prior,
+            'statement_rowid' => $statementRowid,
+            'trigger_entry_last_insert_rowid' => $entryRowid,
+            'trigger_insert_rowid' => $triggerInsertRowid,
+            'trigger_update_last_insert_rowid' => $triggerInsertRowid,
+            'trigger_second_update_last_insert_rowid' => $triggerInsertRowid,
+            'post_statement_last_insert_rowid' => $postStatementRowid,
+            'outer_statement_changes_lirid' => $outerStatementChangesLirid,
+            'view_dml_changes_connection_lirid' => $targetKind === 'view' ? false : null,
+            'inner_insert_visible_inside_trigger' => true,
+            'update_does_not_change_lirid_inside_trigger' => true,
+            'inner_insert_restored_after_trigger_exit' => $postStatementRowid !== $triggerInsertRowid,
+            'trigger_table_row' => [
+                'val1' => $entryRowid,
+                'val2' => 100 + $triggerInsertRowid,
+                'val3' => 1000 + $triggerInsertRowid,
+            ],
+            'dependencies' => [
+                'sqlite-upstream-lastinsert-trigger-entry-uses-current-frame-rowid',
+                'sqlite-upstream-lastinsert-trigger-inner-insert-updates-trigger-frame',
+                'sqlite-upstream-lastinsert-trigger-exit-restores-caller-frame-rowid',
+            ],
+        ];
+    }
+
     /** @param list<mixed> $args */
     private static function trigger6Counter(int &$counter, array $args): int
     {

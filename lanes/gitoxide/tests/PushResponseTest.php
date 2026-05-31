@@ -138,9 +138,9 @@ return [
             . $packet("option refname refs/heads/stale-wp-release\n")
             . $packet("option refname refs/heads/deploy/wp-release\n")
             . $packet("option unknown-future-extension ignored\n")
-            . $packet("option old-oid {$staleOld}\n")
-            . $packet("option old-oid {$currentOld}\n")
-            . $packet("option new-oid {$new}\n")
+            . $packet("option old-oid {$staleOld} stale hook diagnostic\n")
+            . $packet("option old-oid {$currentOld}\r\n")
+            . $packet("option new-oid {$new} accepted by deployment hook\n")
             . $packet("option forced-update true\n")
             . $packet("ng refs/heads/protected\n")
             . $flush
@@ -161,6 +161,25 @@ return [
         $t->same(PushRefStatus::REJECTED, $rejected->status);
         $t->same('refs/heads/protected', $rejected->refName);
         $t->same('failed', $rejected->message);
+    },
+    'parses report-status-v2 object-id options before trailing diagnostics' => static function (TestRunner $t) use ($packet, $flush): void {
+        $oldSha1 = str_repeat('A', 40);
+        $newSha256 = str_repeat('B', 64);
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release\n")
+            . $packet("option refname refs/heads/deploy/wp-release\n")
+            . $packet("option old-oid {$oldSha1} old object kept by proc-receive\n")
+            . $packet("option new-oid {$newSha256}\r\n")
+            . $flush
+        );
+
+        $status = $response->refStatuses()[0];
+
+        $t->same('refs/heads/deploy/wp-release', $status->effectiveRefName());
+        $t->same(strtolower($oldSha1), $status->oldObject);
+        $t->same(strtolower($newSha256), $status->newObject);
+        $t->same(true, $status->hasReportOption());
     },
     'filters send-pack receive-status reports to requested refs like upstream Git' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = str_repeat('4', 40);
@@ -485,6 +504,7 @@ return [
         $t->same(true, $summary['fatalSidebandRejected']);
         $t->same(true, $summary['fallThroughAccepted']);
         $t->same(true, $summary['compatibilityOptionExtensionsIgnored']);
+        $t->same(true, $summary['compatibilityTrailingObjectDiagnosticsIgnored']);
         $t->same(true, $summary['compatibilityBareRejectionDefaulted']);
         $t->same(true, $summary['expectedUnknownStatusIgnored']);
         $t->same(true, $summary['expectedLastStatusWon']);

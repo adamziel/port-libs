@@ -33,6 +33,16 @@ $commitGraphFinder = new MergeBaseFinder(
     },
     commitGraphGeneration: static fn (string $oid): ?int => $fixture['shallowCommitGraphGenerations'][$oid] ?? null,
 );
+$redundantPruneFinder = new MergeBaseFinder(
+    static function (string $oid) use ($fixture): Commit {
+        if (!isset($fixture['commits'][$oid])) {
+            throw new RuntimeException("Missing WordPress commit fixture: {$oid}");
+        }
+
+        return $fixture['commits'][$oid];
+    },
+    commitGraphGeneration: static fn (string $oid): ?int => $fixture['redundantPruneCommitGraphGenerations'][$oid] ?? null,
+);
 
 $reviewBase = $finder->mergeBaseMany($fixture['heads']);
 $deploymentBase = $finder->mergeBaseMany($fixture['deploymentHeads']);
@@ -89,6 +99,10 @@ $junctionGraphWalkBases = $finder->mergeBasesAgainst(
     $fixture['junctionOtherReviews'],
 );
 $junctionStableIntersectionBases = $finder->mergeBasesMany($fixture['junctionHeads']);
+$redundantPruneBases = $redundantPruneFinder->mergeBases(
+    $fixture['redundantPluginReview'],
+    $fixture['redundantThemeReview'],
+);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -147,6 +161,11 @@ return [
         $fixture['junctionContentBase'],
     ],
     'junctionStableIntersectionPrunesContentBase' => $junctionStableIntersectionBases === [$fixture['junctionThemeBase']],
+    'redundantPruneBases' => $redundantPruneBases,
+    'redundantPruneKeepsIndependentBases' => $redundantPruneBases === [
+        $fixture['redundantSecurityBase'],
+        $fixture['redundantLegacyBase'],
+    ],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

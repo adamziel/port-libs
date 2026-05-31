@@ -553,6 +553,9 @@ final class DeclarationBlock
         if ($boxValue !== null) {
             return $boxValue;
         }
+        if ($this->isBoxShorthand($property) || $this->isBoxLonghand($property)) {
+            return null;
+        }
         $logicalBoxValue = $this->getLogicalBoxProperty($entries, $property);
         if ($logicalBoxValue !== null) {
             return $logicalBoxValue;
@@ -591,6 +594,9 @@ final class DeclarationBlock
         $flexValue = $this->getFlexProperty($entries, $property);
         if ($flexValue !== null) {
             return $flexValue;
+        }
+        if ($this->baseFlexProperty($property) !== null) {
+            return null;
         }
         $animationValue = $this->getAnimationProperty($entries, $property);
         if ($animationValue !== null) {
@@ -748,6 +754,14 @@ final class DeclarationBlock
         if (in_array($base, ['flex-flow', 'flex-direction', 'flex-wrap'], true)) {
             $components = $this->resolveFlexFlowComponents($entries, $prefix);
             if ($base === 'flex-flow') {
+                if ($this->hasMixedImportanceForDeclarationGroup($entries, [
+                    $this->flexProperty($prefix, 'flex-flow'),
+                    $this->flexProperty($prefix, 'flex-direction'),
+                    $this->flexProperty($prefix, 'flex-wrap'),
+                ])) {
+                    return null;
+                }
+
                 $direction = $components['direction'];
                 $wrap = $components['wrap'];
                 if ($direction === null && $wrap === null) {
@@ -782,6 +796,15 @@ final class DeclarationBlock
             $components = $this->resolveFlexItemComponents($entries, $prefix);
             if ($base !== 'flex') {
                 return $components[$base];
+            }
+
+            if ($this->hasMixedImportanceForDeclarationGroup($entries, [
+                $this->flexProperty($prefix, 'flex'),
+                $this->flexProperty($prefix, 'flex-grow'),
+                $this->flexProperty($prefix, 'flex-shrink'),
+                $this->flexProperty($prefix, 'flex-basis'),
+            ])) {
+                return null;
             }
 
             $grow = $components['flex-grow'];
@@ -12237,6 +12260,31 @@ final class DeclarationBlock
 
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
+     * @param list<string> $properties
+     */
+    private function hasMixedImportanceForDeclarationGroup(array $entries, array $properties): bool
+    {
+        $importance = null;
+        foreach ($entries as $entry) {
+            if (!in_array($entry['property'], $properties, true)) {
+                continue;
+            }
+
+            if ($importance === null) {
+                $importance = $entry['important'];
+                continue;
+            }
+
+            if ($importance !== $entry['important']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
      * @return list<array{property:string, value:string, important:bool}>
      */
     private function removeEntriesWithPropertyId(array $entries, string $property): array
@@ -12254,6 +12302,10 @@ final class DeclarationBlock
     private function getBoxProperty(array $entries, string $property): ?array
     {
         if ($this->isBoxShorthand($property)) {
+            if ($this->hasMixedImportanceForDeclarationGroup($entries, array_merge([$property], array_values(self::BOX_SHORTHANDS[$property])))) {
+                return null;
+            }
+
             $sides = $this->resolveBoxSides($entries, $property);
             foreach ($sides as $side) {
                 if ($side === null) {
@@ -12404,6 +12456,14 @@ final class DeclarationBlock
     {
         $axis = $this->logicalBoxAxisForShorthand($property);
         if ($axis !== null) {
+            if ($this->hasMixedImportanceForDeclarationGroup($entries, [
+                $axis['axisShorthand'],
+                $axis['axisShorthand'] . '-start',
+                $axis['axisShorthand'] . '-end',
+            ])) {
+                return null;
+            }
+
             $sides = $this->resolveLogicalBoxAxis($entries, $axis['shorthand'], $axis['axis']);
             if ($sides['start'] === null || $sides['end'] === null) {
                 return null;

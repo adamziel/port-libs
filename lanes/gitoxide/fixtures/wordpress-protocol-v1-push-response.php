@@ -64,9 +64,9 @@ return [
         . $packet("option refname refs/heads/stale-wp-release\n")
         . $packet("option refname refs/heads/deploy/wp-release\n")
         . $packet("option unknown-future-extension ignored\n")
-        . $packet("option old-oid {$staleHookOld}\n")
-        . $packet("option old-oid {$currentHookOld}\n")
-        . $packet("option new-oid {$newHookObject}\n")
+        . $packet("option old-oid {$staleHookOld} stale hook diagnostic\n")
+        . $packet("option old-oid {$currentHookOld}\r\n")
+        . $packet("option new-oid {$newHookObject} accepted by deployment hook\n")
         . $packet("option forced-update true\n")
         . $packet("ng refs/heads/protected\n")
         . $flush,

@@ -248,6 +248,8 @@ return [
     'maps remote progress chunks like gix-protocol sideband readers' => static function (TestRunner $t): void {
         $counting = RemoteProgress::fromText("Counting objects:  25% (1/4)\rCounting objects:  50% (2/4)\r");
         $enumerating = RemoteProgress::fromText('Enumerating objects: 4, done.');
+        $maxU32Percentage = RemoteProgress::fromText('Counting objects: 4294967295% (4/10)');
+        $overflowPercentage = RemoteProgress::fromText('Counting objects: 4294967296% (5/10)');
 
         $t->same('Counting objects', $counting?->action);
         $t->same(25, $counting?->percent);
@@ -257,6 +259,11 @@ return [
         $t->same(null, $enumerating?->percent);
         $t->same(4, $enumerating?->step);
         $t->same(null, $enumerating?->max);
+        $t->same(4294967295, $maxU32Percentage?->percent);
+        $t->same(4, $maxU32Percentage?->step);
+        $t->same(null, $overflowPercentage?->percent);
+        $t->same(5, $overflowPercentage?->step);
+        $t->same(10, $overflowPercentage?->max);
         $t->same(null, RemoteProgress::fromText('Total 4 (delta 0), reused 4 (delta 0), pack-reused 0'));
         $t->same(null, RemoteProgress::fromText('remote: preparing blobless pack'));
     },
@@ -457,6 +464,7 @@ return [
         $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
         $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
         $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
+        $overflowProgressResponse = FetchResponse::fromV2PacketLines($fixture['overflowProgressResponse']);
         $cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
 
         $t->same(true, $response->hasPack());
@@ -494,6 +502,12 @@ return [
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v2-fetch-response.php';
         $t->same('fetch response: upload-pack error raw WordPress fetch failure', $summary['uploadPackError']);
         $t->same(true, $summary['emptyErrorKeepaliveIgnored']);
+        $t->same(4294967295, $overflowProgressResponse->remoteProgress()[0]->percent);
+        $t->same(null, $overflowProgressResponse->remoteProgress()[1]->percent);
+        $t->same(5, $overflowProgressResponse->remoteProgress()[1]->step);
+        $t->same(10, $overflowProgressResponse->remoteProgress()[1]->max);
+        $t->same($fixture['packData'], $overflowProgressResponse->packData());
+        $t->same(true, $summary['overflowPercentageBounded']);
         $t->same(true, $summary['suffixlessAckParsed']);
         $t->same(true, $summary['refInWantParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['refInWantPackTrailer']);

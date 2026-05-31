@@ -91,39 +91,7 @@ final class MergeBaseFinder
             return $candidates;
         }
 
-        $best = [];
-        $firstAncestors = $this->ancestorsWithDistance($first);
-        $secondAncestors = $this->ancestorsWithDistance($second);
-        foreach ($candidates as $candidate) {
-            $redundant = false;
-            foreach ($candidates as $other) {
-                if ($candidate === $other) {
-                    continue;
-                }
-                if (isset($this->ancestorsWithDistance($other)[$candidate])) {
-                    $redundant = true;
-                    break;
-                }
-            }
-            if (!$redundant) {
-                $best[$candidate] = [
-                    'first' => $firstAncestors[$candidate],
-                    'second' => $secondAncestors[$candidate],
-                ];
-            }
-        }
-
-        uksort($best, function (string $left, string $right) use ($best): int {
-            $leftDistance = max($best[$left]['first'], $best[$left]['second']);
-            $rightDistance = max($best[$right]['first'], $best[$right]['second']);
-
-            return $this->compareCommitPriority($left, $right)
-                ?: $leftDistance <=> $rightDistance
-                ?: min($best[$left]['first'], $best[$left]['second']) <=> min($best[$right]['first'], $best[$right]['second'])
-                ?: strcmp($left, $right);
-        });
-
-        return array_keys($best);
+        return $this->orderMergeBaseCandidates($this->removeRedundantCandidates($candidates, $hashLength));
     }
 
     public function mergeBase(string $first, string $second): ?string
@@ -167,53 +135,7 @@ final class MergeBaseFinder
             return $candidates;
         }
 
-        $best = [];
-        $firstAncestors = $this->ancestorsWithDistance($first);
-        $candidateMetadata = [];
-        foreach ($normalizedOthers as $otherIndex => $other) {
-            foreach ($this->ancestorsWithDistance($other) as $candidate => $otherDistance) {
-                if (!in_array($candidate, $candidates, true) || !isset($firstAncestors[$candidate])) {
-                    continue;
-                }
-
-                if (!isset($candidateMetadata[$candidate]) || $otherDistance < $candidateMetadata[$candidate]['other']) {
-                    $candidateMetadata[$candidate] = [
-                        'first' => $firstAncestors[$candidate],
-                        'other' => $otherDistance,
-                        'otherIndex' => $otherIndex,
-                    ];
-                }
-            }
-        }
-
-        foreach ($candidates as $candidate) {
-            $redundant = false;
-            foreach ($candidates as $other) {
-                if ($candidate === $other) {
-                    continue;
-                }
-                if (isset($this->ancestorsWithDistance($other)[$candidate])) {
-                    $redundant = true;
-                    break;
-                }
-            }
-            if (!$redundant) {
-                $best[$candidate] = $candidateMetadata[$candidate];
-            }
-        }
-
-        uksort($best, function (string $left, string $right) use ($best): int {
-            $leftDistance = max($best[$left]['first'], $best[$left]['other']);
-            $rightDistance = max($best[$right]['first'], $best[$right]['other']);
-
-            return $this->compareCommitPriority($left, $right)
-                ?: $leftDistance <=> $rightDistance
-                ?: ($best[$left]['first'] + $best[$left]['other']) <=> ($best[$right]['first'] + $best[$right]['other'])
-                ?: $best[$left]['otherIndex'] <=> $best[$right]['otherIndex']
-                ?: strcmp($left, $right);
-        });
-
-        return array_keys($best);
+        return $this->orderMergeBaseCandidates($this->removeRedundantCandidates($candidates, $hashLength));
     }
 
     /**
@@ -280,6 +202,128 @@ final class MergeBaseFinder
         }
 
         return $results;
+    }
+
+    /**
+     * Remove candidates reachable from another candidate with a bounded
+     * generation walk, matching gix_revision::merge_base::remove_redundant().
+     *
+     * @param list<string> $candidates
+     * @return list<string>
+     */
+    private function removeRedundantCandidates(array $candidates, int $hashLength): array
+    {
+        if (count($candidates) <= 1) {
+            return $candidates;
+        }
+
+        $flagsByCommit = [];
+        $candidateGenerations = [];
+        $walkStart = [];
+        foreach ($candidates as $candidate) {
+            self::assertSameObjectFormat($hashLength, $candidate);
+            $flagsByCommit[$candidate] = ($flagsByCommit[$candidate] ?? 0) | self::FLAG_RESULT;
+            $candidateGenerations[$candidate] = $this->redundantWalkGeneration($candidate);
+
+            foreach ($this->commit($candidate)->parents as $parent) {
+                $parent = strtolower($parent);
+                self::assertSameObjectFormat($hashLength, $parent);
+                if ((($flagsByCommit[$parent] ?? 0) & self::FLAG_STALE) !== 0) {
+                    continue;
+                }
+                $flagsByCommit[$parent] = ($flagsByCommit[$parent] ?? 0) | self::FLAG_STALE;
+                $walkStart[] = $parent;
+            }
+        }
+
+        sort($walkStart, SORT_STRING);
+        $remaining = count($candidates);
+        $minGeneration = $this->lowestLiveCandidateGeneration($candidates, $candidateGenerations, $flagsByCommit);
+        while ($walkStart !== [] && $remaining > 1) {
+            $commitId = array_pop($walkStart);
+            $flagsByCommit[$commitId] = ($flagsByCommit[$commitId] ?? 0) | self::FLAG_STALE;
+            $stack = [$commitId];
+
+            while ($stack !== [] && $remaining > 1) {
+                $current = $stack[count($stack) - 1];
+                $currentFlags = $flagsByCommit[$current] ?? 0;
+                if (($currentFlags & self::FLAG_RESULT) !== 0) {
+                    $flagsByCommit[$current] = $currentFlags & ~self::FLAG_RESULT;
+                    $remaining--;
+                    if ($remaining <= 1) {
+                        break;
+                    }
+                    $minGeneration = $this->lowestLiveCandidateGeneration($candidates, $candidateGenerations, $flagsByCommit);
+                }
+
+                if ($this->redundantWalkGeneration($current) < $minGeneration) {
+                    array_pop($stack);
+                    continue;
+                }
+
+                $previousCount = count($stack);
+                foreach ($this->commit($current)->parents as $parent) {
+                    $parent = strtolower($parent);
+                    self::assertSameObjectFormat($hashLength, $parent);
+                    if ((($flagsByCommit[$parent] ?? 0) & self::FLAG_STALE) !== 0) {
+                        continue;
+                    }
+                    $flagsByCommit[$parent] = ($flagsByCommit[$parent] ?? 0) | self::FLAG_STALE;
+                    $stack[] = $parent;
+                    break;
+                }
+
+                if ($previousCount === count($stack)) {
+                    array_pop($stack);
+                }
+            }
+        }
+
+        return array_values(array_filter(
+            $candidates,
+            static fn (string $candidate): bool => (($flagsByCommit[$candidate] ?? 0) & self::FLAG_STALE) === 0,
+        ));
+    }
+
+    /**
+     * @param list<string> $candidates
+     * @return list<string>
+     */
+    private function orderMergeBaseCandidates(array $candidates): array
+    {
+        usort($candidates, function (string $left, string $right): int {
+            return $this->compareCommitPriority($left, $right)
+                ?: strcmp($left, $right);
+        });
+
+        return $candidates;
+    }
+
+    /**
+     * @param list<string> $candidates
+     * @param array<string, int> $candidateGenerations
+     * @param array<string, int> $flagsByCommit
+     */
+    private function lowestLiveCandidateGeneration(array $candidates, array $candidateGenerations, array $flagsByCommit): int
+    {
+        $minGeneration = PHP_INT_MAX;
+        foreach ($candidates as $candidate) {
+            if ((($flagsByCommit[$candidate] ?? 0) & self::FLAG_STALE) !== 0) {
+                continue;
+            }
+            $minGeneration = min($minGeneration, $candidateGenerations[$candidate]);
+        }
+
+        return $minGeneration;
+    }
+
+    private function redundantWalkGeneration(string $oid): int
+    {
+        if (!$this->useCommitGraphGenerations) {
+            return PHP_INT_MAX;
+        }
+
+        return $this->commitGeneration($oid);
     }
 
     /**

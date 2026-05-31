@@ -120,6 +120,48 @@ CSS));
         $t->same([], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules decodes escaped local and global pseudo names before composing exports' => static function (TestRunner $t) use ($export, $local, $global): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+:lo\63 al(.card) {
+  color: red;
+}
+
+:glo\62 al(.wp-block :lo\63 al(.legacy)) .card {
+  color: yellow;
+}
+
+.button {
+  composes: card;
+  composes: wp-block-button from global;
+  background: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}.wp-block .legacy .EgL3uq_card{color:#ff0}.EgL3uq_button{background:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card'), $global('wp-block-button')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $pureLocal = (new CssModulesTransformer())->transform(':lo\63 al(.pure-card) { color: red }', [
+            'pure' => true,
+        ]);
+        $t->same('.EgL3uq_pure-card{color:red}', $pureLocal['code']);
+        $t->same([
+            'pure-card' => $export('EgL3uq_pure-card'),
+        ], $pureLocal['exports']);
+
+        foreach ([
+            ':glo\62 al { color: red }',
+            ':lo\63 al { color: red }',
+            ':glo\62 al(.wp-block) { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css, [
+                'pure' => str_contains($css, '('),
+            ]));
+        }
+    },
     'css modules enforces upstream pseudo-element boundaries around local global selectors' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host(:global(.wp-block)) .card,
