@@ -10,6 +10,7 @@ use OutOfBoundsException;
 final class SourceMap
 {
     private const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    private const MAX_UNSIGNED_32 = 4294967295;
 
     private string $projectRoot;
 
@@ -851,6 +852,10 @@ final class SourceMap
         if ($value < 0) {
             throw new InvalidArgumentException(ucfirst($label) . ' must be non-negative.');
         }
+
+        if ($value > self::MAX_UNSIGNED_32) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must fit in unsigned 32-bit range.');
+        }
     }
 
     private function offsetNonNegative(int $value, int $offset, string $label): int
@@ -858,6 +863,10 @@ final class SourceMap
         $offsetValue = $value + $offset;
         if ($offsetValue < 0) {
             throw new InvalidArgumentException(ucfirst($label) . ' must be non-negative.');
+        }
+
+        if ($offsetValue > self::MAX_UNSIGNED_32) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must fit in unsigned 32-bit range.');
         }
 
         return $offsetValue;

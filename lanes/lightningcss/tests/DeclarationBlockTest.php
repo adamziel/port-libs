@@ -623,6 +623,30 @@ return [
             )
         );
     },
+    'declaration block reads upstream container cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $container = 'container: wp-query-card / inline-size';
+        $t->same(['value' => 'wp-query-card / inline-size', 'important' => false], $block->getProperty($container, 'container'));
+        $t->same(['value' => 'wp-query-card', 'important' => false], $block->getProperty($container, 'container-name'));
+        $t->same(['value' => 'inline-size', 'important' => false], $block->getProperty($container, 'container-type'));
+        $t->same(
+            ['value' => 'wp-query-card / size', 'important' => true],
+            $block->getProperty('container-name: wp-query-card !important; container-type: size !important', 'container')
+        );
+        $t->same(
+            ['value' => 'wp-query-card', 'important' => false],
+            $block->getProperty('container-name: wp-query-card; container-type: normal', 'container')
+        );
+        $t->same(
+            null,
+            $block->getProperty('container-name: wp-query-card !important; container-type: inline-size', 'container')
+        );
+        $t->same(
+            ['value' => 'size', 'important' => true],
+            $block->getProperty('container: wp-query-card / inline-size; container-type: size !important', 'container-type')
+        );
+    },
     'declaration block set replaces direct properties and serializes priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1130,6 +1154,30 @@ return [
             $block->setProperty('font: italic 600 16px Inter !important', 'font-family', 'Inter')
         );
     },
+    'declaration block sets upstream container cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'container: wp-query-card / size; color: red',
+            $block->setProperty('container: wp-query-card / inline-size; color: red', 'container-type', 'size')
+        );
+        $t->same(
+            'container: wp-query-card',
+            $block->setProperty('container: wp-query-card / inline-size', 'container-type', 'normal')
+        );
+        $t->same(
+            'container: wp-query-card is-wide / inline-size',
+            $block->setProperty('container: wp-query-card / inline-size', 'container-name', 'wp-query-card is-wide')
+        );
+        $t->same(
+            'container-name: wp-query-card; container-type: size',
+            $block->setProperty('container-name: wp-query-card; container-type: inline-size', 'container-type', 'size')
+        );
+        $t->same(
+            'container-type: size; container: wp-query-card / inline-size !important',
+            $block->setProperty('container: wp-query-card / inline-size !important', 'container-type', 'size')
+        );
+    },
     'declaration block sets upstream mask border cssom longhands in existing shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1635,6 +1683,30 @@ return [
         $t->same(
             'color: red; font-size: 16px !important; font-style: italic !important; font-weight: 600 !important; font-stretch: normal !important; line-height: 1.5 !important; font-variant-caps: normal !important',
             $block->removeProperty('font: italic 600 16px/1.5 Inter !important; color: red; font-family: system-ui', 'font-family')
+        );
+    },
+    'declaration block removes upstream container cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'container-type: inline-size; color: red',
+            $block->removeProperty('container: wp-query-card / inline-size; color: red', 'container-name')
+        );
+        $t->same(
+            'container-name: wp-query-card; color: red',
+            $block->removeProperty('container: wp-query-card / inline-size; color: red', 'container-type')
+        );
+        $t->same(
+            'container-type: normal; color: red',
+            $block->removeProperty('container: wp-query-card; color: red', 'container-name')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('container: wp-query-card / size; container-name: stale; color: red', 'container')
+        );
+        $t->same(
+            'color: red; container-type: size !important',
+            $block->removeProperty('container: wp-query-card / size !important; color: red; container-name: stale', 'container-name')
         );
     },
     'declaration block removes upstream mask border cssom longhands and shorthand' => static function (TestRunner $t): void {

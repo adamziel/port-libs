@@ -162,6 +162,16 @@ final class DeclarationBlock
         'font-variant-caps',
     ];
     private const FONT_STYLES = ['normal', 'italic', 'oblique'];
+    private const CONTAINER_LONGHANDS = [
+        'container-name',
+        'container-type',
+    ];
+    private const CONTAINER_TYPES = [
+        'normal',
+        'inline-size',
+        'size',
+        'scroll-state',
+    ];
     private const FONT_STRETCH_KEYWORDS = [
         'normal',
         'ultra-condensed',
@@ -386,6 +396,13 @@ final class DeclarationBlock
             return $fontValue;
         }
         if ($this->isFontProperty($property)) {
+            return null;
+        }
+        $containerValue = $this->getContainerProperty($entries, $property);
+        if ($containerValue !== null) {
+            return $containerValue;
+        }
+        if ($this->isContainerProperty($property)) {
             return null;
         }
 
@@ -5599,6 +5616,203 @@ final class DeclarationBlock
         return in_array($property, self::FONT_LONGHANDS, true);
     }
 
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getContainerProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isContainerProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'container') {
+                $parsed = $this->parseContainerComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::CONTAINER_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isContainerLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeContainerLonghandValue($entry['property'], $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'container') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::CONTAINER_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeContainerComponents([
+                'container-name' => $components['container-name']['value'],
+                'container-type' => $components['container-type']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setContainerLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isContainerLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeContainerLonghandValue($property, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'container') {
+                continue;
+            }
+
+            $components = $this->parseContainerComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'container',
+                'value' => $this->serializeContainerComponents($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeContainerLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'container') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseContainerComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::CONTAINER_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{container-name:string, container-type:string}|null
+     */
+    private function parseContainerComponents(string $value): ?array
+    {
+        $parts = array_map('trim', $this->splitTopLevel($value, '/'));
+        if (count($parts) > 2 || $parts === [] || $parts[0] === '') {
+            return null;
+        }
+
+        $type = $parts[1] ?? 'normal';
+        if ($type === '') {
+            return null;
+        }
+
+        return [
+            'container-name' => $this->normalizeContainerLonghandValue('container-name', $parts[0]),
+            'container-type' => $this->normalizeContainerLonghandValue('container-type', $type),
+        ];
+    }
+
+    /**
+     * @param array{container-name:string, container-type:string} $components
+     */
+    private function serializeContainerComponents(array $components): string
+    {
+        $name = $this->normalizeContainerLonghandValue('container-name', $components['container-name']);
+        $type = $this->normalizeContainerLonghandValue('container-type', $components['container-type']);
+        if ($type === 'normal') {
+            return $name;
+        }
+
+        return $name . ' / ' . $type;
+    }
+
+    private function normalizeContainerLonghandValue(string $property, string $value): string
+    {
+        $value = trim(preg_replace('/\s+/', ' ', trim($value)) ?? $value);
+        if ($property === 'container-type') {
+            $lower = strtolower($value);
+
+            return in_array($lower, self::CONTAINER_TYPES, true) ? $lower : $value;
+        }
+
+        return strcasecmp($value, 'none') === 0 ? 'none' : $value;
+    }
+
+    private function isContainerProperty(string $property): bool
+    {
+        return $property === 'container' || $this->isContainerLonghand($property);
+    }
+
+    private function isContainerLonghand(string $property): bool
+    {
+        return in_array($property, self::CONTAINER_LONGHANDS, true);
+    }
+
     private function findTopLevelCharacter(string $value, string $character): ?int
     {
         $quote = null;
@@ -5758,6 +5972,10 @@ final class DeclarationBlock
         $fontValue = $this->setFontLonghand($entries, $property, $value, $important);
         if ($fontValue !== null) {
             return $this->parseEntries($fontValue);
+        }
+        $containerValue = $this->setContainerLonghand($entries, $property, $value, $important);
+        if ($containerValue !== null) {
+            return $this->parseEntries($containerValue);
         }
 
         $lastMatch = null;
@@ -6768,6 +6986,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isContainerLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeContainerLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeContainerLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
 
         $normalEntries = $this->removeEntriesWithPropertyId($normalEntries, $property);
         $importantEntries = $this->removeEntriesWithPropertyId($importantEntries, $property);
@@ -6889,7 +7113,11 @@ final class DeclarationBlock
             return self::TEXT_DECORATION_LONGHANDS;
         }
 
-        return $property === 'font' ? self::FONT_LONGHANDS : null;
+        if ($property === 'font') {
+            return self::FONT_LONGHANDS;
+        }
+
+        return $property === 'container' ? self::CONTAINER_LONGHANDS : null;
     }
 
     /**

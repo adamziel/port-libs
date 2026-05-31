@@ -1654,6 +1654,18 @@ CSS;
             '@layer blocks{@media (width=240px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width = 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
         );
+        $t->same(
+            '@layer blocks{@media not screen and not (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not screen and (width < 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media only screen and (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media only screen and (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media screen and not (max-width:max(10px,1rem)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media screen and (width > max(10px, 1rem)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
     },
     'transition prefixer maps upstream typed media range fallbacks inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();

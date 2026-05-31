@@ -826,4 +826,294 @@ CSS;
 
         $t->same('.foo{margin:10px;padding:20px}', $result);
     },
+    'custom at-rules compose upstream Declaration custom property visitors' => static function (TestRunner $t): void {
+        $seenTokenTypes = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => [
+                    'custom' => [
+                        'size' => static function (array $declaration) use (&$seenTokenTypes): array {
+                            $seenTokenTypes[] = $declaration['value'][0]['type'];
+
+                            return [
+                                [
+                                    'property' => 'unparsed',
+                                    'value' => [
+                                        'propertyId' => ['property' => 'width'],
+                                        'value' => $declaration['value'],
+                                    ],
+                                ],
+                                [
+                                    'property' => 'unparsed',
+                                    'value' => [
+                                        'propertyId' => ['property' => 'height'],
+                                        'value' => $declaration['value'],
+                                    ],
+                                ],
+                            ];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Declaration' => [
+                    'custom' => [
+                        'bg' => static function (array $declaration) use (&$seenTokenTypes): ?array {
+                            $seenTokenTypes[] = $declaration['value'][0]['type'];
+                            if (($declaration['value'][0]['type'] ?? null) !== 'color') {
+                                return null;
+                            }
+
+                            return [
+                                'property' => 'background-color',
+                                'value' => $declaration['value'][0]['value'],
+                            ];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { size: 16px; bg: #ff0; }', [], $visitor);
+
+        $t->same('.foo{width:16px;height:16px;background-color:#ff0}', $result);
+        $t->same(['length', 'color'], $seenTokenTypes);
+    },
+    'custom at-rules compose upstream Declaration replacements with Length visitors' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => [
+                    'custom' => [
+                        'size' => static fn (): array => [
+                            [
+                                'property' => 'width',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => ['unit' => 'px', 'value' => 32],
+                                    ],
+                                ],
+                            ],
+                            [
+                                'property' => 'height',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => ['unit' => 'px', 'value' => 32],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'Length' => static fn (array $length): ?array => $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null,
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { size: test; }', [], $visitor);
+
+        $t->same('.foo{width:2rem;height:2rem}', $result);
+    },
+    'custom at-rules visit upstream unparsed known declarations before value visitors' => static function (TestRunner $t): void {
+        $seenProperties = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => [
+                    'width' => static function (array $declaration) use (&$seenProperties): ?array {
+                        $seenProperties[] = $declaration['property'];
+                        if ($declaration['property'] !== 'unparsed') {
+                            return null;
+                        }
+
+                        return [
+                            [
+                                'property' => 'width',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => ['unit' => 'px', 'value' => 32],
+                                    ],
+                                ],
+                            ],
+                            [
+                                'property' => 'height',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => ['unit' => 'px', 'value' => 32],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Length' => static fn (array $length): ?array => $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null,
+            ],
+        ]);
+
+        $css = '.foo { width: test; } .bar { width: 16px; }';
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.foo{width:2rem;height:2rem}.bar{width:1rem}', $result);
+        $t->same(['unparsed', 'width'], $seenProperties);
+    },
+    'custom at-rules compose upstream returned unparsed Declaration values' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => [
+                    'width' => static function (array $declaration): ?array {
+                        if (
+                            $declaration['property'] === 'unparsed'
+                            && ($declaration['value']['value'][0]['type'] ?? null) === 'token'
+                            && ($declaration['value']['value'][0]['value']['type'] ?? null) === 'ident'
+                        ) {
+                            return [
+                                'property' => 'unparsed',
+                                'value' => [
+                                    'propertyId' => ['property' => 'width'],
+                                    'value' => [[
+                                        'type' => 'var',
+                                        'value' => [
+                                            'name' => [
+                                                'ident' => '--' . $declaration['value']['value'][0]['value']['value'],
+                                            ],
+                                        ],
+                                    ]],
+                                ],
+                            ];
+                        }
+
+                        return null;
+                    },
+                ],
+            ],
+            [
+                'Declaration' => [
+                    'width' => static function (array $declaration): ?array {
+                        if ($declaration['property'] !== 'unparsed') {
+                            return null;
+                        }
+
+                        return [
+                            'property' => 'unparsed',
+                            'value' => [
+                                'propertyId' => ['property' => 'width'],
+                                'value' => [[
+                                    'type' => 'function',
+                                    'value' => [
+                                        'name' => 'calc',
+                                        'arguments' => $declaration['value']['value'],
+                                    ],
+                                ]],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; }', [], $visitor);
+
+        $t->same('.foo{width:calc(var(--test))}', $result);
+    },
+    'custom at-rules compose upstream Declaration all-property visitors' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Declaration' => static function (array $declaration): ?array {
+                    if (($declaration['value']['propertyId']['property'] ?? null) !== 'width') {
+                        return null;
+                    }
+
+                    return [
+                        'property' => 'width',
+                        'value' => [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => ['unit' => 'px', 'value' => 32],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+            [
+                'Declaration' => static function (array $declaration): ?array {
+                    if (($declaration['value']['propertyId']['property'] ?? null) !== 'height') {
+                        return null;
+                    }
+
+                    return [
+                        'property' => 'height',
+                        'value' => [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => ['unit' => 'px', 'value' => 32],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; height: test; }', [], $visitor);
+
+        $t->same('.foo{width:32px;height:32px}', $result);
+    },
+    'custom at-rules compose upstream DeclarationExit all-property visitors' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'DeclarationExit' => static function (array $declaration): ?array {
+                    if (($declaration['value']['propertyId']['property'] ?? null) !== 'width') {
+                        return null;
+                    }
+
+                    return [
+                        'property' => 'width',
+                        'value' => [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => ['unit' => 'px', 'value' => 32],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+            [
+                'DeclarationExit' => static function (array $declaration): ?array {
+                    if (($declaration['value']['propertyId']['property'] ?? null) !== 'height') {
+                        return null;
+                    }
+
+                    return [
+                        'property' => 'height',
+                        'value' => [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => ['unit' => 'px', 'value' => 32],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; height: test; }', [], $visitor);
+
+        $t->same('.foo{width:32px;height:32px}', $result);
+    },
 ];

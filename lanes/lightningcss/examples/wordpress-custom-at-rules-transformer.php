@@ -40,6 +40,10 @@ $css = <<<'CSS'
   }
 }
 
+.wp-block-card__media {
+  size: 48px;
+}
+
 .wp-block-card {
   @apply card;
   gap: wp-rem(wp-size(card));
@@ -221,6 +225,39 @@ $transform = $transformer->transformWithDependencies($css, [
                     ];
                 },
             ],
+            'Declaration' => [
+                'custom' => [
+                    'size' => static function (array $declaration): ?array {
+                        $token = $declaration['value'][0] ?? null;
+                        if (!is_array($token) || ($token['type'] ?? null) !== 'length') {
+                            return null;
+                        }
+
+                        return [
+                            [
+                                'property' => 'width',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => $token['value'],
+                                    ],
+                                ],
+                            ],
+                            [
+                                'property' => 'height',
+                                'value' => [
+                                    'type' => 'length-percentage',
+                                    'value' => [
+                                        'type' => 'dimension',
+                                        'value' => $token['value'],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
         ];
     },
     [
@@ -282,7 +319,7 @@ $transform = $transformer->transformWithDependencies($css, [
 $result = $transform['code'];
 $dependencies = $transform['dependencies'];
 
-$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0;margin-left:20px;margin-right:20px}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
+$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:.625rem}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {

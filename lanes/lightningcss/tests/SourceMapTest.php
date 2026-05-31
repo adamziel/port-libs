@@ -422,6 +422,28 @@ return [
             $data['sourcesContent']
         );
     },
+    'source map rejects upstream unsigned 32-bit offset overflow' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('theme.css');
+        $map->addMapping(0, 0, $sourceIndex, 0, 0);
+        $maxUnsigned32 = 4294967295;
+
+        $t->throws(InvalidArgumentException::class, static function () use ($map, $sourceIndex, $maxUnsigned32): void {
+            $map->addMappingWithOffset($maxUnsigned32, 0, $sourceIndex, 0, 0, 1, 0);
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($map, $sourceIndex, $maxUnsigned32): void {
+            $map->addMappingWithOffset(0, $maxUnsigned32, $sourceIndex, 0, 0, 0, 1);
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($map, $maxUnsigned32): void {
+            $map->offsetColumns(0, $maxUnsigned32, 1);
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($map, $maxUnsigned32): void {
+            $map->offsetLines($maxUnsigned32, 1);
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($map, $maxUnsigned32): void {
+            $map->addVlqMap('A', [], [], [], 0, $maxUnsigned32 + 1);
+        });
+    },
     'source map extends generated mappings through upstream input maps' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $compiled = $map->addSource('cache/compiled.css');

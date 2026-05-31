@@ -7,6 +7,41 @@ use PortLibs\LightningCSS\CssBundler;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+$withTempFiles = static function (array $files, callable $callback): mixed {
+    $root = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'lightningcss-wp-bundle-' . bin2hex(random_bytes(6));
+    foreach ($files as $path => $css) {
+        $target = $root . '/' . ltrim((string) $path, '/');
+        $directory = dirname($target);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new RuntimeException("Unable to create temporary theme directory {$directory}");
+        }
+        file_put_contents($target, (string) $css);
+    }
+
+    $remove = static function (string $path) use (&$remove): void {
+        if (is_dir($path) && !is_link($path)) {
+            foreach (scandir($path) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                $remove($path . DIRECTORY_SEPARATOR . $entry);
+            }
+            rmdir($path);
+            return;
+        }
+
+        if (file_exists($path)) {
+            unlink($path);
+        }
+    };
+
+    try {
+        return $callback($root);
+    } finally {
+        $remove($root);
+    }
+};
+
 $files = [
     '/theme.css' => <<<'CSS'
 @charset "UTF-8";
@@ -137,6 +172,36 @@ if (
 }
 
 echo 'reader-provider: resolved' . PHP_EOL;
+
+$withTempFiles([
+    'theme.css' => <<<'CSS'
+@import "pkg:tokens.css";
+@import "blocks/navigation.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    'vendor/tokens.css' => ':root { --wp--preset--color--brand: blue; }',
+    'blocks/navigation.css' => '.wp-block-navigation { color: green; }',
+], static function (string $root): void {
+    $filesystemBundle = (new CssBundler())->bundleFile(
+        $root . '/theme.css',
+        static function (string $specifier, string $originatingFile) use ($root): string {
+            if (str_starts_with($specifier, 'pkg:')) {
+                return $root . '/vendor/' . substr($specifier, strlen('pkg:'));
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . ltrim($specifier, './');
+        }
+    );
+
+    if ($filesystemBundle !== ':root{--wp--preset--color--brand:blue}.wp-block-navigation{color:green}.wp-site-blocks{color:red}') {
+        fwrite(STDERR, "Unexpected filesystem-backed bundle graph output\n");
+        exit(1);
+    }
+});
+
+echo 'filesystem-provider: resolved' . PHP_EOL;
 
 $moduleBundle = (new CssBundler())->bundleCssModules('/modules/card.css', [
     '/modules/card.css' => <<<'CSS'

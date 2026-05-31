@@ -114,6 +114,11 @@ return [
         $t->same('(width:240px)', $parser->lowerRangeSyntaxList('(240px = width)'));
         $t->same('(theme-state:expanded)', $parser->lowerRangeSyntaxList('(theme-state = expanded)'));
         $t->same('(--wp-breakpoint:env(--wp-breakpoint))', $parser->lowerRangeSyntaxList('(--wp-breakpoint = env(--wp-breakpoint))'));
+        $t->same('not screen and not (min-width:240px)', $parser->lowerRangeSyntaxList('not screen and (width < 240px)'));
+        $t->same('only screen and (min-width:240px)', $parser->lowerRangeSyntaxList('only screen and (width >= 240px)'));
+        $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('all and (width >= 240px)'));
+        $t->same('screen and not (max-width:max(10px,1rem))', $parser->lowerRangeSyntaxList('screen and (width > max(10px, 1rem))'));
+        $t->same('screen and (not (min-width:240px)) and (hover)', $parser->lowerRangeSyntaxList('screen and (width < 240px) and (hover)'));
     },
     'media query parser rejects upstream invalid typed range features' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();

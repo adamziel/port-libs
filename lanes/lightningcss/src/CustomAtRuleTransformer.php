@@ -24,6 +24,12 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $styleRuleVisitor = null;
 
+    /** @var array<string, mixed>|callable|null */
+    private $declarationVisitorConfig = null;
+
+    /** @var array<string, mixed>|callable|null */
+    private $declarationExitVisitorConfig = null;
+
     /** @var array<string, callable> */
     private array $functionVisitors = [];
 
@@ -200,6 +206,78 @@ final class CustomAtRuleTransformer
                     return null;
                 },
             ],
+            'Declaration' => static function (array $declaration, self $transformer) use ($visitors): mixed {
+                $declarations = [$declaration];
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $nextDeclarations = [];
+                    foreach ($declarations as $currentDeclaration) {
+                        $callback = self::declarationVisitorCallback($visitor, $currentDeclaration);
+                        if ($callback === null) {
+                            $nextDeclarations[] = $currentDeclaration;
+                            continue;
+                        }
+
+                        $replacement = $callback($currentDeclaration, $transformer);
+                        if ($replacement === null) {
+                            $nextDeclarations[] = $currentDeclaration;
+                            continue;
+                        }
+
+                        $changed = true;
+                        foreach (self::normalizeDeclarationVisitorList($replacement) as $nextDeclaration) {
+                            $nextDeclarations[] = $nextDeclaration;
+                        }
+                    }
+
+                    $declarations = $nextDeclarations;
+                    if ($declarations === []) {
+                        break;
+                    }
+                }
+
+                if (!$changed) {
+                    return null;
+                }
+
+                return count($declarations) === 1 ? $declarations[0] : $declarations;
+            },
+            'DeclarationExit' => static function (array $declaration, self $transformer) use ($visitors): mixed {
+                $declarations = [$declaration];
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $nextDeclarations = [];
+                    foreach ($declarations as $currentDeclaration) {
+                        $callback = self::declarationExitVisitorCallback($visitor, $currentDeclaration);
+                        if ($callback === null) {
+                            $nextDeclarations[] = $currentDeclaration;
+                            continue;
+                        }
+
+                        $replacement = $callback($currentDeclaration, $transformer);
+                        if ($replacement === null) {
+                            $nextDeclarations[] = $currentDeclaration;
+                            continue;
+                        }
+
+                        $changed = true;
+                        foreach (self::normalizeDeclarationVisitorList($replacement) as $nextDeclaration) {
+                            $nextDeclarations[] = $nextDeclaration;
+                        }
+                    }
+
+                    $declarations = $nextDeclarations;
+                    if ($declarations === []) {
+                        break;
+                    }
+                }
+
+                if (!$changed) {
+                    return null;
+                }
+
+                return count($declarations) === 1 ? $declarations[0] : $declarations;
+            },
             'Function' => static function (array $arguments, string $raw, string $name, self $transformer) use ($visitors): mixed {
                 foreach ($visitors as $visitor) {
                     $callback = self::functionVisitorCallback($visitor, $name);
@@ -449,6 +527,9 @@ final class CustomAtRuleTransformer
         if (is_callable($styleVisitor)) {
             $this->styleRuleVisitor = $styleVisitor;
         }
+
+        $this->declarationVisitorConfig = $visitor['Declaration'] ?? null;
+        $this->declarationExitVisitorConfig = $visitor['DeclarationExit'] ?? null;
 
         $this->functionVisitors = [];
         $this->genericFunctionVisitor = null;
@@ -1032,6 +1113,139 @@ final class CustomAtRuleTransformer
 
     /**
      * @param array<string, mixed> $visitor
+     * @param array<string, mixed> $declaration
+     */
+    private static function declarationVisitorCallback(array $visitor, array $declaration): ?callable
+    {
+        return self::declarationCallback($visitor['Declaration'] ?? null, $declaration);
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     * @param array<string, mixed> $declaration
+     */
+    private static function declarationExitVisitorCallback(array $visitor, array $declaration): ?callable
+    {
+        return self::declarationCallback($visitor['DeclarationExit'] ?? null, $declaration);
+    }
+
+    /**
+     * @param mixed $config
+     * @param array<string, mixed> $declaration
+     */
+    private static function declarationCallback(mixed $config, array $declaration): ?callable
+    {
+        if (is_callable($config)) {
+            return $config;
+        }
+
+        if (!is_array($config)) {
+            return null;
+        }
+
+        $property = self::declarationCallbackProperty($declaration);
+        $callback = self::caseInsensitiveCallback($config, $property);
+        if ($callback !== null) {
+            return $callback;
+        }
+
+        $customConfig = $config['custom'] ?? null;
+        if (is_callable($customConfig) && self::isCustomDeclaration($declaration)) {
+            return $customConfig;
+        }
+
+        if (is_array($customConfig)) {
+            $callback = self::caseInsensitiveCallback($customConfig, $property);
+            if ($callback !== null) {
+                return $callback;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     */
+    private static function declarationCallbackProperty(array $declaration): string
+    {
+        if (($declaration['property'] ?? null) === 'unparsed') {
+            $value = $declaration['value'] ?? null;
+            if (is_array($value)) {
+                $propertyId = $value['propertyId'] ?? null;
+                if (is_array($propertyId) && is_string($propertyId['property'] ?? null)) {
+                    return $propertyId['property'];
+                }
+            }
+        }
+
+        if (is_string($declaration['name'] ?? null)) {
+            return $declaration['name'];
+        }
+
+        return (string) ($declaration['property'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     */
+    private static function isCustomDeclaration(array $declaration): bool
+    {
+        return ($declaration['property'] ?? null) === 'custom'
+            || (is_string($declaration['name'] ?? null) && !self::isKnownDeclarationProperty($declaration['name']));
+    }
+
+    private static function isKnownDeclarationProperty(string $property): bool
+    {
+        return in_array(strtolower($property), [
+            '-webkit-overflow-scrolling',
+            'background',
+            'background-color',
+            'border-color',
+            'box-shadow',
+            'color',
+            'display',
+            'gap',
+            'height',
+            'margin',
+            'margin-left',
+            'margin-right',
+            'outline-color',
+            'overflow',
+            'overflow-x',
+            'overflow-y',
+            'padding',
+            'width',
+        ], true);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeDeclarationVisitorList(mixed $replacement): array
+    {
+        if ($replacement === false || $replacement === []) {
+            return [];
+        }
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException('Declaration visitor must return a declaration array, list of declarations, or null');
+        }
+        if (array_is_list($replacement)) {
+            $declarations = [];
+            foreach ($replacement as $item) {
+                foreach (self::normalizeDeclarationVisitorList($item) as $declaration) {
+                    $declarations[] = $declaration;
+                }
+            }
+
+            return $declarations;
+        }
+
+        return [$replacement];
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
      */
     private static function functionVisitorCallback(array $visitor, string $functionName): ?callable
     {
@@ -1210,6 +1424,313 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function processDeclarationEntries(array $entries): array
+    {
+        if ($this->declarationVisitorConfig !== null) {
+            $entries = $this->applyDeclarationVisitorConfig($entries, $this->declarationVisitorConfig);
+        }
+
+        if ($this->declarationExitVisitorConfig !== null) {
+            $entries = $this->applyDeclarationVisitorConfig($entries, $this->declarationExitVisitorConfig);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @param array<string, mixed>|callable $config
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function applyDeclarationVisitorConfig(array $entries, array|callable $config): array
+    {
+        $nextEntries = [];
+        foreach ($entries as $entry) {
+            $declaration = $this->entryToVisitorDeclaration($entry);
+            $callback = self::declarationCallback($config, $declaration);
+            if ($callback === null) {
+                $nextEntries[] = $entry;
+                continue;
+            }
+
+            $replacement = $callback($declaration, $this);
+            if ($replacement === null) {
+                $nextEntries[] = $entry;
+                continue;
+            }
+
+            foreach (self::normalizeDeclarationVisitorList($replacement) as $replacementDeclaration) {
+                $nextEntries[] = $this->visitorDeclarationToEntry($replacementDeclaration, $entry);
+            }
+        }
+
+        return $nextEntries;
+    }
+
+    /**
+     * @param array{property:string, value:string, important:bool} $entry
+     * @return array<string, mixed>
+     */
+    private function entryToVisitorDeclaration(array $entry): array
+    {
+        $property = strtolower($entry['property']);
+        $tokens = $this->parseComponentValueList($entry['value']);
+
+        if (self::isKnownDeclarationProperty($property)) {
+            if ($this->isUnparsedKnownDeclarationValue($property, $tokens)) {
+                return [
+                    'property' => 'unparsed',
+                    'value' => [
+                        'propertyId' => ['property' => $property],
+                        'value' => $tokens,
+                    ],
+                    'important' => $entry['important'],
+                ];
+            }
+
+            return [
+                'property' => $property,
+                'value' => count($tokens) === 1 ? $this->knownDeclarationValueFromToken($tokens[0]) : ['type' => 'raw', 'value' => $entry['value']],
+                'important' => $entry['important'],
+            ];
+        }
+
+        return [
+            'property' => 'custom',
+            'name' => $property,
+            'value' => $tokens,
+            'important' => $entry['important'],
+        ];
+    }
+
+    /**
+     * @param list<mixed> $tokens
+     */
+    private function isUnparsedKnownDeclarationValue(string $property, array $tokens): bool
+    {
+        if (!in_array($property, ['height', 'width'], true) || count($tokens) !== 1) {
+            return false;
+        }
+
+        $token = $tokens[0];
+
+        return is_array($token)
+            && ($token['type'] ?? null) === 'token'
+            && is_array($token['value'] ?? null)
+            && ($token['value']['type'] ?? null) === 'ident';
+    }
+
+    private function knownDeclarationValueFromToken(mixed $token): mixed
+    {
+        if (!is_array($token)) {
+            return $token;
+        }
+
+        if (($token['type'] ?? null) === 'color' && isset($token['value'])) {
+            return $token['value'];
+        }
+
+        return $token;
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     * @param array{property:string, value:string, important:bool} $fallback
+     * @return array{property:string, value:string, important:bool}
+     */
+    private function visitorDeclarationToEntry(array $declaration, array $fallback): array
+    {
+        $property = (string) ($declaration['property'] ?? $fallback['property']);
+        $value = $declaration['value'] ?? $fallback['value'];
+        if ($property === 'unparsed' && is_array($value)) {
+            $propertyId = $value['propertyId'] ?? null;
+            if (is_array($propertyId) && is_string($propertyId['property'] ?? null)) {
+                $property = $propertyId['property'];
+            }
+            $value = $value['value'] ?? '';
+        } elseif ($property === 'custom') {
+            $property = (string) ($declaration['name'] ?? $fallback['property']);
+        }
+
+        return [
+            'property' => strtolower($property),
+            'value' => $this->serializeDeclarationVisitorValue($value),
+            'important' => (bool) ($declaration['important'] ?? $fallback['important']),
+        ];
+    }
+
+    private function serializeDeclarationVisitorValue(mixed $value): string
+    {
+        if (is_array($value) && array_is_list($value)) {
+            return $this->serializeComponentValueList($value);
+        }
+
+        if (is_array($value) && ($value['type'] ?? null) === 'length-percentage') {
+            $inner = $value['value'] ?? null;
+            if (is_array($inner) && ($inner['type'] ?? null) === 'dimension' && is_array($inner['value'] ?? null)) {
+                return $this->serializeVisitorValue($this->applyValueVisitors($this->normalizeLengthValue($inner['value'])));
+            }
+        }
+
+        if (is_array($value) && ($value['type'] ?? null) === 'color' && isset($value['value'])) {
+            return $this->serializeDeclarationVisitorValue($value['value']);
+        }
+
+        if (is_array($value) && ($value['type'] ?? null) === 'rgb') {
+            return $this->serializeRgbValue($value);
+        }
+
+        if (is_array($value)) {
+            return $this->serializeVisitorValue($this->applyValueVisitors($this->normalizeVisitorValue($value)));
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * @param list<mixed> $tokens
+     */
+    private function serializeComponentValueList(array $tokens): string
+    {
+        return implode(' ', array_map(fn (mixed $token): string => $this->serializeDeclarationVisitorValue($token), $tokens));
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function parseComponentValueList(string $value): array
+    {
+        return array_map(
+            fn (string $token): mixed => $this->parseComponentValue($token),
+            $this->splitWhitespaceTokens($value)
+        );
+    }
+
+    private function parseComponentValue(string $token): mixed
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $token, $matches) === 1) {
+            return [
+                'type' => 'length',
+                'value' => [
+                    'unit' => strtolower($matches[2]),
+                    'value' => (float) $matches[1],
+                ],
+            ];
+        }
+
+        if (($rgb = $this->parseHexColorValue($token)) !== null) {
+            return [
+                'type' => 'color',
+                'value' => $rgb,
+            ];
+        }
+
+        if (
+            strlen($token) >= 2
+            && (($token[0] === '"' && $token[strlen($token) - 1] === '"') || ($token[0] === "'" && $token[strlen($token) - 1] === "'"))
+        ) {
+            return [
+                'type' => 'token',
+                'raw' => $token,
+                'value' => [
+                    'type' => 'string',
+                    'value' => stripcslashes(substr($token, 1, -1)),
+                ],
+            ];
+        }
+
+        if (preg_match('/^([a-zA-Z_-][-_a-zA-Z0-9]*)\(/', $token, $matches) === 1) {
+            $name = $matches[1];
+            $open = strlen($name);
+            $close = $this->findMatchingParen($token, $open);
+            if ($close === strlen($token) - 1) {
+                $argumentsCss = substr($token, $open + 1, $close - $open - 1);
+
+                return [
+                    'type' => strtolower($name) === 'var' ? 'var' : 'function',
+                    'value' => strtolower($name) === 'var'
+                        ? $this->parseVariable($argumentsCss, $token)
+                        : [
+                            'name' => $name,
+                            'arguments' => array_map(
+                                fn (string $argument): mixed => $this->parseComponentValue($argument),
+                                $this->splitTopLevel($argumentsCss, ',')
+                            ),
+                        ],
+                ];
+            }
+        }
+
+        if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $token) === 1) {
+            return [
+                'type' => 'token',
+                'value' => [
+                    'type' => 'ident',
+                    'value' => $token,
+                ],
+            ];
+        }
+
+        return ['type' => 'raw', 'value' => $token];
+    }
+
+    /**
+     * @return array{type:string,r:int,g:int,b:int,alpha:int|float}|null
+     */
+    private function parseHexColorValue(string $token): ?array
+    {
+        if (preg_match('/^#([0-9a-fA-F]{3})$/', $token, $matches) === 1) {
+            return [
+                'type' => 'rgb',
+                'r' => hexdec(str_repeat($matches[1][0], 2)),
+                'g' => hexdec(str_repeat($matches[1][1], 2)),
+                'b' => hexdec(str_repeat($matches[1][2], 2)),
+                'alpha' => 1,
+            ];
+        }
+
+        if (preg_match('/^#([0-9a-fA-F]{6})$/', $token, $matches) === 1) {
+            return [
+                'type' => 'rgb',
+                'r' => hexdec(substr($matches[1], 0, 2)),
+                'g' => hexdec(substr($matches[1], 2, 2)),
+                'b' => hexdec(substr($matches[1], 4, 2)),
+                'alpha' => 1,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $rgb
+     */
+    private function serializeRgbValue(array $rgb): string
+    {
+        $red = (int) ($rgb['r'] ?? 0);
+        $green = (int) ($rgb['g'] ?? 0);
+        $blue = (int) ($rgb['b'] ?? 0);
+        $alpha = $rgb['alpha'] ?? 1;
+
+        $hex = sprintf('#%02x%02x%02x', max(0, min(255, $red)), max(0, min(255, $green)), max(0, min(255, $blue)));
+        if ($alpha === 1 || $alpha === 1.0) {
+            if ($hex[1] === $hex[2] && $hex[3] === $hex[4] && $hex[5] === $hex[6]) {
+                return '#' . $hex[1] . $hex[3] . $hex[5];
+            }
+
+            return $hex;
+        }
+
+        $alphaByte = (int) round(max(0.0, min(1.0, (float) $alpha)) * 255);
+
+        return $hex . sprintf('%02x', $alphaByte);
+    }
+
+    /**
      * @param list<string> $selectors
      */
     private function emitDeclarationRule(array $selectors, string $declarations, bool $visitStyleRule = true): string
@@ -1219,7 +1740,7 @@ final class CustomAtRuleTransformer
             return '';
         }
 
-        $entries = $this->declarationBlock->parseEntries($declarations);
+        $entries = $this->processDeclarationEntries($this->declarationBlock->parseEntries($declarations));
         if ($entries === []) {
             return '';
         }
@@ -1317,12 +1838,68 @@ final class CustomAtRuleTransformer
 
     private function rewriteDeclarationValue(string $value): string
     {
-        return $this->rewriteValueTokens($this->rewriteValueFunctions($value));
+        return $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
     }
 
     private function rewriteAtRulePreludeValue(string $value): string
     {
         return $this->rewriteValueFunctions($value);
+    }
+
+    private function rewriteStandaloneLengths(string $value): string
+    {
+        if ($this->lengthVisitor === null) {
+            return $value;
+        }
+
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if (preg_match('/[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+)/A', substr($value, $i), $matches) === 1) {
+                $raw = $matches[0];
+                $before = $i > 0 ? $value[$i - 1] : '';
+                $after = $value[$i + strlen($raw)] ?? '';
+                if (
+                    ($before === '' || !preg_match('/[-_a-zA-Z0-9.]/', $before))
+                    && ($after === '' || !preg_match('/[-_a-zA-Z0-9]/', $after))
+                    && preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $raw, $parts) === 1
+                ) {
+                    $replacement = ($this->lengthVisitor)([
+                        'unit' => strtolower($parts[2]),
+                        'value' => (float) $parts[1],
+                    ], $this);
+                    if ($replacement !== null) {
+                        $output .= $this->serializeVisitorValue($this->normalizeLengthValue($replacement));
+                        $i += strlen($raw) - 1;
+                        continue;
+                    }
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function rewriteValueFunctions(string $value): string

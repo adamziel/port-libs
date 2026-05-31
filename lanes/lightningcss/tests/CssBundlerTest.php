@@ -7,6 +7,40 @@ use PortLibs\LightningCSS\CssBundler;
 
 $bundle = static fn (array $files, string $entry, ?callable $resolver = null): string => (new CssBundler())->bundle($entry, $files, $resolver);
 $bundleModules = static fn (array $files, string $entry, ?callable $resolver = null, array $options = []): array => (new CssBundler())->bundleCssModules($entry, $files, $resolver, $options);
+$withTempFiles = static function (array $files, callable $callback): mixed {
+    $root = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'lightningcss-bundle-' . bin2hex(random_bytes(6));
+    foreach ($files as $path => $css) {
+        $target = $root . '/' . ltrim((string) $path, '/');
+        $directory = dirname($target);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new RuntimeException("Unable to create temporary bundle directory {$directory}");
+        }
+        file_put_contents($target, (string) $css);
+    }
+
+    $remove = static function (string $path) use (&$remove): void {
+        if (is_dir($path) && !is_link($path)) {
+            foreach (scandir($path) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                $remove($path . DIRECTORY_SEPARATOR . $entry);
+            }
+            rmdir($path);
+            return;
+        }
+
+        if (file_exists($path)) {
+            unlink($path);
+        }
+    };
+
+    try {
+        return $callback($root);
+    } finally {
+        $remove($root);
+    }
+};
 $moduleExport = static fn (string $name, array $composes = []): array => [
     'name' => $name,
     'composes' => $composes,
@@ -61,6 +95,35 @@ CSS,
                 '/b/c.css' => '.b { color: green }',
             ], '/a.css')
         );
+    },
+    'css bundler maps upstream filesystem source provider with custom resolver' => static function (TestRunner $t) use ($withTempFiles): void {
+        $withTempFiles([
+            'foo.css' => <<<'CSS'
+@import "root:bar.css";
+.foo { color: red; }
+CSS,
+            'bar.css' => <<<'CSS'
+@import "root:hello/world.css";
+.bar { color: green; }
+CSS,
+            'hello/world.css' => '.baz { color: blue; }',
+        ], static function (string $root) use ($t): void {
+            $resolved = [];
+            $code = (new CssBundler())->bundleFile(
+                $root . '/foo.css',
+                static function (string $specifier, string $originatingFile) use (&$resolved, $root): string {
+                    $resolved[] = [$specifier, $originatingFile];
+
+                    return $root . '/' . substr($specifier, strlen('root:'));
+                }
+            );
+
+            $t->same('.baz{color:#00f}.bar{color:green}.foo{color:red}', $code);
+            $t->same([
+                ['root:bar.css', $root . '/foo.css'],
+                ['root:hello/world.css', $root . '/bar.css'],
+            ], $resolved);
+        });
     },
     'css bundler maps upstream import prelude ordering diagnostics' => static function (TestRunner $t) use ($bundle): void {
         $t->same(

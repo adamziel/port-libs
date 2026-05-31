@@ -15,6 +15,8 @@ final class CssBundler
     /** @var (callable(string): string)|null */
     private $reader = null;
 
+    private bool $filesystemReads = false;
+
     /** @var array<string, int> */
     private array $sourceIndexes = [];
 
@@ -59,6 +61,14 @@ final class CssBundler
     public function bundleWithReader(string $entry, callable $reader, ?callable $resolver = null): string
     {
         return $this->bundleInternal($entry, [], $resolver, false, [], $reader)['code'];
+    }
+
+    /**
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     */
+    public function bundleFile(string $entry, ?callable $resolver = null): string
+    {
+        return $this->bundleInternal($entry, [], $resolver, false, [], null, true)['code'];
     }
 
     /**
@@ -108,7 +118,8 @@ final class CssBundler
         ?callable $resolver,
         bool $cssModules,
         array $cssModuleOptions = [],
-        ?callable $reader = null
+        ?callable $reader = null,
+        bool $filesystemReads = false
     ): array
     {
         $this->files = [];
@@ -118,6 +129,7 @@ final class CssBundler
 
         $this->resolver = $resolver;
         $this->reader = $reader;
+        $this->filesystemReads = $filesystemReads;
         $this->sourceIndexes = [];
         $this->stylesheets = [];
         $this->cssModules = $cssModules;
@@ -314,6 +326,21 @@ final class CssBundler
                 throw new CssBundleException(
                     'resolver-error',
                     'expect String, got: ' . $this->readerTypeName($source),
+                    $rule['loc']['column'] === 0 ? null : $rule['file'],
+                    $rule['loc']['column'] === 0 ? null : $rule['loc']['line'],
+                    $rule['loc']['column'] === 0 ? null : $rule['loc']['column'],
+                );
+            }
+
+            return $source;
+        }
+
+        if ($this->filesystemReads) {
+            $source = @file_get_contents($file);
+            if ($source === false) {
+                throw new CssBundleException(
+                    'resolver-error',
+                    "Could not read `{$file}`.",
                     $rule['loc']['column'] === 0 ? null : $rule['file'],
                     $rule['loc']['column'] === 0 ? null : $rule['loc']['line'],
                     $rule['loc']['column'] === 0 ? null : $rule['loc']['column'],

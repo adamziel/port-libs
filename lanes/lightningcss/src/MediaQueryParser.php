@@ -24,7 +24,7 @@ final class MediaQueryParser
         }
 
         return implode(',', array_map(
-            fn (string $query): string => $this->lowerRangeSyntaxCondition($query, $lowerSimpleRanges, $lowerIntervalRanges)['css'],
+            fn (string $query): string => $this->lowerRangeSyntaxQuery($query, $lowerSimpleRanges, $lowerIntervalRanges),
             $queries
         ));
     }
@@ -413,12 +413,70 @@ final class MediaQueryParser
     {
         $value = trim($value);
         $value = $this->foldSimpleCalc($value);
+        $value = $this->minifyFunctionCommas($value);
         $value = preg_replace('/\s*\/\s*/', '/', $value) ?? $value;
         if (preg_match('/^([0-9]+(?:\.[0-9]+)?)\/1$/', $value, $matches) === 1) {
             return $this->trimNumber($matches[1]);
         }
 
         return $value;
+    }
+
+    private function minifyFunctionCommas(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                $output .= $char;
+                while (isset($value[$i + 1]) && ctype_space($value[$i + 1])) {
+                    $i++;
+                }
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $output = rtrim($output);
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === ',' && $parenDepth > 0) {
+                $output = rtrim($output) . ',';
+                while (isset($value[$i + 1]) && ctype_space($value[$i + 1])) {
+                    $i++;
+                }
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function convertDppxResolutionUnits(string $queryList): string
@@ -606,6 +664,49 @@ final class MediaQueryParser
         }
 
         return rtrim(rtrim($number, '0'), '.');
+    }
+
+    private function lowerRangeSyntaxQuery(string $query, bool $lowerSimpleRanges, bool $lowerIntervalRanges): string
+    {
+        $mediaPrefix = $this->extractExplicitMediaTypePrefix($query);
+        if ($mediaPrefix === null) {
+            return $this->lowerRangeSyntaxCondition($query, $lowerSimpleRanges, $lowerIntervalRanges)['css'];
+        }
+
+        $lowered = $this->lowerRangeSyntaxCondition($mediaPrefix['condition'], $lowerSimpleRanges, $lowerIntervalRanges);
+        $condition = $lowered['root'] === 'or' ? '(' . $lowered['css'] . ')' : $lowered['css'];
+
+        if ($mediaPrefix['qualifier'] === null && $mediaPrefix['type'] === 'all') {
+            return $condition;
+        }
+
+        $prefix = $mediaPrefix['qualifier'] === null
+            ? $mediaPrefix['type']
+            : $mediaPrefix['qualifier'] . ' ' . $mediaPrefix['type'];
+
+        return $prefix . ' and ' . $condition;
+    }
+
+    /**
+     * @return array{qualifier:?string,type:string,condition:string}|null
+     */
+    private function extractExplicitMediaTypePrefix(string $query): ?array
+    {
+        $pattern = '/^(?:(not|only)\s+)?([_a-zA-Z-][_a-zA-Z0-9-]*)\s+and\s+(.+)$/i';
+        if (preg_match($pattern, $query, $matches) !== 1) {
+            return null;
+        }
+
+        $condition = trim($matches[3]);
+        if ($condition === '') {
+            return null;
+        }
+
+        return [
+            'qualifier' => isset($matches[1]) && $matches[1] !== '' ? strtolower($matches[1]) : null,
+            'type' => strtolower($matches[2]),
+            'condition' => $condition,
+        ];
     }
 
     /**
