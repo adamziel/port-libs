@@ -42,11 +42,37 @@
 - Composer: unavailable on current PATH; prior bootstrap recorded 2.8.12.
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
-- Memory: current sample reports 27 GiB total and about 23 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 408G available after bounded cache/log/worktree cleanup; `/tmp` has about 14G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
+- Memory: current sample reports 27 GiB total and about 17-18 GiB available.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 387G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.9G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 real Codex libsqlite workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (integration sample 04:00 UTC):
+  Batch66 is integrated locally as source
+  `4ae0dd32388d1f1d541f54ceaae913914afd9b86` (`libsqlite: add
+  sixty-sixth current corpus sweep`). The batch accepted 18
+  source/test-moving handoffs across app-WAL rollback JSON parity,
+  row-value update/delete limit parity, B-tree skip-next behavior, date4 rows
+  13300-14299, expression affinity flexnum and lossy-cast behavior,
+  trigger/FK drop-table cleanup behavior, JSON101 table-value and JSON501
+  string/number whitespace behavior, pager/WAL readonly-SHM and follow-up
+  dynamic behavior, PRAGMA schema join-corpus behavior, RETURNING writable
+  schema behavior, UPSERT RETURNING correlated-subquery behavior, VFS syscall
+  temp chunk behavior, and windowE behavior. Two candidates were parked as
+  direct app-WAL/rowvalue conflicts. Verification passed PHP lint for `26`
+  changed/new PHP files, `git diff --check -- lanes/libsqlite`, no newly-added
+  WordPress/wp source text in the batch source diff, no newly-added numeric
+  `CurrentNext`/`CurrentSourceNext` class suffixes in the batch diff, the
+  changed app-WAL example, focused selected tests `17 files / 201049
+  assertions / 0 failures / 25318 PASS lines`, accepted-base overlap `3 files
+  / 13909 assertions / 0 failures / 4661 PASS lines`, and isolated per-file
+  related guard `800 files / 10330149 assertions / 0 failures / 1659500 PASS
+  lines` with the stable 16 known-red diagnostic files excluded. Honest
+  selected movement is `+20657`, moving libsqlite from `1960508` to `1981165
+  pass / 0 fail`; mapped coverage remains `1589 / 1589`. Broad
+  release/all-runner parity remains open; gitoxide starts only after libsqlite
+  closure is recorded.
 
 - 2026-05-31 supervisor continuation (integration sample 03:52 UTC):
   Batch65 is integrated locally as source
