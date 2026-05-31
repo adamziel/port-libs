@@ -28,6 +28,15 @@ return [
         . $packet("\x02Enumerating objects: 1, done.\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'suffixlessAckResponse' => $packet("acknowledgments\n")
+        . $packet("ACK {$installed}\n")
+        . $packet("ACK {$main}\n")
+        . $packet("ready\n")
+        . $delimiter
+        . $packet("packfile\n")
+        . $packet("\x02Counting objects: 100% (1/1)\rCounting objects: 100% (1/1), done.\n")
+        . $packet("\x01" . $packData)
+        . $flush,
     'rawUploadPackErrorResponse' => $packet('ERR raw WordPress fetch failure' . "\n"),
     'emptyErrorSidebandResponse' => $packet("packfile\n")
         . $packet("\x03")
@@ -43,4 +52,5 @@ return [
     'packetLineBoundUse' => 'Fetch response packet-lines are bounded to Gitoxide gix-packetline 64k framing before sideband decoding, so an oversized remote payload cannot be interpreted as pack or progress data.',
     'rawUploadPackErrorUse' => 'Raw upload-pack ERR pkt-lines are surfaced before sideband decoding, so WordPress deployment fetch diagnostics report the server failure text instead of a misleading sideband channel error.',
     'emptyErrorSidebandUse' => 'Empty channel-3 sideband keepalive/error packets are ignored instead of creating a blank deployment error, matching Gitoxide remote-progress handling.',
+    'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
 ];

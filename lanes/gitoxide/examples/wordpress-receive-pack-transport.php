@@ -26,6 +26,7 @@ return [
     'sshAuthenticationBoundary' => $fixture['sshProtocolV2Context']['authenticationBoundary'],
     'gitDaemonServiceRequestPayload' => substr($fixture['gitDaemonServiceRequest'], 4),
     'gitDaemonUrlServiceRequestPayload' => substr($fixture['gitDaemonUrlServiceRequest'], 4),
+    'gitDaemonValueOnlyExtraServiceRequestPayload' => substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4),
     'gitDaemonEncodedUrlServiceRequestPayload' => substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4),
     'gitDaemonIpv6ServiceRequestPayload' => substr($fixture['gitDaemonIpv6ServiceRequest'], 4),
     'unsafeGitDaemonPathRejected' => $fixture['unsafeGitDaemonPathRejected'],

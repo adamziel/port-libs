@@ -226,7 +226,8 @@ final class MediaQueryParser
 
     private function validateRangeFeature(string $name, string $leftValue, ?string $rightValue, string $feature): void
     {
-        if (!$this->isRangeComparableMediaFeature($name)) {
+        $type = $this->rangeComparableMediaFeatureType($name);
+        if ($type === null) {
             throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
         }
 
@@ -234,7 +235,7 @@ final class MediaQueryParser
             if ($value === null) {
                 continue;
             }
-            if (!$this->isValidRangeValue($name, $value)) {
+            if (!$this->isValidRangeValue($type, $value)) {
                 throw new \InvalidArgumentException("Invalid media query range value: {$feature}");
             }
         }
@@ -249,14 +250,26 @@ final class MediaQueryParser
 
     private function isRangeComparableMediaFeature(string $name): bool
     {
-        if (str_starts_with($name, 'min-') || str_starts_with($name, 'max-')) {
-            return false;
-        }
-
-        return in_array($name, ['width', 'height', 'color', 'resolution'], true);
+        return $this->rangeComparableMediaFeatureType($name) !== null;
     }
 
-    private function isValidRangeValue(string $feature, string $value): bool
+    private function rangeComparableMediaFeatureType(string $name): ?string
+    {
+        if (str_starts_with($name, 'min-') || str_starts_with($name, 'max-')) {
+            return null;
+        }
+
+        return match ($name) {
+            'width', 'height', 'device-width', 'device-height' => 'length',
+            'aspect-ratio', 'device-aspect-ratio' => 'ratio',
+            'color', 'color-index', 'monochrome', 'horizontal-viewport-segments', 'vertical-viewport-segments' => 'integer',
+            'resolution' => 'resolution',
+            '-webkit-device-pixel-ratio', '-moz-device-pixel-ratio' => 'number',
+            default => null,
+        };
+    }
+
+    private function isValidRangeValue(string $type, string $value): bool
     {
         $value = trim($value);
         if ($value === '') {
@@ -271,9 +284,11 @@ final class MediaQueryParser
             return true;
         }
 
-        return match ($feature) {
-            'color' => preg_match('/^\d+$/', $value) === 1,
+        return match ($type) {
+            'integer' => preg_match('/^[+-]?\d+$/', $value) === 1,
+            'number' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))$/', $value) === 1,
             'resolution' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:dpcm|dpi|dppx|x))$/i', $value) === 1,
+            'ratio' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))(?:\s*\/\s*(?:0|[+-]?(?:\d+|\d*\.\d+)))?$/', $value) === 1,
             default => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+))$/', $value) === 1,
         };
     }
@@ -765,11 +780,8 @@ final class MediaQueryParser
 
     private function isLegacyRangeFeature(string $feature): bool
     {
-        if (str_starts_with($feature, 'min-') || str_starts_with($feature, 'max-')) {
-            return false;
-        }
-
-        return in_array($feature, ['width', 'height', 'color', 'resolution'], true);
+        return $this->rangeComparableMediaFeatureType($feature) !== null
+            && !in_array($feature, ['-webkit-device-pixel-ratio', '-moz-device-pixel-ratio'], true);
     }
 
     private function comparisonFromLeft(string $operator): string

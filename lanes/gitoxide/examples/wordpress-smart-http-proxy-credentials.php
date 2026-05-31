@@ -18,6 +18,18 @@ return [
     ),
     'proxyAuthorizationSent' => $fixture['proxyAuthorizationSent'],
     'originProxyHeaderLeaked' => $fixture['originProxyHeaderLeaked'],
+    'redirectRequestUrls' => $fixture['redirectRequestUrls'],
+    'redirectProxyHelperCalls' => $fixture['redirectHelperCalls'],
+    'redirectProxyAuthorizationReused' => $fixture['redirectProxyAuthorizationReused'],
+    'redirectStoredProxyCredentials' => array_map(
+        static fn (array $entry): array => [
+            'proxyUrl' => $entry[0],
+            'requestHost' => $entry[1],
+            'username' => $entry[2]['username'],
+        ],
+        $fixture['redirectStoredCredentials']
+    ),
+    'redirectErasedProxyCredentials' => $fixture['redirectErasedCredentials'],
     'unexpectedStatusRejected' => $fixture['unexpectedStatusRejected'],
     'unexpectedStatusStores' => $fixture['unexpectedStatusStores'],
     'unexpectedStatusErasures' => array_map(

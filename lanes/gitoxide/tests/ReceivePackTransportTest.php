@@ -381,6 +381,9 @@ return [
         $packetWithExtra = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', 9440, ['version=1']);
         $t->same("git-receive-pack /repo.git\0host=example.test:9440\0\0version=1\0", substr($packetWithExtra, 4));
 
+        $packetWithValueOnlyExtra = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['version=2', 'value-only', 'key=value']);
+        $t->same("git-receive-pack /repo.git\0host=example.test\0\0version=2\0value-only\0key=value\0", substr($packetWithValueOnlyExtra, 4));
+
         $ipv6Packet = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', '2001:db8::1', null, ['version=2']);
         $t->same("git-receive-pack /repo.git\0host=[2001:db8::1]\0\0version=2\0", substr($ipv6Packet, 4));
 
@@ -389,6 +392,9 @@ return [
 
         $urlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test:9440/repo.git', ['version=2']);
         $t->same("git-receive-pack /repo.git\0host=example.test:9440\0\0version=2\0", substr($urlPacket, 4));
+
+        $urlPacketWithValueOnlyExtra = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/repo.git', ['value-only', 'key=value']);
+        $t->same("git-receive-pack /repo.git\0host=example.test\0\0value-only\0key=value\0", substr($urlPacketWithValueOnlyExtra, 4));
 
         $encodedUrlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git%2Dmirror.example.test/wp%2Dcontent.git', ['version=2']);
         $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($encodedUrlPacket, 4));
@@ -416,8 +422,9 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', 0));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ["bad\0extra"]));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ["bad\nextra"]));
-        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['version']));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['=2']));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['1bad']));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['bad=']));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['bad key=1']));
     },
     'smart http receive-pack transport strips service advertisement and posts request' => static function (TestRunner $t) use ($packet, $flush): void {
@@ -1847,6 +1854,86 @@ return [
         $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'helper-user', 'password' => 'helper-pass']]], $storedCredentials);
         $t->same([], $erasedCredentials);
 
+        $redirectHelperCalls = [];
+        $redirectHelperRequests = [];
+        $redirectHelperStores = [];
+        $redirectHelperErasures = [];
+        $redirectHelperTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$redirectHelperRequests, $packet, $flush): array {
+                $redirectHelperRequests[] = [
+                    'url' => $url,
+                    'httpOptions' => $httpOptions,
+                ];
+
+                if (count($redirectHelperRequests) === 1) {
+                    return [
+                        'status' => 302,
+                        'headers' => ['Location' => 'https://git.example.test/redirected.git/info/refs?service=git-receive-pack'],
+                        'body' => '',
+                    ];
+                }
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$redirectHelperCalls): array {
+                    $redirectHelperCalls[] = [$proxyUrl, $requestHost];
+
+                    return ['username' => 'redirect-user', 'password' => 'redirect-pass'];
+                },
+                'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$redirectHelperStores): void {
+                    $redirectHelperStores[] = [$proxyUrl, $requestHost, $credentials];
+                },
+                'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$redirectHelperErasures): void {
+                    $redirectHelperErasures[] = [$proxyUrl, $requestHost, $credentials];
+                },
+            ]
+        );
+        $redirectHelperTransport->readAdvertisement();
+        $t->same([
+            'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/redirected.git/info/refs?service=git-receive-pack',
+        ], array_column($redirectHelperRequests, 'url'));
+        $t->same([['http://proxy.example.test:8080', 'git.example.test']], $redirectHelperCalls);
+        $t->same($redirectHelperRequests[0]['httpOptions']['proxyAuthorization'], $redirectHelperRequests[1]['httpOptions']['proxyAuthorization']);
+        $t->same('Basic ' . base64_encode('redirect-user:redirect-pass'), $redirectHelperRequests[1]['httpOptions']['proxyAuthorization']);
+        $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'redirect-user', 'password' => 'redirect-pass']]], $redirectHelperStores);
+        $t->same([], $redirectHelperErasures);
+
+        $redirectFailureCalls = 0;
+        $redirectFailureErasures = [];
+        $redirectFailureTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function () use (&$redirectFailureCalls): array {
+                $redirectFailureCalls++;
+
+                return $redirectFailureCalls === 1
+                    ? ['status' => 302, 'headers' => ['Location' => 'https://git.example.test/redirected.git/info/refs?service=git-receive-pack'], 'body' => '']
+                    : ['status' => 403, 'headers' => ['Content-Type' => 'text/plain'], 'body' => 'forbidden'];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'proxyCredentialHelper' => static fn (): array => ['username' => 'redirect-fail-user', 'password' => 'redirect-fail-pass'],
+                'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$redirectFailureErasures): void {
+                    $redirectFailureErasures[] = [$proxyUrl, $requestHost, $credentials];
+                },
+            ]
+        );
+        $t->throws(RuntimeException::class, static fn () => $redirectFailureTransport->readAdvertisement());
+        $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'redirect-fail-user', 'password' => 'redirect-fail-pass']]], $redirectFailureErasures);
+
         $failedErasures = [];
         $failedTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
@@ -2409,6 +2496,7 @@ return [
         $t->same(['ci.skip'], $options);
         $t->contains('PACK', $packBytes);
         $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4));
+        $t->same("git-receive-pack /wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4));
         $t->same(true, $fixture['unsafeGitDaemonEncodedControlByteRejected']);
         $t->same(true, $fixture['unsafeGitDaemonEncodedHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeGitDaemonExtraParameterRejected']);
@@ -2441,6 +2529,15 @@ return [
         $t->same([], $fixture['erasedCredentials']);
         $t->same('Basic ' . base64_encode('wp-proxy-user:wp-proxy-pass'), $fixture['proxyAuthorizationSent']);
         $t->same(false, $fixture['originProxyHeaderLeaked']);
+        $t->same([
+            'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/redirected.git/info/refs?service=git-receive-pack',
+        ], $fixture['redirectRequestUrls']);
+        $t->same([['http://wp-proxy.example.test:8080', 'git.example.test']], $fixture['redirectHelperCalls']);
+        $t->same(true, $fixture['redirectProxyAuthorizationReused']);
+        $t->same([['http://wp-proxy.example.test:8080', 'git.example.test', ['username' => 'redirect-proxy-user', 'password' => 'redirect-proxy-pass']]], $fixture['redirectStoredCredentials']);
+        $t->same([], $fixture['redirectErasedCredentials']);
+        $t->contains('refs/heads/main', $fixture['redirectAdvertisementBytes']);
         $t->same(true, $fixture['unexpectedStatusRejected']);
         $t->same([], $fixture['unexpectedStatusStores']);
         $t->same([['http://wp-proxy.example.test:8080', 'git.example.test', ['username' => 'stale-proxy-user', 'password' => 'stale-proxy-pass']]], $fixture['unexpectedStatusErasures']);

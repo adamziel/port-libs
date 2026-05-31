@@ -322,6 +322,35 @@ return [
 
         throw new RuntimeException('Expected upstream fetch ERR line to fail');
     },
+    'parses upstream v2 fetch response fixture with suffixless acks and fragmented sidebands' => static function (TestRunner $t): void {
+        $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-response-sideband.php';
+        $fixture = $fixtures['fetchAcksAndPack'];
+        $response = FetchResponse::fromV2PacketLines($fixture['response']);
+
+        $acks = array_map(
+            static fn (FetchAcknowledgement $ack): array => ['kind' => $ack->kind, 'object' => $ack->object],
+            $response->acknowledgements()
+        );
+
+        $t->same($fixture['acknowledgements'], $acks);
+        $t->same([], $response->shallowUpdates());
+        $t->same([], $response->wantedRefs());
+        $t->same($fixture['hasPack'], $response->hasPack());
+        $t->same($fixture['packBytes'], strlen($response->packData()));
+        $t->same($fixture['packTrailer'], bin2hex(substr($response->packData(), -20)));
+        $t->same($fixture['progressCount'], count($response->progressMessages()));
+        $t->same([], $response->errorMessages());
+        $t->contains($fixture['fragmentedProgressSamples']['firstCountingFragment'], $response->progressMessages()[2]);
+        $t->same(true, str_starts_with($response->progressMessages()[3], $fixture['fragmentedProgressSamples']['continuedCountingFragmentPrefix']));
+        $t->same($fixture['fragmentedProgressSamples']['splitDoneSuffix'], $response->progressMessages()[5]);
+        $t->same($fixture['remoteProgressCount'], count($response->remoteProgress()));
+        $t->same('Counting objects', $response->remoteProgress()[1]->action);
+        $t->same(7, $response->remoteProgress()[1]->percent);
+        $t->same(1, $response->remoteProgress()[1]->step);
+        $t->same(13, $response->remoteProgress()[1]->max);
+        $t->same(' objects', $response->remoteProgress()[3]->action);
+        $t->same(46, $response->remoteProgress()[3]->percent);
+    },
     'exposes parsed progress from upstream sideband chunks' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-sideband.php';
         $response = FetchResponse::fromV2PacketLines($fixtures['cloneOnly2']['response']);
@@ -351,6 +380,7 @@ return [
     'wordpress fixture parses fetch response sections and sideband pack bytes' => static function (TestRunner $t) use ($runtimeMessage): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';
         $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
+        $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
 
         $t->same(true, $response->hasPack());
         $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
@@ -362,6 +392,13 @@ return [
         $t->same($fixture['objects']['main'], $response->wantedRefs()[0]->object);
         $t->same($fixture['packData'], $response->packData());
         $t->same(65520, $fixture['packetLineMaxBytes']);
+        $t->same(FetchAcknowledgement::COMMON, $suffixlessAckResponse->acknowledgements()[0]->kind);
+        $t->same($fixture['objects']['installed'], $suffixlessAckResponse->acknowledgements()[0]->object);
+        $t->same(FetchAcknowledgement::COMMON, $suffixlessAckResponse->acknowledgements()[1]->kind);
+        $t->same($fixture['objects']['main'], $suffixlessAckResponse->acknowledgements()[1]->object);
+        $t->same(FetchAcknowledgement::READY, $suffixlessAckResponse->acknowledgements()[2]->kind);
+        $t->same($fixture['packData'], $suffixlessAckResponse->packData());
+        $t->same(1, count($suffixlessAckResponse->progressMessages()));
         $t->same(
             'fetch response: upload-pack error raw WordPress fetch failure',
             rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true)))
@@ -371,5 +408,6 @@ return [
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v2-fetch-response.php';
         $t->same('fetch response: upload-pack error raw WordPress fetch failure', $summary['uploadPackError']);
         $t->same(true, $summary['emptyErrorKeepaliveIgnored']);
+        $t->same(true, $summary['suffixlessAckParsed']);
     },
 ];

@@ -10,8 +10,14 @@ final class SQLiteGroupedAggregate
      * @param iterable<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    public static function summarize(iterable $rows, string|array $groupColumn, ?string $valueColumn, array $jsonAggregates = [], array $filteredAggregates = []): array
-    {
+    public static function summarize(
+        iterable $rows,
+        string|array $groupColumn,
+        ?string $valueColumn,
+        array $jsonAggregates = [],
+        array $filteredAggregates = [],
+        array $groupCollations = []
+    ): array {
         $groupColumns = self::groupColumns($groupColumn);
         $groups = [];
         foreach ($rows as $row) {
@@ -21,7 +27,7 @@ final class SQLiteGroupedAggregate
             }
             $value = $valueColumn === null ? null : self::rowValue($row, $valueColumn, 'aggregate');
 
-            $key = self::compositeGroupKey($groupValues);
+            $key = self::compositeGroupKey($groupValues, $groupCollations);
             $groups[$key] ??= [
                 'group' => $groupValues[$groupColumns[0]],
                 'groupValues' => $groupValues,
@@ -34,7 +40,7 @@ final class SQLiteGroupedAggregate
             }
         }
 
-        $groups = self::sortGroupsByKey($groups, $groupColumns);
+        $groups = self::sortGroupsByKey($groups, $groupColumns, $groupCollations);
 
         $summaries = [];
         foreach ($groups as $group) {
@@ -417,7 +423,7 @@ final class SQLiteGroupedAggregate
         return array_column($ordered, 0);
     }
 
-    private static function groupKey(mixed $value): string
+    private static function groupKey(mixed $value, string $collation = 'BINARY'): string
     {
         if ($value instanceof SQLiteBlobValue) {
             return 'blob:' . $value->bytes;
@@ -432,6 +438,13 @@ final class SQLiteGroupedAggregate
             return 'real:' . sprintf('%.17G', $value);
         }
         if (is_string($value)) {
+            $collation = strtoupper($collation);
+            $value = match ($collation) {
+                'BINARY' => $value,
+                'NOCASE' => strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),
+                'RTRIM' => rtrim($value, ' '),
+                default => throw new \InvalidArgumentException("Unsupported SQLite GROUP BY collation: {$collation}"),
+            };
             return 'text:' . $value;
         }
 
@@ -443,12 +456,15 @@ final class SQLiteGroupedAggregate
      * @param non-empty-list<string> $groupColumns
      * @return list<array{group:mixed,groupValues:array<string,mixed>,rows:list<array<string,mixed>>,values:list<mixed>}>
      */
-    private static function sortGroupsByKey(array $groups, array $groupColumns): array
+    private static function sortGroupsByKey(array $groups, array $groupColumns, array $groupCollations = []): array
     {
         $ordered = array_values($groups);
-        usort($ordered, static function (array $left, array $right) use ($groupColumns): int {
+        usort($ordered, static function (array $left, array $right) use ($groupColumns, $groupCollations): int {
             foreach ($groupColumns as $column) {
-                $comparison = self::compareSqlValues($left['groupValues'][$column], $right['groupValues'][$column]);
+                $collation = isset($groupCollations[$column]) && is_string($groupCollations[$column])
+                    ? $groupCollations[$column]
+                    : 'BINARY';
+                $comparison = self::compareSqlValues($left['groupValues'][$column], $right['groupValues'][$column], $collation);
                 if ($comparison !== 0) {
                     return $comparison;
                 }
@@ -491,11 +507,14 @@ final class SQLiteGroupedAggregate
     /**
      * @param array<string,mixed> $values
      */
-    private static function compositeGroupKey(array $values): string
+    private static function compositeGroupKey(array $values, array $groupCollations = []): string
     {
         $parts = [];
         foreach ($values as $column => $value) {
-            $parts[] = $column . '=' . self::groupKey($value);
+            $collation = isset($groupCollations[$column]) && is_string($groupCollations[$column])
+                ? $groupCollations[$column]
+                : 'BINARY';
+            $parts[] = $column . '=' . self::groupKey($value, $collation);
         }
 
         return implode("\0", $parts);
@@ -529,7 +548,7 @@ final class SQLiteGroupedAggregate
         return $invariant;
     }
 
-    private static function compareSqlValues(mixed $left, mixed $right): int
+    private static function compareSqlValues(mixed $left, mixed $right, string $collation = 'BINARY'): int
     {
         $leftRank = self::sortRank($left);
         $rightRank = self::sortRank($right);
@@ -546,7 +565,12 @@ final class SQLiteGroupedAggregate
             return ((float) $left) <=> ((float) $right);
         }
 
-        return strcmp((string) $left, (string) $right);
+        $comparison = SQLiteAffinityComparison::compare($left, $right, 'NONE', 'NONE', $collation);
+        if ($comparison === null) {
+            throw new \InvalidArgumentException('SQLite GROUP BY comparison unexpectedly returned NULL for non-NULL values');
+        }
+
+        return $comparison;
     }
 
     private static function sortRank(mixed $value): int

@@ -9,6 +9,7 @@ use PortLibs\Gitoxide\FetchResponse;
 $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v2-fetch-response.php';
 $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
 $emptyErrorSidebandResponse = FetchResponse::fromV2PacketLines($fixture['emptyErrorSidebandResponse']);
+$suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
 $uploadPackError = null;
 try {
     FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true);
@@ -48,4 +49,8 @@ return [
     'uploadPackError' => $uploadPackError,
     'emptyErrorKeepaliveIgnored' => $emptyErrorSidebandResponse->errorMessages() === []
         && $emptyErrorSidebandResponse->packData() === $fixture['packData'],
+    'suffixlessAckParsed' => count($suffixlessAckResponse->acknowledgements()) === 3
+        && $suffixlessAckResponse->acknowledgements()[0]->object === $fixture['objects']['installed']
+        && $suffixlessAckResponse->acknowledgements()[1]->object === $fixture['objects']['main']
+        && $suffixlessAckResponse->packData() === $fixture['packData'],
 ];

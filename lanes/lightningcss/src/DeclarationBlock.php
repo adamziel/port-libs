@@ -99,6 +99,10 @@ final class DeclarationBlock
         'row-gap',
         'column-gap',
     ];
+    private const OVERFLOW_LONGHANDS = [
+        'overflow-x',
+        'overflow-y',
+    ];
     private const LIST_STYLE_LONGHANDS = [
         'list-style-position',
         'list-style-image',
@@ -237,6 +241,13 @@ final class DeclarationBlock
             return $gapValue;
         }
         if ($this->isGapProperty($property)) {
+            return null;
+        }
+        $overflowValue = $this->getOverflowProperty($entries, $property);
+        if ($overflowValue !== null) {
+            return $overflowValue;
+        }
+        if ($this->isOverflowProperty($property)) {
             return null;
         }
         $listStyleValue = $this->getListStyleProperty($entries, $property);
@@ -2001,6 +2012,179 @@ final class DeclarationBlock
      * @param list<array{property:string, value:string, important:bool}> $entries
      * @return array{value:string, important:bool}|null
      */
+    private function getOverflowProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isOverflowProperty($property)) {
+            return null;
+        }
+
+        $components = array_fill_keys(self::OVERFLOW_LONGHANDS, null);
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'overflow') {
+                $parsed = $this->parseOverflowComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::OVERFLOW_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isOverflowLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeOverflowValue($entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'overflow') {
+            return $components[$property];
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeOverflowComponents(
+                $components['overflow-x']['value'],
+                $components['overflow-y']['value']
+            ),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setOverflowLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isOverflowLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeOverflowValue($value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'overflow') {
+                continue;
+            }
+
+            $components = $this->parseOverflowComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'overflow',
+                'value' => $this->serializeOverflowComponents($components['overflow-x'], $components['overflow-y']),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeOverflowLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'overflow') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseOverflowComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::OVERFLOW_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{overflow-x:string, overflow-y:string}|null
+     */
+    private function parseOverflowComponents(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        if (count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+
+        return [
+            'overflow-x' => $this->normalizeOverflowValue($parts[0]),
+            'overflow-y' => $this->normalizeOverflowValue($parts[1] ?? $parts[0]),
+        ];
+    }
+
+    private function serializeOverflowComponents(string $x, string $y): string
+    {
+        return $x === $y ? $x : $x . ' ' . $y;
+    }
+
+    private function normalizeOverflowValue(string $value): string
+    {
+        $value = trim($value);
+        $lower = strtolower($value);
+
+        return in_array($lower, ['visible', 'hidden', 'clip', 'scroll', 'auto'], true) ? $lower : $value;
+    }
+
+    private function isOverflowProperty(string $property): bool
+    {
+        return $property === 'overflow' || $this->isOverflowLonghand($property);
+    }
+
+    private function isOverflowLonghand(string $property): bool
+    {
+        return in_array($property, self::OVERFLOW_LONGHANDS, true);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
     private function getBorderProperty(array $entries, string $property): ?array
     {
         if (!$this->isBorderProperty($property)) {
@@ -3661,6 +3845,10 @@ final class DeclarationBlock
         if ($gapValue !== null) {
             return $this->parseEntries($gapValue);
         }
+        $overflowValue = $this->setOverflowLonghand($entries, $property, $value, $important);
+        if ($overflowValue !== null) {
+            return $this->parseEntries($overflowValue);
+        }
         $logicalBoxValue = $this->setLogicalBoxProperty($entries, $property, $value, $important);
         if ($logicalBoxValue !== null) {
             return $this->parseEntries($logicalBoxValue);
@@ -4550,6 +4738,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isOverflowLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeOverflowLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeOverflowLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isListStyleLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeListStyleLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeListStyleLonghand($importantEntries, $property));
@@ -4646,6 +4840,10 @@ final class DeclarationBlock
 
         if ($property === 'gap') {
             return self::GAP_LONGHANDS;
+        }
+
+        if ($property === 'overflow') {
+            return self::OVERFLOW_LONGHANDS;
         }
 
         return $property === 'list-style' ? self::LIST_STYLE_LONGHANDS : null;

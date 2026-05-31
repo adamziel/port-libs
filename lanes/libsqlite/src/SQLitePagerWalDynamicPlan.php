@@ -376,6 +376,71 @@ final class SQLitePagerWalDynamicPlan
         ];
     }
 
+    /**
+     * @param list<string> $checkpointConnections
+     * @return array{status:string,shared_cache:bool,journal_mode:string,cache_size:int,connection_count:int,initial_rows:int,rows_after_direct_insert:int,expansion_passes:int,rows_in_transaction:int,transaction_open:bool,visible_rows_before_commit:int,visible_rows_after_commit:int,wal_frame_estimate:int,checkpoint_attempts:list<array{connection:string,result:array{0:int,1:string},blocked:bool,message:string}>,blocked_checkpoint_count:int,integrity_after_commit:string,source:string,dependencies:list<string>}
+     */
+    public static function walSharedCacheCheckpointPlan(
+        int $cacheSize,
+        int $initialRows,
+        int $expansionPasses,
+        array $checkpointConnections,
+        bool $transactionOpen = true
+    ): array {
+        if ($cacheSize < 1 || $initialRows < 1 || $expansionPasses < 0) {
+            throw new \InvalidArgumentException('SQLite WAL shared-cache checkpoint inputs require positive cache/row counts and non-negative expansion passes');
+        }
+        if ($checkpointConnections === []) {
+            throw new \InvalidArgumentException('SQLite WAL shared-cache checkpoint requires at least one checkpoint connection');
+        }
+
+        $connections = [];
+        foreach ($checkpointConnections as $connection) {
+            $connection = strtolower(trim((string) $connection));
+            if (!in_array($connection, ['db', 'db2'], true)) {
+                throw new \InvalidArgumentException("Unsupported SQLite WAL shared-cache checkpoint connection: {$connection}");
+            }
+            $connections[] = $connection;
+        }
+
+        $rowsAfterInsert = $initialRows + 1;
+        $rowsInTransaction = $rowsAfterInsert * (2 ** $expansionPasses);
+        $blocked = $transactionOpen;
+        $attempts = [];
+
+        foreach ($connections as $connection) {
+            $attempts[] = [
+                'connection' => $connection,
+                'result' => $blocked ? [1, 'database table is locked'] : [0, 'ok'],
+                'blocked' => $blocked,
+                'message' => $blocked ? 'database table is locked' : 'ok',
+            ];
+        }
+
+        return [
+            'status' => $blocked
+                ? 'wal-shared-cache-checkpoint-blocked-by-write-transaction'
+                : 'wal-shared-cache-checkpoint-ready-after-commit',
+            'shared_cache' => true,
+            'journal_mode' => 'wal',
+            'cache_size' => $cacheSize,
+            'connection_count' => 2,
+            'initial_rows' => $initialRows,
+            'rows_after_direct_insert' => $rowsAfterInsert,
+            'expansion_passes' => $expansionPasses,
+            'rows_in_transaction' => $rowsInTransaction,
+            'transaction_open' => $transactionOpen,
+            'visible_rows_before_commit' => $initialRows,
+            'visible_rows_after_commit' => $rowsInTransaction,
+            'wal_frame_estimate' => max(1, (int) ceil($rowsInTransaction / max(1, $cacheSize - 2))),
+            'checkpoint_attempts' => $attempts,
+            'blocked_checkpoint_count' => $blocked ? count($attempts) : 0,
+            'integrity_after_commit' => 'ok',
+            'source' => 'upstream walshared.test walshared-1.0 through walshared-1.4 shared-cache WAL checkpoint lock boundary',
+            'dependencies' => ['real-upstream-corpus-walshared', 'sqlite-wal-shared-cache-checkpoint-lock'],
+        ];
+    }
+
     private static function mode(string $mode): string
     {
         $mode = strtolower(trim($mode));

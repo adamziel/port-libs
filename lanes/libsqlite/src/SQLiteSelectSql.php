@@ -3973,12 +3973,7 @@ final class SQLiteSelectSql
                         if ($rows === []) {
                             return [];
                         }
-                        $columns = array_values(array_filter(
-                            array_keys($rows[0]),
-                            static fn (string $column): bool => $column !== 'rowid'
-                                && $column !== '__sqlite_column_affinities'
-                                && !str_contains($column, '.')
-                        ));
+                        $columns = self::subqueryResultColumns($rows[0]);
                         if (($left['type'] ?? null) === 'row') {
                             return array_map(
                                 static fn (array $subqueryRow): array => array_map(
@@ -4031,6 +4026,36 @@ final class SQLiteSelectSql
             'operator' => 'TRUTH',
             'left' => self::valueExpression($sql, $tables),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return list<string>
+     */
+    private static function subqueryResultColumns(array $row): array
+    {
+        $columns = [];
+        foreach (array_keys($row) as $column) {
+            if (
+                !is_string($column)
+                || $column === 'rowid'
+                || $column === '__sqlite_column_affinities'
+                || $column === '__sqlite_column_collations'
+                || str_ends_with($column, '.__sqlite_column_affinities')
+                || str_ends_with($column, '.__sqlite_column_collations')
+            ) {
+                continue;
+            }
+
+            $columns[] = $column;
+        }
+
+        $unqualified = array_values(array_filter(
+            $columns,
+            static fn (string $column): bool => !str_contains($column, '.')
+        ));
+
+        return $unqualified !== [] ? $unqualified : $columns;
     }
 
     /**
@@ -4592,12 +4617,7 @@ final class SQLiteSelectSql
                             if ($rows === []) {
                                 return [];
                             }
-                            $columns = array_values(array_filter(
-                                array_keys($rows[0]),
-                                static fn (string $column): bool => $column !== 'rowid'
-                                    && $column !== '__sqlite_column_affinities'
-                                    && !str_contains($column, '.')
-                            ));
+                            $columns = self::subqueryResultColumns($rows[0]);
                             if (($left['type'] ?? null) === 'row') {
                                 return array_map(
                                     static fn (array $subqueryRow): array => array_map(
@@ -5500,6 +5520,7 @@ final class SQLiteSelectSql
     {
         $columns = [];
         $expressions = [];
+        $collationExpressions = [];
         foreach (self::splitTopLevel($sql, ',') as $index => $term) {
             $term = trim($term);
             if (preg_match('/^[1-9][0-9]*$/', $term) === 1) {
@@ -5513,6 +5534,7 @@ final class SQLiteSelectSql
                 }
                 if (($ordinalExpression['type'] ?? null) === 'column' && isset($ordinalExpression['name']) && is_string($ordinalExpression['name']) && $ordinalExpression['name'] !== '') {
                     $columns[] = $ordinalExpression['name'];
+                    $collationExpressions[$ordinalExpression['name']] = $ordinalExpression;
                     continue;
                 }
 
@@ -5523,6 +5545,7 @@ final class SQLiteSelectSql
                     'column' => $column,
                     'expression' => $ordinalExpression,
                 ];
+                $collationExpressions[$column] = $ordinalExpression;
                 continue;
             }
             if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $term) === 1) {
@@ -5534,18 +5557,25 @@ final class SQLiteSelectSql
                         'column' => $column,
                         'expression' => $aliasExpression,
                     ];
+                    $collationExpressions[$column] = $aliasExpression;
                     continue;
                 }
                 $columns[] = $term;
+                $collationExpressions[$term] = [
+                    'type' => 'column',
+                    'name' => $term,
+                ];
                 continue;
             }
 
             $column = '__groupByExpression' . $index;
+            $expression = self::valueExpression($term);
             $columns[] = $column;
             $expressions[] = [
                 'column' => $column,
-                'expression' => self::valueExpression($term),
+                'expression' => $expression,
             ];
+            $collationExpressions[$column] = $expression;
         }
         if ($columns === []) {
             throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY needs at least one column');
@@ -5557,6 +5587,9 @@ final class SQLiteSelectSql
             'jsonAggregates' => self::jsonAggregateSpecs($select, $aggregateExpressions),
             'filteredAggregates' => self::filteredAggregateSpecs($select, $aggregateExpressions),
         ];
+        if ($collationExpressions !== []) {
+            $groupBy['collationExpressions'] = $collationExpressions;
+        }
         array_push($expressions, ...self::aggregateArgumentExpressions($select, $aggregateExpressions));
         if ($expressions !== []) {
             $deduped = [];

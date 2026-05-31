@@ -34,6 +34,15 @@ final class SQLiteSelectExpression
      * @param array<string,mixed> $row
      * @param array<string,mixed> $expression
      */
+    public static function collation(array $row, array $expression): ?string
+    {
+        return self::expressionCollation($row, $expression);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
     private static function collateValue(array $row, array $expression): mixed
     {
         $operand = $expression['operand'] ?? null;
@@ -288,6 +297,13 @@ final class SQLiteSelectExpression
             }
 
             return strtoupper($collation);
+        }
+        if (($expression['type'] ?? null) === 'unary') {
+            $operator = $expression['operator'] ?? null;
+            $operand = $expression['operand'] ?? null;
+            if ($operator === '+' && is_array($operand)) {
+                return self::expressionCollation($row, $operand);
+            }
         }
         if (($expression['type'] ?? null) === 'column') {
             $name = $expression['name'] ?? null;

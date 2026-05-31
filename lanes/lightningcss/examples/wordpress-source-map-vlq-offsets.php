@@ -79,11 +79,45 @@ $inlineEditorMap->setSourceContent($inlineEditorSource, ".wp-block-spacer {\n  m
 $inlineEditorMap->addMapping(0, 0, $inlineEditorSource, 0, 0);
 $inlineEditorMap->offsetLines(1, 2);
 
+$themeJsonSource = <<<'JSON'
+{
+  "version": 3,
+  "settings": {
+    "color": {
+      "palette": [
+        { "slug": "primary", "color": "#06c" }
+      ]
+    }
+  },
+  "styles": {
+    "blocks": {
+      "core/spacer": { "spacing": { "margin": { "top": "1rem" } } }
+    }
+  }
+}
+JSON;
+
+$coverThemeJsonRule = '.wp-block-cover{color:var(--wp--preset--color--primary)}';
+$spacerThemeJsonRule = '.wp-block-spacer{margin-top:1rem}';
+$generatedThemeJsonMap = new SourceMap();
+$generatedThemeJson = $generatedThemeJsonMap->addSource('wp-content/cache/theme-json.generated.css');
+$generatedThemeJsonMap->setSourceContent($generatedThemeJson, $coverThemeJsonRule . $spacerThemeJsonRule);
+$generatedThemeJsonMap->addMapping(0, 0, $generatedThemeJson, 0, 0, 'coverRule');
+$generatedThemeJsonMap->addMapping(0, strlen($coverThemeJsonRule), $generatedThemeJson, 0, strlen($coverThemeJsonRule), 'spacerRule');
+
+$themeJsonInputMap = new SourceMap();
+$themeJsonSourceIndex = $themeJsonInputMap->addSource('wp-content/themes/example/theme.json');
+$themeJsonInputMap->setSourceContent($themeJsonSourceIndex, $themeJsonSource);
+$themeJsonInputMap->addMapping(0, 0, $themeJsonSourceIndex, 6, 8, 'settings.color.primary');
+$themeJsonInputMap->addMapping(0, strlen($coverThemeJsonRule), $themeJsonSourceIndex, 12, 6, 'styles.blocks.core/spacer.spacing.margin.top');
+$generatedThemeJsonMap->extendWithSourceMap($themeJsonInputMap);
+
 $actual = [
     'css' => $code,
     'map' => $map->toJson(null, false),
     'emptyMap' => $themeJsonMap->toJson(null, false),
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
+    'extendedInputMap' => $generatedThemeJsonMap->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -92,6 +126,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'map' => '{"version":3,"mappings":";;;;;oBCKA,2BAGA,8CDPA","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}"],"names":[]}',
         'emptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/theme-json.css"],"sourcesContent":[":root {\n  --wp--style--global--content-size: 720px;\n}\n"],"names":[]}',
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
+        'extendedInputMap' => '{"version":3,"mappings":"ACMQE,wDAMFC","sources":["wp-content/cache/theme-json.generated.css","wp-content/themes/example/theme.json"],"sourcesContent":[".wp-block-cover{color:var(--wp--preset--color--primary)}.wp-block-spacer{margin-top:1rem}","{\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"slug\": \"primary\", \"color\": \"#06c\" }\n      ]\n    }\n  },\n  \"styles\": {\n    \"blocks\": {\n      \"core/spacer\": { \"spacing\": { \"margin\": { \"top\": \"1rem\" } } }\n    }\n  }\n}"],"names":["coverRule","spacerRule","settings.color.primary","styles.blocks.core/spacer.spacing.margin.top"]}',
     ];
 
     if ($actual !== $expected) {

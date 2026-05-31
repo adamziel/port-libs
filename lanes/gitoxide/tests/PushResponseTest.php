@@ -128,6 +128,40 @@ return [
         $t->same(null, $fallThrough->newObject);
         $t->same(false, $ordinary->fallThrough);
     },
+    'parses send-pack receive-status compatibility extensions like upstream Git' => static function (TestRunner $t) use ($packet, $flush): void {
+        $staleOld = str_repeat('1', 40);
+        $currentOld = str_repeat('2', 40);
+        $new = str_repeat('3', 64);
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release accepted by proc-receive\n")
+            . $packet("option refname refs/heads/stale-wp-release\n")
+            . $packet("option refname refs/heads/deploy/wp-release\n")
+            . $packet("option unknown-future-extension ignored\n")
+            . $packet("option old-oid {$staleOld}\n")
+            . $packet("option old-oid {$currentOld}\n")
+            . $packet("option new-oid {$new}\n")
+            . $packet("option forced-update true\n")
+            . $packet("ng refs/heads/protected\n")
+            . $flush
+        );
+
+        $accepted = $response->refStatuses()[0];
+        $rejected = $response->refStatuses()[1];
+
+        $t->same(true, $response->unpackOk());
+        $t->same(false, $response->isSuccessful());
+        $t->same('refs/for/wp-release', $accepted->refName);
+        $t->same('accepted by proc-receive', $accepted->message);
+        $t->same('refs/heads/deploy/wp-release', $accepted->effectiveRefName());
+        $t->same($currentOld, $accepted->oldObject);
+        $t->same($new, $accepted->newObject);
+        $t->same(true, $accepted->forcedUpdate);
+        $t->same(false, $accepted->fallThrough);
+        $t->same(PushRefStatus::REJECTED, $rejected->status);
+        $t->same('refs/heads/protected', $rejected->refName);
+        $t->same('failed', $rejected->message);
+    },
     'enforces upstream packet-line length bounds for receive-pack status' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
         $maxPacketLineLength = 65520;
         $statusPrefix = 'ng refs/heads/main ';
@@ -233,6 +267,9 @@ return [
         $response = PushResponse::fromSidebandPacketLines($fixture['response']);
         $rewritten = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse'])->refStatuses()[0];
         $fallThrough = PushResponse::fromReportStatusPacketLines($fixture['fallThroughResponse'])->refStatuses()[0];
+        $compatibility = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
+        $compatibilityAccepted = $compatibility->refStatuses()[0];
+        $compatibilityRejected = $compatibility->refStatuses()[1];
 
         $t->same(true, $response->isSuccessful());
         $t->same('ok', $response->unpackStatus());
@@ -249,11 +286,21 @@ return [
         $t->same($fixture['fallThroughRef']['requested'], $fallThrough->refName);
         $t->same($fixture['fallThroughRef']['requested'], $fallThrough->effectiveRefName());
         $t->same(true, $fallThrough->fallThrough);
+        $t->same($fixture['compatibilityRef']['requested'], $compatibilityAccepted->refName);
+        $t->same($fixture['compatibilityRef']['actual'], $compatibilityAccepted->effectiveRefName());
+        $t->same($fixture['compatibilityRef']['message'], $compatibilityAccepted->message);
+        $t->same($fixture['compatibilityRef']['oldObject'], $compatibilityAccepted->oldObject);
+        $t->same($fixture['compatibilityRef']['newObject'], $compatibilityAccepted->newObject);
+        $t->same(true, $compatibilityAccepted->forcedUpdate);
+        $t->same('refs/heads/protected', $compatibilityRejected->refName);
+        $t->same('failed', $compatibilityRejected->message);
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v1-push-response.php';
         $t->same(true, $summary['oversizedReportStatusRejected']);
         $t->same(true, $summary['fatalSidebandRejected']);
         $t->same(true, $summary['fallThroughAccepted']);
+        $t->same(true, $summary['compatibilityOptionExtensionsIgnored']);
+        $t->same(true, $summary['compatibilityBareRejectionDefaulted']);
         $t->same(true, $summary['carriageReturnStatusRejected']);
         $t->same(true, $summary['emptyPacketLineRejected']);
     },

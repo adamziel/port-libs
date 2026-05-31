@@ -1512,19 +1512,25 @@ final class TransitionPrefixer
      */
     private function rewriteDisplayFlexPrefixEntries(array &$entries, array $targetOptions): bool
     {
-        $unprefixedKinds = [];
-        foreach ($entries as $entry) {
+        $lastStandardIndex = [];
+        $lastKindIndex = [];
+        foreach ($entries as $index => $entry) {
             if ($entry['property'] !== 'display' || $entry['important']) {
                 continue;
             }
 
             $kind = $this->displayFlexKind($entry['value']);
-            if ($kind !== null && $this->displayFlexCanonicalValue($entry['value']) === $kind) {
-                $unprefixedKinds[$kind] = true;
+            if ($kind === null) {
+                continue;
+            }
+
+            $lastKindIndex[$kind] = $index;
+            if ($this->displayFlexCanonicalValue($entry['value']) === $kind) {
+                $lastStandardIndex[$kind] = $index;
             }
         }
 
-        if ($unprefixedKinds === []) {
+        if ($lastStandardIndex === []) {
             return false;
         }
 
@@ -1535,7 +1541,7 @@ final class TransitionPrefixer
             'inline-flex' => [],
         ];
 
-        foreach ($entries as $entry) {
+        foreach ($entries as $index => $entry) {
             if ($entry['property'] !== 'display' || $entry['important']) {
                 $rewritten[] = $entry;
                 continue;
@@ -1547,12 +1553,24 @@ final class TransitionPrefixer
                 continue;
             }
 
+            $standardIndex = $lastStandardIndex[$kind] ?? null;
+            if ($standardIndex === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
             $canonical = $this->displayFlexCanonicalValue($entry['value']);
-            $needed = $this->neededDisplayFlexValues($kind, $targetOptions);
-            if ($canonical !== $kind && isset($unprefixedKinds[$kind]) && !in_array($canonical, $needed, true)) {
+            if ($index < $standardIndex) {
                 $changed = true;
                 continue;
             }
+
+            if ($index === $standardIndex && ($lastKindIndex[$kind] ?? $index) > $index) {
+                $changed = true;
+                continue;
+            }
+
+            $needed = $this->neededDisplayFlexValues($kind, $targetOptions);
 
             if ($canonical === $kind) {
                 foreach ($needed as $displayValue) {

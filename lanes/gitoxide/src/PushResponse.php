@@ -195,18 +195,15 @@ final class PushResponse
     private static function parseStatusLine(string $line, array &$refStatuses): void
     {
         if (str_starts_with($line, 'ok ')) {
-            $refName = substr($line, 3);
-            $refStatuses[] = PushRefStatus::ok($refName);
+            [$refName, $message] = self::splitRefStatusPayload(substr($line, 3));
+            $refStatuses[] = PushRefStatus::ok($refName, $message);
 
             return;
         }
 
         if (str_starts_with($line, 'ng ')) {
-            $parts = explode(' ', $line, 3);
-            if (count($parts) !== 3) {
-                throw new \InvalidArgumentException('push response: rejected ref status requires a reason');
-            }
-            $refStatuses[] = PushRefStatus::rejected($parts[1], $parts[2]);
+            [$refName, $message] = self::splitRefStatusPayload(substr($line, 3));
+            $refStatuses[] = PushRefStatus::rejected($refName, $message ?? 'failed');
 
             return;
         }
@@ -229,6 +226,20 @@ final class PushResponse
         }
 
         throw new \InvalidArgumentException("push response: unknown report-status line {$line}");
+    }
+
+    /**
+     * @return array{string, ?string}
+     */
+    private static function splitRefStatusPayload(string $payload): array
+    {
+        if (str_contains($payload, ' ')) {
+            [$refName, $message] = explode(' ', $payload, 2);
+
+            return [$refName, $message];
+        }
+
+        return [$payload, null];
     }
 
     /**

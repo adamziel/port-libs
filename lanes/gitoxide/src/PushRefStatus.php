@@ -32,17 +32,14 @@ final class PushRefStatus
         if ($newObject !== null) {
             self::assertObjectId($newObject);
         }
-        if ($status === self::OK && $message !== null) {
-            throw new \InvalidArgumentException('push response: successful ref status cannot have an error message');
-        }
         if ($status === self::REJECTED && ($message === null || $message === '')) {
             throw new \InvalidArgumentException('push response: rejected ref status requires an error message');
         }
     }
 
-    public static function ok(string $refName): self
+    public static function ok(string $refName, ?string $message = null): self
     {
-        return new self(self::OK, $refName);
+        return new self(self::OK, $refName, $message);
     }
 
     public static function rejected(string $refName, string $message): self
@@ -72,44 +69,28 @@ final class PushRefStatus
         }
 
         if ($name === 'refname') {
-            if ($this->reportedRefName !== null) {
-                throw new \InvalidArgumentException('push response: duplicate refname option');
-            }
             if ($value === null) {
                 throw new \InvalidArgumentException('push response: refname option requires a value');
             }
 
-            return new self($this->status, $this->refName, null, $value, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough);
+            return new self($this->status, $this->refName, $this->message, $value, $this->oldObject, $this->newObject, $this->forcedUpdate, $this->fallThrough);
         }
         if ($name === 'old-oid') {
-            if ($this->oldObject !== null) {
-                throw new \InvalidArgumentException('push response: duplicate old-oid option');
-            }
             if ($value === null) {
                 throw new \InvalidArgumentException('push response: old-oid option requires a value');
             }
 
-            return new self($this->status, $this->refName, null, $this->reportedRefName, strtolower($value), $this->newObject, $this->forcedUpdate, $this->fallThrough);
+            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, strtolower($value), $this->newObject, $this->forcedUpdate, $this->fallThrough);
         }
         if ($name === 'new-oid') {
-            if ($this->newObject !== null) {
-                throw new \InvalidArgumentException('push response: duplicate new-oid option');
-            }
             if ($value === null) {
                 throw new \InvalidArgumentException('push response: new-oid option requires a value');
             }
 
-            return new self($this->status, $this->refName, null, $this->reportedRefName, $this->oldObject, strtolower($value), $this->forcedUpdate, $this->fallThrough);
+            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, strtolower($value), $this->forcedUpdate, $this->fallThrough);
         }
         if ($name === 'forced-update') {
-            if ($value !== null) {
-                throw new \InvalidArgumentException('push response: forced-update option does not take a value');
-            }
-            if ($this->forcedUpdate) {
-                throw new \InvalidArgumentException('push response: duplicate forced-update option');
-            }
-
-            return new self($this->status, $this->refName, null, $this->reportedRefName, $this->oldObject, $this->newObject, true, $this->fallThrough);
+            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, true, $this->fallThrough);
         }
         if ($name === 'fall-through') {
             if ($value !== null) {
@@ -119,10 +100,10 @@ final class PushRefStatus
                 throw new \InvalidArgumentException('push response: duplicate fall-through option');
             }
 
-            return new self($this->status, $this->refName, null, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, true);
+            return new self($this->status, $this->refName, $this->message, $this->reportedRefName, $this->oldObject, $this->newObject, $this->forcedUpdate, true);
         }
 
-        throw new \InvalidArgumentException("push response: unknown report-status-v2 option {$name}");
+        return $this;
     }
 
     private static function assertObjectId(string $oid): void

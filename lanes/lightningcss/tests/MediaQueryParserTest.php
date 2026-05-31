@@ -21,6 +21,20 @@ return [
         $t->same('(width<=240px)', $parser->minifyList('(240px >= width)'));
         $t->same('(width<600px) and (height<600px)', $parser->minifyList('(width < 600px) and (height < 600px)'));
     },
+    'media query parser maps upstream typed range feature families' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('(aspect-ratio>=16/9)', $parser->minifyList('(min-aspect-ratio: 16 / 9)'));
+        $t->same('(device-aspect-ratio<=2)', $parser->minifyList('(device-aspect-ratio <= 2/1)'));
+        $t->same('(device-width<=480px)', $parser->minifyList('(device-width <= 480px)'));
+        $t->same('(device-height>320px)', $parser->minifyList('(320px < device-height)'));
+        $t->same('(color-index>=2)', $parser->minifyList('(color-index >= 2)'));
+        $t->same('(1<=monochrome<=4)', $parser->minifyList('(1 <= monochrome <= 4)'));
+        $t->same('(horizontal-viewport-segments>=2)', $parser->minifyList('(horizontal-viewport-segments >= 2)'));
+        $t->same('(vertical-viewport-segments<3)', $parser->minifyList('(3 > vertical-viewport-segments)'));
+        $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= 2)'));
+        $t->same('(-moz-device-pixel-ratio<1.5)', $parser->minifyList('(-moz-device-pixel-ratio < 1.5)'));
+    },
     'media query parser maps upstream feature values qualifiers and lists' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
@@ -81,6 +95,11 @@ return [
         $t->same('(not (max-width:100px)) and (not (min-width:200px))', $parser->lowerRangeSyntaxList('(100px < width < 200px)'));
         $t->same('not ((not (max-width:100px)) and (not (min-width:200px)))', $parser->lowerRangeSyntaxList('not (100px < width < 200px)'));
         $t->same('(max-width:200px) and (min-width:100px)', $parser->lowerRangeSyntaxList('(200px >= width >= 100px)'));
+        $t->same('(min-aspect-ratio:16/9)', $parser->lowerRangeSyntaxList('(aspect-ratio >= 16 / 9)'));
+        $t->same('not (max-color-index:2)', $parser->lowerRangeSyntaxList('(color-index > 2)'));
+        $t->same('(min-monochrome:1) and (max-monochrome:4)', $parser->lowerRangeSyntaxList('(1 <= monochrome <= 4)'));
+        $t->same('(max-device-width:480px)', $parser->lowerRangeSyntaxList('(device-width <= 480px)'));
+        $t->same('(min-horizontal-viewport-segments:2)', $parser->lowerRangeSyntaxList('(horizontal-viewport-segments >= 2)'));
     },
     'media query parser rejects upstream invalid typed range features' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -97,6 +116,10 @@ return [
             '(1px <= scan <= 2px)',
             '(grid: 10)',
             '(prefers-color-scheme = dark)',
+            '(aspect-ratio >= 2px)',
+            '(color-index >= 1.5)',
+            '(device-width >= 2/1)',
+            '(horizontal-viewport-segments >= 2px)',
         ] as $query) {
             $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
         }

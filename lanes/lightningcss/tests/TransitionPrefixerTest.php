@@ -548,6 +548,10 @@ return [
             $prefixer->prefixForTargets('.foo{ display: -webkit-box; display: flex; }', $legacyTargets)
         );
         $t->same(
+            '.foo{display:-webkit-box}',
+            $prefixer->prefixForTargets('.foo{ display: flex; display: -webkit-box; }', $legacyTargets)
+        );
+        $t->same(
             '.foo{display:flex}',
             $prefixer->prefixForTargets(
                 '.foo { display: -webkit-box; display: -moz-box; display: -webkit-flex; display: -ms-flexbox; display: flex; }',
@@ -558,6 +562,13 @@ return [
             '.foo{display:inline-flex}',
             $prefixer->prefixForTargets(
                 '.foo { display: -webkit-inline-box; display: -moz-inline-box; display: -webkit-inline-flex; display: -ms-inline-flexbox; display: inline-flex; }',
+                ['safari' => 14]
+            )
+        );
+        $t->same(
+            '.foo{display:-moz-box;display:-webkit-flex;display:-ms-flexbox}',
+            $prefixer->prefixForTargets(
+                '.foo { display: -webkit-box; display: flex; display: -moz-box; display: -webkit-flex; display: -ms-flexbox; }',
                 ['safari' => 14]
             )
         );
@@ -1443,6 +1454,26 @@ CSS;
         $t->same(
             '@layer blocks{@media not (max-width:0){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width > 0) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
+        );
+    },
+    'transition prefixer maps upstream typed media range fallbacks inside layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@layer blocks{@media (min-aspect-ratio:16/9) and (not (max-color-index:2)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (aspect-ratio >= 16 / 9) and (color-index > 2) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media ((min-monochrome:1) and (max-monochrome:4)) or (max-device-width:480px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (1 <= monochrome <= 4) or (device-width <= 480px) { .wp-block-query { color: yellow; } } }', [
+                'include' => ['MediaRangeSyntax', 'MediaIntervalSyntax'],
+            ])
+        );
+        $t->same(
+            '@layer blocks{@media (horizontal-viewport-segments>=2) and (vertical-viewport-segments<3){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (horizontal-viewport-segments >= 2) and (vertical-viewport-segments < 3) { .wp-block-query { color: yellow; } } }', [
+                'exclude' => ['MediaRangeSyntax'],
+            ])
         );
     },
     'transition prefixer maps upstream media range include and exclude flags inside layers' => static function (TestRunner $t): void {

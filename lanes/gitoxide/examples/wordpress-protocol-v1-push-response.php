@@ -11,6 +11,7 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v1-push-response.p
 $response = PushResponse::fromSidebandPacketLines($fixture['response']);
 $rewrittenResponse = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse']);
 $fallThroughResponse = PushResponse::fromReportStatusPacketLines($fixture['fallThroughResponse']);
+$compatibilityResponse = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
 $oversizedReportStatusRejected = false;
 try {
     PushResponse::fromReportStatusPacketLines($fixture['oversizedReportStatus']);
@@ -67,11 +68,25 @@ return [
         ],
         $fallThroughResponse->refStatuses()
     ),
+    'compatibilityRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'effectiveRef' => $status->effectiveRefName(),
+            'status' => $status->status,
+            'message' => $status->message,
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+            'forcedUpdate' => $status->forcedUpdate,
+        ],
+        $compatibilityResponse->refStatuses()
+    ),
     'progressMessages' => $response->progressMessages(),
     'errorMessages' => $response->errorMessages(),
     'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
     'fatalSidebandRejected' => $fatalSidebandRejected,
     'fallThroughAccepted' => $fallThroughResponse->refStatuses()[0]->fallThrough,
+    'compatibilityOptionExtensionsIgnored' => $compatibilityResponse->refStatuses()[0]->oldObject === $fixture['compatibilityRef']['oldObject'],
+    'compatibilityBareRejectionDefaulted' => $compatibilityResponse->refStatuses()[1]->message === 'failed',
     'carriageReturnStatusRejected' => $carriageReturnStatusRejected,
     'emptyPacketLineRejected' => $emptyPacketLineRejected,
 ];

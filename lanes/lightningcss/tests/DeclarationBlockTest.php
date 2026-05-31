@@ -370,6 +370,26 @@ return [
             $block->getProperty('gap: 1rem !important; row-gap: 2rem', 'row-gap')
         );
     },
+    'declaration block reads upstream overflow cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(['value' => 'hidden auto', 'important' => false], $block->getProperty('overflow: hidden auto', 'overflow'));
+        $t->same(['value' => 'hidden', 'important' => false], $block->getProperty('overflow: hidden auto', 'overflow-x'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('overflow: hidden auto', 'overflow-y'));
+        $t->same(
+            ['value' => 'clip', 'important' => false],
+            $block->getProperty('overflow-x: clip; overflow-y: clip', 'overflow')
+        );
+        $t->same(
+            ['value' => 'scroll auto', 'important' => true],
+            $block->getProperty('overflow-x: scroll !important; overflow-y: auto !important', 'overflow')
+        );
+        $t->same(null, $block->getProperty('overflow-x: hidden; overflow-y: auto !important', 'overflow'));
+        $t->same(
+            ['value' => 'hidden', 'important' => true],
+            $block->getProperty('overflow: hidden !important; overflow-x: visible', 'overflow-x')
+        );
+    },
     'declaration block reads upstream scroll snap cssom rect shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -659,6 +679,26 @@ return [
         $t->same(
             'row-gap: 3rem; gap: 1rem !important',
             $block->setProperty('gap: 1rem !important', 'row-gap', '3rem')
+        );
+    },
+    'declaration block sets upstream overflow cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'overflow: scroll auto',
+            $block->setProperty('overflow: hidden auto', 'overflow-x', 'scroll')
+        );
+        $t->same(
+            'overflow: hidden',
+            $block->setProperty('overflow: hidden auto', 'overflow-y', 'hidden')
+        );
+        $t->same(
+            'overflow: hidden auto; overflow-y: scroll',
+            $block->setProperty('overflow: hidden auto; overflow-y: clip', 'overflow-y', 'scroll')
+        );
+        $t->same(
+            'overflow-x: scroll; overflow: hidden !important',
+            $block->setProperty('overflow: hidden !important', 'overflow-x', 'scroll')
         );
     },
     'declaration block sets upstream scroll snap cssom rect longhands' => static function (TestRunner $t): void {
@@ -1041,6 +1081,26 @@ return [
         $t->same(
             'column-gap: 1rem !important',
             $block->removeProperty('gap: 1rem !important; row-gap: 3rem', 'row-gap')
+        );
+    },
+    'declaration block removes upstream overflow cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'overflow-y: auto',
+            $block->removeProperty('overflow: hidden auto', 'overflow-x')
+        );
+        $t->same(
+            'overflow-x: hidden',
+            $block->removeProperty('overflow: hidden auto', 'overflow-y')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('overflow: hidden auto; overflow-x: scroll; color: red', 'overflow')
+        );
+        $t->same(
+            'color: red; overflow-y: hidden !important',
+            $block->removeProperty('overflow: hidden !important; overflow-x: visible; color: red', 'overflow-x')
         );
     },
     'declaration block removes upstream scroll snap cssom rect longhands and shorthands' => static function (TestRunner $t): void {

@@ -24,6 +24,19 @@ $css = <<<'CSS'
   display: -ms-flexbox;
   display: flex;
 }
+
+.wp-block-group.is-style-legacy-flex-fallback {
+  display: flex;
+  display: -webkit-box;
+}
+
+.wp-block-navigation .wp-block-navigation__responsive-container {
+  display: -webkit-box;
+  display: flex;
+  display: -moz-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+}
 CSS;
 
 $actual = [
@@ -37,9 +50,9 @@ $actual = [
 ];
 
 $expected = [
-    'legacy_editor' => '.wp-block-columns.is-layout-flex{display:-webkit-box;display:-moz-box;display:-webkit-flex;display:-ms-flexbox;display:flex}.wp-block-navigation .wp-block-navigation__container{display:-webkit-inline-box;display:-moz-inline-box;display:-webkit-inline-flex;display:-ms-inline-flexbox;display:inline-flex}.wp-block-buttons.is-layout-flex{display:-webkit-box;display:-moz-box;display:-webkit-flex;display:-ms-flexbox;display:flex}',
-    'chrome_28' => '.wp-block-columns.is-layout-flex{display:-webkit-flex;display:flex}.wp-block-navigation .wp-block-navigation__container{display:-webkit-inline-flex;display:inline-flex}.wp-block-buttons.is-layout-flex{display:-webkit-flex;display:flex}',
-    'modern_frontend' => '.wp-block-columns.is-layout-flex{display:flex}.wp-block-navigation .wp-block-navigation__container{display:inline-flex}.wp-block-buttons.is-layout-flex{display:flex}',
+    'legacy_editor' => '.wp-block-columns.is-layout-flex{display:-webkit-box;display:-moz-box;display:-webkit-flex;display:-ms-flexbox;display:flex}.wp-block-navigation .wp-block-navigation__container{display:-webkit-inline-box;display:-moz-inline-box;display:-webkit-inline-flex;display:-ms-inline-flexbox;display:inline-flex}.wp-block-buttons.is-layout-flex{display:-webkit-box;display:-moz-box;display:-webkit-flex;display:-ms-flexbox;display:flex}.wp-block-group.is-style-legacy-flex-fallback{display:-webkit-box}.wp-block-navigation .wp-block-navigation__responsive-container{display:-moz-box;display:-webkit-flex;display:-ms-flexbox}',
+    'chrome_28' => '.wp-block-columns.is-layout-flex{display:-webkit-flex;display:flex}.wp-block-navigation .wp-block-navigation__container{display:-webkit-inline-flex;display:inline-flex}.wp-block-buttons.is-layout-flex{display:-webkit-flex;display:flex}.wp-block-group.is-style-legacy-flex-fallback{display:-webkit-box}.wp-block-navigation .wp-block-navigation__responsive-container{display:-moz-box;display:-webkit-flex;display:-ms-flexbox}',
+    'modern_frontend' => '.wp-block-columns.is-layout-flex{display:flex}.wp-block-navigation .wp-block-navigation__container{display:inline-flex}.wp-block-buttons.is-layout-flex{display:flex}.wp-block-group.is-style-legacy-flex-fallback{display:-webkit-box}.wp-block-navigation .wp-block-navigation__responsive-container{display:-moz-box;display:-webkit-flex;display:-ms-flexbox}',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

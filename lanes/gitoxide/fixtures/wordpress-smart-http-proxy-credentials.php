@@ -53,6 +53,56 @@ $transport = new SmartHttpReceivePackTransport(
 
 $advertisement = $transport->readAdvertisement();
 
+$redirectRequests = [];
+$redirectHelperCalls = [];
+$redirectStoredCredentials = [];
+$redirectErasedCredentials = [];
+$redirectTransport = new SmartHttpReceivePackTransport(
+    'https://git.example.test/wp-content.git',
+    static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$redirectRequests, $packet, $flush, $advertisementBytes): array {
+        $redirectRequests[] = [
+            'method' => $method,
+            'url' => $url,
+            'headers' => $headers,
+            'body' => $body,
+            'timeout' => $timeout,
+            'httpOptions' => $httpOptions,
+        ];
+
+        if (count($redirectRequests) === 1) {
+            return [
+                'status' => 302,
+                'headers' => ['Location' => 'https://git.example.test/redirected.git/info/refs?service=git-receive-pack'],
+                'body' => '',
+            ];
+        }
+
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+        ];
+    },
+    [],
+    5.0,
+    ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+    [
+        'proxy' => 'http://wp-proxy.example.test:8080',
+        'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$redirectHelperCalls): array {
+            $redirectHelperCalls[] = [$proxyUrl, $requestHost];
+
+            return ['username' => 'redirect-proxy-user', 'password' => 'redirect-proxy-pass'];
+        },
+        'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$redirectStoredCredentials): void {
+            $redirectStoredCredentials[] = [$proxyUrl, $requestHost, $credentials];
+        },
+        'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$redirectErasedCredentials): void {
+            $redirectErasedCredentials[] = [$proxyUrl, $requestHost, $credentials];
+        },
+    ],
+);
+$redirectAdvertisement = $redirectTransport->readAdvertisement();
+
 $unexpectedStatusStores = [];
 $unexpectedStatusErasures = [];
 $unexpectedStatusRejected = false;
@@ -88,10 +138,17 @@ return [
     'helperCalls' => $helperCalls,
     'storedCredentials' => $storedCredentials,
     'erasedCredentials' => $erasedCredentials,
+    'redirectAdvertisementBytes' => $redirectAdvertisement,
+    'redirectRequestUrls' => array_map(static fn (array $request): string => $request['url'], $redirectRequests),
+    'redirectHelperCalls' => $redirectHelperCalls,
+    'redirectStoredCredentials' => $redirectStoredCredentials,
+    'redirectErasedCredentials' => $redirectErasedCredentials,
+    'redirectProxyAuthorizationReused' => ($redirectRequests[0]['httpOptions']['proxyAuthorization'] ?? null) !== null
+        && ($redirectRequests[0]['httpOptions']['proxyAuthorization'] ?? null) === ($redirectRequests[1]['httpOptions']['proxyAuthorization'] ?? null),
     'unexpectedStatusRejected' => $unexpectedStatusRejected,
     'unexpectedStatusStores' => $unexpectedStatusStores,
     'unexpectedStatusErasures' => $unexpectedStatusErasures,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, keep them out of origin headers, store them only after an HTTP 200 smart receive-pack request, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, keep them out of origin headers, reuse one helper credential action across a safe smart HTTP redirect, store it only after the final HTTP 200 request, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

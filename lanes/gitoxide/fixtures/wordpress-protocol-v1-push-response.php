@@ -11,6 +11,9 @@ $progress = [
 ];
 $oldSha256 = str_repeat('a', 64);
 $newSha256 = str_repeat('b', 64);
+$staleHookOld = str_repeat('1', 40);
+$currentHookOld = str_repeat('2', 40);
+$newHookObject = str_repeat('3', 64);
 
 return [
     'refs' => [
@@ -44,6 +47,24 @@ return [
     'fallThroughResponse' => $packet("unpack ok\n")
         . $packet("ok refs/for/wp-maintenance\n")
         . $packet("option fall-through\n")
+        . $flush,
+    'compatibilityRef' => [
+        'requested' => 'refs/for/wp-release',
+        'actual' => 'refs/heads/deploy/wp-release',
+        'message' => 'accepted by proc-receive',
+        'oldObject' => $currentHookOld,
+        'newObject' => $newHookObject,
+    ],
+    'compatibilityResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-release accepted by proc-receive\n")
+        . $packet("option refname refs/heads/stale-wp-release\n")
+        . $packet("option refname refs/heads/deploy/wp-release\n")
+        . $packet("option unknown-future-extension ignored\n")
+        . $packet("option old-oid {$staleHookOld}\n")
+        . $packet("option old-oid {$currentHookOld}\n")
+        . $packet("option new-oid {$newHookObject}\n")
+        . $packet("option forced-update true\n")
+        . $packet("ng refs/heads/protected\n")
         . $flush,
     'oversizedReportStatus' => 'ffff' . str_repeat('x', 0xffff - 4),
     'fatalSidebandResponse' => $packet("\x03pre-receive hook declined deployment\n") . $flush,

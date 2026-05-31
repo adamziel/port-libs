@@ -1380,7 +1380,14 @@ final class SQLiteSelectQuery
                 }
             }
         } else {
-            $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn, $jsonAggregates, $filteredAggregates);
+            $summaries = SQLiteGroupedAggregate::summarize(
+                $rows,
+                $groupColumn,
+                $valueColumn,
+                $jsonAggregates,
+                $filteredAggregates,
+                self::groupByCollations($rows, $groupBy),
+            );
         }
 
         if (array_key_exists('having', $groupBy)) {
@@ -1414,6 +1421,35 @@ final class SQLiteSelectQuery
         }
 
         return $summaries;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $groupBy
+     * @return array<string,string>
+     */
+    private static function groupByCollations(array $rows, array $groupBy): array
+    {
+        $expressions = $groupBy['collationExpressions'] ?? [];
+        if (!is_array($expressions) || $expressions === []) {
+            return [];
+        }
+
+        $collations = [];
+        foreach ($expressions as $column => $expression) {
+            if (!is_string($column) || $column === '' || !is_array($expression)) {
+                continue;
+            }
+            foreach ($rows as $row) {
+                $collation = SQLiteSelectExpression::collation($row, $expression);
+                if ($collation !== null) {
+                    $collations[$column] = $collation;
+                    break;
+                }
+            }
+        }
+
+        return $collations;
     }
 
     /**

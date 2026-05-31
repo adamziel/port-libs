@@ -1400,7 +1400,12 @@ final class SQLiteCoreScalarFunction
     {
         $offset = $rules[0]['offsetMinutes'];
         foreach ($rules as $rule) {
+            $previousOffset = $offset;
             $transitionLocal = self::modifyBySeconds($rule['utcStart'], (float) $rule['offsetMinutes'] * 60.0);
+            $previousTransitionLocal = self::modifyBySeconds($rule['utcStart'], (float) $previousOffset * 60.0);
+            if ($transitionLocal > $previousTransitionLocal && $local >= $previousTransitionLocal && $local < $transitionLocal) {
+                return $rule['offsetMinutes'];
+            }
             if ($local < $transitionLocal) {
                 break;
             }

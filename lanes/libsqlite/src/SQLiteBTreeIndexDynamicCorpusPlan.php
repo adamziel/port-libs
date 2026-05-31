@@ -11356,6 +11356,186 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function where2IndexSelectionAndInCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where2 index selection dynamic corpus requires at least one case');
+        }
+
+        $rows = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $x = (int) floor(log($i) / log(2));
+            $y = ($i + 1) * ($i + 1);
+            $rows[$i] = [
+                'rowid' => $i,
+                'w' => $i,
+                'x' => $x,
+                'y' => $y,
+                'z' => $x + $y,
+            ];
+        }
+
+        $fullRows = static function (array $rowids) use ($rows): array {
+            $out = [];
+            foreach ($rowids as $rowid) {
+                $row = $rows[$rowid];
+                $out[] = [$row['w'], $row['x'], $row['y'], $row['z']];
+            }
+
+            return $out;
+        };
+        $wRows = static function (array $rowids): array {
+            $out = [];
+            foreach ($rowids as $rowid) {
+                $out[] = [$rowid];
+            }
+
+            return $out;
+        };
+        $flatten = static function (array $resultRows): array {
+            $flat = [];
+            foreach ($resultRows as $row) {
+                foreach ($row as $value) {
+                    $flat[] = $value;
+                }
+            }
+
+            return $flat;
+        };
+        $targetForBatch = static fn (int $batch): int => (($batch - 1) * 7 + 84) % 100 + 1;
+        $make = static function (
+            string $section,
+            string $scenario,
+            string $statement,
+            string $tableName,
+            array $projection,
+            array $resultRows,
+            array $rowids,
+            ?string $indexName,
+            array $chosenIndexes,
+            bool $requiresSort,
+            ?string $orderBy,
+            array $whereTerms,
+            int $inLayers,
+            bool $usesInOperator,
+            bool $orToIn,
+            bool $duplicateRhsValues,
+            bool $deduplicatedOutput,
+            bool $unaryPlusDisabledIndex,
+            bool $affinitySensitive,
+            ?string $opcodeExpectation,
+            string $detail,
+        ) use ($flatten): array {
+            return [
+                'source' => 'where2.test sections where2-1.1 through where2-11.4',
+                'case' => 0,
+                'batch' => 0,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'table_name' => $tableName,
+                'projection' => $projection,
+                'result_rows' => $resultRows,
+                'result_flat' => $flatten($resultRows),
+                'result_count' => count($resultRows),
+                'rowids' => $rowids,
+                'index_name' => $indexName,
+                'chosen_indexes' => $chosenIndexes,
+                'uses_rowid' => $indexName === 'rowid',
+                'uses_unique_index' => $indexName === 'i1w' || str_starts_with((string) $indexName, 'sqlite_autoindex_'),
+                'uses_composite_index' => in_array($indexName, ['i1xy', 'i1zyx', 'tx_xyz', 'i11aba', 'i11cccccccc'], true),
+                'requires_sort' => $requiresSort,
+                'sort_marker' => $requiresSort ? 'sort' : 'nosort',
+                'order_by' => $orderBy,
+                'where_terms' => $whereTerms,
+                'in_layers' => $inLayers,
+                'uses_in_operator' => $usesInOperator,
+                'or_to_in' => $orToIn,
+                'duplicate_rhs_values' => $duplicateRhsValues,
+                'deduplicated_output' => $deduplicatedOutput,
+                'unary_plus_disabled_index' => $unaryPlusDisabledIndex,
+                'affinity_sensitive' => $affinitySensitive,
+                'opcode_expectation' => $opcodeExpectation,
+                'integrity' => 'ok',
+                'detail' => $detail,
+            ];
+        };
+
+        $templates = [
+            static function (int $batch) use ($rows, $targetForBatch, $fullRows, $make): array {
+                $row = $rows[$targetForBatch($batch)];
+
+                return $make('where2-1.1', 'unique w equality wins over the non-unique x/y index', 'SELECT * FROM t1 WHERE w=' . $row['w'] . ' AND x=' . $row['x'] . ' AND y=' . $row['y'], 't1', ['w', 'x', 'y', 'z'], $fullRows([$row['w']]), [$row['rowid']], 'i1w', ['i1w'], false, null, ['w=' . $row['w'], 'x=' . $row['x'], 'y=' . $row['y']], 0, false, false, false, false, false, false, null, 'upstream prefers UNIQUE i1w over another usable index');
+            },
+            static function (int $batch) use ($rows, $targetForBatch, $fullRows, $make): array {
+                $row = $rows[$targetForBatch($batch)];
+
+                return $make('where2-1.3', 'rowid equality wins over every named index', 'SELECT * FROM t1 WHERE w=' . $row['w'] . ' AND x=' . $row['x'] . ' AND y=' . $row['y'] . ' AND rowid=' . $row['rowid'], 't1', ['w', 'x', 'y', 'z'], $fullRows([$row['w']]), [$row['rowid']], 'rowid', ['rowid'], false, null, ['w=' . $row['w'], 'x=' . $row['x'], 'y=' . $row['y'], 'rowid=' . $row['rowid']], 0, false, false, false, false, false, false, null, 'rowid equality is represented by the upstream queryplan star entry');
+            },
+            static function (int $batch) use ($rows, $targetForBatch, $fullRows, $make): array {
+                $row = $rows[$targetForBatch($batch)];
+
+                return $make('where2-2.1', 'unique equality elides ORDER BY random sort', 'SELECT * FROM t1 WHERE w=' . $row['w'] . ' ORDER BY random()', 't1', ['w', 'x', 'y', 'z'], $fullRows([$row['w']]), [$row['rowid']], 'i1w', ['i1w'], false, 'random()', ['w=' . $row['w']], 0, false, false, false, false, false, false, null, 'single-row UNIQUE lookup lets SQLite ignore a random() sort');
+            },
+            static function (int $batch) use ($rows, $targetForBatch, $fullRows, $make): array {
+                $row = $rows[$targetForBatch($batch)];
+
+                return $make('where2-2.2', 'non-unique x/y equality keeps ORDER BY random sort', 'SELECT * FROM t1 WHERE x=' . $row['x'] . ' AND y=' . $row['y'] . ' ORDER BY random()', 't1', ['w', 'x', 'y', 'z'], $fullRows([$row['w']]), [$row['rowid']], 'i1xy', ['i1xy'], true, 'random()', ['x=' . $row['x'], 'y=' . $row['y']], 0, false, false, false, false, false, false, 'SorterOpen', 'upstream keeps the sorter because i1xy is not declared UNIQUE');
+            },
+            static function (int $batch) use ($rows, $targetForBatch, $fullRows, $make): array {
+                $row = $rows[$targetForBatch($batch)];
+
+                return $make('where2-2.3', 'rowid equality elides ORDER BY random sort', 'SELECT * FROM t1 WHERE rowid=' . $row['rowid'] . ' AND x=' . $row['x'] . ' AND y=' . $row['y'] . ' ORDER BY random()', 't1', ['w', 'x', 'y', 'z'], $fullRows([$row['w']]), [$row['rowid']], 'rowid', ['rowid'], false, 'random()', ['rowid=' . $row['rowid'], 'x=' . $row['x'], 'y=' . $row['y']], 0, false, false, false, false, false, false, null, 'rowid lookup is single-row and suppresses the random() sorter');
+            },
+            static fn (int $batch): array => $make('where2-2.5/2.5b', 'ORDER BY random remains visible in EXPLAIN bytecode', 'EXPLAIN SELECT * FROM x1, x2 WHERE x=1 ORDER BY random()', 'x1,x2', ['x1.a', 'x1.b', 'x2.x'], [], [], 'rowid', ['x2 rowid'], true, 'random()', ['x=1'], 0, false, false, false, false, false, false, 'random and SorterOpen', 'upstream guards that ORDER BY random is not constant-folded away'),
+            static fn (int $batch): array => $make('where2-2.6/2.6b', 'constant abs ORDER BY is optimized out', 'EXPLAIN SELECT * FROM x1, x2 WHERE x=1 ORDER BY abs(5)', 'x1,x2', ['x1.a', 'x1.b', 'x2.x'], [], [], 'rowid', ['x2 rowid'], false, 'abs(5)', ['x=1'], 0, false, false, false, false, false, false, 'no abs and no SorterOpen', 'constant ORDER BY expression does not require a runtime sorter'),
+            static fn (int $batch): array => $make('where2-3.1', 'forward rowid table scan honors LIMIT', 'SELECT * FROM t1 ORDER BY rowid LIMIT 2', 't1', ['w', 'x', 'y', 'z'], $fullRows([1, 2]), [1, 2], 'rowid', ['rowid'], false, 'rowid ASC', [], 0, false, false, false, false, false, false, null, 'rowid table scan returns the first two rows without temp sorting'),
+            static fn (int $batch): array => $make('where2-3.2', 'reverse rowid table scan honors LIMIT', 'SELECT * FROM t1 ORDER BY rowid DESC LIMIT 2', 't1', ['w', 'x', 'y', 'z'], $fullRows([100, 99]), [100, 99], 'rowid', ['rowid'], false, 'rowid DESC', [], 0, false, false, false, false, false, false, null, 'rowid table scan returns the last two rows backward without temp sorting'),
+            static fn (int $batch): array => $make('where2-4.1', 'two IN layers probe z/y/x index and sort by w', 'SELECT * FROM t1 WHERE z IN (10207,10006) AND y IN (10000,10201) AND x>0 AND x<10 ORDER BY w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99, 100]), [99, 100], 'i1zyx', ['i1zyx'], true, 'w ASC', ['z IN (10207,10006)', 'y IN (10000,10201)', 'x>0', 'x<10'], 2, true, false, false, false, false, false, null, 'IN operator constraints feed multiple columns of i1zyx'),
+            static fn (int $batch): array => $make('where2-4.2', 'z IN with y equality probes i1zyx', 'SELECT * FROM t1 WHERE z IN (10207,10006) AND y=10000 AND x>0 AND x<10 ORDER BY w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99]), [99], 'i1zyx', ['i1zyx'], true, 'w ASC', ['z IN (10207,10006)', 'y=10000', 'x>0', 'x<10'], 1, true, false, false, false, false, false, null, 'one IN layer and one equality still use the z/y/x index'),
+            static fn (int $batch): array => $make('where2-4.3', 'z equality with y IN probes i1zyx', 'SELECT * FROM t1 WHERE z=10006 AND y IN (10000,10201) AND x>0 AND x<10 ORDER BY w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99]), [99], 'i1zyx', ['i1zyx'], true, 'w ASC', ['z=10006', 'y IN (10000,10201)', 'x>0', 'x<10'], 1, true, false, false, false, false, false, null, 'equality on the left index column combines with an IN layer on y'),
+            static fn (int $batch): array => $make('where2-4.4', 'subquery IN on z feeds i1zyx', 'SELECT * FROM t1 WHERE z IN (SELECT 10207 UNION SELECT 10006) AND y IN (10000,10201) AND x>0 AND x<10 ORDER BY w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99, 100]), [99, 100], 'i1zyx', ['i1zyx'], true, 'w ASC', ['z IN subquery', 'y IN (10000,10201)', 'x>0', 'x<10'], 2, true, false, false, false, false, false, null, 'compound subquery RHS is materialized as an IN set for i1zyx'),
+            static fn (int $batch): array => $make('where2-4.5', 'subquery IN on z and y feeds i1zyx', 'SELECT * FROM t1 WHERE z IN (SELECT 10207 UNION SELECT 10006) AND y IN (SELECT 10000 UNION SELECT 10201) AND x>0 AND x<10 ORDER BY w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99, 100]), [99, 100], 'i1zyx', ['i1zyx'], true, 'w ASC', ['z IN subquery', 'y IN subquery', 'x>0', 'x<10'], 2, true, false, false, false, false, false, null, 'two subquery-backed IN layers still constrain i1zyx'),
+            static fn (int $batch): array => $make('where2-4.6a', 'x/y IN layers satisfy ORDER BY x through i1xy', 'SELECT * FROM t1 WHERE x IN (1,2,3,4,5,6,7,8) AND y IN (10000,10001,10002,10003,10004,10005) ORDER BY x', 't1', ['w', 'x', 'y', 'z'], $fullRows([99]), [99], 'i1xy', ['i1xy'], false, 'x ASC', ['x IN (1..8)', 'y IN (10000..10005)'], 2, true, false, false, false, false, false, null, 'i1xy order satisfies ORDER BY x with multi-column IN constraints'),
+            static fn (int $batch): array => $make('where2-4.6b', 'x/y IN layers satisfy ORDER BY x DESC through i1xy', 'SELECT * FROM t1 WHERE x IN (1,2,3,4,5,6,7,8) AND y IN (10000,10001,10002,10003,10004,10005) ORDER BY x DESC', 't1', ['w', 'x', 'y', 'z'], $fullRows([99]), [99], 'i1xy', ['i1xy'], false, 'x DESC', ['x IN (1..8)', 'y IN (10000..10005)'], 2, true, false, false, false, false, false, null, 'single qualifying x/y row makes the descending order index-satisfied'),
+            static fn (int $batch): array => $make('where2-4.6c', 'x/y IN layers satisfy ORDER BY x,y through i1xy', 'SELECT * FROM t1 WHERE x IN (1,2,3,4,5,6,7,8) AND y IN (10000,10001,10002,10003,10004,10005) ORDER BY x, y', 't1', ['w', 'x', 'y', 'z'], $fullRows([99]), [99], 'i1xy', ['i1xy'], false, 'x ASC, y ASC', ['x IN (1..8)', 'y IN (10000..10005)'], 2, true, false, false, false, false, false, null, 'i1xy key order satisfies the full ORDER BY prefix'),
+            static fn (int $batch): array => $make('where2-4.6d', 'x/y IN layers cannot satisfy ORDER BY x,y DESC', 'SELECT * FROM t1 WHERE x IN (1,2,3,4,5,6,7,8) AND y IN (10000,10001,10002,10003,10004,10005) ORDER BY x, y DESC', 't1', ['w', 'x', 'y', 'z'], $fullRows([99]), [99], 'i1xy', ['i1xy'], true, 'x ASC, y DESC', ['x IN (1..8)', 'y IN (10000..10005)'], 2, true, false, false, false, false, false, 'SorterOpen', 'mixed direction on y requires a sorter despite the i1xy probe'),
+            static fn (int $batch): array => $make('where2-4.6x', 'duplicate IN RHS values do not duplicate ascending output rows', 'SELECT * FROM t1 WHERE z IN (10207,10006,10006,10207) ORDER BY w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99, 100]), [99, 100], 'i1zyx', ['i1zyx'], true, 'w ASC', ['z IN (10207,10006,10006,10207)'], 1, true, false, true, true, false, false, null, 'duplicate RHS z values are de-duplicated before row output'),
+            static fn (int $batch): array => $make('where2-4.6y', 'duplicate IN RHS values do not duplicate descending output rows', 'SELECT * FROM t1 WHERE z IN (10207,10006,10006,10207) ORDER BY w DESC', 't1', ['w', 'x', 'y', 'z'], $fullRows([100, 99]), [100, 99], 'i1zyx', ['i1zyx'], true, 'w DESC', ['z IN (10207,10006,10006,10207)'], 1, true, false, true, true, false, false, null, 'duplicate RHS z values are de-duplicated before reverse row output'),
+            static fn (int $batch): array => $make('where2-5.1', 'unique equality satisfies ORDER BY same unique column', 'SELECT * FROM t1 WHERE w=99 ORDER BY w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99]), [99], 'i1w', ['i1w'], false, 'w ASC', ['w=99'], 0, false, false, false, false, false, false, null, 'UNIQUE equality on w makes ORDER BY w a no-sort lookup'),
+            static fn (int $batch): array => $make('where2-5.2a', 'single-value IN on unique column satisfies ORDER BY w', 'SELECT * FROM t1 WHERE w IN (99) ORDER BY w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99]), [99], 'i1w', ['i1w'], false, 'w ASC', ['w IN (99)'], 1, true, false, false, false, false, false, null, 'single-value IN on a UNIQUE column behaves as an ordered lookup'),
+            static fn (int $batch): array => $make('where2-6.1.1', 'OR equalities on w are rewritten to an IN lookup', 'SELECT * FROM t1 WHERE w=99 OR w=100 ORDER BY +w', 't1', ['w', 'x', 'y', 'z'], $fullRows([99, 100]), [99, 100], 'i1w', ['i1w'], true, '+w ASC', ['w=99', 'w=100'], 1, true, true, false, false, false, false, null, 'OR-to-IN transformation uses i1w and sorts on the unary-plus order expression'),
+            static fn (int $batch): array => $make('where2-6.2', 'three OR equalities on w are rewritten to an IN lookup', 'SELECT * FROM t1 WHERE w=99 OR w=100 OR 6=w ORDER BY +w', 't1', ['w', 'x', 'y', 'z'], $fullRows([6, 99, 100]), [6, 99, 100], 'i1w', ['i1w'], true, '+w ASC', ['w=99', 'w=100', '6=w'], 1, true, true, false, false, false, false, null, 'OR-to-IN transformation recognizes commuted equality terms'),
+            static fn (int $batch): array => $make('where2-6.3', 'unary plus in one OR arm disables the w index transformation', 'SELECT * FROM t1 WHERE w=99 OR w=100 OR 6=+w ORDER BY +w', 't1', ['w', 'x', 'y', 'z'], $fullRows([6, 99, 100]), [6, 99, 100], 'rowid', ['rowid'], true, '+w ASC', ['w=99', 'w=100', '6=+w'], 0, false, false, false, false, true, false, null, 'unary plus strips affinity and prevents the OR-to-IN index proof'),
+            static fn (int $batch): array => $make('where2-6.7', 'TEXT unique index comparison preserves numeric affinity equality', 'SELECT b,a FROM t2249b CROSS JOIN t2249a WHERE a=b', 't2249b,t2249a', ['b', 'a'], [[123, '0123']], [], 'sqlite_autoindex_t2249a_1', ['t2249b rowid', 'sqlite_autoindex_t2249a_1'], false, null, ['a=b'], 0, false, false, false, false, false, true, null, 'TEXT and INTEGER affinity conversion makes 0123 compare equal to 123'),
+            static fn (int $batch): array => $make('where2-6.9', 'unary plus disables affinity conversion and yields no rows', 'SELECT b,a FROM t2249b CROSS JOIN t2249a WHERE a=+b', 't2249b,t2249a', ['b', 'a'], [], [], 'sqlite_autoindex_t2249a_1', ['t2249b rowid', 'sqlite_autoindex_t2249a_1'], false, null, ['a=+b'], 0, false, false, false, false, true, true, null, 'unary plus removes numeric affinity from the RHS and suppresses the match'),
+            static fn (int $batch): array => $make('where2-6.11', 'affinity-sensitive OR term disables OR optimization but keeps row', "SELECT b,a FROM t2249b CROSS JOIN t2249a WHERE a=b OR a='hello'", 't2249b,t2249a', ['b', 'a'], [[123, '0123']], [], 'sqlite_autoindex_t2249a_1', ['t2249b rowid', 'sqlite_autoindex_t2249a_1'], false, null, ['a=b', "a='hello'"], 0, false, false, false, false, false, true, null, 'the a=b affinity conflict blocks OR optimization without changing result rows'),
+            static fn (int $batch): array => $make('where2-7.1', 'join with one non-unique table requires sorter', 'SELECT y FROM t8, t9 WHERE a=1 ORDER BY a, y', 't8,t9', ['y'], [[3], [4]], [], 'sqlite_autoindex_t8_1', ['sqlite_autoindex_t8_1', 't9 rowid'], true, 'a ASC, y ASC', ['a=1'], 0, false, false, false, false, false, false, 'SorterOpen', 'all joined tables must be unique before ORDER BY can be elided'),
+            static fn (int $batch): array => $make('where2-7.2', 'single-table unique result elides sorter for other columns', 'SELECT * FROM t8 WHERE a=1 ORDER BY b, c', 't8', ['a', 'b', 'c'], [[1, 2, 3]], [], 'sqlite_autoindex_t8_1', ['sqlite_autoindex_t8_1'], false, 'b ASC, c ASC', ['a=1'], 0, false, false, false, false, false, false, null, 'unique a lookup proves one output row and suppresses the sorter'),
+            static fn (int $batch): array => $make('where2-8.5', 'three subquery IN constraints return the overlapping 12-14 range', 'SELECT w FROM tx WHERE x IN (SELECT x FROM t1 WHERE w BETWEEN 10 AND 20) AND y IN (SELECT y FROM t1 WHERE w BETWEEN 10 AND 20) AND z IN (SELECT z FROM t1 WHERE w BETWEEN 12 AND 14)', 'tx', ['w'], $wRows([12, 13, 14]), [12, 13, 14], 'tx_xyz', ['tx_xyz'], false, null, ['x IN w 10..20', 'y IN w 10..20', 'z IN w 12..14'], 3, true, false, false, false, false, false, null, 'multi-column index tx_xyz consumes all three IN constraints'),
+            static fn (int $batch): array => $make('where2-8.7', 'x subquery IN narrows the tx result to rows 10-15', 'SELECT w FROM tx WHERE x IN (SELECT x FROM t1 WHERE w BETWEEN 12 AND 14) AND y IN (SELECT y FROM t1 WHERE w BETWEEN 10 AND 20) AND z IN (SELECT z FROM t1 WHERE w BETWEEN 10 AND 20)', 'tx', ['w'], $wRows([10, 11, 12, 13, 14, 15]), [10, 11, 12, 13, 14, 15], 'tx_xyz', ['tx_xyz'], false, null, ['x IN w 12..14', 'y IN w 10..20', 'z IN w 10..20'], 3, true, false, false, false, false, false, null, 'upstream tx_xyz scan preserves all rowids whose x bucket overlaps 12-14'),
+            static fn (int $batch): array => $make('where2-8.8', 'three broad subquery IN constraints return rows 10-20', 'SELECT w FROM tx WHERE x IN (SELECT x FROM t1 WHERE w BETWEEN 10 AND 20) AND y IN (SELECT y FROM t1 WHERE w BETWEEN 10 AND 20) AND z IN (SELECT z FROM t1 WHERE w BETWEEN 10 AND 20)', 'tx', ['w'], $wRows([10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]), [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], 'tx_xyz', ['tx_xyz'], false, null, ['x IN w 10..20', 'y IN w 10..20', 'z IN w 10..20'], 3, true, false, false, false, false, false, null, 'all three tx_xyz IN layers admit the full 10-20 interval'),
+            static fn (int $batch): array => $make('where2-11.1', 'redundant-column index supports a and b equality ordering', 'SELECT c FROM t11 WHERE a=1 AND b=2 ORDER BY c', 't11', ['c'], [[3], [9]], [], 'i11aba', ['i11aba'], false, 'c ASC', ['a=1', 'b=2'], 0, false, false, false, false, false, false, null, 'index i11aba has column a twice but still satisfies the equality prefix'),
+            static fn (int $batch): array => $make('where2-11.4', 'OR over repeated-column indexes preserves ordered d values', 'SELECT d FROM t11 WHERE c=7 OR (a=1 AND b=2) ORDER BY d', 't11', ['d'], [[4], [8], [10]], [], 'i11aba', ['i11cccccccc', 'i11aba'], true, 'd ASC', ['c=7', 'a=1 AND b=2'], 0, false, false, false, false, false, false, 'SorterOpen', 'OR terms use redundant-column indexes and sort the final d projection'),
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $template = $templates[($case - 1) % count($templates)]($batch);
+            $template['case'] = $case;
+            $template['batch'] = $batch;
+            $template['scenario'] .= ' dynamic batch ' . $batch;
+            $template['detail'] .= '; where2 dynamic replay ' . $batch;
+            $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,category:string,input_order:list<string>,chosen_order:list<string>,cross_join:bool,automatic_index:bool,available_indexes:list<string>,chosen_indexes:list<string>,where_terms:list<string>,result_rows:list<array<int,mixed>>,result_flat:list<mixed>,expected_count:int|null,vmstep_relation:string|null,vmstep_threshold:int|null,guard_tested_before_seek:bool,forbidden_opcodes:list<string>,contains_forbidden_opcodes:bool,detail:string,integrity:string}>
      */
     public static function whereFJoinOrderAndOrFactoringCases(int $cases = 1000): array

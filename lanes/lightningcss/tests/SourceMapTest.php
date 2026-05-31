@@ -338,4 +338,57 @@ return [
             $data['sourcesContent']
         );
     },
+    'source map extends generated mappings through upstream input maps' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $compiled = $map->addSource('cache/compiled.css');
+        $map->setSourceContent($compiled, ".card{color:red}.icon{color:blue}\n.keep{}");
+        $map->addMapping(0, 0, $compiled, 0, 0, 'compiledCard');
+        $map->addMapping(0, 17, $compiled, 0, 10, 'compiledIcon');
+        $map->addMapping(0, 34, $compiled, 0, 80, 'compiledAfterLast');
+        $map->addMapping(1, 4, $compiled, 1, 1, 'compiledGeneratedOnly');
+        $map->addMapping(2, 3, $compiled, 2, 2, 'compiledMissingLine');
+        $map->addGeneratedMapping(3, 2);
+
+        $inputMap = new SourceMap();
+        $card = $inputMap->addSource('src/card.scss');
+        $tokens = $inputMap->addSource('src/_tokens.scss');
+        $inputMap->setSourceContent($card, ".card {\n  color: \$brand;\n}");
+        $inputMap->setSourceContent($tokens, "\$brand: red;\n\$icon: blue;\n");
+        $inputMap->addMapping(0, 0, $card, 10, 2, 'card');
+        $inputMap->addMapping(0, 10, $tokens, 3, 7, 'token');
+        $inputMap->addGeneratedMapping(1, 0);
+
+        $map->extendWithSourceMap($inputMap);
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same([0, 0, 0, 1, 2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([0, 17, 34, 4, 3, 2], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 2, 1, null, null, null], array_column($decoded, 'sourceIndex'));
+        $t->same([10, 3, 10, null, null, null], array_column($decoded, 'originalLine'));
+        $t->same([2, 7, 2, null, null, null], array_column($decoded, 'originalColumn'));
+        $t->same([5, 6, 5, null, null, null], array_column($decoded, 'nameIndex'));
+        $t->same(['cache/compiled.css', 'src/card.scss', 'src/_tokens.scss'], $data['sources']);
+        $t->same(
+            [
+                ".card{color:red}.icon{color:blue}\n.keep{}",
+                ".card {\n  color: \$brand;\n}",
+                "\$brand: red;\n\$icon: blue;\n",
+            ],
+            $data['sourcesContent']
+        );
+        $t->same(
+            [
+                'compiledCard',
+                'compiledIcon',
+                'compiledAfterLast',
+                'compiledGeneratedOnly',
+                'compiledMissingLine',
+                'card',
+                'token',
+            ],
+            $data['names']
+        );
+    },
 ];
