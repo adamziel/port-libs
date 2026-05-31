@@ -43,14 +43,31 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 363G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.6G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 361G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.6G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a dedicated LightningCSS surge target of 18 visible workers plus active
+  a dedicated LightningCSS surge target of 22 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (LightningCSS integration 13:20 UTC):
+  source commit `428f6525152b7ba71871979c3986a65ccabd1333`
+  (`ports: add lightningcss sourcemap cssom module parity`) landed three
+  verified LightningCSS handoffs after excluding stale shared status/manifest
+  metadata. LightningCSS full lane evidence moves from `1339` to `1382 pass /
+  0 fail`, with conservative mapped coverage moving from `1042 / 3532` to
+  `1046 / 3532`: +4 source-map raw VLQ/import-offset checks. CSSOM transition
+  shorthand/longhand read-write-removal behavior and CSS Modules nested
+  `composes` rejection are verified but counted inside existing denominator
+  clusters. Verification passed PHP lint on changed/new LightningCSS PHP files,
+  diff checks, focused LightningCSS gate `3 files / 219 assertions / 0
+  failures`, full LightningCSS lane `13 files / 1382 assertions / 0 failures`,
+  and three touched examples. The LightningCSS visible worker floor was raised
+  from 18 to 22 and five current-base workers were started on `gpt-5.5`, xhigh
+  reasoning, priority service tier. Root aggregate and full upstream
+  LightningCSS Rust/Node runners were not run for this isolated batch.
 
 - 2026-05-31 supervisor continuation (LightningCSS integration 13:10 UTC):
   source commit `b7f6d299b798d8083f49bb0e4fe9af85de11624b`
