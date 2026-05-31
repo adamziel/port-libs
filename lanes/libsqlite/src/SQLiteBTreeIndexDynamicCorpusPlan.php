@@ -6974,6 +6974,56 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function whereLMNConstantPropagationPlannerCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereL/M/N dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['whereL-110', 'constant propagation pushes t1.a=? into both UNION ALL arms', 'SELECT * FROM t1, v4 WHERE t1.a=?1 AND v4.a=t1.a', ['SEARCH t1 USING INDEX sqlite_autoindex_t1_1 (a=?)', 'SEARCH t2 USING INDEX sqlite_autoindex_t2_1 (a=?)', 'SEARCH t3 USING INDEX sqlite_autoindex_t3_1 (a=?)'], ['compound-union-all', 'constant-propagation', 'primary-key-search'], true, ['t1', 't2', 't3'], null],
+            ['whereL-120', 'literal equality lets t1 drive join order and avoid ORDER BY sort', 't1.a=t2.a AND t2.a=t3.j AND t3.j=5 ORDER BY t1.a', ['SEARCH t1 USING INDEX sqlite_autoindex_t1_1 (a=?)', 'SEARCH t2 USING INDEX sqlite_autoindex_t2_1 (a=?)', 'SCAN t3'], ['constant-propagation', 'sort-omitted', 'join-order'], false, ['t1', 't2', 't3'], null],
+            ['whereL-122', 'nonconstant coalesce/random guard prevents propagation and keeps temp sort', 't1.a=t2.a AND t2.a=t3.j AND t3.j=coalesce(5,random()) ORDER BY t1.a', ['SCAN t3', 'SEARCH t1 USING INDEX sqlite_autoindex_t1_1 (a=?)', 'SEARCH t2 USING INDEX sqlite_autoindex_t2_1 (a=?)', 'USE TEMP B-TREE FOR ORDER BY'], ['nonconstant-expression', 'sort-required', 'join-order'], false, ['t3', 't1', 't2'], null],
+            ['whereL-200/201', 'collation-aware propagation keeps binary x from inheriting nocase y match', "x=y AND y=z AND z='abc'", ['SEARCH c3 USING INDEX c3x when binary equality is explicit', 'do-not-propagate-nocase-through-binary'], ['collation', 'binary-vs-nocase', 'wrong-answer-guard'], false, ['c3'], ['ABC', 'ABC', 'abc']],
+            ['whereL-300/302', 'subquery join keeps integer primary-key equality despite text literal input', "A.id='1' AND A.id=subq.yy AND B.id=subq.zz", ['SEARCH A USING INTEGER PRIMARY KEY', 'SEARCH B USING INTEGER PRIMARY KEY', 'SCAN C'], ['subquery-flattening', 'affinity-preserving-propagation', 'join-result'], false, ['A', 'C', 'B'], [1]],
+            ['whereL-500/530', 'view CAST affinity prevents text zero row from matching integer zero', '0 = t0.c0 AND t0.c0 = v0.c0', ['SCAN t0', 'SCAN v0', 'no rows after affinity check'], ['view-affinity', 'cast', 'wrong-answer-guard'], false, ['t0', 'v0'], []],
+            ['whereL-700/710', 'expression index remains usable after v=1 equality is propagated', 'abs(v)=1 AND v=1', ['SEARCH t1 USING INDEX idx (<expr>=?)'], ['expression-index', 'constant-propagation', 'no-expression-rewrite'], false, ['t1'], [1]],
+            ['whereN-1.1', 'interstage heuristic chooses indexed violation lookup before sorter', 'datasource/rule/violation join with DS.name=$DSNAME ORDER BY V.vid DESC', ['SEARCH DS USING COVERING INDEX ds1 (name=?)', 'SEARCH R USING COVERING INDEX rule2 (dsid=?)', 'SEARCH V USING INDEX v1 (rid=?)', 'USE TEMP B-TREE FOR ORDER BY'], ['interstage-heuristic', 'stat1', 'join-order', 'sort-required'], false, ['datasource', 'rule', 'violation'], null],
+            ['whereM-1.1.*', 'NONE affinity keeps numeric equality distinct from text equality but LIKE sees text form', 'column a comparisons over stored 10.0', ['column a affinity NONE', 'a=10 true', "a='10.0' false", "a LIKE '10.0' true"], ['affinity', 'constant-propagation', 'like-equality'], false, ['t1'], ['eq-and-text' => 0, 'eq-and-like-real' => 1, 'text-and-like-real' => 0]],
+            ['whereM-1.2.*', 'INTEGER affinity coerces text numeric equality but LIKE uses integer text form', 'column b comparisons over stored integer 10', ['column b affinity INTEGER', "b='10.0' true", "b LIKE '10.0' false", "b LIKE '10' true"], ['affinity', 'constant-propagation', 'like-equality'], false, ['t1'], ['eq-and-text' => 1, 'eq-and-like-real' => 0, 'text-and-like-int' => 1]],
+            ['whereM-1.3.*', 'TEXT affinity compares numeric real through text value 10.0', 'column c comparisons over stored text 10.0', ['column c affinity TEXT', 'c=10 false', 'c=10.0 true', "c LIKE '10.0' true"], ['affinity', 'constant-propagation', 'like-equality'], false, ['t1'], ['eq10-and-text' => 0, 'real-and-text' => 1, 'real-and-like-real' => 1]],
+            ['whereM-1.4.*', 'REAL affinity keeps numeric and text numeric comparisons equivalent', 'column d comparisons over stored real 10.0', ['column d affinity REAL', "d='10.0' true", "d LIKE '10.0' true", "d LIKE '10' false"], ['affinity', 'constant-propagation', 'like-equality'], false, ['t1'], ['eq-and-text' => 1, 'eq-and-like-real' => 1, 'text10-and-like-real' => 1]],
+            ['whereM-1.5.*', 'BLOB affinity mirrors raw numeric storage for equality but LIKE sees decimal text', 'column e comparisons over stored blob-like numeric 10.0', ['column e affinity BLOB', "e='10.0' false", "e LIKE '10.0' true", "e LIKE '10' false"], ['affinity', 'constant-propagation', 'like-equality'], false, ['t1'], ['eq-and-text' => 0, 'eq-and-like-real' => 1, 'real-and-like-real' => 1]],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $sql, $planTerms, $tags, $compound, $tables, $expected] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'whereL.test sections 110 through 710, whereM.test sections 1.1 through 1.5, and whereN.test section 1.1',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'sql' => $sql,
+                'plan_terms' => $planTerms,
+                'tags' => $tags,
+                'compound' => $compound,
+                'tables' => $tables,
+                'expected' => $expected,
+                'uses_temp_sort' => in_array('USE TEMP B-TREE FOR ORDER BY', $planTerms, true),
+                'search_count' => count(array_filter($planTerms, static fn (string $term): bool => str_starts_with($term, 'SEARCH '))),
+                'batch' => $batch,
+                'detail' => $section . ' batch ' . $batch . ' ' . implode(' | ', $tags),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<string> $columns
      * @param list<string> $constraints
      */

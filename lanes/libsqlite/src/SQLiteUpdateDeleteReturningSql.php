@@ -722,7 +722,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -949,8 +949,42 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'sign' && count($parts) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT sign() needs one argument');
         }
+        if (($function === 'upper' || $function === 'lower' || $function === 'trim' || $function === 'ltrim' || $function === 'rtrim') && count($parts) !== 1) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
+        }
+        if (($function === 'substr' || $function === 'substring') && count($parts) !== 2 && count($parts) !== 3) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs two or three arguments");
+        }
 
         $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
+        if ($function === 'upper' || $function === 'lower') {
+            if ($values[0] === null) {
+                return null;
+            }
+
+            return $function === 'upper' ? strtoupper((string) $values[0]) : strtolower((string) $values[0]);
+        }
+        if ($function === 'trim' || $function === 'ltrim' || $function === 'rtrim') {
+            if ($values[0] === null) {
+                return null;
+            }
+            $value = (string) $values[0];
+
+            return match ($function) {
+                'ltrim' => ltrim($value),
+                'rtrim' => rtrim($value),
+                default => trim($value),
+            };
+        }
+        if ($function === 'substr' || $function === 'substring') {
+            if ($values[0] === null || $values[1] === null || (array_key_exists(2, $values) && $values[2] === null)) {
+                return null;
+            }
+            $start = self::integerFunctionArgument($values[1], $function, 'start');
+            $length = array_key_exists(2, $values) ? self::integerFunctionArgument($values[2], $function, 'length') : null;
+
+            return self::sqliteSubstring((string) $values[0], $start, $length);
+        }
         if ($function === 'sign') {
             if ($values[0] === null) {
                 return null;
@@ -1009,6 +1043,35 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return null;
+    }
+
+    private static function integerFunctionArgument(int|float|string $value, string $function, string $name): int
+    {
+        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+        if (is_float($value) && floor($value) === $value) {
+            return (int) $value;
+        }
+        if (is_int($value)) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() {$name} must be an integer");
+    }
+
+    private static function sqliteSubstring(string $value, int $start, ?int $length): string
+    {
+        $characters = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false) {
+            $characters = str_split($value);
+        }
+
+        $count = count($characters);
+        $offset = $start > 0 ? $start - 1 : ($start < 0 ? max(0, $count + $start) : 0);
+        $slice = $length === null ? array_slice($characters, $offset) : array_slice($characters, $offset, max(0, $length));
+
+        return implode('', $slice);
     }
 
     private static function compareLimitScalarValues(int|float|string $left, int|float|string $right): int

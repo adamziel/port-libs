@@ -5642,6 +5642,7 @@ final class SQLiteSelectSql
             } else {
                 $expression = self::valueExpression($expressionSql, $tables);
                 if ($rewriteAggregates) {
+                    $expression = self::rewriteSelectAliasColumns($expression, $select);
                     $expression = self::rewriteAggregateExpression($expression, $aggregateValueColumn);
                 }
                 $alias = '__sqlite_order_expr_' . $index;
@@ -5664,6 +5665,85 @@ final class SQLiteSelectSql
         }
 
         return $terms;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @param list<array<string,mixed>> $select
+     * @return array<string,mixed>
+     */
+    private static function rewriteSelectAliasColumns(array $expression, array $select): array
+    {
+        if (($expression['type'] ?? null) === 'column' && isset($expression['name']) && is_string($expression['name']) && !str_contains($expression['name'], '.')) {
+            foreach ($select as $selectTerm) {
+                if (($selectTerm['alias'] ?? null) !== $expression['name']) {
+                    continue;
+                }
+                $sourceExpression = $selectTerm['sourceExpression'] ?? $selectTerm;
+                if (!is_array($sourceExpression)) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY alias expression is malformed');
+                }
+                unset($sourceExpression['alias'], $sourceExpression['hiddenOrderColumn'], $sourceExpression['sourceExpression']);
+
+                return $sourceExpression;
+            }
+
+            return $expression;
+        }
+
+        foreach (['left', 'right', 'operand'] as $side) {
+            if (isset($expression[$side]) && is_array($expression[$side])) {
+                $expression[$side] = self::rewriteSelectAliasColumns($expression[$side], $select);
+            }
+        }
+        foreach (['arguments', 'values'] as $side) {
+            if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {
+                continue;
+            }
+            foreach ($expression[$side] as $index => $child) {
+                if (is_array($child)) {
+                    $expression[$side][$index] = self::rewriteSelectAliasColumns($child, $select);
+                }
+            }
+        }
+        if (isset($expression['predicate']) && is_array($expression['predicate'])) {
+            $expression['predicate'] = self::rewriteSelectAliasPredicate($expression['predicate'], $select);
+        }
+
+        return $expression;
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     * @param list<array<string,mixed>> $select
+     * @return array<string,mixed>
+     */
+    private static function rewriteSelectAliasPredicate(array $predicate, array $select): array
+    {
+        foreach (['left', 'right', 'operand'] as $side) {
+            if (isset($predicate[$side]) && is_array($predicate[$side])) {
+                $predicate[$side] = self::rewriteSelectAliasColumns($predicate[$side], $select);
+            }
+        }
+        if (isset($predicate['term']) && is_array($predicate['term'])) {
+            $predicate['term'] = self::rewriteSelectAliasPredicate($predicate['term'], $select);
+        }
+        if (isset($predicate['terms']) && is_array($predicate['terms']) && array_is_list($predicate['terms'])) {
+            foreach ($predicate['terms'] as $index => $term) {
+                if (is_array($term)) {
+                    $predicate['terms'][$index] = self::rewriteSelectAliasPredicate($term, $select);
+                }
+            }
+        }
+        if (isset($predicate['values']) && is_array($predicate['values']) && array_is_list($predicate['values'])) {
+            foreach ($predicate['values'] as $index => $value) {
+                if (is_array($value)) {
+                    $predicate['values'][$index] = self::rewriteSelectAliasColumns($value, $select);
+                }
+            }
+        }
+
+        return $predicate;
     }
 
     /**

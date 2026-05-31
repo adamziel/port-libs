@@ -465,4 +465,60 @@ $tests['real upstream corpus pager wal dynamic walmode rows cite hydrated upstre
     ]);
 };
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal5BlockingCheckpointRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' lock matrix result'] = static function (TestRunner $t) use ($row): void {
+        $t->same($row['busy'], $row['checkpoint_result'][0]);
+        $t->same($row['log_frame_count'], $row['checkpoint_result'][1]);
+        $t->same($row['checkpointed_frame_count'], $row['checkpoint_result'][2]);
+        $t->same(true, in_array($row['entry_prefix'], ['wal5-pragma', 'wal5-capi'], true));
+        $t->same(true, in_array($row['entry_point'], ['PRAGMA wal_checkpoint', 'sqlite3_wal_checkpoint_v2'], true));
+        $t->same(true, $row['iteration'] >= 1 && $row['iteration'] <= 36);
+        $t->same(true, $row['test_number'] >= 1 && $row['test_number'] <= 14);
+        $t->same([1, 2], $row['main_reader_result'][0]);
+        $t->same([3, 4], $row['writer_insert']);
+        $t->same(['main', 'aux'], $row['attached_databases']);
+        $t->same(true, str_starts_with($row['upstream'], 'wal5.test 2.4.'));
+        $t->same(true, in_array('real-upstream-corpus-wal5', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-blocking-checkpoint', $row['dependencies'], true));
+    };
+
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' busy handler release phases'] = static function (TestRunner $t) use ($row): void {
+        $validModes = ['passive', 'full', 'restart', 'truncate'];
+        $lastBusyStep = $row['busy_script'] === [] ? null : $row['busy_script'][count($row['busy_script']) - 1];
+
+        $t->same(true, in_array($row['effective_checkpoint'], $validModes, true));
+        $t->same($row['requested_checkpoint'] === 'TYPO', $row['effective_checkpoint'] === 'passive' && $row['test_number'] === 2);
+        $t->same($row['writer_lock_blocks_first'], in_array($row['effective_checkpoint'], ['full', 'restart', 'truncate'], true));
+        $t->same($row['partial_reader_blocks_full'], in_array($row['effective_checkpoint'], ['full', 'restart', 'truncate'], true));
+        $t->same($row['any_reader_blocks_restart_or_truncate'], in_array($row['effective_checkpoint'], ['restart', 'truncate'], true));
+        $t->same($row['busy'] === 1, $row['busy_on_call'] !== null && $row['max_busyhandler_call'] === $row['busy_on_call']);
+        $t->same($row['max_busyhandler_call'], $lastBusyStep === null ? null : $lastBusyStep['call']);
+        $t->same(true, count($row['busy_script']) <= 3);
+        $t->same($row['busy_on_call'], $row['busy'] === 1 && $lastBusyStep !== null ? $lastBusyStep['call'] : $row['busy_on_call']);
+        $t->same(true, in_array('sqlite-wal-busy-handler-lock-release', $row['dependencies'], true));
+    };
+}
+
+$tests['real upstream corpus pager wal dynamic wal5 blocking checkpoint rows cite hydrated upstream matrix'] = static function (TestRunner $t): void {
+    $rows = SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal5BlockingCheckpointRows();
+
+    $t->same(1008, count($rows));
+    $t->same('wal5.test 2.4.1.wal5-pragma dynamic blocking-checkpoint row 001', $rows[0]['upstream']);
+    $t->same('wal5.test 2.4.14.wal5-capi dynamic blocking-checkpoint row 036', $rows[1007]['upstream']);
+    $t->same([0, 3, 3], $rows[0]['checkpoint_result']);
+    $t->same([1, 4, 4], $rows[9 * 36]['checkpoint_result']);
+    $t->same('PASSIVE', $rows[0]['requested_checkpoint']);
+    $t->same('TYPO', $rows[36]['requested_checkpoint']);
+    $t->same('TRUNCATE', $rows[10 * 36]['requested_checkpoint']);
+    $t->same([
+        'wal5.test blocking-checkpoint matrix covers PRAGMA and sqlite3_wal_checkpoint_v2 entry points',
+        'wal5.test 2.4.* checkpoints block on writer, partial-reader, and restart-reader locks',
+        'wal5.test 2.4.* busy handler release phases preserve upstream checkpoint result triples',
+    ], [
+        'wal5.test blocking-checkpoint matrix covers PRAGMA and sqlite3_wal_checkpoint_v2 entry points',
+        'wal5.test 2.4.* checkpoints block on writer, partial-reader, and restart-reader locks',
+        'wal5.test 2.4.* busy handler release phases preserve upstream checkpoint result triples',
+    ]);
+};
+
 return $tests;

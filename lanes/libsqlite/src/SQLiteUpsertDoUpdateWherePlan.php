@@ -7,6 +7,79 @@ namespace PortLibs\LibSqlite;
 final class SQLiteUpsertDoUpdateWherePlan
 {
     /**
+     * @param list<string|array{expr?:string,column?:string,collation?:string|null}> $targetTerms
+     * @param list<array{name?:string,terms:list<string|array{expr?:string,column?:string,collation?:string|null}>,where?:string|null}> $uniqueIndexes
+     * @return array{matched:bool,index:string|null,reason:string,dependencies:list<string>}
+     */
+    public static function admitConflictTarget(array $targetTerms, array $uniqueIndexes, ?string $targetWhere = null): array
+    {
+        if ($targetTerms === [] || !array_is_list($targetTerms)) {
+            throw new \InvalidArgumentException('SQLite UPSERT conflict target must be a non-empty list');
+        }
+        if ($uniqueIndexes === [] || !array_is_list($uniqueIndexes)) {
+            throw new \InvalidArgumentException('SQLite UPSERT unique indexes must be a non-empty list');
+        }
+
+        $target = self::normalizeConflictTargetTerms($targetTerms);
+        $targetWhere = self::normalizeConflictTargetWhere($targetWhere);
+
+        foreach ($uniqueIndexes as $index => $uniqueIndex) {
+            if (!is_array($uniqueIndex) || !array_key_exists('terms', $uniqueIndex) || !is_array($uniqueIndex['terms'])) {
+                throw new \InvalidArgumentException('SQLite UPSERT unique index must define conflict target terms');
+            }
+
+            $terms = self::normalizeConflictTargetTerms($uniqueIndex['terms']);
+            if (count($terms) !== count($target)) {
+                continue;
+            }
+
+            $indexWhere = self::normalizeConflictTargetWhere($uniqueIndex['where'] ?? null);
+            if ($indexWhere !== $targetWhere) {
+                continue;
+            }
+
+            $remaining = $terms;
+            foreach ($target as $targetTerm) {
+                $matchedOffset = null;
+                foreach ($remaining as $offset => $indexTerm) {
+                    if ($indexTerm === $targetTerm) {
+                        $matchedOffset = $offset;
+                        break;
+                    }
+                }
+                if ($matchedOffset === null) {
+                    continue 2;
+                }
+                unset($remaining[$matchedOffset]);
+            }
+
+            return [
+                'matched' => true,
+                'index' => isset($uniqueIndex['name']) && is_string($uniqueIndex['name']) ? $uniqueIndex['name'] : 'unique-index-' . (string) $index,
+                'reason' => 'matched unique constraint',
+                'dependencies' => [
+                    'upsert1.test-130-through-140',
+                    'upsert1.test-200-through-210',
+                    'upsert1.test-300-through-320',
+                    'upsert3.test-110-through-140',
+                ],
+            ];
+        }
+
+        return [
+            'matched' => false,
+            'index' => null,
+            'reason' => 'ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint',
+            'dependencies' => [
+                'upsert1.test-130-through-140',
+                'upsert1.test-200-through-210',
+                'upsert1.test-300-through-320',
+                'upsert3.test-110-through-140',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param list<array<string,mixed>> $incomingRows
      * @param list<string> $uniqueColumns
@@ -771,5 +844,62 @@ final class SQLiteUpsertDoUpdateWherePlan
                 throw new \InvalidArgumentException("SQLite UPSERT {$label} row is missing unique column {$column}");
             }
         }
+    }
+
+    /**
+     * @param list<string|array{expr?:string,column?:string,collation?:string|null}> $terms
+     * @return list<array{expr:string,collation:string|null}>
+     */
+    private static function normalizeConflictTargetTerms(array $terms): array
+    {
+        if ($terms === [] || !array_is_list($terms)) {
+            throw new \InvalidArgumentException('SQLite UPSERT conflict target terms must be a non-empty list');
+        }
+
+        $normalized = [];
+        foreach ($terms as $term) {
+            $expression = null;
+            $collation = null;
+            if (is_string($term)) {
+                $expression = $term;
+            } elseif (is_array($term)) {
+                $expression = $term['expr'] ?? $term['column'] ?? null;
+                $collation = $term['collation'] ?? null;
+            }
+            if (!is_string($expression) || trim($expression) === '') {
+                throw new \InvalidArgumentException('SQLite UPSERT conflict target expression must be a non-empty string');
+            }
+            if ($collation !== null && (!is_string($collation) || trim($collation) === '')) {
+                throw new \InvalidArgumentException('SQLite UPSERT conflict target collation must be null or a non-empty string');
+            }
+
+            $normalized[] = [
+                'expr' => self::normalizeConflictTargetExpression($expression),
+                'collation' => $collation === null ? null : strtolower(trim($collation)),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizeConflictTargetExpression(string $expression): string
+    {
+        $expression = trim($expression);
+        $expression = preg_replace('/\s+/', '', $expression) ?? $expression;
+
+        return strtolower($expression);
+    }
+
+    private static function normalizeConflictTargetWhere(?string $where): ?string
+    {
+        if ($where === null) {
+            return null;
+        }
+        $where = trim($where);
+        if ($where === '') {
+            throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE must be null or a non-empty string');
+        }
+
+        return self::normalizeConflictTargetExpression($where);
     }
 }

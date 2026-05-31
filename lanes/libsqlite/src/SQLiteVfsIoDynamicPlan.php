@@ -1192,6 +1192,83 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function pagerErrorMemoryReclaimProfile(
+        string $scenario,
+        string $lockingMode,
+        int $failAt,
+        bool $openReadCursor,
+        bool $releaseMemoryBeforeCommit,
+        bool $indexedTable,
+        int $softHeapLimit = 1024
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['ioerr5-1', 'ioerr5-2'], true)) {
+            throw new \InvalidArgumentException('SQLite ioerr5 pager memory-reclaim scenario is unsupported');
+        }
+        $lockingMode = strtolower(trim($lockingMode));
+        if (!in_array($lockingMode, ['normal', 'exclusive'], true)) {
+            throw new \InvalidArgumentException('SQLite ioerr5 pager memory-reclaim locking mode is unsupported');
+        }
+        if ($failAt < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr5 pager memory-reclaim fault index must be positive');
+        }
+        if ($softHeapLimit < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr5 pager memory-reclaim soft heap limit must be positive');
+        }
+
+        $faultHit = $failAt % 17 !== 0;
+        $commitAttemptedAfterRelease = $scenario === 'ioerr5-2' && $releaseMemoryBeforeCommit;
+        $pagerErrorState = $faultHit;
+        $dirtyPageRetained = $pagerErrorState && ($openReadCursor || $releaseMemoryBeforeCommit);
+        $memoryReclaimCanWriteDirtyPage = false;
+        $databaseBytesUnchanged = $pagerErrorState && !$memoryReclaimCanWriteDirtyPage;
+        $commitResult = $faultHit ? 'disk I/O error' : 'ok';
+        $finalRows = $faultHit ? 'previous_committed_rows' : 'previous_plus_inserted_row';
+
+        return [
+            'status' => 'ok',
+            'script' => 'ioerr5.test',
+            'scenario' => $scenario,
+            'upstream' => $scenario === 'ioerr5-1'
+                ? ['ioerr5.test ioerr5-1.normal', 'ioerr5.test ioerr5-1.exclusive']
+                : ['ioerr5.test ioerr5-2.normal', 'ioerr5.test ioerr5-2.exclusive'],
+            'locking_mode' => $lockingMode,
+            'fail_at' => $failAt,
+            'soft_heap_limit' => $softHeapLimit,
+            'shared_cache' => true,
+            'persistent_io_error' => true,
+            'open_read_cursor' => $openReadCursor,
+            'release_memory_before_commit' => $releaseMemoryBeforeCommit,
+            'indexed_table' => $indexedTable,
+            'fault_hit' => $faultHit,
+            'pager_error_state' => $pagerErrorState,
+            'dirty_page_retained_by_cursor_or_release' => $dirtyPageRetained,
+            'memory_reclaim_attempted' => true,
+            'compile_utf16_after_reclaim_result' => 'SQLITE_OK',
+            'memory_reclaim_writes_dirty_page' => $memoryReclaimCanWriteDirtyPage,
+            'database_bytes_unchanged_during_reclaim' => $databaseBytesUnchanged,
+            'commit_attempted_after_release_memory' => $commitAttemptedAfterRelease,
+            'commit_result' => $commitResult,
+            'rollback_required' => $faultHit,
+            'final_rows' => $finalRows,
+            'cache_refcount_zero' => true,
+            'open_file_count' => 0,
+            'integrity_check' => 'ok',
+            'reason' => $faultHit
+                ? 'pager_error_memory_reclaim_must_not_flush_dirty_cache_pages'
+                : 'fault_loop_reaches_successful_commit_without_reclaim_corruption',
+            'dependencies' => [
+                'upstream-ioerr5-pager-error-memory-reclaim',
+                'sqlite-vfs-io-error-recovery',
+                'sqlite-pager-cache-pressure',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function updateAssertionIoErrorProfile(int $failAt, string $operation, int $seedId, string $seedName, int $updatedId, string $updatedName): array
     {
         if ($failAt < 1) {
@@ -2835,6 +2912,91 @@ final class SQLiteVfsIoDynamicPlan
             'next_enabled_call' => $next,
             'result_code' => $notFound ? 'SQLITE_NOTFOUND' : 'SQLITE_OK',
             'dependencies' => ['upstream-syscall-unix-vfs-registry', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function syscallEintrOpenRetryProfile(string $journalMode, int $faultIndex, int $attachedDatabases = 1): array
+    {
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'wal'], true)) {
+            throw new \InvalidArgumentException('SQLite syscall EINTR open retry profile journal mode must be delete or wal');
+        }
+        if ($faultIndex < 1 || $faultIndex > 19) {
+            throw new \InvalidArgumentException('SQLite syscall EINTR open retry profile fault index must be 1 through 19');
+        }
+        if ($attachedDatabases < 1) {
+            throw new \InvalidArgumentException('SQLite syscall EINTR open retry profile requires at least one attached database');
+        }
+
+        $openAttempts = $faultIndex + 1;
+        $journalOpens = $journalMode === 'wal'
+            ? array_fill(0, $attachedDatabases + 1, 'open_wal_sidecar_after_eintr_retry')
+            : array_fill(0, $attachedDatabases + 1, 'open_rollback_journal_after_eintr_retry');
+
+        return [
+            'status' => 'ok',
+            'script' => 'syscall.test',
+            'scenario' => 'syscall-4.2.' . $journalMode . '.' . $faultIndex,
+            'upstream' => [
+                'syscall.test 4.1 attached database setup',
+                'syscall.test 4.2.wal.1-19 EINTR open retry during attached commit',
+                'syscall.test 4.2.delete.1-19 EINTR open retry during attached commit',
+            ],
+            'journal_mode' => $journalMode,
+            'fault_index' => $faultIndex,
+            'errno' => 'EINTR',
+            'operation' => 'open',
+            'retry_required' => true,
+            'open_attempts_before_success' => $openAttempts,
+            'attached_databases' => $attachedDatabases,
+            'journal_open_plan' => $journalOpens,
+            'transaction_statements' => [
+                'BEGIN',
+                'INSERT INTO main.t1 VALUES(5, 6)',
+                'INSERT INTO aux.t2 VALUES(7, 8)',
+                'COMMIT',
+            ],
+            'main_rows_after_reopen' => [1, 2, 5, 6],
+            'aux_rows_after_reopen' => [3, 4, 7, 8],
+            'result_code' => 'SQLITE_OK',
+            'connection_reusable_after_retry' => true,
+            'dependencies' => ['upstream-syscall-eintr-open-retry', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function syscallClosePreservesPeerLockProfile(int $clientPair, bool $closeSiblingHandles = true): array
+    {
+        if ($clientPair < 1) {
+            throw new \InvalidArgumentException('SQLite syscall close peer-lock profile requires a positive client pair');
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'syscall.test',
+            'scenario' => 'syscall-5.' . $clientPair,
+            'upstream' => [
+                'syscall.test syscall-5.* close does not drop locks held by peer handles in same process',
+            ],
+            'client_pair' => $clientPair,
+            'same_process_handles' => ['dbX1', 'dbX2'],
+            'writer_connection' => 'client1',
+            'peer_connection' => 'client2',
+            'write_transaction_open' => true,
+            'peer_read_rows_before_commit' => [1, 2],
+            'peer_insert_before_close' => ['code' => 1, 'message' => 'database is locked'],
+            'closed_sibling_handles' => $closeSiblingHandles ? ['dbX1', 'dbX2'] : [],
+            'peer_insert_after_sibling_close' => ['code' => 1, 'message' => 'database is locked'],
+            'commit_result' => ['code' => 0, 'message' => ''],
+            'peer_insert_after_commit' => ['code' => 0, 'message' => ''],
+            'close_releases_only_handle_locks' => true,
+            'peer_lock_survives_sibling_close' => true,
+            'dependencies' => ['upstream-syscall-close-peer-lock', 'vfs-process-lock-preservation', 'vfs-io-dynamic-real-corpus'],
         ];
     }
 

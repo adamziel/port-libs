@@ -930,6 +930,100 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal5BlockingCheckpointRows(): array
+    {
+        $matrix = [
+            [1, 'PASSIVE', null, [0, 3, 3], null],
+            [2, 'TYPO', null, [0, 3, 3], null],
+            [3, 'FULL', null, [0, 4, 4], 2],
+            [4, 'FULL', 1, [1, 3, 3], 1],
+            [5, 'FULL', 2, [1, 4, 3], 2],
+            [6, 'FULL', 3, [0, 4, 4], 2],
+            [7, 'RESTART', null, [0, 4, 4], 3],
+            [8, 'RESTART', 1, [1, 3, 3], 1],
+            [9, 'RESTART', 2, [1, 4, 3], 2],
+            [10, 'RESTART', 3, [1, 4, 4], 3],
+            [11, 'TRUNCATE', null, [0, 0, 0], 3],
+            [12, 'TRUNCATE', 1, [1, 3, 3], 1],
+            [13, 'TRUNCATE', 2, [1, 4, 3], 2],
+            [14, 'TRUNCATE', 3, [1, 4, 4], 3],
+        ];
+        $entryPoints = [
+            'wal5-pragma' => 'PRAGMA wal_checkpoint',
+            'wal5-capi' => 'sqlite3_wal_checkpoint_v2',
+        ];
+        $rows = [];
+
+        foreach ($entryPoints as $prefix => $entryPoint) {
+            foreach ($matrix as [$testNumber, $checkpoint, $busyOn, $expected, $maxBusy]) {
+                for ($iteration = 1; $iteration <= 36; $iteration++) {
+                    $mode = strtolower($checkpoint);
+                    $effectiveMode = in_array($mode, ['restart', 'full', 'truncate'], true) ? $mode : 'passive';
+                    $busyOn = $busyOn === null ? null : (int) $busyOn;
+                    $maxBusy = $maxBusy === null ? null : (int) $maxBusy;
+                    $busyScript = [];
+
+                    for ($n = 1; $maxBusy !== null && $n <= 3; $n++) {
+                        if ($busyOn !== null && $n === $busyOn) {
+                            $busyScript[] = ['call' => $n, 'action' => 'return-busy'];
+                            break;
+                        }
+
+                        $busyScript[] = [
+                            'call' => $n,
+                            'action' => match ($n) {
+                                1 => 'sql2 commits writer and begins read snapshot',
+                                2 => 'sql3 commits read snapshot',
+                                default => 'sql2 commits restart-blocking reader',
+                            },
+                        ];
+
+                        if ($maxBusy !== null && $n >= $maxBusy) {
+                            break;
+                        }
+                    }
+
+                    $rows[] = [
+                        'upstream' => sprintf('wal5.test 2.4.%d.%s dynamic blocking-checkpoint row %03d', $testNumber, $prefix, $iteration),
+                        'script' => 'wal5.test',
+                        'section' => 'wal5 blocking-checkpoint lock matrix 2.4.*',
+                        'test_number' => $testNumber,
+                        'iteration' => $iteration,
+                        'entry_prefix' => $prefix,
+                        'entry_point' => $entryPoint,
+                        'requested_checkpoint' => $checkpoint,
+                        'effective_checkpoint' => $effectiveMode,
+                        'busy_on_call' => $busyOn,
+                        'max_busyhandler_call' => $maxBusy,
+                        'checkpoint_result' => $expected,
+                        'busy' => $expected[0],
+                        'log_frame_count' => $expected[1],
+                        'checkpointed_frame_count' => $expected[2],
+                        'database_pages_before' => 1,
+                        'wal_pages_before' => 3,
+                        'writer_lock_blocks_first' => in_array($effectiveMode, ['full', 'restart', 'truncate'], true),
+                        'partial_reader_blocks_full' => in_array($effectiveMode, ['full', 'restart', 'truncate'], true),
+                        'any_reader_blocks_restart_or_truncate' => in_array($effectiveMode, ['restart', 'truncate'], true),
+                        'busy_script' => $busyScript,
+                        'main_reader_result' => [[1, 2]],
+                        'writer_insert' => [3, 4],
+                        'attached_databases' => ['main', 'aux'],
+                        'dependencies' => [
+                            'real-upstream-corpus-wal5',
+                            'sqlite-wal-blocking-checkpoint',
+                            'sqlite-wal-busy-handler-lock-release',
+                        ],
+                    ];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array
