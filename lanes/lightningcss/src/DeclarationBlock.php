@@ -72,6 +72,11 @@ final class DeclarationBlock
         'grid-auto-rows',
         'grid-auto-columns',
     ];
+    private const LIST_STYLE_LONGHANDS = [
+        'list-style-position',
+        'list-style-image',
+        'list-style-type',
+    ];
 
     /**
      * @return array<string, string>
@@ -171,6 +176,13 @@ final class DeclarationBlock
         $gridValue = $this->getGridProperty($entries, $property);
         if ($gridValue !== null) {
             return $gridValue;
+        }
+        $listStyleValue = $this->getListStyleProperty($entries, $property);
+        if ($listStyleValue !== null) {
+            return $listStyleValue;
+        }
+        if ($this->isListStyleProperty($property)) {
+            return null;
         }
 
         $match = null;
@@ -2327,6 +2339,269 @@ final class DeclarationBlock
         return [$tokens[0], implode(' ', array_slice($tokens, 1))];
     }
 
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getListStyleProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isListStyleProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'list-style') {
+                $parsed = $this->parseListStyleComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::LIST_STYLE_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isListStyleLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeListStyleLonghandValue($entry['property'], $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'list-style') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::LIST_STYLE_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeListStyleComponents([
+                'list-style-type' => $components['list-style-type']['value'],
+                'list-style-image' => $components['list-style-image']['value'],
+                'list-style-position' => $components['list-style-position']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setListStyleLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isListStyleLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeListStyleLonghandValue($property, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'list-style') {
+                continue;
+            }
+
+            $components = $this->parseListStyleComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'list-style',
+                'value' => $this->serializeListStyleComponents($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{list-style-type:string, list-style-image:string, list-style-position:string}|null
+     */
+    private function parseListStyleComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $type = null;
+        $image = null;
+        $position = null;
+        $noneCount = 0;
+
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if ($lower === 'none') {
+                $noneCount++;
+                continue;
+            }
+            if (($lower === 'inside' || $lower === 'outside') && $position === null) {
+                $position = $lower;
+                continue;
+            }
+            if ($this->isListStyleImageToken($token)) {
+                if ($image !== null) {
+                    return null;
+                }
+                $image = $this->normalizeListStyleImageValue($token);
+                continue;
+            }
+            if ($type !== null) {
+                return null;
+            }
+            $type = $this->normalizeListStyleTypeValue($token);
+        }
+
+        if ($noneCount > 0) {
+            if ($type === null) {
+                $type = 'none';
+                $noneCount--;
+            }
+            if ($noneCount > 0 && $image === null) {
+                $image = 'none';
+                $noneCount--;
+            }
+            if ($noneCount > 0) {
+                return null;
+            }
+            if (strtolower($type) !== 'none' && $image === null) {
+                $image = 'none';
+            }
+        }
+
+        return [
+            'list-style-type' => $type ?? 'disc',
+            'list-style-image' => $image ?? 'none',
+            'list-style-position' => $position ?? 'outside',
+        ];
+    }
+
+    /**
+     * @param array{list-style-type:string, list-style-image:string, list-style-position:string} $components
+     */
+    private function serializeListStyleComponents(array $components): string
+    {
+        $type = strtolower($components['list-style-type']) === 'none' ? 'none' : $components['list-style-type'];
+        $image = $components['list-style-image'];
+        $position = strtolower($components['list-style-position']);
+        $parts = [];
+
+        if ($position !== 'outside') {
+            $parts[] = $position;
+        }
+        if (strtolower($image) !== 'none') {
+            $parts[] = $image;
+        }
+        if (strtolower($type) !== 'disc') {
+            $parts[] = $type;
+        }
+
+        return $parts === [] ? 'outside' : implode(' ', $parts);
+    }
+
+    private function normalizeListStyleLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'list-style-type' => $this->normalizeListStyleTypeValue($value),
+            'list-style-image' => $this->normalizeListStyleImageValue($value),
+            'list-style-position' => strtolower(trim($value)),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeListStyleTypeValue(string $value): string
+    {
+        $value = trim($value);
+        if ($this->isQuotedStringToken($value)) {
+            return $this->normalizeCssStringToken($value);
+        }
+
+        return strtolower($value) === 'none' ? 'none' : $value;
+    }
+
+    private function normalizeListStyleImageValue(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^url\(/i', $value) === 1) {
+            return $this->normalizeCssUrlToken($value);
+        }
+
+        return strtolower($value) === 'none' ? 'none' : $value;
+    }
+
+    private function isListStyleProperty(string $property): bool
+    {
+        return $property === 'list-style' || $this->isListStyleLonghand($property);
+    }
+
+    private function isListStyleLonghand(string $property): bool
+    {
+        return in_array($property, self::LIST_STYLE_LONGHANDS, true);
+    }
+
+    private function isListStyleImageToken(string $token): bool
+    {
+        return preg_match('/^(?:url|(?:-(?:webkit|o)-)?(?:linear|radial|conic)-gradient|image-set|cross-fade|paint)\(/i', trim($token)) === 1;
+    }
+
+    private function isQuotedStringToken(string $token): bool
+    {
+        return preg_match('/^([\'"]).*\1$/s', trim($token)) === 1;
+    }
+
+    private function normalizeCssStringToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^([\'"])(.*)\1$/s', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        return '"' . str_replace('"', '\\"', $matches[2]) . '"';
+    }
+
+    private function normalizeCssUrlToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(\s*(?:([\'"])(.*?)\1|([^)]*?))\s*\)$/i', $token, $matches) !== 1) {
+            return $token;
+        }
+
+        $url = ($matches[2] ?? '') !== '' ? $matches[2] : trim($matches[3] ?? '');
+        if (preg_match('/[\s\'"()\\\\]/', $url) === 1) {
+            return 'url("' . str_replace('"', '\\"', $url) . '")';
+        }
+
+        return 'url(' . $url . ')';
+    }
+
     public function setProperty(string $block, string $property, string $value, bool $important = false): string
     {
         $property = $this->normalizeProperty($property);
@@ -2379,6 +2654,10 @@ final class DeclarationBlock
         $logicalBoxValue = $this->setLogicalBoxProperty($entries, $property, $value, $important);
         if ($logicalBoxValue !== null) {
             return $this->parseEntries($logicalBoxValue);
+        }
+        $listStyleValue = $this->setListStyleLonghand($entries, $property, $value, $important);
+        if ($listStyleValue !== null) {
+            return $this->parseEntries($listStyleValue);
         }
 
         $lastMatch = null;
@@ -2849,6 +3128,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isListStyleLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeListStyleLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeListStyleLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
 
         $normalEntries = $this->removeEntriesWithPropertyId($normalEntries, $property);
         $importantEntries = $this->removeEntriesWithPropertyId($importantEntries, $property);
@@ -2911,7 +3196,12 @@ final class DeclarationBlock
             return $flexLonghands;
         }
 
-        return $this->gridShorthandLonghands($property);
+        $gridLonghands = $this->gridShorthandLonghands($property);
+        if ($gridLonghands !== null) {
+            return $gridLonghands;
+        }
+
+        return $property === 'list-style' ? self::LIST_STYLE_LONGHANDS : null;
     }
 
     /**
@@ -3013,6 +3303,44 @@ final class DeclarationBlock
             }
 
             array_push($result, ...$split);
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeListStyleLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'list-style') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseListStyleComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::LIST_STYLE_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
         }
 
         return $this->serializeEntries($result);

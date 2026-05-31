@@ -90,6 +90,10 @@ final class CssModulesTransformer
             return $body;
         }
 
+        if (strcasecmp($prelude, '@view-transition') === 0) {
+            return $this->rewriteViewTransitionDeclarationList($body);
+        }
+
         if ($styleNestingDepth > 0) {
             $this->assertNoNestedComposesInAtRuleDeclarations($body);
         }
@@ -163,7 +167,14 @@ final class CssModulesTransformer
 
         $property = strtolower(trim(substr($withoutSemicolon, 0, $colon)));
         if ($property !== 'composes') {
-            return $statement;
+            $rewrittenValue = $this->rewriteCssModuleDeclarationValue($property, trim(substr($withoutSemicolon, $colon + 1)));
+            if ($rewrittenValue === null) {
+                return $statement;
+            }
+
+            $trailingSemicolon = str_ends_with(rtrim($statement), ';') ? ';' : '';
+
+            return trim(substr($withoutSemicolon, 0, $colon)) . ':' . $rewrittenValue . $trailingSemicolon;
         }
 
         if ($styleNestingDepth > 0) {
@@ -198,6 +209,111 @@ final class CssModulesTransformer
         }
 
         return $output;
+    }
+
+    private function rewriteCssModuleDeclarationValue(string $property, string $value): ?string
+    {
+        return match ($property) {
+            'view-transition-name' => $this->rewriteViewTransitionNameValue($value),
+            'view-transition-class' => $this->rewriteViewTransitionIdentList($value, ['none']),
+            'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain']),
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<string> $additionalKeywords
+     */
+    private function rewriteViewTransitionNameValue(string $value, array $additionalKeywords = []): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $value;
+        }
+
+        $lower = strtolower($trimmed);
+        if (in_array($lower, array_merge(['none', 'auto'], $additionalKeywords), true)) {
+            return $lower;
+        }
+
+        if (!$this->isPlainCssIdent($trimmed)) {
+            return $value;
+        }
+
+        return $this->scopeCustomIdent($trimmed);
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private function rewriteViewTransitionIdentList(string $value, array $keywords = []): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return $value;
+        }
+
+        $rewritten = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if (in_array($lower, $keywords, true) || !$this->isPlainCssIdent($token)) {
+                $rewritten[] = $token;
+                continue;
+            }
+
+            $rewritten[] = $this->scopeCustomIdent($token);
+        }
+
+        return implode(' ', $rewritten);
+    }
+
+    private function rewriteViewTransitionDeclarationList(string $body): string
+    {
+        if (str_contains($body, '{')) {
+            return $body;
+        }
+
+        $output = '';
+        $cursor = 0;
+
+        while (($semicolon = $this->findNextTopLevel($body, ';', $cursor)) !== null) {
+            $statement = substr($body, $cursor, $semicolon - $cursor + 1);
+            $output .= $this->rewriteViewTransitionDeclarationStatement($statement);
+            $cursor = $semicolon + 1;
+        }
+
+        $tail = substr($body, $cursor);
+        if (trim($tail) !== '') {
+            $output .= $this->rewriteViewTransitionDeclarationStatement($tail);
+        } else {
+            $output .= $tail;
+        }
+
+        return $output;
+    }
+
+    private function rewriteViewTransitionDeclarationStatement(string $statement): string
+    {
+        $trimmed = trim($statement);
+        if ($trimmed === '') {
+            return $statement;
+        }
+
+        $withoutSemicolon = rtrim($trimmed, ';');
+        $colon = $this->findNextTopLevel($withoutSemicolon, ':', 0);
+        if ($colon === null) {
+            return $statement;
+        }
+
+        $property = strtolower(trim(substr($withoutSemicolon, 0, $colon)));
+        if ($property !== 'types') {
+            return $statement;
+        }
+
+        $value = trim(substr($withoutSemicolon, $colon + 1));
+        $trailingSemicolon = str_ends_with(rtrim($statement), ';') ? ';' : '';
+
+        return 'types:' . $this->rewriteViewTransitionIdentList($value, ['none']) . $trailingSemicolon;
     }
 
     private function assertNoNestedComposesInAtRuleDeclarations(string $body): void
@@ -513,6 +629,22 @@ final class CssModulesTransformer
                 continue;
             }
 
+            $viewTransitionFunction = $bracketDepth === 0 && $mode === 'local'
+                ? $this->viewTransitionSelectorFunctionAt($selector, $i)
+                : null;
+            if ($viewTransitionFunction !== null) {
+                $open = $i + strlen($viewTransitionFunction['prefix'] . $viewTransitionFunction['name']);
+                $close = $this->findMatchingParen($selector, $open);
+                $inner = substr($selector, $open + 1, $close - $open - 1);
+                $output .= $viewTransitionFunction['prefix']
+                    . $viewTransitionFunction['name']
+                    . '('
+                    . $this->rewriteViewTransitionSelectorFunctionArgs($viewTransitionFunction['name'], $inner)
+                    . ')';
+                $i = $close;
+                continue;
+            }
+
             if ($bracketDepth === 0 && (
                 $this->startsWithCssModulesPseudoName($selector, $i, ':global')
                 || $this->startsWithCssModulesPseudoName($selector, $i, ':local')
@@ -539,6 +671,65 @@ final class CssModulesTransformer
         return trim($output);
     }
 
+    /**
+     * @return array{prefix:string,name:string}|null
+     */
+    private function viewTransitionSelectorFunctionAt(string $selector, int $offset): ?array
+    {
+        foreach ([
+            ':active-view-transition-type',
+            '::view-transition-group',
+            '::view-transition-image-pair',
+            '::view-transition-new',
+            '::view-transition-old',
+        ] as $function) {
+            $length = strlen($function);
+            if (strncasecmp(substr($selector, $offset, $length), $function, $length) !== 0) {
+                continue;
+            }
+
+            if (($selector[$offset + $length] ?? '') !== '(') {
+                continue;
+            }
+
+            return [
+                'prefix' => str_starts_with($function, '::') ? '::' : ':',
+                'name' => ltrim($function, ':'),
+            ];
+        }
+
+        return null;
+    }
+
+    private function rewriteViewTransitionSelectorFunctionArgs(string $name, string $args): string
+    {
+        if (strcasecmp($name, 'active-view-transition-type') === 0) {
+            return implode(',', array_map(
+                fn (string $part): string => $this->rewriteViewTransitionSelectorIdentSequence($part),
+                $this->splitTopLevel($args, ',')
+            ));
+        }
+
+        return $this->rewriteViewTransitionSelectorIdentSequence($args);
+    }
+
+    private function rewriteViewTransitionSelectorIdentSequence(string $value): string
+    {
+        return preg_replace_callback(
+            '/(?<![A-Za-z0-9_-])(\\.?)(-?[A-Za-z_][A-Za-z0-9_-]*)/',
+            function (array $matches): string {
+                $prefix = $matches[1];
+                $name = $matches[2];
+                if (in_array(strtolower($name), ['none', 'auto'], true)) {
+                    return $prefix . $name;
+                }
+
+                return $prefix . $this->scopeCustomIdent($name);
+            },
+            trim($value)
+        ) ?? trim($value);
+    }
+
     private function ensureExport(string $local): void
     {
         if (isset($this->exports[$local])) {
@@ -558,6 +749,13 @@ final class CssModulesTransformer
             '[hash]' => $this->hash,
             '[local]' => $local,
         ]);
+    }
+
+    private function scopeCustomIdent(string $local): string
+    {
+        $this->ensureExport($local);
+
+        return $this->scopedName($local);
     }
 
     /**
@@ -617,6 +815,67 @@ final class CssModulesTransformer
         }
 
         return array_values(array_filter(array_map('trim', $parts), static fn (string $part): bool => $part !== ''));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitWhitespaceTopLevel(string $value): array
+    {
+        $parts = [];
+        $current = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $current .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $current .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            }
+
+            if (ctype_space($char) && $parenDepth === 0 && $bracketDepth === 0) {
+                if (trim($current) !== '') {
+                    $parts[] = trim($current);
+                }
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if (trim($current) !== '') {
+            $parts[] = trim($current);
+        }
+
+        return $parts;
     }
 
     private function findNextTopLevel(string $css, string $needle, int $start): ?int
@@ -791,6 +1050,11 @@ final class CssModulesTransformer
     private function isIdentChar(string $char): bool
     {
         return ctype_alnum($char) || $char === '_' || $char === '-';
+    }
+
+    private function isPlainCssIdent(string $value): bool
+    {
+        return preg_match('/^-?(?:[A-Za-z_]|-[A-Za-z_])[A-Za-z0-9_-]*$/', $value) === 1;
     }
 
     private function stripComments(string $css): string

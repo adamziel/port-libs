@@ -9,6 +9,8 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $css = <<<'CSS'
 .card {
   background: white;
+  view-transition-name: card-enter;
+  view-transition-class: card page;
 
   .cardIcon {
     color: yellow;
@@ -32,6 +34,10 @@ $css = <<<'CSS'
     composes: card;
     gap: 8px;
   }
+}
+
+@view-transition {
+  types: card-enter page;
 }
 CSS;
 

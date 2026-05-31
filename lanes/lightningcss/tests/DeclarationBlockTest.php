@@ -336,6 +336,23 @@ return [
             )
         );
     },
+    'declaration block reads upstream list style cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $list = 'list-style: inside url(marker.svg) square';
+        $t->same(['value' => 'inside url(marker.svg) square', 'important' => false], $block->getProperty($list, 'list-style'));
+        $t->same(['value' => 'square', 'important' => false], $block->getProperty($list, 'list-style-type'));
+        $t->same(['value' => 'url(marker.svg)', 'important' => false], $block->getProperty($list, 'list-style-image'));
+        $t->same(['value' => 'inside', 'important' => false], $block->getProperty($list, 'list-style-position'));
+        $t->same(
+            ['value' => 'url(marker.svg)', 'important' => false],
+            $block->getProperty(
+                'list-style-type: disc; list-style-image: url(marker.svg); list-style-position: outside',
+                'list-style'
+            )
+        );
+        $t->same(['value' => 'none', 'important' => true], $block->getProperty('list-style: none !important', 'list-style-type'));
+    },
     'declaration block set replaces direct properties and serializes priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -590,6 +607,26 @@ return [
             $block->setProperty('-webkit-transition: opacity 200ms', 'transition-duration', '300ms')
         );
     },
+    'declaration block sets upstream list style cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'list-style: inside decimal',
+            $block->setProperty('list-style: inside', 'list-style-type', 'decimal')
+        );
+        $t->same(
+            'list-style: square',
+            $block->setProperty('list-style: url(marker.svg) square', 'list-style-image', 'none')
+        );
+        $t->same(
+            'list-style: url(new-marker.svg) square',
+            $block->setProperty('list-style: url(marker.svg) square', 'list-style-image', 'url(new-marker.svg)')
+        );
+        $t->same(
+            'list-style: square; list-style-position: inside !important',
+            $block->setProperty('list-style: square', 'list-style-position', 'inside', true)
+        );
+    },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -810,6 +847,29 @@ return [
         $t->same(
             '-webkit-transition-property: opacity; -webkit-transition-delay: 0s; -webkit-transition-timing-function: ease',
             $block->removeProperty('-webkit-transition: opacity 200ms', '-webkit-transition-duration')
+        );
+    },
+    'declaration block removes upstream list style cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'list-style-position: inside; list-style-type: square',
+            $block->removeProperty('list-style: inside url(marker.svg) square', 'list-style-image')
+        );
+        $t->same(
+            'list-style-image: url(marker.svg); list-style-type: square',
+            $block->removeProperty('list-style: inside url(marker.svg) square', 'list-style-position')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty(
+                'color: red; list-style: inside square; list-style-image: url(marker.svg); list-style-position: outside',
+                'list-style'
+            )
+        );
+        $t->same(
+            'color: red; list-style-position: inside !important; list-style-type: square !important',
+            $block->removeProperty('list-style: inside url(marker.svg) square !important; color: red', 'list-style-image')
         );
     },
 ];

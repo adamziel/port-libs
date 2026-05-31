@@ -355,4 +355,74 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules scopes upstream view transition declaration idents' => static function (TestRunner $t) use ($export): void {
+        $css = <<<'CSS'
+.card {
+  view-transition-name: card-enter;
+  view-transition-class: page nav-menu;
+  view-transition-group: contain;
+}
+
+.panel {
+  view-transition-group: modal;
+}
+
+@view-transition {
+  types: page nav-menu;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_card{view-transition-name:EgL3uq_card-enter;view-transition-class:EgL3uq_page EgL3uq_nav-menu;view-transition-group:contain}.EgL3uq_panel{view-transition-group:EgL3uq_modal}@view-transition{types:EgL3uq_page EgL3uq_nav-menu}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'card-enter' => $export('EgL3uq_card-enter'),
+            'page' => $export('EgL3uq_page'),
+            'nav-menu' => $export('EgL3uq_nav-menu'),
+            'panel' => $export('EgL3uq_panel'),
+            'modal' => $export('EgL3uq_modal'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
+    'css modules scopes upstream view transition selector function idents' => static function (TestRunner $t) use ($export): void {
+        $css = <<<'CSS'
+:root:active-view-transition-type(page, nav-menu) {
+  color: red;
+}
+
+:root::view-transition-group(hero.card.featured) {
+  position: fixed;
+}
+
+:root::view-transition-new(.thumb) {
+  position: fixed;
+}
+
+:root::view-transition-image-pair(card) {
+  opacity: 1;
+}
+
+:root::view-transition-old(.card) {
+  opacity: 0;
+}
+
+:global(:root::view-transition-group(public-card)) {
+  opacity: .5;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same(':root:active-view-transition-type(EgL3uq_page,EgL3uq_nav-menu){color:red}:root::view-transition-group(EgL3uq_hero.EgL3uq_card.EgL3uq_featured){position:fixed}:root::view-transition-new(.EgL3uq_thumb){position:fixed}:root::view-transition-image-pair(EgL3uq_card){opacity:1}:root::view-transition-old(.EgL3uq_card){opacity:0}:root::view-transition-group(public-card){opacity:.5}', $result['code']);
+        $t->same([
+            'page' => $export('EgL3uq_page'),
+            'nav-menu' => $export('EgL3uq_nav-menu'),
+            'hero' => $export('EgL3uq_hero'),
+            'card' => $export('EgL3uq_card'),
+            'featured' => $export('EgL3uq_featured'),
+            'thumb' => $export('EgL3uq_thumb'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
 ];
