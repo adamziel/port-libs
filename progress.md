@@ -44,9 +44,30 @@
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 17-18 GiB available.
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 387G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.9G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 real Codex libsqlite workers with no long sleepers; keep refills bounded and current-base only.
+- Current launch mode: visible supervised `main` tmux session with serialized
+  source-moving integration and dashboard publication. The active pool is split
+  at 6 libsqlite workers and 6 Gitoxide workers with no long sleepers; new
+  subagents use `gpt-5.5` xhigh on the priority service tier.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (split/integration sample 08:05 UTC):
+  The visible tmux `main` pool was rebalanced to 6 libsqlite and 6 Gitoxide
+  isolated workers. New subagent launch defaults are `gpt-5.5` with
+  `model_reasoning_effort="xhigh"` on the priority service tier; pre-existing
+  dirty libsqlite workers were preserved, and fresh/refilled workers use xhigh.
+  Libsqlite batch95 landed as source commit `d25443ab5` after lint for 28 PHP
+  files, `git diff --check`, focused selected tests `20 files / 306436
+  assertions / 0 failures / 52851 PASS lines`, accepted-base overlap `2 files
+  / 71799 assertions / 0 failures / 10556 PASS lines`, exact related guard
+  `32 files / 471071 assertions / 0 failures / 65124 PASS lines`, the changed
+  app-WAL example, and changed-source WordPress/numeric-suffix guards. Net
+  selected PASS movement is `+42295`, so public libsqlite selected evidence
+  should move to `2831909 pass / 0 fail`; mapped coverage remains
+  `1589 / 1589`. The app-WAL default-memory OOM was reproduced on accepted base
+  `c30488a9b`, so it is tracked as pre-existing memory pressure rather than a
+  batch95 regression. A full-directory libsqlite sweep was stopped because it
+  was too slow for this cadence and is not cited as full-lane evidence.
 
 - 2026-05-31 supervisor continuation (integration sample 04:50 UTC):
   Batch72 is integrated locally as source
