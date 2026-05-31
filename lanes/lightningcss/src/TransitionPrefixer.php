@@ -1099,6 +1099,8 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'samsung', [4], [5]),
             'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26])
                 || $this->targetInRange($normalized, 'safari', [8], [26]),
+            'textDecorationLonghandNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [12])
+                || $this->targetInRange($normalized, 'safari', [8], [12]),
             'textDecorationNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [35]),
             'textDecorationThicknessShorthandNeedsFallback' => $this->targetsNeedTextDecorationThicknessShorthandFallback($normalized),
             'textDecorationThicknessPercentNeedsFallback' => $this->targetsNeedTextDecorationThicknessPercentFallback($normalized),
@@ -5786,6 +5788,7 @@ final class TransitionPrefixer
 
         $hasWebkit = [];
         $hasMoz = [];
+        $hasUnprefixed = [];
         foreach ($entries as $entry) {
             $base = $this->textDecorationBaseProperty($entry['property']);
             if ($base === null) {
@@ -5793,6 +5796,11 @@ final class TransitionPrefixer
             }
             $hasWebkit[$base] = ($hasWebkit[$base] ?? false) || str_starts_with($entry['property'], '-webkit-');
             $hasMoz[$base] = ($hasMoz[$base] ?? false) || str_starts_with($entry['property'], '-moz-');
+            $hasUnprefixed[$base] = ($hasUnprefixed[$base] ?? false)
+                || (
+                    !str_starts_with($entry['property'], '-webkit-')
+                    && !str_starts_with($entry['property'], '-moz-')
+                );
         }
 
         $rewritten = [];
@@ -5813,7 +5821,7 @@ final class TransitionPrefixer
             }
 
             $base = $this->textDecorationBaseProperty($entry['property']);
-            if ($base === null || str_starts_with($entry['property'], '-moz-')) {
+            if ($base === null) {
                 $rewritten[] = $entry;
                 continue;
             }
@@ -5821,6 +5829,20 @@ final class TransitionPrefixer
             $entry['value'] = $base === 'text-decoration'
                 ? $this->normalizeTextDecorationValue($entry['value'])
                 : $this->normalizeTextDecorationLonghandValue($base, $entry['value']);
+            if (str_starts_with($entry['property'], '-moz-')) {
+                if (
+                    !($targetOptions['textDecorationNeedsMoz'] ?? false)
+                    && $this->textDecorationPropertySupportsMozPrefix($base)
+                    && ($hasUnprefixed[$base] ?? false)
+                ) {
+                    $changed = true;
+                    continue;
+                }
+
+                $rewritten[] = $entry;
+                continue;
+            }
+
             $thicknessEntry = null;
             if ($base === 'text-decoration' && ($targetOptions['textDecorationThicknessShorthandNeedsFallback'] ?? false)) {
                 $parts = $this->parseTextDecorationValue($entry['value']);
@@ -5837,6 +5859,11 @@ final class TransitionPrefixer
             }
 
             if (str_starts_with($entry['property'], '-webkit-')) {
+                if (!$this->textDecorationNeedsWebkitPrefix($base, $entry['value'], $targetOptions) && ($hasUnprefixed[$base] ?? false)) {
+                    $changed = true;
+                    continue;
+                }
+
                 $rewritten[] = $entry;
                 if ($thicknessEntry !== null) {
                     $rewritten[] = $thicknessEntry;
@@ -5870,14 +5897,14 @@ final class TransitionPrefixer
                 $finalValue = $base === 'text-decoration'
                     ? $this->normalizeTextDecorationValue($this->advancedColorLabTargetValue($entry['value']) ?? $entry['value'])
                     : ($this->advancedColorLabTargetValue($entry['value']) ?? $entry['value']);
-                if ($targetOptions['textDecorationNeedsWebkit'] && !($hasWebkit[$base] ?? false)) {
+                if ($this->textDecorationNeedsWebkitPrefix($base, $fallbackValue, $targetOptions) && !($hasWebkit[$base] ?? false)) {
                     $rewritten[] = $this->declarationEntry('-webkit-' . $base, $fallbackValue);
                 }
                 if ($targetOptions['textDecorationNeedsMoz'] && $this->textDecorationPropertySupportsMozPrefix($base) && !($hasMoz[$base] ?? false)) {
                     $rewritten[] = $this->declarationEntry('-moz-' . $base, $fallbackValue);
                 }
                 $rewritten[] = $this->entryWithValue($entry, $fallbackValue);
-                if ($targetOptions['textDecorationNeedsWebkit'] && !($hasWebkit[$base] ?? false)) {
+                if ($this->textDecorationNeedsWebkitPrefix($base, $finalValue, $targetOptions) && !($hasWebkit[$base] ?? false)) {
                     $rewritten[] = $this->declarationEntry('-webkit-' . $base, $finalValue);
                 }
                 if ($targetOptions['textDecorationNeedsMoz'] && $this->textDecorationPropertySupportsMozPrefix($base) && !($hasMoz[$base] ?? false)) {
@@ -5891,9 +5918,8 @@ final class TransitionPrefixer
                 continue;
             }
 
-            $needsWebkit = $targetOptions['textDecorationNeedsWebkit']
-                && !($hasWebkit[$base] ?? false)
-                && $this->textDecorationPropertyNeedsWebkitPrefix($base, $entry['value']);
+            $needsWebkit = $this->textDecorationNeedsWebkitPrefix($base, $entry['value'], $targetOptions)
+                && !($hasWebkit[$base] ?? false);
             $needsMoz = $targetOptions['textDecorationNeedsMoz']
                 && !($hasMoz[$base] ?? false)
                 && $this->textDecorationPropertySupportsMozPrefix($base);
@@ -6156,6 +6182,22 @@ final class TransitionPrefixer
         }
 
         return !$this->isTextDecorationLineOnly($value);
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function textDecorationNeedsWebkitPrefix(string $base, string $value, array $targetOptions): bool
+    {
+        if (!$this->textDecorationPropertyNeedsWebkitPrefix($base, $value)) {
+            return false;
+        }
+
+        if ($base === 'text-decoration') {
+            return $targetOptions['textDecorationNeedsWebkit'] ?? false;
+        }
+
+        return $targetOptions['textDecorationLonghandNeedsWebkit'] ?? false;
     }
 
     private function textDecorationPropertySupportsMozPrefix(string $base): bool

@@ -12872,6 +12872,10 @@ final class DeclarationBlock
 
     private function normalizeDeclarationValue(string $property, string $value): string
     {
+        if ($property === 'border-spacing') {
+            return $this->normalizeBorderSpacingValue($value);
+        }
+
         if ($property !== 'all') {
             return $value;
         }
@@ -12882,6 +12886,72 @@ final class DeclarationBlock
         }
 
         return $value;
+    }
+
+    private function normalizeBorderSpacingValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($tokens) === 0 || count($tokens) > 2) {
+            return trim($value);
+        }
+
+        $horizontal = $this->normalizeBorderSpacingLength($tokens[0]);
+        if (!isset($tokens[1])) {
+            return $horizontal['value'];
+        }
+
+        $vertical = $this->normalizeBorderSpacingLength($tokens[1]);
+
+        if ($horizontal['parsed'] && $vertical['parsed'] && $horizontal['value'] === $vertical['value']) {
+            return $horizontal['value'];
+        }
+
+        return $horizontal['value'] . ' ' . $vertical['value'];
+    }
+
+    /**
+     * @return array{value:string, parsed:bool}
+     */
+    private function normalizeBorderSpacingLength(string $value): array
+    {
+        $value = trim($value);
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z%]+)$/i', $value, $matches) === 1) {
+            $number = $this->normalizeCssNumberLiteral($matches[1]);
+            if ($number === '0') {
+                return ['value' => '0', 'parsed' => true];
+            }
+
+            return ['value' => $number . strtolower($matches[2]), 'parsed' => true];
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1) {
+            return ['value' => $this->normalizeCssNumberLiteral($value), 'parsed' => true];
+        }
+
+        return ['value' => $value, 'parsed' => false];
+    }
+
+    private function normalizeCssNumberLiteral(string $number): string
+    {
+        $number = trim($number);
+        if ((float) $number == 0.0) {
+            return '0';
+        }
+
+        $negative = str_starts_with($number, '-');
+        if ($number !== '' && ($number[0] === '+' || $number[0] === '-')) {
+            $number = substr($number, 1);
+        }
+
+        if (str_contains($number, '.')) {
+            $number = rtrim(rtrim($number, '0'), '.');
+            if (str_starts_with($number, '0.')) {
+                $number = substr($number, 1);
+            }
+        }
+
+        return ($negative ? '-' : '') . $number;
     }
 
     private function normalizeDeclarationPropertyName(string $property): string

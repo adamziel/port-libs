@@ -2345,6 +2345,27 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-decoration: lab(50.998% 125.506 -50.7078) var(--style); } }', ['chrome' => 90])
         );
     },
+    'transition prefixer maps upstream text decoration longhand browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: red; }';
+        $webkitLonghands = '.foo{-webkit-text-decoration-line:underline;text-decoration-line:underline;-webkit-text-decoration-style:dotted;text-decoration-style:dotted;-webkit-text-decoration-color:red;text-decoration-color:red}';
+        $mozLonghands = '.foo{-moz-text-decoration-line:underline;text-decoration-line:underline;-moz-text-decoration-style:dotted;text-decoration-style:dotted;-moz-text-decoration-color:red;text-decoration-color:red}';
+        $modernLonghands = '.foo{text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:red}';
+
+        $t->same($webkitLonghands, $prefixer->prefixForTargets($css, ['safari' => 12]));
+        $t->same($modernLonghands, $prefixer->prefixForTargets($css, ['safari' => '12.1']));
+        $t->same($webkitLonghands, $prefixer->prefixForTargets($css, ['ios_saf' => 12]));
+        $t->same($modernLonghands, $prefixer->prefixForTargets($css, ['ios_saf' => '12.1']));
+        $t->same($mozLonghands, $prefixer->prefixForTargets($css, ['firefox' => 35]));
+        $t->same($modernLonghands, $prefixer->prefixForTargets($css, ['firefox' => 36]));
+        $t->same($modernLonghands, $prefixer->prefixForTargets($css, ['safari' => 16]));
+        $t->same($modernLonghands, $prefixer->prefixForTargets('.foo { -webkit-text-decoration-line: underline; text-decoration-line: underline; -webkit-text-decoration-style: dotted; text-decoration-style: dotted; -webkit-text-decoration-color: red; text-decoration-color: red; }', ['safari' => '12.1']));
+        $t->same($modernLonghands, $prefixer->prefixForTargets('.foo { -moz-text-decoration-line: underline; text-decoration-line: underline; -moz-text-decoration-style: dotted; text-decoration-style: dotted; -moz-text-decoration-color: red; text-decoration-color: red; }', ['firefox' => 36]));
+        $t->same(
+            '.foo{-webkit-text-decoration:underline dotted;text-decoration:underline dotted}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline dotted; }', ['safari' => 16])
+        );
+    },
     'transition prefixer maps upstream text decoration thickness target fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

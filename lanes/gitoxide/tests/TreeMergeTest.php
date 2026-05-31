@@ -1749,6 +1749,53 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline type-change-and-renamed resolve-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));
+        $base = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', '')])),
+            $linkEntry('link', 'a/x.f'),
+        ]);
+        $ours = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', '')])),
+            $blobEntry('link', "not-link\n"),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('a', new Tree([$blobEntry('x.f', '')])),
+            $linkEntry('link-renamed', 'a/x.f'),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+        $theirsResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseOursResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+
+        $t->true($ancestorResolved->isClean());
+        $t->same(['a', 'link'], $names($ancestorResolved->tree));
+        $t->same('link', $ancestorResolved->tree->entryNamed('link')?->kind());
+        $t->same('a/x.f', $read($ancestorResolved->tree->entryNamed('link')?->oid ?? '')->body);
+        $t->same([], $ancestorResolved->indexEntries());
+
+        $t->true($oursResolved->isClean());
+        $t->same(['a', 'link'], $names($oursResolved->tree));
+        $t->same('blob', $oursResolved->tree->entryNamed('link')?->kind());
+        $t->same("not-link\n", $read($oursResolved->tree->entryNamed('link')?->oid ?? '')->body);
+        $t->same([], $oursResolved->indexEntries());
+
+        $t->true($theirsResolved->isClean());
+        $t->same(['a', 'link-renamed'], $names($theirsResolved->tree));
+        $t->same('link', $theirsResolved->tree->entryNamed('link-renamed')?->kind());
+        $t->same('a/x.f', $read($theirsResolved->tree->entryNamed('link-renamed')?->oid ?? '')->body);
+        $t->same([], $theirsResolved->indexEntries());
+
+        $t->true($reverseOursResolved->isClean());
+        $t->same(['a', 'link-renamed'], $names($reverseOursResolved->tree));
+        $t->same('link', $reverseOursResolved->tree->entryNamed('link-renamed')?->kind());
+        $t->same('a/x.f', $read($reverseOursResolved->tree->entryNamed('link-renamed')?->oid ?? '')->body);
+        $t->same([], $reverseOursResolved->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline rename-and-modification fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $base = new Tree([

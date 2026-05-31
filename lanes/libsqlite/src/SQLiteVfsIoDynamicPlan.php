@@ -5762,6 +5762,156 @@ final class SQLiteVfsIoDynamicPlan
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
+    public static function multiplexVfsChunkProfile(string $scenario, array $options = []): array
+    {
+        $scenario = trim($scenario);
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite multiplex VFS profile requires a scenario');
+        }
+
+        $group = self::multiplexGroup($scenario);
+        $script = match (true) {
+            str_starts_with($group, 'multiplex2') => 'multiplex2.test',
+            str_starts_with($group, 'multiplex3') => 'multiplex3.test',
+            str_starts_with($group, 'multiplex4') => 'multiplex4.test',
+            default => 'multiplex.test',
+        };
+
+        $baseName = trim((string) ($options['base_name'] ?? match (true) {
+            str_starts_with($group, 'multiplex4') => 'mx4test.db',
+            str_starts_with($group, 'multiplex3') => 'test.db',
+            default => 'test.x',
+        }));
+        if ($baseName === '') {
+            throw new \InvalidArgumentException('SQLite multiplex VFS base name is required');
+        }
+
+        $chunkSize = (int) ($options['chunk_size'] ?? match (true) {
+            str_starts_with($group, 'multiplex2') => 1048576,
+            str_starts_with($group, 'multiplex3') => 262144,
+            str_starts_with($group, 'multiplex4') => 10,
+            default => 4096,
+        });
+        if ($chunkSize < 1) {
+            throw new \InvalidArgumentException('SQLite multiplex VFS chunk size must be positive');
+        }
+
+        $maxChunks = (int) ($options['max_chunks'] ?? 16);
+        if ($maxChunks < 1) {
+            throw new \InvalidArgumentException('SQLite multiplex VFS max chunk count must be positive');
+        }
+
+        $pageSize = (int) ($options['page_size'] ?? 1024);
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite multiplex VFS page size must be a power of two at least 512');
+        }
+
+        $journalMode = strtolower(trim((string) ($options['journal_mode'] ?? 'delete')));
+        if (!in_array($journalMode, ['delete', 'persist', 'truncate', 'memory', 'off'], true)) {
+            throw new \InvalidArgumentException('SQLite multiplex VFS journal mode is unsupported');
+        }
+
+        $rowCount = (int) ($options['row_count'] ?? match (true) {
+            str_starts_with($group, 'multiplex2') || str_starts_with($group, 'multiplex3') => 512,
+            str_starts_with($group, 'multiplex4') => 1,
+            default => 256,
+        });
+        $payloadBytes = (int) ($options['payload_bytes'] ?? match (true) {
+            str_starts_with($group, 'multiplex4') => 250000,
+            str_starts_with($group, 'multiplex2') || str_starts_with($group, 'multiplex3') => 2048,
+            default => 1000,
+        });
+        if ($rowCount < 1 || $payloadBytes < 0) {
+            throw new \InvalidArgumentException('SQLite multiplex VFS row count and payload bytes must be non-negative');
+        }
+
+        $enabled = (bool) ($options['enabled'] ?? !str_starts_with($group, 'multiplex-2.7'));
+        $shortNames = (bool) ($options['short_names'] ?? str_starts_with($group, 'multiplex3'));
+        $truncateEnabled = (bool) ($options['truncate'] ?? str_starts_with($group, 'multiplex4'));
+        $peerConnections = (int) ($options['peer_connections'] ?? match (true) {
+            str_starts_with($group, 'multiplex-3') || str_starts_with($group, 'multiplex2') => 2,
+            default => 1,
+        });
+        if ($peerConnections < 1) {
+            throw new \InvalidArgumentException('SQLite multiplex VFS peer connection count must be positive');
+        }
+
+        $alignment = 65536;
+        $alignedChunkSize = self::align($chunkSize, $alignment);
+        $databaseBytes = self::align(max($pageSize * 2, ($pageSize * 2) + ($rowCount * ($payloadBytes + 64))), $pageSize);
+        $wouldSpanChunks = $databaseBytes > $alignedChunkSize;
+        $chunkCount = $enabled ? max(1, min($maxChunks, (int) ceil($databaseBytes / $alignedChunkSize))) : 1;
+
+        if ($group === 'multiplex4-1' && $enabled) {
+            $chunkCount = $wouldSpanChunks ? min($maxChunks, 2) : 1;
+        }
+
+        $chunkFiles = self::multiplexChunkFiles($baseName, $chunkCount, $shortNames);
+        $filesAfterVacuum = $group === 'multiplex4-1' && $truncateEnabled
+            ? [$baseName]
+            : $chunkFiles;
+
+        return [
+            'status' => 'ok',
+            'script' => $script,
+            'scenario' => $scenario,
+            'group' => $group,
+            'upstream' => self::multiplexUpstream($group),
+            'vfs' => 'multiplex',
+            'base_name' => $baseName,
+            'short_names' => $shortNames,
+            'enabled' => $enabled,
+            'page_size' => $pageSize,
+            'journal_mode' => $journalMode,
+            'row_count' => $rowCount,
+            'payload_bytes' => $payloadBytes,
+            'database_bytes' => $databaseBytes,
+            'chunk_size_requested' => $chunkSize,
+            'chunk_size_alignment' => $alignment,
+            'chunk_size_aligned' => $alignedChunkSize,
+            'max_chunks' => $maxChunks,
+            'chunk_count' => $chunkCount,
+            'chunk_files' => $chunkFiles,
+            'would_span_chunks' => $wouldSpanChunks,
+            'disabled_keeps_single_base_file' => !$enabled && $wouldSpanChunks,
+            'pragma_multiplex_enabled' => $enabled ? 1 : 0,
+            'pragma_multiplex_filecount' => $chunkCount,
+            'pragma_multiplex_chunksize' => $alignedChunkSize,
+            'first_connection_row_count' => $rowCount,
+            'second_connection_row_count' => $peerConnections > 1 ? $rowCount : null,
+            'peer_connection_count' => $peerConnections,
+            'multi_client_delete_vacuum_visible' => str_starts_with($group, 'multiplex2'),
+            'hot_journal_copy_preserves_checksum' => $group === 'multiplex3-2',
+            'faultsim_error_preserves_checksum' => in_array($group, ['multiplex3-1', 'multiplex3-3'], true),
+            'backup_reopen_checksum_stable' => $group === 'multiplex3-3',
+            'truncate_file_control_handled' => $group === 'multiplex4-1',
+            'truncate_enabled' => $truncateEnabled,
+            'files_after_vacuum' => $filesAfterVacuum,
+            'pragma_multiplex_truncate_sequence' => $group === 'multiplex4-1'
+                ? ['on', 'off', $truncateEnabled ? 'on' : 'off']
+                : [],
+            'reason' => match (true) {
+                $group === 'multiplex-1' => 'multiplex_vfs_control_api_initializes_and_rejects_invalid_controls',
+                $group === 'multiplex-2' => 'multiplex_vfs_chunks_large_database_writes_and_reports_filecount',
+                $group === 'multiplex-3' => 'multiplex_vfs_tracks_multiple_connection_groups',
+                $group === 'multiplex2-1' => 'multiplex_vfs_multi_client_reads_survive_delete_vacuum_cycles',
+                $group === 'multiplex3-1' => 'multiplex_vfs_faultsim_preserves_original_checksum',
+                $group === 'multiplex3-2' => 'multiplex_vfs_8_3_hot_journal_copy_reopens_original_checksum',
+                $group === 'multiplex3-3' => 'multiplex_vfs_backup_reopen_keeps_checksum_or_reports_ioerr',
+                default => 'multiplex_vfs_truncate_file_control_removes_or_preserves_chunks',
+            },
+            'dependencies' => [
+                'sqlite-upstream-multiplex-test',
+                'sqlite-vfs-multiplex-chunks',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
     public static function unixExclVfsProfile(string $scenario, array $options = []): array
     {
         $scenario = trim($scenario);
@@ -5913,6 +6063,85 @@ final class SQLiteVfsIoDynamicPlan
             'exclusive2-1' => self::exclusiveNormalCacheProfile($options),
             'exclusive2-2' => self::exclusiveStaleCacheProfile($options),
             'exclusive2-3' => self::exclusiveChangeCounterProfile($options),
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function multiplexChunkFiles(string $baseName, int $chunkCount, bool $shortNames): array
+    {
+        $files = [$baseName];
+        $stem = preg_replace('/\.[^.]+$/', '', $baseName) ?? $baseName;
+        for ($chunk = 1; $chunk < $chunkCount; $chunk++) {
+            $files[] = $shortNames ? sprintf('%s.%03d', $stem, $chunk) : sprintf('%s%03d', $baseName, $chunk);
+        }
+
+        sort($files, SORT_STRING);
+        return array_values($files);
+    }
+
+    private static function multiplexGroup(string $scenario): string
+    {
+        foreach (['multiplex4-1', 'multiplex3-1', 'multiplex3-2', 'multiplex3-3', 'multiplex2-1'] as $group) {
+            if (str_starts_with($scenario, $group)) {
+                return $group;
+            }
+        }
+        foreach (['multiplex-1', 'multiplex-2', 'multiplex-3'] as $group) {
+            if (str_starts_with($scenario, $group)) {
+                return $group;
+            }
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite multiplex VFS scenario: {$scenario}");
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function multiplexUpstream(string $group): array
+    {
+        return match ($group) {
+            'multiplex-1' => [
+                'multiplex.test multiplex-1.0 initialize/shutdown control API',
+                'multiplex.test multiplex-1.5 invalid control returns SQLITE_ERROR',
+            ],
+            'multiplex-2' => [
+                'multiplex.test multiplex-2.1 open database using multiplex VFS',
+                'multiplex.test multiplex-2.5 inserts random blobs across chunk boundaries',
+                'multiplex.test multiplex-2.5.9 reports chunk zero and one at configured chunk size',
+                'multiplex.test multiplex-2.5.10 reports three multiplex chunks',
+                'multiplex.test multiplex-2.7 disabled multiplex leaves one oversized base file',
+            ],
+            'multiplex-3' => [
+                'multiplex.test multiplex-3.1 opens multiple multiplex connection groups',
+                'multiplex.test multiplex-3.2 reuses and closes group handles in order',
+            ],
+            'multiplex2-1' => [
+                'multiplex2.test multiplex2-1.1 client two reads rows inserted by client one',
+                'multiplex2.test multiplex2-1.2 delete plus vacuum by client two is visible to client one',
+                'multiplex2.test multiplex2-1.3 client one reinserts rows visible to client two',
+            ],
+            'multiplex3-1' => [
+                'multiplex3.test multiplex3-1.0 setup 8.3 multiplex database and checksum',
+                'multiplex3.test multiplex3-1 faultsim update preserves checksum after I/O fault',
+            ],
+            'multiplex3-2' => [
+                'multiplex3.test multiplex3-2.1 hot-journal copy reopens with original checksum',
+                'multiplex3.test multiplex3-2.2..2.100 hot-journal copies remain recoverable',
+            ],
+            'multiplex3-3' => [
+                'multiplex3.test multiplex3-3 faultsim backup into 8.3 multiplex database',
+                'multiplex3.test multiplex3-3 backup result is SQLITE_OK or SQLITE_IOERR with stable source checksum',
+            ],
+            'multiplex4-1' => [
+                'multiplex4.test multiplex4-1.1 URI chunksize creates base and chunk file',
+                'multiplex4.test multiplex4-1.2 truncate-enabled VACUUM removes chunk files',
+                'multiplex4.test multiplex4-1.3 PRAGMA multiplex_truncate toggles file-control state',
+                'multiplex4.test multiplex4-1.5 truncate-off VACUUM preserves chunk files',
+            ],
+            default => throw new \InvalidArgumentException("Unsupported SQLite multiplex VFS upstream group: {$group}"),
         };
     }
 

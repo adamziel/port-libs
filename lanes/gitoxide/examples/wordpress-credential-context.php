@@ -17,6 +17,10 @@ return [
     'rootHttpPathCleared' => $fixture['rootHttpPathCleared'],
     'fileUrlClearedHost' => $fixture['fileUrlClearedHost'],
     'fileUrlPath' => $fixture['fileUrlPath'],
+    'helperProgramProtocolHost' => $fixture['helperProgramProtocolHost'],
+    'helperProgramMissingCredential' => $fixture['helperProgramMissingCredential'],
+    'helperProgramUrlOnly' => $fixture['helperProgramUrlOnly'],
+    'helperProgramOutput' => $fixture['helperProgramOutput'],
     'redactedBytes' => $fixture['redactedBytes'],
     'secretsInCleartextLog' => str_contains($fixture['redactedBytes'], 'wp-deploy-token')
         || str_contains($fixture['redactedBytes'], 'wp-refresh-token'),

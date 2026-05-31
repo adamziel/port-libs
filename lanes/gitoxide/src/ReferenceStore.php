@@ -16,6 +16,10 @@ final class ReferenceStore
     public const PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES = 'deletions-and-non-symbolic-updates';
     public const PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE = 'deletions-and-non-symbolic-updates-remove-loose-source-reference';
 
+    public const WRITE_REFLOG_NORMAL = 'normal';
+    public const WRITE_REFLOG_ALWAYS = 'always';
+    public const WRITE_REFLOG_DISABLE = 'disable';
+
     private readonly LooseReferenceStore $loose;
     private ?PackedReferences $packed;
     private readonly ?string $namespacePrefix;
@@ -25,24 +29,31 @@ final class ReferenceStore
         private readonly string $gitDirectory,
         ?PackedReferences $packed = null,
         ?string $namespace = null,
+        private readonly string $writeReflogMode = self::WRITE_REFLOG_NORMAL,
     ) {
+        self::assertWriteReflogMode($writeReflogMode);
         $this->loose = new LooseReferenceStore($gitDirectory);
         $this->packed = $packed;
         $this->namespacePrefix = $namespace === null ? null : ReferenceName::expandNamespace($namespace);
         $this->packedRefsSnapshot = $this->packedRefsFileSnapshot();
     }
 
-    public static function at(string $gitDirectory, string $algorithm = 'sha1', ?string $namespace = null): self
+    public static function at(
+        string $gitDirectory,
+        string $algorithm = 'sha1',
+        ?string $namespace = null,
+        string $writeReflogMode = self::WRITE_REFLOG_NORMAL,
+    ): self
     {
         $packedPath = rtrim($gitDirectory, '/\\') . '/packed-refs';
         $packed = is_file($packedPath) ? PackedReferences::open($packedPath, $algorithm) : null;
 
-        return new self($gitDirectory, $packed, $namespace);
+        return new self($gitDirectory, $packed, $namespace, $writeReflogMode);
     }
 
     public function withNamespace(string $namespace): self
     {
-        return new self($this->gitDirectory, $this->packed, $namespace);
+        return new self($this->gitDirectory, $this->packed, $namespace, $this->writeReflogMode);
     }
 
     public function looseStore(): LooseReferenceStore
@@ -68,7 +79,13 @@ final class ReferenceStore
     ): PreparedReferenceTransaction
     {
         $locks = [];
-        $writeReflog = $committer !== null || $reflogMessage !== '' || $forceCreateReflog;
+        $writeReflog = $this->writeReflogMode !== self::WRITE_REFLOG_DISABLE
+            && (
+                $committer !== null
+                || $reflogMessage !== ''
+                || $forceCreateReflog
+                || $this->writeReflogMode === self::WRITE_REFLOG_ALWAYS
+            );
         $packedRefsLockPath = $this->preparePackedRefsLockForLooseTransaction();
 
         try {
@@ -119,6 +136,7 @@ final class ReferenceStore
                                 'message' => $reflogMessage,
                                 'forceCreate' => $forceCreateReflog,
                                 'algorithm' => $algorithm,
+                                'writeMode' => $this->writeReflogMode,
                             ] : null,
                         ];
                     }
@@ -167,6 +185,7 @@ final class ReferenceStore
                         'message' => $reflogMessage,
                         'forceCreate' => $forceCreateReflog,
                         'algorithm' => $algorithm,
+                        'writeMode' => $this->writeReflogMode,
                     ] : null,
                 ];
             }
@@ -1099,7 +1118,11 @@ final class ReferenceStore
         bool $forceCreate,
         string $algorithm,
     ): void {
-        if ($committer === null && $message === '' && !$forceCreate) {
+        if ($this->writeReflogMode === self::WRITE_REFLOG_DISABLE) {
+            return;
+        }
+
+        if ($committer === null && $message === '' && !$forceCreate && $this->writeReflogMode !== self::WRITE_REFLOG_ALWAYS) {
             return;
         }
 
@@ -1119,6 +1142,10 @@ final class ReferenceStore
         bool $forceCreate,
         string $algorithm,
     ): void {
+        if ($this->writeReflogMode === self::WRITE_REFLOG_DISABLE) {
+            return;
+        }
+
         if (!$new->isObject()) {
             return;
         }
@@ -1141,6 +1168,7 @@ final class ReferenceStore
         }
 
         $path = $this->reflogPath($physicalName);
+        $forceCreate = $forceCreate || $this->writeReflogMode === self::WRITE_REFLOG_ALWAYS;
         if (!is_file($path) && !$forceCreate && !$this->shouldAutoCreateReflog($physicalName)) {
             return;
         }
@@ -1635,6 +1663,17 @@ final class ReferenceStore
     private static function targetsEqual(ReferenceTarget $left, ReferenceTarget $right): bool
     {
         return $left->kind === $right->kind && $left->value === $right->value;
+    }
+
+    private static function assertWriteReflogMode(string $mode): void
+    {
+        if (!in_array($mode, [
+            self::WRITE_REFLOG_NORMAL,
+            self::WRITE_REFLOG_ALWAYS,
+            self::WRITE_REFLOG_DISABLE,
+        ], true)) {
+            throw new \InvalidArgumentException("Unknown reflog write mode: {$mode}");
+        }
     }
 
     private static function assertPackedRefsMode(string $mode): void

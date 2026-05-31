@@ -44,6 +44,8 @@ return [
     'preparedSymbolicTargetRef' => 'refs/heads/production',
     'preparedDerefHeadRef' => 'HEAD',
     'preparedDerefTargetRef' => 'refs/heads/production',
+    'preparedQuietHeadRef' => 'HEAD',
+    'preparedQuietTargetRef' => 'refs/heads/quiet-production',
     'expectedPreparedDeleteEditNames' => [
         'refs/heads/review/plugin-d/stale',
     ],
@@ -66,6 +68,10 @@ return [
         'HEAD',
         'refs/heads/production',
     ],
+    'expectedPreparedQuietEditNames' => [
+        'HEAD',
+        'refs/heads/quiet-production',
+    ],
     'expectedPreparedDerefEditModes' => [
         'only',
         'and-reference',
@@ -74,6 +80,15 @@ return [
         false,
         true,
     ],
+    'expectedPreparedQuietEditModes' => [
+        'only',
+        'and-reference',
+    ],
+    'expectedPreparedQuietUpdatesReference' => [
+        false,
+        true,
+    ],
+    'expectedPreparedQuietHeadContents' => "ref: refs/namespaces/{$namespace}/refs/heads/quiet-production\n",
     'expectedPreparedDeleteHadLock' => true,
     'expectedPreparedDeleteCleanedLock' => true,
     'expectedPreparedDeleteRefStillExists' => false,
@@ -95,6 +110,7 @@ return [
     'preparedNoOpReflogMessage' => 'idempotent tenant review ref',
     'preparedSymbolicReflogMessage' => 'prepared symbolic review pointer',
     'preparedDerefReflogMessage' => 'prepared symbolic production publish',
+    'preparedQuietReflogMessage' => 'quiet symbolic production publish',
     'preparedReflogCommitter' => 'Deploy Bot <deploy@example.com> 1234 +0000',
-    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, stage a clone-style symbolic review pointer whose reflog records the peeled production commit before publishing the symbolic lock, stage a dereferenced symbolic HEAD publish that logs both HEAD and the production branch while preserving the symbolic parent, hold packed-ref transaction locks while prepared ref updates are in flight, skip idempotent prepared writes without disturbing a held ref lock or adding reflog noise, prune stale and broken review refs through prepared delete locks, remove reflog-only audit trails even while packed refs are locked for compaction, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
+    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, stage a clone-style symbolic review pointer whose reflog records the peeled production commit before publishing the symbolic lock, stage a dereferenced symbolic HEAD publish that logs both HEAD and the production branch while preserving the symbolic parent, disable prepared deref reflog writes for quiet publish previews, hold packed-ref transaction locks while prepared ref updates are in flight, skip idempotent prepared writes without disturbing a held ref lock or adding reflog noise, prune stale and broken review refs through prepared delete locks, remove reflog-only audit trails even while packed refs are locked for compaction, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
 ];

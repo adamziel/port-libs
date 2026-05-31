@@ -388,6 +388,80 @@ return [
         $t->same('promisor-present', $database->objectState($hydratedPatternOid)['status']);
         $t->same($hydratedPatternBlob->body, $database->read($hydratedPatternOid)->body);
     },
+    'object database refresh-disabled handle preserves promised missing state after external promisor hydration' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $hydratedBlockBlob = new GitObject('blob', 'Externally hydrated block bytes hidden from a refresh-disabled handle');
+        $hydratedBlockOid = $hydratedBlockBlob->oid();
+        $prefix = strtoupper(substr($hydratedBlockOid, 0, 12));
+        $staleDatabase = (new ObjectDatabase($gitDir))->withObjectStorageRefreshDisabled();
+
+        $t->same(false, $staleDatabase->objectStorageRefreshesOnMiss());
+        $t->same('promised-missing', $staleDatabase->objectState($hydratedBlockOid)['status']);
+        $t->same('missing', $staleDatabase->lookupPrefix($prefix)['status']);
+        $t->same(1, count($staleDatabase->promisorPackNames()));
+
+        $hydrationPack = $writePromisorPackForObject($gitDir, $hydratedBlockBlob, "external refresh-never hydration\n");
+
+        $t->same(false, $staleDatabase->contains($hydratedBlockOid));
+        $t->same('missing', $staleDatabase->lookupPrefix($prefix)['status']);
+        $withCandidates = $staleDatabase->lookupPrefix($prefix, true);
+        $t->same('missing', $withCandidates['status']);
+        $t->same([], $withCandidates['candidates']);
+        $t->same('promised-missing', $staleDatabase->objectState($hydratedBlockOid)['status']);
+        $t->same(false, in_array($hydrationPack, $staleDatabase->promisorPackNames(), true));
+
+        $freshDatabase = new ObjectDatabase($gitDir);
+        $t->same(true, $freshDatabase->objectStorageRefreshesOnMiss());
+        $t->same(true, $freshDatabase->contains($hydratedBlockOid));
+        $t->same('found', $freshDatabase->lookupPrefix($prefix)['status']);
+        $t->same('promisor-present', $freshDatabase->objectState($hydratedBlockOid)['status']);
+        $t->same(true, in_array($hydrationPack, $freshDatabase->promisorPackNames(), true));
+    },
+    'object database refresh-disabled handle does not consume resolver side-effect promisor packs' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $sideEffectBlob = new GitObject('blob', 'Resolver wrote a pack but refresh-never kept the old snapshot');
+        $sideEffectOid = $sideEffectBlob->oid();
+        $resolver = new class($sideEffectBlob, $gitDir) implements PromisorObjectResolver {
+            public array $requests = [];
+            public ?string $packName = null;
+
+            public function __construct(
+                private readonly GitObject $object,
+                private readonly string $gitDir,
+            ) {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+                $pack = PackBuilder::build([$this->object]);
+                $packDir = $this->gitDir . '/objects/pack';
+                $basename = 'pack-' . $pack->packChecksum();
+                $this->packName = $basename . '.promisor';
+
+                file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+                file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+                file_put_contents($packDir . '/' . $basename . '.promisor', "refresh-never resolver side effect\n");
+
+                return null;
+            }
+        };
+        $staleDatabase = (new ObjectDatabase($gitDir))
+            ->withPromisorResolver($resolver)
+            ->withObjectStorageRefreshDisabled();
+
+        $t->same('promised-missing', $staleDatabase->objectState($sideEffectOid)['status']);
+        $t->throws(RuntimeException::class, static fn () => $staleDatabase->read($sideEffectOid));
+        $t->same([$sideEffectOid], $resolver->requests);
+        $t->same('promised-missing', $staleDatabase->objectState($sideEffectOid)['status']);
+        $t->same(false, in_array($resolver->packName, $staleDatabase->promisorPackNames(), true));
+
+        $refreshedDatabase = $staleDatabase->withObjectStorageRefreshEnabled();
+        $t->same(true, $refreshedDatabase->objectStorageRefreshesOnMiss());
+        $t->same($sideEffectBlob->body, $refreshedDatabase->read($sideEffectOid)->body);
+        $t->same('promisor-present', $refreshedDatabase->objectState($sideEffectOid)['status']);
+        $t->same(true, in_array($resolver->packName, $refreshedDatabase->promisorPackNames(), true));
+    },
     'object database resolves promisor thin pack deltas from loose base objects' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackResult, $buildThinPromisorBlobs): void {
         [$gitDir] = $writePromisorPackFixture();
         [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('loose-base');
@@ -489,11 +563,18 @@ return [
         $t->same('promisor-present', $summary['afterRead']['status']);
         $t->same(true, in_array($summary['hydrationPack'], $summary['promisorPacksAfterHydration'], true));
         $t->same(true, $summary['persistedInPackStore']);
+        $t->same(false, $summary['refreshDisabledRefreshesOnMiss']);
         $t->same('promised-missing', $summary['beforeExternalHydration']['status']);
+        $t->same('promised-missing', $summary['refreshDisabledBeforeExternalHydration']['status']);
         $t->same(true, $summary['containsAfterExternalHydration']);
         $t->same('found', $summary['prefixAfterExternalHydration']['status']);
         $t->same($summary['externalHydratedObject'], $summary['prefixAfterExternalHydration']['oid']);
         $t->same('promisor-present', $summary['afterExternalHydration']['status']);
+        $t->same(false, $summary['refreshDisabledContainsAfterExternalHydration']);
+        $t->same('missing', $summary['refreshDisabledPrefixAfterExternalHydration']['status']);
+        $t->same([], $summary['refreshDisabledPrefixAfterExternalHydration']['candidates']);
+        $t->same('promised-missing', $summary['refreshDisabledAfterExternalHydration']['status']);
+        $t->same(false, in_array($summary['externalHydrationPack'], $summary['refreshDisabledPromisorPacksAfterExternalHydration'], true));
         $t->same(true, in_array($summary['externalHydratedObject'], $summary['objectIdsAfterExternalHydration'], true));
         $t->same($summary['packedObjectCountBeforeExternalHydration'] + 1, $summary['packedObjectCountAfterExternalHydration']);
         $t->same(true, in_array($summary['externalHydrationPack'], $summary['promisorPacksAfterExternalHydration'], true));

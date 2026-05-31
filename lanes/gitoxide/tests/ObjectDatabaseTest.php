@@ -57,6 +57,23 @@ $writeWordPressMultiPackFixture = static function (bool $omitMediaPack = false):
     return [$gitDir, $fixture];
 };
 
+$writeWordPressSha256MultiPackFixture = static function (): array {
+    $fixture = require dirname(__DIR__) . '/fixtures/wordpress-object-database-multi-pack-sha256.php';
+    $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-midx-sha256-' . bin2hex(random_bytes(4)) . '/.git';
+    $packDir = $gitDir . '/objects/pack';
+    if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
+        throw new RuntimeException("Unable to create SHA-256 multi-pack fixture directory: {$packDir}");
+    }
+
+    foreach ($fixture['packs'] as $pack) {
+        file_put_contents($packDir . '/' . $pack['packName'], $pack['packBytes']);
+        file_put_contents($packDir . '/' . $pack['indexName'], $pack['indexBytes']);
+    }
+    file_put_contents($packDir . '/multi-pack-index', $fixture['multiIndexBytes']);
+
+    return [$gitDir, $fixture];
+};
+
 $rewriteMultiPackIndexOffset = static function (string $bytes, string $oid, int $packIndex, int $packOffset): string {
     $readUInt64 = static function (string $data, int $offset): int {
         $parts = unpack('Nhigh/Nlow', substr($data, $offset, 8));
@@ -717,6 +734,35 @@ return [
             $t->contains((string) $media['offset'], $exception->getMessage());
         }
     },
+    'object database uses sha256 multi-pack-index prefixes with matching store hash' => static function (TestRunner $t) use ($writeWordPressSha256MultiPackFixture): void {
+        [$gitDir, $fixture] = $writeWordPressSha256MultiPackFixture();
+        $database = new ObjectDatabase($gitDir, objectHash: 'sha256');
+        $content = $fixture['objectsByRole']['content'];
+        $media = $fixture['objectsByRole']['media'];
+
+        $t->same(2, $database->packedObjectCount());
+        $t->same(64, strlen($fixture['multiIndexChecksum']));
+        $t->same(true, $database->contains(strtoupper($content['oid'])));
+
+        $contentPrefix = $database->lookupPrefix(strtoupper(substr($content['oid'], 0, 12)), true);
+        $t->same([
+            'status' => 'found',
+            'oid' => $content['oid'],
+            'candidates' => [$content['oid']],
+        ], $contentPrefix);
+
+        $shortestMediaPrefix = $database->disambiguatePrefix(strtoupper($media['oid']), 4);
+        $t->true($shortestMediaPrefix !== null);
+        $t->same(substr($media['oid'], 0, strlen($shortestMediaPrefix)), $shortestMediaPrefix);
+        $t->same(['status' => 'found', 'oid' => $media['oid']], $database->lookupPrefix($shortestMediaPrefix));
+        $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix(str_repeat('f', 64), true));
+
+        $contentObject = $database->read($content['oid']);
+        $mediaHeader = $database->readHeader(strtoupper($media['oid']));
+        $t->same($content['body'], $contentObject->body);
+        $t->same($content['oid'], $contentObject->oid('sha256'));
+        $t->same(['type' => 'blob', 'size' => strlen($media['body']), 'source' => 'pack'], $mediaHeader);
+    },
     'wordpress object database multi-pack example verifies referenced pack offsets' => static function (TestRunner $t): void {
         $summary = require dirname(__DIR__) . '/examples/wordpress-object-database-multi-pack.php';
 
@@ -729,6 +775,18 @@ return [
         ], $summary['contentPrefixCandidates']);
         $t->same(3, $summary['packedObjects']);
         $t->same(4, $summary['rawPackIndexObjects']);
+    },
+    'wordpress object database sha256 multi-pack example resolves prefixes without git binary' => static function (TestRunner $t): void {
+        $summary = require dirname(__DIR__) . '/examples/wordpress-object-database-multi-pack-sha256.php';
+
+        $t->same('sha256', $summary['objectHash']);
+        $t->same(2, $summary['packedObjects']);
+        $t->same(64, $summary['multiPackIndexChecksumLength']);
+        $t->same(64, $summary['contentOidLength']);
+        $t->same(true, $summary['contentReadable']);
+        $t->same('found', $summary['mediaPrefixStatus']);
+        $t->same(1, count($summary['mediaPrefixCandidates']));
+        $t->same('pack', $summary['mediaHeader']['source']);
     },
     'wordpress object database example writes deployment commits through the database' => static function (TestRunner $t): void {
         $summary = require dirname(__DIR__) . '/examples/wordpress-object-database.php';

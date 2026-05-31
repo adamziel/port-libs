@@ -2513,6 +2513,20 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
+    public static function dynamicRollbackDisabledReopenedPrefixCheckpointScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled reopened-prefix checkpoint dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicRollbackDisabledReopenedPrefixCheckpointScenariosFromSuccessScenarios(
+            self::dynamicRollbackDisabledReopenedPrefixSuccessScenarios($scenarioCount)
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     public static function dynamicPostCheckpointFollowupScenarios(int $scenarioCount = 16): array
     {
         if ($scenarioCount < 1) {
@@ -2663,6 +2677,103 @@ final class SQLiteJsonImportRollbackWalPlan
                 'previous_recovery_final_row_count' => count($previousRecoveryPlan['import_plan']['final_rows']),
                 'reopened_success_plan' => $reopenedSuccessPlan,
             ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRollbackDisabledReopenedPrefixCheckpointScenariosFromSuccessScenarios(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled reopened-prefix checkpoint dynamic parity requires success scenarios');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $mode = $seed % 2 === 0 ? 'truncate' : 'restart';
+            $successPlan = $base['reopened_success_plan'];
+            $wal = SQLiteWal::parse((string) $successPlan['wal_bytes_after'], $pageSize, false);
+            $checkpointInput = (string) $successPlan['database_bytes_before'];
+            $checkpointPlan = $wal->checkpointPlan($checkpointInput);
+            $releasedCheckpoint = $wal->durableCheckpointResult($checkpointInput, $mode);
+            $readerEndFrame = max(0, (int) ($checkpointPlan['last_commit_frame'] ?? 0) - 1);
+            $pinnedCheckpoint = $wal->durableCheckpointResult($checkpointInput, $mode, $readerEndFrame);
+
+            $latestCommittedPageImages = [];
+            $lastCommitFrame = (int) ($checkpointPlan['last_commit_frame'] ?? 0);
+            foreach ($wal->frames as $frame) {
+                if ($frame->index > $lastCommitFrame) {
+                    break;
+                }
+                $latestCommittedPageImages[$frame->pageNumber] = $frame->pageImage;
+            }
+
+            $appliedFrameIndexes = [];
+            $appliedPageNumbers = [];
+            $supersededFrameIndexes = [];
+            $supersededPageNumbers = [];
+            foreach ($checkpointPlan['frames'] as $frame) {
+                if ($frame['applied']) {
+                    $appliedFrameIndexes[] = $frame['frame_index'];
+                    $appliedPageNumbers[] = $frame['page_number'];
+                }
+                if ($frame['reason'] === 'superseded_by_later_committed_frame') {
+                    $supersededFrameIndexes[] = $frame['frame_index'];
+                    $supersededPageNumbers[] = $frame['page_number'];
+                }
+            }
+
+            $releasedMatchesReopenedPages = true;
+            foreach ($base['expected_reopened_pages'] as $pageNumber) {
+                $pageNumber = (int) $pageNumber;
+                $releasedImage = self::databasePageSlice((string) $releasedCheckpoint['database_bytes'], $pageSize, $pageNumber);
+                if ($releasedImage === null || $releasedImage !== ($latestCommittedPageImages[$pageNumber] ?? null)) {
+                    $releasedMatchesReopenedPages = false;
+                    break;
+                }
+            }
+
+            $reopenedPages = $base['expected_reopened_pages'];
+            $catalogPage = (int) $reopenedPages[0];
+            $insertedPage = (int) $reopenedPages[1];
+            $previousRecoveryPage = (int) $reopenedPages[2];
+            $pinnedCatalogPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $catalogPage);
+            $pinnedInsertedPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $insertedPage);
+            $pinnedPreviousRecoveryPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $previousRecoveryPage);
+
+            $finalKeys = array_column($successPlan['import_plan']['final_rows'], 'key_name');
+
+            $scenarios[] = array_merge($base, [
+                'checkpoint_mode' => $mode,
+                'reopened_checkpoint_database_bytes_before_hash' => hash('sha256', $checkpointInput),
+                'reopened_checkpoint_plan' => $checkpointPlan,
+                'reopened_released_checkpoint' => $releasedCheckpoint,
+                'reopened_pinned_checkpoint' => $pinnedCheckpoint,
+                'reopened_checkpoint_reader_end_frame' => $readerEndFrame,
+                'expected_reopened_checkpoint_action' => $mode === 'truncate' ? 'truncate_wal' : 'restart_wal',
+                'expected_reopened_released_wal_bytes_length' => $mode === 'truncate' ? 0 : 32,
+                'reopened_checkpointed_pages_match' => $releasedMatchesReopenedPages,
+                'reopened_pinned_catalog_matches_reopened' => $pinnedCatalogPageImage !== null
+                    && $pinnedCatalogPageImage === ($latestCommittedPageImages[$catalogPage] ?? null),
+                'reopened_pinned_insert_page_matches_reopened' => $pinnedInsertedPageImage !== null
+                    && $pinnedInsertedPageImage === ($latestCommittedPageImages[$insertedPage] ?? null),
+                'reopened_pinned_previous_recovery_page_matches_reopened' => $pinnedPreviousRecoveryPageImage !== null
+                    && $pinnedPreviousRecoveryPageImage === ($latestCommittedPageImages[$previousRecoveryPage] ?? null),
+                'reopened_checkpoint_applied_frame_indexes' => $appliedFrameIndexes,
+                'reopened_checkpoint_applied_page_numbers' => $appliedPageNumbers,
+                'reopened_checkpoint_superseded_frame_indexes' => $supersededFrameIndexes,
+                'reopened_checkpoint_superseded_page_numbers' => array_values(array_unique($supersededPageNumbers)),
+                'reopened_inserted_key_retained_after_checkpoint' => in_array($base['expected_reopened_inserted_key'], $finalKeys, true),
+                'reopened_previous_recovery_key_retained_after_checkpoint' => in_array($base['expected_previous_recovery_inserted_key'], $finalKeys, true),
+                'reopened_rejected_prior_tail_key_retained_after_checkpoint' => in_array($base['rejected_prior_tail_inserted_key'], $finalKeys, true),
+                'reopened_rejected_post_recovery_tail_key_retained_after_checkpoint' => in_array($base['rejected_post_recovery_tail_inserted_key'], $finalKeys, true),
+            ]);
         }
 
         return $scenarios;

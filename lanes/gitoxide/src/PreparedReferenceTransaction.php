@@ -13,7 +13,7 @@ final class PreparedReferenceTransaction
     private bool $open = true;
 
     /**
-     * @param list<array{action?:string,lockPath?:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string}|null,delete?:array{physicalName:string,deleteReference:bool,deleteReflog:bool}}> $locks
+     * @param list<array{action?:string,lockPath?:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null,delete?:array{physicalName:string,deleteReference:bool,deleteReflog:bool}}> $locks
      */
     public function __construct(
         private readonly string $gitDirectory,
@@ -47,6 +47,12 @@ final class PreparedReferenceTransaction
                     || !is_string($reflog['message'] ?? null)
                     || !is_bool($reflog['forceCreate'] ?? null)
                     || !is_string($reflog['algorithm'] ?? null)
+                    || !is_string($reflog['writeMode'] ?? ReferenceStore::WRITE_REFLOG_NORMAL)
+                    || !in_array($reflog['writeMode'] ?? ReferenceStore::WRITE_REFLOG_NORMAL, [
+                        ReferenceStore::WRITE_REFLOG_NORMAL,
+                        ReferenceStore::WRITE_REFLOG_ALWAYS,
+                        ReferenceStore::WRITE_REFLOG_DISABLE,
+                    ], true)
                 ) {
                     throw new \InvalidArgumentException('Prepared reference reflogs must contain validated reference targets and metadata');
             }
@@ -169,7 +175,7 @@ final class PreparedReferenceTransaction
     }
 
     /**
-     * @param array{lockPath:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string}|null} $lock
+     * @param array{lockPath:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null} $lock
      */
     private function commitUpdate(array $lock): void
     {
@@ -235,11 +241,16 @@ final class PreparedReferenceTransaction
     }
 
     /**
-     * @param array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string}|null $reflog
+     * @param array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string,writeMode?:string}|null $reflog
      */
     private function appendPreparedReflog(?array $reflog): void
     {
         if ($reflog === null || !$reflog['newTarget']->isObject()) {
+            return;
+        }
+
+        $writeMode = $reflog['writeMode'] ?? ReferenceStore::WRITE_REFLOG_NORMAL;
+        if ($writeMode === ReferenceStore::WRITE_REFLOG_DISABLE) {
             return;
         }
 
@@ -255,7 +266,9 @@ final class PreparedReferenceTransaction
 
         $physicalName = $reflog['physicalName'];
         $path = $this->reflogPath($physicalName);
-        $shouldCreate = $reflog['forceCreate'] || $this->shouldAutoCreateReflog($physicalName);
+        $shouldCreate = $reflog['forceCreate']
+            || $writeMode === ReferenceStore::WRITE_REFLOG_ALWAYS
+            || $this->shouldAutoCreateReflog($physicalName);
         if (!is_file($path) && !$shouldCreate && !is_dir($path)) {
             return;
         }

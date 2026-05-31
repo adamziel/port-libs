@@ -97,3 +97,50 @@ No new support component is needed. The slice reuses native PHP reference-store,
 ## Non-Overlap
 
 This does not repeat accepted direct deref update/delete reporting, prepared unchanged object no-op handling, prepared delete/reflog-only handling, packed-ref lock collision handling, packed update-mode rewrites, reflog parser/append behavior, sparse checkout, pathspec, URL/refspec, merge-base, or transport slices. It adds the missing prepared transaction variant of upstream dereferenced symbolic update lock and reflog behavior.
+
+---
+
+Slice: `gitoxide-reference-transaction-lock-reflog-parity-20260531T224837Z`
+
+Base accepted HEAD: `33a65237308053a0654b3629f3bffe8d77c73515`
+
+## Upstream Source Truth
+
+- Re-read pinned upstream `gix-ref/src/store/file/transaction/prepare.rs`.
+- Re-read pinned upstream `gix-ref/src/store/file/transaction/commit.rs`.
+- Re-read pinned upstream `gix-ref/src/store/file/loose/reflog.rs`.
+- Re-read pinned upstream `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs`.
+- Mapped the `symbolic_head_missing_referent_then_update_referent` write-mode loop, where prepared symbolic `HEAD` creation stays logless and the later dereferenced object update writes `HEAD` plus leaf reflogs in `Normal` and `Always`, but writes no reflogs in `Disable`.
+
+## Mapped Behavior
+
+- `ReferenceStore` now exposes native reflog write modes: `WRITE_REFLOG_NORMAL`, `WRITE_REFLOG_ALWAYS`, and `WRITE_REFLOG_DISABLE`.
+- Direct and prepared reflog appends honor disabled mode by skipping reflog writes even when a committer, message, or force-create request is supplied.
+- Always mode forces reflog creation for object-target reflogs when a commit signature is available, while unchanged object updates still avoid reflog noise.
+- Prepared dereferenced symbolic updates pass the write mode through both the symbolic parent `RefLog::Only` edit and the leaf reference edit.
+
+## Native Changes
+
+- Added store-level reflog write-mode constants and constructor plumbing in `ReferenceStore`.
+- Carried write-mode metadata into `PreparedReferenceTransaction` reflog records.
+- Added focused `ReferenceStoreTest` coverage for prepared symbolic `HEAD` creation followed by a dereferenced object update under normal, always, and disabled write modes.
+- Extended the WordPress reference transaction fixture/example with a quiet reflog-disabled prepared production publish.
+
+## Verification
+
+- Red-first before implementation: `php tools/run-tests.php lanes/gitoxide/tests/ReferenceStoreTest.php` failed on missing `ReferenceStore::WRITE_REFLOG_NORMAL`.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReferenceStoreTest.php`: `1 test files, 529 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`: `39 test files, 6091 assertions, 0 failures`.
+- `php -l` passed for changed PHP files.
+- `jq empty` passed for `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` and `lanes/gitoxide/lane-status.json`.
+- `php lanes/gitoxide/examples/wordpress-reference-transaction.php`: exit `0`.
+
+Full upstream Cargo workspace tests were not run; this slice used targeted pinned upstream source reads and native PHP focused/full-lane evidence.
+
+## Dependency Closure
+
+No new support component is needed. The slice reuses native PHP reference-store, prepared-transaction, reflog, namespace, and WordPress reference transaction example surfaces; no shell-out, live provider, credential store, or external Git process is required.
+
+## Non-Overlap
+
+This does not repeat prepared unchanged object no-op handling, prepared symbolic ExistingMustMatch clone accommodation, dereferenced symbolic update/delete splits, prepared delete/reflog-only behavior, packed-lock collision handling, packed-ref peeled transaction work, sparse-checkout, pathspec, URL/refspec, merge-base, object, pack, or transport slices. It is bounded to store-level reflog write-mode parity for prepared dereferenced reference transactions.

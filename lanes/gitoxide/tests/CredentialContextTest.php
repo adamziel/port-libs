@@ -220,10 +220,26 @@ return [
         $t->same(true, $fixture['overflowQuitIgnored']);
         $t->contains('password=<redacted>', $fixture['redactedBytes']);
         $t->same(true, $fixture['rootHttpPathCleared']);
+        $t->same([
+            'action' => 'get',
+            'protocol' => 'https',
+            'host' => 'git.example.test',
+            'url' => null,
+        ], $fixture['helperProgramProtocolHost']);
+        $t->same(true, $fixture['helperProgramMissingCredential']);
+        $t->same([
+            'action' => 'get',
+            'url' => 'https://git.example.test/wp-content.git',
+            'protocol' => null,
+            'host' => null,
+        ], $fixture['helperProgramUrlOnly']);
+        $t->same("username=deploy-bot\npassword=wp-deploy-token\n", $fixture['helperProgramOutput']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
         $t->same($fixture['encodedContext']['path'], $summary['encodedPath']);
         $t->same(true, $summary['fileUrlClearedHost']);
         $t->same(true, $summary['rootHttpPathCleared']);
+        $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);
+        $t->same($fixture['helperProgramUrlOnly'], $summary['helperProgramUrlOnly']);
         $t->same(false, $summary['emptyQuitFalse']);
         $t->same(true, $summary['overflowExpiryIgnored']);
         $t->same(true, $summary['overflowQuitIgnored']);

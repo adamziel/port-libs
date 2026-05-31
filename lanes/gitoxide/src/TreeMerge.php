@@ -1547,6 +1547,7 @@ final class TreeMerge
                 $baseEntry,
                 $renamedByOurs ? $renameEntry : null,
                 $renamedByOurs ? null : $renameEntry,
+                ['sourcePath' => self::joinPath($pathPrefix, $sourcePath)],
             ),
         ];
     }

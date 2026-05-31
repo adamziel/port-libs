@@ -1792,6 +1792,15 @@ final class CssModulesTransformer
         }
 
         $name = strtolower($token['decoded']);
+        if ($name === 'highlight' && $colonLength === 2 && ($selector[$token['end']] ?? '') === '(') {
+            $close = $this->findMatchingParen($selector, $token['end']);
+
+            return [
+                'end' => $close + 1,
+                'allowPseudoClasses' => true,
+            ];
+        }
+
         if ($name === 'slotted' && ($selector[$token['end']] ?? '') === '(') {
             $close = $this->findMatchingParen($selector, $token['end']);
 
@@ -1927,6 +1936,21 @@ final class CssModulesTransformer
                 $this->assertCssModulesFunctionalSelector($inner);
                 $output .= $this->rewriteSelectorFragment($inner, $mode === 'global' ? 'global' : 'local', $locals);
                 $i = $close;
+                continue;
+            }
+
+            $customIdentFunction = $bracketDepth === 0 ? $this->cssModulesSelectorCustomIdentFunctionAt($selector, $i) : null;
+            if ($customIdentFunction !== null) {
+                $name = $customIdentFunction['identifier'];
+                $serializedName = $mode === 'local'
+                    ? $this->escapeCssIdentifier($this->scopeCustomIdent($name))
+                    : $this->escapeCssIdentifier($name);
+                $output .= $customIdentFunction['prefix']
+                    . $customIdentFunction['name']
+                    . '('
+                    . $serializedName
+                    . ')';
+                $i = $customIdentFunction['close'];
                 continue;
             }
 
@@ -2546,6 +2570,50 @@ final class CssModulesTransformer
         ], true);
     }
 
+    /**
+     * @return array{prefix:string,name:string,identifier:string,close:int}|null
+     */
+    private function cssModulesSelectorCustomIdentFunctionAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':') {
+            return null;
+        }
+
+        $prefixLength = ($selector[$offset + 1] ?? '') === ':' ? 2 : 1;
+        $token = $this->readCssIdentifierToken($selector, $offset + $prefixLength);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        $name = strtolower($token['decoded']);
+        if (!(($prefixLength === 1 && $name === 'state') || ($prefixLength === 2 && $name === 'highlight'))) {
+            return null;
+        }
+
+        $close = $this->findMatchingParen($selector, $token['end']);
+        $identifier = $this->parseSelectorCustomIdentArgument(
+            substr($selector, $token['end'] + 1, $close - $token['end'] - 1)
+        );
+
+        return [
+            'prefix' => $prefixLength === 2 ? '::' : ':',
+            'name' => $name,
+            'identifier' => $identifier,
+            'close' => $close,
+        ];
+    }
+
+    private function parseSelectorCustomIdentArgument(string $argument): string
+    {
+        $argument = trim($argument);
+        $token = $this->readCssIdentifierToken($argument, 0);
+        if ($token === null || $token['end'] !== strlen($argument) || $this->isCssWideKeyword($token['decoded'])) {
+            throw new \InvalidArgumentException('Invalid CSS Modules selector custom identifier');
+        }
+
+        return $token['decoded'];
+    }
+
     private function findAttributeSelectorEnd(string $selector, int $open): int
     {
         $quote = null;
@@ -2969,9 +3037,82 @@ final class CssModulesTransformer
         }
 
         $classes = [(string) $export['name']];
-        foreach (($export['composes'] ?? []) as $reference) {
+        $exportLocalsByName = self::cssModuleExportLocalsByScopedName($exports);
+        self::appendCssModuleComposeClasses(
+            $classes,
+            $exports,
+            $exportLocalsByName,
+            $export['composes'] ?? [],
+            $resolveDependency,
+            [$local => true]
+        );
+
+        return implode(' ', array_values(array_filter($classes, static fn (string $className): bool => $className !== '')));
+    }
+
+    /**
+     * @param array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}> $exports
+     * @return array<string, string>
+     */
+    private static function cssModuleExportLocalsByScopedName(array $exports): array
+    {
+        $localsByName = [];
+        foreach ($exports as $local => $export) {
+            $name = (string) ($export['name'] ?? '');
+            if ($name !== '' && !isset($localsByName[$name])) {
+                $localsByName[$name] = (string) $local;
+            }
+        }
+
+        return $localsByName;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}> $exports
+     * @param array<string, string> $exportLocalsByName
+     * @param list<array{type:string, name:string, specifier?:string}> $references
+     * @param (callable(string, string): (string|list<string>|null))|null $resolveDependency
+     * @param array<string, true> $stack
+     */
+    private static function appendCssModuleComposeClasses(
+        array &$classes,
+        array $exports,
+        array $exportLocalsByName,
+        array $references,
+        ?callable $resolveDependency,
+        array $stack
+    ): void {
+        foreach ($references as $reference) {
             $type = (string) ($reference['type'] ?? '');
-            if ($type === 'local' || $type === 'global') {
+            if ($type === 'local') {
+                $name = (string) ($reference['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
+
+                $local = $exportLocalsByName[$name] ?? null;
+                if ($local !== null && isset($stack[$local])) {
+                    continue;
+                }
+
+                $classes[] = $name;
+                if ($local !== null) {
+                    $nextStack = $stack;
+                    $nextStack[$local] = true;
+                    self::appendCssModuleComposeClasses(
+                        $classes,
+                        $exports,
+                        $exportLocalsByName,
+                        $exports[$local]['composes'] ?? [],
+                        $resolveDependency,
+                        $nextStack
+                    );
+                }
+                continue;
+            }
+
+            if ($type === 'global') {
                 $classes[] = (string) ($reference['name'] ?? '');
                 continue;
             }
@@ -2994,8 +3135,6 @@ final class CssModulesTransformer
 
             throw new \InvalidArgumentException('Invalid CSS Modules export reference');
         }
-
-        return implode(' ', array_values(array_filter($classes, static fn (string $className): bool => $className !== '')));
     }
 
     private function patternStartsWithSegment(string $segment): bool

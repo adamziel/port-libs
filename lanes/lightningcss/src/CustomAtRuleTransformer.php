@@ -97,10 +97,22 @@ final class CustomAtRuleTransformer
     private $genericEnvironmentVariableVisitor = null;
 
     /** @var array<string, callable> */
+    private array $environmentVariableExitVisitors = [];
+
+    /** @var callable|null */
+    private $genericEnvironmentVariableExitVisitor = null;
+
+    /** @var array<string, callable> */
     private array $variableVisitors = [];
 
     /** @var callable|null */
     private $genericVariableVisitor = null;
+
+    /** @var array<string, callable> */
+    private array $variableExitVisitors = [];
+
+    /** @var callable|null */
+    private $genericVariableExitVisitor = null;
 
     /** @var callable|null */
     private $lengthVisitor = null;
@@ -714,9 +726,39 @@ final class CustomAtRuleTransformer
 
                 return null;
             },
+            'EnvironmentVariableExit' => static function (array $environmentVariable, self $transformer) use ($visitors): mixed {
+                foreach ($visitors as $visitor) {
+                    $callback = self::environmentVariableExitVisitorCallback($visitor, $environmentVariable);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($environmentVariable, $transformer);
+                    if ($replacement !== null) {
+                        return $replacement;
+                    }
+                }
+
+                return null;
+            },
             'Variable' => static function (array $variable, self $transformer) use ($visitors): mixed {
                 foreach ($visitors as $visitor) {
                     $callback = self::variableVisitorCallback($visitor, $variable);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($variable, $transformer);
+                    if ($replacement !== null) {
+                        return $replacement;
+                    }
+                }
+
+                return null;
+            },
+            'VariableExit' => static function (array $variable, self $transformer) use ($visitors): mixed {
+                foreach ($visitors as $visitor) {
+                    $callback = self::variableExitVisitorCallback($visitor, $variable);
                     if ($callback === null) {
                         continue;
                     }
@@ -1129,6 +1171,19 @@ final class CustomAtRuleTransformer
             }
         }
 
+        $this->environmentVariableExitVisitors = [];
+        $this->genericEnvironmentVariableExitVisitor = null;
+        $environmentVariableExitConfig = $visitor['EnvironmentVariableExit'] ?? [];
+        if (is_callable($environmentVariableExitConfig)) {
+            $this->genericEnvironmentVariableExitVisitor = $environmentVariableExitConfig;
+        } elseif (is_array($environmentVariableExitConfig)) {
+            foreach ($environmentVariableExitConfig as $name => $callback) {
+                if (is_string($name) && is_callable($callback)) {
+                    $this->environmentVariableExitVisitors[$name] = $callback;
+                }
+            }
+        }
+
         $this->variableVisitors = [];
         $this->genericVariableVisitor = null;
         $variableConfig = $visitor['Variable'] ?? [];
@@ -1138,6 +1193,19 @@ final class CustomAtRuleTransformer
             foreach ($variableConfig as $name => $callback) {
                 if (is_string($name) && is_callable($callback)) {
                     $this->variableVisitors[$name] = $callback;
+                }
+            }
+        }
+
+        $this->variableExitVisitors = [];
+        $this->genericVariableExitVisitor = null;
+        $variableExitConfig = $visitor['VariableExit'] ?? [];
+        if (is_callable($variableExitConfig)) {
+            $this->genericVariableExitVisitor = $variableExitConfig;
+        } elseif (is_array($variableExitConfig)) {
+            foreach ($variableExitConfig as $name => $callback) {
+                if (is_string($name) && is_callable($callback)) {
+                    $this->variableExitVisitors[$name] = $callback;
                 }
             }
         }
@@ -4100,6 +4168,26 @@ final class CustomAtRuleTransformer
 
     /**
      * @param array<string, mixed> $visitor
+     * @param array<string, mixed> $variable
+     */
+    private static function variableExitVisitorCallback(array $visitor, array $variable): ?callable
+    {
+        $config = $visitor['VariableExit'] ?? null;
+        if (is_callable($config)) {
+            return $config;
+        }
+
+        if (is_array($config)) {
+            $callback = $config[self::variableCallbackName($variable)] ?? null;
+
+            return is_callable($callback) ? $callback : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
      */
     private static function styleSheetVisitorCallback(array $visitor, string $name): ?callable
     {
@@ -4312,6 +4400,26 @@ final class CustomAtRuleTransformer
     private static function environmentVariableVisitorCallback(array $visitor, array $environmentVariable): ?callable
     {
         $config = $visitor['EnvironmentVariable'] ?? null;
+        if (is_callable($config)) {
+            return $config;
+        }
+
+        if (is_array($config)) {
+            $callback = $config[self::environmentVariableCallbackName($environmentVariable)] ?? null;
+
+            return is_callable($callback) ? $callback : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     * @param array<string, mixed> $environmentVariable
+     */
+    private static function environmentVariableExitVisitorCallback(array $visitor, array $environmentVariable): ?callable
+    {
+        $config = $visitor['EnvironmentVariableExit'] ?? null;
         if (is_callable($config)) {
             return $config;
         }
@@ -5612,18 +5720,44 @@ final class CustomAtRuleTransformer
     private function callStructuredValueVisitor(string $name, string $argumentsCss, string $raw): mixed
     {
         $lower = strtolower($name);
-        if ($lower === 'env' && ($this->environmentVariableVisitors !== [] || $this->genericEnvironmentVariableVisitor !== null || $this->dashedIdentVisitor !== null)) {
+        if ($lower === 'env' && $this->hasEnvironmentVariableVisitor()) {
             $environmentVariable = $this->parseEnvironmentVariable($argumentsCss, $raw);
             $replacement = $this->callEnvironmentVariableVisitor($environmentVariable);
 
-            return $replacement === null ? ['type' => 'env', 'value' => $environmentVariable] : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+            if ($replacement !== null) {
+                $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+                if (!is_array($value) || ($value['type'] ?? null) !== 'env') {
+                    return $value;
+                }
+
+                $environmentVariable = is_array($value['value'] ?? null) ? $value['value'] : $value;
+            }
+
+            $exitReplacement = $this->callEnvironmentVariableExitVisitor($environmentVariable);
+
+            return $exitReplacement === null
+                ? ['type' => 'env', 'value' => $environmentVariable]
+                : $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement));
         }
 
-        if ($lower === 'var' && ($this->variableVisitors !== [] || $this->genericVariableVisitor !== null || $this->dashedIdentVisitor !== null)) {
+        if ($lower === 'var' && $this->hasVariableVisitor()) {
             $variable = $this->parseVariable($argumentsCss, $raw);
             $replacement = $this->callVariableVisitor($variable);
 
-            return $replacement === null ? ['type' => 'var', 'value' => $variable] : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+            if ($replacement !== null) {
+                $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+                if (!is_array($value) || ($value['type'] ?? null) !== 'var') {
+                    return $value;
+                }
+
+                $variable = is_array($value['value'] ?? null) ? $value['value'] : $value;
+            }
+
+            $exitReplacement = $this->callVariableExitVisitor($variable);
+
+            return $exitReplacement === null
+                ? ['type' => 'var', 'value' => $variable]
+                : $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement));
         }
 
         if ($lower === 'url' && $this->urlVisitor !== null) {
@@ -5637,6 +5771,24 @@ final class CustomAtRuleTransformer
         }
 
         return null;
+    }
+
+    private function hasEnvironmentVariableVisitor(): bool
+    {
+        return $this->environmentVariableVisitors !== []
+            || $this->genericEnvironmentVariableVisitor !== null
+            || $this->environmentVariableExitVisitors !== []
+            || $this->genericEnvironmentVariableExitVisitor !== null
+            || $this->dashedIdentVisitor !== null;
+    }
+
+    private function hasVariableVisitor(): bool
+    {
+        return $this->variableVisitors !== []
+            || $this->genericVariableVisitor !== null
+            || $this->variableExitVisitors !== []
+            || $this->genericVariableExitVisitor !== null
+            || $this->dashedIdentVisitor !== null;
     }
 
     /**
@@ -5653,11 +5805,37 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $environmentVariable
+     */
+    private function callEnvironmentVariableExitVisitor(array $environmentVariable): mixed
+    {
+        $visitor = $this->environmentVariableExitVisitors[self::environmentVariableCallbackName($environmentVariable)] ?? $this->genericEnvironmentVariableExitVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        return $visitor($environmentVariable, $this);
+    }
+
+    /**
      * @param array<string, mixed> $variable
      */
     private function callVariableVisitor(array $variable): mixed
     {
         $visitor = $this->variableVisitors[self::variableCallbackName($variable)] ?? $this->genericVariableVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        return $visitor($variable, $this);
+    }
+
+    /**
+     * @param array<string, mixed> $variable
+     */
+    private function callVariableExitVisitor(array $variable): mixed
+    {
+        $visitor = $this->variableExitVisitors[self::variableCallbackName($variable)] ?? $this->genericVariableExitVisitor;
         if ($visitor === null) {
             return null;
         }
@@ -6084,12 +6262,9 @@ final class CustomAtRuleTransformer
     private function rewriteRawVisitorFunctions(string $value): string
     {
         if (
-            $this->environmentVariableVisitors === []
-            && $this->genericEnvironmentVariableVisitor === null
-            && $this->variableVisitors === []
-            && $this->genericVariableVisitor === null
+            !$this->hasEnvironmentVariableVisitor()
+            && !$this->hasVariableVisitor()
             && $this->urlVisitor === null
-            && $this->dashedIdentVisitor === null
         ) {
             return $value;
         }

@@ -200,6 +200,52 @@ CSS);
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules scopes upstream state and highlight custom idents while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+:local(.card:state(open)) {
+  color: red;
+}
+
+:global(.legacy:state(public)) .card {
+  color: yellow;
+}
+
+.card::highlight(focus-ring):hover {
+  outline-color: blue;
+}
+
+:global(.legacy::highlight(public-ring)) .card {
+  border-color: green;
+}
+
+.card {
+  composes: base;
+  color: white;
+}
+
+.base {
+  color: black;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:state(EgL3uq_open){color:red}.legacy:state(public) .EgL3uq_card{color:#ff0}.EgL3uq_card::highlight(EgL3uq_focus-ring):hover{outline-color:#00f}.legacy::highlight(public-ring) .EgL3uq_card{border-color:green}.EgL3uq_card{color:#fff}.EgL3uq_base{color:#000}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'open' => $export('EgL3uq_open'),
+            'focus-ring' => $export('EgL3uq_focus-ring'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        foreach ([
+            '.card:state(initial) { color: red }',
+            '.card:state(foo bar) { color: red }',
+            '.card::highlight(.focus-ring) { color: red }',
+            '.card::highlight(focus-ring) .title { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
     'css modules leaves upstream raw custom pseudo function tokens unscoped while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
@@ -1030,6 +1076,45 @@ CSS;
             'reset' => 'EgL3uq_reset',
         ], CssModulesTransformer::exportClassLists($result['exports'], $resolver));
         $t->throws(InvalidArgumentException::class, static fn () => CssModulesTransformer::exportClassList($result['exports'], 'button'));
+    },
+    'css modules export class lists flatten transitive local global and dependency composes' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.button {
+  composes: card;
+  color: red;
+}
+
+.card {
+  composes: reset;
+  composes: wp-block-card from global;
+  color: blue;
+}
+
+.reset {
+  composes: token from "./tokens.css";
+  color: green;
+}
+CSS);
+        $resolver = static fn (string $name, string $specifier): ?string => $name === 'token' && $specifier === './tokens.css'
+            ? 'Theme_token Theme_depth'
+            : null;
+
+        $t->same('.EgL3uq_button{color:red}.EgL3uq_card{color:#00f}.EgL3uq_reset{color:green}', $result['code']);
+        $t->same([
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+            'card' => $export('EgL3uq_card', [
+                $local('EgL3uq_reset'),
+                $global('wp-block-card'),
+            ]),
+            'reset' => $export('EgL3uq_reset', [$dependency('token', './tokens.css')]),
+        ], $result['exports']);
+        $t->same('EgL3uq_button EgL3uq_card EgL3uq_reset Theme_token Theme_depth wp-block-card', CssModulesTransformer::exportClassList($result['exports'], 'button', $resolver));
+        $t->same('EgL3uq_card EgL3uq_reset Theme_token Theme_depth wp-block-card', CssModulesTransformer::exportClassList($result['exports'], 'card', $resolver));
+        $t->same([
+            'button' => 'EgL3uq_button EgL3uq_card EgL3uq_reset Theme_token Theme_depth wp-block-card',
+            'card' => 'EgL3uq_card EgL3uq_reset Theme_token Theme_depth wp-block-card',
+            'reset' => 'EgL3uq_reset Theme_token Theme_depth',
+        ], CssModulesTransformer::exportClassLists($result['exports'], $resolver));
     },
     'css modules maps upstream hash and content-hash patterns through composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
         $patterned = (new CssModulesTransformer())->transform('.foo { color: red }', [

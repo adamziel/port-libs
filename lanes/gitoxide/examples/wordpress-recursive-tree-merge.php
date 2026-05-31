@@ -261,6 +261,46 @@ $symlinkOursResolved = $symlinkConflictResult->resolveTreeConflicts($read, $writ
 $symlinkResolvedMuPlugins = $treeAtPath($symlinkOursResolved->tree, 'wp-content/mu-plugins');
 $symlinkResolvedPlugin = $treeAtPath($symlinkOursResolved->tree, 'wp-content/plugins/acme');
 $symlinkResolvedEntry = $symlinkResolvedMuPlugins->entryNamed('acme-bootstrap-current.php');
+$typeChangeBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $symlink('active-loader.php', '../plugins/acme/bootstrap.php'),
+        ])),
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $blob('bootstrap.php', "Plugin Name: Acme\nVersion: 1.0\n"),
+            ])),
+        ])),
+    ])),
+]);
+$typeChangeOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $blob('active-loader.php', "<?php\nrequire __DIR__ . '/../plugins/acme/bootstrap.php';\n"),
+        ])),
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $blob('bootstrap.php', "Plugin Name: Acme\nVersion: 1.0\n"),
+            ])),
+        ])),
+    ])),
+]);
+$typeChangeTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $symlink('renamed-loader.php', '../plugins/acme/bootstrap.php'),
+        ])),
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $blob('bootstrap.php', "Plugin Name: Acme\nVersion: 1.0\n"),
+            ])),
+        ])),
+    ])),
+]);
+$typeChangeResult = TreeMerge::mergeRecursive($typeChangeBase, $typeChangeOurs, $typeChangeTheirs, $read, $write);
+$typeChangeTheirsResolved = $typeChangeResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+$typeChangeResolvedMuPlugins = $treeAtPath($typeChangeTheirsResolved->tree, 'wp-content/mu-plugins');
+$typeChangeResolvedEntry = $typeChangeResolvedMuPlugins->entryNamed('renamed-loader.php');
 $targetAddBase = new Tree([
     $tree('wp-content', new Tree([
         $tree('mu-plugins', new Tree([
@@ -470,6 +510,18 @@ echo json_encode([
         'resolvedSymlinkTarget' => $symlinkResolvedEntry === null ? null : $read($symlinkResolvedEntry->oid)->body,
         'bootstrapVersion' => $read($symlinkResolvedPlugin->entryNamed('bootstrap.php')?->oid ?? '')->body,
         'indexStagesAfterResolution' => count($symlinkOursResolved->indexEntries()),
+    ],
+    'typeChangeRenamedSymlinkResolution' => [
+        'cleanBeforeResolution' => $typeChangeResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $typeChangeResult->conflicts,
+        ),
+        'theirsResolvedClean' => $typeChangeTheirsResolved->isClean(),
+        'muPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $typeChangeResolvedMuPlugins->entries),
+        'resolvedLoaderKind' => $typeChangeResolvedEntry?->kind(),
+        'resolvedLoaderTarget' => $typeChangeResolvedEntry === null ? null : $read($typeChangeResolvedEntry->oid)->body,
+        'indexStagesAfterResolution' => count($typeChangeTheirsResolved->indexEntries()),
     ],
     'renameTargetAddSymlinkResolution' => [
         'cleanBeforeResolution' => $targetAddResult->isClean(),

@@ -293,3 +293,74 @@ No new support component is needed. This slice reuses native PHP string and
 integer-bound checks inside the existing `gix-credentials` context/cascade
 model; no live credential store, provider config, Git binary, shell helper, or
 shared support-library activation gate is required.
+
+---
+
+Slice: `gitoxide-credential-helper-context-parity-20260531T230236Z`
+Base accepted HEAD: `292ada6b86cc431f7b1537075eacedfb4e905cf4`
+
+## Source Truth
+
+- Upstream `gix-credentials/src/program/main.rs` maps helper action aliases:
+  `fill|get` to get, `approve|store` to store, and `reject|erase` to erase.
+- The same upstream entrypoint decodes helper stdin with
+  `Context::from_bytes()` and only rejects the context when `url` is absent
+  and either `protocol` or `host` is absent.
+- Upstream `gix-credentials/tests/program/main.rs` asserts that
+  `protocol=https\nhost=github.com\n` is valid without auto-populating `url`,
+  `url=https://github.com\n` is valid without auto-populating protocol/host,
+  and single `host=` or `protocol=` inputs fail before the credential callback
+  is invoked.
+
+## PHP Delta
+
+- Added `CredentialHelperExchange`, a native PHP helper-entrypoint model for
+  the upstream program-main boundary.
+- The helper exchange now validates helper stdin context before invoking the
+  callback, preserves url-only contexts without destructuring, preserves
+  protocol+host contexts without populating `url`, serializes get results
+  through `CredentialContext::storageBytes()`, and suppresses output for
+  store/erase actions.
+- Added focused `CredentialHelperExchangeTest.php` coverage and extended the
+  WordPress credential-context fixture/example with the helper stdin exchange
+  path without invoking `git credential` or a provider-backed credential store.
+
+## Verification
+
+- Red-first before implementation:
+  `php tools/run-tests.php lanes/gitoxide/tests/CredentialHelperExchangeTest.php`
+  failed with `Class "PortLibs\Gitoxide\CredentialHelperExchange" not found`
+  across the new helper-exchange checks.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialHelperExchangeTest.php`:
+  `1 test files, 14 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php lanes/gitoxide/tests/CredentialHelperExchangeTest.php lanes/gitoxide/tests/CredentialCascadeTest.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `4 test files, 245 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`:
+  `40 test files, 6096 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-credential-context.php`: exited `0`.
+- `php -l` on changed PHP files:
+  no syntax errors for `CredentialHelperExchange.php`,
+  `CredentialHelperExchangeTest.php`, `CredentialContextTest.php`,
+  `wordpress-credential-context.php` fixture, and
+  `wordpress-credential-context.php` example.
+- JSON validation passed for `lanes/gitoxide/lane-status.json` and
+  `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check -- lanes/gitoxide`: exited `0`.
+
+## Dependency Closure
+
+No new support component is needed. This slice reuses the existing native PHP
+credential context serialization/parser and a lane-local callback boundary; it
+does not read credential stores, invoke provider helpers, shell out to
+`git credential`, run live-service tests, or require a shared support-library
+activation gate.
+
+## Non-Overlap
+
+This does not repeat accepted credential-context URL destructuring,
+path-clearing, UTF-8/storage byte handling, i64/boolean parsing, cascade quit
+ordering, credential program definition parsing, smart HTTP proxy credentials,
+SSH credential context transport metadata, protocol, pack/index, object
+database, reference, sparse-checkout, pathspec, merge-base, or tree-merge
+behavior. The old May 25 smart HTTP receive-pack rework notes are stale for
+this slice.

@@ -1629,6 +1629,51 @@ CSS;
 
         $t->same('.foo{margin:10px;padding:20px}', $result);
     },
+    'custom at-rules compose upstream EnvironmentVariableExit and VariableExit visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'EnvironmentVariableExit' => [
+                    '--branding-small' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen[] = ['env-exit', $environmentVariable['name']['ident']];
+
+                        return [
+                            'type' => 'length',
+                            'value' => [
+                                'unit' => 'px',
+                                'value' => 600,
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'VariableExit' => [
+                    '--card-gap' => static function (array $variable) use (&$seen): array {
+                        $seen[] = ['var-exit', $variable['name']['ident']];
+
+                        return ['raw' => '24px'];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  .card {
+    padding: var(--card-gap);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@media (width<=600px){.card{padding:24px}}', $result);
+        $t->same([
+            ['env-exit', '--branding-small'],
+            ['var-exit', '--card-gap'],
+        ], $seen);
+    },
     'custom at-rules compose upstream EnvironmentVariable visitors inside generic functions' => static function (TestRunner $t): void {
         $tokens = [
             '--percentage1' => '25%',

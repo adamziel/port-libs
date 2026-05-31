@@ -7,7 +7,12 @@ use PortLibs\Gitoxide\PackBuilder;
 use PortLibs\Gitoxide\PackData;
 use PortLibs\Gitoxide\PackIndex;
 
-$buildPackFixture = static function (array $objects): array {
+$buildPackFixture = static function (array $objects, string $objectHash = 'sha1'): array {
+    $hashBytes = match ($objectHash) {
+        'sha1' => 20,
+        'sha256' => 32,
+        default => throw new RuntimeException("Unsupported test pack hash: {$objectHash}"),
+    };
     $encodeEntryHeader = static function (int $typeId, int $size): string {
         $out = '';
         $first = ($typeId << 4) | ($size & 0x0f);
@@ -32,7 +37,7 @@ $buildPackFixture = static function (array $objects): array {
 
         return implode('', array_map(chr(...), $bytes));
     };
-    $buildIndex = static function (array $entries, string $packChecksum): string {
+    $buildIndex = static function (array $entries, string $packChecksum) use ($objectHash, $hashBytes): string {
         usort($entries, static fn (array $a, array $b): int => strcmp($a['oid'], $b['oid']));
         $fanout = array_fill(0, 256, 0);
         foreach ($entries as $entry) {
@@ -49,7 +54,11 @@ $buildPackFixture = static function (array $objects): array {
             $bytes .= pack('N', $count);
         }
         foreach ($entries as $entry) {
-            $bytes .= hex2bin($entry['oid']);
+            $oid = hex2bin($entry['oid']);
+            if ($oid === false || strlen($oid) !== $hashBytes) {
+                throw new RuntimeException('Invalid object id in test pack index');
+            }
+            $bytes .= $oid;
         }
         foreach ($entries as $entry) {
             $bytes .= pack('N', $entry['crc32']);
@@ -59,7 +68,7 @@ $buildPackFixture = static function (array $objects): array {
         }
         $bytes .= hex2bin($packChecksum);
 
-        return $bytes . hex2bin(hash('sha1', $bytes));
+        return $bytes . hex2bin(hash($objectHash, $bytes));
     };
 
     $pack = 'PACK' . pack('N2', 2, count($objects));
@@ -97,12 +106,12 @@ $buildPackFixture = static function (array $objects): array {
         $entries[] = [
             'type' => $indexType,
             'body' => $indexBody,
-            'oid' => (new GitObject($indexType, $indexBody))->oid(),
+            'oid' => (new GitObject($indexType, $indexBody))->oid($objectHash),
             'offset' => $offset,
             'crc32' => hexdec(hash('crc32b', $entryBytes)),
         ];
     }
-    $packChecksum = hash('sha1', $pack);
+    $packChecksum = hash($objectHash, $pack);
     $pack .= hex2bin($packChecksum);
 
     return [$pack, $buildIndex($entries, $packChecksum), $entries, $packChecksum];
@@ -199,6 +208,25 @@ return [
         $t->same(1, $pack->count());
         $t->same($checksum, $pack->checksum());
         $t->same($checksum, $pack->verifyChecksum());
+    },
+    'parses sha256 pack data and verifies object ids with sha256 pack indexes' => static function (TestRunner $t) use ($buildPackFixture): void {
+        [$packBytes, $indexBytes, $entries, $checksum] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => 'WordPress SHA-256 pack object'],
+            ['type' => 'blob', 'typeId' => 3, 'body' => 'WordPress SHA-256 media object'],
+        ], 'sha256');
+
+        $pack = PackData::fromBytes($packBytes, 'sha256');
+        $index = PackIndex::fromBytes($indexBytes, 'sha256');
+        $object = $pack->readObject($index, strtoupper($entries[0]['oid']));
+
+        $t->same('sha256', $pack->objectHash());
+        $t->same(32, $pack->hashBytes());
+        $t->same($checksum, $pack->checksum());
+        $t->same($checksum, $pack->verifyChecksum());
+        $t->same('sha256', $index->objectHash());
+        $t->same($entries[0]['oid'], $object->oid('sha256'));
+        $t->same($entries[0]['body'], $object->body);
+        $t->same(['type' => 'blob', 'size' => strlen($entries[1]['body']), 'numDeltas' => 0], $pack->readObjectHeader($index, $entries[1]['oid']));
     },
     'reads non-delta blob and commit objects by pack-index offset' => static function (TestRunner $t) use ($buildPackFixture): void {
         [$packBytes, $indexBytes, $entries] = $buildPackFixture([

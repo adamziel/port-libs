@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\CredentialContext;
+use PortLibs\Gitoxide\CredentialHelperExchange;
 
 $request = new CredentialContext(
     protocol: 'https',
@@ -38,6 +39,41 @@ $fileUrlContext = (new CredentialContext(
     host: 'stale.git.example.test',
     username: 'deploy-bot',
 ))->destructureUrl(true);
+$helperProgramProtocolHost = [];
+$helperProgramMissingCredential = false;
+try {
+    CredentialHelperExchange::invoke(
+        ['get'],
+        "protocol=https\nhost=git.example.test\n",
+        static function (string $action, CredentialContext $context) use (&$helperProgramProtocolHost): ?CredentialContext {
+            $helperProgramProtocolHost = [
+                'action' => $action,
+                'protocol' => $context->protocol,
+                'host' => $context->host,
+                'url' => $context->url,
+            ];
+
+            return null;
+        },
+    );
+} catch (RuntimeException) {
+    $helperProgramMissingCredential = true;
+}
+$helperProgramUrlOnly = [];
+$helperProgramOutput = CredentialHelperExchange::invoke(
+    ['fill'],
+    "url=https://git.example.test/wp-content.git\n",
+    static function (string $action, CredentialContext $context) use (&$helperProgramUrlOnly): CredentialContext {
+        $helperProgramUrlOnly = [
+            'action' => $action,
+            'url' => $context->url,
+            'protocol' => $context->protocol,
+            'host' => $context->host,
+        ];
+
+        return new CredentialContext(username: 'deploy-bot', password: 'wp-deploy-token');
+    },
+);
 
 return [
     'requestBytes' => $request->storageBytes(),
@@ -55,6 +91,10 @@ return [
     'fileUrlClearedHost' => $fileUrlContext->host === null,
     'fileUrlClearedUsername' => $fileUrlContext->username === null,
     'fileUrlPath' => $fileUrlContext->path,
+    'helperProgramProtocolHost' => $helperProgramProtocolHost,
+    'helperProgramMissingCredential' => $helperProgramMissingCredential,
+    'helperProgramUrlOnly' => $helperProgramUrlOnly,
+    'helperProgramOutput' => $helperProgramOutput,
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,

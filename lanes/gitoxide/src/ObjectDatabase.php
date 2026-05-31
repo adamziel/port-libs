@@ -44,6 +44,7 @@ final class ObjectDatabase
     private readonly ?PromisorObjectResolver $promisorResolver;
     private readonly string $objectHash;
     private readonly ?int $looseObjectAllocationLimitBytes;
+    private readonly bool $refreshObjectStorageOnMiss;
 
     public function __construct(
         string $gitDirectory,
@@ -52,6 +53,7 @@ final class ObjectDatabase
         ?PromisorObjectResolver $promisorResolver = null,
         string $objectHash = 'sha1',
         ?int $looseObjectAllocationLimitBytes = null,
+        bool $refreshObjectStorageOnMiss = true,
     )
     {
         $this->gitDirectory = $gitDirectory;
@@ -60,6 +62,7 @@ final class ObjectDatabase
         $this->promisorResolver = $promisorResolver;
         $this->objectHash = self::normalizeObjectHash($objectHash);
         $this->looseObjectAllocationLimitBytes = self::normalizeLooseObjectAllocationLimit($looseObjectAllocationLimitBytes);
+        $this->refreshObjectStorageOnMiss = $refreshObjectStorageOnMiss;
     }
 
     public function contains(string $oid): bool
@@ -69,6 +72,10 @@ final class ObjectDatabase
 
         if ($this->tryContainsLocal($oid)) {
             return true;
+        }
+
+        if (!$this->refreshObjectStorageOnMiss) {
+            return false;
         }
 
         $this->refreshObjectStorage();
@@ -117,10 +124,12 @@ final class ObjectDatabase
                 return $object;
             }
 
-            $this->refreshObjectStorage();
-            $object = $this->tryReadLocalObject($oid);
-            if ($object !== null) {
-                return $object;
+            if ($this->refreshObjectStorageOnMiss) {
+                $this->refreshObjectStorage();
+                $object = $this->tryReadLocalObject($oid);
+                if ($object !== null) {
+                    return $object;
+                }
             }
 
             throw new \RuntimeException("Object promised by partial clone filter but not present locally: {$oid}");
@@ -149,10 +158,12 @@ final class ObjectDatabase
                 return self::headerFromObject($object, 'promisor');
             }
 
-            $this->refreshObjectStorage();
-            $header = $this->tryReadLocalHeader($oid);
-            if ($header !== null) {
-                return $header;
+            if ($this->refreshObjectStorageOnMiss) {
+                $this->refreshObjectStorage();
+                $header = $this->tryReadLocalHeader($oid);
+                if ($header !== null) {
+                    return $header;
+                }
             }
 
             throw new \RuntimeException("Object promised by partial clone filter but not present locally: {$oid}");
@@ -177,7 +188,9 @@ final class ObjectDatabase
 
     public function packedObjectCount(): int
     {
-        $this->refreshObjectStorage();
+        if ($this->refreshObjectStorageOnMiss) {
+            $this->refreshObjectStorage();
+        }
 
         $count = 0;
         foreach ($this->multiPackIndexes() as $multiPack) {
@@ -202,11 +215,13 @@ final class ObjectDatabase
         }
 
         if ($includeCandidates) {
-            $this->refreshObjectStorage();
+            if ($this->refreshObjectStorageOnMiss) {
+                $this->refreshObjectStorage();
+            }
             $oids = $this->prefixMatches($prefix);
         } else {
             $oids = $this->prefixMatches($prefix);
-            if (count($oids) <= 1) {
+            if ($this->refreshObjectStorageOnMiss && count($oids) <= 1) {
                 $this->refreshObjectStorage();
                 $oids = $this->prefixMatches($prefix);
             }
@@ -318,7 +333,9 @@ final class ObjectDatabase
             throw new \InvalidArgumentException("Unsupported object iteration ordering: {$ordering}");
         }
 
-        $this->refreshObjectStorage();
+        if ($this->refreshObjectStorageOnMiss) {
+            $this->refreshObjectStorage();
+        }
 
         $ids = [];
         foreach ($this->multiPackIndexes() as $multiPack) {
@@ -402,6 +419,7 @@ final class ObjectDatabase
             $this->promisorResolver,
             $this->objectHash,
             $this->looseObjectAllocationLimitBytes,
+            $this->refreshObjectStorageOnMiss,
         );
     }
 
@@ -414,6 +432,35 @@ final class ObjectDatabase
             $resolver,
             $this->objectHash,
             $this->looseObjectAllocationLimitBytes,
+            $this->refreshObjectStorageOnMiss,
+        );
+    }
+
+    public function withObjectStorageRefreshDisabled(): self
+    {
+        return $this->withObjectStorageRefreshOnMiss(false);
+    }
+
+    public function withObjectStorageRefreshEnabled(): self
+    {
+        return $this->withObjectStorageRefreshOnMiss(true);
+    }
+
+    public function objectStorageRefreshesOnMiss(): bool
+    {
+        return $this->refreshObjectStorageOnMiss;
+    }
+
+    private function withObjectStorageRefreshOnMiss(bool $refreshObjectStorageOnMiss): self
+    {
+        return new self(
+            $this->gitDirectory,
+            $this->ignoreReplacements,
+            $this->replacementRefBase,
+            $this->promisorResolver,
+            $this->objectHash,
+            $this->looseObjectAllocationLimitBytes,
+            $refreshObjectStorageOnMiss,
         );
     }
 
@@ -581,8 +628,8 @@ final class ObjectDatabase
                     throw new \RuntimeException("Pack data file not found for index: {$indexPath}");
                 }
 
-                $index = PackIndex::open($indexPath);
-                $data = PackData::open($packPath);
+                $index = PackIndex::open($indexPath, $this->objectHash);
+                $data = PackData::open($packPath, $this->objectHash);
                 $index->verifyChecksum();
                 $data->verifyChecksum();
                 if ($index->packChecksum() !== $data->checksum()) {
@@ -777,6 +824,10 @@ final class ObjectDatabase
             return $object;
         }
 
+        if (!$this->refreshObjectStorageOnMiss) {
+            return null;
+        }
+
         $this->refreshObjectStorage();
 
         return $this->tryReadLocalObject($baseOid, $stack);
@@ -811,6 +862,10 @@ final class ObjectDatabase
         $object = $this->resolvePromisedObject($baseOid);
         if ($object !== null) {
             return $object;
+        }
+
+        if (!$this->refreshObjectStorageOnMiss) {
+            return null;
         }
 
         $this->refreshObjectStorage();
@@ -872,6 +927,9 @@ final class ObjectDatabase
             }
 
             $index = MultiPackIndex::open($path);
+            if ($index->objectHash() !== $this->objectHash) {
+                continue;
+            }
             $index->verifyIntegrityFast();
             $bundlesByIndexName = $bundlesByDirectory[$packDirectory] ?? [];
             foreach ($index->indexNames() as $indexName) {

@@ -7,7 +7,10 @@ namespace PortLibs\Gitoxide;
 final class PackData
 {
     private const HEADER_BYTES = 12;
-    private const CHECKSUM_BYTES = 20;
+    private const HASHES = [
+        'sha1' => 20,
+        'sha256' => 32,
+    ];
 
     private const TYPE_IDS = [
         1 => 'commit',
@@ -22,13 +25,18 @@ final class PackData
         private readonly string $bytes,
         private readonly int $version,
         private readonly int $objectCount,
+        private readonly string $hashName,
+        private readonly int $hashBytes,
         private readonly string $checksum,
     ) {
     }
 
-    public static function fromBytes(string $bytes): self
+    public static function fromBytes(string $bytes, string $objectHash = 'sha1'): self
     {
-        if (strlen($bytes) < self::HEADER_BYTES + self::CHECKSUM_BYTES) {
+        $objectHash = self::normalizeObjectHash($objectHash);
+        $hashBytes = self::HASHES[$objectHash];
+
+        if (strlen($bytes) < self::HEADER_BYTES + $hashBytes) {
             throw new \InvalidArgumentException('Pack data is too small to contain a header and checksum');
         }
         if (!str_starts_with($bytes, 'PACK')) {
@@ -40,16 +48,16 @@ final class PackData
             throw new \InvalidArgumentException("Unsupported pack version: {$version}");
         }
 
-        return new self($bytes, $version, self::readUInt32($bytes, 8), bin2hex(substr($bytes, -self::CHECKSUM_BYTES)));
+        return new self($bytes, $version, self::readUInt32($bytes, 8), $objectHash, $hashBytes, bin2hex(substr($bytes, -$hashBytes)));
     }
 
-    public static function open(string $path): self
+    public static function open(string $path, string $objectHash = 'sha1'): self
     {
         if (!is_file($path)) {
             throw new \RuntimeException("Pack data file not found: {$path}");
         }
 
-        return self::fromBytes((string) file_get_contents($path));
+        return self::fromBytes((string) file_get_contents($path), $objectHash);
     }
 
     public function version(): int
@@ -62,6 +70,16 @@ final class PackData
         return $this->objectCount;
     }
 
+    public function objectHash(): string
+    {
+        return $this->hashName;
+    }
+
+    public function hashBytes(): int
+    {
+        return $this->hashBytes;
+    }
+
     public function checksum(): string
     {
         return $this->checksum;
@@ -69,7 +87,7 @@ final class PackData
 
     public function verifyChecksum(): string
     {
-        $actual = hash('sha1', substr($this->bytes, 0, -self::CHECKSUM_BYTES));
+        $actual = hash($this->hashName, substr($this->bytes, 0, -$this->hashBytes));
         if ($actual !== $this->checksum) {
             throw new \RuntimeException('Pack data checksum mismatch');
         }
@@ -206,9 +224,7 @@ final class PackData
      */
     public function repairThinPack(PackIndex $index, array $externalBases): PackBuildResult
     {
-        if ($index->packChecksum() !== $this->checksum) {
-            throw new \RuntimeException('Pack index checksum does not match pack data checksum');
-        }
+        $this->assertIndexMatchesPackData($index);
 
         $resolver = self::externalBaseResolver($externalBases);
         $indexEntries = $index->entries();
@@ -226,13 +242,14 @@ final class PackData
             ) {
                 $base = self::resolveExternalBase($packEntry->baseObjectId, $resolver);
                 $objects[] = $base;
-                $emitted[$base->oid()] = true;
+                $emitted[$base->oid($index->objectHash())] = true;
             }
 
             $object = $this->readObjectAtVerifiedOffset($index, $indexEntry->oid, $indexEntry->packOffset, $resolver);
-            if (!isset($emitted[$object->oid()])) {
+            $objectId = $object->oid($index->objectHash());
+            if (!isset($emitted[$objectId])) {
                 $objects[] = $object;
-                $emitted[$object->oid()] = true;
+                $emitted[$objectId] = true;
             }
         }
 
@@ -254,13 +271,11 @@ final class PackData
 
     private function readObjectAtVerifiedOffset(PackIndex $index, string $oid, int $packOffset, ?callable $externalBaseResolver = null): GitObject
     {
-        if ($index->packChecksum() !== $this->checksum) {
-            throw new \RuntimeException('Pack index checksum does not match pack data checksum');
-        }
+        $this->assertIndexMatchesPackData($index);
 
         $packEntry = $this->entryAtOffset($packOffset, $this->nextOffset($index, $packOffset));
         $object = $this->resolveEntry($index, $packEntry, 0, $externalBaseResolver);
-        if ($object->oid() !== strtolower($oid)) {
+        if ($object->oid($index->objectHash()) !== strtolower($oid)) {
             throw new \RuntimeException('Pack entry object id does not match index lookup');
         }
 
@@ -273,9 +288,7 @@ final class PackData
      */
     private function readObjectHeaderAtVerifiedOffset(PackIndex $index, int $packOffset, ?callable $externalBaseHeaderResolver = null): array
     {
-        if ($index->packChecksum() !== $this->checksum) {
-            throw new \RuntimeException('Pack index checksum does not match pack data checksum');
-        }
+        $this->assertIndexMatchesPackData($index);
 
         return $this->resolveEntryHeader(
             $index,
@@ -566,7 +579,7 @@ final class PackData
             }
         }
 
-        return strlen($this->bytes) - self::CHECKSUM_BYTES;
+        return $this->dataEndOffset();
     }
 
     private static function readUInt32(string $bytes, int $offset): int
@@ -584,11 +597,12 @@ final class PackData
      */
     private function entryMetadataAtOffset(int $packOffset, ?int $nextOffset = null): array
     {
-        if ($packOffset < self::HEADER_BYTES || $packOffset >= strlen($this->bytes) - self::CHECKSUM_BYTES) {
+        $dataEndOffset = $this->dataEndOffset();
+        if ($packOffset < self::HEADER_BYTES || $packOffset >= $dataEndOffset) {
             throw new \InvalidArgumentException('Pack entry offset is outside the data section');
         }
-        $nextOffset ??= strlen($this->bytes) - self::CHECKSUM_BYTES;
-        if ($nextOffset <= $packOffset || $nextOffset > strlen($this->bytes) - self::CHECKSUM_BYTES) {
+        $nextOffset ??= $dataEndOffset;
+        if ($nextOffset <= $packOffset || $nextOffset > $dataEndOffset) {
             throw new \InvalidArgumentException('Pack entry next offset is outside the data section');
         }
 
@@ -625,11 +639,11 @@ final class PackData
         if ($kind === 'ofs-delta') {
             $baseDistance = self::readOffsetDeltaDistance($this->bytes, $cursor, $nextOffset);
         } elseif ($kind === 'ref-delta') {
-            if ($cursor + 20 > $nextOffset) {
+            if ($cursor + $this->hashBytes > $nextOffset) {
                 throw new \InvalidArgumentException('Ref-delta pack entry is missing its base object id');
             }
-            $baseObjectId = bin2hex(substr($this->bytes, $cursor, 20));
-            $cursor += 20;
+            $baseObjectId = bin2hex(substr($this->bytes, $cursor, $this->hashBytes));
+            $cursor += $this->hashBytes;
         }
 
         return [
@@ -650,6 +664,31 @@ final class PackData
     private function compressedDataForEntryMetadata(array $entry): string
     {
         return substr($this->bytes, $entry['dataOffset'], $entry['nextOffset'] - $entry['dataOffset']);
+    }
+
+    private static function normalizeObjectHash(string $objectHash): string
+    {
+        $normalized = strtolower($objectHash);
+        if (!isset(self::HASHES[$normalized])) {
+            throw new \InvalidArgumentException("Unsupported pack data object hash: {$objectHash}");
+        }
+
+        return $normalized;
+    }
+
+    private function dataEndOffset(): int
+    {
+        return strlen($this->bytes) - $this->hashBytes;
+    }
+
+    private function assertIndexMatchesPackData(PackIndex $index): void
+    {
+        if ($index->objectHash() !== $this->hashName) {
+            throw new \RuntimeException('Pack index object hash does not match pack data object hash');
+        }
+        if ($index->packChecksum() !== $this->checksum) {
+            throw new \RuntimeException('Pack index checksum does not match pack data checksum');
+        }
     }
 
     /**

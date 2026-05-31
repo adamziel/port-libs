@@ -1246,6 +1246,58 @@ return [
             (string) $store->reflogContents('refs/heads/main'),
         );
     },
+    'prepared deref update obeys store reflog write mode like upstream gix ref' => static function (TestRunner $t) use ($new): void {
+        foreach ([
+            ReferenceStore::WRITE_REFLOG_NORMAL => true,
+            ReferenceStore::WRITE_REFLOG_ALWAYS => true,
+            ReferenceStore::WRITE_REFLOG_DISABLE => false,
+        ] as $writeMode => $expectReflog) {
+            $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-deref-write-mode-' . $writeMode . '-' . bin2hex(random_bytes(4));
+            $store = new ReferenceStore($dir, null, null, $writeMode);
+            $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+
+            $symbolic = $store->prepareLooseUpdateTransaction(
+                ['HEAD' => ReferenceTarget::symbolic('refs/heads/alt-main')],
+                'sha1',
+                $committer,
+                'symbolic head clone',
+                false,
+                ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+            );
+            $symbolicEdits = $symbolic->commit();
+
+            $t->same(['HEAD'], array_map(static fn ($edit): string => $edit->name, $symbolicEdits));
+            $t->same("ref: refs/heads/alt-main\n", file_get_contents($dir . '/HEAD'));
+            $t->same(null, $store->reflogContents('HEAD'), "symbolic create stays logless in {$writeMode} mode");
+            $t->same(null, $store->tryFind('refs/heads/alt-main'));
+
+            $update = $store->prepareLooseUpdateTransaction(
+                ['HEAD' => ReferenceTarget::object($new)],
+                'sha1',
+                $committer,
+                'an actual change',
+                false,
+                ReferenceStore::PREVIOUS_ANY,
+                null,
+                true,
+            );
+            $updateEdits = $update->commit();
+
+            $t->same(['HEAD', 'refs/heads/alt-main'], array_map(static fn ($edit): string => $edit->name, $updateEdits));
+            $t->same([ReferenceTransactionEdit::REFLOG_ONLY, ReferenceTransactionEdit::REFLOG_AND_REFERENCE], array_map(static fn ($edit): string => $edit->reflogMode, $updateEdits));
+            $t->same("ref: refs/heads/alt-main\n", file_get_contents($dir . '/HEAD'));
+            $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/alt-main'));
+
+            $expectedLine = str_repeat('0', 40) . " {$new} Deploy Bot <deploy@example.com> 1234 +0000\tan actual change\n";
+            if ($expectReflog) {
+                $t->same($expectedLine, $store->reflogContents('HEAD'), "HEAD reflog follows {$writeMode} mode");
+                $t->same($expectedLine, $store->reflogContents('refs/heads/alt-main'), "leaf reflog follows {$writeMode} mode");
+            } else {
+                $t->same(null, $store->reflogContents('HEAD'), 'disabled store write mode suppresses symbolic parent reflog');
+                $t->same(null, $store->reflogContents('refs/heads/alt-main'), 'disabled store write mode suppresses leaf reflog');
+            }
+        }
+    },
     'prepared reference transaction commit recovers empty reflog directory blockers' => static function (TestRunner $t) use ($old): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-dir-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1578,10 +1630,20 @@ return [
             $fixture['productionCommit'] . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedDerefReflogMessage'],
             (string) $summary['preparedDerefProductionReflog'],
         );
+        $t->same($fixture['expectedPreparedQuietEditNames'], $summary['preparedQuietEditNames']);
+        $t->same($fixture['expectedPreparedQuietEditModes'], $summary['preparedQuietEditModes']);
+        $t->same($fixture['expectedPreparedQuietUpdatesReference'], $summary['preparedQuietUpdatesReference']);
+        $t->same(true, $summary['preparedQuietHadLocks']);
+        $t->same(true, $summary['preparedQuietCleanedLocks']);
+        $t->same($fixture['expectedPreparedQuietHeadContents'], $summary['preparedQuietHeadContents']);
+        $t->same($fixture['reviewCommit'], $summary['preparedQuietProductionCommit']);
+        $t->same(false, $summary['preparedQuietHeadReflogExists']);
+        $t->same(false, $summary['preparedQuietProductionReflogExists']);
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
+        $t->contains('quiet publish previews', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

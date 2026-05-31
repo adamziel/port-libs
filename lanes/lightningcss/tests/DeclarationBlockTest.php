@@ -142,6 +142,41 @@ return [
             $block->removeProperty('all: initial; color: red; all: revert !important', 'all')
         );
     },
+    'declaration block canonicalizes upstream border spacing cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            [
+                'border-spacing' => '0',
+                'color' => 'red',
+            ],
+            $block->parse('border-spacing: 0px 0px; color: red')
+        );
+        $t->same(
+            ['value' => '12px 0', 'important' => true],
+            $block->getProperty('border-spacing: 12px 0px !important; color: red', 'border-spacing')
+        );
+        $t->same(
+            ['value' => '-20px', 'important' => false],
+            $block->getProperty('border-spacing: -20px -20px', 'border-spacing')
+        );
+        $t->same(
+            'border-spacing: 4px; color: red',
+            $block->setProperty('border-spacing: 0px 0px; color: red', 'border-spacing', '4px 4px')
+        );
+        $t->same(
+            'color: red; border-spacing: 0 12px',
+            $block->setProperty('color: red', 'border-spacing', '0px 12px')
+        );
+        $t->same(
+            'color: red; border-spacing: 8px !important',
+            $block->setProperty('border-spacing: 12px 0px !important; color: red', 'border-spacing', '8px 8px', true)
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('border-spacing: 0px 0px; color: red', 'border-spacing')
+        );
+    },
     'declaration block enumerates upstream cssom length and item order' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'color: red !important; background: white; --Block-Accent: blue; margin: 1rem !important; color: green';

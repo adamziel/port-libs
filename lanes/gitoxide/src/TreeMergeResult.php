@@ -142,6 +142,10 @@ final class TreeMergeResult
                 if ($targetPath !== $conflict->path) {
                     $tree = self::removeEntryAtPath($tree, $targetPath, $readObject, $writeObject);
                 }
+                $sourcePath = self::sourcePathForResolvedRename($conflict, $targetPath);
+                if ($sourcePath !== null) {
+                    $tree = self::removeEntryAtPath($tree, $sourcePath, $readObject, $writeObject);
+                }
                 $tree = self::setEntryAtPath($tree, $targetPath, $entry, $readObject, $writeObject);
             }
             if ($resolvedTree !== null) {
@@ -224,10 +228,26 @@ final class TreeMergeResult
                 $conflict->base,
                 $conflict->ours,
                 $conflict->theirs,
+                self::rebaseContextPaths($conflict->context, $prefix),
             );
         }
 
         return $rebased;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private static function rebaseContextPaths(array $context, string $prefix): array
+    {
+        foreach (['sourcePath'] as $key) {
+            if (isset($context[$key]) && is_string($context[$key]) && $context[$key] !== '') {
+                $context[$key] = self::joinPath($prefix, $context[$key]);
+            }
+        }
+
+        return $context;
     }
 
     private static function joinPath(string $prefix, string $path): string
@@ -491,6 +511,16 @@ final class TreeMergeResult
         $directory = dirname($conflict->path);
 
         return ($directory === '.' ? '' : $directory . '/') . $entry->filename;
+    }
+
+    private static function sourcePathForResolvedRename(TreeMergeConflict $conflict, string $targetPath): ?string
+    {
+        $sourcePath = $conflict->context['sourcePath'] ?? null;
+        if (!is_string($sourcePath) || $sourcePath === '' || $sourcePath === $targetPath || $sourcePath === $conflict->path) {
+            return null;
+        }
+
+        return $sourcePath;
     }
 
     /**

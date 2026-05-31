@@ -77,6 +77,8 @@ $after = $database->objectState($mediaBlob->oid());
 
 $templateBlob = new GitObject('blob', 'Externally hydrated WordPress block template bytes');
 $templateOid = $templateBlob->oid();
+$refreshDisabledDatabase = (new ObjectDatabase($gitDir))->withObjectStorageRefreshDisabled();
+$refreshDisabledBeforeExternalHydration = $refreshDisabledDatabase->objectState($templateOid);
 $beforeExternalHydration = $database->objectState($templateOid);
 $objectIdsBeforeExternalHydration = $database->objectIds();
 $packedObjectCountBeforeExternalHydration = $database->packedObjectCount();
@@ -90,6 +92,10 @@ $packedObjectCountAfterExternalHydration = $database->packedObjectCount();
 $containsAfterExternalHydration = $database->contains($templateOid);
 $prefixAfterExternalHydration = $database->lookupPrefix(strtoupper(substr($templateOid, 0, 12)));
 $afterExternalHydration = $database->objectState($templateOid);
+$refreshDisabledContainsAfterExternalHydration = $refreshDisabledDatabase->contains($templateOid);
+$refreshDisabledPrefixAfterExternalHydration = $refreshDisabledDatabase->lookupPrefix(strtoupper(substr($templateOid, 0, 12)), true);
+$refreshDisabledAfterExternalHydration = $refreshDisabledDatabase->objectState($templateOid);
+$refreshDisabledPromisorPacksAfterExternalHydration = $refreshDisabledDatabase->promisorPackNames();
 
 $thinPack = PackBuilder::buildWithRefDeltas([$thinTargetBlob], [$thinBaseBlob]);
 $thinPackBase = 'pack-' . $thinPack->packChecksum();
@@ -116,6 +122,8 @@ return [
     'afterRead' => $after,
     'persistedInPackStore' => (new ObjectDatabase($gitDir))->read($mediaBlob->oid())->body === $mediaBlob->body,
     'externalHydratedObject' => $templateOid,
+    'refreshDisabledRefreshesOnMiss' => $refreshDisabledDatabase->objectStorageRefreshesOnMiss(),
+    'refreshDisabledBeforeExternalHydration' => $refreshDisabledBeforeExternalHydration,
     'beforeExternalHydration' => $beforeExternalHydration,
     'objectIdsBeforeExternalHydration' => $objectIdsBeforeExternalHydration,
     'packedObjectCountBeforeExternalHydration' => $packedObjectCountBeforeExternalHydration,
@@ -125,6 +133,10 @@ return [
     'containsAfterExternalHydration' => $containsAfterExternalHydration,
     'prefixAfterExternalHydration' => $prefixAfterExternalHydration,
     'afterExternalHydration' => $afterExternalHydration,
+    'refreshDisabledContainsAfterExternalHydration' => $refreshDisabledContainsAfterExternalHydration,
+    'refreshDisabledPrefixAfterExternalHydration' => $refreshDisabledPrefixAfterExternalHydration,
+    'refreshDisabledAfterExternalHydration' => $refreshDisabledAfterExternalHydration,
+    'refreshDisabledPromisorPacksAfterExternalHydration' => $refreshDisabledPromisorPacksAfterExternalHydration,
     'promisorPacksAfterExternalHydration' => $database->promisorPackNames(),
     'thinPromisorPack' => $thinPackBase . '.promisor',
     'thinPromisorPackIsThin' => $thinPack->isThin(),
