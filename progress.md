@@ -45,12 +45,41 @@
 - Memory: current sample reports 27 GiB total and about 17-18 GiB available.
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 372G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.8G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
-  source-moving integration and dashboard publication. The active pool targets
-  an even libsqlite/Gitoxide split; the latest supervisor sample saw 11 active
-  workers, no long sleepers, and live subagents using `gpt-5.5` xhigh on the
-  priority service tier.
+  source-moving integration and dashboard publication. The active pool includes
+  a dedicated LightningCSS surge target of 10 visible workers plus active
+  libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
+  `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
+  12:30 UTC plus LightningCSS scale-up): source commit
+  `01e4763c61951ff9b2cf60b27f3caa7aac6e6673` (`ports: add sqlite json vfs
+  gitoxide tree lightningcss rules`) landed nine verified handoffs after
+  excluding stale shared metadata. Libsqlite selected evidence moves from
+  `2913978` to `2918190 pass / 0 fail` with mapped coverage still `1589 /
+  1589`: +1003 JSON101 join-ON scalar subquery PASS cases, +1003 atof1
+  decimal REAL suffix cases 1000-1999, +1003 changes2 prepared RETURNING and
+  `changes()` counter PASS cases, and +1203 VFS exclusive-locking PASS cases.
+  Gitoxide full lane evidence moves from `4540` to `4573 pass / 0 fail`, with
+  mapped coverage moving from `1569 / 2886` to `1571 / 2886` for pathspec
+  default search-mode tree walking and merge-base octopus sequential ordering.
+  LightningCSS full lane evidence moves from `1170` to `1213 pass / 0 fail`,
+  with mapped coverage moving from `950 / 3532` to `990 / 3532`: +18
+  `src/lib.rs::test_grid` property-value minifier cases, +15 encoded browser
+  target-prefix boundary cases, and +7 `node/test/customAtRules.mjs` custom
+  at-rule parser/visitor cases. Verification passed PHP lint for changed
+  files, diff checks, Gitoxide focused gate `2 files / 185 assertions / 0
+  failures`, full Gitoxide lane `39 files / 4573 assertions / 0 failures`, two
+  Gitoxide examples, LightningCSS focused gate `3 files / 892 assertions / 0
+  failures`, full LightningCSS lane `13 files / 1213 assertions / 0 failures`,
+  three LightningCSS examples, and libsqlite selected gate `6 files / 71955
+  assertions / 0 failures` including `SQLiteNoDomainSpecificApiTest.php`.
+  Root aggregate and full Gitoxide Cargo/LightningCSS Rust/Node suites were not
+  run for this micro-batch; full libsqlite remains too large for every small
+  publication and needs separate runner closure evidence. The live tmux pool
+  was refilled to 10 visible LightningCSS-only workers on `gpt-5.5`, xhigh
+  reasoning, and the priority service tier.
 
 - 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
   12:32 UTC): source commit
