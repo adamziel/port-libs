@@ -669,6 +669,85 @@ CSS;
         $t->same(['type' => 'raw', 'value' => '#056ef0'], $seenPreludeTokens[1]);
         $t->same(['type' => 'at-keyword', 'value' => '--wp-accent', 'raw' => '@--wp-accent'], $seenValueTokens[0]);
     },
+    'custom at-rules compose upstream Token dimension custom-unit visitors' => static function (TestRunner $t): void {
+        $customUnits = [];
+        $seenPreludeToken = null;
+        $seenDimensions = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'unit' => static function (array $rule) use (&$customUnits, &$seenPreludeToken): array {
+                            $seenPreludeToken = $rule['preludeTokens'][0] ?? null;
+                            if (($seenPreludeToken['type'] ?? null) === 'dashed-ident') {
+                                $customUnits[$seenPreludeToken['value']] = true;
+                            }
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$customUnits, &$seenDimensions): ?array {
+                        $seenDimensions[] = $token;
+                        if (!isset($customUnits[$token['unit'] ?? ''])) {
+                            return null;
+                        }
+
+                        return [
+                            'type' => 'function',
+                            'value' => [
+                                'name' => 'calc',
+                                'arguments' => [
+                                    [
+                                        'type' => 'token',
+                                        'value' => [
+                                            'type' => 'number',
+                                            'value' => $token['value'],
+                                        ],
+                                    ],
+                                    [
+                                        'type' => 'token',
+                                        'value' => [
+                                            'type' => 'delim',
+                                            'value' => '*',
+                                        ],
+                                    ],
+                                    [
+                                        'type' => 'var',
+                                        'value' => [
+                                            'name' => [
+                                                'ident' => $token['unit'],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@unit --step;
+
+.wp-block-card {
+  --step: .25rem;
+  font-size: 3--step;
+  margin: 2--step 1rem;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.wp-block-card{--step:.25rem;font-size:calc(3*var(--step));margin:calc(2*var(--step)) 1rem}', $result);
+        $t->same(['type' => 'dashed-ident', 'value' => '--step'], $seenPreludeToken);
+        $t->same(['3--step', '2--step'], array_column($seenDimensions, 'raw'));
+        $t->same([3.0, 2.0], array_column($seenDimensions, 'value'));
+    },
     'custom at-rules visit unknown at-rule blocks inside style rules' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-card {

@@ -166,7 +166,10 @@ final class PushResponse
         foreach ($ordered as $refName) {
             if (isset($matched[$refName])) {
                 $filtered[] = $matched[$refName];
+                continue;
             }
+
+            $filtered[] = PushRefStatus::rejected($refName, 'remote failed to report status');
         }
 
         return new self($this->unpackStatus, $filtered, $this->progressMessages, $this->errorMessages);

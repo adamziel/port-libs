@@ -190,6 +190,31 @@ return [
         $t->same($new, $filtered->refStatuses()[1]->newObject);
         $t->same([], $filtered->rejectedRefs());
     },
+    'marks missing requested receive-status refs as remote failures like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/main post-update hook accepted\n")
+            . $packet("ok refs/heads/ghost ignored by send-pack\n")
+            . $flush
+        );
+        $filtered = $response->forExpectedRefNames(['refs/heads/main', 'refs/tags/wp-release']);
+        $missingOnly = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/ghost ignored by send-pack\n")
+            . $flush
+        )->forExpectedRefNames(['refs/heads/main']);
+
+        $t->same(false, $filtered->isSuccessful());
+        $t->same(2, count($filtered->refStatuses()));
+        $t->same('refs/heads/main', $filtered->refStatuses()[0]->refName);
+        $t->same(PushRefStatus::OK, $filtered->refStatuses()[0]->status);
+        $t->same('refs/tags/wp-release', $filtered->refStatuses()[1]->refName);
+        $t->same(PushRefStatus::REJECTED, $filtered->refStatuses()[1]->status);
+        $t->same('remote failed to report status', $filtered->refStatuses()[1]->message);
+        $t->same(false, $missingOnly->isSuccessful());
+        $t->same('refs/heads/main', $missingOnly->rejectedRefs()[0]->refName);
+        $t->same('remote failed to report status', $missingOnly->rejectedRefs()[0]->message);
+    },
     'rejects report-status-v2 options after unrequested refs like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
         $unknownWithKnownOption = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
@@ -365,5 +390,6 @@ return [
         $t->same(true, $summary['carriageReturnStatusRejected']);
         $t->same(true, $summary['emptyPacketLineRejected']);
         $t->same(true, $summary['unrequestedOptionRejected']);
+        $t->same(true, $summary['missingExpectedStatusRejected']);
     },
 ];

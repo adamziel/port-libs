@@ -13,6 +13,7 @@ $css = <<<'CSS'
 @token --wp-ring #056ef0;
 @env-token --wp-card-breakpoint 782px;
 @var-token --wp-card-padding 24px;
+@unit --wp-fluid-step;
 
 @tokens wp {
   --gap: 24px;
@@ -57,6 +58,8 @@ $css = <<<'CSS'
 
 .wp-block-card {
   @apply card;
+  --wp-fluid-step: .25rem;
+  font-size: 3--wp-fluid-step;
   gap: wp-rem(wp-size(card));
   outline-color: @wp-accent;
   box-shadow: 0 0 0 1px @--wp-ring;
@@ -83,6 +86,7 @@ $dependencies = [];
 $colorAliases = [];
 $environmentTokens = [];
 $variableTokens = [];
+$customUnits = [];
 $stylesheetExitRuleCount = 0;
 $transformer = new CustomAtRuleTransformer();
 
@@ -151,12 +155,12 @@ $transform = $transformer->transformWithDependencies($css, [
             ],
         ],
     ],
-    static function (array $context) use (&$tokens, &$colorAliases, &$environmentTokens, &$variableTokens): array {
+    static function (array $context) use (&$tokens, &$colorAliases, &$environmentTokens, &$variableTokens, &$customUnits): array {
         $addDependency = $context['addDependency'];
 
         return [
             'Rule' => [
-                'unknown' => static function (array $rule) use ($addDependency, &$colorAliases, &$environmentTokens, &$variableTokens): ?array {
+                'unknown' => static function (array $rule) use ($addDependency, &$colorAliases, &$environmentTokens, &$variableTokens, &$customUnits): ?array {
                     if ($rule['name'] === 'asset-style') {
                         $addDependency(['type' => 'style', 'path' => $rule['preludeTokens'][0]['value']['value']]);
 
@@ -178,6 +182,14 @@ $transform = $transformer->transformWithDependencies($css, [
                         $variableTokens[$rule['preludeTokens'][0]['value']] = [
                             'raw' => $rule['preludeTokens'][1]['value'],
                         ];
+
+                        return [];
+                    }
+                    if ($rule['name'] === 'unit') {
+                        $unit = $rule['preludeTokens'][0]['value'] ?? null;
+                        if (is_string($unit)) {
+                            $customUnits[$unit] = true;
+                        }
 
                         return [];
                     }
@@ -264,6 +276,42 @@ $transform = $transformer->transformWithDependencies($css, [
             'Token' => [
                 'at-keyword' => static function (array $token) use (&$colorAliases): ?string {
                     return $colorAliases[$token['value']] ?? null;
+                },
+                'dimension' => static function (array $token) use (&$customUnits): ?array {
+                    if (!isset($customUnits[$token['unit'] ?? ''])) {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'function',
+                        'value' => [
+                            'name' => 'calc',
+                            'arguments' => [
+                                [
+                                    'type' => 'token',
+                                    'value' => [
+                                        'type' => 'number',
+                                        'value' => $token['value'],
+                                    ],
+                                ],
+                                [
+                                    'type' => 'token',
+                                    'value' => [
+                                        'type' => 'delim',
+                                        'value' => '*',
+                                    ],
+                                ],
+                                [
+                                    'type' => 'var',
+                                    'value' => [
+                                        'name' => [
+                                            'ident' => $token['unit'],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ];
                 },
             ],
             'Function' => [
@@ -452,7 +500,7 @@ $transform = $transformer->transformWithDependencies($css, [
 $result = $transform['code'];
 $dependencies = $transform['dependencies'];
 
-$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__viewport{color:red;height:100vh}@supports (-webkit-touch-callout:none){.wp-block-card__viewport{height:-webkit-fill-available}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
+$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__viewport{color:red;height:100vh}@supports (-webkit-touch-callout:none){.wp-block-card__viewport{height:-webkit-fill-available}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{--wp-fluid-step:.25rem;font-size:calc(3*var(--wp-fluid-step));gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
@@ -476,6 +524,10 @@ if (($argv[1] ?? null) === '--self-test') {
     }
     if ($variableTokens !== ['--wp-card-padding' => ['raw' => '24px']]) {
         fwrite(STDERR, "Unexpected custom at-rule variable tokens:\n" . json_encode($variableTokens) . "\n");
+        exit(1);
+    }
+    if ($customUnits !== ['--wp-fluid-step' => true]) {
+        fwrite(STDERR, "Unexpected custom at-rule custom units:\n" . json_encode($customUnits) . "\n");
         exit(1);
     }
     if ($stylesheetExitRuleCount < 1) {

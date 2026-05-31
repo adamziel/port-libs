@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\GitDaemonReceivePackTransport;
+use PortLibs\Gitoxide\PushRefStatus;
 use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\SendPackSession;
 use PortLibs\Gitoxide\SmartHttpReceivePackTransport;
@@ -316,6 +317,32 @@ return [
         $t->same('post-update hook accepted', $response->refStatuses()[0]->message);
         $t->same([], $response->rejectedRefs());
         $t->same(['remote: validating deployment refs'], $response->progressMessages());
+    },
+    'receive-pack client marks missing requested status refs as remote failures' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress missing status payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: accepted pack without ref report\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/ghost ignored by send-pack\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+
+        $response = $client->send($session->buildRequest([$blob]));
+
+        $t->same(false, $response->isSuccessful());
+        $t->same(1, count($response->refStatuses()));
+        $t->same('refs/heads/main', $response->refStatuses()[0]->refName);
+        $t->same(PushRefStatus::REJECTED, $response->refStatuses()[0]->status);
+        $t->same('remote failed to report status', $response->refStatuses()[0]->message);
+        $t->same('refs/heads/main', $response->rejectedRefs()[0]->refName);
+        $t->same(['remote: accepted pack without ref report'], $response->progressMessages());
     },
     'receive-pack client rejects options after unrequested status refs like send-pack' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -2460,8 +2487,55 @@ return [
         $t->same('deploy', $optionLikeHostContext['user']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@-git-proxy.example.test'], $optionLikeHostContext['sshArguments']);
         $t->same("path=wp-content.git\nprotocol=ssh\nhost=-git-proxy.example.test\nusername=deploy\n", $optionLikeHostContext['credentialContext']->storageBytes());
+
+        $plinkContext = SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
+            ['protocolVersion' => 2, 'programKind' => 'plink'],
+        );
+        $t->same('plink', $plinkContext['programKind']);
+        $t->same('plink', $plinkContext['sshCommand']);
+        $t->same(['LANG' => 'C', 'LC_ALL' => 'C'], $plinkContext['environment']);
+        $t->same(['-P', '2222', 'deploy@git.example.test'], $plinkContext['sshArguments']);
+        $t->same("git-receive-pack '/var/www/wp-content.git'", $plinkContext['command']);
+
+        $puttyContext = SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2223/var/www/wp-content.git',
+            ['programKind' => 'putty'],
+        );
+        $t->same('putty', $puttyContext['programKind']);
+        $t->same(['-P', '2223', 'deploy@git.example.test'], $puttyContext['sshArguments']);
+
+        $tortoiseContext = SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2224/var/www/wp-content.git',
+            ['programKind' => 'tortoiseplink'],
+        );
+        $t->same('tortoiseplink', $tortoiseContext['programKind']);
+        $t->same('tortoiseplink.exe', $tortoiseContext['sshCommand']);
+        $t->same(['-batch', '-P', '2224', 'deploy@git.example.test'], $tortoiseContext['sshArguments']);
+
+        $inferredPlinkContext = SshReceivePackTransport::connectorContext(
+            'ssh://deploy@git.example.test:2225/var/www/wp-content.git',
+            ['sshCommand' => '/opt/bin/Plink.exe'],
+        );
+        $t->same('plink', $inferredPlinkContext['programKind']);
+        $t->same('/opt/bin/Plink.exe', $inferredPlinkContext['sshCommand']);
+        $t->same(['-P', '2225', 'deploy@git.example.test'], $inferredPlinkContext['sshArguments']);
+
+        $simpleContext = SshReceivePackTransport::connectorContext(
+            'deploy@git.example.test:wp-content.git',
+            ['protocolVersion' => 2, 'programKind' => 'simple', 'sshCommand' => 'simple'],
+        );
+        $t->same('simple', $simpleContext['programKind']);
+        $t->same('simple', $simpleContext['sshCommand']);
+        $t->same(['LANG' => 'C', 'LC_ALL' => 'C'], $simpleContext['environment']);
+        $t->same(['deploy@git.example.test'], $simpleContext['sshArguments']);
+
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://example.test/repo.git', ['protocolVersion' => 0]));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://example.test/repo.git', ['protocolVersion' => 3]));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test:2222/repo.git', ['programKind' => 'simple']));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['programKind' => 'unknown']));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['sshCommand' => "ssh\n"]));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['disallowShell' => 'yes']));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy:secret@git.example.test/repo.git'));
     },
     'ssh receive-pack urls and commands are validated without shelling out' => static function (TestRunner $t): void {
@@ -2620,6 +2694,13 @@ return [
         $t->same('~wp-content.git', $fixture['sshScpLikeHomeTarget']['path']);
         $t->same('-git-proxy.example.test', $fixture['sshOptionLikeHostWithUserTarget']['host']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@-git-proxy.example.test'], $fixture['sshOptionLikeHostWithUserContext']['sshArguments']);
+        $t->same('plink', $fixture['sshPlinkContext']['programKind']);
+        $t->same(['-P', '2222', 'deploy@git.example.test'], $fixture['sshPlinkContext']['sshArguments']);
+        $t->same('tortoiseplink.exe', $fixture['sshTortoisePlinkContext']['sshCommand']);
+        $t->same(['-batch', '-P', '2222', 'deploy@git.example.test'], $fixture['sshTortoisePlinkContext']['sshArguments']);
+        $t->same('simple', $fixture['sshSimpleContext']['programKind']);
+        $t->same(['deploy@git.example.test'], $fixture['sshSimpleContext']['sshArguments']);
+        $t->same(true, $fixture['sshSimplePortRejected']);
         $t->same(true, $fixture['unsafeSshLegacyHostRejected']);
         $t->same(['GIT_PROTOCOL' => 'version=2', 'LANG' => 'C', 'LC_ALL' => 'C'], $fixture['sshProtocolV2Context']['environment']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);

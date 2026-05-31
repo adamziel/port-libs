@@ -303,6 +303,21 @@ final class CustomAtRuleTransformer
 
                     return null;
                 },
+                'dimension' => static function (array $token, self $transformer) use ($visitors): mixed {
+                    foreach ($visitors as $visitor) {
+                        $callback = self::tokenVisitorCallback($visitor, 'dimension');
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $replacement = $callback($token, $transformer);
+                        if ($replacement !== null) {
+                            return $replacement;
+                        }
+                    }
+
+                    return null;
+                },
             ],
             'Selector' => static function (array $selector, self $transformer) use ($visitors): mixed {
                 $current = $selector;
@@ -3836,6 +3851,21 @@ final class CustomAtRuleTransformer
             if (($token['type'] ?? null) === 'ident') {
                 return (string) ($token['value'] ?? '');
             }
+            if (($token['type'] ?? null) === 'at-keyword') {
+                return '@' . (string) ($token['value'] ?? '');
+            }
+            if (($token['type'] ?? null) === 'delim') {
+                return (string) ($token['value'] ?? '');
+            }
+            if (($token['type'] ?? null) === 'number' && (is_int($token['value'] ?? null) || is_float($token['value'] ?? null))) {
+                return $this->formatNumber($token['value']);
+            }
+            if (($token['type'] ?? null) === 'percentage' && (is_int($token['value'] ?? null) || is_float($token['value'] ?? null))) {
+                return $this->formatNumber($token['value'] * 100) . '%';
+            }
+            if (($token['type'] ?? null) === 'dimension' && isset($token['unit'], $token['value']) && is_string($token['unit']) && (is_int($token['value']) || is_float($token['value']))) {
+                return $this->formatNumber($token['value']) . $token['unit'];
+            }
         }
         if ($type === 'raw') {
             return (string) ($value['value'] ?? '');
@@ -3856,7 +3886,10 @@ final class CustomAtRuleTransformer
                 $arguments = [];
             }
 
-            return (string) ($function['name'] ?? '') . '(' . implode(',', array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments)) . ')';
+            $name = (string) ($function['name'] ?? '');
+            $separator = strtolower($name) === 'calc' ? '' : ',';
+
+            return $name . '(' . implode($separator, array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments)) . ')';
         }
 
         return (string) ($value['value'] ?? '');
@@ -3875,6 +3908,9 @@ final class CustomAtRuleTransformer
         $replacement = $visitor($arguments, $raw, strtolower($name), $this);
         if ($replacement === null) {
             return null;
+        }
+        if (is_array($replacement)) {
+            return $this->serializeVisitorValue($this->normalizeVisitorValue($replacement));
         }
 
         return (string) $replacement;
@@ -3921,6 +3957,28 @@ final class CustomAtRuleTransformer
                 continue;
             }
 
+            if (preg_match('/([+-]?(?:\d+|\d*\.\d+))(--[-_a-zA-Z0-9]+)/A', substr($value, $i), $matches) === 1) {
+                $raw = $matches[0];
+                $before = $i > 0 ? $value[$i - 1] : '';
+                $after = $value[$i + strlen($raw)] ?? '';
+                if (
+                    ($before === '' || !preg_match('/[-_a-zA-Z0-9.]/', $before))
+                    && ($after === '' || !preg_match('/[-_a-zA-Z0-9]/', $after))
+                ) {
+                    $replacement = $this->callTokenVisitor('dimension', [
+                        'type' => 'dimension',
+                        'value' => (float) $matches[1],
+                        'unit' => $matches[2],
+                        'raw' => $raw,
+                    ]);
+                    if ($replacement !== null) {
+                        $output .= $replacement;
+                        $i += strlen($raw) - 1;
+                        continue;
+                    }
+                }
+            }
+
             $output .= $char;
         }
 
@@ -3940,6 +3998,13 @@ final class CustomAtRuleTransformer
         $replacement = $visitor($token, $this);
         if ($replacement === null) {
             return null;
+        }
+        if (is_array($replacement)) {
+            if (array_is_list($replacement)) {
+                return $this->serializeComponentValueList($replacement);
+            }
+
+            return $this->serializeVisitorValue($this->applyValueVisitors($this->normalizeVisitorValue($replacement)));
         }
 
         return (string) $replacement;

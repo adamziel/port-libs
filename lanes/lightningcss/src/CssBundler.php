@@ -1314,7 +1314,7 @@ final class CssBundler
      */
     private function externalImportStatement(string $url, array $import): string
     {
-        $parts = ['@import "' . str_replace('"', '\\"', $url) . '"'];
+        $parts = ['@import ' . $this->cssStringLiteral($url)];
         if ($import['layer'] !== null) {
             $parts[] = $import['layer'] === '' ? 'layer' : 'layer(' . $import['layer'] . ')';
         }
@@ -1326,6 +1326,36 @@ final class CssBundler
         }
 
         return implode(' ', $parts) . ';';
+    }
+
+    private function cssStringLiteral(string $value): string
+    {
+        $output = '"';
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            $byte = ord($char);
+            if ($char === '"') {
+                $output .= '\\"';
+                continue;
+            }
+            if ($char === '\\') {
+                $output .= '\\\\';
+                continue;
+            }
+            if ($byte === 0) {
+                $output .= "\u{FFFD}";
+                continue;
+            }
+            if (($byte >= 1 && $byte <= 31) || $byte === 127) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output . '"';
     }
 
     private function supportsPrelude(string $condition): string
@@ -1942,7 +1972,11 @@ final class CssBundler
             }
 
             if ($cursor < $length && ctype_space($token[$cursor])) {
-                $cursor++;
+                if ($token[$cursor] === "\r" && ($token[$cursor + 1] ?? '') === "\n") {
+                    $cursor += 2;
+                } else {
+                    $cursor++;
+                }
             }
 
             $output .= $this->codepointToUtf8((int) hexdec($hex));

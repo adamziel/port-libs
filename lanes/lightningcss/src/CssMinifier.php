@@ -12954,6 +12954,7 @@ final class CssMinifier
             $hue ?? 0.0,
             $saturation ?? 0.0,
             $lightness ?? 0.0,
+            $this->colorMixRgbByteRoundingBias($left['color']['alpha'], $right['color']['alpha'], $leftWeight, $rightWeight),
         );
 
         return $this->serializeColorBytes($red, $green, $blue, $resultAlpha ?? 0.0);
@@ -13006,7 +13007,12 @@ final class CssMinifier
             $componentAlpha,
         );
 
-        [$red, $green, $blue] = $this->hwbColorMixToRgbBytes($hue ?? 0.0, $white ?? 0.0, $black ?? 0.0);
+        [$red, $green, $blue] = $this->hwbColorMixToRgbBytes(
+            $hue ?? 0.0,
+            $white ?? 0.0,
+            $black ?? 0.0,
+            $this->colorMixRgbByteRoundingBias($left['color']['alpha'], $right['color']['alpha'], $leftWeight, $rightWeight),
+        );
 
         return $this->serializeColorBytes($red, $green, $blue, $resultAlpha ?? 0.0);
     }
@@ -13777,6 +13783,21 @@ final class CssMinifier
         }
 
         return '/' . $this->minifyColorNumber(max(0.0, min(1.0, $alpha)), 4);
+    }
+
+    private function colorMixRgbByteRoundingBias(?float $leftAlpha, ?float $rightAlpha, float $leftWeight, float $rightWeight): float
+    {
+        if ($leftWeight <= 0.000000001 || $rightWeight <= 0.000000001) {
+            return 0.000000001;
+        }
+
+        if (($leftAlpha !== null && $leftAlpha < 0.999999999)
+            || ($rightAlpha !== null && $rightAlpha < 0.999999999)
+        ) {
+            return 0.125000001;
+        }
+
+        return 0.000000001;
     }
 
     private function parseColorMixPercentage(string $token): ?float
@@ -14574,7 +14595,7 @@ final class CssMinifier
     /**
      * @return array{0:int,1:int,2:int}
      */
-    private function hslToRgbBytes(float $hue, float $saturation, float $lightness): array
+    private function hslToRgbBytes(float $hue, float $saturation, float $lightness, float $roundingBias = 0.000000001): array
     {
         $chroma = (1 - abs(2 * $lightness - 1)) * $saturation;
         $x = $chroma * (1 - abs(fmod($hue / 60, 2) - 1));
@@ -14590,9 +14611,9 @@ final class CssMinifier
         };
 
         return [
-            (int) round(($red + $m) * 255 + 0.000000001),
-            (int) round(($green + $m) * 255 + 0.000000001),
-            (int) round(($blue + $m) * 255 + 0.000000001),
+            (int) round(($red + $m) * 255 + $roundingBias),
+            (int) round(($green + $m) * 255 + $roundingBias),
+            (int) round(($blue + $m) * 255 + $roundingBias),
         ];
     }
 
@@ -14633,7 +14654,7 @@ final class CssMinifier
     /**
      * @return array{0:int,1:int,2:int}
      */
-    private function hwbColorMixToRgbBytes(float $hue, float $white, float $black): array
+    private function hwbColorMixToRgbBytes(float $hue, float $white, float $black, float $roundingBias = 0.000000001): array
     {
         $white = min(1.0, max(0.0, $white));
         $black = min(1.0, max(0.0, $black));
@@ -14661,20 +14682,20 @@ final class CssMinifier
         $factor = 1.0 - $white - $black;
 
         return [
-            $this->hwbColorMixChannelToByte($red, $factor, $white),
-            $this->hwbColorMixChannelToByte($green, $factor, $white),
-            $this->hwbColorMixChannelToByte($blue, $factor, $white),
+            $this->hwbColorMixChannelToByte($red, $factor, $white, $roundingBias),
+            $this->hwbColorMixChannelToByte($green, $factor, $white, $roundingBias),
+            $this->hwbColorMixChannelToByte($blue, $factor, $white, $roundingBias),
         ];
     }
 
-    private function hwbColorMixChannelToByte(float $hueChannel, float $factor, float $white): int
+    private function hwbColorMixChannelToByte(float $hueChannel, float $factor, float $white, float $roundingBias = 0.000000001): int
     {
         $value = ($hueChannel * $factor + $white) * 255;
         if (abs($hueChannel) < 0.000000001 && $white > 0.0) {
             return $this->clampColorByte((int) ceil($value + 0.000000001));
         }
 
-        return $this->clampColorByte((int) round($value + 0.000000001));
+        return $this->clampColorByte((int) round($value + $roundingBias));
     }
 
     private function serializeColorBytes(int $red, int $green, int $blue, float $alpha): string

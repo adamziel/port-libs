@@ -16,11 +16,39 @@ return [
         'repository' => 'GitoxideLabs/gitoxide',
         'commit' => '87433ed33eee9ba974111d20b854f6acb07cd4a6',
         'paths' => [
+            'gix-protocol/tests/fixtures/v2/clone-only.response',
             'gix-protocol/tests/fixtures/v2/clone-only-with-keepalive.response',
             'gix-protocol/tests/fixtures/v2/clone-only-2.response',
             'gix-protocol/tests/protocol/fetch/response.rs::v2::from_line_reader::{clone,clone_with_sidebands}',
             'gix-protocol/src/remote_progress.rs',
         ],
+    ],
+    'cloneOnly' => [
+        'response' => $decode(<<<'BASE64'
+MDAwZHBhY2tmaWxlCjAwNDACRW51bWVyYXRpbmcgb2JqZWN0czogMywgZG9uZS4KQ291bnRpbmcg
+b2JqZWN0czogIDMzJSAoMS8zKQ0wMDIyAkNvdW50aW5nIG9iamVjdHM6ICA2NiUgKDIvMykNMDA0
+NgJDb3VudGluZyBvYmplY3RzOiAxMDAlICgzLzMpDUNvdW50aW5nIG9iamVjdHM6IDEwMCUgKDMv
+MyksIGRvbmUuCjAzNWMBUEFDSwAAAAIAAAADkkJ4nKWTya6bWABE93zF3aMOYMBcpKTVzDNmMIO9
+YwYzG2wwX5+XjrLrXdfyLEqqks76LAqQ0DDJaYphGYifyYxJceKUnk8lUxBsSZV0mZI0zJkSSV5r
+PT6BX6TJsjbJAK51U3Tg+/IHfFt/gX+arBtf+bds7P8GBM0yJE4xkAEoDnEc+aJ9s67F/+2ppmpp
+KvDXr/CSotnAURzga4rNXQNP+pcjAAGNqx08x/ECx+VyI0k6DC4l0eoemw2XwS1qr7MESbtXVitz
+HcQZNuOEqnX/cARUVveSNwyLN+Mxz+8jiT1d1cpzD0nWrS3cGWcWo5vX9SlL0mYzk5IPxvzJ2k9d
+WoaEISBnrgbEjMBSxfTD8PIHM/1wl6KKW2OO3XbFDSiT0GsRbYvZxEYTtfjcr3m3Cic8CSACPO4B
+1SZHH0JiOZKgE6XRiO9nAt1FhE70dq0s9RVVKULDq7uhi0yfFCUsZrRaLd+lgQAiurWRJ0ty4XkH
+e92bZ4Z9qGU7CVI+Ybt+b7MgY1E8TSn+8OhYe2ciTehGGZIT0VVfP4TPST8oR+EoiZYceU5Spt9H
+/Cl4slM5F77GfWkthqevnS6jekMZhiYt4daHR63JijwjoFjuBF3ZB+2xbFCGoRaF/ZIOeiF3Imu2
+rxP3LpSBV/gNs6C1K5O9s6KBkSTPh/CIvlZEt0BwzDjV/MdWoNElJu2lDJ9UtpcEga6W2mej0zZs
+5b5On8vG8hHvdbwtWnXkaIdzICCdenXKz7mfqpfYWtmjKodjaOmY7ciL1IxDbctDrBCfTp+CFXcO
+aSduRslc8XWKoflGAOfFLLuho8WpTWjWzi2tE81Gx+W+YoMXXEy5OypGxrNKEEbxwftROlvLMmtU
+s2VQcxFgWCQvzgTqBQOlvbBt7pmgLI5OOF9tGK+U0OvS+y4rQxQ99j4JCONl3E/l/T5ZtdKr8lfD
+WFLTKtHQTfI9eu3a1TxBmRuZg5vjeBNUIcIu9sgrFo21rs+cPfgDAT/OgeAjv52RbPG/jEHWugDj
+UIDfniI/ASrVTOuhAnicMzQwMDMxUchIzcnJZyjoVlcrbJ+1xOXkmaWyhyby/1rzzRoAvPUNtjl4
+nEvPLMmvyExJ5QIAErIDMDAxOQFoFQoQRfBNwPwtv3IxNpn9ppa/QTAwM2ECVG90YWwgMyAoZGVs
+dGEgMCksIHJldXNlZCAwIChkZWx0YSAwKSwgcGFjay1yZXVzZWQgMAowMDA2ASYwMDAwCg==
+BASE64),
+        'packBytes' => 876,
+        'packTrailer' => '150a1045f04dc0fc2dbf72313699fda696bf4126',
+        'progressCount' => 4,
     ],
     'cloneOnlyWithKeepalive' => [
         'response' => $decode(<<<'BASE64'

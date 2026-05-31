@@ -454,8 +454,12 @@ CSS
             'color-mix(in hsl, hsl(120deg 10% 20%) 0%, hsl(30deg 30% 40%))' => '#856647',
             'color-mix(in hsl, hsl(120deg 10% 20% / .4), hsl(30deg 30% 40% / .8))' => '#5f694199',
             'color-mix(in hsl, hsl(120deg 10% 20%) 25%, hsl(30deg 30% 40% / .8))' => '#6c6742d9',
+            'color-mix(in hsl, 25% hsl(120deg 10% 20% / .4), hsl(30deg 30% 40% / .8))' => '#797245b3',
             'color-mix(in hsl, hsl(120deg 10% 20% / .4), 25% hsl(30deg 30% 40% / .8))' => '#44543b80',
             'color-mix(in hsl, hsl(120deg 10% 20% / .4), hsl(30deg 30% 40% / .8) 25%)' => '#44543b80',
+            'color-mix(in hsl, hsl(120deg 10% 20% / .4) 25%, hsl(30deg 30% 40% / .8) 75%)' => '#797245b3',
+            'color-mix(in hsl, hsl(120deg 10% 20% / .4) 30%, hsl(30deg 30% 40% / .8) 90%)' => '#797245b3',
+            'color-mix(in hsl, hsl(120deg 10% 20% / .4) 12.5%, hsl(30deg 30% 40% / .8) 37.5%)' => '#79724559',
             'color-mix(in hsl, hsl(120deg 10% 20% / .4) 0%, hsl(30deg 30% 40% / .8))' => '#856647cc',
         ];
 
@@ -491,6 +495,15 @@ CSS
             'color-mix(in hwb, hwb(120deg 10% 20%) 30%, hwb(30deg 30% 40%) 90%)' => '#a69940',
             'color-mix(in hwb, hwb(120deg 10% 20%) 12.5%, hwb(30deg 30% 40%) 37.5%)' => '#a6994080',
             'color-mix(in hwb, hwb(120deg 10% 20%) 0%, hwb(30deg 30% 40%))' => '#99734d',
+            'color-mix(in hwb, hwb(120deg 10% 20% / .4), hwb(30deg 30% 40% / .8))' => '#8faa3c99',
+            'color-mix(in hwb, hwb(120deg 10% 20% / .4) 25%, hwb(30deg 30% 40% / .8))' => '#a09546b3',
+            'color-mix(in hwb, 25% hwb(120deg 10% 20% / .4), hwb(30deg 30% 40% / .8))' => '#a09546b3',
+            'color-mix(in hwb, hwb(120deg 10% 20%), 25% hwb(30deg 30% 40% / .8))' => '#5fc125f2',
+            'color-mix(in hwb, hwb(120deg 10% 20% / .4), hwb(30deg 30% 40% / .8) 25%)' => '#62b82e80',
+            'color-mix(in hwb, hwb(120deg 10% 20% / .4) 25%, hwb(30deg 30% 40% / .8) 75%)' => '#a09546b3',
+            'color-mix(in hwb, hwb(120deg 10% 20% / .4) 30%, hwb(30deg 30% 40% / .8) 90%)' => '#a09546b3',
+            'color-mix(in hwb, hwb(120deg 10% 20% / .4) 12.5%, hwb(30deg 30% 40% / .8) 37.5%)' => '#a0954659',
+            'color-mix(in hwb, hwb(120deg 10% 20% / .4) 0%, hwb(30deg 30% 40% / .8))' => '#99734dcc',
         ];
 
         foreach ($cases as $input => $expected) {

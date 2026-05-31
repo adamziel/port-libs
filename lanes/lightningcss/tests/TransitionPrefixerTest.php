@@ -98,6 +98,61 @@ return [
         $t->same('.foo{-moz-backface-visibility:hidden;backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['firefox' => 15]));
         $t->same('.foo{backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['firefox' => 16]));
     },
+    'transition prefixer maps upstream intrinsic sizing keyword target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{width:-webkit-min-content;width:-moz-min-content;width:min-content}',
+            $prefixer->prefixForTargets('.foo { width: min-content; }', ['safari' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{height:-webkit-max-content;height:-moz-max-content;height:max-content}',
+            $prefixer->prefixForTargets('.foo { height: max-content; }', ['safari' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{width:-webkit-fit-content;width:-moz-fit-content;width:fit-content}',
+            $prefixer->prefixForTargets('.foo { inline-size: fit-content; }', ['safari' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{height:-webkit-fill-available;height:-moz-available;height:stretch}',
+            $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['safari' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{width:fit-content(50%)}',
+            $prefixer->prefixForTargets('.foo { inline-size: fit-content(50%); }', ['safari' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{width:fill-available;height:fill}',
+            $prefixer->prefixForTargets('.foo { width: fill-available; height: fill; }', ['safari' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{width:100%;width:max-content;height:var(--fallback);height:fit-content}',
+            $prefixer->prefixForTargets('.foo { width: 100%; width: max-content; height: var(--fallback); height: fit-content; }', ['safari' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{width:-moz-min-content;width:min-content}',
+            $prefixer->prefixForTargets('.foo { width: -webkit-min-content; width: -moz-min-content; width: min-content; }', ['firefox' => 65])
+        );
+        $t->same(
+            '.foo{width:min-content}',
+            $prefixer->prefixForTargets('.foo { width: -webkit-min-content; width: -moz-min-content; width: min-content; }', ['chrome' => 46])
+        );
+
+        $t->same('.foo{width:-webkit-min-content;width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['chrome' => 45]));
+        $t->same('.foo{width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['chrome' => 46]));
+        $t->same('.foo{width:-moz-min-content;width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['firefox' => 65]));
+        $t->same('.foo{width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['firefox' => 66]));
+        $t->same('.foo{width:-moz-fit-content;width:fit-content}', $prefixer->prefixForTargets('.foo { width: fit-content; }', ['firefox' => 93]));
+        $t->same('.foo{width:fit-content}', $prefixer->prefixForTargets('.foo { width: fit-content; }', ['firefox' => 94]));
+        $t->same('.foo{width:-webkit-min-content;width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['safari' => '10.1']));
+        $t->same('.foo{width:min-content}', $prefixer->prefixForTargets('.foo { width: min-content; }', ['safari' => 11]));
+        $t->same('.foo{height:-webkit-fill-available;height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['chrome' => 137]));
+        $t->same('.foo{height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['chrome' => 138]));
+        $t->same('.foo{height:-webkit-fill-available;height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['edge' => 137]));
+        $t->same('.foo{height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['edge' => 138]));
+        $t->same('.foo{block-size:-moz-available;block-size:stretch}', $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['firefox' => 120]));
+        $t->same('.foo{block-size:-webkit-fill-available;block-size:stretch}', $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['safari' => 16]));
+    },
     'transition prefixer maps upstream clamp lowering for legacy safari targets' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

@@ -262,7 +262,7 @@ return [
     'parses upstream gix-protocol v2 sideband fixtures with pack trailers' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-sideband.php';
 
-        foreach (['cloneOnlyWithKeepalive', 'cloneOnly2'] as $key) {
+        foreach (['cloneOnly', 'cloneOnlyWithKeepalive', 'cloneOnly2'] as $key) {
             $response = FetchResponse::fromV2PacketLines($fixtures[$key]['response']);
 
             $t->same(true, $response->hasPack());
@@ -278,6 +278,28 @@ return [
         $keepaliveResponse = $fixtures['cloneOnlyWithKeepalive']['response'];
         $t->same(true, str_contains($keepaliveResponse, "0005\x01"));
         $t->same('150a1045f04dc0fc2dbf72313699fda696bf4126', bin2hex(substr(FetchResponse::fromV2PacketLines($keepaliveResponse)->packData(), -20)));
+    },
+    'parses upstream v2 ref-in-want wanted-refs response with sideband pack' => static function (TestRunner $t): void {
+        $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-ref-in-want-sideband.php';
+        $fixture = $fixtures['refInWant'];
+        $response = FetchResponse::fromV2PacketLines($fixture['response']);
+
+        $wantedRefs = array_map(
+            static fn (FetchWantedRef $wantedRef): array => ['object' => $wantedRef->object, 'path' => $wantedRef->path],
+            $response->wantedRefs()
+        );
+
+        $t->same($fixture['wantedRefs'], $wantedRefs);
+        $t->same([], $response->acknowledgements());
+        $t->same([], $response->shallowUpdates());
+        $t->same($fixture['hasPack'], $response->hasPack());
+        $t->same('PACK', substr($response->packData(), 0, 4));
+        $t->same($fixture['packBytes'], strlen($response->packData()));
+        $t->same($fixture['packTrailer'], bin2hex(substr($response->packData(), -20)));
+        $t->same($fixture['progressCount'], count($response->progressMessages()));
+        $t->same([], $response->remoteProgress());
+        $t->same([], $response->errorMessages());
+        $t->same($fixture['responseBytesAfterCapabilityFlush'], strlen($fixture['response']));
     },
     'parses upstream v2 fetch section fixtures with sideband pack bytes' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-section-sideband.php';
@@ -381,6 +403,7 @@ return [
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';
         $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
         $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
+        $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
 
         $t->same(true, $response->hasPack());
         $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
@@ -399,6 +422,10 @@ return [
         $t->same(FetchAcknowledgement::READY, $suffixlessAckResponse->acknowledgements()[2]->kind);
         $t->same($fixture['packData'], $suffixlessAckResponse->packData());
         $t->same(1, count($suffixlessAckResponse->progressMessages()));
+        $t->same('refs/heads/main', $refInWantResponse->wantedRefs()[0]->path);
+        $t->same($fixture['objects']['main'], $refInWantResponse->wantedRefs()[0]->object);
+        $t->same($fixture['packData'], $refInWantResponse->packData());
+        $t->same([], $refInWantResponse->progressMessages());
         $t->same(
             'fetch response: upload-pack error raw WordPress fetch failure',
             rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true)))
@@ -409,5 +436,7 @@ return [
         $t->same('fetch response: upload-pack error raw WordPress fetch failure', $summary['uploadPackError']);
         $t->same(true, $summary['emptyErrorKeepaliveIgnored']);
         $t->same(true, $summary['suffixlessAckParsed']);
+        $t->same(true, $summary['refInWantParsed']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['refInWantPackTrailer']);
     },
 ];

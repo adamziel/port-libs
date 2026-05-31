@@ -113,6 +113,14 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer consumes crlf after hex escaped import sources' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = "@custom-media --wide (min-width: 782px);\n\n@import url(./blocks/card\\2e\r\ncss) (--wide);";
+
+        $t->same(
+            '@import "./blocks/card.css" (width>=782px);',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer resolves import media tails after layer modifiers and comments' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --wide (min-width: 782px);

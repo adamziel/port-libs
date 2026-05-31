@@ -250,6 +250,14 @@ final class DeclarationBlock
         'mask-composite',
         'mask-mode',
     ];
+    private const WEBKIT_MASK_LONGHANDS = [
+        '-webkit-mask-image',
+        '-webkit-mask-position',
+        '-webkit-mask-size',
+        '-webkit-mask-repeat',
+        '-webkit-mask-origin',
+        '-webkit-mask-clip',
+    ];
     private const MASK_GEOMETRY_BOXES = [
         'border-box',
         'padding-box',
@@ -853,7 +861,13 @@ final class DeclarationBlock
             return null;
         }
 
-        $value = $this->normalizeMaskLonghandValue($property, $value);
+        $baseProperty = $this->maskBaseLonghand($property);
+        $shorthand = $this->maskShorthandForProperty($property);
+        if ($baseProperty === null || $shorthand === null) {
+            return null;
+        }
+
+        $value = $this->normalizeMaskLonghandValue($baseProperty, $value);
         $valueParts = array_map(
             static fn (string $part): string => trim($part),
             $this->splitTopLevel($value, ',')
@@ -869,7 +883,7 @@ final class DeclarationBlock
                 return $this->serializeEntries($entries);
             }
 
-            if ($entries[$index]['property'] !== 'mask') {
+            if ($entries[$index]['property'] !== $shorthand) {
                 continue;
             }
             if ($entries[$index]['important'] !== $important) {
@@ -882,11 +896,11 @@ final class DeclarationBlock
             }
 
             foreach ($layers as $layerIndex => $_layer) {
-                $layers[$layerIndex][$property] = $this->normalizeMaskLonghandValue($property, $valueParts[$layerIndex]);
+                $layers[$layerIndex][$baseProperty] = $this->normalizeMaskLonghandValue($baseProperty, $valueParts[$layerIndex]);
             }
 
             $entries[$index] = [
-                'property' => 'mask',
+                'property' => $shorthand,
                 'value' => $this->composeMaskLayers($layers),
                 'important' => $important,
             ];
@@ -1221,32 +1235,41 @@ final class DeclarationBlock
      */
     private function getMaskProperty(array $entries, string $property): ?array
     {
-        if (!$this->isMaskProperty($property)) {
+        $shorthand = $this->maskShorthandForProperty($property);
+        if ($shorthand === null) {
             return null;
         }
+        $longhands = $this->maskLonghandsForShorthand($shorthand);
 
         $components = [];
         foreach ($entries as $entry) {
-            if ($entry['property'] === 'mask') {
-                foreach ($this->maskComponentsFromShorthand($entry['value'], $entry['important']) as $longhand => $component) {
-                    $components[$longhand] = $component;
+            if ($entry['property'] === $shorthand) {
+                foreach ($this->maskComponentsFromShorthand($entry['value'], $entry['important']) as $baseLonghand => $component) {
+                    $longhand = $this->maskLonghandForBase($shorthand, $baseLonghand);
+                    if ($longhand !== null) {
+                        $components[$longhand] = $component;
+                    }
                 }
                 continue;
             }
 
-            if ($this->isMaskLonghand($entry['property'])) {
+            if (in_array($entry['property'], $longhands, true)) {
+                $baseLonghand = $this->maskBaseLonghand($entry['property']);
+                if ($baseLonghand === null) {
+                    continue;
+                }
                 $components[$entry['property']] = [
-                    'value' => $this->normalizeMaskLonghandValue($entry['property'], $entry['value']),
+                    'value' => $this->normalizeMaskLonghandValue($baseLonghand, $entry['value']),
                     'important' => $entry['important'],
                 ];
             }
         }
 
-        if ($property !== 'mask') {
+        if ($property !== $shorthand) {
             return $components[$property] ?? null;
         }
 
-        foreach (self::MASK_LONGHANDS as $longhand) {
+        foreach ($longhands as $longhand) {
             if (!isset($components[$longhand])) {
                 return null;
             }
@@ -1257,7 +1280,18 @@ final class DeclarationBlock
             return null;
         }
 
-        $value = $this->composeMaskShorthandValue($components);
+        $baseComponents = [
+            'mask-composite' => ['value' => 'add', 'important' => $important],
+            'mask-mode' => ['value' => 'match-source', 'important' => $important],
+        ];
+        foreach ($longhands as $longhand) {
+            $baseLonghand = $this->maskBaseLonghand($longhand);
+            if ($baseLonghand !== null) {
+                $baseComponents[$baseLonghand] = $components[$longhand];
+            }
+        }
+
+        $value = $this->composeMaskShorthandValue($baseComponents);
         if ($value === null) {
             return null;
         }
@@ -1643,12 +1677,68 @@ final class DeclarationBlock
 
     private function isMaskProperty(string $property): bool
     {
-        return $property === 'mask' || $this->isMaskLonghand($property);
+        return $this->isMaskShorthand($property) || $this->isMaskLonghand($property);
+    }
+
+    private function isMaskShorthand(string $property): bool
+    {
+        return in_array($property, ['mask', '-webkit-mask'], true);
     }
 
     private function isMaskLonghand(string $property): bool
     {
-        return in_array($property, self::MASK_LONGHANDS, true);
+        return $this->maskBaseLonghand($property) !== null;
+    }
+
+    private function maskShorthandForProperty(string $property): ?string
+    {
+        if ($property === 'mask' || in_array($property, self::MASK_LONGHANDS, true)) {
+            return 'mask';
+        }
+
+        if ($property === '-webkit-mask' || in_array($property, self::WEBKIT_MASK_LONGHANDS, true)) {
+            return '-webkit-mask';
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function maskLonghandsForShorthand(string $property): array
+    {
+        return $property === '-webkit-mask' ? self::WEBKIT_MASK_LONGHANDS : self::MASK_LONGHANDS;
+    }
+
+    private function maskLonghandForBase(string $shorthand, string $baseLonghand): ?string
+    {
+        if ($shorthand === 'mask' && in_array($baseLonghand, self::MASK_LONGHANDS, true)) {
+            return $baseLonghand;
+        }
+
+        if ($shorthand !== '-webkit-mask' || !in_array($baseLonghand, self::MASK_LONGHANDS, true)) {
+            return null;
+        }
+
+        $prefixed = '-webkit-' . $baseLonghand;
+
+        return in_array($prefixed, self::WEBKIT_MASK_LONGHANDS, true) ? $prefixed : null;
+    }
+
+    private function maskBaseLonghand(string $property): ?string
+    {
+        if (in_array($property, self::MASK_LONGHANDS, true)) {
+            return $property;
+        }
+
+        if (!in_array($property, self::WEBKIT_MASK_LONGHANDS, true)) {
+            return null;
+        }
+
+        $base = substr($property, strlen('-webkit-'));
+
+        return in_array($base, self::MASK_LONGHANDS, true) ? $base : null;
     }
 
     /**
@@ -9744,6 +9834,10 @@ final class DeclarationBlock
             return self::MASK_LONGHANDS;
         }
 
+        if ($property === '-webkit-mask') {
+            return self::WEBKIT_MASK_LONGHANDS;
+        }
+
         if ($property === 'mask-border') {
             return self::MASK_BORDER_LONGHANDS;
         }
@@ -9916,26 +10010,36 @@ final class DeclarationBlock
      */
     private function removeMaskLonghand(array $entries, string $property): string
     {
+        $baseProperty = $this->maskBaseLonghand($property);
+        $shorthand = $this->maskShorthandForProperty($property);
+        if ($baseProperty === null || $shorthand === null) {
+            return $this->serializeEntries($entries);
+        }
+
         $result = [];
         foreach ($entries as $entry) {
             if ($entry['property'] === $property) {
                 continue;
             }
 
-            if ($entry['property'] !== 'mask') {
+            if ($entry['property'] !== $shorthand) {
                 $result[] = $entry;
                 continue;
             }
 
             $components = $this->maskComponentsFromShorthand($entry['value'], $entry['important']);
-            foreach (self::MASK_LONGHANDS as $longhand) {
+            foreach ($this->maskLonghandsForShorthand($shorthand) as $longhand) {
                 if ($longhand === $property) {
+                    continue;
+                }
+                $component = $this->maskBaseLonghand($longhand);
+                if ($component === null) {
                     continue;
                 }
 
                 $result[] = [
                     'property' => $longhand,
-                    'value' => $components[$longhand]['value'],
+                    'value' => $components[$component]['value'],
                     'important' => $entry['important'],
                 ];
             }

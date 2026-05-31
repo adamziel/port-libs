@@ -37,6 +37,12 @@ return [
         . $packet("\x02Counting objects: 100% (1/1)\rCounting objects: 100% (1/1), done.\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'refInWantResponse' => $packet("wanted-refs\n")
+        . $packet("{$main} refs/heads/main\n")
+        . $delimiter
+        . $packet("packfile\n")
+        . $packet("\x01" . $packData)
+        . $flush,
     'rawUploadPackErrorResponse' => $packet('ERR raw WordPress fetch failure' . "\n"),
     'emptyErrorSidebandResponse' => $packet("packfile\n")
         . $packet("\x03")
@@ -53,4 +59,5 @@ return [
     'rawUploadPackErrorUse' => 'Raw upload-pack ERR pkt-lines are surfaced before sideband decoding, so WordPress deployment fetch diagnostics report the server failure text instead of a misleading sideband channel error.',
     'emptyErrorSidebandUse' => 'Empty channel-3 sideband keepalive/error packets are ignored instead of creating a blank deployment error, matching Gitoxide remote-progress handling.',
     'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
+    'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
 ];

@@ -83,6 +83,9 @@ return [
         . $packet("option new-oid {$newHookObject}\n")
         . $packet("ok refs/heads/main post-update hook accepted\n")
         . $flush,
+    'missingExpectedResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/heads/ghost ignored by send-pack\n")
+        . $flush,
     'unrequestedOptionResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/main\n")
         . $packet("ok refs/heads/ghost ignored by send-pack\n")

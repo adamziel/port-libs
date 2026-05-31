@@ -23,7 +23,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param callable(string, ?string, ?int, string, float): array{read: resource, write: resource} $connector
-     * @param array{protocolVersion?: int} $options
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool} $options
      */
     public static function connect(string $url, callable $connector, float $timeout = 30.0, array $options = []): self
     {
@@ -62,7 +62,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array{protocolVersion?: int} $options
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool} $options
      * @return array{
      *     host: string,
      *     user: ?string,
@@ -70,6 +70,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     path: string,
      *     command: string,
      *     protocolVersion: int,
+     *     programKind: string,
+     *     sshCommand: string,
+     *     disallowShell: bool,
      *     environment: array<string, string>,
      *     sshArguments: list<string>,
      *     credentialContext: CredentialContext,
@@ -275,8 +278,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array{protocolVersion?: int} $options
-     * @return array{protocolVersion: int}
+     * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool} $options
+     * @return array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool}
      */
     private static function normalizeConnectOptions(array $options): array
     {
@@ -285,12 +288,40 @@ final class SshReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('SSH receive-pack protocol version must be 1 or 2');
         }
 
-        return ['protocolVersion' => $protocolVersion];
+        $sshCommand = $options['sshCommand'] ?? null;
+        if ($sshCommand !== null && (!is_string($sshCommand) || $sshCommand === '' || self::hasControlBytes($sshCommand))) {
+            throw new \InvalidArgumentException('SSH receive-pack sshCommand must be a non-empty string without control bytes');
+        }
+
+        $programKind = $options['programKind'] ?? null;
+        if ($programKind !== null && !is_string($programKind)) {
+            throw new \InvalidArgumentException('SSH receive-pack programKind must be ssh, plink, putty, tortoiseplink, or simple');
+        }
+
+        $normalizedKind = $programKind === null
+            ? self::programKindFromCommand($sshCommand ?? 'ssh')
+            : self::normalizeProgramKind($programKind);
+
+        if ($sshCommand === null) {
+            $sshCommand = self::defaultCommandForProgramKind($normalizedKind);
+        }
+
+        $disallowShell = $options['disallowShell'] ?? false;
+        if (!is_bool($disallowShell)) {
+            throw new \InvalidArgumentException('SSH receive-pack disallowShell must be a boolean');
+        }
+
+        return [
+            'protocolVersion' => $protocolVersion,
+            'programKind' => $normalizedKind,
+            'sshCommand' => $sshCommand,
+            'disallowShell' => $disallowShell,
+        ];
     }
 
     /**
      * @param array{host: string, user: ?string, port: ?int, path: string} $target
-     * @param array{protocolVersion: int} $options
+     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool} $options
      * @return array{
      *     host: string,
      *     user: ?string,
@@ -298,6 +329,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     path: string,
      *     command: string,
      *     protocolVersion: int,
+     *     programKind: string,
+     *     sshCommand: string,
+     *     disallowShell: bool,
      *     environment: array<string, string>,
      *     sshArguments: list<string>,
      *     credentialContext: CredentialContext,
@@ -317,18 +351,10 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'LANG' => 'C',
             'LC_ALL' => 'C',
         ];
-        $sshArguments = [];
-        if ($options['protocolVersion'] === 2) {
+        $sshArguments = self::sshArgumentsForTarget($target, $options);
+        if ($options['programKind'] === 'ssh' && $options['protocolVersion'] === 2) {
             $environment = ['GIT_PROTOCOL' => 'version=2'] + $environment;
-            $sshArguments[] = '-o';
-            $sshArguments[] = 'SendEnv=GIT_PROTOCOL';
         }
-        if ($target['port'] !== null) {
-            $sshArguments[] = '-p' . $target['port'];
-        }
-        $sshArguments[] = $target['user'] === null
-            ? self::authority($target['host'], null)
-            : $target['user'] . '@' . self::authority($target['host'], null);
 
         return [
             'host' => $target['host'],
@@ -337,12 +363,92 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'path' => $target['path'],
             'command' => self::receivePackCommand($target['path']),
             'protocolVersion' => $options['protocolVersion'],
+            'programKind' => $options['programKind'],
+            'sshCommand' => $options['sshCommand'],
+            'disallowShell' => $options['disallowShell'],
             'environment' => $environment,
             'sshArguments' => $sshArguments,
             'credentialContext' => $credentialContext,
             'redactedCredentialContext' => $credentialContext->redacted()->storageBytes(),
             'authenticationBoundary' => 'caller-provided-ssh-connector',
         ];
+    }
+
+    /**
+     * @param array{host: string, user: ?string, port: ?int, path: string} $target
+     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool} $options
+     * @return list<string>
+     */
+    private static function sshArgumentsForTarget(array $target, array $options): array
+    {
+        $arguments = [];
+        if ($options['programKind'] === 'ssh' && $options['protocolVersion'] === 2) {
+            $arguments[] = '-o';
+            $arguments[] = 'SendEnv=GIT_PROTOCOL';
+        }
+
+        if ($target['port'] !== null) {
+            if ($options['programKind'] === 'simple') {
+                throw new \InvalidArgumentException('SSH receive-pack simple programKind does not support setting the port');
+            }
+            if ($options['programKind'] === 'ssh') {
+                $arguments[] = '-p' . $target['port'];
+            } else {
+                $arguments[] = '-P';
+                $arguments[] = (string) $target['port'];
+            }
+        }
+
+        if ($options['programKind'] === 'tortoiseplink') {
+            array_unshift($arguments, '-batch');
+        }
+
+        $arguments[] = $target['user'] === null
+            ? self::authority($target['host'], null)
+            : $target['user'] . '@' . self::authority($target['host'], null);
+
+        return $arguments;
+    }
+
+    private static function normalizeProgramKind(string $programKind): string
+    {
+        $normalized = strtolower(str_replace(['_', '-'], '', $programKind));
+
+        return match ($normalized) {
+            'ssh' => 'ssh',
+            'plink' => 'plink',
+            'putty' => 'putty',
+            'tortoiseplink', 'tortoiseplinkexe' => 'tortoiseplink',
+            'simple' => 'simple',
+            default => throw new \InvalidArgumentException('SSH receive-pack programKind must be ssh, plink, putty, tortoiseplink, or simple'),
+        };
+    }
+
+    private static function programKindFromCommand(string $sshCommand): string
+    {
+        $command = str_replace('\\', '/', $sshCommand);
+        $basename = basename($command);
+        $stem = strtolower($basename);
+        if (str_ends_with($stem, '.exe')) {
+            $stem = substr($stem, 0, -4);
+        }
+
+        return match ($stem) {
+            'ssh' => 'ssh',
+            'plink' => 'plink',
+            'putty' => 'putty',
+            'tortoiseplink' => 'tortoiseplink',
+            default => 'simple',
+        };
+    }
+
+    private static function defaultCommandForProgramKind(string $programKind): string
+    {
+        return match ($programKind) {
+            'tortoiseplink' => 'tortoiseplink.exe',
+            'simple' => 'ssh',
+            default => $programKind,
+        };
     }
 
     private static function connectorAcceptsContext(callable $connector): bool

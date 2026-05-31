@@ -972,7 +972,21 @@ final class SourceMap
             $offset++;
             $continuation = ($digit & 32) !== 0;
             $digit &= 31;
-            $value += $digit << $shift;
+            if ($shift >= 64) {
+                throw new InvalidArgumentException('Base64 VLQ value overflowed.');
+            }
+
+            $shiftedUnit = 1 << $shift;
+            if ($digit > intdiv(PHP_INT_MAX, $shiftedUnit)) {
+                throw new InvalidArgumentException('Base64 VLQ value overflowed.');
+            }
+
+            $digitValue = $digit * $shiftedUnit;
+            if ($digitValue > PHP_INT_MAX - $value) {
+                throw new InvalidArgumentException('Base64 VLQ value overflowed.');
+            }
+
+            $value += $digitValue;
 
             if ($continuation) {
                 $shift += 5;

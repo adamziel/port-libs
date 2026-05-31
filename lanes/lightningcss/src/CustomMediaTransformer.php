@@ -335,7 +335,11 @@ final class CustomMediaTransformer
             }
 
             if ($cursor < $length && ctype_space($token[$cursor])) {
-                $cursor++;
+                if ($token[$cursor] === "\r" && ($token[$cursor + 1] ?? '') === "\n") {
+                    $cursor += 2;
+                } else {
+                    $cursor++;
+                }
             }
 
             $output .= $this->codepointToUtf8((int) hexdec($hex));

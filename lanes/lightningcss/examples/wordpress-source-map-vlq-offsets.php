@@ -213,7 +213,7 @@ $duplicateLookupExtendedMap->extendWithSourceMap($duplicateLookupInputMap);
 
 $maxUnsignedVlqDecode = SourceMap::decodeVlq('+/////H')[0]['generatedColumn'];
 $invalidRelativeVlqGuard = true;
-foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI'] as $invalidVlqMapping) {
+foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI', '//////////////D'] as $invalidVlqMapping) {
     try {
         SourceMap::decodeVlq($invalidVlqMapping);
         $invalidRelativeVlqGuard = false;

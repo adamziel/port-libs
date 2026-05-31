@@ -14,6 +14,8 @@ $fallThroughResponse = PushResponse::fromReportStatusPacketLines($fixture['fallT
 $compatibilityResponse = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
 $expectedFilteredResponse = PushResponse::fromReportStatusPacketLines($fixture['expectedFilterResponse'])
     ->forExpectedRefNames($fixture['expectedRefNames']);
+$missingExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['missingExpectedResponse'])
+    ->forExpectedRefNames(['refs/heads/main']);
 $oversizedReportStatusRejected = false;
 try {
     PushResponse::fromReportStatusPacketLines($fixture['oversizedReportStatus']);
@@ -98,6 +100,14 @@ return [
         ],
         $expectedFilteredResponse->refStatuses()
     ),
+    'missingExpectedRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'status' => $status->status,
+            'message' => $status->message,
+        ],
+        $missingExpectedResponse->refStatuses()
+    ),
     'progressMessages' => $response->progressMessages(),
     'errorMessages' => $response->errorMessages(),
     'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
@@ -107,6 +117,8 @@ return [
     'compatibilityBareRejectionDefaulted' => $compatibilityResponse->refStatuses()[1]->message === 'failed',
     'expectedUnknownStatusIgnored' => count($expectedFilteredResponse->refStatuses()) === 2,
     'expectedLastStatusWon' => $expectedFilteredResponse->refStatuses()[0]->message === 'post-update hook accepted',
+    'missingExpectedStatusRejected' => !$missingExpectedResponse->isSuccessful()
+        && $missingExpectedResponse->rejectedRefs()[0]->message === 'remote failed to report status',
     'carriageReturnStatusRejected' => $carriageReturnStatusRejected,
     'emptyPacketLineRejected' => $emptyPacketLineRejected,
     'unrequestedOptionRejected' => $unrequestedOptionRejected,

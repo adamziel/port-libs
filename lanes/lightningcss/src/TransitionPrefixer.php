@@ -268,6 +268,7 @@ final class TransitionPrefixer
         $borderRadiusChanged = $this->rewriteBorderRadiusPrefixEntries($entries, $targetOptions);
         $borderImageChanged = $this->rewriteBorderImagePrefixEntries($entries, $targetOptions);
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
+        $sizingKeywordChanged = $this->rewriteSizingKeywordPrefixEntries($entries, $targetOptions);
         $clampChanged = $this->rewriteClampFallbackEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
@@ -282,7 +283,7 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -828,6 +829,23 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'opera', [15], [22])
             || $this->targetInRange($normalized, 'safari', [4], [15, 2]);
         $backfaceVisibilityNeedsMoz = $this->targetInRange($normalized, 'firefox', [10], [15]);
+        $sizingMinMaxNeedsWebkit = $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [22], [45])
+            || $this->targetInRange($normalized, 'ios_saf', [7], [13, 4])
+            || $this->targetInRange($normalized, 'opera', [15], [32])
+            || $this->targetInRange($normalized, 'safari', [6], [10, 1])
+            || $this->targetInRange($normalized, 'samsung', [0], [4]);
+        $sizingMinMaxNeedsMoz = $this->targetInRange($normalized, 'firefox', [3], [65]);
+        $sizingFitContentNeedsWebkit = $sizingMinMaxNeedsWebkit;
+        $sizingFitContentNeedsMoz = $this->targetInRange($normalized, 'firefox', [3], [93]);
+        $sizingStretchNeedsWebkit = $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [22], [137])
+            || $this->targetInRange($normalized, 'edge', [79], [137])
+            || $this->targetAtLeast($normalized, 'ios_saf', [7])
+            || $this->targetAtLeast($normalized, 'opera', [15])
+            || $this->targetAtLeast($normalized, 'safari', [6])
+            || $this->targetAtLeast($normalized, 'samsung', [4]);
+        $sizingStretchNeedsMoz = $this->targetAtLeast($normalized, 'firefox', [3]);
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
@@ -930,6 +948,12 @@ final class TransitionPrefixer
             'perspectiveNeedsMoz' => $perspectiveNeedsMoz,
             'backfaceVisibilityNeedsWebkit' => $backfaceVisibilityNeedsWebkit,
             'backfaceVisibilityNeedsMoz' => $backfaceVisibilityNeedsMoz,
+            'sizingMinMaxNeedsWebkit' => $sizingMinMaxNeedsWebkit,
+            'sizingMinMaxNeedsMoz' => $sizingMinMaxNeedsMoz,
+            'sizingFitContentNeedsWebkit' => $sizingFitContentNeedsWebkit,
+            'sizingFitContentNeedsMoz' => $sizingFitContentNeedsMoz,
+            'sizingStretchNeedsWebkit' => $sizingStretchNeedsWebkit,
+            'sizingStretchNeedsMoz' => $sizingStretchNeedsMoz,
             'maskNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [119])
                 || $this->targetInRange($normalized, 'edge', [79], [119])
@@ -3400,6 +3424,192 @@ final class TransitionPrefixer
             '-moz-' => $targetOptions['borderImageNeedsMoz'] ?? false,
             '-o-' => $targetOptions['borderImageNeedsO'] ?? false,
         ]);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteSizingKeywordPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $logicalFallback = $targetOptions['logicalInsetNeedsFallback'] ?? false;
+        $metadata = [];
+        $hasSizingValue = false;
+        $prefixedValues = [];
+        $standardRemainder = [];
+
+        foreach ($entries as $index => $entry) {
+            $outputProperty = $this->sizingKeywordOutputProperty($entry['property'], $logicalFallback);
+            $value = $entry['important'] ? null : $this->sizingKeywordValueInfo($entry['value']);
+            $metadata[$index] = [$outputProperty, $value];
+
+            if ($outputProperty === null || $value === null) {
+                continue;
+            }
+
+            $hasSizingValue = true;
+            if ($value['kind'] === 'standard') {
+                $key = $outputProperty . '|' . $value['keyword'];
+                $standardRemainder[$key] = ($standardRemainder[$key] ?? 0) + 1;
+            } elseif ($value['kind'] === 'prefixed') {
+                $prefixedValues[$outputProperty][$value['value']] = true;
+            }
+        }
+
+        if (!$hasSizingValue) {
+            return false;
+        }
+
+        $changed = false;
+        $fallbackSeen = [];
+        $rewritten = [];
+
+        foreach ($entries as $index => $entry) {
+            [$outputProperty, $value] = $metadata[$index];
+            if ($outputProperty === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($outputProperty !== $entry['property']) {
+                $entry = $this->declarationEntry($outputProperty, $entry['value'], $entry['important']);
+                $changed = true;
+            }
+
+            if ($value === null) {
+                if (!$entry['important']) {
+                    $fallbackSeen[$outputProperty] = true;
+                }
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($value['kind'] === 'logical-only') {
+                $fallbackSeen[$outputProperty] = true;
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($value['kind'] === 'prefixed') {
+                $key = $outputProperty . '|' . $value['keyword'];
+                if (
+                    $value['keyword'] !== 'stretch'
+                    && !$this->sizingKeywordNeedsPrefix($value['keyword'], $value['prefix'], $targetOptions)
+                    && ($standardRemainder[$key] ?? 0) > 0
+                ) {
+                    $changed = true;
+                    continue;
+                }
+
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $key = $outputProperty . '|' . $value['keyword'];
+            $standardRemainder[$key] = max(0, ($standardRemainder[$key] ?? 0) - 1);
+
+            if (!($fallbackSeen[$outputProperty] ?? false)) {
+                foreach ($this->sizingKeywordPrefixedValues($value['keyword']) as $prefix => $prefixedValue) {
+                    if (!$this->sizingKeywordNeedsPrefix($value['keyword'], $prefix, $targetOptions)) {
+                        continue;
+                    }
+                    if (isset($prefixedValues[$outputProperty][$prefixedValue])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $this->declarationEntry($outputProperty, $prefixedValue);
+                    $prefixedValues[$outputProperty][$prefixedValue] = true;
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+            $fallbackSeen[$outputProperty] = true;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    private function sizingKeywordOutputProperty(string $property, bool $logicalFallback): ?string
+    {
+        return match ($property) {
+            'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height' => $property,
+            'inline-size' => $logicalFallback ? 'width' : 'inline-size',
+            'block-size' => $logicalFallback ? 'height' : 'block-size',
+            'min-inline-size' => $logicalFallback ? 'min-width' : 'min-inline-size',
+            'min-block-size' => $logicalFallback ? 'min-height' : 'min-block-size',
+            'max-inline-size' => $logicalFallback ? 'max-width' : 'max-inline-size',
+            'max-block-size' => $logicalFallback ? 'max-height' : 'max-block-size',
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{kind:string,keyword:string,value?:string,prefix?:string}|null
+     */
+    private function sizingKeywordValueInfo(string $value): ?array
+    {
+        $lower = strtolower(trim($value));
+
+        return match ($lower) {
+            'min-content' => ['kind' => 'standard', 'keyword' => 'min-content'],
+            'max-content' => ['kind' => 'standard', 'keyword' => 'max-content'],
+            'fit-content' => ['kind' => 'standard', 'keyword' => 'fit-content'],
+            'stretch' => ['kind' => 'standard', 'keyword' => 'stretch'],
+            '-webkit-min-content' => ['kind' => 'prefixed', 'keyword' => 'min-content', 'value' => '-webkit-min-content', 'prefix' => '-webkit-'],
+            '-moz-min-content' => ['kind' => 'prefixed', 'keyword' => 'min-content', 'value' => '-moz-min-content', 'prefix' => '-moz-'],
+            '-webkit-max-content' => ['kind' => 'prefixed', 'keyword' => 'max-content', 'value' => '-webkit-max-content', 'prefix' => '-webkit-'],
+            '-moz-max-content' => ['kind' => 'prefixed', 'keyword' => 'max-content', 'value' => '-moz-max-content', 'prefix' => '-moz-'],
+            '-webkit-fit-content' => ['kind' => 'prefixed', 'keyword' => 'fit-content', 'value' => '-webkit-fit-content', 'prefix' => '-webkit-'],
+            '-moz-fit-content' => ['kind' => 'prefixed', 'keyword' => 'fit-content', 'value' => '-moz-fit-content', 'prefix' => '-moz-'],
+            '-webkit-fill-available' => ['kind' => 'prefixed', 'keyword' => 'stretch', 'value' => '-webkit-fill-available', 'prefix' => '-webkit-'],
+            '-moz-available' => ['kind' => 'prefixed', 'keyword' => 'stretch', 'value' => '-moz-available', 'prefix' => '-moz-'],
+            default => str_starts_with($lower, 'fit-content(')
+                ? ['kind' => 'logical-only', 'keyword' => 'fit-content-function']
+                : null,
+        };
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function sizingKeywordPrefixedValues(string $keyword): array
+    {
+        return match ($keyword) {
+            'min-content' => ['-webkit-' => '-webkit-min-content', '-moz-' => '-moz-min-content'],
+            'max-content' => ['-webkit-' => '-webkit-max-content', '-moz-' => '-moz-max-content'],
+            'fit-content' => ['-webkit-' => '-webkit-fit-content', '-moz-' => '-moz-fit-content'],
+            'stretch' => ['-webkit-' => '-webkit-fill-available', '-moz-' => '-moz-available'],
+            default => [],
+        };
+    }
+
+    private function sizingKeywordNeedsPrefix(string $keyword, string $prefix, array $targetOptions): bool
+    {
+        if ($prefix === '-webkit-') {
+            return match ($keyword) {
+                'min-content', 'max-content' => $targetOptions['sizingMinMaxNeedsWebkit'] ?? false,
+                'fit-content' => $targetOptions['sizingFitContentNeedsWebkit'] ?? false,
+                'stretch' => $targetOptions['sizingStretchNeedsWebkit'] ?? false,
+                default => false,
+            };
+        }
+
+        if ($prefix === '-moz-') {
+            return match ($keyword) {
+                'min-content', 'max-content' => $targetOptions['sizingMinMaxNeedsMoz'] ?? false,
+                'fit-content' => $targetOptions['sizingFitContentNeedsMoz'] ?? false,
+                'stretch' => $targetOptions['sizingStretchNeedsMoz'] ?? false,
+                default => false,
+            };
+        }
+
+        return false;
     }
 
     /**

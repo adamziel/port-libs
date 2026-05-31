@@ -253,6 +253,32 @@ return [
                 'mask'
             )
         );
+        $webkitMask = '-webkit-mask: url("mask.svg") 10px 20px / contain no-repeat content-box padding-box';
+        $t->same(['value' => 'url(mask.svg)', 'important' => false], $block->getProperty($webkitMask, '-webkit-mask-image'));
+        $t->same(['value' => '10px 20px', 'important' => false], $block->getProperty($webkitMask, '-webkit-mask-position'));
+        $t->same(['value' => 'contain', 'important' => false], $block->getProperty($webkitMask, '-webkit-mask-size'));
+        $t->same(['value' => 'no-repeat', 'important' => false], $block->getProperty($webkitMask, '-webkit-mask-repeat'));
+        $t->same(['value' => 'content-box', 'important' => false], $block->getProperty($webkitMask, '-webkit-mask-origin'));
+        $t->same(['value' => 'padding-box', 'important' => false], $block->getProperty($webkitMask, '-webkit-mask-clip'));
+        $t->same(
+            ['value' => 'url(mask.svg) 10px 20px / contain no-repeat content-box padding-box', 'important' => false],
+            $block->getProperty($webkitMask, '-webkit-mask')
+        );
+        $t->same(null, $block->getProperty($webkitMask, 'mask-image'));
+        $t->same(
+            ['value' => 'url(mask.svg) 10px 20px / contain no-repeat content-box padding-box', 'important' => true],
+            $block->getProperty(
+                '-webkit-mask-image: url(mask.svg) !important; -webkit-mask-position: 10px 20px !important; -webkit-mask-size: contain !important; -webkit-mask-repeat: no-repeat !important; -webkit-mask-origin: content-box !important; -webkit-mask-clip: padding-box !important',
+                '-webkit-mask'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                '-webkit-mask-image: url(mask.svg); -webkit-mask-position: 10px 20px; -webkit-mask-size: contain !important; -webkit-mask-repeat: no-repeat; -webkit-mask-origin: content-box; -webkit-mask-clip: padding-box',
+                '-webkit-mask'
+            )
+        );
         $t->same(
             null,
             $block->getProperty(
@@ -1577,6 +1603,27 @@ return [
                 '50% 25%, cover'
             )
         );
+        $webkitMask = '-webkit-mask: url(mask.svg) 10px 20px / contain no-repeat content-box padding-box';
+        $t->same(
+            '-webkit-mask: url(new-mask.svg) 10px 20px / contain no-repeat content-box padding-box',
+            $block->setProperty($webkitMask, '-webkit-mask-image', 'url("new-mask.svg")')
+        );
+        $t->same(
+            '-webkit-mask: url(mask.svg) 10px 20px / contain repeat-x content-box padding-box',
+            $block->setProperty($webkitMask, '-webkit-mask-repeat', 'repeat-x')
+        );
+        $t->same(
+            '-webkit-mask: url(a.svg), url(b.svg); -webkit-mask-size: cover',
+            $block->setProperty('-webkit-mask: url(a.svg), url(b.svg)', '-webkit-mask-size', 'cover')
+        );
+        $t->same(
+            '-webkit-mask-image: url(new-mask.svg); -webkit-mask: url(mask.svg) !important',
+            $block->setProperty('-webkit-mask: url(mask.svg) !important', '-webkit-mask-image', 'url(new-mask.svg)')
+        );
+        $t->same(
+            '-webkit-mask: url(mask.svg); mask-repeat: no-repeat',
+            $block->setProperty('-webkit-mask: url(mask.svg)', 'mask-repeat', 'no-repeat')
+        );
     },
     'declaration block sets upstream border image cssom longhands in existing shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -2248,6 +2295,19 @@ return [
         $t->same(
             'color: red; mask-position: 0 0 !important; mask-size: auto !important; mask-repeat: repeat !important; mask-origin: border-box !important; mask-clip: border-box !important; mask-composite: add !important; mask-mode: match-source !important',
             $block->removeProperty('mask: url(mask.svg) !important; color: red; mask-image: url(other.svg)', 'mask-image')
+        );
+        $webkitMask = '-webkit-mask: url(mask.svg) 10px 20px / contain no-repeat content-box padding-box';
+        $t->same(
+            '-webkit-mask-position: 10px 20px; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-origin: content-box; -webkit-mask-clip: padding-box',
+            $block->removeProperty($webkitMask, '-webkit-mask-image')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('-webkit-mask: url(mask.svg); -webkit-mask-image: url(other.svg); color: red', '-webkit-mask')
+        );
+        $t->same(
+            '-webkit-mask: url(mask.svg)',
+            $block->removeProperty('-webkit-mask: url(mask.svg)', 'mask-image')
         );
     },
     'declaration block removes upstream border image cssom longhands and shorthand' => static function (TestRunner $t): void {

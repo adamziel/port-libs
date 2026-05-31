@@ -10,6 +10,7 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v2-fetch-response.
 $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
 $emptyErrorSidebandResponse = FetchResponse::fromV2PacketLines($fixture['emptyErrorSidebandResponse']);
 $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
+$refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
 $uploadPackError = null;
 try {
     FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true);
@@ -53,4 +54,9 @@ return [
         && $suffixlessAckResponse->acknowledgements()[0]->object === $fixture['objects']['installed']
         && $suffixlessAckResponse->acknowledgements()[1]->object === $fixture['objects']['main']
         && $suffixlessAckResponse->packData() === $fixture['packData'],
+    'refInWantParsed' => count($refInWantResponse->wantedRefs()) === 1
+        && $refInWantResponse->wantedRefs()[0]->path === 'refs/heads/main'
+        && $refInWantResponse->wantedRefs()[0]->object === $fixture['objects']['main']
+        && $refInWantResponse->packData() === $fixture['packData'],
+    'refInWantPackTrailer' => bin2hex(substr($refInWantResponse->packData(), -20)),
 ];

@@ -488,6 +488,28 @@ CSS,
         );
         $t->same([['pkg:icons).css', '/entry.css']], $resolved);
     },
+    'css bundler consumes crlf after hex escaped import specifiers like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $t->same(
+            '.card{color:green}.icon{color:#00f}.entry{color:red}',
+            $bundle([
+                '/entry.css' => "@import \"blocks/card\\2e\r\ncss\";\n@import url(pkg:icon\\2e\r\ncss);\n.entry { color: red }",
+                '/blocks/card.css' => '.card { color: green }',
+                '/vendor/icon.css' => '.icon { color: blue }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+                if (!str_starts_with($specifier, 'pkg:')) {
+                    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+                }
+
+                return '/vendor/' . substr($specifier, strlen('pkg:'));
+            })
+        );
+        $t->same([
+            ['blocks/card.css', '/entry.css'],
+            ['pkg:icon.css', '/entry.css'],
+        ], $resolved);
+    },
     'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print and (color){.c{color:green}}@media print{.b{color:#ff0}}.a{color:red}',
@@ -762,6 +784,29 @@ CSS,
                 '/b.css' => '.b { height: calc(100vh - 64px); }',
             ], '/a.css', $resolver)
         );
+    },
+    'css bundler serializes resolver marked external url backslashes like upstream strings' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $resolver = static function (string $specifier, string $originatingFile) use (&$resolved): array|string {
+            $resolved[] = [$specifier, $originatingFile];
+            if ($specifier === 'theme-remote.css') {
+                return ['external' => 'https://cdn.example/theme\\dark-editor.css'];
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        };
+
+        $t->same(
+            '@import "https://cdn.example/theme\\\\dark-editor.css" screen;.b{color:green}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "theme-remote.css" screen; @import "b.css"; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css', $resolver)
+        );
+        $t->same([
+            ['theme-remote.css', '/a.css'],
+            ['b.css', '/a.css'],
+        ], $resolved);
     },
     'css bundler reports upstream resolver and layer errors with import locations' => static function (TestRunner $t) use ($bundle): void {
         try {

@@ -187,6 +187,19 @@ if ($escapedDelimiterBundle !== '.wp-block-icon-close{color:#00f}.wp-block-icon-
 
 echo 'escaped-url-delimiters: resolved' . PHP_EOL;
 
+$hexEscapedCrlfBundle = (new CssBundler())->bundle('/hex-crlf.css', [
+    '/hex-crlf.css' => "@import \"blocks/card\\2e\r\ncss\";\n@import url(blocks/navigation\\2e\r\ncss);\n.wp-site-blocks { color: red; }",
+    '/blocks/card.css' => '.wp-block-card { color: green; }',
+    '/blocks/navigation.css' => '.wp-block-navigation { color: blue; }',
+]);
+
+if ($hexEscapedCrlfBundle !== '.wp-block-card{color:green}.wp-block-navigation{color:#00f}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected CRLF-terminated escaped import paths to resolve\n");
+    exit(1);
+}
+
+echo 'escaped-crlf-imports: resolved' . PHP_EOL;
+
 $mediaBooleanBundle = (new CssBundler())->bundle('/entry.css', [
     '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',
     '/print.css' => '@import "wide.css" not screen and (width >= 240px); .wp-block-query { color: blue }',
@@ -281,6 +294,30 @@ if ($externalLayerMediaBundle !== '@import "https://cdn.example/theme.css" suppo
 }
 
 echo 'supports-layer-media: preserved' . PHP_EOL;
+
+$externalResolverBundle = (new CssBundler())->bundle('/external-resolver.css', [
+    '/external-resolver.css' => <<<'CSS'
+@import "cdn:editor.css" screen;
+@import "tokens.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/tokens.css' => ':root { --wp--preset--color--brand: blue; }',
+], static function (string $specifier): array|string {
+    if ($specifier === 'cdn:editor.css') {
+        return ['external' => 'https://cdn.example/wp\\blocks-editor.css'];
+    }
+
+    return '/' . ltrim($specifier, './');
+});
+
+if ($externalResolverBundle !== '@import "https://cdn.example/wp\\\\blocks-editor.css" screen;:root{--wp--preset--color--brand:blue}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Unexpected resolver external string output\n");
+    exit(1);
+}
+
+echo 'resolver-external-string: serialized' . PHP_EOL;
 
 $readerFiles = [
     '/reader-theme.css' => <<<'CSS'

@@ -1356,3 +1356,28 @@ Send-pack receive-status unrequested-option slice prepared on 2026-05-31:
   test files, 5025 assertions, 0 failures`; PHP lint, JSON validation, the
   touched example smoke, and `git diff --check -- lanes/gitoxide` also passed.
 - Expected mapped denominator movement: `1602 / 2886` to `1603 / 2886`.
+
+SSH receive-pack ProgramKind boundary slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-receive-pack-transport-boundary-parity-20260531T183708Z`
+  on accepted base `1d7de15e4e85a2b8dbfd1c80922d2921091d0371` maps the
+  upstream SSH invocation program-kind boundary for receive-pack connector
+  contexts.
+- Source truth: `gix-transport/src/client/blocking_io/ssh/program_kind.rs`
+  and `gix-transport/src/client/blocking_io/ssh/tests.rs` define the
+  `ProgramKind::prepare_invocation()` behavior: standard `ssh` uses
+  `SendEnv=GIT_PROTOCOL` and `-p<port>`, plink/putty/tortoiseplink use
+  `-P <port>`, tortoiseplink adds `-batch`, and simple clients reject ported
+  invocations.
+- Native PHP delta: `SshReceivePackTransport::connectorContext()` now records
+  `programKind`, `sshCommand`, `disallowShell`, and upstream-shaped
+  `sshArguments` for caller-owned connectors without shelling out. Command
+  basename inference maps known clients and leaves unknown commands as
+  `simple`.
+- Verification: `php -l` on changed Gitoxide PHP files passed; focused
+  `ReceivePackTransportTest.php` passed `1 test files, 507 assertions, 0
+  failures`; full Gitoxide lane tests passed `39 test files, 5075 assertions,
+  0 failures`; `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+  exited `0`; and `git diff --check -- lanes/gitoxide` passed. Full Cargo
+  workspace runner was not executed.
+- Expected mapped denominator movement: `1605 / 2886` to `1606 / 2886`.
