@@ -712,6 +712,10 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^(coalesce|ifnull|nullif|min|max)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
+        $predicate = self::evaluateLimitPredicateExpression($expression);
+        if ($predicate['matched']) {
+            return $predicate['value'] === null ? null : ($predicate['value'] ? 1 : 0);
+        }
         if (preg_match('/^-?\d+$/', $expression) === 1) {
             return (int) $expression;
         }
@@ -788,6 +792,88 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT expression is not supported');
+    }
+
+    /**
+     * @return array{matched:bool,value:?bool}
+     */
+    private static function evaluateLimitPredicateExpression(string $expression): array
+    {
+        $not = self::unwrapUnaryNot($expression);
+        if ($not !== null) {
+            $inner = self::evaluateLimitPredicateExpression($not);
+            if (!$inner['matched']) {
+                $value = self::limitExpressionValue($not);
+                return ['matched' => true, 'value' => self::sqliteTruthValue($value) === true ? false : true];
+            }
+
+            return ['matched' => true, 'value' => self::negateNullable($inner['value'])];
+        }
+
+        $between = self::splitLimitBetween($expression);
+        if ($between !== null) {
+            $value = self::limitExpressionValue($between['value']);
+            $lower = self::limitExpressionValue($between['lower']);
+            $upper = self::limitExpressionValue($between['upper']);
+            if ($value === null || $lower === null || $upper === null) {
+                $result = null;
+            } else {
+                $result = self::compareLimitScalarValues($value, $lower) >= 0
+                    && self::compareLimitScalarValues($value, $upper) <= 0;
+            }
+
+            return ['matched' => true, 'value' => $between['not'] ? self::negateNullable($result) : $result];
+        }
+
+        $in = self::splitLimitInPredicate($expression);
+        if ($in !== null) {
+            $left = self::limitExpressionValue($in['value']);
+            $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), self::splitComma($in['list']));
+            if ($left === null || in_array(null, $values, true)) {
+                $result = null;
+            } else {
+                $result = false;
+                foreach ($values as $value) {
+                    if (self::limitScalarEquals($left, $value)) {
+                        $result = true;
+                        break;
+                    }
+                }
+            }
+
+            return ['matched' => true, 'value' => $in['not'] ? self::negateNullable($result) : $result];
+        }
+
+        foreach (['IS NOT', 'IS', '<>', '!=', '>=', '<=', '=', '>', '<'] as $operator) {
+            $parts = self::splitLimitComparison($expression, $operator);
+            if ($parts === null) {
+                continue;
+            }
+            $left = self::limitExpressionValue($parts[0]);
+            $right = self::limitExpressionValue($parts[1]);
+            if ($operator === 'IS' || $operator === 'IS NOT') {
+                $result = $left === null ? $right === null : ($right !== null && self::limitScalarEquals($left, $right));
+                return ['matched' => true, 'value' => $operator === 'IS NOT' ? !$result : $result];
+            }
+            if ($left === null || $right === null) {
+                return ['matched' => true, 'value' => null];
+            }
+            $comparison = self::compareLimitScalarValues($left, $right);
+            $equals = self::limitScalarEquals($left, $right);
+            $result = match ($operator) {
+                '=' => $equals,
+                '<>', '!=' => !$equals,
+                '>' => $comparison > 0,
+                '>=' => $comparison >= 0,
+                '<' => $comparison < 0,
+                '<=' => $comparison <= 0,
+                default => false,
+            };
+
+            return ['matched' => true, 'value' => $result];
+        }
+
+        return ['matched' => false, 'value' => null];
     }
 
     private static function limitNumericValue(string $expression): int|float
@@ -889,6 +975,96 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return strcmp((string) $left, (string) $right);
+    }
+
+    private static function limitScalarEquals(int|float|string $left, int|float|string $right): bool
+    {
+        if ((is_int($left) || is_float($left) || is_numeric((string) $left))
+            && (is_int($right) || is_float($right) || is_numeric((string) $right))) {
+            return (float) $left == (float) $right;
+        }
+
+        return (string) $left === (string) $right;
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private static function splitLimitComparison(string $sql, string $operator): ?array
+    {
+        $parts = self::splitLimitOperator($sql, $operator);
+        if (count($parts) !== 2) {
+            return null;
+        }
+        if ($parts[0] === '' || $parts[1] === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT comparison needs both operands');
+        }
+
+        return [$parts[0], $parts[1]];
+    }
+
+    /**
+     * @return array{value:string,lower:string,upper:string,not:bool}|null
+     */
+    private static function splitLimitBetween(string $sql): ?array
+    {
+        $between = self::topLevelKeywordPosition($sql, 'BETWEEN');
+        $not = false;
+        $notBetween = self::topLevelKeywordPosition($sql, 'NOT BETWEEN');
+        if ($notBetween !== null && ($between === null || $notBetween <= $between)) {
+            $between = $notBetween;
+            $not = true;
+        }
+        if ($between === null) {
+            return null;
+        }
+        $keyword = $not ? 'NOT BETWEEN' : 'BETWEEN';
+        $value = trim(substr($sql, 0, $between));
+        $tail = trim(substr($sql, $between + strlen($keyword)));
+        $and = self::topLevelKeywordPosition($tail, 'AND');
+        if ($value === '' || $and === null) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT BETWEEN needs lower and upper operands');
+        }
+        $lower = trim(substr($tail, 0, $and));
+        $upper = trim(substr($tail, $and + strlen('AND')));
+        if ($lower === '' || $upper === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT BETWEEN needs lower and upper operands');
+        }
+
+        return ['value' => $value, 'lower' => $lower, 'upper' => $upper, 'not' => $not];
+    }
+
+    /**
+     * @return array{value:string,list:string,not:bool}|null
+     */
+    private static function splitLimitInPredicate(string $sql): ?array
+    {
+        $in = self::topLevelKeywordPosition($sql, 'IN');
+        $not = false;
+        $notIn = self::topLevelKeywordPosition($sql, 'NOT IN');
+        if ($notIn !== null && ($in === null || $notIn <= $in)) {
+            $in = $notIn;
+            $not = true;
+        }
+        if ($in === null) {
+            return null;
+        }
+        $keyword = $not ? 'NOT IN' : 'IN';
+        $value = trim(substr($sql, 0, $in));
+        $list = trim(substr($sql, $in + strlen($keyword)));
+        $stripped = self::stripEnclosingParentheses($list);
+        if ($value === '' || $stripped === null) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT IN needs a parenthesized value list');
+        }
+
+        return ['value' => $value, 'list' => $stripped, 'not' => $not];
+    }
+
+    private static function topLevelKeywordPosition(string $sql, string $keyword): ?int
+    {
+        $position = self::keywordPosition(' ' . $sql . ' ', ' ' . $keyword . ' ');
+
+        return $position;
     }
 
     /**

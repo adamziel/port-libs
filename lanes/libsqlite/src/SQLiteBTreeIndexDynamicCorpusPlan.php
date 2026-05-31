@@ -3860,6 +3860,110 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table:string,index_name:string,primary_key:string,rowid_literal:mixed,rowid_storage:string,statement:string,result_rows:list<array<int,mixed>>,detail:string,uses_covering_index:bool,uses_rowid_tail:bool,integrity:string,batch:int}>
+     */
+    public static function indexedByRowidTailConstraintCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexedby rowid-tail dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'indexedby-11.2',
+                'ordinary rowid integer literal constrains the implicit index-entry tail',
+                'x1',
+                'x1i',
+                'rowid',
+                3,
+                'integer',
+                'SELECT a,b,rowid FROM x1 INDEXED BY x1i WHERE a=1 AND b=1 AND rowid=3',
+                [[1, '1', 3]],
+            ],
+            [
+                'indexedby-11.3',
+                'ordinary rowid text literal is coerced before probing the index-entry tail',
+                'x1',
+                'x1i',
+                'rowid',
+                '3',
+                'text-integer',
+                "SELECT a,b,rowid FROM x1 INDEXED BY x1i WHERE a=1 AND b=1 AND rowid='3'",
+                [[1, '1', 3]],
+            ],
+            [
+                'indexedby-11.4/11.5',
+                'ordinary rowid real-looking text literal still probes the rowid tail',
+                'x1',
+                'x1i',
+                'rowid',
+                '3.0',
+                'text-real-integer',
+                "SELECT a,b,rowid FROM x1 INDEXED BY x1i WHERE a=1 AND b=1 AND rowid='3.0'",
+                [[1, '1', 3]],
+            ],
+            [
+                'indexedby-11.7',
+                'INTEGER PRIMARY KEY integer literal constrains the rowid tail',
+                'x2',
+                'x2i',
+                'c',
+                3,
+                'integer',
+                'SELECT a,b,c FROM x2 INDEXED BY x2i WHERE a=1 AND b=1 AND c=3',
+                [[1, '1', 3]],
+            ],
+            [
+                'indexedby-11.8',
+                'INTEGER PRIMARY KEY text literal is coerced before probing the rowid tail',
+                'x2',
+                'x2i',
+                'c',
+                '3',
+                'text-integer',
+                "SELECT a,b,c FROM x2 INDEXED BY x2i WHERE a=1 AND b=1 AND c='3'",
+                [[1, '1', 3]],
+            ],
+            [
+                'indexedby-11.9/11.10',
+                'INTEGER PRIMARY KEY real-looking text literal still probes the rowid tail',
+                'x2',
+                'x2i',
+                'c',
+                '3.0',
+                'text-real-integer',
+                "SELECT a,b,c FROM x2 INDEXED BY x2i WHERE a=1 AND b=1 AND c='3.0'",
+                [[1, '1', 3]],
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $table, $indexName, $primaryKey, $literal, $storage, $statement, $rows] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'indexedby.test sections indexedby-11.1 through indexedby-11.10',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'table' => $table,
+                'index_name' => $indexName,
+                'primary_key' => $primaryKey,
+                'rowid_literal' => $literal,
+                'rowid_storage' => $storage,
+                'statement' => $statement,
+                'result_rows' => $rows,
+                'detail' => 'SEARCH ' . $table . ' USING COVERING INDEX ' . $indexName . ' (a=? AND b=? AND rowid=?)',
+                'uses_covering_index' => true,
+                'uses_rowid_tail' => true,
+                'integrity' => 'ok',
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,objects_before:list<string>,objects_after:list<string>,index_names:list<string>,table_name:string,index_name:string|null,indexed_column:string|null,expected_error:string|null,integrity:string,explain_only:bool,autoindex:bool}>
      */
     public static function indexCatalogLifecycleCases(int $cases = 1000): array

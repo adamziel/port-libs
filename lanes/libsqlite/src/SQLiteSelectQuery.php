@@ -100,7 +100,12 @@ final class SQLiteSelectQuery
             throw new \InvalidArgumentException('SQLite SELECT query offset must be an integer');
         }
 
-        return SQLiteSelectResult::execute($rows, $distinct, $orderBy, $limit, $offset);
+        $distinctCollations = $plan['distinctCollations'] ?? [];
+        if (!is_array($distinctCollations)) {
+            throw new \InvalidArgumentException('SQLite SELECT query distinct collations must be a map');
+        }
+
+        return SQLiteSelectResult::execute($rows, $distinct, $orderBy, $limit, $offset, $distinctCollations);
     }
 
     /**

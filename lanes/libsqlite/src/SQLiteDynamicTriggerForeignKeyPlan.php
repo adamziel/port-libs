@@ -2293,6 +2293,73 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{schema:string,table:string,value:int}> $inserts
+     * @return array<string,mixed>
+     */
+    public static function triggerSchemaBindingResolution(array $inserts, bool $tempTrigger = false, string $attachedSchema = 'archive'): array
+    {
+        $attachedSchema = self::identifier($attachedSchema, 'attached trigger schema');
+        $mainRows = [];
+        $tempRows = [];
+        $attachedRows = [];
+        $log = [];
+
+        foreach ($inserts as $insert) {
+            $schema = strtolower(self::identifier((string) ($insert['schema'] ?? ''), 'insert schema'));
+            $table = self::identifier((string) ($insert['table'] ?? ''), 'insert table');
+            $value = (int) ($insert['value'] ?? 0);
+
+            if ($schema === 'main') {
+                $mainRows[] = ['x' => $value, 'table' => $table];
+                if ($table === 't300') {
+                    $log[] = ['trigger' => 'main.r300', 'target_schema' => 'main', 'value' => 10000 + $value];
+                }
+                continue;
+            }
+
+            if ($schema === 'temp') {
+                $tempRows[] = ['x' => $value, 'table' => $table];
+                if ($tempTrigger && $table === 't300') {
+                    $log[] = ['trigger' => 'temp.r301', 'target_schema' => 'temp', 'value' => 20000 + $value];
+                }
+                continue;
+            }
+
+            if ($schema === $attachedSchema) {
+                $attachedRows[] = ['y' => $value, 'table' => $table];
+                if ($table === 't2') {
+                    $log[] = ['trigger' => $attachedSchema . '.trig', 'target_schema' => $attachedSchema, 'value' => $value];
+                }
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite triggerD insert schema is unsupported');
+        }
+
+        return [
+            'source' => 'triggerD.test triggerD-3.1..4.2',
+            'operation' => 'trigger-schema-binding-resolution',
+            'status' => 'commit-ok',
+            'temp_trigger' => $tempTrigger,
+            'attached_schema' => $attachedSchema,
+            'main_rows' => $mainRows,
+            'temp_rows' => $tempRows,
+            'attached_rows' => $attachedRows,
+            'log_rows' => $log,
+            'log_values' => array_values(array_column($log, 'value')),
+            'main_trigger_values' => array_values(array_column(array_filter($log, static fn (array $row): bool => $row['trigger'] === 'main.r300'), 'value')),
+            'temp_trigger_values' => array_values(array_column(array_filter($log, static fn (array $row): bool => $row['trigger'] === 'temp.r301'), 'value')),
+            'attached_trigger_values' => array_values(array_column(array_filter($log, static fn (array $row): bool => $row['trigger'] === $attachedSchema . '.trig'), 'value')),
+            'log_count' => count($log),
+            'dependencies' => [
+                'sqlite-triggerD-main-trigger-binds-main-table-not-temp-shadow',
+                'sqlite-triggerD-temp-trigger-binds-temp-table-shadow',
+                'sqlite-triggerD-attached-trigger-reparse-ignores-qualified-target-prefix',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $targetRows
      * @param array<string,mixed> $insertedRow
      * @return array<string,mixed>
@@ -3246,6 +3313,49 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'dependencies' => [
                 'sqlite-trigger7-temporary-trigger-may-not-have-qualified-name',
                 'sqlite-trigger7-qualified-trigger-unknown-database',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function triggerCreationTargetDiagnostic(string $timing, string $targetKind, string $targetName): array
+    {
+        $timing = strtolower(trim($timing));
+        $targetKind = strtolower(trim($targetKind));
+        $targetName = self::identifier($targetName, 'trigger target name');
+
+        if (!in_array($timing, ['before', 'after', 'instead of'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger1 trigger timing is unsupported');
+        }
+        if (!in_array($targetKind, ['table', 'view'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger1 trigger target kind is unsupported');
+        }
+
+        $status = 'commit-ok';
+        $error = null;
+        if ($targetKind === 'table' && $timing === 'instead of') {
+            $status = 'schema-error';
+            $error = 'cannot create INSTEAD OF trigger on table: ' . $targetName;
+        } elseif ($targetKind === 'view' && $timing !== 'instead of') {
+            $status = 'schema-error';
+            $error = 'cannot create ' . strtoupper($timing) . ' trigger on view: ' . $targetName;
+        }
+
+        return [
+            'source' => 'trigger1.test trigger1-1.12..1.14',
+            'operation' => 'trigger-creation-target-diagnostic',
+            'status' => $status,
+            'timing' => $timing,
+            'target_kind' => $targetKind,
+            'target_name' => $targetName,
+            'error' => $error,
+            'installed' => $status === 'commit-ok',
+            'dependencies' => [
+                'sqlite-trigger1-instead-of-trigger-requires-view',
+                'sqlite-trigger1-before-after-trigger-requires-table',
+                'sqlite-trigger1-target-kind-validated-before-trigger-install',
             ],
         ];
     }

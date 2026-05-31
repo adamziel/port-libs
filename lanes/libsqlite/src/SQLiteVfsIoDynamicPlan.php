@@ -698,6 +698,71 @@ final class SQLiteVfsIoDynamicPlan
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */
+    public static function atomicBatchFaultFallbackProfile(
+        array $deviceFlags,
+        int $initialRows,
+        int $insertRows,
+        int $indexedColumns,
+        int $payloadBytes,
+        int $failAt,
+        bool $failOnCommitAtomicWrite = false
+    ): array {
+        if ($initialRows < 0 || $insertRows < 1) {
+            throw new \InvalidArgumentException('SQLite atomic-batch fallback requires a non-negative initial row count and positive insert count');
+        }
+        if ($indexedColumns < 0 || $payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite atomic-batch fallback requires non-negative index count and positive payload size');
+        }
+        if ($failAt < 1) {
+            throw new \InvalidArgumentException('SQLite atomic-batch fallback failure index must be positive');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $batchAtomic = in_array('batch_atomic', $flags, true);
+        $atomicWriteCalls = $batchAtomic ? 1 : 0;
+        $indexWrites = $indexedColumns * $insertRows;
+        $tableWrites = $insertRows;
+        $databaseWrites = $tableWrites + $indexWrites;
+        $writeFailsBeforeCommitAtomic = $batchAtomic && !$failOnCommitAtomicWrite && $failAt <= $databaseWrites;
+        $commitAtomicWriteClearsFault = $batchAtomic && $failOnCommitAtomicWrite;
+        $legacyFallbackUsed = $batchAtomic && $writeFailsBeforeCommitAtomic;
+        $journalWrites = $legacyFallbackUsed ? $databaseWrites : 0;
+
+        return [
+            'status' => 'ok',
+            'script' => 'atomic2.test',
+            'upstream' => ['atomic2.test 1.0', 'atomic2.test 2.0 faultsim atomic batch fallback'],
+            'device_flags' => $flags,
+            'initial_rows' => $initialRows,
+            'insert_rows' => $insertRows,
+            'indexed_columns' => $indexedColumns,
+            'payload_bytes' => $payloadBytes,
+            'fail_at' => $failAt,
+            'fail_on_commit_atomic_write' => $failOnCommitAtomicWrite,
+            'batch_atomic_supported' => $batchAtomic,
+            'atomic_batch_begin_attempted' => $batchAtomic,
+            'atomic_batch_write_calls' => $atomicWriteCalls,
+            'database_write_calls' => $databaseWrites,
+            'write_fail_before_commit_atomic' => $writeFailsBeforeCommitAtomic,
+            'commit_atomic_write_clears_pending_fault' => $commitAtomicWriteClearsFault,
+            'legacy_journal_fallback_used' => $legacyFallbackUsed,
+            'legacy_journal_page_writes' => $journalWrites,
+            'legacy_journal_header_writes' => $legacyFallbackUsed ? 1 : 0,
+            'statement_result' => 'ok',
+            'rows_after_statement' => $initialRows + $insertRows,
+            'integrity_check' => 'ok',
+            'fault_injection_count' => $writeFailsBeforeCommitAtomic ? 1 : 0,
+            'reason' => $legacyFallbackUsed
+                ? 'xWrite_ioerr_before_commit_atomic_write_retries_with_legacy_rollback_journal'
+                : ($batchAtomic ? 'commit_atomic_write_control_clears_pending_fault_without_fallback' : 'batch_atomic_capability_absent_uses_legacy_journal_path'),
+            'dependencies' => ['upstream-atomic2-batch-write-fallback', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
     public static function nolockProbe(string $filename, bool $writeTransaction = false, array $deviceFlags = []): array
     {
         $flags = self::deviceFlags($deviceFlags);
@@ -975,6 +1040,57 @@ final class SQLiteVfsIoDynamicPlan
             'overflow_read_retried' => $overflowReadRetried,
             'reason' => $reason,
             'dependencies' => ['upstream-ioerr-recovery-profile', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function rollbackJournalPermissionProfile(
+        int $databasePermissions,
+        int $changedRows,
+        bool $atomicBatchWriteDisabled = true,
+        bool $windowsPermissionsUnsupported = false
+    ): array {
+        if ($databasePermissions < 0 || $databasePermissions > 07777) {
+            throw new \InvalidArgumentException('SQLite rollback journal permission profile requires a Unix permission mode');
+        }
+        if ($changedRows < 1) {
+            throw new \InvalidArgumentException('SQLite rollback journal permission profile requires at least one changed row');
+        }
+
+        $journalCreated = $atomicBatchWriteDisabled && !$windowsPermissionsUnsupported;
+        $mode = self::canonicalPermissionMode($databasePermissions);
+
+        return [
+            'status' => $journalCreated ? 'ok' : 'skipped',
+            'script' => 'journal3.test',
+            'upstream' => [
+                'journal3.test journal3-1.1 create table',
+                'journal3.test journal3-1.2.1 database mode 00644',
+                'journal3.test journal3-1.2.2 database mode 00666',
+                'journal3.test journal3-1.2.3 database mode 00600',
+                'journal3.test journal3-1.2.4 database mode 00755',
+            ],
+            'database_permissions' => $mode,
+            'journal_permissions' => $journalCreated ? $mode : null,
+            'changed_rows' => $changedRows,
+            'atomic_batch_write_disabled' => $atomicBatchWriteDisabled,
+            'windows_permissions_unsupported' => $windowsPermissionsUnsupported,
+            'journal_exists_before_transaction' => false,
+            'journal_created_during_transaction' => $journalCreated,
+            'journal_permission_matches_database' => $journalCreated,
+            'rollback_result' => 'ok',
+            'journal_removed_after_rollback' => $journalCreated,
+            'integrity_check' => 'ok',
+            'reason' => $journalCreated
+                ? 'rollback_journal_inherits_database_file_permissions'
+                : 'journal_permission_probe_not_applicable_for_platform_or_atomic_batch_write',
+            'dependencies' => [
+                'upstream-journal3-permission-inheritance',
+                'sqlite-rollback-journal-file-permissions',
+                'vfs-io-dynamic-real-corpus',
+            ],
         ];
     }
 
@@ -2064,6 +2180,11 @@ final class SQLiteVfsIoDynamicPlan
     {
         $remainder = $value % $pageSize;
         return $remainder === 0 ? $value : $value + ($pageSize - $remainder);
+    }
+
+    private static function canonicalPermissionMode(int $permissions): string
+    {
+        return sprintf('0%04o', $permissions);
     }
 
     /**

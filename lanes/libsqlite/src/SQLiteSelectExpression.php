@@ -947,6 +947,11 @@ final class SQLiteSelectExpression
         }
 
         if (str_contains($name, '.')) {
+            $schemaQualifiedSuffix = substr($name, strpos($name, '.') + 1);
+            if (array_key_exists($schemaQualifiedSuffix, $row)) {
+                return $row[$schemaQualifiedSuffix];
+            }
+
             $suffix = substr($name, strrpos($name, '.') + 1);
             if (array_key_exists($suffix, $row)) {
                 return $row[$suffix];

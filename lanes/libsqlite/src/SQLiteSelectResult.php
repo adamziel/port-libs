@@ -17,12 +17,13 @@ final class SQLiteSelectResult
         ?array $distinctColumns = null,
         array $orderBy = [],
         ?int $limit = null,
-        int $offset = 0
+        int $offset = 0,
+        array $distinctCollations = []
     ): array {
         $result = array_values(is_array($rows) ? $rows : iterator_to_array($rows, false));
 
         if ($distinctColumns !== null) {
-            $result = self::distinct($result, $distinctColumns);
+            $result = self::distinct($result, $distinctColumns, $distinctCollations);
         }
         if ($orderBy !== []) {
             $result = self::orderBy($result, $orderBy);
@@ -36,7 +37,7 @@ final class SQLiteSelectResult
      * @param list<string> $columns
      * @return list<array<string,mixed>>
      */
-    public static function distinct(array $rows, array $columns): array
+    public static function distinct(array $rows, array $columns, array $collations = []): array
     {
         if ($columns === []) {
             throw new \InvalidArgumentException('SQLite SELECT DISTINCT needs at least one result column');
@@ -50,7 +51,10 @@ final class SQLiteSelectResult
                 if (!array_key_exists($column, $row)) {
                     throw new \InvalidArgumentException("SQLite SELECT DISTINCT row is missing column {$column}");
                 }
-                $parts[] = self::valueKey($row[$column]);
+                $parts[] = self::valueKey(
+                    $row[$column],
+                    isset($collations[$column]) && is_string($collations[$column]) ? $collations[$column] : 'BINARY'
+                );
             }
 
             $key = implode("\0", $parts);
@@ -334,7 +338,7 @@ final class SQLiteSelectResult
             : self::innerJoin($leftRows, $rightRows, $predicate);
     }
 
-    private static function valueKey(mixed $value): string
+    private static function valueKey(mixed $value, string $collation = 'BINARY'): string
     {
         if ($value === null) {
             return 'null:';
@@ -349,6 +353,13 @@ final class SQLiteSelectResult
             return 'real:' . sprintf('%.17G', $value);
         }
         if (is_string($value)) {
+            $collation = strtoupper($collation);
+            $value = match ($collation) {
+                'BINARY' => $value,
+                'NOCASE' => strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),
+                'RTRIM' => rtrim($value, ' '),
+                default => throw new \InvalidArgumentException("Unsupported SQLite SELECT DISTINCT collation: {$collation}"),
+            };
             return 'text:' . $value;
         }
 

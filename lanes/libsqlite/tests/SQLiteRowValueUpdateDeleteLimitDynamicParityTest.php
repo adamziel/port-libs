@@ -844,4 +844,92 @@ foreach ($scalarSelectMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $seed % 2 === 0 ? "{$limitValue} BETWEEN 1 AND 4" : "{$limitValue} IN (2, {$limitValue}, 9)";
+    $offsetExpr = $seed % 3 === 0 ? "{$offsetValue} IS 0" : "{$offsetValue} = {$offsetValue}";
+    $effectiveLimit = 1;
+    $effectiveOffset = 1;
+    $sql = "UPDATE app_settings SET state = 'predicate_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $effectiveOffset, $effectiveLimit);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update predicate expression window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $effectiveLimit, $effectiveOffset): void {
+            $result = $execute($sql);
+            $t->same($effectiveLimit, $result['plan']->toArray()['limit']);
+            $t->same($effectiveOffset, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitExpr = $seed % 2 === 0 ? '3 NOT BETWEEN 4 AND 8' : '2 NOT IN (3, 4, 5)';
+    $offsetExpr = $seed % 4 === 0 ? 'NULL IS NULL' : '1 IS NOT 2';
+    $effectiveLimit = 1;
+    $effectiveOffset = 1;
+    $sql = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $effectiveOffset, $effectiveLimit);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete negated predicate expression window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $effectiveLimit, $effectiveOffset): void {
+            $result = $execute($sql);
+            $t->same($effectiveLimit, $result['plan']->toArray()['limit']);
+            $t->same($effectiveOffset, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitExpr = $seed % 2 === 0 ? '4 >= 2' : '2 <> 9';
+    $offsetExpr = $seed % 3 === 0 ? '3 < 2' : '5 <= 5';
+    $effectiveLimit = 1;
+    $effectiveOffset = $seed % 3 === 0 ? 0 : 1;
+    $sql = "UPDATE app_settings SET state = 'predicate_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $effectiveOffset, $effectiveLimit)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update rowvalue comparison predicate subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitExpr = $seed % 2 === 0 ? 'NOT (0)' : 'NOT (3 IN (4,5))';
+    $offsetExpr = $seed % 4 === 0 ? 'NOT (1)' : 'NOT (NULL IS NOT NULL)';
+    $effectiveLimit = 1;
+    $effectiveOffset = $seed % 4 === 0 ? 0 : 1;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $effectiveOffset, $effectiveLimit)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue unary not predicate subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+$predicateMalformed = [
+    'malformed null comparison limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT NULL = 1",
+    'malformed null between limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 2 BETWEEN NULL AND 3",
+    'malformed null in list offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET 2 IN (1, NULL)",
+    'malformed missing between upper rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 2 BETWEEN 1",
+    'malformed missing in list rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 2 IN 1,2",
+];
+
+foreach ($predicateMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 return $tests;

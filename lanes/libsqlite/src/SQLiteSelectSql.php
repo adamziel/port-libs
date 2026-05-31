@@ -157,6 +157,10 @@ final class SQLiteSelectSql
         }
         if ($distinct) {
             $plan['distinct'] = true;
+            $distinctCollations = self::selectListCollations($select);
+            if ($distinctCollations !== []) {
+                $plan['distinctCollations'] = $distinctCollations;
+            }
         }
         if ($source['joins'] !== []) {
             $plan['joins'] = $source['joins'];
@@ -798,6 +802,9 @@ final class SQLiteSelectSql
         if (isset($term['alias']) && is_string($term['alias']) && $term['alias'] !== '') {
             return $term['alias'];
         }
+        if (($term['type'] ?? null) === 'collate' && isset($term['operand']) && is_array($term['operand'])) {
+            return self::compoundArmOutputColumn($term['operand'], $ordinal);
+        }
         if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name']) && $term['name'] !== '') {
             return $term['name'];
         }
@@ -1050,6 +1057,25 @@ final class SQLiteSelectSql
                 ? $column
                 : self::compoundArmOutputColumn($term, $index + 1);
             $collations[$column] = strtoupper($term['collation']);
+        }
+
+        return $collations;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return array<string,string>
+     */
+    private static function selectListCollations(array $select): array
+    {
+        $collations = [];
+        foreach ($select as $index => $term) {
+            if (!is_array($term) || ($term['type'] ?? null) !== 'collate' || !isset($term['collation']) || !is_string($term['collation'])) {
+                continue;
+            }
+            $column = self::compoundArmOutputColumn($term, $index + 1);
+            $collations[$column] = strtoupper($term['collation']);
+            $collations['expr' . ($index + 1)] = strtoupper($term['collation']);
         }
 
         return $collations;
@@ -4131,7 +4157,7 @@ final class SQLiteSelectSql
     private static function columnIdentifierExpression(string $sql): ?string
     {
         $sql = trim($sql);
-        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/', $sql) === 1) {
             return $sql;
         }
 
@@ -4139,7 +4165,7 @@ final class SQLiteSelectSql
             return self::normalizedGeneratedColumnName($match[1]);
         }
 
-        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\.\[([^\]]+)\]$/', $sql, $match) === 1) {
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\.\[([^\]]+)\]$/', $sql, $match) === 1) {
             return $match[1] . '.' . self::normalizedGeneratedColumnName($match[2]);
         }
 
@@ -5557,16 +5583,24 @@ final class SQLiteSelectSql
             $prefix = isset($term['prefix']) && is_string($term['prefix']) && $term['prefix'] !== ''
                 ? $term['prefix'] . '.'
                 : null;
+            $schemaQualifiedPrefix = null;
+            if ($prefix !== null && substr_count($prefix, '.') >= 2) {
+                $schemaQualifiedPrefix = substr($prefix, strpos($prefix, '.') + 1);
+            }
             $columns = [];
             foreach ($sourceColumns as $column) {
                 if (!is_string($column) || $column === '') {
                     continue;
                 }
                 if ($prefix !== null) {
-                    if (!str_starts_with($column, $prefix)) {
+                    if (str_starts_with($column, $prefix)) {
+                        $columns[] = substr($column, strlen($prefix));
                         continue;
                     }
-                    $columns[] = substr($column, strlen($prefix));
+                    if ($schemaQualifiedPrefix === null || !str_starts_with($column, $schemaQualifiedPrefix)) {
+                        continue;
+                    }
+                    $columns[] = substr($column, strlen($schemaQualifiedPrefix));
                     continue;
                 }
                 $columns[] = $column;
@@ -6168,7 +6202,7 @@ final class SQLiteSelectSql
 
     private static function assertIdentifier(string $value, string $context): void
     {
-        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $value) !== 1) {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/', $value) !== 1) {
             throw new \InvalidArgumentException("{$context} must be a simple identifier");
         }
     }

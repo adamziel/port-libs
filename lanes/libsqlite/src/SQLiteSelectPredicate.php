@@ -425,6 +425,11 @@ final class SQLiteSelectPredicate
                 return $row[$column];
             }
             if (str_contains($column, '.')) {
+                $schemaQualifiedSuffix = substr($column, strpos($column, '.') + 1);
+                if (array_key_exists($schemaQualifiedSuffix, $row)) {
+                    return $row[$schemaQualifiedSuffix];
+                }
+
                 $suffix = substr($column, strrpos($column, '.') + 1);
                 if (array_key_exists($suffix, $row)) {
                     return $row[$suffix];
@@ -468,6 +473,11 @@ final class SQLiteSelectPredicate
         }
 
         if (str_contains($column, '.')) {
+            $schemaQualifiedSuffix = substr($column, strpos($column, '.') + 1);
+            if (array_key_exists($schemaQualifiedSuffix, $row)) {
+                return $row[$schemaQualifiedSuffix];
+            }
+
             $suffix = substr($column, strrpos($column, '.') + 1);
             if (array_key_exists($suffix, $row)) {
                 return $row[$suffix];
