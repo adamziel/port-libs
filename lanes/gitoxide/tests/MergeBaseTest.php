@@ -217,6 +217,79 @@ return [
         $t->same(true, in_array($staleParent, $reads, true));
         $t->same(false, in_array($missingGrandparent, $reads, true));
     },
+    'maps upstream generated merge-base timestamp skew baselines' => static function (TestRunner $t) use ($oid, $finder): void {
+        $timedCommit = static fn (int $offsetSeconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            'Ada <ada@example.test> ' . (1700000000 + $offsetSeconds) . ' +0000',
+            'CI <ci@example.test> ' . (1700000000 + $offsetSeconds) . ' +0000',
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ['Ada <ada@example.test> ' . (1700000000 + $offsetSeconds) . ' +0000'],
+                'committer' => ['CI <ci@example.test> ' . (1700000000 + $offsetSeconds) . ' +0000'],
+            ],
+        );
+
+        $e = $oid('1');
+        $d = $oid('2');
+        $f = $oid('3');
+        $c = $oid('4');
+        $b = $oid('5');
+        $a = $oid('6');
+        $g = $oid('7');
+        $h = $oid('8');
+        $firstSkewGraph = [
+            $e => $timedCommit(5),
+            $d => $timedCommit(4, [$e]),
+            $f => $timedCommit(6, [$e]),
+            $c => $timedCommit(3, [$d]),
+            $b => $timedCommit(2, [$c]),
+            $a => $timedCommit(1, [$b]),
+            $g => $timedCommit(7, [$b, $e]),
+            $h => $timedCommit(8, [$a, $f]),
+        ];
+
+        $s = $oid('9');
+        $c0 = $oid('a');
+        $c1 = $oid('b');
+        $c2 = $oid('c');
+        $l0 = $oid('d');
+        $l1 = $oid('e');
+        $l2 = $oid('f');
+        $r0 = str_repeat('10', 20);
+        $r1 = str_repeat('11', 20);
+        $r2 = str_repeat('12', 20);
+        $pl = str_repeat('13', 20);
+        $pr = str_repeat('14', 20);
+        $secondSkewGraph = [
+            $s => $timedCommit(0),
+            $c0 => $timedCommit(-3, [$s]),
+            $c1 => $timedCommit(-2, [$c0]),
+            $c2 => $timedCommit(-1, [$c1]),
+            $l0 => $timedCommit(1, [$s]),
+            $l1 => $timedCommit(2, [$l0]),
+            $l2 => $timedCommit(3, [$l1]),
+            $r0 => $timedCommit(1, [$s]),
+            $r1 => $timedCommit(2, [$r0]),
+            $r2 => $timedCommit(3, [$r1]),
+            $pl => $timedCommit(4, [$l2, $c2]),
+            $pr => $timedCommit(4, [$c2, $r2]),
+        ];
+
+        foreach ([true, false] as $useCommitGraphGenerations) {
+            $firstFinder = $finder($firstSkewGraph, $useCommitGraphGenerations);
+            $secondFinder = $finder($secondSkewGraph, $useCommitGraphGenerations);
+
+            $t->same([$b], $firstFinder->mergeBasesAgainst($g, [$h]));
+            $t->same($b, $firstFinder->mergeBase($g, $h));
+            $t->same([$e], $firstFinder->mergeBases($g, $f));
+            $t->same([$c2], $secondFinder->mergeBasesAgainst($pl, [$pr]));
+            $t->same($c2, $secondFinder->mergeBase($pl, $pr));
+            $t->same([$c2], $secondFinder->mergeBasesMany([$pl, $pr]));
+        }
+    },
     'maps upstream graph walk with sha256 commit ids' => static function (TestRunner $t) use ($commit, $finder): void {
         $sha256 = static fn (string $hex): string => str_repeat($hex, 64);
         $root = $sha256('1');
@@ -413,6 +486,12 @@ return [
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowPairwiseBase']);
         $t->same(true, $example['shallowGraphWalkStopsAtReleaseBaseline']);
         $t->same(true, $example['shallowPairwiseStopsAtReleaseBaseline']);
+        $t->same($fixture['timestampSkewExpectedBase'], $finder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));
+        $t->same($fixture['timestampSkewExpectedBase'], $timeOnlyFinder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));
+        $t->same([$fixture['timestampSkewExpectedBase']], $finder->mergeBasesAgainst($fixture['timestampSkewLeftReview'], [$fixture['timestampSkewRightReview']]));
+        $t->same($fixture['timestampSkewExpectedBase'], $example['timestampSkewBase']);
+        $t->same($fixture['timestampSkewExpectedBase'], $example['timestampSkewNoCommitGraphBase']);
+        $t->same(true, $example['timestampSkewPrunesNewerRoot']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

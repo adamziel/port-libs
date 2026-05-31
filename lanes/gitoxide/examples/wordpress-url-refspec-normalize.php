@@ -26,6 +26,12 @@ try {
 } catch (InvalidArgumentException) {
     $oversizedRemoteRejected = true;
 }
+$malformedBracketedRemoteRejected = false;
+try {
+    GitUrl::parse($fixture['malformedBracketedRemoteUrl']);
+} catch (InvalidArgumentException) {
+    $malformedBracketedRemoteRejected = true;
+}
 
 $summary = [
     'remote' => $remote->toArray(),
@@ -34,6 +40,7 @@ $summary = [
     'fetch' => $fetch,
     'push' => $push,
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
+    'malformedBracketedRemoteRejected' => $malformedBracketedRemoteRejected,
     'deploymentRemoteSafe' => $remote->userArgumentSafe() === $fixture['expectedRemoteUser']
         && $remote->hostArgumentSafe() === $fixture['expectedRemoteHost']
         && $remote->pathArgumentSafe() === $fixture['expectedRemotePath'],
@@ -73,6 +80,9 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['oversizedRemoteRejected'] !== $fixture['expectedOversizedRemoteRejected']) {
         throw new RuntimeException('Unexpected oversized remote URL preflight result');
+    }
+    if ($summary['malformedBracketedRemoteRejected'] !== $fixture['expectedMalformedBracketedRemoteRejected']) {
+        throw new RuntimeException('Unexpected malformed bracketed remote URL preflight result');
     }
 }
 

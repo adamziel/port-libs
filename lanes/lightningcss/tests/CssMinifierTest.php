@@ -991,6 +991,12 @@ CSS
             )
         );
         $t->same(
+            '.foo{grid-template:auto 1fr auto/none;grid-auto-flow:var(--auto-flow);grid-auto-rows:auto;grid-auto-columns:1fr}',
+            $minifier->minify(
+                '.foo { grid-template-rows: auto 1fr auto; grid-template-columns: none; grid-template-areas: none; grid-auto-flow: var(--auto-flow); grid-auto-rows: auto; grid-auto-columns: 1fr; }'
+            )
+        );
+        $t->same(
             '.foo{grid:1fr 1fr 1fr/auto-flow dense 1fr}',
             $minifier->minify(
                 '.foo { grid: auto 1fr auto / auto-flow dense 1fr; grid-template-rows: 1fr 1fr 1fr; }'

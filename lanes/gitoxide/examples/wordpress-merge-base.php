@@ -58,6 +58,14 @@ $shallowPairwiseBase = $timeOnlyFinder->mergeBase(
     $fixture['shallowPluginReview'],
     $fixture['shallowThemeReview'],
 );
+$timestampSkewBase = $finder->mergeBase(
+    $fixture['timestampSkewLeftReview'],
+    $fixture['timestampSkewRightReview'],
+);
+$timestampSkewNoCommitGraphBase = $timeOnlyFinder->mergeBase(
+    $fixture['timestampSkewLeftReview'],
+    $fixture['timestampSkewRightReview'],
+);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -97,6 +105,12 @@ return [
     'shallowReleaseBaseline' => $fixture['shallowReleaseBaseline'],
     'shallowGraphWalkStopsAtReleaseBaseline' => $shallowGraphWalkBase === $fixture['shallowReleaseBaseline'],
     'shallowPairwiseStopsAtReleaseBaseline' => $shallowPairwiseBase === $fixture['shallowReleaseBaseline'],
+    'timestampSkewHeads' => $fixture['timestampSkewHeads'],
+    'timestampSkewBase' => $timestampSkewBase,
+    'timestampSkewNoCommitGraphBase' => $timestampSkewNoCommitGraphBase,
+    'timestampSkewExpectedBase' => $fixture['timestampSkewExpectedBase'],
+    'timestampSkewPrunesNewerRoot' => $timestampSkewBase === $fixture['timestampSkewExpectedBase']
+        && $timestampSkewNoCommitGraphBase === $fixture['timestampSkewExpectedBase'],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

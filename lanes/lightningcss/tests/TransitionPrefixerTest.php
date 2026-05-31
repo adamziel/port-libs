@@ -1600,6 +1600,50 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { text-decoration: lab(50.998% 125.506 -50.7078) var(--style); } }', ['chrome' => 90])
         );
     },
+    'transition prefixer maps upstream text decoration thickness target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{text-decoration:underline;text-decoration-thickness:10px}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline 10px; }', ['safari' => 15])
+        );
+        $t->same(
+            '.foo{text-decoration:underline 10px}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline 10px; }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{text-decoration:underline;text-decoration-thickness:calc(1em / 10)}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline 10%; }', ['safari' => 12])
+        );
+        $t->same(
+            '.foo{text-decoration:underline 10%}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline 10%; }', ['firefox' => 89])
+        );
+        $t->same(
+            '.foo{text-decoration-thickness:calc(1em / 10)}',
+            $prefixer->prefixForTargets('.foo { text-decoration-thickness: 10%; }', ['safari' => 12])
+        );
+        $t->same(
+            '.foo{text-decoration-thickness:10%}',
+            $prefixer->prefixForTargets('.foo { text-decoration-thickness: 10%; }', ['firefox' => 89])
+        );
+        $t->same(
+            '.foo{text-decoration:underline;text-decoration-thickness:10px}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline 10px; }', ['safari' => '26.1'])
+        );
+        $t->same(
+            '.foo{text-decoration:underline 10px}',
+            $prefixer->prefixForTargets('.foo { text-decoration: underline 10px; }', ['safari' => '26.2'])
+        );
+        $t->same(
+            '.foo{text-decoration-thickness:calc(1em / 10)}',
+            $prefixer->prefixForTargets('.foo { text-decoration-thickness: 10%; }', ['safari' => '17.3'])
+        );
+        $t->same(
+            '.foo{text-decoration-thickness:10%}',
+            $prefixer->prefixForTargets('.foo { text-decoration-thickness: 10%; }', ['safari' => '17.4'])
+        );
+    },
     'transition prefixer maps upstream text emphasis prefixes and color fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -1856,6 +1900,18 @@ CSS;
         $t->same(
             '@layer blocks{@media screen and not (max-width:max(10px,1rem)){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media screen and (width > max(10px, 1rem)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media not (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not (not (width < 240px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media screen and not (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media screen and (not (not (width < 240px))) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (hover) and (not (min-width:240px)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (hover) and (not (not (width < 240px))) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media not (max-width:calc(1px + 1rem)){.wp-block-query{color:#ff0}}}',

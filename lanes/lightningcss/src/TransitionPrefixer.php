@@ -956,6 +956,8 @@ final class TransitionPrefixer
             'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26])
                 || $this->targetInRange($normalized, 'safari', [8], [26]),
             'textDecorationNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [35]),
+            'textDecorationThicknessShorthandNeedsFallback' => $this->targetsNeedTextDecorationThicknessShorthandFallback($normalized),
+            'textDecorationThicknessPercentNeedsFallback' => $this->targetsNeedTextDecorationThicknessPercentFallback($normalized),
             'textEmphasisNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [25], [98])
                 || $this->targetInRange($normalized, 'edge', [79], [98])
@@ -1580,6 +1582,64 @@ final class TransitionPrefixer
         }
 
         return true;
+    }
+
+    /**
+     * @param array<string, int> $targets
+     */
+    private function targetsNeedTextDecorationThicknessPercentFallback(array $targets): bool
+    {
+        return $this->targetsNeedFeatureFallback($targets, [
+            'android' => [87],
+            'chrome' => [87],
+            'edge' => [87],
+            'firefox' => [79],
+            'ios_saf' => [17, 4],
+            'opera' => [62],
+            'safari' => [17, 4],
+            'samsung' => [14],
+        ]);
+    }
+
+    /**
+     * @param array<string, int> $targets
+     */
+    private function targetsNeedTextDecorationThicknessShorthandFallback(array $targets): bool
+    {
+        return $this->targetsNeedFeatureFallback($targets, [
+            'android' => [87],
+            'chrome' => [87],
+            'edge' => [87],
+            'firefox' => [79],
+            'ios_saf' => [26, 2],
+            'opera' => [62],
+            'safari' => [26, 2],
+            'samsung' => [14],
+        ]);
+    }
+
+    /**
+     * @param array<string, int> $targets
+     * @param array<string, array{0:int,1?:int,2?:int}> $minimums
+     */
+    private function targetsNeedFeatureFallback(array $targets, array $minimums): bool
+    {
+        if ($targets === []) {
+            return false;
+        }
+
+        foreach ($targets as $browser => $version) {
+            if ($browser === 'ie') {
+                return true;
+            }
+
+            $minimum = $minimums[$browser] ?? null;
+            if ($minimum === null || $version < $this->encodedTargetVersion($minimum[0], $minimum[1] ?? 0, $minimum[2] ?? 0)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -4253,6 +4313,16 @@ final class TransitionPrefixer
 
         $rewritten = [];
         foreach ($entries as $entry) {
+            if ($entry['property'] === 'text-decoration-thickness') {
+                $value = $this->textDecorationThicknessTargetValue($entry['value'], $targetOptions);
+                if ($value !== $entry['value']) {
+                    $entry = $this->entryWithValue($entry, $value);
+                    $changed = true;
+                }
+                $rewritten[] = $entry;
+                continue;
+            }
+
             if ($entry['important'] || !$this->isTextDecorationProperty($entry['property'])) {
                 $rewritten[] = $entry;
                 continue;
@@ -4267,9 +4337,26 @@ final class TransitionPrefixer
             $entry['value'] = $base === 'text-decoration'
                 ? $this->normalizeTextDecorationValue($entry['value'])
                 : $this->normalizeTextDecorationLonghandValue($base, $entry['value']);
+            $thicknessEntry = null;
+            if ($base === 'text-decoration' && ($targetOptions['textDecorationThicknessShorthandNeedsFallback'] ?? false)) {
+                $parts = $this->parseTextDecorationValue($entry['value']);
+                if ($parts['thickness'] !== null) {
+                    $thicknessEntry = $this->declarationEntry(
+                        'text-decoration-thickness',
+                        $this->textDecorationThicknessTargetValue($parts['thickness'], $targetOptions),
+                        $entry['important']
+                    );
+                    $parts['thickness'] = null;
+                    $entry['value'] = $this->serializeTextDecorationParts($parts);
+                    $changed = true;
+                }
+            }
 
             if (str_starts_with($entry['property'], '-webkit-')) {
                 $rewritten[] = $entry;
+                if ($thicknessEntry !== null) {
+                    $rewritten[] = $thicknessEntry;
+                }
                 $changed = true;
                 continue;
             }
@@ -4283,6 +4370,9 @@ final class TransitionPrefixer
 
                 if ($this->containsCustomPropertyReference($entry['value'])) {
                     $rewritten[] = $this->entryWithValue($entry, $fallbackValue);
+                    if ($thicknessEntry !== null) {
+                        $rewritten[] = $thicknessEntry;
+                    }
                     if ($labFallback !== null) {
                         $supportValue = $base === 'text-decoration'
                             ? $this->normalizeTextDecorationValue($labFallback)
@@ -4310,6 +4400,9 @@ final class TransitionPrefixer
                     $rewritten[] = $this->declarationEntry('-moz-' . $base, $finalValue);
                 }
                 $rewritten[] = $this->entryWithValue($entry, $finalValue);
+                if ($thicknessEntry !== null) {
+                    $rewritten[] = $thicknessEntry;
+                }
                 $changed = true;
                 continue;
             }
@@ -4329,6 +4422,9 @@ final class TransitionPrefixer
                 $changed = true;
             }
             $rewritten[] = $entry;
+            if ($thicknessEntry !== null) {
+                $rewritten[] = $thicknessEntry;
+            }
         }
 
         $entries = $rewritten;
@@ -4413,6 +4509,51 @@ final class TransitionPrefixer
     private function normalizeTextDecorationValue(string $value): string
     {
         return $this->serializeTextDecorationParts($this->parseTextDecorationValue($value));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function textDecorationThicknessTargetValue(string $value, array $targetOptions): string
+    {
+        $value = trim($value);
+        if (!($targetOptions['textDecorationThicknessPercentNeedsFallback'] ?? false)) {
+            return $value;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $value, $matches) !== 1) {
+            return $value;
+        }
+
+        return $this->textDecorationPercentThicknessFallback((float) $matches[1]);
+    }
+
+    private function textDecorationPercentThicknessFallback(float $percentage): string
+    {
+        if (abs($percentage) < 0.0000001) {
+            return '0';
+        }
+
+        $factor = $percentage / 100;
+        $reciprocal = 1 / $factor;
+        if ($reciprocal > 0 && abs($reciprocal - round($reciprocal)) < 0.0000001) {
+            return 'calc(1em / ' . (int) round($reciprocal) . ')';
+        }
+
+        return 'calc(' . $this->formatCssNumericValue($factor) . ' * 1em)';
+    }
+
+    private function formatCssNumericValue(float $value): string
+    {
+        $formatted = rtrim(rtrim(sprintf('%.6F', $value), '0'), '.');
+        if (str_starts_with($formatted, '0.')) {
+            return substr($formatted, 1);
+        }
+        if (str_starts_with($formatted, '-0.')) {
+            return '-' . substr($formatted, 2);
+        }
+
+        return $formatted;
     }
 
     /**

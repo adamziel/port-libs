@@ -167,6 +167,10 @@ final class CssModulesTransformer
             return $this->rewriteScopePrelude($prelude);
         }
 
+        if ($this->dashedIdents && preg_match('/^\s*@media\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteDashedIdentReferences($prelude);
+        }
+
         return $prelude;
     }
 

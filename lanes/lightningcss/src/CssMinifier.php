@@ -9024,6 +9024,9 @@ final class CssMinifier
         if (!isset($latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns'])) {
             return;
         }
+        if ($this->canonicalGridAutoFlowForComposition($entries[$latestAuto['flow']]['value']) === null) {
+            return;
+        }
 
         $indices = [$latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns']];
         sort($indices);

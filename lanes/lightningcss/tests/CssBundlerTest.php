@@ -217,6 +217,33 @@ CSS,
         $t->same(0, $decoded[0]['originalLine']);
         $t->same(0, $decoded[0]['originalColumn']);
     },
+    'css bundler omits unused upstream inline input source map sources across imports' => static function (TestRunner $t): void {
+        $inputMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'ACAA',
+            'sources' => ['blocks/_tokens.scss', 'blocks/generated-card.scss'],
+            'sourcesContent' => [
+                '$brand: green;',
+                '.card { color: $brand }',
+            ],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/generated-card.css"; .entry { color: red }',
+            '/theme/blocks/generated-card.css' => ".card { color: green }\n/*# sourceMappingURL={$inputMap} */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+
+        $t->same('.card{color:green}.entry{color:red}', $result['code']);
+        $t->same(['entry.css', 'blocks/generated-card.scss'], $data['sources']);
+        $t->same([
+            '@import "blocks/generated-card.css"; .entry { color: red }',
+            '.card { color: $brand }',
+        ], $data['sourcesContent']);
+        $t->same('ACAA', $data['mappings']);
+    },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.b{color:green}',

@@ -995,6 +995,29 @@ CSS;
             ],
         ], $result['references']);
     },
+    'css modules scopes upstream media env dashed idents while preserving composes' => static function (TestRunner $t) use ($export, $dashed, $dependency, $global): void {
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  .foo {
+    color: env(--brand-color);
+    composes: base from "tokens.css";
+    composes: utility from global;
+  }
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('@media (width<=env(--EgL3uq_branding-small)){.EgL3uq_foo{color:env(--EgL3uq_brand-color)}}', $result['code']);
+        $t->same([
+            '--branding-small' => $dashed('--EgL3uq_branding-small', true),
+            'foo' => $export('EgL3uq_foo', [$dependency('base', 'tokens.css'), $global('utility')]),
+            '--brand-color' => $dashed('--EgL3uq_brand-color', true),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules scopes upstream dashed property and font palette idents while preserving composes' => static function (TestRunner $t) use ($export, $dashed, $dependency): void {
         $css = <<<'CSS'
 @property --foo {

@@ -398,25 +398,25 @@ final class GitUrl
 
     private static function scpColonPosition(string $input): ?int
     {
-        $length = strlen($input);
-        $inBrackets = false;
-        for ($index = 0; $index < $length; $index++) {
-            $char = $input[$index];
-            if ($char === '[') {
-                $inBrackets = true;
-            } elseif ($char === ']') {
-                $inBrackets = false;
-            } elseif ($char === ':' && !$inBrackets) {
-                $prefix = substr($input, 0, $index);
-                if (str_contains($prefix, '/')) {
-                    return null;
-                }
-
-                return $index;
-            }
+        if (str_starts_with($input, '[')) {
+            $bracketEnd = strpos($input, ']');
+            $colon = $bracketEnd === false
+                ? strpos($input, ':')
+                : strpos($input, ':', $bracketEnd + 1);
+        } else {
+            $colon = strpos($input, ':');
         }
 
-        return null;
+        if ($colon === false) {
+            return null;
+        }
+
+        $prefix = substr($input, 0, $colon);
+        if (str_contains($prefix, '/')) {
+            return null;
+        }
+
+        return $colon;
     }
 
     private function canonicalBytes(?string $password): string

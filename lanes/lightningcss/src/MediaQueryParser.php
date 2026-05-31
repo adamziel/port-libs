@@ -741,6 +741,13 @@ final class MediaQueryParser
 
             $close = $this->findMatchingDelimiter($query, $after, '(', ')');
             $inner = substr($query, $after + 1, $close - $after - 1);
+            $doubleNegated = $this->normalizeDoubleNegatedCondition(trim($inner));
+            if ($doubleNegated !== null) {
+                $output .= $doubleNegated;
+                $i = $close;
+                continue;
+            }
+
             $inverted = $this->invertSimpleRangeFeature(trim($inner));
             if ($inverted === null) {
                 $output .= substr($query, $i, $close - $i + 1);
@@ -753,6 +760,32 @@ final class MediaQueryParser
         }
 
         return $this->normalizeWhitespace($output);
+    }
+
+    private function normalizeDoubleNegatedCondition(string $inner): ?string
+    {
+        if (preg_match('/^not\s+(.+)$/i', $inner, $matches) !== 1) {
+            return null;
+        }
+
+        $condition = $this->unwrapSingleParenthesizedValue(trim($matches[1]));
+        if ($condition === null) {
+            return null;
+        }
+
+        $condition = $this->normalizeBooleanConditionGroups($this->normalizeParentheses($condition, false));
+        if ($this->containsTopLevelKeyword($condition, 'and') || $this->containsTopLevelKeyword($condition, 'or')) {
+            return $condition;
+        }
+
+        while (($unwrapped = $this->unwrapSingleParenthesizedValue($condition)) !== null
+            && !$this->containsTopLevelKeyword($unwrapped, 'and')
+            && !$this->containsTopLevelKeyword($unwrapped, 'or')
+        ) {
+            $condition = $unwrapped;
+        }
+
+        return '(' . $this->minifyFeature($condition) . ')';
     }
 
     private function normalizeRedundantTopLevelConditionWrappers(string $query): string

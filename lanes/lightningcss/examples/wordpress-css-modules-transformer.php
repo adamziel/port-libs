@@ -127,6 +127,13 @@ $dashedIdentResult = (new CssModulesTransformer())->transform(<<<'CSS'
   composes: card from "./cards.module.css";
   color: var(--card-accent);
 }
+
+@media (max-width: env(--card-breakpoint)) {
+  .paletteCardCompact {
+    color: env(--card-accent);
+    composes: card from "./cards.module.css";
+  }
+}
 CSS, [
     'hash' => 'BlockA',
     'dashedIdents' => true,
@@ -433,7 +440,7 @@ $expected = [
             'isReferenced' => false,
         ],
     ],
-    'dashedIdents' => '@property --BlockA_card-accent{syntax:"<color>";inherits:false;initial-value:#ff0}@font-palette-values --BlockA_card-palette{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4}.BlockA_paletteCard{--BlockA_card-accent:red;font-palette:--BlockA_card-palette;color:var(--BlockA_card-accent)}',
+    'dashedIdents' => '@property --BlockA_card-accent{syntax:"<color>";inherits:false;initial-value:#ff0}@font-palette-values --BlockA_card-palette{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4}.BlockA_paletteCard{--BlockA_card-accent:red;font-palette:--BlockA_card-palette;color:var(--BlockA_card-accent)}@media (width<=env(--BlockA_card-breakpoint)){.BlockA_paletteCardCompact{color:env(--BlockA_card-accent)}}',
     'dashedIdentExports' => [
         '--card-accent' => [
             'name' => '--BlockA_card-accent',
@@ -447,6 +454,22 @@ $expected = [
         ],
         'paletteCard' => [
             'name' => 'BlockA_paletteCard',
+            'composes' => [
+                [
+                    'type' => 'dependency',
+                    'name' => 'card',
+                    'specifier' => './cards.module.css',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        '--card-breakpoint' => [
+            'name' => '--BlockA_card-breakpoint',
+            'composes' => [],
+            'isReferenced' => true,
+        ],
+        'paletteCardCompact' => [
+            'name' => 'BlockA_paletteCardCompact',
             'composes' => [
                 [
                     'type' => 'dependency',

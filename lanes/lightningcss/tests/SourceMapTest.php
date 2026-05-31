@@ -337,6 +337,37 @@ return [
         $t->same([0, null], array_column($negativeDecoded, 'sourceIndex'));
         $t->same([0, null], array_column($negativeDecoded, 'nameIndex'));
     },
+    'source map closest lookup follows upstream duplicate generated-column search' => static function (TestRunner $t): void {
+        $inputMap = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'
+        );
+
+        $exactDuplicate = $inputMap->findClosestMapping(0, 0);
+        $afterLast = $inputMap->findClosestMapping(0, 1);
+
+        $t->same(
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+            $exactDuplicate
+        );
+        $t->same(0, $afterLast['generatedColumn'] ?? null);
+        $t->same(0, $afterLast['sourceIndex'] ?? null);
+        $t->same(0, $afterLast['nameIndex'] ?? null);
+
+        $compiled = new SourceMap();
+        $compiledSource = $compiled->addSource('cache/compiled.css');
+        $compiled->setSourceContent($compiledSource, '.compiled{}');
+        $compiled->addMapping(0, 0, $compiledSource, 0, 0, 'compiledRule');
+        $compiled->extendWithSourceMap($inputMap);
+
+        $decoded = SourceMap::decodeVlq($compiled->writeVlq());
+        $data = $compiled->toArray(null, false);
+
+        $t->same('A', $compiled->writeVlq());
+        $t->same([null], array_column($decoded, 'sourceIndex'));
+        $t->same([null], array_column($decoded, 'nameIndex'));
+        $t->same(['cache/compiled.css', 'compiled.css'], $data['sources']);
+        $t->same(['compiledRule', 'rule'], $data['names']);
+    },
     'source map rejects invalid raw vlq map indexes' => static function (TestRunner $t): void {
         $map = new SourceMap();
 

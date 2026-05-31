@@ -15,6 +15,8 @@ return [
     'expectedEmptyPortRemotePath' => '~wp-content/site.git',
     'oversizedRemoteUrl' => 'https://' . str_repeat('a', 1025) . '/wp-content/site.git',
     'expectedOversizedRemoteRejected' => true,
+    'malformedBracketedRemoteUrl' => '[::1:wp-content/site.git',
+    'expectedMalformedBracketedRemoteRejected' => true,
     'localMirrorUrl' => 'file://Deploy@[::1]/var/cache/wp-content/site.git',
     'expectedLocalMirrorUrl' => 'file://Deploy@[::1]/var/cache/wp-content/site.git',
     'expectedLocalMirrorScheme' => 'file',

@@ -245,18 +245,7 @@ final class SourceMap
     public function addSourceMap(SourceMap $sourceMap, int $lineOffset = 0): void
     {
         $sourceIndexes = [];
-        foreach ($sourceMap->sources as $index => $source) {
-            $mappedIndex = $this->addSource($source);
-            $sourceIndexes[$index] = $mappedIndex;
-            if (array_key_exists($index, $sourceMap->sourcesContent)) {
-                $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
-            }
-        }
-
         $nameIndexes = [];
-        foreach ($sourceMap->names as $index => $name) {
-            $nameIndexes[$index] = $this->addName($name);
-        }
 
         $childMaxLine = null;
         $remappedByLine = [];
@@ -272,8 +261,12 @@ final class SourceMap
 
             $nameIndex = null;
             if ($mapping['nameIndex'] !== null) {
-                if (!array_key_exists($mapping['nameIndex'], $nameIndexes)) {
+                if (!array_key_exists($mapping['nameIndex'], $sourceMap->names)) {
                     throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
+                }
+
+                if (!array_key_exists($mapping['nameIndex'], $nameIndexes)) {
+                    $nameIndexes[$mapping['nameIndex']] = $this->addName($sourceMap->names[$mapping['nameIndex']]);
                 }
 
                 $nameIndex = $nameIndexes[$mapping['nameIndex']];
@@ -281,8 +274,16 @@ final class SourceMap
 
             $sourceIndex = null;
             if ($mapping['sourceIndex'] !== null) {
-                if (!array_key_exists($mapping['sourceIndex'], $sourceIndexes)) {
+                if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
                     throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
+                }
+
+                if (!array_key_exists($mapping['sourceIndex'], $sourceIndexes)) {
+                    $mappedIndex = $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
+                    $sourceIndexes[$mapping['sourceIndex']] = $mappedIndex;
+                    if (array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
+                        $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
+                    }
                 }
 
                 $sourceIndex = $sourceIndexes[$mapping['sourceIndex']];
@@ -669,39 +670,21 @@ final class SourceMap
         $this->assertNonNegative($generatedLine, 'generated line');
         $this->assertNonNegative($generatedColumn, 'generated column');
 
-        $lineMappings = [];
-        foreach ($this->mappings as $mapping) {
-            if ($mapping['generatedLine'] === $generatedLine) {
-                $lineMappings[] = $mapping;
-            }
-        }
-
+        $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
         if ($lineMappings === []) {
             return null;
         }
 
-        usort(
-            $lineMappings,
-            static fn (array $a, array $b): int => [$a['generatedColumn'], $a['order']]
-                <=> [$b['generatedColumn'], $b['order']]
-        );
-
-        $previous = null;
-        foreach ($lineMappings as $mapping) {
-            if ($mapping['generatedColumn'] === $generatedColumn) {
-                return $this->mappingForRead($mapping);
-            }
-
-            if ($mapping['generatedColumn'] > $generatedColumn) {
-                return $previous === null
-                    ? $this->mappingForRead($lineMappings[0], 0)
-                    : $this->mappingForRead($previous);
-            }
-
-            $previous = $mapping;
+        $index = $this->rustBinarySearchGeneratedColumn($lineMappings, $generatedColumn);
+        if (isset($lineMappings[$index]) && $lineMappings[$index]['column'] === $generatedColumn) {
+            return $this->mappingForRead($this->mappings[$lineMappings[$index]['index']]);
         }
 
-        return $this->mappingForRead($lineMappings[0], 0);
+        if ($index === 0 || $index === count($lineMappings)) {
+            return $this->mappingForRead($this->mappings[$lineMappings[0]['index']], 0);
+        }
+
+        return $this->mappingForRead($this->mappings[$lineMappings[$index - 1]['index']]);
     }
 
     /**

@@ -200,6 +200,17 @@ $duplicateColumnNegativeMap->addVlqMap(
 );
 $duplicateColumnNegativeMap->offsetColumns(0, 5, -5);
 
+$duplicateLookupInputMap = SourceMap::fromJson(
+    '{"version":3,"mappings":"AAAAAA","sources":["wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{}"],"names":["duplicate-lookup-rule"]}'
+);
+$duplicateLookupExact = $duplicateLookupInputMap->findClosestMapping(0, 0);
+$duplicateLookupAfterLast = $duplicateLookupInputMap->findClosestMapping(0, 1);
+$duplicateLookupExtendedMap = new SourceMap();
+$duplicateLookupCompiled = $duplicateLookupExtendedMap->addSource('wp-content/cache/duplicate-lookup.css');
+$duplicateLookupExtendedMap->setSourceContent($duplicateLookupCompiled, '.wp-block-duplicate-lookup{color:red}');
+$duplicateLookupExtendedMap->addMapping(0, 0, $duplicateLookupCompiled, 0, 0, 'compiled-duplicate-lookup');
+$duplicateLookupExtendedMap->extendWithSourceMap($duplicateLookupInputMap);
+
 $maxUnsignedVlqDecode = SourceMap::decodeVlq('+/////H')[0]['generatedColumn'];
 $invalidRelativeVlqGuard = true;
 foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI'] as $invalidVlqMapping) {
@@ -245,6 +256,9 @@ $actual = [
     'streamingRawVlqMap' => $streamingRawVlqMap->toJson(null, false),
     'duplicateColumnPositiveMap' => $duplicateColumnPositiveMap->toJson(null, false),
     'duplicateColumnNegativeMap' => $duplicateColumnNegativeMap->toJson(null, false),
+    'duplicateLookupExact' => $duplicateLookupExact,
+    'duplicateLookupAfterLast' => $duplicateLookupAfterLast,
+    'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
     'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
     'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
     'lookup' => $lookup,
@@ -268,6 +282,9 @@ if (($argv[1] ?? null) === '--self-test') {
         'streamingRawVlqMap' => '{"version":3,"mappings":";;IAAAA,A;K","sources":["wp-content/themes/example/source-map-stream.css"],"sourcesContent":[".wp-block-source-map-stream{}"],"names":["stream-rule"]}',
         'duplicateColumnPositiveMap' => '{"version":3,"mappings":"AAAAA,K,C","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
         'duplicateColumnNegativeMap' => '{"version":3,"mappings":"AAAAA,A","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
+        'duplicateLookupExact' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+        'duplicateLookupAfterLast' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
+        'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',
         'maxUnsignedVlqDecode' => 4294967295,
         'invalidRelativeVlqGuard' => true,
         'lookup' => [

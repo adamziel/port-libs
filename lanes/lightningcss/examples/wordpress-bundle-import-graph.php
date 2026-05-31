@@ -122,9 +122,9 @@ echo 'source-map-sources: collected' . PHP_EOL;
 
 $generatedBlockMap = 'data:application/json;base64,' . base64_encode(json_encode([
     'version' => 3,
-    'mappings' => 'AAAA',
-    'sources' => ['blocks/generated-card.scss'],
-    'sourcesContent' => ['.wp-block-card { color: $theme-green }'],
+    'mappings' => 'ACAA',
+    'sources' => ['blocks/_tokens.scss', 'blocks/generated-card.scss'],
+    'sourcesContent' => ['$theme-green: green;', '.wp-block-card { color: $theme-green }'],
     'names' => [],
 ], JSON_THROW_ON_ERROR));
 
@@ -145,6 +145,7 @@ if (
 }
 
 echo 'source-map-input: remapped' . PHP_EOL;
+echo 'source-map-input-unused: pruned' . PHP_EOL;
 
 $sharedPresetBundle = (new CssBundler())->bundle('style.css', [
     'style.css' => <<<'CSS'
