@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 00:06 UTC):
+  Latest libsqlite source is integrated as `f1a6cbba1`
+  (`libsqlite: add thirtieth current corpus sweep`). The batch accepted 9
+  behavior-producing handoffs: VFS mmap pragma state, trigger/FK fkey2 deferred
+  graph behavior, date UTC suffix behavior, window6 text RANGE behavior, SELECT
+  core range matrix behavior, PRAGMA fault integrity behavior, expression
+  affinity types2 behavior, B-tree index2 aggregate projection behavior, and
+  trigger/FK recursive-once behavior. Verification passed PHP lint for `14`
+  changed/new PHP files, `git diff --check -- lanes/libsqlite`,
+  `SQLiteNoDomainSpecificApiTest.php` with `1 file / 3 assertions / 0
+  failures`, focused selected tests `9 files / 91092 assertions / 0 failures /
+  19047 PASS lines`, accepted-base overlap `0 PASS lines`, trigger related
+  tests `46 files / 366916 assertions / 0 failures / 295020 PASS lines`, VFS
+  related tests `17 files / 416414 assertions / 0 failures / 16987 PASS lines`,
+  B-tree related tests `19 files / 732887 assertions / 0 failures / 43618 PASS
+  lines`, expression related tests `4 files / 11026 assertions / 0 failures /
+  7018 PASS lines`, and PRAGMA related tests `3 files / 23024 assertions / 0
+  failures / 2010 PASS lines`. Honest selected movement is `+19047`, so the
+  public row should move to `1292330 pass / 0 fail` with coverage still `1589
+  / 1589`. The UPSERT handoff from the same intake was parked because it was an
+  explicit overlap/blocker note.
+
 - 2026-05-31 supervisor continuation (integration sample 00:01 UTC):
   Latest libsqlite source is integrated as `b263066b1`
   (`libsqlite: add twenty-ninth current corpus sweep`). The batch accepted 8
