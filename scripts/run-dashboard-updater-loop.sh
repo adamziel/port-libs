@@ -5,6 +5,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 AGENT_BIN="${AGENT_BIN:-codex}"
+AGENT_FAST_MODEL="${AGENT_FAST_MODEL:-gpt-5.5}"
+AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-xhigh}"
+AGENT_FAST_SERVICE_TIER="${AGENT_FAST_SERVICE_TIER:-priority}"
 INTERVAL_SECONDS="${DASHBOARD_UPDATER_INTERVAL_SECONDS:-600}"
 STABILITY_SECONDS="${DASHBOARD_UPDATER_STABILITY_SECONDS:-30}"
 STABILITY_POLL_SECONDS="${DASHBOARD_UPDATER_STABILITY_POLL_SECONDS:-15}"
@@ -94,7 +97,11 @@ while true; do
 
   printf '\nStatus: starting dashboard updater; full output goes to %s\n' "$log"
 
-  if ! "$AGENT_BIN" -a never exec -C "$ROOT" -s danger-full-access - < "$PROMPT_FILE" > "$log" 2>&1; then
+  if ! "$AGENT_BIN" \
+    -m "$AGENT_FAST_MODEL" \
+    -c "model_service_tier=\"$AGENT_FAST_SERVICE_TIER\"" \
+    -c "model_reasoning_effort=\"$AGENT_FAST_REASONING\"" \
+    -a never exec -C "$ROOT" -s danger-full-access - < "$PROMPT_FILE" > "$log" 2>&1; then
     status=$?
     printf '\nDashboard updater failed with status %s. Log: %s\n' "$status" "$log" >&2
     printf 'Last log lines:\n' >&2

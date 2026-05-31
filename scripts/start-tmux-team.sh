@@ -6,6 +6,9 @@ cd "$ROOT"
 
 MAX_WORKERS="${MAX_WORKERS:-3}"
 AGENT_BIN="${AGENT_BIN:-codex}"
+AGENT_FAST_MODEL="${AGENT_FAST_MODEL:-gpt-5.5}"
+AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-xhigh}"
+AGENT_FAST_SERVICE_TIER="${AGENT_FAST_SERVICE_TIER:-priority}"
 LANES=(gitoxide lightningcss markerpdf libsqlite readability pandoc quadrable syncthing difftastic rclone dolt esbuild)
 if [[ -n "${LANES_OVERRIDE:-}" ]]; then
   # Space-separated lane slugs, for example:
@@ -56,17 +59,17 @@ for lane in "${LANES[@]}"; do
     "$ROOT/.tmux-team/prompts/worker-template.md" > "$prompt"
 
   log="$LOG_DIR/${session}-$(date -u +%Y%m%dT%H%M%SZ).log"
-  tmux new-session -d -s "$session" "AGENT_BIN='$AGENT_BIN' '$ROOT/scripts/run-tmux-agent.sh' '$session' '$prompt' '$log'"
+  tmux new-session -d -s "$session" "AGENT_BIN='$AGENT_BIN' AGENT_FAST_MODEL='$AGENT_FAST_MODEL' AGENT_FAST_REASONING='$AGENT_FAST_REASONING' AGENT_FAST_SERVICE_TIER='$AGENT_FAST_SERVICE_TIER' '$ROOT/scripts/run-tmux-agent.sh' '$session' '$prompt' '$log'"
   started=$((started + 1))
 done
 
 if ! tmux has-session -t port-auditor 2>/dev/null; then
   log="$LOG_DIR/port-auditor-$(date -u +%Y%m%dT%H%M%SZ).log"
-  tmux new-session -d -s port-auditor "AGENT_BIN='$AGENT_BIN' '$ROOT/scripts/run-tmux-agent.sh' 'port-auditor' '$ROOT/.tmux-team/prompts/auditor.md' '$log'"
+  tmux new-session -d -s port-auditor "AGENT_BIN='$AGENT_BIN' AGENT_FAST_MODEL='$AGENT_FAST_MODEL' AGENT_FAST_REASONING='$AGENT_FAST_REASONING' AGENT_FAST_SERVICE_TIER='$AGENT_FAST_SERVICE_TIER' '$ROOT/scripts/run-tmux-agent.sh' 'port-auditor' '$ROOT/.tmux-team/prompts/auditor.md' '$log'"
 fi
 
 if ! tmux has-session -t port-evaluator 2>/dev/null; then
-  tmux new-session -d -s port-evaluator "AGENT_BIN='$AGENT_BIN' INTERVAL_SECONDS='${EVALUATOR_INTERVAL_SECONDS:-1200}' '$ROOT/scripts/run-evaluator-loop.sh'"
+  tmux new-session -d -s port-evaluator "AGENT_BIN='$AGENT_BIN' AGENT_FAST_MODEL='$AGENT_FAST_MODEL' AGENT_FAST_REASONING='$AGENT_FAST_REASONING' AGENT_FAST_SERVICE_TIER='$AGENT_FAST_SERVICE_TIER' INTERVAL_SECONDS='${EVALUATOR_INTERVAL_SECONDS:-1200}' '$ROOT/scripts/run-evaluator-loop.sh'"
 fi
 
 printf 'Started %d new implementation worker(s); max active workers: %s\n' "$started" "$MAX_WORKERS"
