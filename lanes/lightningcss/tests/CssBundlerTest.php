@@ -540,6 +540,35 @@ CSS,
             ], '/entry.css')
         );
     },
+    'css bundler parses escaped import source and modifier identifiers before graph resolution' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $code = $bundle([
+            '/entry.css' => <<<'CSS'
+@import u\72l(pkg:card.css) l\61yer(theme.blocks) s\75pports(display: grid) screen;
+@import \75 rl("tokens.css") \6c ayer;
+.entry { color: red }
+CSS,
+            '/vendor/card.css' => '.card { color: green }',
+            '/tokens.css' => ':root { --gap: 1rem }',
+        ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            if ($specifier === 'pkg:card.css') {
+                return '/vendor/card.css';
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        });
+
+        $t->same(
+            '@supports (display:grid){@media screen{@layer theme.blocks{.card{color:green}}}}@layer{:root{--gap:1rem}}.entry{color:red}',
+            $code
+        );
+        $t->same([
+            ['pkg:card.css', '/entry.css'],
+            ['tokens.css', '/entry.css'],
+        ], $resolved);
+    },
     'css bundler resolves escaped url delimiters in import graph like upstream' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.close{color:#00f}.open{color:green}.entry{color:red}',

@@ -43,11 +43,16 @@ CSS
         );
     },
     'css minifier preserves descendant spaces before functional pseudo classes' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
         $css = '.scope :is(.title, .summary) { color: blue; } .scope:not(.is-hidden) { color: red; }';
 
         $t->same(
             '.scope :is(.title,.summary){color:#00f}.scope:not(.is-hidden){color:red}',
-            (new CssMinifier())->minify($css)
+            $minifier->minify($css)
+        );
+        $t->same(
+            '.theme :global(.legacy),.theme :local(.local){color:red}',
+            $minifier->minify('.theme :global(.legacy), .theme :local(.local) { color: red; }')
         );
     },
     'css minifier preserves upstream no-target nested parent-reference spaces' => static function (TestRunner $t): void {

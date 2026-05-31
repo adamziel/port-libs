@@ -12,7 +12,7 @@ Native loose Git object storage with canonical object headers, loose-header enco
 
 ## WordPress Loose Object Header Example
 
-`examples/wordpress-object-header.php` builds a block-content blob, decodes its canonical loose object header, reports SHA-1 and SHA-256 object IDs, and demonstrates the upstream `ObjectRef::from_loose()` boundary where a read-ahead buffer is parsed by advertised object size while exact storage parsing remains strict. This models WordPress import or deployment tools inspecting loose block-content blobs without invoking `git cat-file`.
+`examples/wordpress-object-header.php` builds a block-content blob, decodes its canonical loose object header, reports SHA-1 and SHA-256 object IDs, and demonstrates the upstream `ObjectRef::from_loose()` boundary where a read-ahead buffer is parsed by advertised object size while exact storage parsing remains strict. It also records Gitoxide's signed-size boundary: `+N` and `-0` loose headers parse to the canonical body size while non-zero negative sizes are rejected. This models WordPress import or deployment tools inspecting loose block-content blobs without invoking `git cat-file`.
 
 ## WordPress Commit Signature Example
 

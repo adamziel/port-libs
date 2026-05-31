@@ -994,8 +994,9 @@ final class CssBundler
         $offset = $this->skipWhitespaceAndComments($rest, 0);
         $specifier = null;
 
-        if ($this->startsFunction($rest, $offset, 'url')) {
-            $open = $offset + strlen($this->readIdentifier($rest, $offset));
+        $urlOpen = $this->cssFunctionOpenOffset($rest, $offset, 'url');
+        if ($urlOpen !== null) {
+            $open = $urlOpen;
             try {
                 $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
             } catch (CssBundleException) {
@@ -1018,24 +1019,26 @@ final class CssBundler
         $media = '';
 
         $offset = $this->skipWhitespaceAndComments($rest, $offset);
-        if ($this->startsFunction($rest, $offset, 'layer')) {
-            $open = $offset + strlen($this->readIdentifier($rest, $offset));
+        $layerOpen = $this->cssFunctionOpenOffset($rest, $offset, 'layer');
+        if ($layerOpen !== null) {
+            $open = $layerOpen;
             $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
             $layer = trim(substr($rest, $open + 1, $close - $open - 1));
             $this->validateImportLayerName($layer, $file, $loc);
             $offset = $close + 1;
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
-        } elseif (strncasecmp(substr($rest, $offset, strlen('layer')), 'layer', strlen('layer')) === 0) {
-            $next = $rest[$offset + strlen('layer')] ?? '';
-            if ($next === '' || !$this->isIdentifierChar($next)) {
+        } else {
+            $identifier = $this->readCssIdentifierToken($rest, $offset);
+            if ($identifier !== null && strcasecmp($identifier['name'], 'layer') === 0) {
                 $layer = '';
-                $offset += strlen('layer');
+                $offset = $identifier['end'];
                 $offset = $this->skipWhitespaceAndComments($rest, $offset);
             }
         }
 
-        if ($this->startsFunction($rest, $offset, 'supports')) {
-            $open = $offset + strlen($this->readIdentifier($rest, $offset));
+        $supportsOpen = $this->cssFunctionOpenOffset($rest, $offset, 'supports');
+        if ($supportsOpen !== null) {
+            $open = $supportsOpen;
             $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
             $supports = trim(substr($rest, $open + 1, $close - $open - 1));
             $offset = $close + 1;
@@ -2512,6 +2515,59 @@ final class CssBundler
         $next = $value[$offset + $length] ?? '';
 
         return ($previous === '' || !$this->isIdentifierChar($previous)) && $next === '(';
+    }
+
+    private function cssFunctionOpenOffset(string $value, int $offset, string $name): ?int
+    {
+        $identifier = $this->readCssIdentifierToken($value, $offset);
+        if ($identifier === null || strcasecmp($identifier['name'], $name) !== 0) {
+            return null;
+        }
+
+        return ($value[$identifier['end']] ?? '') === '(' ? $identifier['end'] : null;
+    }
+
+    /**
+     * @return array{name:string,end:int}|null
+     */
+    private function readCssIdentifierToken(string $value, int $offset): ?array
+    {
+        $length = strlen($value);
+        if ($offset >= $length) {
+            return null;
+        }
+
+        $cursor = $offset;
+        $raw = '';
+        while ($cursor < $length) {
+            $char = $value[$cursor];
+            if ($char === '\\') {
+                if (!$this->isValidCssEscape($value, $cursor)) {
+                    break;
+                }
+
+                $end = $this->cssEscapeEndOffset($value, $cursor);
+                $raw .= substr($value, $cursor, $end - $cursor + 1);
+                $cursor = $end + 1;
+                continue;
+            }
+
+            if (!$this->isIdentifierChar($char)) {
+                break;
+            }
+
+            $raw .= $char;
+            $cursor++;
+        }
+
+        if ($raw === '') {
+            return null;
+        }
+
+        return [
+            'name' => $this->decodeCssEscapes($raw),
+            'end' => $cursor,
+        ];
     }
 
     private function readIdentifier(string $value, int $offset): string

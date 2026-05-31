@@ -72,6 +72,7 @@ final class PathspecPattern
         if ($input[0] === ':') {
             $cursor = 1;
             $length = strlen($input);
+            $unimplemented = "\"#%&'-,;<=>@_`~";
             while ($cursor < $length) {
                 $char = $input[$cursor];
                 $cursor++;
@@ -85,6 +86,9 @@ final class PathspecPattern
                 }
                 if ($char === ':') {
                     break;
+                }
+                if (str_contains($unimplemented, $char)) {
+                    throw new \InvalidArgumentException("Unimplemented short keyword: {$char}");
                 }
                 $cursor--;
                 break;

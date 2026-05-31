@@ -31,5 +31,9 @@ return [
     'optionalPrefixPolicy' => $fixture['optionalPrefixPolicy'],
     'backslashGitdirSlashPolicy' => $fixture['backslashGitdirSlashPolicy'],
     'backslashGitdirWildcardPolicy' => $fixture['backslashGitdirWildcardPolicy'],
+    'symlinkGitdirSupported' => $fixture['symlinkGitdirSupported'],
+    'symlinkRealpathPolicy' => $fixture['symlinkRealpathPolicy'],
+    'symlinkLiteralPolicy' => $fixture['symlinkLiteralPolicy'],
+    'symlinkIcasePolicy' => $fixture['symlinkIcasePolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

@@ -66,6 +66,14 @@ $result = $cascade->get(new CredentialContext(url: 'https://git.example.test/wp-
 $cascade->store($result);
 $cascade->erase($result);
 
+$completeQuitCascade = new CredentialCascade([
+    static fn (): string => "username=emergency-deploy\npassword=emergency-token\nquit=1\n",
+    static function (): string {
+        throw new RuntimeException('upstream should stop after complete credentials');
+    },
+], useHttpPath: true);
+$completeQuitResult = $completeQuitCascade->get(new CredentialContext(url: 'https://git.example.test/wp-content.git'));
+
 $diagnosticContext = $result->context->redacted();
 $diagnosticBytes = $diagnosticContext->storageBytes();
 
@@ -77,6 +85,8 @@ return [
     'actions' => $actions,
     'storePayloads' => $storePayloads,
     'erasePayloads' => $erasePayloads,
+    'completeQuitIdentity' => $completeQuitResult->identity(),
+    'completeQuitPropagated' => $completeQuitResult->quit,
     'diagnosticBytes' => $diagnosticBytes,
     'secretsInDiagnosticLog' => str_contains($diagnosticBytes, 'wp-deploy-token')
         || str_contains($diagnosticBytes, 'wp-refresh-token')

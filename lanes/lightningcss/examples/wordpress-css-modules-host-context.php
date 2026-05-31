@@ -11,6 +11,14 @@ $css = <<<'CSS'
   color: red;
 }
 
+:host-context(.is-editor-preview :global(.wp-block-group)) .card {
+  border-color: red;
+}
+
+:host-context(.is-editor-preview :local(.legacy-card)) .card {
+  outline-color: yellow;
+}
+
 :host(.block-card) .cardHost {
   color: yellow;
 }
@@ -36,7 +44,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => ':host-context(.is-editor-preview) .BlockA_card{color:red}:host(.BlockA_block-card) .BlockA_cardHost{color:#ff0}.BlockA_card{color:green}.BlockA_base{color:#fff}',
+    'code' => ':host-context(.is-editor-preview) .BlockA_card{color:red}:host-context(.is-editor-preview :global(.wp-block-group)) .BlockA_card{border-color:red}:host-context(.is-editor-preview :local(.legacy-card)) .BlockA_card{outline-color:#ff0}:host(.BlockA_block-card) .BlockA_cardHost{color:#ff0}.BlockA_card{color:green}.BlockA_base{color:#fff}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',

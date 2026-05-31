@@ -646,7 +646,10 @@ final class ObjectDatabase
         return $object;
     }
 
-    private function tryReadLocalObject(string $oid): ?GitObject
+    /**
+     * @param list<string> $externalBaseStack
+     */
+    private function tryReadLocalObject(string $oid, array $externalBaseStack = []): ?GitObject
     {
         foreach ($this->multiPackIndexes() as $multiPack) {
             $entry = $multiPack['index']->lookup($oid);
@@ -659,12 +662,12 @@ final class ObjectDatabase
                 throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
             }
 
-            return $bundle['data']->readObjectAtOffset($bundle['index'], $oid, $entry->packOffset);
+            return $this->readPackObjectWithExternalBases($bundle, $oid, $externalBaseStack);
         }
 
         foreach ($this->standalonePackBundles() as $bundle) {
             if ($bundle['index']->lookup($oid) !== null) {
-                return $bundle['data']->readObject($bundle['index'], $oid);
+                return $this->readPackObjectWithExternalBases($bundle, $oid, $externalBaseStack);
             }
         }
 
@@ -681,7 +684,7 @@ final class ObjectDatabase
     /**
      * @return null|array{type:string,size:int,source:'pack'|'loose'}
      */
-    private function tryReadLocalHeader(string $oid): ?array
+    private function tryReadLocalHeader(string $oid, array $externalBaseStack = []): ?array
     {
         foreach ($this->multiPackIndexes() as $multiPack) {
             $entry = $multiPack['index']->lookup($oid);
@@ -694,12 +697,12 @@ final class ObjectDatabase
                 throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
             }
 
-            return self::headerFromPack($bundle['data']->readObjectHeaderAtOffset($bundle['index'], $oid, $entry->packOffset));
+            return $this->readPackObjectHeaderWithExternalBases($bundle, $oid, $externalBaseStack);
         }
 
         foreach ($this->standalonePackBundles() as $bundle) {
             if ($bundle['index']->lookup($oid) !== null) {
-                return self::headerFromPack($bundle['data']->readObjectHeader($bundle['index'], $oid));
+                return $this->readPackObjectHeaderWithExternalBases($bundle, $oid, $externalBaseStack);
             }
         }
 
@@ -715,6 +718,112 @@ final class ObjectDatabase
         }
 
         return null;
+    }
+
+    /**
+     * @param array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string} $bundle
+     * @param list<string> $externalBaseStack
+     */
+    private function readPackObjectWithExternalBases(array $bundle, string $oid, array $externalBaseStack): GitObject
+    {
+        $stack = array_merge($externalBaseStack, [$oid]);
+
+        return $bundle['data']->readObjectWithExternalBaseResolver(
+            $bundle['index'],
+            $oid,
+            fn (string $baseOid): ?GitObject => $this->resolveExternalDeltaBaseObject($baseOid, $stack)
+        );
+    }
+
+    /**
+     * @param array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string} $bundle
+     * @param list<string> $externalBaseStack
+     * @return array{type:string,size:int,source:'pack'}
+     */
+    private function readPackObjectHeaderWithExternalBases(array $bundle, string $oid, array $externalBaseStack): array
+    {
+        $stack = array_merge($externalBaseStack, [$oid]);
+
+        return self::headerFromPack($bundle['data']->readObjectHeaderWithExternalBaseResolver(
+            $bundle['index'],
+            $oid,
+            fn (string $baseOid): null|GitObject|array => $this->resolveExternalDeltaBaseHeader($baseOid, $stack)
+        ));
+    }
+
+    /**
+     * @param list<string> $externalBaseStack
+     */
+    private function resolveExternalDeltaBaseObject(string $baseOid, array $externalBaseStack): ?GitObject
+    {
+        $this->assertObjectId($baseOid);
+        $baseOid = strtolower($baseOid);
+        if (in_array($baseOid, $externalBaseStack, true)) {
+            throw new \RuntimeException("REF_DELTA external base cycle while resolving: {$baseOid}");
+        }
+
+        $stack = array_merge($externalBaseStack, [$baseOid]);
+        $object = $this->tryReadLocalObject($baseOid, $stack);
+        if ($object !== null) {
+            return $object;
+        }
+
+        if (!$this->hasPromisorConfiguration()) {
+            return null;
+        }
+
+        $object = $this->resolvePromisedObject($baseOid);
+        if ($object !== null) {
+            return $object;
+        }
+
+        $this->refreshObjectStorage();
+
+        return $this->tryReadLocalObject($baseOid, $stack);
+    }
+
+    /**
+     * @param list<string> $externalBaseStack
+     * @return null|GitObject|array{type:string,size:int,numDeltas:int}
+     */
+    private function resolveExternalDeltaBaseHeader(string $baseOid, array $externalBaseStack): null|GitObject|array
+    {
+        $this->assertObjectId($baseOid);
+        $baseOid = strtolower($baseOid);
+        if (in_array($baseOid, $externalBaseStack, true)) {
+            throw new \RuntimeException("REF_DELTA external base cycle while resolving header: {$baseOid}");
+        }
+
+        $stack = array_merge($externalBaseStack, [$baseOid]);
+        $header = $this->tryReadLocalHeader($baseOid, $stack);
+        if ($header !== null) {
+            return [
+                'type' => $header['type'],
+                'size' => $header['size'],
+                'numDeltas' => 0,
+            ];
+        }
+
+        if (!$this->hasPromisorConfiguration()) {
+            return null;
+        }
+
+        $object = $this->resolvePromisedObject($baseOid);
+        if ($object !== null) {
+            return $object;
+        }
+
+        $this->refreshObjectStorage();
+        $header = $this->tryReadLocalHeader($baseOid, $stack);
+        if ($header === null) {
+            return null;
+        }
+
+        return [
+            'type' => $header['type'],
+            'size' => $header['size'],
+            'numDeltas' => 0,
+        ];
     }
 
     private function refreshObjectStorage(): void

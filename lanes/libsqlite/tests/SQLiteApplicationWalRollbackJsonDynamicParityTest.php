@@ -21,6 +21,7 @@ $frameChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameC
 $headerChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicHeaderChecksumMismatchScenarios(18);
 $successfulMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicSuccessfulMaterializedWalScenarios(24);
 $fullRunMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFullRunMaterializedWalScenarios(18);
+$fullRunCheckpointScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFullRunCheckpointScenariosFromFullRunScenarios($fullRunMaterializedWalScenarios);
 $committedPrefixFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicCommittedPrefixFailureScenarios(18);
 $rollbackDisabledMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledMaterializedWalScenarios(18);
 $rollbackDisabledFollowupScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(18);
@@ -236,6 +237,34 @@ $tests = [
     },
     'sqlite application wal rollback json dynamic parity full-run materialized WAL covers json text and jsonb rows' => static function (TestRunner $t) use ($fullRunMaterializedWalScenarios): void {
         $jsonModes = array_values(array_unique(array_column($fullRunMaterializedWalScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json dynamic parity full-run checkpoint exposes requested scenario count' => static function (TestRunner $t) use ($fullRunCheckpointScenarios): void {
+        $t->same(18, count($fullRunCheckpointScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity full-run checkpoint covers checkpoint reset modes' => static function (TestRunner $t) use ($fullRunCheckpointScenarios): void {
+        $modes = array_values(array_unique(array_column($fullRunCheckpointScenarios, 'checkpoint_mode')));
+        sort($modes);
+        $t->same(['restart', 'truncate'], $modes);
+    },
+    'sqlite application wal rollback json dynamic parity full-run checkpoint covers restart and truncate actions' => static function (TestRunner $t) use ($fullRunCheckpointScenarios): void {
+        $actions = array_values(array_unique(array_column($fullRunCheckpointScenarios, 'expected_checkpoint_action')));
+        sort($actions);
+        $t->same(['restart_wal', 'truncate_wal'], $actions);
+    },
+    'sqlite application wal rollback json dynamic parity full-run checkpoint covers committed prefix frame counts' => static function (TestRunner $t) use ($fullRunCheckpointScenarios): void {
+        $prefixCounts = array_values(array_unique(array_column($fullRunCheckpointScenarios, 'committed_prefix_frame_count')));
+        sort($prefixCounts);
+        $t->same([6, 7, 8, 9], $prefixCounts);
+    },
+    'sqlite application wal rollback json dynamic parity full-run checkpoint covers both page sizes' => static function (TestRunner $t) use ($fullRunCheckpointScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($fullRunCheckpointScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity full-run checkpoint covers json text and jsonb rows' => static function (TestRunner $t) use ($fullRunCheckpointScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($fullRunCheckpointScenarios, 'jsonb_mode')));
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
     },
@@ -1987,6 +2016,112 @@ foreach ($fullRunMaterializedWalScenarios as $scenario) {
     };
 }
 
+foreach ($fullRunCheckpointScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $followupPlan = $scenario['full_run_followup_plan'];
+    $checkpointPlan = $scenario['full_run_checkpoint_plan'];
+    $releasedCheckpoint = $scenario['full_run_released_checkpoint'];
+    $pinnedCheckpoint = $scenario['full_run_pinned_checkpoint'];
+    $prefix = 'sqlite application wal rollback json dynamic parity full-run checkpoint seed ' . $seed . ' ';
+
+    $tests[$prefix . 'starts from successful full-run followup WAL'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same('ready', $followupPlan['status']);
+        $t->same(false, $followupPlan['rollback_required']);
+        $t->same($scenario['committed_prefix_frame_count'], $followupPlan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'records checkpoint input database hash'] = static function (TestRunner $t) use ($scenario, $followupPlan): void {
+        $t->same($scenario['checkpoint_database_bytes_before_hash'], hash('sha256', (string) $followupPlan['database_bytes_before']));
+    };
+    $tests[$prefix . 'uses selected checkpoint reset mode and action'] = static function (TestRunner $t) use ($scenario, $releasedCheckpoint): void {
+        $t->same($scenario['checkpoint_mode'], $releasedCheckpoint['mode']);
+        $t->same($scenario['expected_checkpoint_action'], $releasedCheckpoint['wal_action']);
+        $t->same($scenario['expected_released_wal_bytes_length'], $releasedCheckpoint['wal_bytes_length']);
+    };
+    $tests[$prefix . 'checkpoint plan ends at full-run followup commit frame'] = static function (TestRunner $t) use ($scenario, $followupPlan, $checkpointPlan): void {
+        $t->same($scenario['committed_prefix_frame_count'], $checkpointPlan['last_commit_frame']);
+        $t->same(intdiv(strlen((string) $followupPlan['database_bytes_after_import']), (int) $scenario['page_size']), $checkpointPlan['database_page_count']);
+        $t->same(strlen((string) $followupPlan['database_bytes_after_import']), $checkpointPlan['final_database_bytes']);
+    };
+    $tests[$prefix . 'checkpoint applies all latest full-run pages'] = static function (TestRunner $t) use ($scenario): void {
+        $appliedPages = $scenario['full_run_applied_page_numbers'];
+        sort($appliedPages, SORT_NUMERIC);
+        $appliedExpectedPages = array_values(array_filter(
+            $appliedPages,
+            static fn (int $pageNumber): bool => in_array($pageNumber, $scenario['expected_checkpoint_pages'], true)
+        ));
+        $t->same($scenario['expected_checkpoint_pages'], $appliedExpectedPages);
+        $t->same(true, $scenario['full_run_checkpointed_pages_match']);
+    };
+    $tests[$prefix . 'checkpoint supersedes retry catalog with followup catalog image'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, in_array($scenario['expected_followup_pages'][0], $scenario['full_run_superseded_page_numbers'], true));
+        $t->same(true, in_array($scenario['preexisting_frames'] + 2, $scenario['full_run_superseded_frame_indexes'], true));
+    };
+    $tests[$prefix . 'released checkpoint completes every committable frame'] = static function (TestRunner $t) use ($scenario, $releasedCheckpoint): void {
+        $t->same(false, $releasedCheckpoint['busy']);
+        $t->same(true, $releasedCheckpoint['can_reset']);
+        $t->same(0, $releasedCheckpoint['remaining_committed_frame_count']);
+        $t->same(count($scenario['full_run_applied_frame_indexes']), $releasedCheckpoint['checkpointed_frame_count']);
+    };
+    $tests[$prefix . 'released checkpoint records durable sidecar dependencies'] = static function (TestRunner $t) use ($releasedCheckpoint): void {
+        $t->same(['sqlite-wal-checkpoint', 'durable-sidecar-write'], $releasedCheckpoint['dependencies']);
+    };
+    $tests[$prefix . 'released checkpoint sidecar shape matches reset mode'] = static function (TestRunner $t) use ($scenario, $releasedCheckpoint): void {
+        if ($scenario['checkpoint_mode'] === 'truncate') {
+            $t->same(null, $releasedCheckpoint['wal_header']);
+            $t->same('', $releasedCheckpoint['wal_bytes']);
+            return;
+        }
+
+        $t->same(true, is_array($releasedCheckpoint['wal_header']));
+        $t->same(32, strlen($releasedCheckpoint['wal_bytes']));
+    };
+    $tests[$prefix . 'reader pinned checkpoint preserves original full-run WAL'] = static function (TestRunner $t) use ($scenario, $followupPlan, $pinnedCheckpoint): void {
+        $t->same(true, $pinnedCheckpoint['busy']);
+        $t->same(false, $pinnedCheckpoint['can_reset']);
+        $t->same('preserve_wal', $pinnedCheckpoint['wal_action']);
+        $t->same((string) $followupPlan['wal_bytes_after'], $pinnedCheckpoint['wal_bytes']);
+        $t->same($scenario['reader_end_frame'], $pinnedCheckpoint['reader_end_frame']);
+    };
+    $tests[$prefix . 'reader pinned checkpoint leaves final followup page unapplied'] = static function (TestRunner $t) use ($scenario, $pinnedCheckpoint): void {
+        $t->same(false, $scenario['full_run_pinned_final_page_matches_followup']);
+        $t->same(1, $pinnedCheckpoint['remaining_committed_frame_count']);
+        $t->same(count($scenario['full_run_applied_frame_indexes']) - 1, $pinnedCheckpoint['checkpointed_frame_count']);
+    };
+    $tests[$prefix . 'reader pinned checkpoint still applies followup catalog page'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, $scenario['full_run_pinned_catalog_matches_followup']);
+        $t->same($scenario['committed_prefix_frame_count'] - 1, $scenario['reader_end_frame']);
+    };
+    $tests[$prefix . 'released checkpoint publishes final database size'] = static function (TestRunner $t) use ($checkpointPlan, $releasedCheckpoint): void {
+        $t->same($checkpointPlan['database_page_count'], $releasedCheckpoint['database_page_count']);
+        $t->same($checkpointPlan['final_database_bytes'], $releasedCheckpoint['final_database_bytes']);
+    };
+    $tests[$prefix . 'final row set keeps full-run corrected keys'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, $scenario['full_run_final_key_retained']);
+        $t->same(true, $scenario['full_run_fixed_payload_key_retained']);
+    };
+    $tests[$prefix . 'checkpoint preserves full-run followup final key'] = static function (TestRunner $t) use ($scenario, $followupPlan): void {
+        $t->same($scenario['expected_final_key'], $followupPlan['import_plan']['applied'][1]['key_name']);
+        $t->same(true, in_array($scenario['expected_final_key'], array_column($followupPlan['import_plan']['final_rows'], 'key_name'), true));
+    };
+    $tests[$prefix . 'full-run followup has no failed statements before checkpoint'] = static function (TestRunner $t) use ($followupPlan): void {
+        $t->same([], $followupPlan['failed_statements']);
+        $t->same([], $followupPlan['import_plan']['failed']);
+        $t->same(0, $followupPlan['failed_statement_count']);
+    };
+    $tests[$prefix . 'released checkpoint uses the expected WAL byte length'] = static function (TestRunner $t) use ($scenario, $releasedCheckpoint): void {
+        $t->same($scenario['expected_released_wal_bytes_length'], strlen((string) $releasedCheckpoint['wal_bytes']));
+    };
+    $tests[$prefix . 'checkpointed frame indexes include final followup commit'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, in_array($scenario['committed_prefix_frame_count'], $scenario['full_run_applied_frame_indexes'], true));
+        $t->same($scenario['expected_followup_pages'][1], end($scenario['full_run_applied_page_numbers']));
+    };
+    $tests[$prefix . 'checkpoint input keeps retry and followup page inventory distinct'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, in_array($scenario['expected_retry_pages'][0], $scenario['expected_checkpoint_pages'], true));
+        $t->same(true, in_array($scenario['expected_retry_pages'][2], $scenario['expected_checkpoint_pages'], true));
+        $t->same(true, in_array($scenario['expected_followup_pages'][1], $scenario['expected_checkpoint_pages'], true));
+    };
+}
+
 foreach ($committedPrefixFailureScenarios as $scenario) {
     $seed = (int) $scenario['seed'];
     $tailPlan = $scenario['tail_plan'];
@@ -2449,6 +2584,28 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero full-ru
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero full-run checkpoint scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicFullRunCheckpointScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
+$tests['sqlite application wal rollback json dynamic parity rejects empty full-run checkpoint base scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicFullRunCheckpointScenariosFromFullRunScenarios([]);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity rejects zero committed prefix failure scenarios'] = static function (TestRunner $t): void {
     try {
         SQLiteJsonImportRollbackWalPlan::dynamicCommittedPrefixFailureScenarios(0);
@@ -2653,6 +2810,18 @@ $tests['sqlite application wal rollback json dynamic parity full-run materialize
     $t->same([2, 3, 4, 1], array_column($smallBatch, 'preexisting_frames'));
     $t->same([[51, 721, 821], [52, 722, 822], [53, 723, 823], [54, 724, 824]], array_column($smallBatch, 'expected_retry_pages'));
     $t->same([[721, 1021], [722, 1022], [723, 1023], [724, 1024]], array_column($smallBatch, 'expected_followup_pages'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity full-run checkpoint small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicFullRunCheckpointScenarios(4);
+    $t->same([7101, 7102, 7103, 7104], array_column($smallBatch, 'tenant_id'));
+    $t->same(['restart', 'truncate', 'restart', 'truncate'], array_column($smallBatch, 'checkpoint_mode'));
+    $t->same([7, 8, 9, 6], array_column($smallBatch, 'committed_prefix_frame_count'));
+    $t->same(
+        [[51, 721, 821, 1021], [52, 722, 822, 1022], [53, 723, 823, 1023], [54, 724, 824, 1024]],
+        array_column($smallBatch, 'expected_checkpoint_pages')
+    );
+    $t->same(['restart_wal', 'truncate_wal', 'restart_wal', 'truncate_wal'], array_column($smallBatch, 'expected_checkpoint_action'));
 };
 
 $tests['sqlite application wal rollback json dynamic parity committed prefix failure small batch remains deterministic'] = static function (TestRunner $t): void {

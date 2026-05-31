@@ -8,6 +8,7 @@ use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\ObjectDatabase;
 use PortLibs\Gitoxide\PackBuilder;
+use PortLibs\Gitoxide\PackBuildResult;
 use PortLibs\Gitoxide\PromisorObjectResolver;
 use PortLibs\Gitoxide\ProtocolCapabilities;
 use PortLibs\Gitoxide\Tree;
@@ -39,6 +40,29 @@ $writePromisorPackForObject = static function (string $gitDir, GitObject $object
     file_put_contents($packDir . '/' . $basename . '.promisor', $promisorNote);
 
     return $basename . '.promisor';
+};
+
+$writePromisorPackResult = static function (string $gitDir, PackBuildResult $pack, string $promisorNote): string {
+    $packDir = $gitDir . '/objects/pack';
+    $basename = 'pack-' . $pack->packChecksum();
+
+    file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+    file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+    file_put_contents($packDir . '/' . $basename . '.promisor', $promisorNote);
+
+    return $basename . '.promisor';
+};
+
+$buildThinPromisorBlobs = static function (string $label): array {
+    $stable = '';
+    for ($i = 0; $i < 72; $i++) {
+        $stable .= hash('sha1', "gitoxide-promisor-thin-base-{$label}-{$i}") . "\n";
+    }
+
+    return [
+        new GitObject('blob', "wp-content blob base\n{$stable}status=draft\nchecksum=old\n"),
+        new GitObject('blob', "wp-content blob base\n{$stable}status=publish\nchecksum=new\n"),
+    ];
 };
 
 $writePromisorConfigFixture = static function (bool $promisor = true): string {
@@ -364,6 +388,64 @@ return [
         $t->same('promisor-present', $database->objectState($hydratedPatternOid)['status']);
         $t->same($hydratedPatternBlob->body, $database->read($hydratedPatternOid)->body);
     },
+    'object database resolves promisor thin pack deltas from loose base objects' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackResult, $buildThinPromisorBlobs): void {
+        [$gitDir] = $writePromisorPackFixture();
+        [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('loose-base');
+        $baseOid = (new LooseObjectStore($gitDir))->write($baseBlob);
+        $thinPack = PackBuilder::buildWithRefDeltas([$targetBlob], [$baseBlob]);
+
+        $t->same(true, $thinPack->isThin());
+        $packName = $writePromisorPackResult($gitDir, $thinPack, "thin promisor delta with loose base\n");
+        $database = new ObjectDatabase($gitDir);
+
+        $t->same($baseBlob->oid(), $baseOid);
+        $t->same('promisor-present', $database->objectState($targetBlob->oid())['status']);
+        $t->same($targetBlob->body, $database->read($targetBlob->oid())->body);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($targetBlob->body),
+            'source' => 'pack',
+        ], $database->readHeader($targetBlob->oid()));
+        $t->same(true, in_array($packName, $database->promisorPackNames(), true));
+    },
+    'object database hydrates promisor thin pack delta bases through resolver' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackResult, $buildThinPromisorBlobs): void {
+        [$gitDir] = $writePromisorPackFixture();
+        [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('resolver-base');
+        $baseOid = $baseBlob->oid();
+        $targetOid = $targetBlob->oid();
+        $thinPack = PackBuilder::buildWithRefDeltas([$targetBlob], [$baseBlob]);
+        $resolver = new class($baseBlob) implements PromisorObjectResolver {
+            public array $requests = [];
+
+            public function __construct(private readonly GitObject $base)
+            {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+
+                return $oid === $this->base->oid() ? $this->base : null;
+            }
+        };
+
+        $t->same(true, $thinPack->isThin());
+        $writePromisorPackResult($gitDir, $thinPack, "thin promisor delta with resolver base\n");
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->same('promised-missing', $database->objectState($baseOid)['status']);
+        $t->same('promisor-present', $database->objectState($targetOid)['status']);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($targetBlob->body),
+            'source' => 'pack',
+        ], $database->readHeader($targetOid));
+        $t->same([$baseOid], $resolver->requests);
+        $t->same($targetBlob->body, $database->read($targetOid)->body);
+        $t->same([$baseOid], $resolver->requests);
+        $t->same('present', $database->objectState($baseOid)['status']);
+        $t->same('promisor-present', $database->objectState($targetOid)['status']);
+    },
     'object database rejects promisor resolver object id mismatches' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $requestedOid = str_repeat('f', 40);
@@ -415,5 +497,13 @@ return [
         $t->same(true, in_array($summary['externalHydratedObject'], $summary['objectIdsAfterExternalHydration'], true));
         $t->same($summary['packedObjectCountBeforeExternalHydration'] + 1, $summary['packedObjectCountAfterExternalHydration']);
         $t->same(true, in_array($summary['externalHydrationPack'], $summary['promisorPacksAfterExternalHydration'], true));
+        $t->same(true, $summary['thinPromisorPackIsThin']);
+        $t->same(true, in_array($summary['thinPromisorPack'], $summary['promisorPacksAfterExternalHydration'], true));
+        $t->same('promised-missing', $summary['thinBaseBeforeHydration']['status']);
+        $t->same('promisor-present', $summary['thinTargetBeforeHydration']['status']);
+        $t->same('blob', $summary['thinTargetHeader']['type']);
+        $t->same($summary['thinTargetHeader']['size'], $summary['thinTargetSize']);
+        $t->same('promisor-present', $summary['thinBaseAfterHydration']['status']);
+        $t->same('promisor-present', $summary['thinTargetAfterHydration']['status']);
     },
 ];

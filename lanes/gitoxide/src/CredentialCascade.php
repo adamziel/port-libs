@@ -83,11 +83,13 @@ final class CredentialCascade
                 continue;
             }
 
+            $helperQuit = $helperContext->quit === true;
             $context = $this->mergeContext($context, $helperContext, $url);
             if ($context->username !== null && $context->password !== null) {
                 break;
             }
-            if ($context->quit === true) {
+            if ($helperQuit) {
+                $context = self::contextWith($context, ['quit' => true]);
                 break;
             }
         }
@@ -162,7 +164,6 @@ final class CredentialCascade
             'password' => $source->password,
             'oauthRefreshToken' => $source->oauthRefreshToken,
             'passwordExpiryUtc' => $source->passwordExpiryUtc,
-            'quit' => $source->quit,
         ] as $key => $value) {
             if ($value !== null) {
                 $changes[$key] = $value;

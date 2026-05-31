@@ -125,7 +125,14 @@ $emptyLineOffsetMap->offsetColumns(1, 3, 2);
 $emptyLineOffsetMap->offsetColumns(1, 3, -4);
 $emptyLineOffsetMap->offsetColumns(2, 0, -1);
 $emptyLineOffsetMap->offsetColumns(5, 3, -4);
+$emptyLineOffsetMap->offsetColumns(5, 4294967295, 1);
 $emptyLineColumnOffsetNoop = $emptyLineOffsetBeforeColumnNoop === $emptyLineOffsetMap->toJson(null, false);
+$emptyLineColumnOverflowGuard = false;
+try {
+    $emptyLineOffsetMap->offsetColumns(1, 4294967295, 1);
+} catch (InvalidArgumentException) {
+    $emptyLineColumnOverflowGuard = true;
+}
 $bufferRoundTripMap = SourceMap::fromBuffer('/', $emptyLineOffsetMap->toBuffer());
 
 $negativeLinePastSpanMap = new SourceMap();
@@ -469,6 +476,7 @@ $actual = [
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
     'emptyLineColumnOffsetMap' => $emptyLineOffsetMap->toJson(null, false),
     'emptyLineColumnOffsetNoop' => $emptyLineColumnOffsetNoop,
+    'emptyLineColumnOverflowGuard' => $emptyLineColumnOverflowGuard && $emptyLineOffsetBeforeColumnNoop === $emptyLineOffsetMap->toJson(null, false),
     'bufferRoundTripMap' => $bufferRoundTripMap->toJson(null, false),
     'negativeLinePastSpanGuard' => $negativeLinePastSpanGuard && $negativeLinePastSpanBeforeGuard === $negativeLinePastSpanMap->toJson(null, false),
     'farLineOffsetMap' => $farLineOffsetMap->toJson(null, false),
@@ -517,6 +525,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
         'emptyLineColumnOffsetMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
         'emptyLineColumnOffsetNoop' => true,
+        'emptyLineColumnOverflowGuard' => true,
         'bufferRoundTripMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
         'negativeLinePastSpanGuard' => true,
         'farLineOffsetMap' => '{"version":3,"mappings":"AAAA;;;;EAMA","sources":["wp-content/themes/example/far-line-offset.css"],"sourcesContent":[".wp-block-far-line-offset {}\n"],"names":[]}',

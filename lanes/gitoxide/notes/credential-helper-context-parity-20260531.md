@@ -175,6 +175,60 @@ activation gate is required.
 
 ---
 
+Slice: `gitoxide-credential-helper-context-parity-20260531T220340Z`
+Base accepted HEAD: `9ef60eb910c3006c081a236c1ec05f4d0e7024c4`
+
+## Source Truth
+
+- Upstream `gix-credentials/src/helper/cascade.rs` merges helper response
+  protocol/host/path/username/password/token/expiry fields into the destination
+  context, then stops immediately when username and password are complete.
+- The same upstream loop only copies `quit` into the destination context after
+  the completeness check, so `username=...\npassword=...\nquit=1\n` returns the
+  identity and stops the cascade without propagating `quit` into the successful
+  helper outcome.
+- Upstream `gix-credentials/tests/helper/cascade.rs`
+  `helpers_can_quit_and_their_creds_are_taken_if_complete` asserts the
+  complete identity behavior for that boundary.
+
+## PHP Delta
+
+- `CredentialCascade` now treats helper `quit` as a stop condition only when
+  the helper response has not already completed username and password.
+- The incomplete-quit path still records `quit=true` before stopping, so the
+  existing quit error and prompt-fallback behavior is preserved.
+- `CredentialCascadeTest` now asserts complete helper credentials consume the
+  identity before `quit` is propagated, and the WordPress credential cascade
+  fixture/example records the same emergency-helper boundary without invoking
+  `git credential`.
+
+## Verification
+
+- Red-first probe before the patch:
+  `php <<'PHP' ... CredentialCascade([fn() => "username=user\npassword=pass\nquit=1\n"]) ... PHP`
+  returned `true` for `$result->quit`.
+- After the patch the same probe returns `false`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialCascadeTest.php`:
+  `1 test files, 77 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php lanes/gitoxide/tests/CredentialCascadeTest.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `3 test files, 225 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`:
+  `39 test files, 5841 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-credential-cascade.php`: exited `0`.
+- `php -l` passed for changed PHP files.
+- `php -r` JSON validation passed for `lanes/gitoxide/lane-status.json` and
+  `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check -- lanes/gitoxide`: exited `0`.
+
+## Dependency Closure
+
+No new support component is needed. This slice reuses the existing native PHP
+credential context/cascade model and static upstream `gix-credentials` source
+truth; it does not read credential stores, invoke provider helpers, shell out
+to `git credential`, or require a shared support-library activation gate.
+
+---
+
 Slice: `gitoxide-credential-helper-context-parity-20260531T205538Z`
 Base accepted HEAD: `7a6ad881ab7ec5dade7133aeca014b7a5e54577c`
 

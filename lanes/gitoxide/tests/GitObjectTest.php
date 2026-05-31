@@ -45,7 +45,7 @@ return [
             ], GitObject::decodeLooseHeader($expected));
         }
     },
-    'loose header decoding accepts upstream positive signed sizes and canonicalizes writes' => static function (TestRunner $t): void {
+    'loose header decoding accepts upstream signed zero sizes and canonicalizes writes' => static function (TestRunner $t): void {
         $storage = "blob +4\0data";
         $t->same([
             'type' => 'blob',
@@ -64,8 +64,24 @@ return [
         $t->same(false, GitObject::fromLooseBytes($storage)->oid() === hash('sha1', $storage));
 
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob +\0"));
-        $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob -4\0"));
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob 4x\0"));
+
+        $negativeZeroStorage = "blob -0\0";
+        $t->same([
+            'type' => 'blob',
+            'size' => 0,
+            'headerLength' => strlen("blob -0\0"),
+        ], GitObject::decodeLooseHeader($negativeZeroStorage));
+        $negativeZero = GitObject::fromStorageBytes($negativeZeroStorage);
+        $t->same('', $negativeZero->body);
+        $t->same("blob 0\0", $negativeZero->storageBytes());
+        $t->same(hash('sha1', "blob 0\0"), $negativeZero->oid());
+        $t->same(false, $negativeZero->oid() === hash('sha1', $negativeZeroStorage));
+
+        $t->same(0, GitObject::decodeLooseHeader("blob -000\0")['size']);
+        $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob -\0"));
+        $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob -4\0"));
+        $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob -04\0"));
     },
     'from loose bytes rejects short payloads and parses the advertised body prefix' => static function (TestRunner $t): void {
         try {
@@ -380,6 +396,37 @@ return [
             $t->contains($canonicalOid, $exception->getMessage());
         }
     },
+    'loose object integrity accepts negative zero size headers only under canonical ids' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-negative-zero-size-' . bin2hex(random_bytes(4)) . '/objects';
+        $canonicalObject = new GitObject('blob', '');
+        $canonicalOid = $canonicalObject->oid();
+        $negativeZeroStorage = "blob -0\0";
+        $writeLooseStorage($objectsDirectory, $canonicalOid, $negativeZeroStorage);
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        $t->same([
+            'type' => 'blob',
+            'size' => 0,
+            'headerLength' => strlen("blob -0\0"),
+        ], $store->readHeader($canonicalOid));
+        $t->same('', $store->read($canonicalOid)->body);
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$canonicalOid],
+        ], $store->verifyIntegrity());
+
+        $nonCanonicalStore = LooseObjectStore::fromObjectsDirectory(sys_get_temp_dir() . '/port-libs-git-integrity-negative-zero-mismatch-' . bin2hex(random_bytes(4)) . '/objects');
+        $nonCanonicalOid = hash('sha1', $negativeZeroStorage);
+        $writeLooseStorage($nonCanonicalStore->objectsDirectory(), $nonCanonicalOid, $negativeZeroStorage);
+        try {
+            $nonCanonicalStore->verifyIntegrity();
+            throw new RuntimeException('Expected negative-zero noncanonical loose object path to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object hash mismatch', $exception->getMessage());
+            $t->contains($nonCanonicalOid, $exception->getMessage());
+            $t->contains($canonicalOid, $exception->getMessage());
+        }
+    },
     'invalid storage header is rejected' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::fromStorageBytes("blob nope\0body"));
     },
@@ -397,6 +444,9 @@ return [
         $t->same(true, $summary['positiveSizeHeaderAccepted']);
         $t->same($fixture['expectedBlobOid'], $summary['positiveSizeCanonicalOid']);
         $t->same($fixture['positiveSizeLooseHeaderOid'], $summary['positiveSizeRawHeaderOid']);
+        $t->same(true, $summary['negativeZeroSizeHeaderAccepted']);
+        $t->same($fixture['emptyBlobOid'], $summary['negativeZeroSizeCanonicalOid']);
+        $t->same($fixture['negativeZeroSizeLooseHeaderOid'], $summary['negativeZeroSizeRawHeaderOid']);
         $t->same($fixture['allocationLimitBytes'], $summary['allocationLimitBytes']);
         $t->same(4096, $summary['oversizedHeaderSize']);
         $t->same(true, $summary['allocationLimitRejected']);

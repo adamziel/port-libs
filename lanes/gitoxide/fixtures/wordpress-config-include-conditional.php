@@ -113,6 +113,21 @@ $write($repo . '/optional-prefix.config', <<<CFG
 optionalPrefix = matched
 CFG);
 
+$write($repo . '/symlink-realpath.config', <<<CFG
+[wordpress]
+symlinkRealpath = matched
+CFG);
+
+$write($repo . '/symlink-literal.config', <<<CFG
+[wordpress]
+symlinkLiteral = matched
+CFG);
+
+$write($repo . '/symlink-icase.config', <<<CFG
+[wordpress]
+symlinkIcase = matched
+CFG);
+
 $backslashRepo = $root . '/legacy\\checkout';
 $backslashGitDir = $backslashRepo . '/.git';
 mkdir($backslashGitDir, 0777, true);
@@ -207,6 +222,25 @@ $backslashConfig = GitConfig::fromFile($backslashGitDir . '/config', [
     'homeDir' => $root,
 ]);
 
+$symlinkGitdirSupported = false;
+$symlinkConfig = null;
+$linkedRepo = $root . '/linked-wp-content.git';
+if (DIRECTORY_SEPARATOR !== '\\' && function_exists('symlink') && @symlink($repo, $linkedRepo)) {
+    $symlinkGitdirSupported = true;
+    $write($root . '/symlink.gitconfig', <<<CFG
+    [includeIf "gitdir:~/sites/wp-content.git/"]
+    path = sites/wp-content.git/symlink-realpath.config
+    [includeIf "gitdir:./linked-wp-content.git/.git"]
+    path = linked-wp-content.git/symlink-literal.config
+    [includeIf "gitdir/i:LINKED-WP-CONTENT.GIT/"]
+    path = linked-wp-content.git/symlink-icase.config
+    CFG);
+    $symlinkConfig = GitConfig::fromFile($root . '/symlink.gitconfig', [
+        'gitDir' => $linkedRepo . '/.git',
+        'homeDir' => $root,
+    ]);
+}
+
 return [
     'activeBranch' => 'refs/heads/deploy/site-a',
     'remoteUrl' => $config->value('remote', 'origin', 'url'),
@@ -232,6 +266,10 @@ return [
     'optionalPrefixPolicy' => $config->value('wordpress', null, 'optionalPrefix'),
     'backslashGitdirSlashPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirSlash'),
     'backslashGitdirWildcardPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirWildcard'),
+    'symlinkGitdirSupported' => $symlinkGitdirSupported,
+    'symlinkRealpathPolicy' => $symlinkConfig?->value('wordpress', null, 'symlinkRealpath'),
+    'symlinkLiteralPolicy' => $symlinkConfig?->value('wordpress', null, 'symlinkLiteral'),
+    'symlinkIcasePolicy' => $symlinkConfig?->value('wordpress', null, 'symlinkIcase'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

@@ -181,6 +181,21 @@ $withScenarios(
 );
 
 $withScenarios(
+    static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicFullRunCheckpointScenarios(4),
+    static function (array $scenarios) use (&$summary): void {
+        $summary['fullRunCheckpointScenarioCount'] = count($scenarios);
+        $summary['fullRunCheckpointModes'] = array_map(static fn (array $scenario): string => $scenario['checkpoint_mode'], $scenarios);
+        $summary['fullRunCheckpointActions'] = array_map(static fn (array $scenario): string => $scenario['full_run_released_checkpoint']['wal_action'], $scenarios);
+        $summary['fullRunCheckpointReleasedWalBytes'] = array_map(static fn (array $scenario): int => $scenario['full_run_released_checkpoint']['wal_bytes_length'], $scenarios);
+        $summary['fullRunCheckpointPinnedBusy'] = array_map(static fn (array $scenario): bool => $scenario['full_run_pinned_checkpoint']['busy'], $scenarios);
+        $summary['fullRunCheckpointExpectedPages'] = array_map(static fn (array $scenario): array => $scenario['expected_checkpoint_pages'], $scenarios);
+        $summary['fullRunCheckpointPagesMaterialized'] = array_map(static fn (array $scenario): bool => $scenario['full_run_checkpointed_pages_match'], $scenarios);
+        $summary['fullRunCheckpointFinalKeysRetained'] = array_map(static fn (array $scenario): bool => $scenario['full_run_final_key_retained'], $scenarios);
+        $summary['fullRunCheckpointFixedKeysRetained'] = array_map(static fn (array $scenario): bool => $scenario['full_run_fixed_payload_key_retained'], $scenarios);
+    }
+);
+
+$withScenarios(
     static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicCommittedPrefixFailureScenarios(4),
     static function (array $scenarios) use (&$summary): void {
         $summary['committedPrefixFailureScenarioCount'] = count($scenarios);
@@ -401,6 +416,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['frameChecksumMismatchScenarioCount'] === 4);
     assert($summary['headerChecksumMismatchScenarioCount'] === 4);
     assert($summary['fullRunMaterializedWalScenarioCount'] === 4);
+    assert($summary['fullRunCheckpointScenarioCount'] === 4);
     assert($summary['committedPrefixFailureScenarioCount'] === 4);
     assert($summary['rollbackDisabledMaterializedWalScenarioCount'] === 4);
     assert($summary['rollbackDisabledReopenedPrefixSuccessScenarioCount'] === 4);
@@ -446,6 +462,14 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['fullRunFollowupWalFramesAfter'] === [7, 8, 9, 6]);
     assert($summary['fullRunFollowupPages'][0] === [721, 1021]);
     assert($summary['fullRunFollowupKeys'][0] === 'full_run_final_payload_1');
+    assert($summary['fullRunCheckpointModes'] === ['restart', 'truncate', 'restart', 'truncate']);
+    assert($summary['fullRunCheckpointActions'] === ['restart_wal', 'truncate_wal', 'restart_wal', 'truncate_wal']);
+    assert($summary['fullRunCheckpointReleasedWalBytes'] === [32, 0, 32, 0]);
+    assert($summary['fullRunCheckpointPinnedBusy'] === array_fill(0, 4, true));
+    assert($summary['fullRunCheckpointExpectedPages'][0] === [51, 721, 821, 1021]);
+    assert($summary['fullRunCheckpointPagesMaterialized'] === array_fill(0, 4, true));
+    assert($summary['fullRunCheckpointFinalKeysRetained'] === array_fill(0, 4, true));
+    assert($summary['fullRunCheckpointFixedKeysRetained'] === array_fill(0, 4, true));
     assert($summary['committedPrefixFailureStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['committedPrefixFailureWalFramesBefore'] === [8, 9, 10, 7]);
     assert($summary['committedPrefixFailureWalFramesAfter'] === [5, 6, 7, 4]);

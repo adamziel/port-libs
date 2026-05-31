@@ -113,7 +113,7 @@ return [
         $t->same(false, str_contains($result->nextActionBytes(), "host=stale.example.test\n"));
         $t->same(false, str_contains($result->nextActionBytes(), "\nhost="));
     },
-    'credential cascade honors quit and query user only boundaries' => static function (TestRunner $t): void {
+    'credential cascade honors upstream quit merge order and query user only boundaries' => static function (TestRunner $t): void {
         $calls = [];
         $quit = new CredentialCascade([
             static function () use (&$calls): string {
@@ -130,8 +130,9 @@ return [
 
         $quitResult = $quit->get(new CredentialContext(url: 'https://host.test/repo.git'));
         $t->same(['last-pass'], $calls);
-        $t->same(true, $quitResult->quit);
+        $t->same(false, $quitResult->quit, 'complete helper credentials are consumed before upstream propagates quit');
         $t->same('user', $quitResult->username);
+        $t->same(false, str_contains($quitResult->nextActionBytes(), 'quit='));
 
         $incompleteQuit = new CredentialCascade([static fn (): string => "quit=yes\n"]);
         $t->throws(RuntimeException::class, static fn () => $incompleteQuit->get(new CredentialContext(url: 'https://host.test/repo.git')));
@@ -241,9 +242,13 @@ return [
         $t->same('wp-refresh-token', $fixture['identity']['oauthRefreshToken']);
         $t->same('wp-content.git', $fixture['contextPath']);
         $t->same(null, $fixture['passwordExpiryUtc']);
+        $t->same(['username' => 'emergency-deploy', 'password' => 'emergency-token', 'oauthRefreshToken' => null], $fixture['completeQuitIdentity']);
+        $t->same(false, $fixture['completeQuitPropagated']);
         $t->same(['cache:get', 'oauth:get', 'deploy:get', 'cache:store', 'oauth:store', 'deploy:store', 'cache:erase', 'oauth:erase', 'deploy:erase'], $fixture['actions']);
         $t->same(false, $fixture['secretsInDiagnosticLog']);
         $t->same($fixture['identity'], $summary['identity']);
+        $t->same($fixture['completeQuitIdentity'], $summary['completeQuitIdentity']);
+        $t->same(false, $summary['completeQuitPropagated']);
         $t->contains('credential cascade', $summary['wordpressUse']);
     },
     'wordpress credential prompt fixture falls back without shelling out to git credential' => static function (TestRunner $t): void {

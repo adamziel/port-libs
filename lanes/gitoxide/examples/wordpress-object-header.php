@@ -14,6 +14,8 @@ $header = GitObject::decodeLooseHeader($storage);
 $readAhead = GitObject::fromLooseBytes($storage . 'next loose object bytes already buffered');
 $positiveSizeStorage = $fixture['positiveSizeLooseHeader'] . $fixture['blockBlobBody'];
 $positiveSizeObject = GitObject::fromStorageBytes($positiveSizeStorage);
+$negativeZeroSizeStorage = $fixture['negativeZeroSizeLooseHeader'] . $fixture['emptyBlobBody'];
+$negativeZeroSizeObject = GitObject::fromStorageBytes($negativeZeroSizeStorage);
 $strictRejectsReadAhead = false;
 $allocationLimitRejected = false;
 $allocationLimitMessage = null;
@@ -56,6 +58,9 @@ return [
     'positiveSizeHeaderAccepted' => $positiveSizeObject->body === $fixture['blockBlobBody'],
     'positiveSizeCanonicalOid' => $positiveSizeObject->oid(),
     'positiveSizeRawHeaderOid' => hash('sha1', $positiveSizeStorage),
+    'negativeZeroSizeHeaderAccepted' => $negativeZeroSizeObject->body === $fixture['emptyBlobBody'],
+    'negativeZeroSizeCanonicalOid' => $negativeZeroSizeObject->oid(),
+    'negativeZeroSizeRawHeaderOid' => hash('sha1', $negativeZeroSizeStorage),
     'allocationLimitBytes' => $boundedStore->allocationLimitBytes(),
     'oversizedHeaderSize' => $oversizedHeader['size'],
     'allocationLimitRejected' => $allocationLimitRejected,

@@ -427,6 +427,10 @@ final class SourceMap
 
         $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
         if ($lineMappings === []) {
+            if ($generatedLine < $this->generatedLineCount && $generatedColumnOffset > 0) {
+                $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+            }
+
             return;
         }
 

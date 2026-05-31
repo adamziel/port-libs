@@ -1767,6 +1767,126 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
+    public static function dynamicFullRunCheckpointScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL full-run checkpoint dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicFullRunCheckpointScenariosFromFullRunScenarios(
+            self::dynamicFullRunMaterializedWalScenarios($scenarioCount)
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicFullRunCheckpointScenariosFromFullRunScenarios(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL full-run checkpoint dynamic parity requires full-run scenarios');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $mode = $seed % 2 === 0 ? 'truncate' : 'restart';
+            $followupPlan = $base['followup_plan'];
+            $wal = SQLiteWal::parse((string) $followupPlan['wal_bytes_after'], $pageSize, false);
+            $checkpointInput = (string) $followupPlan['database_bytes_before'];
+            $checkpointPlan = $wal->checkpointPlan($checkpointInput);
+            $releasedCheckpoint = $wal->durableCheckpointResult($checkpointInput, $mode);
+            $readerEndFrame = max(0, (int) ($checkpointPlan['last_commit_frame'] ?? 0) - 1);
+            $pinnedCheckpoint = $wal->durableCheckpointResult($checkpointInput, $mode, $readerEndFrame);
+
+            $latestCommittedPageImages = [];
+            $lastCommitFrame = (int) ($checkpointPlan['last_commit_frame'] ?? 0);
+            foreach ($wal->frames as $frame) {
+                if ($frame->index > $lastCommitFrame) {
+                    break;
+                }
+                $latestCommittedPageImages[$frame->pageNumber] = $frame->pageImage;
+            }
+
+            $appliedFrameIndexes = [];
+            $appliedPageNumbers = [];
+            $supersededFrameIndexes = [];
+            $supersededPageNumbers = [];
+            foreach ($checkpointPlan['frames'] as $frame) {
+                if ($frame['applied']) {
+                    $appliedFrameIndexes[] = $frame['frame_index'];
+                    $appliedPageNumbers[] = $frame['page_number'];
+                }
+                if ($frame['reason'] === 'superseded_by_later_committed_frame') {
+                    $supersededFrameIndexes[] = $frame['frame_index'];
+                    $supersededPageNumbers[] = $frame['page_number'];
+                }
+            }
+
+            $expectedCheckpointPages = array_values(array_unique(array_merge(
+                $base['expected_retry_pages'],
+                $base['expected_followup_pages']
+            )));
+            sort($expectedCheckpointPages, SORT_NUMERIC);
+
+            $releasedMatchesExpectedPages = true;
+            foreach ($expectedCheckpointPages as $pageNumber) {
+                $pageNumber = (int) $pageNumber;
+                $releasedImage = self::databasePageSlice((string) $releasedCheckpoint['database_bytes'], $pageSize, $pageNumber);
+                if ($releasedImage === null || $releasedImage !== ($latestCommittedPageImages[$pageNumber] ?? null)) {
+                    $releasedMatchesExpectedPages = false;
+                    break;
+                }
+            }
+
+            $catalogPage = (int) $base['expected_followup_pages'][0];
+            $finalPage = (int) $base['expected_followup_pages'][1];
+            $pinnedCatalogPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $catalogPage);
+            $pinnedFinalPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $finalPage);
+            $finalKeys = array_column($followupPlan['import_plan']['final_rows'], 'key_name');
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $base['tenant_id'],
+                'page_size' => $pageSize,
+                'jsonb_mode' => $base['jsonb_mode'],
+                'preexisting_frames' => $base['preexisting_frames'],
+                'checkpoint_mode' => $mode,
+                'reader_end_frame' => $readerEndFrame,
+                'committed_prefix_frame_count' => $followupPlan['wal_frame_count_after'],
+                'checkpoint_database_bytes_before_hash' => hash('sha256', $checkpointInput),
+                'expected_checkpoint_action' => $mode === 'truncate' ? 'truncate_wal' : 'restart_wal',
+                'expected_released_wal_bytes_length' => $mode === 'truncate' ? 0 : 32,
+                'expected_retry_pages' => $base['expected_retry_pages'],
+                'expected_followup_pages' => $base['expected_followup_pages'],
+                'expected_checkpoint_pages' => $expectedCheckpointPages,
+                'expected_final_key' => $base['expected_final_key'],
+                'full_run_followup_plan' => $followupPlan,
+                'full_run_checkpoint_plan' => $checkpointPlan,
+                'full_run_released_checkpoint' => $releasedCheckpoint,
+                'full_run_pinned_checkpoint' => $pinnedCheckpoint,
+                'full_run_checkpointed_pages_match' => $releasedMatchesExpectedPages,
+                'full_run_pinned_catalog_matches_followup' => $pinnedCatalogPageImage !== null
+                    && $pinnedCatalogPageImage === ($latestCommittedPageImages[$catalogPage] ?? null),
+                'full_run_pinned_final_page_matches_followup' => $pinnedFinalPageImage !== null
+                    && $pinnedFinalPageImage === ($latestCommittedPageImages[$finalPage] ?? null),
+                'full_run_applied_frame_indexes' => $appliedFrameIndexes,
+                'full_run_applied_page_numbers' => $appliedPageNumbers,
+                'full_run_superseded_frame_indexes' => $supersededFrameIndexes,
+                'full_run_superseded_page_numbers' => array_values(array_unique($supersededPageNumbers)),
+                'full_run_final_key_retained' => in_array($base['expected_final_key'], $finalKeys, true),
+                'full_run_fixed_payload_key_retained' => in_array('full_run_broken_payload_' . $seed, $finalKeys, true),
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     public static function dynamicCommittedPrefixFailureScenarios(int $scenarioCount = 16): array
     {
         if ($scenarioCount < 1) {

@@ -1823,7 +1823,7 @@ final class CssMinifier
 
     private function startsDescendantPseudoClass(string $css, int $offset): bool
     {
-        return preg_match('/^:(?:(?:is|where|not|has)\(|scope\b)/i', substr($css, $offset)) === 1;
+        return preg_match('/^:(?:(?:is|where|not|has|global|local)\(|scope\b)/i', substr($css, $offset)) === 1;
     }
 
     private function needsSelectorDescendantSpaceBeforePseudo(string $output): bool

@@ -911,6 +911,12 @@ return [
         $t->same($beforeColumnNoop, $map->writeVlq());
         $map->offsetColumns(5, 3, -4);
         $t->same($beforeColumnNoop, $map->writeVlq());
+        $map->offsetColumns(5, 4294967295, 1);
+        $t->same($beforeColumnNoop, $map->writeVlq());
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(1, 4294967295, 1);
+        });
+        $t->same($beforeColumnNoop, $map->writeVlq());
     },
     'source map removes empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();

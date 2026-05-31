@@ -28,32 +28,45 @@ file_put_contents($gitDir . '/config', <<<CFG
 CFG);
 
 $mediaBlob = new GitObject('blob', 'Lazily fetched WordPress media attachment bytes');
-$resolver = new class($mediaBlob, $gitDir) implements PromisorObjectResolver {
+$thinStable = '';
+for ($i = 0; $i < 72; $i++) {
+    $thinStable .= hash('sha1', 'wordpress-thin-promisor-base-' . $i) . "\n";
+}
+$thinBaseBlob = new GitObject('blob', "WordPress template base\n{$thinStable}status=draft\nchecksum=old\n");
+$thinTargetBlob = new GitObject('blob', "WordPress template base\n{$thinStable}status=publish\nchecksum=new\n");
+$resolver = new class([$mediaBlob, $thinBaseBlob], $gitDir) implements PromisorObjectResolver {
     public array $requests = [];
     public ?string $hydrationPack = null;
+    private array $objectsById = [];
 
     public function __construct(
-        private readonly GitObject $object,
+        array $objects,
         private readonly string $gitDir,
     ) {
+        foreach ($objects as $object) {
+            $this->objectsById[$object->oid()] = $object;
+        }
     }
 
     public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
     {
         $this->requests[] = $oid;
-        if ($oid !== $this->object->oid()) {
+        $object = $this->objectsById[$oid] ?? null;
+        if ($object === null) {
             return null;
         }
 
-        $pack = PackBuilder::build([$this->object]);
+        $pack = PackBuilder::build([$object]);
         $packDir = $this->gitDir . '/objects/pack';
         $basename = 'pack-' . $pack->packChecksum();
-        $this->hydrationPack = $basename . '.promisor';
+        if ($oid === array_key_first($this->objectsById)) {
+            $this->hydrationPack = $basename . '.promisor';
+        }
         file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
         file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
         file_put_contents($packDir . '/' . $basename . '.promisor', "WordPress media lazy hydration\n");
 
-        return $this->object;
+        return $object;
     }
 };
 
@@ -78,6 +91,18 @@ $containsAfterExternalHydration = $database->contains($templateOid);
 $prefixAfterExternalHydration = $database->lookupPrefix(strtoupper(substr($templateOid, 0, 12)));
 $afterExternalHydration = $database->objectState($templateOid);
 
+$thinPack = PackBuilder::buildWithRefDeltas([$thinTargetBlob], [$thinBaseBlob]);
+$thinPackBase = 'pack-' . $thinPack->packChecksum();
+file_put_contents($packDir . '/' . $thinPackBase . '.pack', $thinPack->packBytes());
+file_put_contents($packDir . '/' . $thinPackBase . '.idx', $thinPack->indexBytes());
+file_put_contents($packDir . '/' . $thinPackBase . '.promisor', "WordPress thin promisor delta hydration\n");
+$thinBaseBeforeHydration = $database->objectState($thinBaseBlob->oid());
+$thinTargetBeforeHydration = $database->objectState($thinTargetBlob->oid());
+$thinTargetHeader = $database->readHeader($thinTargetBlob->oid());
+$thinTarget = $database->read($thinTargetBlob->oid());
+$thinBaseAfterHydration = $database->objectState($thinBaseBlob->oid());
+$thinTargetAfterHydration = $database->objectState($thinTargetBlob->oid());
+
 return [
     'promisorRemotes' => $database->promisorRemotes(),
     'promisorPacks' => $database->promisorPackNames(),
@@ -101,4 +126,12 @@ return [
     'prefixAfterExternalHydration' => $prefixAfterExternalHydration,
     'afterExternalHydration' => $afterExternalHydration,
     'promisorPacksAfterExternalHydration' => $database->promisorPackNames(),
+    'thinPromisorPack' => $thinPackBase . '.promisor',
+    'thinPromisorPackIsThin' => $thinPack->isThin(),
+    'thinBaseBeforeHydration' => $thinBaseBeforeHydration,
+    'thinTargetBeforeHydration' => $thinTargetBeforeHydration,
+    'thinTargetHeader' => $thinTargetHeader,
+    'thinTargetSize' => strlen($thinTarget->body),
+    'thinBaseAfterHydration' => $thinBaseAfterHydration,
+    'thinTargetAfterHydration' => $thinTargetAfterHydration,
 ];

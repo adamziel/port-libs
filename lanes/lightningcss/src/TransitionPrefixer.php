@@ -281,6 +281,7 @@ final class TransitionPrefixer
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
         $alphaHexChanged = $this->rewriteAlphaHexFallbackEntries($entries, $targetOptions);
+        $modernColorChanged = $this->rewriteModernColorFunctionEntries($entries, $targetOptions);
         $fontTargetChanged = $this->rewriteFontTargetFallbackEntries($entries, $targetOptions);
         $logicalBorderFallback = $this->rewriteLogicalBorderFallbackRule(
             $selectors,
@@ -313,7 +314,7 @@ final class TransitionPrefixer
         if ($logicalTextAlignFallback !== null) {
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -853,6 +854,11 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'firefox', [0], [48])
             || $this->targetInRange($normalized, 'safari', [0], [9, 255, 255])
             || $this->targetInRange($normalized, 'ios_saf', [0], [9, 255, 255]);
+        $modernColorNeedsLegacySyntax = $this->targetInRange($normalized, 'safari', [0], [11, 255, 255])
+            || $this->targetInRange($normalized, 'ios_saf', [0], [11, 255, 255]);
+        $modernColorNeedsCanonicalization = $modernColorNeedsLegacySyntax
+            || $this->targetInRange($normalized, 'safari', [12], [13, 255, 255])
+            || $this->targetInRange($normalized, 'ios_saf', [12], [13, 255, 255]);
         $transformNeedsWebkit = $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
             || $this->targetInRange($normalized, 'chrome', [4], [35])
             || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
@@ -909,6 +915,8 @@ final class TransitionPrefixer
             'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
             'alphaHexNeedsRgbaFallback' => $alphaHexNeedsRgbaFallback,
+            'modernColorNeedsLegacySyntax' => $modernColorNeedsLegacySyntax,
+            'modernColorNeedsCanonicalization' => $modernColorNeedsCanonicalization,
             'filterNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [18], [52])
                 || $this->targetInRange($normalized, 'ios_saf', [6], [9])
@@ -7518,6 +7526,227 @@ final class TransitionPrefixer
         }
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteModernColorFunctionEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['modernColorNeedsCanonicalization'] ?? false)) {
+            return false;
+        }
+
+        $legacySyntax = $targetOptions['modernColorNeedsLegacySyntax'] ?? false;
+        $changed = false;
+        foreach ($entries as &$entry) {
+            $rewritten = $this->rewriteModernColorFunctionValue($entry['value'], $legacySyntax);
+            if ($rewritten === $entry['value']) {
+                continue;
+            }
+
+            $entry['value'] = $rewritten;
+            $changed = true;
+        }
+        unset($entry);
+
+        return $changed;
+    }
+
+    private function rewriteModernColorFunctionValue(string $value, bool $legacySyntax): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->isIdentifierStart($char)) {
+                $identifier = $this->readIdentifier($value, $i);
+                $lower = strtolower($identifier);
+                $next = $value[$i + strlen($identifier)] ?? '';
+                if ($next === '(' && $lower === 'url') {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $output .= $function;
+                    $i = $offset;
+                    continue;
+                }
+
+                if ($next === '(' && in_array($lower, ['rgb', 'rgba', 'hsl', 'hsla'], true)) {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $output .= $this->modernColorFunctionReplacement($lower, $function, $legacySyntax) ?? $function;
+                    $i = $offset;
+                    continue;
+                }
+
+                $output .= $identifier;
+                $i += strlen($identifier) - 1;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function modernColorFunctionReplacement(string $name, string $function, bool $legacySyntax): ?string
+    {
+        if (preg_match('/^[^(]+\((.*)\)$/s', trim($function), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->splitTopLevel($matches[1], '/');
+        if (count($parts) !== 2 || trim($parts[1]) === '' || !$this->modernColorAlphaRequiresFallback($parts[1])) {
+            return null;
+        }
+
+        $alpha = trim($parts[1]);
+        if ($name === 'rgb' || $name === 'rgba') {
+            $rgb = $this->parseModernRgbComponents($parts[0]);
+            if ($rgb === null) {
+                return null;
+            }
+
+            if ($legacySyntax) {
+                return 'rgba(' . implode(',', $rgb) . ',' . $alpha . ')';
+            }
+
+            return 'rgb(' . implode(' ', $rgb) . '/' . $alpha . ')';
+        }
+
+        if (!$legacySyntax) {
+            return null;
+        }
+
+        $hsl = $this->parseModernHslComponents($parts[0]);
+        if ($hsl === null) {
+            return null;
+        }
+
+        return 'hsla(' . implode(',', $hsl) . ',' . $alpha . ')';
+    }
+
+    private function modernColorAlphaRequiresFallback(string $alpha): bool
+    {
+        return preg_match('/\b(?:var|calc)\(/i', $alpha) === 1;
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function parseModernRgbComponents(string $components): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($components));
+        if (count($tokens) === 5 && strtolower($tokens[0]) === 'from') {
+            $origin = strtolower($tokens[1]);
+            if ($origin === 'yellow' && array_slice($tokens, 2) === ['r', 'g', 'b']) {
+                return [255, 255, 0];
+            }
+
+            return null;
+        }
+
+        if (count($tokens) !== 3) {
+            return null;
+        }
+
+        $rgb = [];
+        foreach ($tokens as $token) {
+            $component = $this->parseModernRgbNumericComponent($token);
+            if ($component === null) {
+                return null;
+            }
+            $rgb[] = $component;
+        }
+
+        return $rgb;
+    }
+
+    private function parseModernRgbNumericComponent(string $token): ?int
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0 || preg_match('/\b(?:var|calc)\(/i', $token) === 1) {
+            return null;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return min(255, max(0, (int) round(((float) $matches[1] / 100) * 255)));
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return min(255, max(0, (int) round((float) $token)));
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function parseModernHslComponents(string $components): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($components));
+        if (count($tokens) === 5 && strtolower($tokens[0]) === 'from') {
+            $origin = strtolower($tokens[1]);
+            if ($origin === 'yellow' && array_slice($tokens, 2) === ['h', 's', 'l']) {
+                return ['60', '100%', '50%'];
+            }
+
+            return null;
+        }
+
+        if (count($tokens) !== 3) {
+            return null;
+        }
+
+        if (strcasecmp($tokens[0], 'none') === 0 || preg_match('/\b(?:var|calc)\(/i', $tokens[0]) === 1) {
+            return null;
+        }
+        if (strcasecmp($tokens[1], 'none') === 0 || strcasecmp($tokens[2], 'none') === 0) {
+            return null;
+        }
+        if (preg_match('/\b(?:var|calc)\(/i', $tokens[1] . ' ' . $tokens[2]) === 1) {
+            return null;
+        }
+
+        $hue = $this->normalizeModernColorHueToken($tokens[0]);
+        if ($hue === null || preg_match('/^[+-]?(?:\d+|\d*\.\d+)%$/', $tokens[1]) !== 1 || preg_match('/^[+-]?(?:\d+|\d*\.\d+)%$/', $tokens[2]) !== 1) {
+            return null;
+        }
+
+        return [$hue, $tokens[1], $tokens[2]];
+    }
+
+    private function normalizeModernColorHueToken(string $token): ?string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg)?$/i', $token, $matches) !== 1) {
+            return null;
+        }
+
+        $value = rtrim(rtrim(sprintf('%.6F', (float) $matches[1]), '0'), '.');
+
+        return $value === '-0' ? '0' : $value;
     }
 
     private function expandAlphaHexColors(string $value, bool $compact, bool $transparentBlack): string

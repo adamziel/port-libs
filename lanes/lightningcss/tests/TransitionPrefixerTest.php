@@ -319,6 +319,72 @@ return [
             ])
         );
     },
+    'transition prefixer maps upstream custom property rgb variable alpha fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = <<<'CSS'
+.foo {
+  --a: rgb(0 0 0 / var(--alpha));
+  --b: rgb(50% 50% 50% / var(--alpha));
+  --c: rgb(var(--x) 0 0);
+  --d: rgb(0 var(--x) 0);
+  --e: rgb(0 0 var(--x));
+  --f: rgb(var(--x) 0 0 / var(--alpha));
+  --g: rgb(0 var(--x) 0 / var(--alpha));
+  --h: rgb(0 0 var(--x) / var(--alpha));
+  --i: rgb(none 0 0 / var(--alpha));
+  --j: rgb(from yellow r g b / var(--alpha));
+}
+CSS;
+
+        $t->same(
+            '.foo{--a:rgba(0,0,0,var(--alpha));--b:rgba(128,128,128,var(--alpha));--c:rgb(var(--x) 0 0);--d:rgb(0 var(--x) 0);--e:rgb(0 0 var(--x));--f:rgb(var(--x) 0 0/var(--alpha));--g:rgb(0 var(--x) 0/var(--alpha));--h:rgb(0 0 var(--x)/var(--alpha));--i:rgb(none 0 0/var(--alpha));--j:rgba(255,255,0,var(--alpha))}',
+            $prefixer->prefixForTargets($css, ['safari' => 11])
+        );
+        $t->same(
+            '.foo{--a:rgb(0 0 0/var(--alpha));--b:rgb(128 128 128/var(--alpha));--c:rgb(var(--x) 0 0);--d:rgb(0 var(--x) 0);--e:rgb(0 0 var(--x));--f:rgb(var(--x) 0 0/var(--alpha));--g:rgb(0 var(--x) 0/var(--alpha));--h:rgb(0 0 var(--x)/var(--alpha));--i:rgb(none 0 0/var(--alpha));--j:rgb(255 255 0/var(--alpha))}',
+            $prefixer->prefixForTargets($css, ['safari' => 13])
+        );
+    },
+    'transition prefixer maps upstream custom property hsl variable alpha fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $legacyCss = <<<'CSS'
+.foo {
+  --a: hsl(270 100% 50% / var(--alpha));
+  --b: hsl(var(--x) 0 0);
+  --c: hsl(0 var(--x) 0);
+  --d: hsl(0 0 var(--x));
+  --e: hsl(var(--x) 0 0 / var(--alpha));
+  --f: hsl(0 var(--x) 0 / var(--alpha));
+  --g: hsl(0 0 var(--x) / var(--alpha));
+  --h: hsl(270 100% 50% / calc(var(--alpha) / 2));
+  --i: hsl(none 100% 50% / var(--alpha));
+  --j: hsl(from yellow h s l / var(--alpha));
+}
+CSS;
+
+        $modernCss = <<<'CSS'
+.foo {
+  --a: hsl(270 100% 50% / var(--alpha));
+  --b: hsl(var(--x) 0 0);
+  --c: hsl(0 var(--x) 0);
+  --d: hsl(0 0 var(--x));
+  --e: hsl(var(--x) 0 0 / var(--alpha));
+  --f: hsl(0 var(--x) 0 / var(--alpha));
+  --g: hsl(0 0 var(--x) / var(--alpha));
+  --h: hsl(270 100% 50% / calc(var(--alpha) / 2));
+  --i: hsl(none 100% 50% / var(--alpha));
+}
+CSS;
+
+        $t->same(
+            '.foo{--a:hsla(270,100%,50%,var(--alpha));--b:hsl(var(--x) 0 0);--c:hsl(0 var(--x) 0);--d:hsl(0 0 var(--x));--e:hsl(var(--x) 0 0/var(--alpha));--f:hsl(0 var(--x) 0/var(--alpha));--g:hsl(0 0 var(--x)/var(--alpha));--h:hsla(270,100%,50%,calc(var(--alpha)/2));--i:hsl(none 100% 50%/var(--alpha));--j:hsla(60,100%,50%,var(--alpha))}',
+            $prefixer->prefixForTargets($legacyCss, ['safari' => 11])
+        );
+        $t->same(
+            '.foo{--a:hsl(270 100% 50%/var(--alpha));--b:hsl(var(--x) 0 0);--c:hsl(0 var(--x) 0);--d:hsl(0 0 var(--x));--e:hsl(var(--x) 0 0/var(--alpha));--f:hsl(0 var(--x) 0/var(--alpha));--g:hsl(0 0 var(--x)/var(--alpha));--h:hsl(270 100% 50%/calc(var(--alpha)/2));--i:hsl(none 100% 50%/var(--alpha))}',
+            $prefixer->prefixForTargets($modernCss, ['safari' => 13])
+        );
+    },
     'transition prefixer honors upstream light-dark feature exclusion target' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { color-scheme: light; } .bar { color: light-dark(red, green); }';

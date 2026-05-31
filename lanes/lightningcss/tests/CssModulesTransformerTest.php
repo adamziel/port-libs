@@ -245,6 +245,34 @@ CSS);
         ], $pure['exports']);
         $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform(':host-context(.public-theme) { color: red }', ['pure' => true]));
     },
+    'css modules preserves raw host-context local global descendant selectors while composing exports' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+:host-context(.public-theme :global(.legacy-scope)) .card {
+  color: red;
+}
+
+:host-context(.public-theme :local(.legacy-local)) .card {
+  color: yellow;
+}
+
+.card {
+  composes: base;
+  color: green;
+}
+
+.base {
+  color: white;
+}
+CSS);
+
+        $t->same(':host-context(.public-theme :global(.legacy-scope)) .EgL3uq_card{color:red}:host-context(.public-theme :local(.legacy-local)) .EgL3uq_card{color:#ff0}.EgL3uq_card{color:green}.EgL3uq_base{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+    },
     'css modules scopes upstream pseudo replacement classes while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:hover {

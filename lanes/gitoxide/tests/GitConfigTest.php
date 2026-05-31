@@ -639,6 +639,53 @@ return [
         ]));
     },
 
+    'gitdir includeIf conditions match symlinked git directories like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        if (DIRECTORY_SEPARATOR === '\\' || !function_exists('symlink')) {
+            $t->same(true, true);
+            return;
+        }
+
+        $root = $tmpDir();
+        $worktree = $root . '/worktree';
+        $linkedWorktree = $root . '/symlink-worktree';
+        $gitDir = $worktree . '/.git';
+        $linkedGitDir = $linkedWorktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        if (!@symlink($worktree, $linkedWorktree)) {
+            $t->same(true, true);
+            return;
+        }
+
+        $write($root . '/tilde-resolved.config', "[symlink]\ntildeResolved = matched\n");
+        $write($root . '/dot-link.config', "[symlink]\ndotLink = matched\n");
+        $write($root . '/relative-link.config', "[symlink]\nrelativeLink = matched\n");
+        $write($root . '/icase-link.config', "[symlink]\nicaseLink = matched\n");
+        $write($root . '/missing.config', "[symlink]\nmissing = should-not-load\n");
+        $write($root . '/.gitconfig', <<<CFG
+        [includeIf "gitdir:~/worktree/"]
+        path = tilde-resolved.config
+        [includeIf "gitdir:./symlink-worktree/.git"]
+        path = dot-link.config
+        [includeIf "gitdir:symlink-worktree/"]
+        path = relative-link.config
+        [includeIf "gitdir/i:SYMLINK-WORKTREE/"]
+        path = icase-link.config
+        [includeIf "gitdir:~/missing-worktree/"]
+        path = missing.config
+        CFG);
+
+        $config = GitConfig::fromFile($root . '/.gitconfig', [
+            'gitDir' => $linkedGitDir,
+            'homeDir' => $root,
+        ]);
+
+        $t->same('matched', $config->value('symlink', null, 'tildeResolved'));
+        $t->same('matched', $config->value('symlink', null, 'dotLink'));
+        $t->same('matched', $config->value('symlink', null, 'relativeLink'));
+        $t->same('matched', $config->value('symlink', null, 'icaseLink'));
+        $t->same(null, $config->value('symlink', null, 'missing'));
+    },
+
     'optional path prefix is stripped for gitdir conditions and include paths' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/optional-prefix';
@@ -807,6 +854,10 @@ return [
         $t->same('matched', $fixture['optionalPrefixPolicy']);
         $t->same(null, $fixture['backslashGitdirSlashPolicy']);
         $t->same('matched', $fixture['backslashGitdirWildcardPolicy']);
+        $t->same(true, $fixture['symlinkGitdirSupported']);
+        $t->same('matched', $fixture['symlinkRealpathPolicy']);
+        $t->same('matched', $fixture['symlinkLiteralPolicy']);
+        $t->same('matched', $fixture['symlinkIcasePolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
@@ -827,6 +878,10 @@ return [
         $t->same($fixture['optionalPrefixPolicy'], $summary['optionalPrefixPolicy']);
         $t->same($fixture['backslashGitdirSlashPolicy'], $summary['backslashGitdirSlashPolicy']);
         $t->same($fixture['backslashGitdirWildcardPolicy'], $summary['backslashGitdirWildcardPolicy']);
+        $t->same($fixture['symlinkGitdirSupported'], $summary['symlinkGitdirSupported']);
+        $t->same($fixture['symlinkRealpathPolicy'], $summary['symlinkRealpathPolicy']);
+        $t->same($fixture['symlinkLiteralPolicy'], $summary['symlinkLiteralPolicy']);
+        $t->same($fixture['symlinkIcasePolicy'], $summary['symlinkIcasePolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

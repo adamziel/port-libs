@@ -201,6 +201,31 @@ if ($hexEscapedCrlfBundle !== '.wp-block-card{color:green}.wp-block-navigation{c
 
 echo 'escaped-crlf-imports: resolved' . PHP_EOL;
 
+$escapedImportKeywordBundle = (new CssBundler())->bundle('/escaped-import-keywords.css', [
+    '/escaped-import-keywords.css' => <<<'CSS'
+@import u\72l(pkg:card.css) l\61yer(theme.blocks) s\75pports(display: grid) screen;
+@import \75 rl("tokens.css") \6c ayer;
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/vendor/card.css' => '.wp-block-card { color: green; }',
+    '/tokens.css' => ':root { --wp--preset--spacing--block-gap: 1rem; }',
+], static function (string $specifier, string $originatingFile): string {
+    if ($specifier === 'pkg:card.css') {
+        return '/vendor/card.css';
+    }
+
+    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+});
+
+if ($escapedImportKeywordBundle !== '@supports (display:grid){@media screen{@layer theme.blocks{.wp-block-card{color:green}}}}@layer{:root{--wp--preset--spacing--block-gap:1rem}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected escaped @import source and modifier identifiers to resolve before bundling\n");
+    exit(1);
+}
+
+echo 'escaped-import-identifiers: resolved' . PHP_EOL;
+
 $escapedSpaceUrlBundle = (new CssBundler())->bundle('/escaped-space-url.css', [
     '/escaped-space-url.css' => '@import url(blocks/card\ hero.css); .wp-site-blocks { color: red; }',
     '/blocks/card hero.css' => '.wp-block-card { color: green; }',

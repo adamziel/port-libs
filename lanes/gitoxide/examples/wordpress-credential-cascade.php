@@ -11,6 +11,8 @@ return [
     'contextPath' => $fixture['contextPath'],
     'storedCredentialContexts' => count($fixture['storePayloads']),
     'erasedCredentialContexts' => count($fixture['erasePayloads']),
+    'completeQuitIdentity' => $fixture['completeQuitIdentity'],
+    'completeQuitPropagated' => $fixture['completeQuitPropagated'],
     'secretsInDiagnosticLog' => $fixture['secretsInDiagnosticLog'],
     'wordpressUse' => $fixture['wordpressUse'],
 ];
