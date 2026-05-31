@@ -64,7 +64,7 @@ $css = <<<'CSS'
     }
   }
 
-  @media (not (width < 960px)) {
+  @media not (((width < 960px))) {
     .wp-block-query.is-wide {
       color: chartreuse;
     }

@@ -34,9 +34,12 @@ return [
         $parser = new MediaQueryParser();
 
         $t->same('(width>=240px)', $parser->minifyList('not (width < 240px)'));
+        $t->same('(width>=240px)', $parser->minifyList('not (((width < 240px)))'));
         $t->same('(width>240px)', $parser->minifyList('not (width <= 240px)'));
         $t->same('(width<=240px)', $parser->minifyList('not (width > 240px)'));
         $t->same('(width<240px)', $parser->minifyList('not (width >= 240px)'));
+        $t->same('(width<240px)', $parser->minifyList('not (((min-width: 240px)))'));
+        $t->same('not (color)', $parser->minifyList('not (((color)))'));
         $t->same('(width<240px)', $parser->minifyList('not (not (width < 240px))'));
         $t->same('(width<240px)', $parser->minifyList('not (min-width: 240px)'));
         $t->same('(width>240px)', $parser->minifyList('not (max-width: 240px)'));
@@ -88,6 +91,20 @@ return [
         $t->same('(theme-state=expanded)', $parser->minifyList('(theme-state = expanded)'));
         $t->same('(--wp-breakpoint>env(--wp-breakpoint))', $parser->minifyList('(--wp-breakpoint > env(--wp-breakpoint))'));
         $t->same('(min-theme-breakpoint:2)', $parser->minifyList('(min-theme-breakpoint: 2)'));
+    },
+    'media query parser decodes escaped range feature identifiers like upstream' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('(width>=240px)', $parser->minifyList('(w\\69 dth >= 240px)'));
+        $t->same('(width>=240px)', $parser->minifyList('(min-w\\69 dth: 240px)'));
+        $t->same('(100px<=width<=200px)', $parser->minifyList('(100px <= w\\69 dth <= 200px)'));
+        $t->same('(--wp-breakpoint>=2)', $parser->minifyList('(--wp\\2d breakpoint >= 2)'));
+        $t->same('(theme-breakpoint>=2)', $parser->minifyList('(theme\\-breakpoint >= 2)'));
+        $t->same('(theme-state=expanded)', $parser->minifyList('(theme\\2d state = exp\\61 nded)'));
+        $t->same('screen and (width>=240px)', $parser->minifyList('scr\\65 en and (w\\69 dth >= 240px)'));
+        $t->same('not (min-width:240px)', $parser->lowerRangeSyntaxList('(w\\69 dth < 240px)'));
+        $t->same('(min-width:100px) and (max-width:200px)', $parser->lowerRangeSyntaxList('(100px <= w\\69 dth <= 200px)'));
+        $t->same('(min-theme-breakpoint:2)', $parser->lowerRangeSyntaxList('(theme\\2d breakpoint >= 2)'));
     },
     'media query parser maps upstream feature values qualifiers and lists' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -237,6 +254,7 @@ return [
         $t->same('not (max-width:240px)', $parser->lowerRangeSyntaxList('(width > 240px)'));
         $t->same('(not (min-width:240px)) and (hover)', $parser->lowerRangeSyntaxList('(width < 240px) and (hover)'));
         $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('not (width < 240px)'));
+        $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('not (((width < 240px)))'));
         $t->same('(min-width:100px) and (max-width:200px)', $parser->lowerRangeSyntaxList('(100px <= width <= 200px)'));
         $t->same('(hover) or ((min-width:100px) and (max-width:200px))', $parser->lowerRangeSyntaxList('(hover) or (100px <= width <= 200px)'));
         $t->same('(not (max-width:100px)) and (not (min-width:200px))', $parser->lowerRangeSyntaxList('(100px < width < 200px)'));
@@ -318,6 +336,7 @@ return [
         $t->same('@layer blocks{.foo{color:#7fff00}}', (new CssMinifier())->minify('@layer blocks { @media all, all { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks;', (new CssMinifier())->minify('@layer blocks { @media not all, not all { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (not (width < 960px)) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not (((width < 960px))) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (width<960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (hover) and (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (hover) and (not (width < 960px)) { .foo { color: chartreuse } } }'));
@@ -333,6 +352,8 @@ return [
         $t->same('@layer blocks{@media (grid:1){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (grid: +1) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (width=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (width = 240px) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (--wp-breakpoint=env(--wp-breakpoint)){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (--wp-breakpoint = env(--wp-breakpoint)) { .foo { color: yellow } } }'));
+        $t->same('@layer blocks{@media screen and (width>=240px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media scr\\65 en and (w\\69 dth >= 240px) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (theme-state=expanded){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (theme\\2d state = exp\\61 nded) { .foo { color: yellow } } }'));
     },
     'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

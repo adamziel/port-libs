@@ -1252,7 +1252,7 @@ final class CssBundler
      */
     private function defaultResolvedFileResult(string $file): array
     {
-        if ($this->filesystemReads) {
+        if ($this->preserveResolverPaths) {
             return [
                 'file' => $file,
                 'preservePath' => true,

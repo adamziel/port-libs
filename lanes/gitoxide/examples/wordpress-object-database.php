@@ -119,6 +119,21 @@ try {
         && str_contains($exception->getMessage(), 'Loose object inflated size mismatch');
 }
 
+$emptyLooseGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-empty-loose-' . bin2hex(random_bytes(4)) . '/.git';
+$emptyLooseOid = str_repeat('c', 40);
+$emptyLoosePath = $emptyLooseGitDir . '/objects/' . substr($emptyLooseOid, 0, 2) . '/' . substr($emptyLooseOid, 2);
+if (!mkdir(dirname($emptyLoosePath), 0777, true) && !is_dir(dirname($emptyLoosePath))) {
+    throw new RuntimeException('Unable to create empty loose object example directory');
+}
+file_put_contents($emptyLoosePath, '');
+$looseIntegrityEmptyFileRejected = false;
+try {
+    (new ObjectDatabase($emptyLooseGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityEmptyFileRejected = str_contains($exception->getMessage(), "Loose object {$emptyLooseOid} could not be read exactly")
+        && str_contains($exception->getMessage(), "Loose object file is empty: {$emptyLooseOid}");
+}
+
 $unwalkableGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-unwalkable-' . bin2hex(random_bytes(4)) . '/.git';
 $unwalkableStore = new LooseObjectStore($unwalkableGitDir);
 $unwalkableOid = $unwalkableStore->write(new GitObject('blob', 'Verified deployment object beside transient scratch data.'));
@@ -172,5 +187,6 @@ return [
     'looseIntegrityDirectoryBlockerRejected' => $looseIntegrityDirectoryBlockerRejected,
     'looseIntegrityNestedCandidateRejected' => $looseIntegrityNestedCandidateRejected,
     'looseIntegritySizeMismatchRejected' => $looseIntegritySizeMismatchRejected,
+    'looseIntegrityEmptyFileRejected' => $looseIntegrityEmptyFileRejected,
     'looseIntegrityTraversalErrorIgnored' => $looseIntegrityTraversalErrorIgnored,
 ];

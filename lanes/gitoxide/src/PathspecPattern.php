@@ -99,7 +99,10 @@ final class PathspecPattern
                 $sawAttributes = false;
                 foreach (self::splitUnescaped($keywords, ',') as $keyword) {
                     if ($keyword === '') {
-                        continue;
+                        if ($keywords === '') {
+                            continue;
+                        }
+                        throw new \InvalidArgumentException('Invalid pathspec keyword: ');
                     }
                     if ($keyword === 'top') {
                         $top = true;

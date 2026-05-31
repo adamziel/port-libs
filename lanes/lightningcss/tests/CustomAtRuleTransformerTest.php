@@ -277,6 +277,82 @@ CSS;
         $t->same('rule-list', $seen['breakpointBodyType']);
         $t->same('style', $seen['breakpointRuleType']);
     },
+    'custom at-rules parse upstream repeated and alternative prelude syntax strings' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens heading body;
+@breakpoints 320px, 48rem;
+@preset compact;
+@preset 2;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>+',
+            ],
+            'breakpoints' => [
+                'prelude' => '<length>#',
+            ],
+            'preset' => [
+                'prelude' => 'compact|<number>',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'tokens' => static function (array $rule) use (&$seen): array {
+                        $seen['tokensPrelude'] = $rule['prelude'];
+                        $seen['tokensAst'] = $rule['preludeAst'];
+
+                        return [];
+                    },
+                    'breakpoints' => static function (array $rule) use (&$seen): array {
+                        $seen['breakpointsAst'] = $rule['preludeAst'];
+
+                        return [];
+                    },
+                    'preset' => static function (array $rule) use (&$seen): array {
+                        $seen['presets'][] = $rule['preludeAst'];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same('heading body', $seen['tokensPrelude']);
+        $t->same('repeated', $seen['tokensAst']['type']);
+        $t->same(['heading', 'body'], array_column($seen['tokensAst']['value']['components'], 'value'));
+        $t->same(['type' => 'space'], $seen['tokensAst']['value']['multiplier']);
+        $t->same('repeated', $seen['breakpointsAst']['type']);
+        $t->same(['px', 'rem'], array_map(
+            static fn (array $component): string => $component['value']['value']['unit'],
+            $seen['breakpointsAst']['value']['components']
+        ));
+        $t->same([320.0, 48.0], array_map(
+            static fn (array $component): float => $component['value']['value']['value'],
+            $seen['breakpointsAst']['value']['components']
+        ));
+        $t->same(['type' => 'comma'], $seen['breakpointsAst']['value']['multiplier']);
+        $t->same(['type' => 'literal', 'value' => 'compact'], $seen['presets'][0]);
+        $t->same(['type' => 'number', 'value' => 2.0], $seen['presets'][1]);
+
+        $transformer = new CustomAtRuleTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@tokens inherit;', [
+            'tokens' => [
+                'prelude' => '<custom-ident>+',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@breakpoints 320px 48rem;', [
+            'breakpoints' => [
+                'prelude' => '<length>#',
+            ],
+        ]));
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

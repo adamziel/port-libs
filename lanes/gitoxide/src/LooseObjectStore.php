@@ -86,6 +86,9 @@ final class LooseObjectStore
         if ($compressed === false) {
             throw new \RuntimeException("Unable to read loose object: {$oid}");
         }
+        if ($compressed === '') {
+            throw new \RuntimeException("Loose object file is empty: " . strtolower($oid));
+        }
 
         $this->assertWithinAllocationLimit($compressed, strtolower($oid));
 
@@ -125,6 +128,9 @@ final class LooseObjectStore
         $compressed = file_get_contents($path);
         if ($compressed === false) {
             throw new \RuntimeException("Unable to read loose object header: {$oid}");
+        }
+        if ($compressed === '') {
+            throw new \RuntimeException("Loose object file is empty: " . strtolower($oid));
         }
 
         return GitObject::decodeLooseHeader(self::inflateHeaderBytes($compressed, strtolower($oid)));

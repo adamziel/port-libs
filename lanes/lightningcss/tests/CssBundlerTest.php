@@ -169,7 +169,7 @@ CSS,
         $files = [
             '/theme/entry.css' => '@import "tokens.css"; @import "../shared/button.css"; .entry { color: red }',
             '/theme/tokens.css' => ':root { --gap: 1rem }',
-            '/shared/button.css' => '.button { color: blue }',
+            '/theme/../shared/button.css' => '.button { color: blue }',
         ];
         $reads = [];
         $result = (new CssBundler())->bundleWithReaderSourceMap(
@@ -187,7 +187,7 @@ CSS,
         );
 
         $t->same(':root{--gap:1rem}.button{color:#00f}.entry{color:red}', $result['code']);
-        $t->same(['/theme/entry.css', '/theme/tokens.css', '/shared/button.css'], $reads);
+        $t->same(['/theme/entry.css', '/theme/tokens.css', '/theme/../shared/button.css'], $reads);
         $t->same(['entry.css', 'tokens.css', '../shared/button.css'], $result['sourceMap']->toArray(null, false)['sources']);
     },
     'css bundler remaps upstream inline input source maps across imports' => static function (TestRunner $t): void {
@@ -1257,8 +1257,9 @@ CSS,
         $files = [
             'foo.css' => "@import 'hello/world.css'; .foo { color: red; }",
             'hello/world.css' => "@import '../bar.css'; .bar { color: green; }",
-            'bar.css' => '.baz { color: blue; }',
+            'hello/../bar.css' => '.baz { color: blue; }',
             'root-entry.css' => "@import 'root:bar.css'; .root { color: red; }",
+            'bar.css' => '.baz { color: blue; }',
         ];
         $reads = [];
         $reader = static function (string $file) use (&$reads, $files): string {
@@ -1274,7 +1275,7 @@ CSS,
             '.baz{color:#00f}.bar{color:green}.foo{color:red}',
             (new CssBundler())->bundleWithReader('foo.css', $reader)
         );
-        $t->same(['foo.css', 'hello/world.css', 'bar.css'], $reads);
+        $t->same(['foo.css', 'hello/world.css', 'hello/../bar.css'], $reads);
 
         $resolved = [];
         $t->same(
@@ -1290,6 +1291,32 @@ CSS,
             )
         );
         $t->same([['root:bar.css', 'root-entry.css']], $resolved);
+    },
+    'css bundler preserves upstream reader default lexical import identities' => static function (TestRunner $t): void {
+        $files = [
+            '/theme/entry.css' => '@import "base.css"; @import "blocks/card.css"; .entry { color: red }',
+            '/theme/base.css' => '.base { color: blue }',
+            '/theme/blocks/card.css' => '@import "../base.css"; .card { color: green }',
+            '/theme/blocks/../base.css' => '.base-override { color: purple }',
+        ];
+        $reads = [];
+
+        $code = (new CssBundler())->bundleWithReader('/theme/entry.css', static function (string $file) use (&$reads, $files): string {
+            $reads[] = $file;
+            if (!array_key_exists($file, $files)) {
+                throw new RuntimeException("Missing reader source {$file}");
+            }
+
+            return $files[$file];
+        });
+
+        $t->same('.base{color:#00f}.base-override{color:purple}.card{color:green}.entry{color:red}', $code);
+        $t->same([
+            '/theme/entry.css',
+            '/theme/base.css',
+            '/theme/blocks/card.css',
+            '/theme/blocks/../base.css',
+        ], $reads);
     },
     'css bundler preserves resolver-returned reader paths like upstream' => static function (TestRunner $t): void {
         $files = [

@@ -725,6 +725,51 @@ if ($eofImportBundle !== '.wp-block-query{color:green}') {
 
 echo 'reader-eof-import: resolved' . PHP_EOL;
 
+$readerLexicalFiles = [
+    '/reader-theme/entry.css' => <<<'CSS'
+@import "base.css";
+@import "blocks/card.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/reader-theme/base.css' => '.wp-block-base { color: blue; }',
+    '/reader-theme/blocks/card.css' => <<<'CSS'
+@import "../base.css";
+.wp-block-card {
+  color: green;
+}
+CSS,
+    '/reader-theme/blocks/../base.css' => '.wp-block-base-override { color: purple; }',
+];
+$readerLexicalReads = [];
+$readerLexicalBundle = (new CssBundler())->bundleWithReader(
+    '/reader-theme/entry.css',
+    static function (string $file) use (&$readerLexicalReads, $readerLexicalFiles): string {
+        $readerLexicalReads[] = $file;
+        if (!array_key_exists($file, $readerLexicalFiles)) {
+            throw new RuntimeException("Missing reader-backed lexical theme file {$file}");
+        }
+
+        return $readerLexicalFiles[$file];
+    }
+);
+
+if (
+    $readerLexicalBundle !== '.wp-block-base{color:#00f}.wp-block-base-override{color:purple}.wp-block-card{color:green}.wp-site-blocks{color:red}'
+    || $readerLexicalReads !== [
+        '/reader-theme/entry.css',
+        '/reader-theme/base.css',
+        '/reader-theme/blocks/card.css',
+        '/reader-theme/blocks/../base.css',
+    ]
+) {
+    fwrite(STDERR, "Expected reader default resolver to preserve lexical block-theme paths\n");
+    exit(1);
+}
+
+echo 'reader-lexical-import-identities: preserved' . PHP_EOL;
+
 $withTempFiles([
     'theme.css' => <<<'CSS'
 @import "pkg:tokens.css";

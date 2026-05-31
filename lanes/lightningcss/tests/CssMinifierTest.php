@@ -394,6 +394,35 @@ CSS
             $t->same('.foo{color:' . $expectedColor . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
         }
     },
+    'css minifier maps upstream relative color non-srgb origins' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color(display-p3 0 1 0)' => '#00f942',
+            'lab(100% 104.3 -50.9)' => '#fff',
+            'lab(0% 104.3 -50.9)' => '#2a0022',
+            'lch(100% 116 334)' => '#fff',
+            'lch(0% 116 334)' => '#2a0022',
+            'oklab(100% 0.365 -0.16)' => '#fff',
+            'oklab(0% 0.365 -0.16)' => '#000',
+            'oklch(100% 0.399 336.3)' => '#fff',
+            'oklch(0% 0.399 336.3)' => '#000',
+        ];
+
+        foreach ($cases as $origin => $expectedColor) {
+            $t->same(
+                '.foo{color:' . $expectedColor . '}',
+                $minifier->minify('.foo { color: rgb(from ' . $origin . ' r g b / alpha); }')
+            );
+            $t->same(
+                '.foo{color:' . $expectedColor . '}',
+                $minifier->minify('.foo { color: hsl(from ' . $origin . ' h s l / alpha); }')
+            );
+            $t->same(
+                '.foo{color:' . $expectedColor . '}',
+                $minifier->minify('.foo { color: hwb(from ' . $origin . ' h w b / alpha); }')
+            );
+        }
+    },
     'css minifier maps upstream advanced color function normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [

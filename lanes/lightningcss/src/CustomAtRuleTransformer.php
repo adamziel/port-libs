@@ -2388,12 +2388,7 @@ final class CustomAtRuleTransformer
             return '';
         }
 
-        if ($grammar === '<custom-ident>' && preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $prelude) !== 1) {
-            throw new \InvalidArgumentException("Invalid custom at-rule prelude for <custom-ident>: {$prelude}");
-        }
-        if ($grammar === '<length>' && preg_match('/^(?:[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+)|0)$/', $prelude) !== 1) {
-            throw new \InvalidArgumentException("Invalid custom at-rule prelude for <length>: {$prelude}");
-        }
+        $this->customPreludeAst($prelude, $grammar);
 
         return $prelude;
     }
@@ -2404,40 +2399,167 @@ final class CustomAtRuleTransformer
             return null;
         }
 
-        return match ($grammar) {
-            '<custom-ident>' => [
-                'type' => 'custom-ident',
-                'value' => $prelude,
+        $parsed = $this->tryCustomSyntaxAst($prelude, $grammar);
+        if ($parsed['matched']) {
+            return $parsed['value'];
+        }
+
+        throw new \InvalidArgumentException("Invalid custom at-rule prelude for {$grammar}: {$prelude}");
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomSyntaxAst(string $prelude, string $grammar): array
+    {
+        $grammar = trim($grammar);
+        if ($grammar === '*') {
+            return [
+                'matched' => true,
+                'value' => [
+                    'type' => 'token-list',
+                    'value' => $this->parseComponentValueList($prelude),
+                ],
+            ];
+        }
+
+        $componentGrammars = $this->splitTopLevelPreservingEmpty($grammar, '|');
+        if (in_array('', $componentGrammars, true)) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        foreach ($componentGrammars as $componentGrammar) {
+            $parsed = $this->tryCustomSyntaxComponentAst($prelude, $componentGrammar);
+            if ($parsed['matched']) {
+                return $parsed;
+            }
+        }
+
+        return ['matched' => false, 'value' => null];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomSyntaxComponentAst(string $prelude, string $grammar): array
+    {
+        $grammar = trim($grammar);
+        if (preg_match('/^<([a-z-]+)>([+#]?)$/i', $grammar, $matches) === 1) {
+            $type = strtolower($matches[1]);
+            $multiplier = $matches[2] ?? '';
+            if ($multiplier === '+') {
+                return $this->tryRepeatedCustomSyntaxAst($prelude, $type, 'space');
+            }
+            if ($multiplier === '#') {
+                return $this->tryRepeatedCustomSyntaxAst($prelude, $type, 'comma');
+            }
+
+            return $this->tryCustomComponentValueAst($prelude, $type);
+        }
+
+        if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $grammar) === 1 && trim($prelude) === $grammar) {
+            return [
+                'matched' => true,
+                'value' => [
+                    'type' => 'literal',
+                    'value' => $grammar,
+                ],
+            ];
+        }
+
+        return ['matched' => false, 'value' => null];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryRepeatedCustomSyntaxAst(string $prelude, string $type, string $multiplier): array
+    {
+        $parts = $multiplier === 'comma'
+            ? $this->splitTopLevelPreservingEmpty($prelude, ',')
+            : $this->splitWhitespaceTokens($prelude);
+        if ($parts === []) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        $components = [];
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                return ['matched' => false, 'value' => null];
+            }
+
+            $parsed = $this->tryCustomComponentValueAst($part, $type);
+            if (!$parsed['matched']) {
+                return ['matched' => false, 'value' => null];
+            }
+            $components[] = $parsed['value'];
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'repeated',
+                'value' => [
+                    'components' => $components,
+                    'multiplier' => ['type' => $multiplier],
+                ],
             ],
-            '<dashed-ident>' => [
-                'type' => 'dashed-ident',
-                'value' => $prelude,
-            ],
-            '<length>' => $this->customLengthPreludeAst($prelude),
-            '<number>' => is_numeric($prelude)
-                ? ['type' => 'number', 'value' => (float) $prelude]
-                : ['type' => 'raw', 'value' => $prelude],
-            '<percentage>' => preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $prelude, $matches) === 1
-                ? ['type' => 'percentage', 'value' => (float) $matches[1] / 100]
-                : ['type' => 'raw', 'value' => $prelude],
-            '<string>' => $this->customStringPreludeAst($prelude),
-            default => ['type' => 'raw', 'value' => $prelude],
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomComponentValueAst(string $value, string $type): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return ['matched' => false, 'value' => null];
+        }
+
+        return match ($type) {
+            'custom-ident' => $this->isCustomIdentToken($value)
+                ? ['matched' => true, 'value' => ['type' => 'custom-ident', 'value' => $value]]
+                : ['matched' => false, 'value' => null],
+            'dashed-ident' => preg_match('/^--[-_a-zA-Z0-9]+$/', $value) === 1
+                ? ['matched' => true, 'value' => ['type' => 'dashed-ident', 'value' => $value]]
+                : ['matched' => false, 'value' => null],
+            'length' => $this->tryCustomLengthPreludeAst($value),
+            'number' => preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1
+                ? ['matched' => true, 'value' => ['type' => 'number', 'value' => (float) $value]]
+                : ['matched' => false, 'value' => null],
+            'integer' => preg_match('/^[+-]?\d+$/', $value) === 1
+                ? ['matched' => true, 'value' => ['type' => 'integer', 'value' => (int) $value]]
+                : ['matched' => false, 'value' => null],
+            'percentage' => preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $value, $matches) === 1
+                ? ['matched' => true, 'value' => ['type' => 'percentage', 'value' => (float) $matches[1] / 100]]
+                : ['matched' => false, 'value' => null],
+            'string' => $this->tryCustomStringPreludeAst($value),
+            'color' => ($color = $this->parseCssColorValue($value)) !== null
+                ? ['matched' => true, 'value' => ['type' => 'color', 'value' => $color]]
+                : ['matched' => false, 'value' => null],
+            'url' => $this->tryCustomUrlPreludeAst($value),
+            default => ['matched' => false, 'value' => null],
         };
     }
 
     /**
-     * @return array{type:string,value:mixed}
+     * @return array{matched:bool,value:mixed}
      */
-    private function customLengthPreludeAst(string $prelude): array
+    private function tryCustomLengthPreludeAst(string $prelude): array
     {
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $prelude, $matches) === 1) {
             return [
-                'type' => 'length',
+                'matched' => true,
                 'value' => [
-                    'type' => 'value',
+                    'type' => 'length',
                     'value' => [
-                        'unit' => strtolower($matches[2]),
-                        'value' => (float) $matches[1],
+                        'type' => 'value',
+                        'value' => [
+                            'unit' => strtolower($matches[2]),
+                            'value' => (float) $matches[1],
+                        ],
                     ],
                 ],
             ];
@@ -2445,36 +2567,106 @@ final class CustomAtRuleTransformer
 
         if ($prelude === '0') {
             return [
-                'type' => 'length',
+                'matched' => true,
                 'value' => [
-                    'type' => 'value',
+                    'type' => 'length',
                     'value' => [
-                        'unit' => 'px',
-                        'value' => 0.0,
+                        'type' => 'value',
+                        'value' => [
+                            'unit' => 'px',
+                            'value' => 0.0,
+                        ],
                     ],
                 ],
             ];
         }
 
-        return ['type' => 'raw', 'value' => $prelude];
+        return ['matched' => false, 'value' => null];
     }
 
     /**
-     * @return array{type:string,value:string}
+     * @return array{matched:bool,value:mixed}
      */
-    private function customStringPreludeAst(string $prelude): array
+    private function tryCustomStringPreludeAst(string $prelude): array
     {
         if (
             strlen($prelude) >= 2
             && (($prelude[0] === '"' && $prelude[strlen($prelude) - 1] === '"') || ($prelude[0] === "'" && $prelude[strlen($prelude) - 1] === "'"))
         ) {
             return [
-                'type' => 'string',
-                'value' => stripcslashes(substr($prelude, 1, -1)),
+                'matched' => true,
+                'value' => [
+                    'type' => 'string',
+                    'value' => stripcslashes(substr($prelude, 1, -1)),
+                ],
             ];
         }
 
-        return ['type' => 'string', 'value' => $prelude];
+        return ['matched' => false, 'value' => null];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomUrlPreludeAst(string $prelude): array
+    {
+        if (preg_match('/^url\\((.*)\\)$/i', $prelude, $matches) !== 1) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'url',
+                'value' => $this->parseUrlValue($matches[1], $prelude),
+            ],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTopLevelPreservingEmpty(string $value, string $delimiter): array
+    {
+        $parts = [''];
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $parts[array_key_last($parts)] .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $parts[array_key_last($parts)] .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === $delimiter && $parenDepth === 0 && $bracketDepth === 0) {
+                $parts[] = '';
+                continue;
+            }
+
+            $parts[array_key_last($parts)] .= $char;
+        }
+
+        return array_map('trim', $parts);
     }
 
     /**

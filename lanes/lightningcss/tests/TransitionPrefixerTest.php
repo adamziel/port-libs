@@ -2537,6 +2537,14 @@ CSS;
             '@layer blocks{@media (max-width:env(safe-area-inset-top)){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (max-width: env(safe-area-inset-top)) { .wp-block-query { color: yellow; } } }', ['chrome' => 95])
         );
+        $t->same(
+            '@layer blocks{@media screen and (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media scr\\65 en and (w\\69 dth >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px <= w\\69 dth <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
     },
     'transition prefixer maps upstream typed media range fallbacks inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -2585,6 +2593,14 @@ CSS;
         $t->same(
             '@layer blocks{@media (--wp-breakpoint:env(--wp-breakpoint)){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (--wp-breakpoint = env(--wp-breakpoint)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-theme-breakpoint:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme\\2d breakpoint >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (theme-state:expanded){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme\\2d state = exp\\61 nded) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->throws(
             InvalidArgumentException::class,

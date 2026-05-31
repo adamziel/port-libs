@@ -66,6 +66,12 @@ try {
 } catch (InvalidArgumentException) {
     $valueTabRequirementRejected = true;
 }
+$emptyLongMagicComponentRejected = false;
+try {
+    PathspecSearch::fromSpecs([':(attr:deploy,)wp-content/plugins/**']);
+} catch (InvalidArgumentException) {
+    $emptyLongMagicComponentRejected = true;
+}
 $searchSelected = [];
 foreach ($fixture['paths'] as $path => $isDirectory) {
     if ($search->isIncluded($path, $isDirectory, $attributes)) {
@@ -143,6 +149,7 @@ return [
         $tabAttributes,
     ),
     'valueTabRequirementRejected' => $valueTabRequirementRejected,
+    'emptyLongMagicComponentRejected' => $emptyLongMagicComponentRejected,
     'recursiveMacroAttributes' => $recursiveMacroAttributes->attributesForPath(
         'wp-content/plugins/gutenberg/block.php',
         ['text', 'other', 'macro-overridden', 'recursively-assigned-attr'],

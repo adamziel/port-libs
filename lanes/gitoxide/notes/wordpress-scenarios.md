@@ -233,6 +233,9 @@ the upstream backslash escape boundary.
 with pathspec attribute filters to select deployable plugin, theme, and upload
 paths while excluding cache/build artifacts. It records merge/diff/text
 attributes for the selected WordPress content using only lane-local PHP code.
+It also rejects malformed long-magic attr filters such as
+`:(attr:deploy,)`, matching Gitoxide's pathspec parser before a deployment
+selection path can silently accept a malformed filter.
 
 ## WordPress Pack Index Example
 
@@ -260,7 +263,8 @@ The example now also writes a deployment commit object through the object databa
 
 The object database example now verifies loose object integrity across both the
 primary repository and the alternate shared package cache, including exact
-payload lengths, object IDs, and structured body decoding.
+payload lengths, object IDs, structured body decoding, and zero-byte loose
+object corruption rejection before zlib/header decoding.
 
 ## WordPress Smart HTTP Follow Redirects Example
 

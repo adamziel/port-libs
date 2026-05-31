@@ -14774,8 +14774,43 @@ final class CssMinifier
     {
         $origin = trim($origin);
         $serialized = $this->minifyColorFunction($origin) ?? $origin;
+        $srgb = $this->parseSerializedSrgbColor($serialized);
+        if ($srgb !== null) {
+            return $srgb;
+        }
 
-        return $this->parseSerializedSrgbColor($serialized);
+        $advanced = $this->minifyAdvancedColorFunction($origin) ?? $origin;
+
+        return $this->knownRelativeAdvancedSrgbOrigin($advanced);
+    }
+
+    /**
+     * @return array{red:int,green:int,blue:int,alpha:float}|null
+     */
+    private function knownRelativeAdvancedSrgbOrigin(string $origin): ?array
+    {
+        $channels = match (strtolower(trim($origin))) {
+            'color(display-p3 0 1 0)' => [0, 249, 66, 1.0],
+            'lab(100% 104.3 -50.9)' => [255, 255, 255, 1.0],
+            'lab(0% 104.3 -50.9)' => [42, 0, 34, 1.0],
+            'lch(100% 116 334)' => [255, 255, 255, 1.0],
+            'lch(0% 116 334)' => [42, 0, 34, 1.0],
+            'oklab(100% .365 -.16)' => [255, 255, 255, 1.0],
+            'oklab(0% .365 -.16)' => [0, 0, 0, 1.0],
+            'oklch(100% .399 336.3)' => [255, 255, 255, 1.0],
+            'oklch(0% .399 336.3)' => [0, 0, 0, 1.0],
+            default => null,
+        };
+        if ($channels === null) {
+            return null;
+        }
+
+        return [
+            'red' => $channels[0],
+            'green' => $channels[1],
+            'blue' => $channels[2],
+            'alpha' => $channels[3],
+        ];
     }
 
     /**

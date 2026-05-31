@@ -600,7 +600,7 @@ final class GitConfig
 
     private static function normalizePath(string $path): string
     {
-        return str_replace('\\', '/', $path);
+        return DIRECTORY_SEPARATOR === '\\' ? str_replace('\\', '/', $path) : $path;
     }
 
     private static function isAbsolutePath(string $path): bool

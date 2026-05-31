@@ -122,6 +122,23 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(attr:v=inva\#lid)path']));
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(glob,literal)path']));
     },
+    'pathspec search rejects empty long magic components around attr filters like gix pathspec parse' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString("wp-content/plugins/** deploy\n", withBuiltInMacros: false);
+
+        $t->same(true, PathspecSearch::fromSpecs([':()wp-content/plugins/**'])
+            ->isIncluded('wp-content/plugins/editor/block.json', false, $attributes));
+        $t->same(true, PathspecMatcher::fromSpecs([':()wp-content/plugins/**'])
+            ->matches('wp-content/plugins/editor/block.json', false, $attributes));
+
+        foreach ([
+            ':(attr:deploy,)wp-content/plugins/**',
+            ':(,attr:deploy)wp-content/plugins/**',
+            ':(attr:deploy,,icase)wp-content/plugins/**',
+        ] as $spec) {
+            $t->throws(InvalidArgumentException::class, static fn () => PathspecSearch::fromSpecs([$spec]));
+            $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([$spec]));
+        }
+    },
     'pathspec attribute values reject tab bytes after value chunks like gix pathspec parse' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy review=yes\n", withBuiltInMacros: false);
 
@@ -385,6 +402,7 @@ return [
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
         $t->same(true, $example['tabSeparatedStatePathspecMatches']);
         $t->same(true, $example['valueTabRequirementRejected']);
+        $t->same(true, $example['emptyLongMagicComponentRejected']);
         $t->same(true, $example['recursiveMacroPathspecMatches']);
         $t->same([
             'macro-overridden' => true,

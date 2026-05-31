@@ -150,6 +150,36 @@ return [
         file_put_contents($badPath, 'not-zlib');
         $t->throws(RuntimeException::class, static fn () => $store->readHeader($badZlibOid));
     },
+    'loose object store rejects empty object files before zlib header decoding' => static function (TestRunner $t) use ($looseObjectPath): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-empty-loose-' . bin2hex(random_bytes(4)) . '/objects';
+        $emptyOid = str_repeat('6', 40);
+        $emptyPath = $looseObjectPath($objectsDirectory, $emptyOid);
+        if (!is_dir(dirname($emptyPath)) && !mkdir(dirname($emptyPath), 0777, true) && !is_dir(dirname($emptyPath))) {
+            throw new RuntimeException('Unable to create empty loose object fixture directory');
+        }
+        file_put_contents($emptyPath, '');
+
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+        $t->same(true, $store->contains($emptyOid));
+        $t->same([$emptyOid], $store->objectIds());
+
+        foreach (['readHeader' => static fn () => $store->readHeader($emptyOid), 'read' => static fn () => $store->read($emptyOid)] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected empty loose object {$operation} to fail");
+            } catch (RuntimeException $exception) {
+                $t->contains("Loose object file is empty: {$emptyOid}", $exception->getMessage());
+            }
+        }
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected empty loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$emptyOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Loose object file is empty: {$emptyOid}", $exception->getMessage());
+        }
+    },
     'loose object store enforces allocation limits from declared header size' => static function (TestRunner $t) use ($writeLooseStorage): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-alloc-limit-' . bin2hex(random_bytes(4)) . '/objects';
         $oversizedOid = str_repeat('1', 40);

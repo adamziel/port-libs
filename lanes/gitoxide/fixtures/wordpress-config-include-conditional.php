@@ -113,6 +113,29 @@ $write($repo . '/optional-prefix.config', <<<CFG
 optionalPrefix = matched
 CFG);
 
+$backslashRepo = $root . '/legacy\\checkout';
+$backslashGitDir = $backslashRepo . '/.git';
+mkdir($backslashGitDir, 0777, true);
+
+$write($backslashRepo . '/slash-policy.config', <<<CFG
+[wordpress]
+backslashGitdirSlash = should-not-load
+CFG);
+
+$write($backslashRepo . '/wildcard-policy.config', <<<CFG
+[wordpress]
+backslashGitdirWildcard = matched
+CFG);
+
+$write($backslashGitDir . '/config', <<<CFG
+[wordpress]
+backslashGitdirBase = base
+[includeIf "gitdir:legacy/checkout/"]
+path = ../slash-policy.config
+[includeIf "gitdir:legacy?checkout/"]
+path = ../wildcard-policy.config
+CFG);
+
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
@@ -179,6 +202,11 @@ $config = GitConfig::fromFile($gitDir . '/config', [
     'branchName' => 'refs/heads/deploy/site-a',
 ]);
 
+$backslashConfig = GitConfig::fromFile($backslashGitDir . '/config', [
+    'gitDir' => $backslashGitDir,
+    'homeDir' => $root,
+]);
+
 return [
     'activeBranch' => 'refs/heads/deploy/site-a',
     'remoteUrl' => $config->value('remote', 'origin', 'url'),
@@ -202,6 +230,8 @@ return [
     'invalidPosixPolicy' => $config->value('wordpress', null, 'invalidPosix'),
     'unclosedBracketPolicy' => $config->value('wordpress', null, 'unclosedBracket'),
     'optionalPrefixPolicy' => $config->value('wordpress', null, 'optionalPrefix'),
+    'backslashGitdirSlashPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirSlash'),
+    'backslashGitdirWildcardPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirWildcard'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

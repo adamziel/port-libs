@@ -29,5 +29,7 @@ return [
     'invalidPosixPolicy' => $fixture['invalidPosixPolicy'],
     'unclosedBracketPolicy' => $fixture['unclosedBracketPolicy'],
     'optionalPrefixPolicy' => $fixture['optionalPrefixPolicy'],
+    'backslashGitdirSlashPolicy' => $fixture['backslashGitdirSlashPolicy'],
+    'backslashGitdirWildcardPolicy' => $fixture['backslashGitdirWildcardPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

@@ -171,6 +171,35 @@ return [
         $t->same(null, $config->value('user', null, 'miss'));
     },
 
+    'gitdir includeIf preserves backslash path bytes on unix' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $t->same(true, true);
+            return;
+        }
+
+        $root = $tmpDir();
+        $worktree = $root . '/work\\slash';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $slashPolicy = $root . '/slash-policy.config';
+        $wildcardPolicy = $root . '/wildcard-policy.config';
+        $write($slashPolicy, "[section]\nslash = should-not-load\n");
+        $write($wildcardPolicy, "[section]\nwildcard = matched\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:work/slash/"]
+        path = {$slashPolicy}
+        [includeIf "gitdir:work?slash/"]
+        path = {$wildcardPolicy}
+        CFG);
+
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+        $t->same(null, $config->value('section', null, 'slash'));
+        $t->same('matched', $config->value('section', null, 'wildcard'));
+    },
+
     'hasconfig includeIf preserves remote URL backslashes as URL bytes' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $write($root . '/slash-url', "[user]\nslash = should-not-load\n");
@@ -776,6 +805,8 @@ return [
         $t->same(null, $fixture['invalidPosixPolicy']);
         $t->same(null, $fixture['unclosedBracketPolicy']);
         $t->same('matched', $fixture['optionalPrefixPolicy']);
+        $t->same(null, $fixture['backslashGitdirSlashPolicy']);
+        $t->same('matched', $fixture['backslashGitdirWildcardPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
@@ -794,6 +825,8 @@ return [
         $t->same($fixture['invalidPosixPolicy'], $summary['invalidPosixPolicy']);
         $t->same($fixture['unclosedBracketPolicy'], $summary['unclosedBracketPolicy']);
         $t->same($fixture['optionalPrefixPolicy'], $summary['optionalPrefixPolicy']);
+        $t->same($fixture['backslashGitdirSlashPolicy'], $summary['backslashGitdirSlashPolicy']);
+        $t->same($fixture['backslashGitdirWildcardPolicy'], $summary['backslashGitdirWildcardPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

@@ -109,7 +109,8 @@ final class MediaQueryParser
 
     private function validateExplicitMediaTypeCondition(string $query): void
     {
-        if (preg_match('/^(?:(not|only)\s+)?[_a-zA-Z-][_a-zA-Z0-9-]*\s+or(?:\s|$)/i', $query) === 1) {
+        $ident = $this->cssIdentifierPattern();
+        if (preg_match('/^(?:(not|only)\s+)?' . $ident . '\s+or(?:\s|$)/i', $query) === 1) {
             throw new \InvalidArgumentException('Media query conditions after an explicit media type cannot use top-level or');
         }
 
@@ -125,16 +126,17 @@ final class MediaQueryParser
 
     private function validateExplicitMediaTypeConditionSeparator(string $query): void
     {
-        if (preg_match('/^(?:(not|only)\s+)?([_a-zA-Z-][_a-zA-Z0-9-]*)\s+(.+)$/i', $query, $matches) !== 1) {
+        $ident = $this->cssIdentifierPattern();
+        if (preg_match('/^(?:(not|only)\s+)?(' . $ident . ')\s+(.+)$/i', $query, $matches) !== 1) {
             return;
         }
 
-        $type = strtolower($matches[2]);
+        $type = $this->canonicalMediaIdentifier($matches[2]);
         $tail = ltrim($matches[3]);
         if ($type === 'not' && str_starts_with($tail, '(')) {
             return;
         }
-        if (($type === 'not' || $type === 'only') && preg_match('/^[_a-zA-Z-][_a-zA-Z0-9-]*$/', $tail) === 1) {
+        if (($type === 'not' || $type === 'only') && preg_match('/^' . $ident . '$/', $tail) === 1) {
             return;
         }
 
@@ -330,69 +332,71 @@ final class MediaQueryParser
             throw new \InvalidArgumentException("Invalid media query feature: {$feature}");
         }
 
-        if (preg_match('/^(.+?)\s*(<=|>=|<|>|=)\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
+        $ident = $this->cssIdentifierPattern();
+        if (preg_match('/^(.+?)\s*(<=|>=|<|>|=)\s*(' . $ident . ')\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
             if (!$this->isValidIntervalComparisonPair($matches[2], $matches[4])) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
-            $this->validateRangeFeature(strtolower($matches[3]), $matches[1], $matches[5], $feature);
+            $name = $this->canonicalMediaIdentifier($matches[3]);
+            $this->validateRangeFeature($name, $matches[1], $matches[5], $feature);
 
-            return $this->minifyValue($matches[1]) . $matches[2] . strtolower($matches[3]) . $matches[4] . $this->minifyValue($matches[5]);
+            return $this->minifyValue($matches[1]) . $matches[2] . $name . $matches[4] . $this->minifyValue($matches[5]);
         }
 
-        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
-            $name = strtolower($matches[1]);
+        if (preg_match('/^(' . $ident . ')\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
+            $name = $this->canonicalMediaIdentifier($matches[1]);
             if ($matches[2] === '=' && !$this->isRangeComparableMediaFeature($name)) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
             $this->validateRangeFeature($name, $matches[3], null, $feature);
 
-            return strtolower($matches[1]) . $matches[2] . $this->minifyValue($matches[3]);
+            return $name . $matches[2] . $this->minifyValue($matches[3]);
         }
 
-        if (preg_match('/^(.+?)\s*(<=|>=|<|>|=)\s*([_a-zA-Z-][_a-zA-Z0-9-]*)$/', $feature, $matches) === 1) {
-            $name = strtolower($matches[3]);
+        if (preg_match('/^(.+?)\s*(<=|>=|<|>|=)\s*(' . $ident . ')$/', $feature, $matches) === 1) {
+            $name = $this->canonicalMediaIdentifier($matches[3]);
             if ($matches[2] === '=' && !$this->isRangeComparableMediaFeature($name)) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
             $this->validateRangeFeature($name, $matches[1], null, $feature);
 
-            return strtolower($matches[3]) . $this->oppositeComparison($matches[2]) . $this->minifyValue($matches[1]);
+            return $name . $this->oppositeComparison($matches[2]) . $this->minifyValue($matches[1]);
         }
 
-        if (preg_match('/^-webkit-(min|max)-([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/i', $feature, $matches) === 1) {
-            $name = '-webkit-' . strtolower($matches[2]);
-            $type = $this->knownMediaFeatureType($name);
-            if ($type !== null) {
-                if (!$this->mediaFeatureTypeAllowsRanges($type)) {
+        if (preg_match('/^(' . $ident . ')\s*:\s*(.+)$/', $feature, $matches) === 1) {
+            $name = $this->canonicalMediaIdentifier($matches[1]);
+            if (preg_match('/^-webkit-(min|max)-(.+)$/', $name, $legacyMatches) === 1) {
+                $canonical = '-webkit-' . $legacyMatches[2];
+                $type = $this->knownMediaFeatureType($canonical);
+                if ($type !== null) {
+                    if (!$this->mediaFeatureTypeAllowsRanges($type)) {
+                        throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
+                    }
+
+                    $this->validateRangeFeature($canonical, $matches[2], null, $feature);
+                    $operator = $legacyMatches[1] === 'min' ? '>=' : '<=';
+
+                    return $canonical . $operator . $this->minifyValue($matches[2]);
+                }
+            }
+
+            if (preg_match('/^(min|max)-(.+)$/', $name, $legacyMatches) === 1) {
+                $canonical = $legacyMatches[2];
+                $type = $this->knownMediaFeatureType($canonical);
+                if ($type !== null && !$this->mediaFeatureTypeAllowsRanges($type)) {
                     throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
                 }
+                if ($type !== null) {
+                    $this->validateRangeFeature($canonical, $matches[2], null, $feature);
+                    $operator = $legacyMatches[1] === 'min' ? '>=' : '<=';
 
-                $this->validateRangeFeature($name, $matches[3], null, $feature);
-                $operator = strtolower($matches[1]) === 'min' ? '>=' : '<=';
-
-                return $name . $operator . $this->minifyValue($matches[3]);
-            }
-        }
-
-        if (preg_match('/^(min|max)-([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/i', $feature, $matches) === 1) {
-            $type = $this->knownMediaFeatureType(strtolower($matches[2]));
-            if ($type !== null && !$this->mediaFeatureTypeAllowsRanges($type)) {
-                throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
-            }
-            if ($type === null) {
-                return strtolower($matches[1]) . '-' . strtolower($matches[2]) . ':' . $this->minifyValue($matches[3]);
+                    return $canonical . $operator . $this->minifyValue($matches[2]);
+                }
             }
 
-            $this->validateRangeFeature(strtolower($matches[2]), $matches[3], null, $feature);
-            $operator = strtolower($matches[1]) === 'min' ? '>=' : '<=';
+            $this->validateDiscreteMediaFeature($name, $matches[2], $feature);
 
-            return strtolower($matches[2]) . $operator . $this->minifyValue($matches[3]);
-        }
-
-        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/', $feature, $matches) === 1) {
-            $this->validateDiscreteMediaFeature(strtolower($matches[1]), $matches[2], $feature);
-
-            return strtolower($matches[1]) . ':' . $this->minifyValue($matches[2]);
+            return $name . ':' . $this->minifyValue($matches[2]);
         }
 
         if (preg_match('/^[_a-zA-Z-][_a-zA-Z0-9-]*\(/', $feature) === 1) {
@@ -542,7 +546,7 @@ final class MediaQueryParser
 
     private function canonicalLegacyMediaFeatureName(string $name): ?string
     {
-        $name = strtolower(str_replace(' ', '', $name));
+        $name = $this->canonicalMediaIdentifier($name);
         if (preg_match('/^-webkit-(?:min|max)-(.+)$/', $name, $matches) === 1) {
             $canonical = '-webkit-' . $matches[1];
 
@@ -607,6 +611,7 @@ final class MediaQueryParser
             || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))(?:\s*\/\s*(?:0|[+-]?(?:\d+|\d*\.\d+)))$/', $value) === 1
             || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+))$/', $value) === 1
             || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:dpcm|dpi|dppx|x))$/i', $value) === 1
+            || preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1
             || preg_match('/^[-_a-zA-Z][-_a-zA-Z0-9]*$/', $value) === 1;
     }
 
@@ -660,6 +665,9 @@ final class MediaQueryParser
         $value = preg_replace('/\s*\/\s*/', '/', $value) ?? $value;
         if (preg_match('/^([0-9]+(?:\.[0-9]+)?)\/1$/', $value, $matches) === 1) {
             return $this->trimNumber($matches[1]);
+        }
+        if (preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1) {
+            return $this->canonicalMediaIdentifierValue($value);
         }
 
         return $this->minifyNumericValue($value);
@@ -881,6 +889,117 @@ final class MediaQueryParser
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
     }
 
+    private function cssIdentifierPattern(): string
+    {
+        $escape = '\\\\(?:[0-9a-fA-F]{1,6}\s?|[^\r\n\f])';
+        $start = '(?:[_a-zA-Z]|' . $escape . ')';
+        $continue = '(?:[-_a-zA-Z0-9]|' . $escape . ')';
+
+        return '(?:(?:--)|-?' . $start . ')' . $continue . '*';
+    }
+
+    private function canonicalMediaIdentifier(string $identifier): string
+    {
+        $decoded = $this->decodeCssIdentifier($identifier);
+        if ($this->isSafeCssIdentifier($decoded)) {
+            return strtolower($decoded);
+        }
+
+        return strtolower(trim($identifier));
+    }
+
+    private function canonicalMediaIdentifierValue(string $identifier): string
+    {
+        $decoded = $this->decodeCssIdentifier($identifier);
+
+        return $this->isSafeCssIdentifier($decoded)
+            ? $decoded
+            : trim($identifier);
+    }
+
+    private function decodeCssIdentifier(string $identifier): string
+    {
+        $decoded = '';
+        $length = strlen($identifier);
+        for ($i = 0; $i < $length; $i++) {
+            if ($identifier[$i] !== '\\') {
+                $decoded .= $identifier[$i];
+                continue;
+            }
+
+            $escape = $this->readCssEscape($identifier, $i);
+            if ($escape === null) {
+                $decoded .= $identifier[$i];
+                continue;
+            }
+
+            $decoded .= $escape['decoded'];
+            $i = $escape['end'] - 1;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @return array{decoded:string,end:int}|null
+     */
+    private function readCssEscape(string $value, int $offset): ?array
+    {
+        $length = strlen($value);
+        if (($value[$offset] ?? '') !== '\\' || $offset + 1 >= $length) {
+            return null;
+        }
+
+        $next = $value[$offset + 1];
+        if ($next === "\n" || $next === "\r" || $next === "\f") {
+            return null;
+        }
+
+        if (!ctype_xdigit($next)) {
+            return [
+                'decoded' => $next,
+                'end' => $offset + 2,
+            ];
+        }
+
+        $hex = '';
+        $cursor = $offset + 1;
+        while ($cursor < $length && strlen($hex) < 6 && ctype_xdigit($value[$cursor])) {
+            $hex .= $value[$cursor];
+            $cursor++;
+        }
+
+        if ($cursor < $length && ctype_space($value[$cursor])) {
+            $cursor++;
+        }
+
+        return [
+            'decoded' => $this->codepointToUtf8((int) hexdec($hex)),
+            'end' => $cursor,
+        ];
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0 || ($codepoint >= 0xd800 && $codepoint <= 0xdfff) || $codepoint > 0x10ffff) {
+            $codepoint = 0xfffd;
+        }
+
+        if (function_exists('mb_chr')) {
+            return mb_chr($codepoint, 'UTF-8');
+        }
+
+        return html_entity_decode('&#x' . dechex($codepoint) . ';', ENT_NOQUOTES, 'UTF-8');
+    }
+
+    private function isSafeCssIdentifier(string $identifier): bool
+    {
+        return $identifier !== ''
+            && $identifier !== '-'
+            && $identifier !== '--'
+            && preg_match('/^(?:--(?:[-_a-zA-Z0-9]|[^\x00-\x7f])*|-?(?:[_a-zA-Z]|[^\x00-\x7f])(?:[-_a-zA-Z0-9]|[^\x00-\x7f])*)$/', $identifier) === 1;
+    }
+
     private function normalizeBooleanConditionGroups(string $query): string
     {
         $query = preg_replace('/\bnot\s*\(/i', 'not (', $query) ?? $query;
@@ -915,14 +1034,10 @@ final class MediaQueryParser
 
             $close = $this->findMatchingDelimiter($query, $after, '(', ')');
             $inner = substr($query, $after + 1, $close - $after - 1);
-            $stripped = $this->stripOneBalancedParentheses(trim($inner));
+            $stripped = $this->stripRedundantNegationParentheses($inner);
 
             $output .= 'not ';
-            if ($stripped !== null) {
-                $output .= '(' . $stripped . ')';
-            } else {
-                $output .= substr($query, $after, $close - $after + 1);
-            }
+            $output .= '(' . $stripped . ')';
 
             $i = $close;
         }
@@ -1136,6 +1251,19 @@ final class MediaQueryParser
         return $close === strlen($value) - 1 ? substr($value, 1, -1) : null;
     }
 
+    private function stripRedundantNegationParentheses(string $value): string
+    {
+        $value = trim($value);
+        while (($inner = $this->stripOneBalancedParentheses($value)) !== null) {
+            $value = trim($inner);
+            if ($this->containsTopLevelKeyword($value, 'and') || $this->containsTopLevelKeyword($value, 'or')) {
+                break;
+            }
+        }
+
+        return $value;
+    }
+
     private function startsKeywordAt(string $value, int $offset, string $keyword): bool
     {
         if (strncasecmp(substr($value, $offset, strlen($keyword)), $keyword, strlen($keyword)) !== 0) {
@@ -1221,7 +1349,7 @@ final class MediaQueryParser
      */
     private function extractExplicitMediaTypePrefix(string $query): ?array
     {
-        $pattern = '/^(?:(not|only)\s+)?([_a-zA-Z-][_a-zA-Z0-9-]*)\s+and\s+(.+)$/i';
+        $pattern = '/^(?:(not|only)\s+)?(' . $this->cssIdentifierPattern() . ')\s+and\s+(.+)$/i';
         if (preg_match($pattern, $query, $matches) !== 1) {
             return null;
         }
@@ -1233,7 +1361,7 @@ final class MediaQueryParser
 
         return [
             'qualifier' => isset($matches[1]) && $matches[1] !== '' ? strtolower($matches[1]) : null,
-            'type' => strtolower($matches[2]),
+            'type' => $this->canonicalMediaIdentifier($matches[2]),
             'condition' => $condition,
         ];
     }
@@ -1434,7 +1562,7 @@ final class MediaQueryParser
             return null;
         }
 
-        $ident = '[_a-zA-Z-][_a-zA-Z0-9-]*';
+        $ident = $this->cssIdentifierPattern();
         $intervalOperator = '<=|>=|<|>';
         $simpleOperator = '<=|>=|<|>|=';
 
@@ -1443,7 +1571,7 @@ final class MediaQueryParser
                 return null;
             }
 
-            $name = strtolower($matches[3]);
+            $name = $this->canonicalMediaIdentifier($matches[3]);
             if (!$this->isLegacyRangeFeature($name)) {
                 return null;
             }
@@ -1476,7 +1604,7 @@ final class MediaQueryParser
             return null;
         }
 
-        $name = strtolower($matches[1]);
+        $name = $this->canonicalMediaIdentifier($matches[1]);
         if (!$this->isLegacyRangeFeature($name)) {
             return null;
         }

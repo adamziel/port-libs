@@ -423,6 +423,50 @@ return [
             $t->contains('Loose object not found', $exception->getMessage());
         }
     },
+    'object database loose integrity rejects empty primary and alternate object files' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-empty-loose-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $primaryOid = str_repeat('4', 40);
+        $primaryPath = $objectsDir . '/' . substr($primaryOid, 0, 2) . '/' . substr($primaryOid, 2);
+        if (!is_dir(dirname($primaryPath)) && !mkdir(dirname($primaryPath), 0777, true) && !is_dir(dirname($primaryPath))) {
+            throw new RuntimeException('Unable to create primary empty loose object directory');
+        }
+        file_put_contents($primaryPath, '');
+
+        $alternateOid = str_repeat('5', 40);
+        $alternatePath = $alternateObjectsDir . '/' . substr($alternateOid, 0, 2) . '/' . substr($alternateOid, 2);
+        if (!is_dir(dirname($alternatePath)) && !mkdir(dirname($alternatePath), 0777, true) && !is_dir(dirname($alternatePath))) {
+            throw new RuntimeException('Unable to create alternate empty loose object directory');
+        }
+        file_put_contents($alternatePath, '');
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        $t->same(true, $database->contains($primaryOid));
+        $t->same(true, $database->contains($alternateOid));
+
+        try {
+            $database->readHeader($primaryOid);
+            throw new RuntimeException('Expected primary empty loose object header read to fail');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object file is empty: {$primaryOid}", $exception->getMessage());
+        }
+
+        unlink($primaryPath);
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate empty loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$alternateOid} could not be read exactly", $exception->getMessage());
+            $t->contains("Loose object file is empty: {$alternateOid}", $exception->getMessage());
+        }
+    },
     'object database loose integrity applies allocation limits to primary and alternate stores' => static function (TestRunner $t) use ($looseObjectPath): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-alloc-limit-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';
@@ -675,6 +719,7 @@ return [
         $t->same(true, $summary['looseIntegrityDirectoryBlockerRejected']);
         $t->same(true, $summary['looseIntegrityNestedCandidateRejected']);
         $t->same(true, $summary['looseIntegritySizeMismatchRejected']);
+        $t->same(true, $summary['looseIntegrityEmptyFileRejected']);
         $t->same(true, $summary['looseIntegrityTraversalErrorIgnored']);
     },
 ];
