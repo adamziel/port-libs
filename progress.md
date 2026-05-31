@@ -52,6 +52,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 11:09 UTC):
+  source commit `871fc0859fc6c840abb1b540f6dd281bac922b96` (`ports: add
+  sqlite pragma virtual selects and gitoxide reflog parity`) landed two
+  handoffs after excluding stale shared metadata. Libsqlite gained upstream
+  `pragma5` dynamic virtual SELECT coverage over `pragma_function_list`,
+  `pragma_module_list`, and `pragma_pragma_list`; selected libsqlite evidence
+  moves from `2891818` to `2893069 pass / 0 fail`, mapped coverage stays
+  `1589 / 1589`. Gitoxide gained reflog append/parse message byte-validation
+  parity, rejecting LF bytes while preserving CR bytes; full Gitoxide evidence
+  moves from `4338` to `4355 pass / 0 fail`, mapped coverage moves from
+  `1552 / 2886` to `1553 / 2886`. Verification passed PHP lint, `git diff
+  --check -- lanes/libsqlite lanes/gitoxide scripts`, libsqlite focused guard
+  `2 files / 5509 assertions / 0 failures`, broader PRAGMA regression `6 files
+  / 15230 assertions / 0 failures`, focused Gitoxide tests `2 files / 517
+  assertions / 0 failures`, full Gitoxide lane `39 files / 4355 assertions / 0
+  failures`, the Gitoxide reflog audit example, and the libsqlite source/API
+  guard. The same source commit adds `scripts/agent-fast-profile.sh` and wires
+  Codex launchers to force `gpt-5.5`, xhigh reasoning, and priority service
+  tier for all newly started subagents.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 11:05 UTC):
   source commit `9afb23d3c1679935656578073651c6c41d00ed31` (`ports: add
   sqlite vfs date wal and gitoxide object slices`) landed six handoffs after
