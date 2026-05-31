@@ -3677,6 +3677,22 @@ final class SQLiteSelectSql
     private static function predicate(string $sql, array $tables = []): array
     {
         $sql = trim($sql);
+        if (str_starts_with($sql, '(') && str_ends_with($sql, ')')) {
+            $inner = trim(substr($sql, 1, -1));
+            if (
+                self::unwrapParenthesizedExpression($sql) === $inner
+                && (
+                    preg_match('/^select\s+/i', $inner) === 1
+                    || preg_match('/^values(?:\s+|\()/i', $inner) === 1
+                )
+            ) {
+                return [
+                    'operator' => 'TRUTH',
+                    'left' => self::valueExpression($sql, $tables),
+                ];
+            }
+        }
+
         $unwrapped = self::unwrapParenthesizedExpression($sql);
         if ($unwrapped !== $sql) {
             return self::predicate($unwrapped, $tables);

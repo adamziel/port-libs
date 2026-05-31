@@ -36,14 +36,34 @@ final class PathspecSearch
     /**
      * @param list<string|PathspecPattern> $specs
      */
-    public static function fromSpecs(array $specs, string $prefix = '', bool $literalDefault = false): self
+    public static function fromSpecs(
+        array $specs,
+        string $prefix = '',
+        bool $literalDefault = false,
+        string $defaultSearchMode = PathspecPattern::SEARCH_SHELL_GLOB,
+        bool $defaultIgnoreCase = false,
+    ): self
     {
+        if (!in_array($defaultSearchMode, [
+            PathspecPattern::SEARCH_SHELL_GLOB,
+            PathspecPattern::SEARCH_PATH_AWARE_GLOB,
+            PathspecPattern::SEARCH_LITERAL,
+        ], true)) {
+            throw new \InvalidArgumentException("Unsupported pathspec search mode: {$defaultSearchMode}");
+        }
+
         $patterns = [];
         $prefix = self::normalizePath($prefix);
         foreach ($specs as $index => $spec) {
             $pattern = $spec instanceof PathspecPattern
                 ? $spec
-                : PathspecPattern::parse($spec, $index, literalDefault: $literalDefault);
+                : PathspecPattern::parse(
+                    $spec,
+                    $index,
+                    literalDefault: $literalDefault,
+                    defaultSearchMode: $defaultSearchMode,
+                    defaultIgnoreCase: $defaultIgnoreCase,
+                );
             $patterns[] = self::normalizePattern($pattern, $prefix);
         }
 

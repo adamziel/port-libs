@@ -46,6 +46,7 @@ $legacyBaseline = $oid('9');
 $securityBaseline = $oid('a');
 $pluginHotfixReview = $oid('b');
 $themeHotfixReview = $oid('c');
+$legacyOnlyReview = $oid('d');
 $compatibilityIntermediate = $oidPair('d1');
 $legacyDeepBaseline = $oidPair('d2');
 $securityShallowBaseline = $oidPair('d3');
@@ -72,7 +73,10 @@ return [
     'securityBaseline' => $securityBaseline,
     'pluginHotfixReview' => $pluginHotfixReview,
     'themeHotfixReview' => $themeHotfixReview,
+    'legacyOnlyReview' => $legacyOnlyReview,
     'hotfixHeads' => [$pluginHotfixReview, $themeHotfixReview],
+    'octopusSpecialHeads' => [$pluginHotfixReview, $themeHotfixReview, $legacyOnlyReview],
+    'octopusReorderedHeads' => [$pluginHotfixReview, $legacyOnlyReview, $themeHotfixReview],
     'legacyDeepBaseline' => $legacyDeepBaseline,
     'securityShallowBaseline' => $securityShallowBaseline,
     'pluginCompatibilityReview' => $pluginCompatibilityReview,
@@ -102,6 +106,7 @@ return [
         $securityBaseline => $commit([$release], 1700000200),
         $pluginHotfixReview => $commit([$legacyBaseline, $securityBaseline], 1700000300),
         $themeHotfixReview => $commit([$securityBaseline, $legacyBaseline], 1700000400),
+        $legacyOnlyReview => $commit([$legacyBaseline], 1700000500),
         $compatibilityIntermediate => $commit([$release], 1700000050),
         $legacyDeepBaseline => $commit([$compatibilityIntermediate], 1700000060),
         $securityShallowBaseline => $commit([$release], 1700000500),

@@ -583,68 +583,172 @@ final class TransitionPrefixer
             if (!is_scalar($version)) {
                 continue;
             }
-            $normalized[strtolower((string) $browser)] = $this->targetMajorVersion($version);
+            $browserName = $this->normalizeBrowserTargetName((string) $browser);
+            if ($browserName === null) {
+                continue;
+            }
+
+            $normalized[$browserName] = $this->targetVersionCode($version);
         }
 
         $chrome = $normalized['chrome'] ?? null;
         $safari = $normalized['safari'] ?? null;
         $firefox = $normalized['firefox'] ?? null;
-        $needsWebkitBoxShadow = ($chrome !== null && $chrome <= 4.0)
-            || ($safari !== null && $safari < 5.1);
-        $supportsAdvancedColor = ($chrome !== null && $chrome >= 111.0)
-            || ($safari !== null && $safari >= 16.0);
-        $usesP3Fallback = $safari !== null && $safari >= 10.0 && $safari < 16.0;
-        $needsSrgbFallback = ($chrome !== null && $chrome < 111.0)
-            || ($safari !== null && $safari < 10.0)
+        $needsWebkitBoxShadow = $this->targetInRange($normalized, 'android', [2, 1], [3, 0])
+            || $this->targetInRange($normalized, 'chrome', [4], [9])
+            || $this->targetInRange($normalized, 'safari', [3, 1], [5])
+            || $this->targetInRange($normalized, 'ios_saf', [3, 0], [4, 2]);
+        $supportsAdvancedColor = $this->targetAtLeast($normalized, 'chrome', [111])
+            || $this->targetAtLeast($normalized, 'edge', [111])
+            || $this->targetAtLeast($normalized, 'safari', [16]);
+        $usesP3Fallback = $this->targetInRange($normalized, 'safari', [10], [15, 255, 255]);
+        $needsSrgbFallback = ($chrome !== null && !$this->targetAtLeast($normalized, 'chrome', [111]))
+            || ($safari !== null && !$this->targetAtLeast($normalized, 'safari', [10]))
             || ($chrome === null && $safari === null);
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
             'boxShadowDropLegacyPrefixes' => !$needsWebkitBoxShadow && (
-                ($chrome !== null && $chrome >= 95.0)
-                || ($safari !== null && $safari >= 16.0)
+                $this->targetAtLeast($normalized, 'chrome', [95])
+                || $this->targetAtLeast($normalized, 'safari', [16])
             ),
             'boxShadowSupportsAdvancedColor' => $supportsAdvancedColor,
             'boxShadowDropOverriddenFallbacks' => $supportsAdvancedColor,
             'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
-            'filterNeedsWebkit' => ($chrome !== null && $chrome <= 20.0)
-                || ($safari !== null && $safari <= 14.0),
-            'backdropFilterNeedsWebkit' => $safari !== null && $safari <= 15.0,
-            'printColorAdjustNeedsWebkit' => $chrome !== null && $chrome <= 135.0,
-            'textDecorationNeedsWebkit' => ($safari !== null && $safari <= 16.0) || ($chrome !== null && $chrome <= 4.0),
-            'textDecorationNeedsMoz' => $firefox !== null && $firefox <= 36.0,
-            'textEmphasisNeedsWebkit' => $chrome !== null && $chrome <= 99.0,
-            'gradientNeedsOldWebkit' => ($chrome !== null && $chrome <= 8.0)
-                || ($safari !== null && $safari < 5.1),
-            'imageSetNeedsWebkit' => $chrome !== null && $chrome <= 95.0 && !isset($normalized['ie']),
-            'imageSetNeedsUrlFallback' => isset($normalized['ie']),
-            'borderRadiusNeedsWebkit' => ($chrome !== null && $chrome <= 4.0)
-                || ($safari !== null && $safari < 5.0),
-            'borderRadiusNeedsMoz' => $firefox !== null && $firefox <= 3.6,
-            'borderRadiusNeedsLogicalFallback' => $safari !== null && $safari <= 12.0,
-            'borderRadiusDropLegacyPrefixes' => (
-                ($chrome !== null && $chrome >= 5.0)
-                || ($safari !== null && $safari >= 5.0)
-                || ($firefox !== null && $firefox >= 4.0)
+            'filterNeedsWebkit' => $this->targetInRange($normalized, 'chrome', [0], [20])
+                || $this->targetInRange($normalized, 'safari', [0], [14]),
+            'backdropFilterNeedsWebkit' => $this->targetInRange($normalized, 'edge', [17], [18])
+                || $this->targetInRange($normalized, 'safari', [9], [17, 6])
+                || $this->targetInRange($normalized, 'ios_saf', [9], [17, 6]),
+            'printColorAdjustNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [17], [135])
+                || $this->targetInRange($normalized, 'edge', [79], [135])
+                || $this->targetInRange($normalized, 'ios_saf', [6], [15])
+                || $this->targetAtLeast($normalized, 'opera', [15])
+                || $this->targetInRange($normalized, 'safari', [6], [15]),
+            'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26])
+                || $this->targetInRange($normalized, 'safari', [8], [26]),
+            'textDecorationNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [35]),
+            'textEmphasisNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [25], [98])
+                || $this->targetInRange($normalized, 'edge', [79], [98])
+                || $this->targetInRange($normalized, 'opera', [15], [85])
+                || $this->targetInRange($normalized, 'safari', [6, 1], [7])
+                || $this->targetInRange($normalized, 'samsung', [4], [17]),
+            'gradientNeedsOldWebkit' => ($chrome !== null && $chrome <= $this->encodedTargetVersion(8))
+                || ($safari !== null && $safari < $this->encodedTargetVersion(5, 1)),
+            'imageSetNeedsWebkit' => !isset($normalized['ie']) && (
+                $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [21], [112])
+                || $this->targetInRange($normalized, 'edge', [79], [112])
+                || $this->targetInRange($normalized, 'ios_saf', [6], [9, 3])
+                || $this->targetInRange($normalized, 'opera', [15], [98])
+                || $this->targetInRange($normalized, 'safari', [6], [9, 1])
+                || $this->targetInRange($normalized, 'samsung', [4], [22])
             ),
-            'clampNeedsMaxMinFallback' => $safari !== null && $safari <= 12.0,
+            'imageSetNeedsUrlFallback' => isset($normalized['ie']),
+            'borderRadiusNeedsWebkit' => $this->targetInRange($normalized, 'android', [0], [2, 1])
+                || $this->targetInRange($normalized, 'chrome', [0], [4])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [3])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [4]),
+            'borderRadiusNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [3, 6]),
+            'borderRadiusNeedsLogicalFallback' => $this->targetInRange($normalized, 'safari', [0], [12]),
+            'borderRadiusDropLegacyPrefixes' => (
+                $this->targetAtLeast($normalized, 'chrome', [5])
+                || $this->targetAtLeast($normalized, 'safari', [5])
+                || $this->targetAtLeast($normalized, 'firefox', [4])
+            ),
+            'clampNeedsMaxMinFallback' => $this->targetInRange($normalized, 'safari', [0], [12]),
             'lightDarkNeedsFallback' => !$lightDarkExcluded && (
-                ($chrome !== null && $chrome < 123.0)
-                || ($safari !== null && $safari < 17.5)
+                ($chrome !== null && !$this->targetAtLeast($normalized, 'chrome', [123]))
+                || (isset($normalized['edge']) && !$this->targetAtLeast($normalized, 'edge', [123]))
+                || ($firefox !== null && !$this->targetAtLeast($normalized, 'firefox', [120]))
+                || (isset($normalized['opera']) && !$this->targetAtLeast($normalized, 'opera', [82]))
+                || ($safari !== null && !$this->targetAtLeast($normalized, 'safari', [17, 5]))
+                || (isset($normalized['ios_saf']) && !$this->targetAtLeast($normalized, 'ios_saf', [17, 5]))
+                || (isset($normalized['samsung']) && !$this->targetAtLeast($normalized, 'samsung', [27]))
+                || (isset($normalized['android']) && !$this->targetAtLeast($normalized, 'android', [123]))
+                || isset($normalized['ie'])
             ),
             'lightDarkNormalizeAdvancedColor' => !$lightDarkExcluded && $firefox !== null,
-            'keyframesNeedsWebkit' => ($chrome !== null && $chrome <= 42.0)
-                || ($safari !== null && $safari <= 8.0),
-            'keyframesNeedsMoz' => $firefox !== null && $firefox <= 15.0,
+            'keyframesNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [42])
+                || $this->targetInRange($normalized, 'ios_saf', [3], [8, 0])
+                || $this->targetInRange($normalized, 'opera', [15], [29])
+                || $this->targetInRange($normalized, 'safari', [4], [8]),
+            'keyframesNeedsMoz' => $this->targetInRange($normalized, 'firefox', [5], [15]),
         ];
     }
 
-    private function targetMajorVersion(int|float|string $version): float
+    private function normalizeBrowserTargetName(string $browser): ?string
     {
-        $numeric = (float) $version;
+        return match (strtolower(str_replace('-', '_', $browser))) {
+            'android', 'chrome', 'edge', 'firefox', 'ie', 'opera', 'safari', 'samsung' => strtolower(str_replace('-', '_', $browser)),
+            'and_chr' => 'chrome',
+            'and_ff' => 'firefox',
+            'ios', 'ios_saf', 'ios_safari' => 'ios_saf',
+            'op_mob' => 'opera',
+            default => null,
+        };
+    }
 
-        return $numeric >= 65536 ? (float) (((int) $numeric) >> 16) : $numeric;
+    private function targetVersionCode(int|float|string $version): int
+    {
+        if (is_int($version) && $version >= 65536) {
+            return $version;
+        }
+        if (is_float($version) && $version >= 65536 && floor($version) === $version) {
+            return (int) $version;
+        }
+
+        if (is_string($version) && ctype_digit($version) && (int) $version >= 65536) {
+            return (int) $version;
+        }
+
+        $text = trim((string) $version);
+        if ($text === '') {
+            return 0;
+        }
+
+        $parts = preg_split('/[._-]/', $text) ?: [];
+        $major = isset($parts[0]) ? max(0, (int) $parts[0]) : 0;
+        $minor = isset($parts[1]) ? max(0, (int) $parts[1]) : 0;
+        $patch = isset($parts[2]) ? max(0, (int) $parts[2]) : 0;
+
+        return $this->encodedTargetVersion($major, $minor, $patch);
+    }
+
+    /**
+     * @param array<string, int> $targets
+     * @param array{0:int,1?:int,2?:int} $min
+     * @param array{0:int,1?:int,2?:int} $max
+     */
+    private function targetInRange(array $targets, string $browser, array $min, array $max): bool
+    {
+        if (!isset($targets[$browser])) {
+            return false;
+        }
+
+        $version = $targets[$browser];
+
+        return $version >= $this->encodedTargetVersion($min[0], $min[1] ?? 0, $min[2] ?? 0)
+            && $version <= $this->encodedTargetVersion($max[0], $max[1] ?? 0, $max[2] ?? 0);
+    }
+
+    /**
+     * @param array<string, int> $targets
+     * @param array{0:int,1?:int,2?:int} $minimum
+     */
+    private function targetAtLeast(array $targets, string $browser, array $minimum): bool
+    {
+        return isset($targets[$browser])
+            && $targets[$browser] >= $this->encodedTargetVersion($minimum[0], $minimum[1] ?? 0, $minimum[2] ?? 0);
+    }
+
+    private function encodedTargetVersion(int $major, int $minor = 0, int $patch = 0): int
+    {
+        return (($major & 0xff) << 16) | (($minor & 0xff) << 8) | ($patch & 0xff);
     }
 
     private function featureListContains(mixed $features, string $feature): bool

@@ -254,6 +254,9 @@ final class SQLiteSelectResult
      */
     public static function leftJoin(array $leftRows, array $rightRows, callable $predicate, array $rightColumns): array
     {
+        if ($leftRows === []) {
+            return [];
+        }
         if ($rightColumns === []) {
             throw new \InvalidArgumentException('SQLite LEFT JOIN needs right-side result columns for NULL extension');
         }

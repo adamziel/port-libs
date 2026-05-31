@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\PathspecPattern;
 use PortLibs\Gitoxide\PathspecSearch;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
@@ -63,6 +64,23 @@ $wildmatchPathspecs = PathspecSearch::fromSpecs([
     ':(glob)wp-content/**/theme.\?son',
     ':(glob)wp-content/plugins/\[literal\]/block.\?son',
 ]);
+$noGlobPathspecs = PathspecSearch::fromSpecs(
+    ['wp-content/plugins/gutenberg/*.json'],
+    defaultSearchMode: PathspecPattern::SEARCH_LITERAL,
+);
+$globOverrideNoGlobPathspecs = PathspecSearch::fromSpecs(
+    [':(glob)wp-content/plugins/gutenberg/*.json'],
+    defaultSearchMode: PathspecPattern::SEARCH_LITERAL,
+);
+$pathAwareDefaultPathspecs = PathspecSearch::fromSpecs(
+    ['wp-content/plugins/gutenberg/*'],
+    defaultSearchMode: PathspecPattern::SEARCH_PATH_AWARE_GLOB,
+);
+$inheritedIcasePathspecs = PathspecSearch::fromSpecs(
+    ['mu-plugins/*.php'],
+    'wp-content',
+    defaultIgnoreCase: true,
+);
 $prefixedPathspecs = PathspecSearch::fromSpecs([':(icase)mu-plugins/*.php'], 'WP-CONTENT');
 
 $records = TreePathspecWalk::breadthFirst(
@@ -101,6 +119,42 @@ $wildmatchRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$globOverrideNoGlobRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $globOverrideNoGlobPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
+$pathAwareDefaultRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $pathAwareDefaultPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
+$inheritedIcaseRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $inheritedIcasePathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -115,6 +169,11 @@ return [
     'wildmatchRecursiveThemeAtRoot' => $wildmatchPathspecs->isIncluded('wp-content/theme.?son', false),
     'wildmatchEscapedLiteralBlockIncluded' => $wildmatchPathspecs->isIncluded('wp-content/plugins/[literal]/block.?son', false),
     'wildmatchNegatedUploadRangeSkipped' => !$wildmatchPathspecs->isIncluded('wp-content/uploads/2026/02/hero.jpg', false),
+    'noGlobLiteralPluginGlobSkipped' => !$noGlobPathspecs->isIncluded('wp-content/plugins/gutenberg/block.json', false),
+    'globOverrideNoGlobContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $globOverrideNoGlobRecords),
+    'pathAwareDefaultContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $pathAwareDefaultRecords),
+    'pathAwareDefaultNestedSrcSkipped' => !$pathAwareDefaultPathspecs->isIncluded('wp-content/plugins/gutenberg/src/editor.js', false),
+    'inheritedIcaseDefaultContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $inheritedIcaseRecords),
     'pathAwareSlashClassSkipped' => !PathspecSearch::fromSpecs([':(glob)wp-content/plugins/foo[/]bar.php'])->isIncluded('wp-content/plugins/foo/bar.php', false),
     'shellSlashClassIncluded' => PathspecSearch::fromSpecs(['wp-content/plugins/foo[/]bar.php'])->isIncluded('wp-content/plugins/foo/bar.php', false),
     'prefixCaseSensitiveUpperContentIncluded' => $prefixedPathspecs->isIncluded('WP-CONTENT/mu-plugins/loader.php', false),

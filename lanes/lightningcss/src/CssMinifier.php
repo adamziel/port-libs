@@ -2098,6 +2098,7 @@ final class CssMinifier
         $value = $this->minifyListStyleValue($property, $value);
         $value = $this->minifyContainerDeclarationValue($property, $value);
         $value = $this->minifyBorderRadiusValue($property, $value);
+        $value = $this->minifyGridValue($property, $value);
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
@@ -2136,6 +2137,269 @@ final class CssMinifier
         }
 
         return $horizontal . '/' . $vertical;
+    }
+
+    private function minifyGridValue(string $property, string $value): string
+    {
+        $property = strtolower($property);
+        if (!in_array($property, [
+            'grid',
+            'grid-area',
+            'grid-auto-columns',
+            'grid-auto-flow',
+            'grid-auto-rows',
+            'grid-column',
+            'grid-column-end',
+            'grid-column-start',
+            'grid-row',
+            'grid-row-end',
+            'grid-row-start',
+            'grid-template',
+            'grid-template-areas',
+            'grid-template-columns',
+            'grid-template-rows',
+        ], true)) {
+            return $value;
+        }
+
+        if ($property === 'grid-template-areas') {
+            return $this->normalizeGridQuotedAreaRows($value);
+        }
+
+        if ($property === 'grid-auto-flow') {
+            return $this->minifyGridAutoFlowValue($value);
+        }
+
+        if (in_array($property, ['grid-row-start', 'grid-row-end', 'grid-column-start', 'grid-column-end'], true)) {
+            return $this->minifyGridLineValue($value);
+        }
+
+        if ($property === 'grid-row' || $property === 'grid-column') {
+            return $this->minifyGridLineShorthandValue($value);
+        }
+
+        if ($property === 'grid-area') {
+            return $this->minifyGridAreaValue($value);
+        }
+
+        $value = $this->normalizeGridQuotedAreaRows($value);
+        $value = preg_replace('/\bdense\s+auto-flow\b/i', 'auto-flow dense', $value) ?? $value;
+        $value = preg_replace('/\bauto-flow\s+auto(?=\/|$)/i', 'auto-flow', $value) ?? $value;
+        $value = $this->mergeAdjacentGridLineNameBlocks($value);
+        $value = preg_replace(
+            '/"\s+(?=(?:[+-]?(?:\d|\.)|auto\b|minmax\(|min-content\b|max-content\b|fit-content\(|repeat\())/i',
+            '"',
+            $value
+        ) ?? $value;
+
+        return $this->minifyGridNumericDimensions($value);
+    }
+
+    private function normalizeGridQuotedAreaRows(string $value): string
+    {
+        $output = '';
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char !== '"' && $char !== "'") {
+                $output .= $char;
+                continue;
+            }
+
+            $quote = $char;
+            $row = '';
+            for ($j = $i + 1; $j < $length; $j++) {
+                $current = $value[$j];
+                if ($current === '\\' && $j + 1 < $length) {
+                    $row .= $current . $value[++$j];
+                    continue;
+                }
+                if ($current === $quote) {
+                    $output .= '"' . $this->normalizeGridTemplateAreaRowText($row) . '"';
+                    $i = $j;
+                    continue 2;
+                }
+                $row .= $current;
+            }
+
+            $output .= $quote . $row;
+            break;
+        }
+
+        return $output;
+    }
+
+    private function normalizeGridTemplateAreaRowText(string $row): string
+    {
+        $tokens = preg_split('/\s+/', trim($row)) ?: [];
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        if ($tokens === []) {
+            return '';
+        }
+
+        $normalized = array_map(
+            static fn (string $token): string => preg_match('/^\.+$/', $token) === 1 ? '.' : $token,
+            $tokens
+        );
+        $dotCount = count(array_filter($normalized, static fn (string $token): bool => $token === '.'));
+        if ($dotCount > 0 && $dotCount < count($normalized)) {
+            return implode('', $normalized);
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    private function mergeAdjacentGridLineNameBlocks(string $value): string
+    {
+        do {
+            $previous = $value;
+            $value = preg_replace('/\[([^\]\[]+)\]\[([^\]\[]+)\]/', '[$1 $2]', $value) ?? $value;
+        } while ($value !== $previous);
+
+        return $value;
+    }
+
+    private function minifyGridAutoFlowValue(string $value): string
+    {
+        $tokens = array_map(static fn (string $token): string => strtolower($token), $this->splitWhitespaceTopLevel(trim($value)));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $known = ['row', 'column', 'dense'];
+        foreach ($tokens as $token) {
+            if (!in_array($token, $known, true)) {
+                return trim($value);
+            }
+        }
+
+        $hasDense = in_array('dense', $tokens, true);
+        if (in_array('column', $tokens, true)) {
+            return $hasDense ? 'column dense' : 'column';
+        }
+
+        return $hasDense ? 'dense' : 'row';
+    }
+
+    private function minifyGridLineShorthandValue(string $value): string
+    {
+        $parts = $this->splitTopLevel($value, '/');
+        if ($parts === [] || count($parts) > 2) {
+            return trim($value);
+        }
+
+        $start = $this->minifyGridLineValue($parts[0]);
+        $end = isset($parts[1]) ? $this->minifyGridLineValue($parts[1]) : 'auto';
+        if (strcasecmp($end, 'auto') === 0) {
+            return $start;
+        }
+        if ($start === $end && $this->canCollapseRepeatedGridAreaLine($start)) {
+            return $start;
+        }
+
+        return $start . '/' . $end;
+    }
+
+    private function minifyGridAreaValue(string $value): string
+    {
+        $parts = array_map(fn (string $part): string => $this->minifyGridLineValue($part), $this->splitTopLevel($value, '/'));
+        if ($parts === []) {
+            return trim($value);
+        }
+        if (count($parts) < 4) {
+            return $this->minifyGridLineShorthandValue(implode('/', $parts));
+        }
+
+        $parts = array_slice($parts, 0, 4);
+        if ($parts[0] === $parts[1] && $parts[0] === $parts[2] && $parts[0] === $parts[3]
+            && $this->canCollapseRepeatedGridAreaLine($parts[0])
+        ) {
+            return $parts[0];
+        }
+        if ($parts[0] === $parts[2] && $parts[1] === $parts[3]
+            && $this->canCollapseRepeatedGridAreaLine($parts[0])
+            && $this->canCollapseRepeatedGridAreaLine($parts[1])
+        ) {
+            return $parts[0] . '/' . $parts[1];
+        }
+        if ($parts[1] === $parts[3] && $this->canCollapseRepeatedGridAreaLine($parts[1])) {
+            return $parts[0] . '/' . $parts[1] . '/' . $parts[2];
+        }
+
+        return implode('/', $parts);
+    }
+
+    private function minifyGridLineValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $hasSpan = false;
+        $number = null;
+        $name = null;
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if ($lower === 'span') {
+                $hasSpan = true;
+                continue;
+            }
+            if ($this->isIntegerToken($token)) {
+                $number ??= (string) (int) $token;
+                continue;
+            }
+            if ($name !== null || str_contains($token, '(')) {
+                return implode(' ', $tokens);
+            }
+            $name = $token;
+        }
+
+        if ($hasSpan) {
+            $parts = ['span'];
+            if ($number !== null && !($number === '1' && $name !== null)) {
+                $parts[] = $number;
+            }
+            if ($name !== null) {
+                $parts[] = $name;
+            }
+
+            return implode(' ', $parts);
+        }
+
+        if ($number !== null && $name !== null) {
+            return $number . ' ' . $name;
+        }
+
+        return $this->minifyGridNumericDimensions(implode(' ', $tokens));
+    }
+
+    private function isIntegerToken(string $token): bool
+    {
+        return preg_match('/^[+-]?\d+$/', trim($token)) === 1;
+    }
+
+    private function canCollapseRepeatedGridAreaLine(string $value): bool
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'auto') === 0) {
+            return true;
+        }
+        if (str_contains($value, ' ') || str_contains($value, '(') || $this->isIntegerToken($value)) {
+            return false;
+        }
+
+        return preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $value) === 1;
+    }
+
+    private function minifyGridNumericDimensions(string $value): string
+    {
+        return preg_replace_callback(
+            '/(?<![_a-zA-Z0-9.-])([+-]?(?:\d+\.\d+|\.\d+|\d+))(fr|px|em|rem|ch|ex|vw|vh|vmin|vmax|svw|svh|lvw|lvh|dvw|dvh|cqw|cqh|cqi|cqb|cqmin|cqmax|%)(?=$|[^_a-zA-Z0-9-])/i',
+            fn (array $matches): string => $this->minifyNumericDimensionToken($matches[1] . $matches[2]),
+            $value
+        ) ?? $value;
     }
 
     private function minifyBorderRadiusSideList(string $value): ?string

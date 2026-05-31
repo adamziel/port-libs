@@ -333,6 +333,49 @@ return [
             $minifier->minify('@font-feature-values foo { @swash { pretty: 1; } } @font-feature-values foo { @swash { cool: 2; } }')
         );
     },
+    'css minifier maps upstream grid track area and placement values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{grid-template-columns:[first nav-start]150px[main-start]1fr[last]}',
+            $minifier->minify('.foo { grid-template-columns: [first nav-start]  150px [main-start] 1fr [last]; }')
+        );
+        $t->same(
+            '.foo{grid-template-columns:repeat(4,[col-start]250px[col-end])}',
+            $minifier->minify('.foo { grid-template-columns: repeat(4, [col-start] 250px [col-end]); }')
+        );
+        $t->same(
+            '.foo{grid-template-columns:repeat(auto-fill,[col-start]minmax(100px,1fr)[col-end])}',
+            $minifier->minify('.foo { grid-template-columns: repeat(auto-fill, [col-start] minmax(100px, 1fr) [col-end]); }')
+        );
+        $t->same(
+            '.foo{grid-auto-rows:100px minmax(100px,auto) 10% .5fr fit-content(400px)}',
+            $minifier->minify('.foo { grid-auto-rows: 100px minmax(100px, auto) 10% 0.5fr fit-content(400px); }')
+        );
+        $t->same(
+            '.foo{grid-template-areas:"head head""nav main""foot."}',
+            $minifier->minify('.foo { grid-template-areas: "head head" "nav  main" "foot ...."; }')
+        );
+        $t->same(
+            '.foo{grid-template-areas:"head head""nav main"". ."}',
+            $minifier->minify('.foo { grid-template-areas: "head head" "nav  main" ".... ...."; }')
+        );
+        $t->same(
+            '.foo{grid-template:[header-top]"a a a"[header-bottom main-top]"b b b"1fr[main-bottom]/auto 1fr auto}',
+            $minifier->minify('.foo { grid-template: [header-top] "a   a   a" [header-bottom] [main-top] "b   b   b" 1fr [main-bottom] / auto 1fr auto; }')
+        );
+        $t->same('.foo{grid-auto-flow:dense}', $minifier->minify('.foo { grid-auto-flow: row dense; }'));
+        $t->same('.foo{grid-auto-flow:dense}', $minifier->minify('.foo { grid-auto-flow: dense row; }'));
+        $t->same('.foo{grid-auto-flow:column dense}', $minifier->minify('.foo { grid-auto-flow: dense column; }'));
+        $t->same('.foo{grid-row-start:2 some-line}', $minifier->minify('.foo { grid-row-start: some-line 2; }'));
+        $t->same('.foo{grid-row-start:span some-line}', $minifier->minify('.foo { grid-row-start: span some-line 1; }'));
+        $t->same('.foo{grid-row:main-start}', $minifier->minify('.foo { grid-row: main-start / main-start; }'));
+        $t->same('.foo{grid-column:1}', $minifier->minify('.foo { grid-column: 1 / auto; }'));
+        $t->same('.foo{grid-area:a}', $minifier->minify('.foo { grid-area: a / a / a / a; }'));
+        $t->same('.foo{grid-area:a/b}', $minifier->minify('.foo { grid-area: a / b / a / b; }'));
+        $t->same('.foo{grid-area:a/b/c}', $minifier->minify('.foo { grid-area: a / b / c / b; }'));
+        $t->same('.foo{grid-area:1/1/1/1}', $minifier->minify('.foo { grid-area: 1 / 1 / 1 / 1; }'));
+    },
     'css minifier maps upstream property rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

@@ -5288,6 +5288,64 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    public static function exclusiveLockingProfile(string $scenario, array $options = []): array
+    {
+        $scenario = trim($scenario);
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite exclusive-locking profile requires a scenario');
+        }
+
+        $group = self::exclusiveLockingGroup($scenario);
+        $script = str_starts_with($group, 'exclusive2-') ? 'exclusive2.test' : 'exclusive.test';
+        $pageSize = (int) ($options['page_size'] ?? 1024);
+        $cachePages = (int) ($options['cache_pages'] ?? 1000);
+        $rowCount = (int) ($options['row_count'] ?? 64);
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking page size must be a power of two at least 512');
+        }
+        if ($cachePages < 1) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking cache size must be positive');
+        }
+        if ($rowCount < 1) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking row count must be positive');
+        }
+
+        $profile = [
+            'status' => 'ok',
+            'script' => $script,
+            'scenario' => $scenario,
+            'group' => $group,
+            'upstream' => self::exclusiveLockingUpstream($group),
+            'page_size' => $pageSize,
+            'cache_pages' => $cachePages,
+            'row_count' => $rowCount,
+            'temp_locking_mode' => 'exclusive',
+            'pager_cache_can_hold_database' => $cachePages >= max(1, (int) ceil($rowCount / 4)),
+            'dependencies' => [
+                'sqlite-upstream-exclusive-test',
+                'sqlite-pager-exclusive-locking',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+
+        return $profile + match ($group) {
+            'exclusive-1' => self::exclusivePragmaProfile($options),
+            'exclusive-2' => self::exclusiveLockRetentionProfile($options),
+            'exclusive-3' => self::exclusiveJournalTruncationProfile($options),
+            'exclusive-4' => self::exclusiveRollbackProfile($rowCount, $options),
+            'exclusive-5' => self::exclusiveStatementJournalProfile($options),
+            'exclusive-6' => self::exclusiveHotJournalOpenProfile($options),
+            'exclusive-7' => self::exclusiveWalToggleProfile(),
+            'exclusive2-1' => self::exclusiveNormalCacheProfile($options),
+            'exclusive2-2' => self::exclusiveStaleCacheProfile($options),
+            'exclusive2-3' => self::exclusiveChangeCounterProfile($options),
+        };
+    }
+
+    /**
      * @return list<string>
      */
     private static function deleteDatabaseSidecars(
@@ -5329,6 +5387,304 @@ final class SQLiteVfsIoDynamicPlan
     private static function shortShmName(string $baseName): string
     {
         return preg_replace('/\.[^.]+$/', '.shm', $baseName) ?? ($baseName . '.shm');
+    }
+
+    private static function exclusiveLockingGroup(string $scenario): string
+    {
+        foreach (['exclusive2-1', 'exclusive2-2', 'exclusive2-3'] as $group) {
+            if (str_starts_with($scenario, $group)) {
+                return $group;
+            }
+        }
+        foreach (['exclusive-1', 'exclusive-2', 'exclusive-3', 'exclusive-4', 'exclusive-5', 'exclusive-6', 'exclusive-7'] as $group) {
+            if (str_starts_with($scenario, $group)) {
+                return $group;
+            }
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite exclusive-locking scenario: {$scenario}");
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusivePragmaProfile(array $options): array
+    {
+        $attached = (int) ($options['attached_databases'] ?? 3);
+        if ($attached < 0 || $attached > 4) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking attached database count must be between 0 and 4');
+        }
+
+        $assignment = strtolower(trim((string) ($options['assignment'] ?? 'exclusive')));
+        if (!in_array($assignment, ['exclusive', 'normal', 'invalid'], true)) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking pragma assignment is unsupported');
+        }
+
+        $mainMode = $assignment === 'exclusive' ? 'exclusive' : 'normal';
+        $attachedMode = $assignment === 'normal' ? 'normal' : 'exclusive';
+        $attachedModes = array_fill(0, $attached, $attachedMode);
+
+        return [
+            'locking_mode' => $mainMode,
+            'pragma_assignment' => $assignment,
+            'invalid_assignment_ignored' => $assignment === 'invalid',
+            'main_locking_mode' => $mainMode,
+            'temp_locking_mode_after_assignment' => 'exclusive',
+            'attached_database_count' => $attached,
+            'attached_locking_modes' => $attachedModes,
+            'connection_default_locking_mode' => $attached === 0 ? $mainMode : ($assignment === 'normal' ? 'normal' : 'exclusive'),
+            'mode_propagates_to_new_attaches' => $assignment !== 'invalid',
+            'reason' => 'exclusive_pragma_sets_default_mode_while_temp_remains_exclusive',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusiveLockRetentionProfile(array $options): array
+    {
+        $stage = strtolower(trim((string) ($options['stage'] ?? 'peer-before-exclusive-read')));
+        $allowed = [
+            'peer-before-exclusive-read',
+            'exclusive-shared-blocks-peer-write',
+            'peer-reserved-commit-blocked',
+            'exclusive-write-blocks-peer-read',
+            'normal-assignment-keeps-lock',
+            'normal-read-releases-lock',
+        ];
+        if (!in_array($stage, $allowed, true)) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking retention stage is unsupported');
+        }
+
+        return [
+            'locking_mode' => str_starts_with($stage, 'normal-') ? 'normal' : 'exclusive',
+            'stage' => $stage,
+            'primary_lock' => match ($stage) {
+                'peer-before-exclusive-read' => 'unlocked',
+                'exclusive-shared-blocks-peer-write', 'peer-reserved-commit-blocked' => 'shared',
+                default => 'exclusive',
+            },
+            'peer_read_result' => in_array($stage, ['exclusive-write-blocks-peer-read', 'normal-assignment-keeps-lock'], true) ? 'database is locked' : 'ok',
+            'peer_write_result' => in_array($stage, ['exclusive-shared-blocks-peer-write', 'peer-reserved-commit-blocked'], true) ? 'database is locked' : 'ok',
+            'peer_commit_result' => $stage === 'peer-reserved-commit-blocked' ? 'database is locked' : 'ok',
+            'lock_released' => $stage === 'normal-read-releases-lock',
+            'normal_assignment_releases_immediately' => false,
+            'reason' => 'exclusive_mode_keeps_locks_until_a_normal_mode_access_releases_them',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusiveJournalTruncationProfile(array $options): array
+    {
+        $event = strtolower(trim((string) ($options['event'] ?? 'commit')));
+        if (!in_array($event, ['initial', 'begin-delete', 'commit', 'rollback', 'normal-release'], true)) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking journal event is unsupported');
+        }
+
+        return [
+            'locking_mode' => $event === 'normal-release' ? 'normal' : 'exclusive',
+            'journal_event' => $event,
+            'journal_exists' => in_array($event, ['begin-delete', 'commit', 'rollback'], true),
+            'journal_has_content' => $event === 'begin-delete',
+            'commit_uses_truncate_not_delete' => $event === 'commit',
+            'rollback_uses_truncate_not_delete' => $event === 'rollback',
+            'normal_mode_access_deletes_truncated_journal' => $event === 'normal-release',
+            'journal_file_state' => match ($event) {
+                'initial', 'normal-release' => ['exists' => false, 'content' => false],
+                'begin-delete' => ['exists' => true, 'content' => true],
+                default => ['exists' => true, 'content' => false],
+            },
+            'reason' => 'exclusive_mode_truncates_rollback_journal_until_normal_access_deletes_it',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusiveRollbackProfile(int $rowCount, array $options): array
+    {
+        $mutationRounds = (int) ($options['mutation_rounds'] ?? 2);
+        if ($mutationRounds < 1) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking rollback mutation rounds must be positive');
+        }
+
+        return [
+            'locking_mode' => 'exclusive',
+            'default_cache_size' => (int) ($options['default_cache_size'] ?? 10),
+            'seed_row_count' => $rowCount,
+            'mutation_rounds' => $mutationRounds,
+            'signature_before' => 'count:' . $rowCount . ':stable-md5',
+            'signature_after_rollback' => 'count:' . $rowCount . ':stable-md5',
+            'rollback_restores_signature' => true,
+            'commit_after_rollback_allowed' => true,
+            'reason' => 'exclusive_mode_rollback_restores_cached_table_signature',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusiveStatementJournalProfile(array $options): array
+    {
+        $event = strtolower(trim((string) ($options['event'] ?? 'exclusive-after-commit')));
+        $openFiles = [
+            'normal-before-commit' => 2,
+            'normal-after-commit' => 1,
+            'exclusive-begin' => 2,
+            'exclusive-statement' => 2,
+            'exclusive-after-commit' => 2,
+            'normal-release' => 1,
+        ];
+        if (!isset($openFiles[$event])) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking statement journal event is unsupported');
+        }
+
+        return [
+            'locking_mode' => $event === 'normal-release' ? 'normal' : 'exclusive',
+            'statement_event' => $event,
+            'open_file_count' => $openFiles[$event],
+            'journal_handle_retained' => in_array($event, ['exclusive-begin', 'exclusive-statement', 'exclusive-after-commit'], true),
+            'statement_journal_opened_lazily' => true,
+            'statement_journal_retained_after_commit' => $event === 'exclusive-after-commit',
+            'normal_release_closes_extra_handles' => $event === 'normal-release',
+            'reason' => 'exclusive_mode_keeps_rollback_journal_handle_open_after_commit',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusiveHotJournalOpenProfile(array $options): array
+    {
+        $case = strtolower(trim((string) ($options['case'] ?? 'copied-hot-journal')));
+        if (!in_array($case, ['copied-hot-journal', 'empty-database-with-stray-journal'], true)) {
+            throw new \InvalidArgumentException('SQLite exclusive-locking hot-journal case is unsupported');
+        }
+
+        return [
+            'locking_mode' => 'exclusive',
+            'hot_journal_case' => $case,
+            'hot_journal_recovered' => $case === 'copied-hot-journal',
+            'stray_journal_ignored_for_empty_database' => $case === 'empty-database-with-stray-journal',
+            'select_result' => $case === 'copied-hot-journal' ? ['exclusive', 'Eden', 1955] : ['exclusive'],
+            'reason' => $case === 'copied-hot-journal'
+                ? 'exclusive_mode_can_open_copied_database_with_hot_journal'
+                : 'exclusive_mode_opens_empty_database_despite_stray_journal_file',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function exclusiveWalToggleProfile(): array
+    {
+        return [
+            'locking_mode' => 'normal',
+            'pragma_sequence' => ['exclusive', 'wal', 'normal', 0, 'delete'],
+            'wal_mode_entered_under_exclusive_lock' => true,
+            'normal_mode_user_version_read_preserves_change_count_done' => true,
+            'rollback_journal_mode_restored' => true,
+            'reason' => 'exclusive_wal_toggle_preserves_pager_change_count_state',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusiveNormalCacheProfile(array $options): array
+    {
+        $initialCounter = (int) ($options['initial_change_counter'] ?? 1);
+        if ($initialCounter < 0) {
+            throw new \InvalidArgumentException('SQLite exclusive2 normal-cache change counter must be non-negative');
+        }
+
+        return [
+            'locking_mode' => 'normal',
+            'initial_change_counter' => $initialCounter,
+            'peer_update_change_counter' => $initialCounter + 1,
+            'reset_change_counter' => $initialCounter,
+            'incremented_change_counter' => $initialCounter + 1,
+            'stale_cache_visible_before_counter_increment' => true,
+            'database_change_visible_after_counter_increment' => true,
+            'cache_uses_change_counter' => true,
+            'reason' => 'normal_mode_discards_cache_after_change_counter_increment',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusiveStaleCacheProfile(array $options): array
+    {
+        $corruptBytes = (int) ($options['corrupt_bytes'] ?? 10000);
+        if ($corruptBytes < 1) {
+            throw new \InvalidArgumentException('SQLite exclusive2 stale-cache corruption length must be positive');
+        }
+
+        return [
+            'locking_mode' => 'exclusive',
+            'corrupt_bytes' => $corruptBytes,
+            'corruption_visible_while_exclusive' => false,
+            'change_counter_checked_while_exclusive' => false,
+            'normal_assignment_keeps_cache' => true,
+            'corruption_visible_after_normal_unlock' => true,
+            'final_result' => 'database disk image is malformed',
+            'reason' => 'exclusive_mode_uses_pager_cache_until_normal_unlock_discards_it',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function exclusiveChangeCounterProfile(array $options): array
+    {
+        $normalWritesBefore = (int) ($options['normal_writes_before'] ?? 2);
+        $exclusiveWrites = (int) ($options['exclusive_writes'] ?? 2);
+        $normalWritesAfter = (int) ($options['normal_writes_after'] ?? 2);
+        if ($normalWritesBefore < 0 || $exclusiveWrites < 1 || $normalWritesAfter < 1) {
+            throw new \InvalidArgumentException('SQLite exclusive2 change-counter write counts are invalid');
+        }
+
+        $counter = 1;
+        $sequence = [$counter];
+        for ($i = 0; $i < $normalWritesBefore; $i++) {
+            $sequence[] = ++$counter;
+        }
+        for ($i = 0; $i < $exclusiveWrites; $i++) {
+            if ($i === 0) {
+                ++$counter;
+            }
+            $sequence[] = $counter;
+        }
+        for ($i = 0; $i < $normalWritesAfter; $i++) {
+            if ($i > 0) {
+                ++$counter;
+            }
+            $sequence[] = $counter;
+        }
+
+        return [
+            'locking_mode' => 'exclusive-to-normal',
+            'normal_writes_before' => $normalWritesBefore,
+            'exclusive_writes' => $exclusiveWrites,
+            'normal_writes_after' => $normalWritesAfter,
+            'change_counter_sequence' => $sequence,
+            'exclusive_reuses_change_counter' => true,
+            'first_normal_write_after_release_reuses_counter' => true,
+            'subsequent_normal_write_increments_counter' => $normalWritesAfter > 1,
+            'reason' => 'exclusive_mode_increments_change_counter_once_until_lock_release_finishes',
+        ];
     }
 
     /**
@@ -5591,6 +5947,46 @@ final class SQLiteVfsIoDynamicPlan
             'large-savepoint-rollback' => ['pagerfault2.test pagerfault2-1-pre1', 'pagerfault2.test pagerfault2-1'],
             'large-blob-insert' => ['pagerfault2.test pagerfault2-2-pre1', 'pagerfault2.test pagerfault2-2'],
             'vacuum-page-size-rollback' => ['pagerfault3.test pagerfault3-pre1', 'pagerfault3.test pagerfault3-pre2', 'pagerfault3.test pagerfault3-1'],
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function exclusiveLockingUpstream(string $group): array
+    {
+        return match ($group) {
+            'exclusive-1' => [
+                'exclusive.test exclusive-1.0 through exclusive-1.13 pragma locking_mode propagation',
+                'exclusive.test exclusive-1.99 detach cleanup',
+            ],
+            'exclusive-2' => [
+                'exclusive.test exclusive-2.0 through exclusive-2.11 exclusive locks block peer reads/writes until normal access releases them',
+            ],
+            'exclusive-3' => [
+                'exclusive.test exclusive-3.0 through exclusive-3.6 exclusive commits truncate rollback journal then normal access deletes it',
+            ],
+            'exclusive-4' => [
+                'exclusive.test exclusive-4.0 through exclusive-4.5 rollback in exclusive mode preserves table signature',
+            ],
+            'exclusive-5' => [
+                'exclusive.test exclusive-5.0 through exclusive-5.7 statement journal handles remain open in exclusive mode',
+            ],
+            'exclusive-6' => [
+                'exclusive.test exclusive-6.2 through exclusive-6.5 exclusive mode opens copied hot-journal and stray-journal databases',
+            ],
+            'exclusive-7' => [
+                'exclusive.test exclusive-7.1 WAL mode transition out of exclusive locking preserves Pager.changeCountDone state',
+            ],
+            'exclusive2-1' => [
+                'exclusive2.test exclusive2-1.0 through exclusive2-1.11 normal mode checks change-counter before discarding pager cache',
+            ],
+            'exclusive2-2' => [
+                'exclusive2.test exclusive2-2.1 through exclusive2-2.8 exclusive mode ignores on-disk corruption until normal unlock',
+            ],
+            'exclusive2-3' => [
+                'exclusive2.test exclusive2-3.0 through exclusive2-3.6 exclusive mode increments change-counter only once',
+            ],
         };
     }
 }

@@ -258,6 +258,45 @@ return [
         $t->same([$leftMerge], $mergeBase->mergeBasesMany([$leftMerge]));
         $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBasesMany([]));
     },
+    'maps upstream octopus merge-base sequential ordering special case' => static function (TestRunner $t) use ($finder): void {
+        $oid = static fn (string $hex): string => str_repeat($hex, 20);
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+
+        $release = $oid('10');
+        $legacyBase = $oid('20');
+        $securityBase = $oid('30');
+        $pluginHotfix = $oid('40');
+        $themeHotfix = $oid('50');
+        $legacyOnly = $oid('60');
+
+        $mergeBase = $finder([
+            $release => $timedCommit(1700000000),
+            $legacyBase => $timedCommit(1700000010, [$release]),
+            $securityBase => $timedCommit(1700000020, [$release]),
+            $pluginHotfix => $timedCommit(1700000030, [$legacyBase, $securityBase]),
+            $themeHotfix => $timedCommit(1700000040, [$securityBase, $legacyBase]),
+            $legacyOnly => $timedCommit(1700000050, [$legacyBase]),
+        ]);
+
+        $t->same([$legacyBase], $mergeBase->mergeBasesMany([$pluginHotfix, $themeHotfix, $legacyOnly]));
+        $t->same($release, $mergeBase->mergeBaseOctopus([$pluginHotfix, $themeHotfix, $legacyOnly]));
+        $t->same($legacyBase, $mergeBase->mergeBaseOctopus([$pluginHotfix, $legacyOnly, $themeHotfix]));
+        $t->same($pluginHotfix, $mergeBase->mergeBaseOctopus([$pluginHotfix]));
+        $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBaseOctopus([]));
+        $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBaseOctopus([$pluginHotfix, 123]));
+    },
     'returns null when histories are unrelated' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
         $left = $oid('a');
         $right = $oid('b');
@@ -315,6 +354,15 @@ return [
         $t->same($fixture['securityShallowBaseline'], $example['compatibilityNoCommitGraphBase']);
         $t->same(true, $example['commitGraphBasePrefersDeeperLegacyBaseline']);
         $t->same(true, $example['noCommitGraphBasePrefersNewerSecurityBaseline']);
+        $t->same([$fixture['legacyBaseline']], $finder->mergeBasesMany($fixture['octopusSpecialHeads']));
+        $t->same($fixture['releaseBaseline'], $finder->mergeBaseOctopus($fixture['octopusSpecialHeads']));
+        $t->same($fixture['legacyBaseline'], $finder->mergeBaseOctopus($fixture['octopusReorderedHeads']));
+        $t->same($fixture['releaseBaseline'], $example['sequentialOctopusBase']);
+        $t->same($fixture['legacyBaseline'], $example['reorderedOctopusBase']);
+        $t->same([$fixture['legacyBaseline']], $example['stableOctopusIntersectionBases']);
+        $t->same(true, $example['sequentialOctopusFallsBackToReleaseBaseline']);
+        $t->same(true, $example['reorderedOctopusKeepsLegacyBaseline']);
+        $t->same(true, $example['stableIntersectionKeepsLegacyBaseline']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

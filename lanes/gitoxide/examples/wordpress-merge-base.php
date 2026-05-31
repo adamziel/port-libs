@@ -47,6 +47,9 @@ $compatibilityNoCommitGraphBases = $timeOnlyFinder->mergeBases(
 );
 $compatibilityCommitGraphBase = $compatibilityCommitGraphBases[0] ?? null;
 $compatibilityNoCommitGraphBase = $compatibilityNoCommitGraphBases[0] ?? null;
+$sequentialOctopusBase = $finder->mergeBaseOctopus($fixture['octopusSpecialHeads']);
+$reorderedOctopusBase = $finder->mergeBaseOctopus($fixture['octopusReorderedHeads']);
+$stableOctopusIntersectionBases = $finder->mergeBasesMany($fixture['octopusSpecialHeads']);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -73,6 +76,14 @@ return [
     'compatibilityNoCommitGraphBase' => $compatibilityNoCommitGraphBase,
     'commitGraphBasePrefersDeeperLegacyBaseline' => $compatibilityCommitGraphBase === $fixture['legacyDeepBaseline'],
     'noCommitGraphBasePrefersNewerSecurityBaseline' => $compatibilityNoCommitGraphBase === $fixture['securityShallowBaseline'],
+    'octopusSpecialHeads' => $fixture['octopusSpecialHeads'],
+    'octopusReorderedHeads' => $fixture['octopusReorderedHeads'],
+    'sequentialOctopusBase' => $sequentialOctopusBase,
+    'reorderedOctopusBase' => $reorderedOctopusBase,
+    'stableOctopusIntersectionBases' => $stableOctopusIntersectionBases,
+    'sequentialOctopusFallsBackToReleaseBaseline' => $sequentialOctopusBase === $fixture['releaseBaseline'],
+    'reorderedOctopusKeepsLegacyBaseline' => $reorderedOctopusBase === $fixture['legacyBaseline'],
+    'stableIntersectionKeepsLegacyBaseline' => $stableOctopusIntersectionBases === [$fixture['legacyBaseline']],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

@@ -46,6 +46,9 @@ final class PathspecPattern
         if ($input === '') {
             throw new \InvalidArgumentException('An empty string is not a valid pathspec');
         }
+        if (!in_array($defaultSearchMode, [self::SEARCH_SHELL_GLOB, self::SEARCH_PATH_AWARE_GLOB, self::SEARCH_LITERAL], true)) {
+            throw new \InvalidArgumentException("Unsupported pathspec search mode: {$defaultSearchMode}");
+        }
         if ($literalDefault) {
             return new self(
                 $input,
@@ -61,7 +64,8 @@ final class PathspecPattern
         $top = false;
         $exclude = false;
         $ignoreCase = $defaultIgnoreCase;
-        $searchMode = $defaultSearchMode;
+        $searchMode = self::SEARCH_SHELL_GLOB;
+        $explicitSearchMode = null;
         $attributes = [];
         $cursor = 0;
 
@@ -104,14 +108,16 @@ final class PathspecPattern
                     } elseif ($keyword === 'exclude') {
                         $exclude = true;
                     } elseif ($keyword === 'literal') {
-                        if ($searchMode === self::SEARCH_PATH_AWARE_GLOB) {
+                        if ($explicitSearchMode === self::SEARCH_PATH_AWARE_GLOB) {
                             throw new \InvalidArgumentException("'literal' and 'glob' keywords cannot be used together in the same pathspec");
                         }
+                        $explicitSearchMode = self::SEARCH_LITERAL;
                         $searchMode = self::SEARCH_LITERAL;
                     } elseif ($keyword === 'glob') {
-                        if ($searchMode === self::SEARCH_LITERAL) {
+                        if ($explicitSearchMode === self::SEARCH_LITERAL) {
                             throw new \InvalidArgumentException("'literal' and 'glob' keywords cannot be used together in the same pathspec");
                         }
+                        $explicitSearchMode = self::SEARCH_PATH_AWARE_GLOB;
                         $searchMode = self::SEARCH_PATH_AWARE_GLOB;
                     } elseif ($keyword === 'attr' || str_starts_with($keyword, 'attr:')) {
                         if ($keyword === 'attr') {
@@ -134,6 +140,9 @@ final class PathspecPattern
         $mustBeDirectory = str_ends_with($path, '/');
         if ($mustBeDirectory) {
             $path = substr($path, 0, -1);
+        }
+        if ($explicitSearchMode === null) {
+            $searchMode = $defaultSearchMode;
         }
 
         return new self(

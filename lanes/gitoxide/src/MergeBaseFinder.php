@@ -284,6 +284,53 @@ final class MergeBaseFinder
     }
 
     /**
+     * Return the upstream octopus merge-base result for an ordered head list.
+     *
+     * This mirrors gix_revision::merge_base::octopus(): it repeatedly merges
+     * the current result with the next head and keeps only the first base from
+     * each pairwise graph walk. For a stable all-head intersection, use
+     * mergeBasesMany().
+     *
+     * @param list<string> $heads
+     */
+    public function mergeBaseOctopus(array $heads): ?string
+    {
+        if ($heads === []) {
+            throw new \InvalidArgumentException('At least one merge-base head is required');
+        }
+
+        $normalized = [];
+        $hashLength = null;
+        foreach ($heads as $head) {
+            if (!is_string($head)) {
+                throw new \InvalidArgumentException('Merge-base heads must be object id strings');
+            }
+            $headLength = self::assertObjectId($head);
+            if ($hashLength === null) {
+                $hashLength = $headLength;
+            } elseif ($headLength !== $hashLength) {
+                throw new \InvalidArgumentException('Merge-base object ids must all use the same hash algorithm');
+            }
+            $normalized[] = strtolower($head);
+        }
+
+        $current = array_shift($normalized);
+        if ($current === null) {
+            return null;
+        }
+
+        foreach ($normalized as $other) {
+            $next = $this->mergeBaseAgainst($current, [$other]);
+            if ($next === null) {
+                return null;
+            }
+            $current = $next;
+        }
+
+        return $current;
+    }
+
+    /**
      * @return array<string, int>
      */
     private function ancestorsWithDistance(string $oid): array

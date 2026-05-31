@@ -743,6 +743,71 @@ CSS;
             $prefixer->prefixForTargets('@-webkit-keyframes test { from { opacity: 0 } to { opacity: 1 } } @keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['safari' => 8])
         );
     },
+    'transition prefixer maps upstream encoded browser target prefix boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $encoded = static fn (int $major, int $minor = 0, int $patch = 0): int => ($major << 16) | ($minor << 8) | $patch;
+
+        $t->same(
+            '.foo{-webkit-box-shadow:1px 1px #000;box-shadow:1px 1px #000}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['safari' => $encoded(5, 0)])
+        );
+        $t->same(
+            '.foo{box-shadow:1px 1px #000}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['safari' => $encoded(5, 1)])
+        );
+        $t->same(
+            '.foo{background:-webkit-image-set(url("foo.png") 2x);background:image-set("foo.png" 2x)}',
+            $prefixer->prefixForTargets('.foo { background: image-set(url(foo.png) 2x); }', ['chrome' => 112])
+        );
+        $t->same(
+            '.foo{background:image-set("foo.png" 2x)}',
+            $prefixer->prefixForTargets('.foo { background: image-set(url(foo.png) 2x); }', ['chrome' => 113])
+        );
+        $t->same(
+            '.foo{-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}',
+            $prefixer->prefixForTargets('.foo { backdrop-filter: blur(5px); }', ['safari' => $encoded(17, 6)])
+        );
+        $t->same(
+            '.foo{backdrop-filter:blur(5px)}',
+            $prefixer->prefixForTargets('.foo { backdrop-filter: blur(5px); }', ['safari' => 18])
+        );
+        $t->same(
+            '.foo{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['edge' => 135])
+        );
+        $t->same(
+            '.foo{print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 16])
+        );
+        $t->same(
+            '.foo{-webkit-text-emphasis-style:filled;text-emphasis-style:filled}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-style: filled; }', ['chrome' => 98])
+        );
+        $t->same(
+            '.foo{text-emphasis-style:filled}',
+            $prefixer->prefixForTargets('.foo { text-emphasis-style: filled; }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration:underline double;text-decoration:underline double}',
+            $prefixer->prefixForTargets('.foo { text-decoration: double underline; }', ['safari' => 26])
+        );
+        $t->same(
+            '.foo{text-decoration:double underline}',
+            $prefixer->prefixForTargets('.foo { text-decoration: double underline; }', ['safari' => 27])
+        );
+        $t->same(
+            '@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['safari' => $encoded(8, 1)])
+        );
+        $t->same(
+            '.foo{color-scheme:light;color:light-dark(red,green)}',
+            $prefixer->prefixForTargets('.foo { color-scheme: light; color: light-dark(red, green); }', ['safari' => $encoded(17, 5)])
+        );
+        $t->same(
+            '.foo{--lightningcss-light:initial;--lightningcss-dark:;color-scheme:light;color:var(--lightningcss-light,red) var(--lightningcss-dark,green)}',
+            $prefixer->prefixForTargets('.foo { color-scheme: light; color: light-dark(red, green); }', ['safari' => $encoded(17, 4)])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {

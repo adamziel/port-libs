@@ -110,6 +110,111 @@ return [
         $icase = PathspecSearch::fromSpecs([':(icase)WP-CONTENT/MU-PLUGINS/*.PHP']);
         $t->same(true, $icase->isIncluded('wp-content/mu-plugins/Loader.PHP', false));
     },
+    'applies upstream default search modes and inherited icase during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    $blob('*.php'),
+                    $blob('gutenberg.php'),
+                    $blob('Gutenberg.PHP'),
+                    $tree('nested', new Tree([$blob('plugin.php')])),
+                ])),
+            ])),
+            $tree('WP-CONTENT', new Tree([
+                $tree('plugins', new Tree([$blob('Plugin.PHP')])),
+            ])),
+            $blob(':'),
+            $blob('index.php'),
+        ]);
+        $read = static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+            if (!isset($objects[$entry->oid])) {
+                throw new RuntimeException("Missing tree object for {$path}");
+            }
+
+            return $objects[$entry->oid];
+        };
+
+        $literal = PathspecSearch::fromSpecs(
+            ['wp-content/plugins/*.php'],
+            defaultSearchMode: PathspecPattern::SEARCH_LITERAL,
+        );
+        $t->same(PathspecPattern::SEARCH_LITERAL, $literal->patterns()[0]->searchMode);
+        $t->same(true, $literal->isIncluded('wp-content/plugins/*.php', false));
+        $t->same(false, $literal->isIncluded('wp-content/plugins/gutenberg.php', false));
+        $t->same(['wp-content/plugins/*.php'], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $literal,
+            $read,
+            includeTrees: false,
+        )));
+
+        $pathAware = PathspecSearch::fromSpecs(
+            ['wp-content/plugins/*.php'],
+            defaultSearchMode: PathspecPattern::SEARCH_PATH_AWARE_GLOB,
+        );
+        $t->same(true, $pathAware->isIncluded('wp-content/plugins/gutenberg.php', false));
+        $t->same(false, $pathAware->isIncluded('wp-content/plugins/nested/plugin.php', false));
+        $t->same([
+            'wp-content/plugins/*.php',
+            'wp-content/plugins/gutenberg.php',
+        ], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $pathAware,
+            $read,
+            includeTrees: false,
+        )));
+
+        $globOverridesNoGlob = PathspecSearch::fromSpecs(
+            [':(glob)wp-content/plugins/*.php'],
+            defaultSearchMode: PathspecPattern::SEARCH_LITERAL,
+        );
+        $t->same(PathspecPattern::SEARCH_PATH_AWARE_GLOB, $globOverridesNoGlob->patterns()[0]->searchMode);
+        $t->same(true, $globOverridesNoGlob->isIncluded('wp-content/plugins/gutenberg.php', false));
+        $t->same(false, $globOverridesNoGlob->isIncluded('wp-content/plugins/nested/plugin.php', false));
+
+        $literalDefault = PathspecSearch::fromSpecs([':'], literalDefault: true);
+        $t->same(false, $literalDefault->patterns()[0]->nil);
+        $t->same([':'], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $literalDefault,
+            $read,
+            includeTrees: false,
+        )));
+
+        $inheritedIcase = PathspecSearch::fromSpecs(
+            ['plugins/*.php'],
+            'WP-CONTENT',
+            defaultIgnoreCase: true,
+        );
+        $readPaths = [];
+        $t->same('WP-CONTENT', $inheritedIcase->commonPrefix());
+        $t->same(true, $inheritedIcase->isIncluded('WP-CONTENT/plugins/plugin.php', false));
+        $t->same(false, $inheritedIcase->isIncluded('wp-content/plugins/Plugin.PHP', false));
+        $t->same(['WP-CONTENT/plugins/Plugin.PHP'], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $inheritedIcase,
+            static function (TreeEntry $entry, string $path) use ($read, &$readPaths): GitObject {
+                $readPaths[] = $path;
+
+                return $read($entry, $path);
+            },
+            includeTrees: false,
+        )));
+        $t->same(['WP-CONTENT', 'WP-CONTENT/plugins'], $readPaths);
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PathspecSearch::fromSpecs(['wp-content/**'], defaultSearchMode: 'unsupported'),
+        );
+    },
     'matches upstream wildmatch brackets escapes and recursive directory globs during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
         $pathAwareSlashClass = PathspecSearch::fromSpecs([':(glob)wp-content/plugins/foo[/]bar.php']);
         $shellSlashClass = PathspecSearch::fromSpecs(['wp-content/plugins/foo[/]bar.php']);
