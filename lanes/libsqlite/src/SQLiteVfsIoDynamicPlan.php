@@ -5762,6 +5762,106 @@ final class SQLiteVfsIoDynamicPlan
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
+    public static function unixExclVfsProfile(string $scenario, array $options = []): array
+    {
+        $scenario = trim($scenario);
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite unix-excl VFS profile requires a scenario');
+        }
+
+        $group = self::unixExclGroup($scenario);
+        $peerContext = strtolower(trim((string) ($options['peer_context'] ?? 'multi-process')));
+        if (!in_array($peerContext, ['multi-process', 'same-process'], true)) {
+            throw new \InvalidArgumentException('SQLite unix-excl peer context is unsupported');
+        }
+
+        $pageSize = (int) ($options['page_size'] ?? 1024);
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite unix-excl page size must be a power of two at least 512');
+        }
+
+        $rowCount = (int) ($options['row_count'] ?? 1);
+        if ($rowCount < 1) {
+            throw new \InvalidArgumentException('SQLite unix-excl row count must be positive');
+        }
+
+        $readonly = $group === 'unixexcl-2';
+        $sameProcessPeer = $peerContext === 'same-process';
+        $processExclusive = !$readonly;
+        $externalLocked = $processExclusive && !$sameProcessPeer;
+        $baseRows = self::unixExclRows($rowCount, 'seed');
+
+        $profile = [
+            'status' => 'ok',
+            'script' => 'unixexcl.test',
+            'scenario' => $scenario,
+            'group' => $group,
+            'upstream' => self::unixExclUpstream($group),
+            'vfs' => 'unix-excl',
+            'peer_context' => $peerContext,
+            'same_process_peer' => $sameProcessPeer,
+            'read_only_open' => $readonly,
+            'page_size' => $pageSize,
+            'row_count' => $rowCount,
+            'process_exclusive_lock_acquired' => $processExclusive,
+            'same_process_clients_share_lock' => true,
+            'external_process_blocked' => $externalLocked,
+            'peer_before_unixexcl_read_result' => $baseRows,
+            'first_connection_read_result' => $baseRows,
+            'peer_after_unixexcl_read_result' => $externalLocked
+                ? ['code' => 1, 'message' => 'database is locked']
+                : ['code' => 0, 'rows' => $baseRows],
+            'lock_scope' => $processExclusive ? 'process-exclusive' : 'ordinary-unix',
+            'readonly_behaves_like_unix_vfs' => $readonly,
+            'dependencies' => array_values(array_filter([
+                'sqlite-upstream-unixexcl-test',
+                'sqlite-vfs-unix-excl-process-lock',
+                $group === 'unixexcl-3' ? 'sqlite-wal-unix-excl-snapshot' : null,
+                'vfs-io-dynamic-real-corpus',
+            ])),
+        ];
+
+        if ($group !== 'unixexcl-3') {
+            $profile['journal_mode'] = 'delete';
+            $profile['reason'] = $readonly
+                ? 'readonly_unix_excl_open_behaves_like_ordinary_unix_vfs'
+                : 'first_unix_excl_read_takes_process_wide_exclusive_lock';
+
+            return $profile;
+        }
+
+        $walFramesBefore = (int) ($options['wal_frames_before'] ?? 5);
+        $walFramesAfter = (int) ($options['wal_frames_after'] ?? 7);
+        $insertedRows = (int) ($options['inserted_rows'] ?? 1);
+        if ($walFramesBefore < 0 || $walFramesAfter < $walFramesBefore || $insertedRows < 1) {
+            throw new \InvalidArgumentException('SQLite unix-excl WAL frame and inserted-row counts are invalid');
+        }
+
+        $insertRows = self::unixExclRows($insertedRows, 'insert');
+        $writerRows = array_merge($baseRows, $insertRows);
+
+        return $profile + [
+            'journal_mode' => 'wal',
+            'uri_parameters' => ['psow' => 0, 'vfs' => 'unix-excl'],
+            'wal_frames_before_writer_insert' => $walFramesBefore,
+            'wal_frames_after_reader_commit' => $walFramesAfter,
+            'checkpoint_before_writer_insert' => ['busy' => 0, 'log' => $walFramesBefore, 'checkpointed' => $walFramesBefore],
+            'reader_transaction_open' => $sameProcessPeer,
+            'reader_visible_rows_during_transaction' => $sameProcessPeer ? $baseRows : [],
+            'writer_visible_rows_after_insert' => $sameProcessPeer ? $writerRows : [],
+            'reader_visible_rows_after_commit' => $sameProcessPeer ? $writerRows : [],
+            'checkpoint_after_reader_commit' => $sameProcessPeer ? ['busy' => 0, 'log' => $walFramesAfter, 'checkpointed' => $walFramesAfter] : null,
+            'wal_reader_snapshot_preserved' => $sameProcessPeer,
+            'reason' => $sameProcessPeer
+                ? 'same_process_unix_excl_wal_reader_keeps_snapshot_until_commit'
+                : 'unix_excl_wal_database_blocks_external_process_reader',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
     public static function exclusiveLockingProfile(string $scenario, array $options = []): array
     {
         $scenario = trim($scenario);
@@ -5858,6 +5958,33 @@ final class SQLiteVfsIoDynamicPlan
     private static function shortShmName(string $baseName): string
     {
         return preg_replace('/\.[^.]+$/', '.shm', $baseName) ?? ($baseName . '.shm');
+    }
+
+    private static function unixExclGroup(string $scenario): string
+    {
+        foreach (['unixexcl-1', 'unixexcl-2', 'unixexcl-3'] as $group) {
+            if (str_starts_with($scenario, $group)) {
+                return $group;
+            }
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite unix-excl scenario: {$scenario}");
+    }
+
+    /**
+     * @return list<array{a: int|string, b: int|string}>
+     */
+    private static function unixExclRows(int $rowCount, string $prefix): array
+    {
+        $rows = [];
+        for ($i = 1; $i <= $rowCount; $i++) {
+            $rows[] = [
+                'a' => $prefix === 'seed' && $i === 1 ? 'hello' : $prefix . '-' . $i,
+                'b' => $prefix === 'seed' && $i === 1 ? 'world' : $i,
+            ];
+        }
+
+        return $rows;
     }
 
     private static function exclusiveLockingGroup(string $scenario): string
@@ -6365,6 +6492,30 @@ final class SQLiteVfsIoDynamicPlan
             '8_3_names.test 8_3_names-1.1 default short rollback journal absent',
             '8_3_names.test 8_3_names-1.2 rollback restores original value',
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function unixExclUpstream(string $group): array
+    {
+        return match ($group) {
+            'unixexcl-1' => [
+                'unixexcl.test unixexcl-1.* read/write unix-excl connection takes a process-wide exclusive lock on first read',
+                'unixexcl.test unixexcl-1.* same-process peer may still read while external process is blocked',
+            ],
+            'unixexcl-2' => [
+                'unixexcl.test unixexcl-2.* read-only unix-excl connection behaves like ordinary unix VFS',
+                'unixexcl.test unixexcl-2.* external process can read read-only unix-excl database',
+            ],
+            'unixexcl-3' => [
+                'unixexcl.test unixexcl-3.* WAL database opened with file:test.db?psow=0 and vfs=unix-excl',
+                'unixexcl.test unixexcl-3.* external process is blocked by unix-excl WAL lock',
+                'unixexcl.test unixexcl-3.* same-process WAL reader keeps pre-insert snapshot until COMMIT',
+                'unixexcl.test unixexcl-3.* checkpoints report complete frame counts before and after reader release',
+            ],
+            default => throw new \InvalidArgumentException("Unsupported SQLite unix-excl upstream group: {$group}"),
+        };
     }
 
     /**

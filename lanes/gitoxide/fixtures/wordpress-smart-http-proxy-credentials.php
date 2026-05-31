@@ -148,6 +148,97 @@ $cidrNoProxySession = $cidrNoProxyClient->handshake();
 $cidrNoProxySession->createOrUpdate('refs/heads/main', $cidrNoProxyBlob->oid());
 $cidrNoProxyResponse = $cidrNoProxyClient->send($cidrNoProxySession->buildRequest([$cidrNoProxyBlob]));
 
+$wildcardLiteralNoProxyRequests = [];
+$wildcardLiteralNoProxyHelperCalls = 0;
+$wildcardLiteralNoProxyTransport = new SmartHttpReceivePackTransport(
+    'https://git.bypass.test/wp-content.git',
+    static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$wildcardLiteralNoProxyRequests, $packet, $flush, $advertisementBytes): array {
+        $wildcardLiteralNoProxyRequests[] = [
+            'method' => $method,
+            'url' => $url,
+            'headers' => $headers,
+            'body' => $body,
+            'timeout' => $timeout,
+            'httpOptions' => $httpOptions,
+        ];
+
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+        ];
+    },
+    [],
+    5.0,
+    ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+    [
+        'proxy' => 'http://wp-proxy.example.test:8080',
+        'noProxy' => '*.bypass.test,*bypass.test',
+        'proxyCredentialHelper' => static function () use (&$wildcardLiteralNoProxyHelperCalls): array {
+            $wildcardLiteralNoProxyHelperCalls++;
+
+            return ['username' => 'literal-wildcard-proxy-user', 'password' => 'literal-wildcard-proxy-pass'];
+        },
+    ],
+);
+$wildcardLiteralNoProxyAdvertisement = $wildcardLiteralNoProxyTransport->readAdvertisement();
+
+$starNoProxyRequests = [];
+$starNoProxyHelperCalls = 0;
+$starNoProxyBlob = new GitObject('blob', 'WordPress star no-proxy payload');
+$starNoProxyResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$starNoProxyClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.bypass.test/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$starNoProxyRequests, $packet, $flush, $advertisementBytes, $starNoProxyResponseBytes): array {
+            $starNoProxyRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_session=star; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $starNoProxyResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-proxy.example.test:8080',
+            'noProxy' => '*',
+            'proxyCredentialHelper' => static function () use (&$starNoProxyHelperCalls): array {
+                $starNoProxyHelperCalls++;
+
+                return ['username' => 'star-proxy-user', 'password' => 'star-proxy-pass'];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$starNoProxySession = $starNoProxyClient->handshake();
+$starNoProxySession->createOrUpdate('refs/heads/main', $starNoProxyBlob->oid());
+$starNoProxyResponse = $starNoProxyClient->send($starNoProxySession->buildRequest([$starNoProxyBlob]));
+
 $urlCredentialProxyRequests = [];
 $urlCredentialProxyHelperCalls = [];
 $urlCredentialProxyStores = [];
@@ -282,6 +373,15 @@ return [
         && ($cidrNoProxyRequests[1]['httpOptions'] ?? null) === [],
     'cidrNoProxyHelperCalls' => $cidrNoProxyHelperCalls,
     'cidrNoProxyPostCookieHeader' => $cidrNoProxyRequests[1]['headers']['Cookie'] ?? null,
+    'wildcardLiteralNoProxyAdvertisementBytes' => $wildcardLiteralNoProxyAdvertisement,
+    'wildcardLiteralNoProxyHelperCalls' => $wildcardLiteralNoProxyHelperCalls,
+    'wildcardLiteralNoProxyUsedProxy' => isset($wildcardLiteralNoProxyRequests[0]['httpOptions']['proxy']),
+    'wildcardLiteralNoProxyAuthorizationSent' => $wildcardLiteralNoProxyRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
+    'starNoProxyBypassedProxy' => $starNoProxyResponse->isSuccessful()
+        && ($starNoProxyRequests[0]['httpOptions'] ?? null) === []
+        && ($starNoProxyRequests[1]['httpOptions'] ?? null) === [],
+    'starNoProxyHelperCalls' => $starNoProxyHelperCalls,
+    'starNoProxyPostCookieHeader' => $starNoProxyRequests[1]['headers']['Cookie'] ?? null,
     'urlCredentialProxyAdvertisementBytes' => $urlCredentialProxyAdvertisement,
     'urlCredentialProxyHelperCalls' => $urlCredentialProxyHelperCalls,
     'urlCredentialProxyStores' => $urlCredentialProxyStores,
@@ -300,5 +400,5 @@ return [
     'unexpectedStatusErasures' => $unexpectedStatusErasures,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, reuse one helper credential action across a safe smart HTTP redirect, store it only after the final HTTP 200 request, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, reuse one helper credential action across a safe smart HTTP redirect, store it only after the final HTTP 200 request, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

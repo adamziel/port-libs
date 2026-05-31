@@ -853,19 +853,26 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
-    'css modules rejects malformed upstream composes grammar' => static function (TestRunner $t): void {
-        $transformer = new CssModulesTransformer();
+    'css modules preserves invalid upstream composes declarations without export references' => static function (TestRunner $t) use ($export): void {
+        $cases = [
+            '.test { composes: from global; color: red }' => '.EgL3uq_test{composes:from global;color:red}',
+            '.test { composes: foo from; color: red }' => '.EgL3uq_test{composes:foo from;color:red}',
+            '.test { composes: foo from bar; color: red }' => '.EgL3uq_test{composes:foo from bar;color:red}',
+            '.test { composes: foo from global bar; color: red }' => '.EgL3uq_test{composes:foo from global bar;color:red}',
+            '.test { composes: foo from "foo.css" bar; color: red }' => '.EgL3uq_test{composes:foo from "foo.css" bar;color:red}',
+            '.test { composes: initial; color: red }' => '.EgL3uq_test{composes:initial;color:red}',
+            '.test { composes: revert-layer; color: red }' => '.EgL3uq_test{composes:revert-layer;color:red}',
+            '.test { composes: "foo"; color: red }' => '.EgL3uq_test{composes:"foo";color:red}',
+            '.test { composes: foo url(bar); color: red }' => '.EgL3uq_test{composes:foo url(bar);color:red}',
+        ];
 
-        foreach ([
-            '.test { composes: from global; color: red }',
-            '.test { composes: foo from; color: red }',
-            '.test { composes: foo from bar; color: red }',
-            '.test { composes: foo from global bar; color: red }',
-            '.test { composes: foo from "foo.css" bar; color: red }',
-            '.test { composes: initial; color: red }',
-            '.test { composes: revert-layer; color: red }',
-        ] as $css) {
-            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css));
+        foreach ($cases as $css => $expectedCode) {
+            $result = (new CssModulesTransformer())->transform($css);
+            $t->same($expectedCode, $result['code']);
+            $t->same([
+                'test' => $export('EgL3uq_test'),
+            ], $result['exports']);
+            $t->same([], $result['references']);
         }
     },
     'css modules rejects upstream deprecated value rules before composing exports' => static function (TestRunner $t): void {

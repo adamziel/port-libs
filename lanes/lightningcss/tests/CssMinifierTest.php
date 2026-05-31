@@ -422,6 +422,15 @@ CSS
                 $minifier->minify('.foo { color: hwb(from ' . $origin . ' h w b / alpha); }')
             );
         }
+
+        $t->same(
+            '.foo{color:lch(0% 0 0)}',
+            $minifier->minify('.foo { color: lch(from color(display-p3 0 0 0) l c h / alpha); }')
+        );
+        $t->same(
+            '.foo{color:oklch(0% 0 0)}',
+            $minifier->minify('.foo { color: oklch(from color(display-p3 0 0 0) l c h / alpha); }')
+        );
     },
     'css minifier maps upstream advanced color function normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -616,12 +625,20 @@ CSS
 
         $spaceSpecificCases = [
             'lch' => [
-                'lch(from lch(70% 45 30) alpha c h / alpha)' => 'lch(1% 45 30)',
-                'lch(from lch(70% 45 30 / 40%) alpha c h / alpha)' => 'lch(.4% 45 30/.4)',
+                'lch(from lch(70% 45 30) alpha c h / l)' => 'lch(1 45 30/1)',
+                'lch(from lch(70% 45 30) alpha c h / alpha)' => 'lch(1 45 30)',
+                'lch(from lch(70% 45 30) alpha c c / alpha)' => 'lch(1 45 45)',
+                'lch(from lch(70% 45 30 / 40%) alpha c h / l)' => 'lch(.4 45 30/1)',
+                'lch(from lch(70% 45 30 / 40%) alpha c h / alpha)' => 'lch(.4 45 30/.4)',
+                'lch(from lch(70% 45 30 / 40%) alpha c c / alpha)' => 'lch(.4 45 45/.4)',
             ],
             'oklch' => [
-                'oklch(from oklch(70% 45 30) alpha c h / alpha)' => 'oklch(100% 45 30)',
-                'oklch(from oklch(70% 45 30 / 40%) alpha c h / alpha)' => 'oklch(40% 45 30/.4)',
+                'oklch(from oklch(70% 45 30) alpha c h / l)' => 'oklch(1 45 30/.7)',
+                'oklch(from oklch(70% 45 30) alpha c h / alpha)' => 'oklch(1 45 30)',
+                'oklch(from oklch(70% 45 30) alpha c c / alpha)' => 'oklch(1 45 45)',
+                'oklch(from oklch(70% 45 30 / 40%) alpha c h / l)' => 'oklch(.4 45 30/.7)',
+                'oklch(from oklch(70% 45 30 / 40%) alpha c h / alpha)' => 'oklch(.4 45 30/.4)',
+                'oklch(from oklch(70% 45 30 / 40%) alpha c c / alpha)' => 'oklch(.4 45 45/.4)',
             ],
         ];
 

@@ -42,7 +42,7 @@ final class PushResponse
             if ($packet === null) {
                 break;
             }
-            if ($packet['kind'] === 'flush') {
+            if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
                 $sawFlush = true;
                 break;
             }
@@ -214,7 +214,7 @@ final class PushResponse
             if ($packet === null) {
                 break;
             }
-            if ($packet['kind'] === 'flush') {
+            if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
                 $sawFlush = true;
                 break;
             }

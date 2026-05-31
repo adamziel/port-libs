@@ -722,7 +722,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
                 return true;
             }
 
-            $pattern = strtolower(ltrim(trim($pattern), '*'));
+            $pattern = strtolower(trim($pattern));
             if ($pattern === '') {
                 continue;
             }

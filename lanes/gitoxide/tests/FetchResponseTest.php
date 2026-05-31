@@ -406,6 +406,26 @@ return [
         $t->same(' objects', $response->remoteProgress()[3]->action);
         $t->same(46, $response->remoteProgress()[3]->percent);
     },
+    'parses protocol v2 sha256 response object ids before sideband pack data' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';
+        $response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
+
+        $t->same(true, $response->hasPack());
+        $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
+        $t->same($fixture['objectsSha256']['installed'], $response->acknowledgements()[0]->object);
+        $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[1]->kind);
+        $t->same($fixture['objectsSha256']['main'], $response->acknowledgements()[1]->object);
+        $t->same(FetchAcknowledgement::READY, $response->acknowledgements()[2]->kind);
+        $t->same(FetchShallowUpdate::SHALLOW, $response->shallowUpdates()[0]->kind);
+        $t->same($fixture['objectsSha256']['shallow'], $response->shallowUpdates()[0]->object);
+        $t->same('refs/heads/main', $response->wantedRefs()[0]->path);
+        $t->same($fixture['objectsSha256']['main'], $response->wantedRefs()[0]->object);
+        $t->same($fixture['sha256PackData'], $response->packData());
+        $t->same($fixture['sha256PackTrailer'], bin2hex(substr($response->packData(), -32)));
+        $t->same(['Resolving deltas: 100% (1/1)'], $response->progressMessages());
+        $t->same('Resolving deltas', $response->remoteProgress()[0]->action);
+        $t->same(100, $response->remoteProgress()[0]->percent);
+    },
     'exposes parsed progress from upstream sideband chunks' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-sideband.php';
         $response = FetchResponse::fromV2PacketLines($fixtures['cloneOnly2']['response']);
@@ -477,6 +497,8 @@ return [
         $t->same(true, $summary['suffixlessAckParsed']);
         $t->same(true, $summary['refInWantParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['refInWantPackTrailer']);
+        $t->same(true, $summary['sha256ObjectFormatParsed']);
+        $t->same($fixture['sha256PackTrailer'], $summary['sha256PackTrailer']);
         $t->same(true, $summary['cloneExchangeParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['cloneExchangePackTrailer']);
     },

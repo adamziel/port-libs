@@ -1662,6 +1662,65 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walCacheSpillRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite WAL cache-spill dynamic rows require a positive count');
+        }
+
+        $pageSizes = [512, 1024, 2048, 4096];
+        $rows = [];
+
+        for ($case = 1; $case <= $count; $case++) {
+            $pageSize = $pageSizes[($case - 1) % count($pageSizes)];
+            $basePageCount = 3 + ($case % 7);
+            $baseCommitFrames = 4 + ($case % 5);
+            $spilledFrameCount = 24 + (($case * 7) % 19);
+            $commitTailFrames = 6 + (($case * 5) % 11);
+            $rollbackTailFrames = 14 + (($case * 3) % 17);
+            $finalPageCount = $basePageCount + 20 + (($case * 11) % 23);
+            $nWalAfterRollback = $baseCommitFrames + $rollbackTailFrames;
+
+            $rows[] = [
+                'upstream' => sprintf('wal.test wal-11.1..11.14 cache-spill dynamic case %04d', $case),
+                'script' => 'wal.test',
+                'case' => $case,
+                'section' => 'wal-11.1..wal-11.14',
+                'page_size' => $pageSize,
+                'cache_size' => 10 + ($case % 6),
+                'base_database_page_count' => $basePageCount,
+                'base_commit_frames' => $baseCommitFrames,
+                'spilled_frame_count' => $spilledFrameCount,
+                'precommit_frame_count' => $baseCommitFrames + $spilledFrameCount,
+                'commit_tail_frames' => $commitTailFrames,
+                'committed_frame_count' => $baseCommitFrames + $spilledFrameCount + $commitTailFrames,
+                'rollback_tail_frames' => $rollbackTailFrames,
+                'rollback_frame_count' => $nWalAfterRollback,
+                'final_database_page_count' => $finalPageCount,
+                'rows_visible_before_commit' => 16 + ($case % 8),
+                'rows_visible_after_commit' => 16 + ($case % 8),
+                'rows_after_rollback' => 16,
+                'precommit_wal_bytes' => self::walFileSize($baseCommitFrames + $spilledFrameCount, $pageSize),
+                'committed_wal_bytes' => self::walFileSize($baseCommitFrames + $spilledFrameCount + $commitTailFrames, $pageSize),
+                'rollback_wal_bytes' => self::walFileSize($nWalAfterRollback, $pageSize),
+                'expected_precommit_reason' => 'uncommitted_valid_tail_after_last_commit',
+                'expected_rollback_reason' => 'uncommitted_valid_tail_after_last_commit',
+                'expected_commit_reason' => 'all_frames_valid',
+                'dependencies' => [
+                    'real-upstream-corpus-wal-test',
+                    'sqlite-wal-cache-spill-before-commit',
+                    'sqlite-wal-transaction-recovery-boundary',
+                    'sqlite-pager-wal-dynamic-corpus',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

@@ -40,6 +40,8 @@ return [
     'preparedNoOpRef' => 'refs/heads/review/plugin-f/no-op',
     'preparedPackedLockRef' => 'refs/heads/review/plugin-g/packed-lock',
     'preparedLogOnlyRef' => 'refs/heads/review/plugin-h/log-only',
+    'preparedSymbolicRef' => 'refs/heads/review/plugin-i/symbolic',
+    'preparedSymbolicTargetRef' => 'refs/heads/production',
     'preparedDerefHeadRef' => 'HEAD',
     'preparedDerefTargetRef' => 'refs/heads/production',
     'expectedPreparedDeleteEditNames' => [
@@ -56,6 +58,9 @@ return [
     ],
     'expectedPreparedLogOnlyDeleteEditNames' => [
         'refs/heads/review/plugin-h/log-only',
+    ],
+    'expectedPreparedSymbolicEditNames' => [
+        'refs/heads/review/plugin-i/symbolic',
     ],
     'expectedPreparedDerefEditNames' => [
         'HEAD',
@@ -84,9 +89,12 @@ return [
     'expectedPreparedLogOnlyPackedLockPreserved' => true,
     'expectedPreparedLogOnlyRefStillExists' => true,
     'expectedPreparedLogOnlyReflogExists' => false,
+    'expectedPreparedSymbolicHadLock' => true,
+    'expectedPreparedSymbolicCleanedLock' => true,
     'preparedReflogMessage' => 'prepared tenant review refs',
     'preparedNoOpReflogMessage' => 'idempotent tenant review ref',
+    'preparedSymbolicReflogMessage' => 'prepared symbolic review pointer',
     'preparedDerefReflogMessage' => 'prepared symbolic production publish',
     'preparedReflogCommitter' => 'Deploy Bot <deploy@example.com> 1234 +0000',
-    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, stage a dereferenced symbolic HEAD publish that logs both HEAD and the production branch while preserving the symbolic parent, hold packed-ref transaction locks while prepared ref updates are in flight, skip idempotent prepared writes without disturbing a held ref lock or adding reflog noise, prune stale and broken review refs through prepared delete locks, remove reflog-only audit trails even while packed refs are locked for compaction, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
+    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, stage a clone-style symbolic review pointer whose reflog records the peeled production commit before publishing the symbolic lock, stage a dereferenced symbolic HEAD publish that logs both HEAD and the production branch while preserving the symbolic parent, hold packed-ref transaction locks while prepared ref updates are in flight, skip idempotent prepared writes without disturbing a held ref lock or adding reflog noise, prune stale and broken review refs through prepared delete locks, remove reflog-only audit trails even while packed refs are locked for compaction, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
 ];

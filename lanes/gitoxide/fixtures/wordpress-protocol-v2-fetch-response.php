@@ -5,6 +5,11 @@ declare(strict_types=1);
 $main = '73a6868963993a3328e7d8fe94e5a6ac5078a944';
 $installed = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
 $packData = 'PACK' . pack('N', 2) . pack('N', 1) . 'wordpress-blobless-pack' . hex2bin('3b4b12f4cf6262d95e165b4517d71d0b9df20789');
+$sha256Installed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+$sha256Main = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+$sha256Shallow = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+$sha256PackTrailer = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+$sha256PackData = 'PACK' . pack('N', 2) . pack('N', 1) . 'wordpress-sha256-pack' . hex2bin($sha256PackTrailer);
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $delimiter = '0001';
@@ -43,6 +48,21 @@ return [
         . $packet("packfile\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'sha256Response' => $packet("acknowledgments\n")
+        . $packet("ACK {$sha256Installed}\n")
+        . $packet("ACK {$sha256Main} common\n")
+        . $packet("ready\n")
+        . $delimiter
+        . $packet("shallow-info\n")
+        . $packet("shallow {$sha256Shallow}\n")
+        . $delimiter
+        . $packet("wanted-refs\n")
+        . $packet("{$sha256Main} refs/heads/main\n")
+        . $delimiter
+        . $packet("packfile\n")
+        . $packet("\x02Resolving deltas: 100% (1/1)\n")
+        . $packet("\x01" . $sha256PackData)
+        . $flush,
     'cloneExchangeResponse' => $packet("version 2\n")
         . $packet("agent=port-libs/0.1\n")
         . $packet("ls-refs\n")
@@ -65,7 +85,14 @@ return [
         'main' => $main,
         'installed' => $installed,
     ],
+    'objectsSha256' => [
+        'main' => $sha256Main,
+        'installed' => $sha256Installed,
+        'shallow' => $sha256Shallow,
+    ],
     'packData' => $packData,
+    'sha256PackData' => $sha256PackData,
+    'sha256PackTrailer' => $sha256PackTrailer,
     'packetLineMaxBytes' => 65520,
     'wordpressUse' => 'A PHP deployment tool can parse protocol v2 sideband-all fetch response sections, confirm the wanted WordPress branch object, collect shallow boundary updates, surface remote progress, and hand channel-1 pack bytes to the object database layer.',
     'packetLineBoundUse' => 'Fetch response packet-lines are bounded to Gitoxide gix-packetline 64k framing before sideband decoding, so an oversized remote payload cannot be interpreted as pack or progress data.',
@@ -74,4 +101,5 @@ return [
     'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
     'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
     'cloneExchangeUse' => 'A WordPress deployment fetch can parse a persistent protocol v2 upload-pack exchange from capability advertisement through ls-refs and the following sidebanded fetch response before importing pack bytes.',
+    'sha256ObjectFormatUse' => 'A WordPress deployment fetch from a SHA-256 object-format repository can parse 64-hex acknowledgements, shallow updates, and wanted refs before preserving sidebanded pack bytes.',
 ];

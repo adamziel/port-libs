@@ -1950,6 +1950,95 @@ return [
         $directTransport->readAdvertisement();
         $t->same([], $directRequests[0]['httpOptions']);
 
+        $wildcardLiteralRequests = [];
+        $wildcardLiteralHelperCalls = 0;
+        $wildcardLiteralTransport = new SmartHttpReceivePackTransport(
+            'https://git.bypass.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$wildcardLiteralRequests, $packet, $flush): array {
+                $wildcardLiteralRequests[] = ['url' => $url, 'httpOptions' => $httpOptions];
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'noProxy' => '*.bypass.test,*bypass.test',
+                'proxyCredentialHelper' => static function () use (&$wildcardLiteralHelperCalls): array {
+                    $wildcardLiteralHelperCalls++;
+
+                    return ['username' => 'wildcard-proxy-user', 'password' => 'wildcard-proxy-pass'];
+                },
+            ]
+        );
+        $wildcardLiteralTransport->readAdvertisement();
+        $t->same(1, $wildcardLiteralHelperCalls);
+        $t->same('tcp://proxy.example.test:8080', $wildcardLiteralRequests[0]['httpOptions']['proxy']);
+        $t->same('Basic ' . base64_encode('wildcard-proxy-user:wildcard-proxy-pass'), $wildcardLiteralRequests[0]['httpOptions']['proxyAuthorization']);
+
+        $starBypassRequests = [];
+        $starBypassHelperCalls = 0;
+        $starBypassClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.bypass.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$starBypassRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $starBypassRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=star; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'noProxy' => '*',
+                    'proxyCredentialHelper' => static function () use (&$starBypassHelperCalls): array {
+                        $starBypassHelperCalls++;
+
+                        return ['username' => 'star-proxy-user', 'password' => 'star-proxy-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $starBypassSession = $starBypassClient->handshake();
+        $starBypassSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $starBypassRequest = $starBypassSession->buildRequest([$blob]);
+
+        $starBypassResponse = $starBypassClient->send($starBypassRequest);
+
+        $t->same(true, $starBypassResponse->isSuccessful());
+        $t->same(0, $starBypassHelperCalls);
+        $t->same([[], []], array_column($starBypassRequests, 'httpOptions'));
+        $t->same('wp_session=star', $starBypassRequests[1]['headers']['Cookie']);
+        $t->same($starBypassRequest->requestBytes(), $starBypassRequests[1]['body']);
+
         $cidrBypassRequests = [];
         $cidrBypassHelperCalls = 0;
         $cidrBypassClient = new ReceivePackClient(
@@ -2821,10 +2910,10 @@ return [
         ], SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git'));
         $t->same([
             'host' => '2001:db8::42',
-            'user' => 'deploy',
+            'user' => null,
             'port' => null,
             'path' => 'wp-content.git',
-        ], SshReceivePackTransport::parseRepositoryUrl('deploy@[2001:db8::42]:wp-content.git'));
+        ], SshReceivePackTransport::parseRepositoryUrl('[2001:db8::42]:wp-content.git'));
         $t->same([
             'host' => 'git.example.test',
             'user' => 'deploy',
@@ -2872,6 +2961,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad user@example.test:repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad/user@example.test:repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad%20user@example.test:repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('deploy@[2001:db8::42]:wp-content.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy%40tenant@git.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy%3Atenant@git.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh+git://-oProxyCommand=open$IFS-aCalculator/repo.git'));
@@ -2952,6 +3042,7 @@ return [
         $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
+        $t->same(true, $fixture['unsafeSshScpIpv6UserRejected']);
         $t->same(true, $fixture['unsafeSshEncodedUserDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshPasswordRejected']);
         $t->same('~/wp-content.git', $fixture['sshLegacySchemeTarget']['path']);
@@ -2971,6 +3062,8 @@ return [
         $t->same(true, $fixture['sshSimplePortRejected']);
         $t->same(true, $fixture['unsafeSshLegacyHostRejected']);
         $t->same(['GIT_PROTOCOL' => 'version=2', 'LANG' => 'C', 'LC_ALL' => 'C'], $fixture['sshProtocolV2Context']['environment']);
+        $t->same('2001:db8::42', $fixture['sshScpIpv6Target']['host']);
+        $t->same(null, $fixture['sshScpIpv6Target']['user']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);
         $t->same('caller-provided-ssh-connector', $fixture['sshProtocolV2Context']['authenticationBoundary']);
         $t->same(false, str_contains($fixture['sshProtocolV2Context']['redactedCredentialContext'], 'password='));
@@ -3003,6 +3096,18 @@ return [
         $t->same('wp_session=cidr', $fixture['cidrNoProxyPostCookieHeader']);
         $t->same($fixture['cidrNoProxyBypassedProxy'], $summary['cidrNoProxyBypassedProxy']);
         $t->same($fixture['cidrNoProxyPostCookieHeader'], $summary['cidrNoProxyPostCookieHeader']);
+        $t->same(true, $fixture['wildcardLiteralNoProxyUsedProxy']);
+        $t->same(1, $fixture['wildcardLiteralNoProxyHelperCalls']);
+        $t->same('Basic ' . base64_encode('literal-wildcard-proxy-user:literal-wildcard-proxy-pass'), $fixture['wildcardLiteralNoProxyAuthorizationSent']);
+        $t->same($fixture['wildcardLiteralNoProxyUsedProxy'], $summary['wildcardLiteralNoProxyUsedProxy']);
+        $t->same($fixture['wildcardLiteralNoProxyHelperCalls'], $summary['wildcardLiteralNoProxyHelperCalls']);
+        $t->same($fixture['wildcardLiteralNoProxyAuthorizationSent'], $summary['wildcardLiteralNoProxyAuthorizationSent']);
+        $t->same(true, $fixture['starNoProxyBypassedProxy']);
+        $t->same(0, $fixture['starNoProxyHelperCalls']);
+        $t->same('wp_session=star', $fixture['starNoProxyPostCookieHeader']);
+        $t->same($fixture['starNoProxyBypassedProxy'], $summary['starNoProxyBypassedProxy']);
+        $t->same($fixture['starNoProxyHelperCalls'], $summary['starNoProxyHelperCalls']);
+        $t->same($fixture['starNoProxyPostCookieHeader'], $summary['starNoProxyPostCookieHeader']);
         $t->same([['http://stale-user:stale-pass@wp-proxy.example.test:8080', 'git.example.test']], $fixture['urlCredentialProxyHelperCalls']);
         $t->same('http://wp-proxy.example.test:8080', $fixture['urlCredentialProxyUrl']);
         $t->same('Basic ' . base64_encode('helper-proxy-user:helper-proxy-pass'), $fixture['urlCredentialProxyAuthorizationSent']);

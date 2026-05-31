@@ -37,6 +37,7 @@ try {
     $fatalAfterStatusRejected = str_contains($error->getMessage(), 'sideband error pre-receive hook declined after deployment status');
 }
 $emptyErrorSidebandResponse = PushResponse::fromSidebandPacketLines($fixture['emptyErrorSidebandResponse']);
+$responseEndTerminatedResponse = PushResponse::fromReportStatusPacketLines($fixture['responseEndTerminatedResponse']);
 $carriageReturnStatusRejected = false;
 try {
     PushResponse::fromReportStatusPacketLines($fixture['carriageReturnStatusResponse']);
@@ -133,6 +134,8 @@ return [
     'fatalAfterStatusRejected' => $fatalAfterStatusRejected,
     'emptyErrorSidebandAccepted' => $emptyErrorSidebandResponse->isSuccessful()
         && $emptyErrorSidebandResponse->errorMessages() === [],
+    'responseEndTerminatedAccepted' => $responseEndTerminatedResponse->isSuccessful()
+        && $responseEndTerminatedResponse->refStatuses()[0]->refName === 'refs/heads/wp-release',
     'fallThroughAccepted' => $fallThroughResponse->refStatuses()[0]->fallThrough,
     'compatibilityOptionExtensionsIgnored' => $compatibilityResponse->refStatuses()[0]->oldObject === $fixture['compatibilityRef']['oldObject'],
     'compatibilityBareRejectionDefaulted' => $compatibilityResponse->refStatuses()[1]->message === 'failed',

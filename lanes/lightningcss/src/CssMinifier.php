@@ -14801,6 +14801,7 @@ final class CssMinifier
     private function knownRelativeAdvancedSrgbOrigin(string $origin): ?array
     {
         $channels = match (strtolower(trim($origin))) {
+            'color(display-p3 0 0 0)' => [0, 0, 0, 1.0],
             'color(display-p3 0 1 0)' => [0, 249, 66, 1.0],
             'lab(100% 104.3 -50.9)' => [255, 255, 255, 1.0],
             'lab(0% 104.3 -50.9)' => [42, 0, 34, 1.0],
@@ -15785,6 +15786,9 @@ final class CssMinifier
 
                 return $srgb === null ? null : $this->relativeLchChannelsFromSrgbOrigin($srgb);
             }
+            if ($space === 'oklch') {
+                return $this->knownRelativeOklchOrigin($serialized);
+            }
 
             return null;
         }
@@ -15813,6 +15817,23 @@ final class CssMinifier
             'c' => max(0.0, $chroma),
             'h' => $hue,
             'alpha' => min(1.0, max(0.0, $alpha)),
+        ];
+    }
+
+    /**
+     * @return array{l:float,c:float,h:float,alpha:float}|null
+     */
+    private function knownRelativeOklchOrigin(string $origin): ?array
+    {
+        if (strtolower(trim($origin)) !== 'color(display-p3 0 0 0)') {
+            return null;
+        }
+
+        return [
+            'l' => 0.0,
+            'c' => 0.0,
+            'h' => 0.0,
+            'alpha' => 1.0,
         ];
     }
 
@@ -15972,16 +15993,24 @@ final class CssMinifier
 
     /**
      * @param array{l:float,c:float,h:float,alpha:float} $origin
-     * @return array{type:'none'}|array{type:'number',value:float}|null
+     * @return array{type:'none'}|array{type:'number',value:float}|array{type:'raw-number',value:float}|null
      */
     private function evaluateRelativePolarLightnessComponent(string $token, array $origin, string $space): ?array
     {
+        $trimmed = trim($token);
         $component = $this->evaluateRelativePolarNumericComponent($token, $origin);
         if ($component === null || $component['type'] === 'none') {
             return $component;
         }
 
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', trim($token), $matches) === 1 && $space === 'oklch') {
+        if (strcasecmp($trimmed, 'alpha') === 0) {
+            return [
+                'type' => 'raw-number',
+                'value' => $component['value'],
+            ];
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $trimmed, $matches) === 1 && $space === 'oklch') {
             return [
                 'type' => 'number',
                 'value' => (float) $matches[1] / 100,
@@ -16068,7 +16097,7 @@ final class CssMinifier
 
     /**
      * @param array{l:float,c:float,h:float,alpha:float} $origin
-     * @return array{type:'none'}|array{type:'number',value:float}|null
+     * @return array{type:'none'}|array{type:'number',value:float}|array{type:'explicit-number',value:float}|null
      */
     private function evaluateRelativePolarAlphaComponent(string $token, array $origin): ?array
     {
@@ -16083,7 +16112,7 @@ final class CssMinifier
         }
 
         return [
-            'type' => 'number',
+            'type' => strcasecmp($token, 'l') === 0 ? 'explicit-number' : 'number',
             'value' => $value,
         ];
     }
@@ -16212,7 +16241,7 @@ final class CssMinifier
     }
 
     /**
-     * @param array{type:'none'}|array{type:'number',value:float} $component
+     * @param array{type:'none'}|array{type:'number',value:float}|array{type:'explicit-number',value:float} $component
      */
     private function serializeRelativeAdvancedAlpha(array $component): string
     {
@@ -16222,6 +16251,10 @@ final class CssMinifier
 
         $alpha = min(1.0, max(0.0, $component['value']));
         if (abs($alpha - 1.0) < 0.0000001) {
+            if ($component['type'] === 'explicit-number') {
+                return '/1';
+            }
+
             return '';
         }
 
@@ -16229,7 +16262,7 @@ final class CssMinifier
     }
 
     /**
-     * @param array{type:'none'}|array{type:'number',value:float} $component
+     * @param array{type:'none'}|array{type:'number',value:float}|array{type:'raw-number',value:float} $component
      */
     private function serializeRelativePolarLightness(array $component, string $space): string
     {
@@ -16238,6 +16271,10 @@ final class CssMinifier
         }
 
         $value = max(0.0, $component['value']);
+        if ($component['type'] === 'raw-number') {
+            return $this->minifySignificantColorNumber($value);
+        }
+
         if ($space === 'oklch') {
             $value *= 100;
         }

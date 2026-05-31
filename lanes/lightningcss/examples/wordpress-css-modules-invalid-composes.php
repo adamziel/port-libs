@@ -1,0 +1,84 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LightningCSS\CssModulesTransformer;
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$css = <<<'CSS'
+.card {
+  composes: from global;
+  color: red;
+}
+
+.button {
+  composes: reset;
+  color: blue;
+}
+
+.reset {
+  color: white;
+}
+
+.cardLegacy {
+  composes: heading from "./typography.css" extra;
+  color: yellow;
+}
+CSS;
+
+$result = (new CssModulesTransformer())->transform($css, [
+    'hash' => 'BlockA',
+]);
+
+$actual = [
+    'code' => $result['code'],
+    'exports' => $result['exports'],
+    'buttonClassList' => CssModulesTransformer::exportClassList($result['exports'], 'button'),
+];
+
+$expected = [
+    'code' => '.BlockA_card{composes:from global;color:red}.BlockA_button{color:#00f}.BlockA_reset{color:#fff}.BlockA_cardLegacy{composes:heading from "./typography.css" extra;color:#ff0}',
+    'exports' => [
+        'card' => [
+            'name' => 'BlockA_card',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'button' => [
+            'name' => 'BlockA_button',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_reset',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'reset' => [
+            'name' => 'BlockA_reset',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'cardLegacy' => [
+            'name' => 'BlockA_cardLegacy',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+    ],
+    'buttonClassList' => 'BlockA_button BlockA_reset',
+];
+
+if (($argv[1] ?? null) === '--self-test') {
+    if ($actual !== $expected) {
+        fwrite(STDERR, "Unexpected CSS Modules invalid composes output:\n" . var_export($actual, true) . "\n");
+        exit(1);
+    }
+
+    echo "OK\n";
+    exit(0);
+}
+
+echo $actual['code'] . PHP_EOL;
+echo json_encode($actual['exports'], JSON_PRETTY_PRINT) . PHP_EOL;
+echo 'button-class-list: ' . $actual['buttonClassList'] . PHP_EOL;

@@ -126,6 +126,9 @@ return [
         . $packet("\x01" . $packet("ok refs/heads/main\n"))
         . $packet("\x01" . $flush)
         . $flush,
+    'responseEndTerminatedResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/heads/wp-release\n")
+        . '0002',
     'carriageReturnStatusResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/main\r\n")
         . $flush,

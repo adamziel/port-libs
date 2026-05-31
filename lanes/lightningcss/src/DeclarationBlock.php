@@ -165,6 +165,16 @@ final class DeclarationBlock
         'row-gap',
         'column-gap',
     ];
+    private const COLUMNS_LONGHANDS = [
+        'column-width',
+        'column-count',
+    ];
+    private const COLUMN_RULE_LONGHANDS = [
+        'column-rule-width',
+        'column-rule-style',
+        'column-rule-color',
+    ];
+    private const COLUMN_PREFIXES = ['', '-webkit-', '-moz-'];
     private const OVERFLOW_LONGHANDS = [
         'overflow-x',
         'overflow-y',
@@ -641,6 +651,20 @@ final class DeclarationBlock
             return $gapValue;
         }
         if ($this->isGapProperty($property)) {
+            return null;
+        }
+        $columnsValue = $this->getColumnsProperty($entries, $property);
+        if ($columnsValue !== null) {
+            return $columnsValue;
+        }
+        if ($this->isColumnsProperty($property)) {
+            return null;
+        }
+        $columnRuleValue = $this->getColumnRuleProperty($entries, $property);
+        if ($columnRuleValue !== null) {
+            return $columnRuleValue;
+        }
+        if ($this->isColumnRuleProperty($property)) {
             return null;
         }
         $overflowValue = $this->getOverflowProperty($entries, $property);
@@ -4262,6 +4286,509 @@ final class DeclarationBlock
     private function isGapLonghand(string $property): bool
     {
         return in_array($property, self::GAP_LONGHANDS, true);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getColumnsProperty(array $entries, string $property): ?array
+    {
+        $prefix = $this->columnPrefixForProperty($property);
+        $base = $this->baseColumnProperty($property);
+        if ($prefix === null || !in_array($base, ['columns', 'column-width', 'column-count'], true)) {
+            return null;
+        }
+
+        $components = array_fill_keys(self::COLUMNS_LONGHANDS, null);
+        foreach ($entries as $entry) {
+            if ($this->columnPrefixForProperty($entry['property']) !== $prefix) {
+                continue;
+            }
+
+            $entryBase = $this->baseColumnProperty($entry['property']);
+            if ($entryBase === 'columns') {
+                $parsed = $this->parseColumnsComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::COLUMNS_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if (in_array($entryBase, self::COLUMNS_LONGHANDS, true)) {
+                $components[$entryBase] = [
+                    'value' => $this->normalizeColumnsLonghandValue($entryBase, $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($base !== 'columns') {
+            return $components[$base] ?? null;
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeColumnsComponents([
+                'column-width' => $components['column-width']['value'],
+                'column-count' => $components['column-count']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setColumnsLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $prefix = $this->columnPrefixForProperty($property);
+        $base = $this->baseColumnProperty($property);
+        if ($prefix === null || !in_array($base, self::COLUMNS_LONGHANDS, true)) {
+            return null;
+        }
+
+        $value = $this->normalizeColumnsLonghandValue($base, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if (
+                $this->columnPrefixForProperty($entries[$index]['property']) !== $prefix
+                || $this->baseColumnProperty($entries[$index]['property']) !== 'columns'
+            ) {
+                continue;
+            }
+
+            $components = $this->parseColumnsComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$base] = $value;
+            $entries[$index] = [
+                'property' => $this->columnProperty($prefix, 'columns'),
+                'value' => $this->serializeColumnsComponents($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeColumnsLonghand(array $entries, string $property): string
+    {
+        $prefix = $this->columnPrefixForProperty($property);
+        $base = $this->baseColumnProperty($property);
+        if ($prefix === null || !in_array($base, self::COLUMNS_LONGHANDS, true)) {
+            return $this->serializeEntries($entries);
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if (
+                $this->columnPrefixForProperty($entry['property']) !== $prefix
+                || $this->baseColumnProperty($entry['property']) !== 'columns'
+            ) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseColumnsComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::COLUMNS_LONGHANDS as $longhand) {
+                if ($longhand === $base) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $this->columnProperty($prefix, $longhand),
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{column-width:string,column-count:string}|null
+     */
+    private function parseColumnsComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) < 1 || count($tokens) > 2) {
+            return null;
+        }
+
+        $width = null;
+        $count = null;
+        $autoCount = 0;
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if ($lower === 'auto') {
+                $autoCount++;
+                continue;
+            }
+
+            if ($count === null && $this->isColumnCountToken($token)) {
+                $count = $token;
+                continue;
+            }
+
+            if ($width === null) {
+                $width = $token;
+                continue;
+            }
+
+            return null;
+        }
+
+        if ($autoCount > 2) {
+            return null;
+        }
+        while ($autoCount > 0) {
+            if ($width === null) {
+                $width = 'auto';
+                $autoCount--;
+                continue;
+            }
+            if ($count === null) {
+                $count = 'auto';
+                $autoCount--;
+                continue;
+            }
+
+            return null;
+        }
+
+        return [
+            'column-width' => $width ?? 'auto',
+            'column-count' => $count ?? 'auto',
+        ];
+    }
+
+    /**
+     * @param array{column-width:string,column-count:string} $components
+     */
+    private function serializeColumnsComponents(array $components): string
+    {
+        $width = $this->normalizeColumnsLonghandValue('column-width', $components['column-width']);
+        $count = $this->normalizeColumnsLonghandValue('column-count', $components['column-count']);
+        $widthIsAuto = strcasecmp($width, 'auto') === 0;
+        $countIsAuto = strcasecmp($count, 'auto') === 0;
+
+        if ($widthIsAuto && $countIsAuto) {
+            return 'auto';
+        }
+        if ($widthIsAuto) {
+            return $count;
+        }
+        if ($countIsAuto) {
+            return $width;
+        }
+
+        return $count . ' ' . $width;
+    }
+
+    private function normalizeColumnsLonghandValue(string $property, string $value): string
+    {
+        $value = trim(preg_replace('/\s+/', ' ', trim($value)) ?? $value);
+        if (strcasecmp($value, 'auto') === 0) {
+            return 'auto';
+        }
+
+        return $property === 'column-count' && $this->isColumnCountToken($value) ? $value : $value;
+    }
+
+    private function isColumnCountToken(string $token): bool
+    {
+        return preg_match('/^[1-9][0-9]*$/', trim($token)) === 1;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getColumnRuleProperty(array $entries, string $property): ?array
+    {
+        $prefix = $this->columnPrefixForProperty($property);
+        $base = $this->baseColumnProperty($property);
+        if ($prefix === null || !$this->isColumnRuleBaseProperty($base)) {
+            return null;
+        }
+
+        $components = array_fill_keys(self::COLUMN_RULE_LONGHANDS, null);
+        foreach ($entries as $entry) {
+            if ($this->columnPrefixForProperty($entry['property']) !== $prefix) {
+                continue;
+            }
+
+            $entryBase = $this->baseColumnProperty($entry['property']);
+            if ($entryBase === 'column-rule') {
+                $parsed = $this->completeBorderComponents($this->parseBorderValue($entry['value']));
+                foreach (self::COLUMN_RULE_LONGHANDS as $longhand) {
+                    $component = substr($longhand, strlen('column-rule-'));
+                    $components[$longhand] = [
+                        'value' => $this->normalizeColumnRuleLonghandValue($longhand, $parsed[$component]),
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if (in_array($entryBase, self::COLUMN_RULE_LONGHANDS, true)) {
+                $components[$entryBase] = [
+                    'value' => $this->normalizeColumnRuleLonghandValue($entryBase, $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($base !== 'column-rule') {
+            return $components[$base] ?? null;
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeColumnRuleComponents([
+                'column-rule-width' => $components['column-rule-width']['value'],
+                'column-rule-style' => $components['column-rule-style']['value'],
+                'column-rule-color' => $components['column-rule-color']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setColumnRuleLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $prefix = $this->columnPrefixForProperty($property);
+        $base = $this->baseColumnProperty($property);
+        if ($prefix === null || !in_array($base, self::COLUMN_RULE_LONGHANDS, true)) {
+            return null;
+        }
+
+        $value = $this->normalizeColumnRuleLonghandValue($base, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if (
+                $this->columnPrefixForProperty($entries[$index]['property']) !== $prefix
+                || $this->baseColumnProperty($entries[$index]['property']) !== 'column-rule'
+            ) {
+                continue;
+            }
+
+            $parsed = $this->completeBorderComponents($this->parseBorderValue($entries[$index]['value']));
+            $components = [
+                'column-rule-width' => $parsed['width'],
+                'column-rule-style' => $parsed['style'],
+                'column-rule-color' => $parsed['color'],
+            ];
+            $components[$base] = $value;
+            $entries[$index] = [
+                'property' => $this->columnProperty($prefix, 'column-rule'),
+                'value' => $this->serializeColumnRuleComponents($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeColumnRuleLonghand(array $entries, string $property): string
+    {
+        $prefix = $this->columnPrefixForProperty($property);
+        $base = $this->baseColumnProperty($property);
+        if ($prefix === null || !in_array($base, self::COLUMN_RULE_LONGHANDS, true)) {
+            return $this->serializeEntries($entries);
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if (
+                $this->columnPrefixForProperty($entry['property']) !== $prefix
+                || $this->baseColumnProperty($entry['property']) !== 'column-rule'
+            ) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $parsed = $this->completeBorderComponents($this->parseBorderValue($entry['value']));
+            $components = [
+                'column-rule-width' => $parsed['width'],
+                'column-rule-style' => $parsed['style'],
+                'column-rule-color' => $parsed['color'],
+            ];
+            foreach (self::COLUMN_RULE_LONGHANDS as $longhand) {
+                if ($longhand === $base) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $this->columnProperty($prefix, $longhand),
+                    'value' => $this->normalizeColumnRuleLonghandValue($longhand, $components[$longhand]),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param array{column-rule-width:string,column-rule-style:string,column-rule-color:string} $components
+     */
+    private function serializeColumnRuleComponents(array $components): string
+    {
+        $width = $this->normalizeColumnRuleLonghandValue('column-rule-width', $components['column-rule-width']);
+        $style = $this->normalizeColumnRuleLonghandValue('column-rule-style', $components['column-rule-style']);
+        $color = $this->normalizeColumnRuleLonghandValue('column-rule-color', $components['column-rule-color']);
+        $parts = [];
+
+        if (strcasecmp($width, 'medium') !== 0) {
+            $parts[] = $width;
+        }
+        if (strcasecmp($style, 'none') !== 0) {
+            $parts[] = $style;
+        }
+        if (strcasecmp($color, 'currentcolor') !== 0) {
+            $parts[] = $color;
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
+    }
+
+    private function normalizeColumnRuleLonghandValue(string $property, string $value): string
+    {
+        $value = trim(preg_replace('/\s+/', ' ', trim($value)) ?? $value);
+
+        return match ($property) {
+            'column-rule-style' => strtolower($value),
+            'column-rule-color' => strcasecmp($value, 'currentcolor') === 0 ? 'currentcolor' : $value,
+            default => $value,
+        };
+    }
+
+    private function isColumnsProperty(string $property): bool
+    {
+        $base = $this->baseColumnProperty($property);
+
+        return in_array($base, ['columns', 'column-width', 'column-count'], true);
+    }
+
+    private function isColumnsLonghand(string $property): bool
+    {
+        $base = $this->baseColumnProperty($property);
+
+        return in_array($base, self::COLUMNS_LONGHANDS, true);
+    }
+
+    private function isColumnRuleProperty(string $property): bool
+    {
+        return $this->isColumnRuleBaseProperty($this->baseColumnProperty($property));
+    }
+
+    private function isColumnRuleBaseProperty(?string $base): bool
+    {
+        return $base === 'column-rule' || in_array($base, self::COLUMN_RULE_LONGHANDS, true);
+    }
+
+    private function isColumnRuleLonghand(string $property): bool
+    {
+        $base = $this->baseColumnProperty($property);
+
+        return in_array($base, self::COLUMN_RULE_LONGHANDS, true);
+    }
+
+    private function columnPrefixForProperty(string $property): ?string
+    {
+        foreach (self::COLUMN_PREFIXES as $prefix) {
+            if ($prefix !== '' && str_starts_with($property, $prefix . 'column')) {
+                return $this->baseColumnProperty($property) === null ? null : $prefix;
+            }
+        }
+
+        return str_starts_with($property, 'column') ? ($this->baseColumnProperty($property) === null ? null : '') : null;
+    }
+
+    private function baseColumnProperty(string $property): ?string
+    {
+        foreach (self::COLUMN_PREFIXES as $prefix) {
+            if ($prefix !== '' && str_starts_with($property, $prefix)) {
+                $property = substr($property, strlen($prefix));
+                break;
+            }
+        }
+
+        return in_array($property, [
+            'columns',
+            'column-width',
+            'column-count',
+            'column-rule',
+            ...self::COLUMN_RULE_LONGHANDS,
+        ], true) ? $property : null;
+    }
+
+    private function columnProperty(string $prefix, string $base): string
+    {
+        return $prefix . $base;
     }
 
     /**
@@ -8771,6 +9298,14 @@ final class DeclarationBlock
         if ($gapValue !== null) {
             return $this->parseEntries($gapValue);
         }
+        $columnsValue = $this->setColumnsLonghand($entries, $property, $value, $important);
+        if ($columnsValue !== null) {
+            return $this->parseEntries($columnsValue);
+        }
+        $columnRuleValue = $this->setColumnRuleLonghand($entries, $property, $value, $important);
+        if ($columnRuleValue !== null) {
+            return $this->parseEntries($columnRuleValue);
+        }
         $overflowValue = $this->setOverflowLonghand($entries, $property, $value, $important);
         if ($overflowValue !== null) {
             return $this->parseEntries($overflowValue);
@@ -10732,6 +11267,18 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isColumnsLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeColumnsLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeColumnsLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
+        if ($this->isColumnRuleLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeColumnRuleLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeColumnRuleLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isOverflowLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeOverflowLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeOverflowLonghand($importantEntries, $property));
@@ -10942,6 +11489,22 @@ final class DeclarationBlock
 
         if ($property === 'gap') {
             return self::GAP_LONGHANDS;
+        }
+
+        $columnPrefix = $this->columnPrefixForProperty($property);
+        $columnBase = $this->baseColumnProperty($property);
+        if ($columnPrefix !== null && $columnBase === 'columns') {
+            return array_map(
+                fn (string $longhand): string => $this->columnProperty($columnPrefix, $longhand),
+                self::COLUMNS_LONGHANDS
+            );
+        }
+
+        if ($columnPrefix !== null && $columnBase === 'column-rule') {
+            return array_map(
+                fn (string $longhand): string => $this->columnProperty($columnPrefix, $longhand),
+                self::COLUMN_RULE_LONGHANDS
+            );
         }
 
         if ($property === 'overflow') {

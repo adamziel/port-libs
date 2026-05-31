@@ -353,6 +353,43 @@ return [
         $t->same(true, str_contains($response->progressMessages()[4], 'GitHub found 1 vulnerability'));
         $t->same('refs/heads/main', $response->refStatuses()[0]->refName);
     },
+    'accepts response-end terminated receive-status streams' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = str_repeat('a', 40);
+        $new = str_repeat('b', 40);
+        $direct = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release accepted by proc-receive\n")
+            . $packet("option refname refs/heads/wp-release\n")
+            . $packet("option old-oid {$old}\n")
+            . $packet("option new-oid {$new}\n")
+            . '0002'
+        );
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02Checking connectivity: 100% (1/1)\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . '0002')
+            . $flush
+        );
+        $outerResponseEnd = PushResponse::fromSidebandPacketLines(
+            $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . '0002'
+        );
+
+        $t->same(true, $direct->isSuccessful());
+        $t->same('refs/for/wp-release', $direct->refStatuses()[0]->refName);
+        $t->same('refs/heads/wp-release', $direct->refStatuses()[0]->effectiveRefName());
+        $t->same('accepted by proc-receive', $direct->refStatuses()[0]->message);
+        $t->same($old, $direct->refStatuses()[0]->oldObject);
+        $t->same($new, $direct->refStatuses()[0]->newObject);
+        $t->same(true, $sideband->isSuccessful());
+        $t->same(['Checking connectivity: 100% (1/1)'], $sideband->progressMessages());
+        $t->same('refs/heads/main', $sideband->refStatuses()[0]->refName);
+        $t->same(true, $outerResponseEnd->isSuccessful());
+        $t->same('refs/heads/main', $outerResponseEnd->refStatuses()[0]->refName);
+    },
     'guards malformed push response packet streams' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromSidebandPacketLines($packet("\x09bad band") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $flush));
@@ -458,5 +495,6 @@ return [
         $t->same(true, $summary['missingExpectedStatusRejected']);
         $t->same(true, $summary['fatalAfterStatusRejected']);
         $t->same(true, $summary['emptyErrorSidebandAccepted']);
+        $t->same(true, $summary['responseEndTerminatedAccepted']);
     },
 ];

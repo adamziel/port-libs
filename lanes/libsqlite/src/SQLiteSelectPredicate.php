@@ -570,10 +570,22 @@ final class SQLiteSelectPredicate
             return self::compareNumericValues($left, $right);
         }
 
-        $leftText = $left instanceof SQLiteBlobValue ? $left->bytes : (string) $left;
-        $rightText = $right instanceof SQLiteBlobValue ? $right->bytes : (string) $right;
+        $leftText = self::comparisonText($left);
+        $rightText = self::comparisonText($right);
 
         return self::compareText($leftText, $rightText, is_string($collation) ? $collation : 'BINARY');
+    }
+
+    private static function comparisonText(mixed $value): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return $value->bytes;
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return $value->json;
+        }
+
+        return (string) $value;
     }
 
     /**
@@ -661,6 +673,9 @@ final class SQLiteSelectPredicate
     {
         if (is_string($value)) {
             return $value;
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return $value->json;
         }
         if (is_bool($value)) {
             return $value ? '1' : '0';
@@ -796,14 +811,14 @@ final class SQLiteSelectPredicate
         if (is_bool($value) || is_int($value) || is_float($value)) {
             return 1;
         }
-        if (is_string($value)) {
+        if (is_string($value) || $value instanceof SQLiteJsonSubtypeValue) {
             return 2;
         }
         if ($value instanceof SQLiteBlobValue) {
             return 3;
         }
 
-        throw new \InvalidArgumentException('SQLite SELECT comparison values must be scalar, BLOB, or NULL');
+        throw new \InvalidArgumentException('SQLite SELECT comparison values must be scalar, JSON subtype, BLOB, or NULL');
     }
 
     private static function compareNumericValues(bool|int|float $left, bool|int|float $right): int

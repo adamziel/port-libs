@@ -126,6 +126,7 @@ final class ReferenceStore
 
                 $targetPath = $this->referencePath($physicalName);
                 $lockPath = $targetPath . '.lock';
+                $leafReflogTarget = $this->leafReflogTargetForUpdate($physicalTarget, $previous, $expectedTarget);
                 $edit = ReferenceTransactionEdit::update(
                     $this->storeRelativeName($physicalName),
                     $this->storeRelativeTarget($existing?->target),
@@ -158,10 +159,10 @@ final class ReferenceStore
                 $locks[] = [
                     'lockPath' => $lockPath,
                     'edit' => $edit,
-                    'reflog' => $writeReflog ? [
+                    'reflog' => $writeReflog && $leafReflogTarget !== null ? [
                         'physicalName' => $physicalName,
-                        'previousTarget' => $existing?->target,
-                        'newTarget' => $physicalTarget,
+                        'previousTarget' => $physicalTarget->isSymbolic() ? null : $existing?->target,
+                        'newTarget' => $leafReflogTarget,
                         'committer' => $committer,
                         'message' => $reflogMessage,
                         'forceCreate' => $forceCreateReflog,

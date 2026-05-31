@@ -12,6 +12,7 @@ $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sid
 $emptyErrorSidebandResponse = FetchResponse::fromV2PacketLines($fixture['emptyErrorSidebandResponse']);
 $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
 $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
+$sha256Response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
 $cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
 $uploadPackError = null;
 try {
@@ -61,6 +62,12 @@ return [
         && $refInWantResponse->wantedRefs()[0]->object === $fixture['objects']['main']
         && $refInWantResponse->packData() === $fixture['packData'],
     'refInWantPackTrailer' => bin2hex(substr($refInWantResponse->packData(), -20)),
+    'sha256ObjectFormatParsed' => $sha256Response->acknowledgements()[0]->object === $fixture['objectsSha256']['installed']
+        && $sha256Response->acknowledgements()[1]->object === $fixture['objectsSha256']['main']
+        && $sha256Response->shallowUpdates()[0]->object === $fixture['objectsSha256']['shallow']
+        && $sha256Response->wantedRefs()[0]->object === $fixture['objectsSha256']['main']
+        && $sha256Response->packData() === $fixture['sha256PackData'],
+    'sha256PackTrailer' => bin2hex(substr($sha256Response->packData(), -32)),
     'cloneExchangeCapabilities' => $cloneExchange->capabilities()->names(),
     'cloneExchangeRefs' => array_map(
         static fn ($ref): array => [

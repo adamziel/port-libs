@@ -149,6 +149,23 @@ $preparedLogOnlyDelete = $logOnlyStore->prepareLooseDeleteTransaction(
 );
 $preparedLogOnlyDeleteEdits = $preparedLogOnlyDelete->commit();
 
+$preparedSymbolicDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-symbolic-lock-' . bin2hex(random_bytes(4));
+$preparedSymbolicStore = new ReferenceStore($preparedSymbolicDir, null, $fixture['namespace']);
+$preparedSymbolicPrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedSymbolic = $preparedSymbolicStore->prepareLooseUpdateTransaction(
+    [$fixture['preparedSymbolicRef'] => ReferenceTarget::symbolic($fixture['preparedSymbolicTargetRef'])],
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedSymbolicReflogMessage'],
+    false,
+    ReferenceStore::PREVIOUS_EXISTING_MUST_MATCH,
+    ReferenceTarget::object($fixture['productionCommit']),
+);
+$preparedSymbolicPath = $preparedSymbolicDir . '/' . $preparedSymbolicPrefix . $fixture['preparedSymbolicRef'];
+$preparedSymbolicHadLock = is_file($preparedSymbolicPath . '.lock');
+$preparedSymbolicEdits = $preparedSymbolic->commit();
+$preparedSymbolicCleanedLock = !is_file($preparedSymbolicPath . '.lock');
+
 $preparedDerefDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-deref-lock-' . bin2hex(random_bytes(4));
 $preparedDerefStore = new ReferenceStore($preparedDerefDir, null, $fixture['namespace']);
 $preparedDerefPrefix = ReferenceName::expandNamespace($fixture['namespace']);
@@ -213,6 +230,12 @@ return [
         && file_get_contents($logOnlyDir . '/packed-refs.lock') === 'held by packed ref compaction',
     'preparedLogOnlyRefStillExists' => $logOnlyStore->tryFind($logOnlyRef) !== null,
     'preparedLogOnlyReflogExists' => $logOnlyStore->reflogExists($logOnlyRef),
+    'preparedSymbolicEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedSymbolicEdits),
+    'preparedSymbolicHadLock' => $preparedSymbolicHadLock,
+    'preparedSymbolicCleanedLock' => $preparedSymbolicCleanedLock,
+    'preparedSymbolicContents' => file_get_contents($preparedSymbolicPath),
+    'preparedSymbolicTarget' => $preparedSymbolicStore->find($fixture['preparedSymbolicRef'])->target->value,
+    'preparedSymbolicReflog' => $preparedSymbolicStore->reflogContents($fixture['preparedSymbolicRef']),
     'preparedDerefEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedDerefEdits),
     'preparedDerefEditModes' => array_map(static fn ($edit): string => $edit->reflogMode, $preparedDerefEdits),
     'preparedDerefUpdatesReference' => array_map(static fn ($edit): bool => $edit->updatesReference, $preparedDerefEdits),

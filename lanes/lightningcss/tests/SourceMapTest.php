@@ -479,6 +479,30 @@ return [
             $map->addVlqMap('A', ['file.css'], [null], []);
         });
     },
+    'source map validates upstream raw v3 json version before vlq import' => static function (TestRunner $t): void {
+        foreach ([
+            '{"mappings":";C","sources":[],"names":[]}',
+            '{"version":"3","mappings":";C","sources":[],"names":[]}',
+            '{"version":300,"mappings":";C","sources":[],"names":[]}',
+        ] as $json) {
+            $t->throws(InvalidArgumentException::class, static function () use ($json): void {
+                SourceMap::fromJson($json);
+            });
+        }
+
+        foreach ([
+            ['mappings' => ';C', 'sources' => [], 'names' => []],
+            ['version' => '3', 'mappings' => ';C', 'sources' => [], 'names' => []],
+            ['version' => 300, 'mappings' => ';C', 'sources' => [], 'names' => []],
+        ] as $data) {
+            $t->throws(InvalidArgumentException::class, static function () use ($data): void {
+                SourceMap::fromArray($data);
+            });
+        }
+
+        $t->same(';C', SourceMap::fromJson('{"version":3,"mappings":";C","sources":[],"names":[]}')->writeVlq());
+        $t->same(';C', SourceMap::fromArray(['version' => 3, 'mappings' => ';C', 'sources' => [], 'names' => []])->writeVlq());
+    },
     'source map rejects upstream invalid relative vlq decode offsets' => static function (TestRunner $t): void {
         $t->same(4294967295, SourceMap::decodeVlq('+/////H')[0]['generatedColumn']);
 

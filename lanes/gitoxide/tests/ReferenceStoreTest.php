@@ -1029,6 +1029,38 @@ return [
         $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/review/plugin-a'));
         $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/review/plugin-b'));
     },
+    'prepared symbolic reference writes peeled reflog before publishing lock like upstream' => static function (TestRunner $t) use ($new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-symbolic-reflog-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['refs/heads/symbolic' => ReferenceTarget::symbolic('refs/heads/main')],
+            'sha1',
+            $committer,
+            'clone symbolic branch',
+            false,
+            ReferenceStore::PREVIOUS_EXISTING_MUST_MATCH,
+            ReferenceTarget::object($new),
+        );
+
+        $t->same(true, is_file($dir . '/refs/heads/symbolic.lock'));
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/refs/heads/symbolic.lock'));
+        $t->same(null, $store->reflogContents('refs/heads/symbolic'), 'the reflog is still absent while the symbolic lock is only prepared');
+
+        $edits = $transaction->commit();
+
+        $t->same(['refs/heads/symbolic'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same(['symbolic'], array_map(static fn ($edit): string => $edit->newTarget?->kind, $edits));
+        $t->same(['refs/heads/main'], array_map(static fn ($edit): string => $edit->newTarget?->value, $edits));
+        $t->same(false, is_file($dir . '/refs/heads/symbolic.lock'));
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/refs/heads/symbolic'));
+        $t->contains(
+            str_repeat('0', 40) . " {$new} Deploy Bot <deploy@example.com> 1234 +0000\tclone symbolic branch\n",
+            (string) $store->reflogContents('refs/heads/symbolic'),
+        );
+        $t->same('symbolic', $store->find('refs/heads/symbolic')->kind());
+        $t->same('refs/heads/main', $store->find('refs/heads/symbolic')->target->value);
+    },
     'prepared reference transaction commit needs a committer only when a reflog would be written' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-missing-committer-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1522,6 +1554,15 @@ return [
         $t->same($fixture['expectedPreparedLogOnlyPackedLockPreserved'], $summary['preparedLogOnlyPackedLockPreserved']);
         $t->same($fixture['expectedPreparedLogOnlyRefStillExists'], $summary['preparedLogOnlyRefStillExists']);
         $t->same($fixture['expectedPreparedLogOnlyReflogExists'], $summary['preparedLogOnlyReflogExists']);
+        $t->same($fixture['expectedPreparedSymbolicEditNames'], $summary['preparedSymbolicEditNames']);
+        $t->same($fixture['expectedPreparedSymbolicHadLock'], $summary['preparedSymbolicHadLock']);
+        $t->same($fixture['expectedPreparedSymbolicCleanedLock'], $summary['preparedSymbolicCleanedLock']);
+        $t->same($fixture['expectedPhysicalHead'], $summary['preparedSymbolicContents']);
+        $t->same($fixture['preparedSymbolicTargetRef'], $summary['preparedSymbolicTarget']);
+        $t->contains(
+            str_repeat('0', 40) . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedSymbolicReflogMessage'],
+            (string) $summary['preparedSymbolicReflog'],
+        );
         $t->same($fixture['expectedPreparedDerefEditNames'], $summary['preparedDerefEditNames']);
         $t->same($fixture['expectedPreparedDerefEditModes'], $summary['preparedDerefEditModes']);
         $t->same($fixture['expectedPreparedDerefUpdatesReference'], $summary['preparedDerefUpdatesReference']);
@@ -1539,6 +1580,7 @@ return [
         );
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
+        $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {

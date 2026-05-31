@@ -86,7 +86,7 @@ final class MediaQueryParser
             throw new \InvalidArgumentException('Media query cannot start with a nesting selector');
         }
 
-        $query = $this->normalizeWhitespace($query);
+        $query = $this->normalizeEscapedMediaKeywords($this->normalizeWhitespace($query));
         $query = $this->normalizeParentheses($query, $allowCompactedNegation);
         $query = preg_replace_callback(
             '/\b(and|or)\b/i',
@@ -887,6 +887,48 @@ final class MediaQueryParser
     private function normalizeWhitespace(string $value): string
     {
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    }
+
+    private function normalizeEscapedMediaKeywords(string $query): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($query);
+        $identifier = '/^' . $this->cssIdentifierPattern() . '/';
+        $keywords = ['and', 'or', 'not', 'only', 'screen', 'print', 'all'];
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $query[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $query[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if (preg_match($identifier, substr($query, $i), $matches) === 1) {
+                $raw = $matches[0];
+                $decoded = strtolower($this->decodeCssIdentifier($raw));
+                $output .= in_array($decoded, $keywords, true) ? $decoded : $raw;
+                $i += strlen($raw) - 1;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function cssIdentifierPattern(): string

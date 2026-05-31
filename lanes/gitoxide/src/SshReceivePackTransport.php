@@ -213,6 +213,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
         if (preg_match('/^(?:(?<user>[^@\/:]+)@)?(?<host>\[[^\]]+\]|[^\/:]+):(?<path>.+)$/', $url, $matches) !== 1) {
             throw new \InvalidArgumentException('SSH receive-pack transport expects an ssh:// URL or scp-like SSH URL');
         }
+        if (isset($matches['user']) && $matches['user'] !== '' && str_starts_with($matches['host'], '[')) {
+            throw new \InvalidArgumentException('SCP-like SSH receive-pack URL does not support bracketed IPv6 hosts with a user');
+        }
 
         $host = self::normalizeHost(self::decodeComponent($matches['host'], 'host'));
 

@@ -951,6 +951,44 @@ return [
             $block->getProperty('gap: 1rem !important; row-gap: 2rem', 'row-gap')
         );
     },
+    'declaration block reads upstream multi-column cssom shorthands and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(['value' => '2 16rem', 'important' => false], $block->getProperty('columns: 2 16rem', 'columns'));
+        $t->same(['value' => '16rem', 'important' => false], $block->getProperty('columns: 2 16rem', 'column-width'));
+        $t->same(['value' => '2', 'important' => false], $block->getProperty('columns: 2 16rem', 'column-count'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('columns: 16rem', 'column-count'));
+        $t->same(['value' => '16rem', 'important' => false], $block->getProperty('columns: auto 16rem', 'columns'));
+        $t->same(['value' => '3', 'important' => false], $block->getProperty('columns: auto 3', 'columns'));
+        $t->same(
+            ['value' => '3 18rem', 'important' => false],
+            $block->getProperty('column-width: 18rem; column-count: 3', 'columns')
+        );
+        $t->same(null, $block->getProperty('column-width: 18rem !important; column-count: 3', 'columns'));
+        $t->same(['value' => '2 16rem', 'important' => true], $block->getProperty('-webkit-columns: 2 16rem !important', '-webkit-columns'));
+        $t->same(null, $block->getProperty('-webkit-columns: 2 16rem', 'columns'));
+
+        $t->same(['value' => '1px solid #ddd', 'important' => false], $block->getProperty('column-rule: 1px solid #ddd', 'column-rule'));
+        $t->same(['value' => '1px', 'important' => false], $block->getProperty('column-rule: 1px solid #ddd', 'column-rule-width'));
+        $t->same(['value' => 'solid', 'important' => false], $block->getProperty('column-rule: 1px solid #ddd', 'column-rule-style'));
+        $t->same(['value' => '#ddd', 'important' => false], $block->getProperty('column-rule: 1px solid #ddd', 'column-rule-color'));
+        $t->same(
+            ['value' => '2px dashed var(--wp--preset--color--contrast)', 'important' => false],
+            $block->getProperty(
+                'column-rule-width: 2px; column-rule-style: dashed; column-rule-color: var(--wp--preset--color--contrast)',
+                'column-rule'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty('column-rule-width: 2px; column-rule-style: dashed !important; column-rule-color: red', 'column-rule')
+        );
+        $t->same(
+            ['value' => '2px dotted #aaa', 'important' => true],
+            $block->getProperty('-moz-column-rule: dotted 2px #aaa !important', '-moz-column-rule')
+        );
+        $t->same(null, $block->getProperty('-moz-column-rule: dotted 2px #aaa', 'column-rule'));
+    },
     'declaration block reads upstream overflow cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1711,6 +1749,28 @@ return [
         $t->same(
             'row-gap: 3rem; gap: 1rem !important',
             $block->setProperty('gap: 1rem !important', 'row-gap', '3rem')
+        );
+    },
+    'declaration block sets upstream multi-column cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('columns: 2 20rem', $block->setProperty('columns: 2 16rem', 'column-width', '20rem'));
+        $t->same('columns: 3 16rem', $block->setProperty('columns: 2 16rem', 'column-count', '3'));
+        $t->same('-webkit-columns: 2 20rem', $block->setProperty('-webkit-columns: 2 16rem', '-webkit-column-width', '20rem'));
+        $t->same('columns: 2 16rem; -webkit-column-width: 20rem', $block->setProperty('columns: 2 16rem', '-webkit-column-width', '20rem'));
+
+        $t->same(
+            'column-rule: 1px solid var(--wp--preset--color--accent)',
+            $block->setProperty('column-rule: 1px solid #ddd', 'column-rule-color', 'var(--wp--preset--color--accent)')
+        );
+        $t->same('column-rule: 1px dashed #ddd', $block->setProperty('column-rule: 1px solid #ddd', 'column-rule-style', 'dashed'));
+        $t->same(
+            '-moz-column-rule: 2px dotted #aaa',
+            $block->setProperty('-moz-column-rule: dotted 1px #aaa', '-moz-column-rule-width', '2px')
+        );
+        $t->same(
+            'column-rule-width: 2px; column-rule: 1px solid #ddd !important',
+            $block->setProperty('column-rule: 1px solid #ddd !important', 'column-rule-width', '2px')
         );
     },
     'declaration block sets upstream overflow cssom longhands in existing shorthands' => static function (TestRunner $t): void {
@@ -2556,6 +2616,28 @@ return [
         $t->same(
             'column-gap: 1rem !important',
             $block->removeProperty('gap: 1rem !important; row-gap: 3rem', 'row-gap')
+        );
+    },
+    'declaration block removes upstream multi-column cssom longhands and shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('column-count: 2; color: red', $block->removeProperty('columns: 2 16rem; color: red', 'column-width'));
+        $t->same('column-width: 16rem', $block->removeProperty('columns: 2 16rem', 'column-count'));
+        $t->same('color: red', $block->removeProperty('columns: 2 16rem; column-count: 3; color: red', 'columns'));
+        $t->same('-moz-column-width: 16rem', $block->removeProperty('-moz-columns: 2 16rem', '-moz-column-count'));
+
+        $t->same(
+            'column-rule-width: 1px; column-rule-style: solid; color: red',
+            $block->removeProperty('column-rule: 1px solid #ddd; color: red', 'column-rule-color')
+        );
+        $t->same(
+            'column-rule-style: solid; column-rule-color: #ddd',
+            $block->removeProperty('column-rule: 1px solid #ddd', 'column-rule-width')
+        );
+        $t->same('color: red', $block->removeProperty('column-rule: 1px solid #ddd; column-rule-color: red; color: red', 'column-rule'));
+        $t->same(
+            '-webkit-column-rule-width: 1px; -webkit-column-rule-color: #ddd',
+            $block->removeProperty('-webkit-column-rule: 1px solid #ddd', '-webkit-column-rule-style')
         );
     },
     'declaration block removes upstream overflow cssom longhands and shorthand' => static function (TestRunner $t): void {

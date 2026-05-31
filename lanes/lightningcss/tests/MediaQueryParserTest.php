@@ -102,7 +102,13 @@ return [
         $t->same('(theme-breakpoint>=2)', $parser->minifyList('(theme\\-breakpoint >= 2)'));
         $t->same('(theme-state=expanded)', $parser->minifyList('(theme\\2d state = exp\\61 nded)'));
         $t->same('screen and (width>=240px)', $parser->minifyList('scr\\65 en and (w\\69 dth >= 240px)'));
+        $t->same('only screen and (width>=240px)', $parser->minifyList('\\6f nly scr\\65 en a\\6e d (w\\69 dth >= 240px)'));
+        $t->same('(width>=240px)', $parser->minifyList('n\\6f t (w\\69 dth < 240px)'));
+        $t->same('(hover) or (100px<=width<=200px)', $parser->minifyList('(hover) o\\72 (100px <= w\\69 dth <= 200px)'));
+        $t->same('((width>480px) and (hover)) or (pointer:coarse)', $parser->minifyList('((w\\69 dth > 480px) a\\6e d (hover)) o\\72 (pointer: coarse)'));
         $t->same('not (min-width:240px)', $parser->lowerRangeSyntaxList('(w\\69 dth < 240px)'));
+        $t->same('only screen and (min-width:240px)', $parser->lowerRangeSyntaxList('\\6f nly scr\\65 en a\\6e d (w\\69 dth >= 240px)'));
+        $t->same('(hover) or ((min-width:100px) and (max-width:200px))', $parser->lowerRangeSyntaxList('(hover) o\\72 (100px <= w\\69 dth <= 200px)'));
         $t->same('(min-width:100px) and (max-width:200px)', $parser->lowerRangeSyntaxList('(100px <= w\\69 dth <= 200px)'));
         $t->same('(min-theme-breakpoint:2)', $parser->lowerRangeSyntaxList('(theme\\2d breakpoint >= 2)'));
     },
@@ -353,6 +359,8 @@ return [
         $t->same('@layer blocks{@media (width=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (width = 240px) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (--wp-breakpoint=env(--wp-breakpoint)){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (--wp-breakpoint = env(--wp-breakpoint)) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media screen and (width>=240px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media scr\\65 en and (w\\69 dth >= 240px) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media only screen and (width>=240px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media \\6f nly scr\\65 en a\\6e d (w\\69 dth >= 240px) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (hover) or (100px<=width<=200px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (hover) o\\72 (100px <= w\\69 dth <= 200px) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (theme-state=expanded){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (theme\\2d state = exp\\61 nded) { .foo { color: yellow } } }'));
     },
     'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {

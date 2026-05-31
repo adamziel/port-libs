@@ -1149,6 +1149,92 @@ return [
             'exclude' => ['logical-properties'],
         ]));
     },
+    'transition prefixer maps upstream logical spacing target fallbacks' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        $t->same(
+            $selector['ltr-webkit'] . '{margin-left:2px}'
+                . $selector['ltr-modern'] . '{margin-left:2px}'
+                . $selector['rtl-webkit'] . '{margin-right:2px}'
+                . $selector['rtl-modern'] . '{margin-right:2px}',
+            $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{margin-left:2px;margin-right:4px}'
+                . $selector['ltr-modern'] . '{margin-left:2px;margin-right:4px}'
+                . $selector['rtl-webkit'] . '{margin-left:4px;margin-right:2px}'
+                . $selector['rtl-modern'] . '{margin-left:4px;margin-right:2px}',
+            $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; margin-inline-end: 4px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{margin-left:2px;margin-right:2px}',
+            $prefixer->prefixForTargets('.foo { margin-inline: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{margin-top:2px}',
+            $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{margin-bottom:2px}',
+            $prefixer->prefixForTargets('.foo { margin-block-end: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{padding-left:var(--padding)}'
+                . $selector['ltr-modern'] . '{padding-left:var(--padding)}'
+                . $selector['rtl-webkit'] . '{padding-right:var(--padding)}'
+                . $selector['rtl-modern'] . '{padding-right:var(--padding)}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: var(--padding); }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{padding-left:2px;padding-right:4px}'
+                . $selector['ltr-modern'] . '{padding-left:2px;padding-right:4px}'
+                . $selector['rtl-webkit'] . '{padding-left:4px;padding-right:2px}'
+                . $selector['rtl-modern'] . '{padding-left:4px;padding-right:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline: 2px 4px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{padding-top:2px}',
+            $prefixer->prefixForTargets('.foo { padding-block-start: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{padding-bottom:2px}',
+            $prefixer->prefixForTargets('.foo { padding-block-end: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{margin-inline-start:2px;margin-inline-end:4px;padding-block-start:1rem;padding-block-end:2rem}',
+            $prefixer->prefixForTargets('.foo { margin-inline: 2px 4px; padding-block: 1rem 2rem; }', ['safari' => 13])
+        );
+    },
+    'transition prefixer maps upstream logical spacing browser boundaries' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+        $inlineStartFallback = $selector['ltr-webkit'] . '{margin-left:2px}'
+            . $selector['ltr-modern'] . '{margin-left:2px}'
+            . $selector['rtl-webkit'] . '{margin-right:2px}'
+            . $selector['rtl-modern'] . '{margin-right:2px}';
+        $blockStartFallback = '.foo{margin-top:2px}';
+
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; }', ['safari' => '12.0']));
+        $t->same('.foo{margin-inline-start:2px}', $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; }', ['safari' => '12.1']));
+        $t->same($blockStartFallback, $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', ['safari' => '12.0']));
+        $t->same('.foo{margin-block-start:2px}', $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', ['safari' => '12.1']));
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; }', ['chrome' => 68]));
+        $t->same('.foo{margin-inline-start:2px}', $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; }', ['chrome' => 69]));
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; }', ['firefox' => 40]));
+        $t->same('.foo{margin-inline-start:2px}', $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; }', ['firefox' => 41]));
+        $t->same('.foo{margin-block-start:2px}', $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', ['firefox' => 40]));
+        $t->same('.foo{padding-inline-start:2px;padding-inline-end:2px}', $prefixer->prefixForTargets('.foo { padding-inline: 2px; }', ['safari' => 13]));
+        $t->same('.foo{padding-inline:2px}', $prefixer->prefixForTargets('.foo { padding-inline: 2px; }', ['safari' => 15]));
+        $t->same($blockStartFallback, $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', [
+            'browsers' => ['chrome' => 120],
+            'include' => ['LogicalProperties'],
+        ]));
+        $t->same('.foo{margin-block-start:2px}', $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', [
+            'browsers' => ['safari' => 8],
+            'exclude' => ['logical-properties'],
+        ]));
+    },
     'transition prefixer maps upstream logical border target fallbacks' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');

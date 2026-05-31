@@ -505,12 +505,18 @@ final class CssModulesTransformer
             return $rewrittenProperty . ':' . ($rewrittenValue ?? $value) . $trailingSemicolon;
         }
 
+        $value = $this->stripDeclarationPriority(trim(substr($withoutSemicolon, $colon + 1)));
+        try {
+            $parsedComposes = $this->parseComposesValue($value);
+        } catch (\InvalidArgumentException) {
+            return $statement;
+        }
+
         if ($styleNestingDepth > 0) {
             throw new \InvalidArgumentException('The `composes` property cannot be used within nested rules');
         }
 
-        $value = $this->stripDeclarationPriority(trim(substr($withoutSemicolon, $colon + 1)));
-        array_push($composes, ...$this->parseComposesValue($value));
+        array_push($composes, ...$parsedComposes);
 
         return '';
     }

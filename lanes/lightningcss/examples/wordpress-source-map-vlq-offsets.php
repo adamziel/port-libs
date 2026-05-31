@@ -389,6 +389,24 @@ foreach ([
     }
 }
 
+$invalidVersionGuard = true;
+foreach ([
+    static fn (): SourceMap => SourceMap::fromJson('{"mappings":";C","sources":[],"names":[]}'),
+    static fn (): SourceMap => SourceMap::fromJson('{"version":"3","mappings":";C","sources":[],"names":[]}'),
+    static fn (): SourceMap => SourceMap::fromJson('{"version":300,"mappings":";C","sources":[],"names":[]}'),
+    static fn (): SourceMap => SourceMap::fromArray(['mappings' => ';C', 'sources' => [], 'names' => []]),
+    static fn (): SourceMap => SourceMap::fromArray(['version' => '3', 'mappings' => ';C', 'sources' => [], 'names' => []]),
+    static fn (): SourceMap => SourceMap::fromArray(['version' => 300, 'mappings' => ';C', 'sources' => [], 'names' => []]),
+] as $invalidVersionMap) {
+    try {
+        $invalidVersionMap();
+        $invalidVersionGuard = false;
+        break;
+    } catch (InvalidArgumentException) {
+        continue;
+    }
+}
+
 $lookup = [
     'sourceIndexes' => $projectRootMap->addSources([
         '/srv/www/example/wp-content/themes/example/style.css',
@@ -444,6 +462,7 @@ $actual = [
     'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
     'invalidVlqVectorGuard' => $invalidVlqVectorGuard,
     'missingVlqVectorGuard' => $missingVlqVectorGuard,
+    'invalidVersionGuard' => $invalidVersionGuard,
     'lookup' => $lookup,
 ];
 
@@ -486,6 +505,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'invalidRelativeVlqGuard' => true,
         'invalidVlqVectorGuard' => true,
         'missingVlqVectorGuard' => true,
+        'invalidVersionGuard' => true,
         'lookup' => [
             'sourceIndexes' => [0, 1, 2],
             'blockIndex' => 1,
