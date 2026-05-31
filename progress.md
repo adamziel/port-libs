@@ -6141,3 +6141,22 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Parked two direct JSON/app-WAL conflicts and skipped two notes-only markers.
   Libsqlite remains active until broad release/all-runner and known-red
   diagnostic clusters are closed; gitoxide stays next after libsqlite.
+
+## Supervisor Integration 2026-05-31T04:59Z Libsqlite Seventy-Fourth Sweep
+
+- Integrated 15 current-base libsqlite handoffs as source commit
+  `79485b315 libsqlite: add seventy-fourth current corpus sweep`.
+- Public selected libsqlite evidence moves from `2168479` to `2202926 pass / 0
+  fail`, a net `+34447` PASS-line increase after subtracting `4187` accepted
+  base-overlap PASS lines. Mapped coverage remains `1589 / 1589`.
+- Verification passed PHP lint for 21 changed/new PHP files, `git diff --check
+  -- lanes/libsqlite`, no WordPress/wp source text in changed accepted
+  libsqlite source, no new numbered `CurrentNext`/`CurrentSourceNext` class
+  symbols, focused selected tests `15 files / 248412 assertions / 0 failures /
+  38634 PASS lines`, base overlap `2 files / 16382 assertions / 0 failures /
+  4187 PASS lines`, and related guard `907 files / 11715798 assertions / 0
+  failures / 1876599 PASS lines`.
+- Parked five candidates as conflicts or source-neutral violations, including
+  an app-WAL tenant JSON handoff that touched existing `wp_` source, and
+  skipped two notes-only markers. That source-neutral rewrite stays in the
+  libsqlite blocker queue before gitoxide.
