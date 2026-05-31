@@ -9,7 +9,7 @@ final class SQLiteUpsertReturningSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<list<string>>|null $uniqueConstraints
-     * @return array{target:string,conflict_target:list<string>,columns:list<string>,incoming_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,changes:int}
+     * @return array{target:string,target_alias:?string,conflict_target:list<string>,columns:list<string>,incoming_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,changes:int}
      */
     public static function execute(string $sql, array $tables, ?array $uniqueConstraints = null): array
     {
@@ -30,14 +30,15 @@ final class SQLiteUpsertReturningSql
                 $tables[$target],
                 $parsed['incoming_rows'],
                 $conflictTarget,
-                self::assignmentCallbacks($target, $parsed['assignments']),
-                self::wherePredicate($target, $parsed['where']),
+                self::assignmentCallbacks($target, $parsed['target_alias'], $parsed['assignments']),
+                self::wherePredicate($target, $parsed['target_alias'], $parsed['where']),
                 $uniqueConstraints,
             );
         }
 
         return [
             'target' => $target,
+            'target_alias' => $parsed['target_alias'],
             'conflict_target' => $conflictTarget,
             'columns' => $parsed['columns'],
             'incoming_rows' => $parsed['incoming_rows'],
@@ -46,13 +47,13 @@ final class SQLiteUpsertReturningSql
             'inserted_rows' => $result['inserted_rows'],
             'updated_rows' => $result['updated_rows'],
             'skipped_rows' => $result['skipped_rows'],
-            'returning' => SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], self::returningProjection($target, $parsed['returning'])),
+            'returning' => SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], self::returningProjection($target, $parsed['target_alias'], $parsed['returning'])),
             'changes' => $result['changes'],
         ];
     }
 
     /**
-     * @return array{target:string,columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string}
+     * @return array{target:string,target_alias:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string}
      */
     public static function parse(string $sql): array
     {
@@ -93,7 +94,19 @@ final class SQLiteUpsertReturningSql
         $offset = strlen($match[0]);
         $target = self::readIdentifier($sql, $offset, 'SQLite UPSERT RETURNING target table');
         $offset += strlen($target);
+        if (($sql[$offset] ?? null) === '.') {
+            $offset++;
+            $target = self::readIdentifier($sql, $offset, 'SQLite UPSERT RETURNING target table');
+            $offset += strlen($target);
+        }
         $offset = self::skipWhitespace($sql, $offset);
+        $targetAlias = null;
+        if (preg_match('/\GAS\s+/i', $sql, $aliasMatch, 0, $offset) === 1) {
+            $offset += strlen($aliasMatch[0]);
+            $targetAlias = self::readIdentifier($sql, $offset, 'SQLite UPSERT RETURNING target alias');
+            $offset += strlen($targetAlias);
+            $offset = self::skipWhitespace($sql, $offset);
+        }
         if (($sql[$offset] ?? null) !== '(') {
             throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires a target column list');
         }
@@ -172,6 +185,7 @@ final class SQLiteUpsertReturningSql
 
         return [
             'target' => $target,
+            'target_alias' => $targetAlias,
             'columns' => $columns,
             'incoming_rows' => $incomingRows,
             'conflict_target' => $conflictTarget,
@@ -492,11 +506,11 @@ final class SQLiteUpsertReturningSql
      * @param array<string,string> $assignments
      * @return array<string,callable(array<string,mixed>,array<string,mixed>):mixed>
      */
-    private static function assignmentCallbacks(string $target, array $assignments): array
+    private static function assignmentCallbacks(string $target, ?string $targetAlias, array $assignments): array
     {
         $callbacks = [];
         foreach ($assignments as $column => $expression) {
-            $callbacks[$column] = static fn (array $current, array $excluded): mixed => self::evaluateExpression($expression, $target, $current, $excluded);
+            $callbacks[$column] = static fn (array $current, array $excluded): mixed => self::evaluateExpression($expression, $target, $targetAlias, $current, $excluded);
         }
 
         return $callbacks;
@@ -505,7 +519,7 @@ final class SQLiteUpsertReturningSql
     /**
      * @return callable(array<string,mixed>,array<string,mixed>):bool|null
      */
-    private static function wherePredicate(string $target, ?string $where): ?callable
+    private static function wherePredicate(string $target, ?string $targetAlias, ?string $where): ?callable
     {
         if ($where === null || $where === '') {
             return null;
@@ -513,9 +527,9 @@ final class SQLiteUpsertReturningSql
 
         $terms = self::splitTopLevelKeyword($where, 'AND');
 
-        return static function (array $current, array $excluded) use ($target, $terms): bool {
+        return static function (array $current, array $excluded) use ($target, $targetAlias, $terms): bool {
             foreach ($terms as $term) {
-                if (self::evaluatePredicate($term, $target, $current, $excluded) !== true) {
+                if (self::evaluatePredicate($term, $target, $targetAlias, $current, $excluded) !== true) {
                     return false;
                 }
             }
@@ -528,7 +542,7 @@ final class SQLiteUpsertReturningSql
      * @param array<string,mixed> $current
      * @param array<string,mixed> $excluded
      */
-    private static function evaluatePredicate(string $term, string $target, array $current, array $excluded): ?bool
+    private static function evaluatePredicate(string $term, string $target, ?string $targetAlias, array $current, array $excluded): ?bool
     {
         $term = trim(self::stripOuterParens($term));
         if (strcasecmp($term, 'NULL') === 0) {
@@ -541,13 +555,13 @@ final class SQLiteUpsertReturningSql
             return false;
         }
         if (preg_match('/^(.+?)\s+IS\s+(NOT\s+)?NULL$/is', $term, $match) === 1) {
-            $isNull = self::evaluateExpression($match[1], $target, $current, $excluded) === null;
+            $isNull = self::evaluateExpression($match[1], $target, $targetAlias, $current, $excluded) === null;
 
             return isset($match[2]) && trim($match[2]) !== '' ? !$isNull : $isNull;
         }
         if (preg_match('/^(.+?)\s+(LIKE|GLOB)\s+(.+)$/is', $term, $match) === 1) {
-            $left = self::evaluateExpression($match[1], $target, $current, $excluded);
-            $pattern = self::evaluateExpression($match[3], $target, $current, $excluded);
+            $left = self::evaluateExpression($match[1], $target, $targetAlias, $current, $excluded);
+            $pattern = self::evaluateExpression($match[3], $target, $targetAlias, $current, $excluded);
             if ($left === null || $pattern === null) {
                 return null;
             }
@@ -557,8 +571,8 @@ final class SQLiteUpsertReturningSql
                 : SQLiteDatabase::globMatches((string) $left, (string) $pattern);
         }
         if (preg_match('/^(.+?)\s*(=|<>|!=|>=|<=|>|<)\s*(.+)$/s', $term, $match) === 1) {
-            $left = self::evaluateExpression($match[1], $target, $current, $excluded);
-            $right = self::evaluateExpression($match[3], $target, $current, $excluded);
+            $left = self::evaluateExpression($match[1], $target, $targetAlias, $current, $excluded);
+            $right = self::evaluateExpression($match[3], $target, $targetAlias, $current, $excluded);
             if ($left === null || $right === null) {
                 return null;
             }
@@ -581,13 +595,13 @@ final class SQLiteUpsertReturningSql
      * @param array<string,mixed> $current
      * @param array<string,mixed> $excluded
      */
-    private static function evaluateExpression(string $expression, string $target, array $current, array $excluded): mixed
+    private static function evaluateExpression(string $expression, string $target, ?string $targetAlias, array $current, array $excluded): mixed
     {
         $expression = trim(self::stripOuterParens($expression));
         if (str_starts_with(strtolower($expression), 'coalesce(') && str_ends_with($expression, ')')) {
             $inner = substr($expression, 9, -1);
             foreach (self::splitComma($inner) as $part) {
-                $value = self::evaluateExpression($part, $target, $current, $excluded);
+                $value = self::evaluateExpression($part, $target, $targetAlias, $current, $excluded);
                 if ($value !== null) {
                     return $value;
                 }
@@ -598,8 +612,8 @@ final class SQLiteUpsertReturningSql
         foreach (['+', '-'] as $operator) {
             $parts = self::splitBinaryOperator($expression, $operator);
             if ($parts !== null) {
-                $left = self::evaluateExpression($parts[0], $target, $current, $excluded);
-                $right = self::evaluateExpression($parts[1], $target, $current, $excluded);
+                $left = self::evaluateExpression($parts[0], $target, $targetAlias, $current, $excluded);
+                $right = self::evaluateExpression($parts[1], $target, $targetAlias, $current, $excluded);
                 if ($left === null || $right === null) {
                     return null;
                 }
@@ -609,8 +623,8 @@ final class SQLiteUpsertReturningSql
         }
         $concat = self::splitBinaryOperator($expression, '||');
         if ($concat !== null) {
-            $left = self::evaluateExpression($concat[0], $target, $current, $excluded);
-            $right = self::evaluateExpression($concat[1], $target, $current, $excluded);
+            $left = self::evaluateExpression($concat[0], $target, $targetAlias, $current, $excluded);
+            $right = self::evaluateExpression($concat[1], $target, $targetAlias, $current, $excluded);
 
             return $left === null || $right === null ? null : (string) $left . (string) $right;
         }
@@ -622,8 +636,13 @@ final class SQLiteUpsertReturningSql
 
             return $current[$dequoted];
         }
-        if (preg_match('/^(?:(excluded|' . preg_quote($target, '/') . ')\.)?([A-Za-z_][A-Za-z0-9_]*)$/i', $expression, $match) === 1) {
-            $source = strtolower($match[1] ?? '') === 'excluded' ? $excluded : $current;
+        $targetQualifier = $targetAlias ?? $target;
+        if (preg_match('/^(?:(excluded|' . preg_quote($targetQualifier, '/') . '|' . preg_quote($target, '/') . ')\.)?([A-Za-z_][A-Za-z0-9_]*)$/i', $expression, $match) === 1) {
+            $qualifier = $match[1] ?? '';
+            if ($targetAlias !== null && strcasecmp($qualifier, $target) === 0) {
+                throw new \InvalidArgumentException("SQLite UPSERT RETURNING column {$target}.{$match[2]} is missing");
+            }
+            $source = strtolower($qualifier) === 'excluded' ? $excluded : $current;
             $column = $match[2];
             if (!array_key_exists($column, $source)) {
                 throw new \InvalidArgumentException("SQLite UPSERT RETURNING column {$column} is missing");
@@ -638,7 +657,7 @@ final class SQLiteUpsertReturningSql
     /**
      * @return list<string>|array<string,string>
      */
-    private static function returningProjection(string $target, string $sql): array
+    private static function returningProjection(string $target, ?string $targetAlias, string $sql): array
     {
         $projection = [];
         foreach (self::splitComma($sql) as $term) {
@@ -671,14 +690,15 @@ final class SQLiteUpsertReturningSql
                 if (preg_match('/^excluded\./i', $expression) === 1 || preg_match('/[^A-Za-z0-9_]excluded\./i', $expression) === 1) {
                     throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
                 }
-                $projection[$alias] = static fn (array $row): mixed => self::evaluateExpression($expression, $target, $row, $row);
+                $projection[$alias] = static fn (array $row): mixed => self::evaluateExpression($expression, $target, $targetAlias, $row, $row);
                 continue;
             }
             $qualifier = $match[1] ?? '';
             if (strcasecmp($qualifier, 'excluded') === 0) {
                 throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
             }
-            if ($qualifier !== '' && strcasecmp($qualifier, $target) !== 0) {
+            $targetQualifier = $targetAlias ?? $target;
+            if ($qualifier !== '' && strcasecmp($qualifier, $targetQualifier) !== 0) {
                 throw new \InvalidArgumentException("SQLite UPSERT RETURNING column {$qualifier}.{$match[2]} is missing");
             }
             if (isset($match[3]) && $match[3] !== '') {

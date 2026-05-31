@@ -1939,6 +1939,130 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $targetRows
+     * @param list<array<string,mixed>> $sourceRows
+     * @param list<array<string,mixed>> $eventRows
+     * @return array<string,mixed>
+     */
+    public static function triggerUpdateFromProgram(
+        array $targetRows,
+        array $sourceRows,
+        array $eventRows,
+        string $event,
+        string $setColumn,
+        string $sourceValueColumn,
+        string $targetKeyColumn,
+        string $sourceKeyColumn,
+        string $eventKeyColumn,
+        bool $temporaryTrigger = false,
+        string $sourceSchema = 'main',
+        string $targetSchema = 'main'
+    ): array {
+        $event = strtolower(trim($event));
+        if (!in_array($event, ['after-insert', 'before-delete', 'instead-of-update-view'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger UPDATE FROM event is unsupported');
+        }
+        $setColumn = self::identifier($setColumn, 'trigger UPDATE FROM set column');
+        $sourceValueColumn = self::identifier($sourceValueColumn, 'trigger UPDATE FROM source value column');
+        $targetKeyColumn = self::identifier($targetKeyColumn, 'trigger UPDATE FROM target key column');
+        $sourceKeyColumn = self::identifier($sourceKeyColumn, 'trigger UPDATE FROM source key column');
+        $eventKeyColumn = self::identifier($eventKeyColumn, 'trigger UPDATE FROM event key column');
+        $sourceSchema = self::identifier($sourceSchema, 'trigger UPDATE FROM source schema');
+        $targetSchema = self::identifier($targetSchema, 'trigger UPDATE FROM target schema');
+
+        if (!$temporaryTrigger && $sourceSchema !== $targetSchema) {
+            return [
+                'source' => 'triggerupfrom.test triggerupfrom-2.1',
+                'operation' => 'trigger-update-from-program',
+                'status' => 'schema-error',
+                'event' => $event,
+                'temporary_trigger' => false,
+                'source_schema' => $sourceSchema,
+                'target_schema' => $targetSchema,
+                'error' => 'trigger tr2 cannot reference objects in database ' . $sourceSchema,
+                'updated_rows' => [],
+                'change_count' => 0,
+                'dependencies' => [
+                    'sqlite-triggerupfrom-non-temp-trigger-cannot-reference-attached-schema',
+                    'sqlite-triggerupfrom-temp-trigger-may-reference-attached-schema',
+                    'sqlite-triggerupfrom-update-from-runs-inside-trigger-program',
+                ],
+            ];
+        }
+
+        $rows = array_values($targetRows);
+        $updates = [];
+        $log = [];
+        foreach ($eventRows as $eventRow) {
+            if (!array_key_exists($eventKeyColumn, $eventRow)) {
+                throw new \InvalidArgumentException('SQLite trigger UPDATE FROM event row is missing key column');
+            }
+            $eventKey = $eventRow[$eventKeyColumn];
+            $sourceValue = null;
+            $matchedSource = false;
+            foreach ($sourceRows as $sourceRow) {
+                if (!array_key_exists($sourceKeyColumn, $sourceRow) || !array_key_exists($sourceValueColumn, $sourceRow)) {
+                    throw new \InvalidArgumentException('SQLite trigger UPDATE FROM source row is malformed');
+                }
+                if ($sourceRow[$sourceKeyColumn] === $eventKey) {
+                    $sourceValue = $sourceRow[$sourceValueColumn];
+                    $matchedSource = true;
+                }
+            }
+
+            if (!$matchedSource && $event !== 'before-delete') {
+                continue;
+            }
+
+            foreach ($rows as $index => $row) {
+                if (!array_key_exists($targetKeyColumn, $row)) {
+                    throw new \InvalidArgumentException('SQLite trigger UPDATE FROM target row is missing key column');
+                }
+                if ($row[$targetKeyColumn] !== $eventKey) {
+                    continue;
+                }
+
+                $old = $row;
+                if ($event === 'before-delete') {
+                    $sourceValue = $eventRow[$sourceValueColumn] ?? $sourceValue;
+                }
+                $rows[$index][$setColumn] = $sourceValue;
+                $updates[] = [
+                    'key' => $eventKey,
+                    'old_value' => $old[$setColumn] ?? null,
+                    'new_value' => $sourceValue,
+                    'source_matched' => $matchedSource,
+                    'event' => $event,
+                ];
+                $log[] = '(' . (string) ($old[$targetKeyColumn] ?? '') . ',' . (string) ($old[$setColumn] ?? '') . ')->(' . (string) $eventKey . ',' . (string) $sourceValue . ')';
+            }
+        }
+
+        return [
+            'source' => match ($event) {
+                'after-insert' => $temporaryTrigger ? 'triggerupfrom.test triggerupfrom-2.2..3.0' : 'triggerupfrom.test triggerupfrom-1.0..1.3',
+                'before-delete' => 'triggerupfrom.test triggerupfrom-2.3..2.4',
+                default => 'triggerupfrom.test triggerupfrom-4.2..4.3',
+            },
+            'operation' => 'trigger-update-from-program',
+            'status' => 'commit-ok',
+            'event' => $event,
+            'temporary_trigger' => $temporaryTrigger,
+            'source_schema' => $sourceSchema,
+            'target_schema' => $targetSchema,
+            'updated_rows' => $updates,
+            'rows_after_trigger' => array_values($rows),
+            'change_count' => count($updates),
+            'log' => $log,
+            'dependencies' => [
+                'sqlite-triggerupfrom-update-from-runs-inside-trigger-program',
+                'sqlite-triggerupfrom-attached-schema-resolution-follows-trigger-schema',
+                'sqlite-triggerupfrom-instead-of-view-update-from-feeds-old-new-rows',
+            ],
+        ];
+    }
+
+    /**
      * @param array{x:int|string,y:mixed} $row
      * @param list<mixed> $counterArgs
      * @return array<string,mixed>

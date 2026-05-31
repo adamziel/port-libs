@@ -178,10 +178,86 @@ $tests['real upstream UPSERT RETURNING SELECT input dynamic rejects missing sele
     ));
 };
 
+$aliasSql = "WITH nx(setting_id, tenant_id, key_name, key_value, version) AS (VALUES
+        (1,10,'alpha','a8',8),
+        (4,10,'delta','d11',11),
+        (3,20,'gamma','g1',1),
+        (4,10,'delta','d15',15),
+        (1,10,'alpha','a4',3),
+        (1,10,'alpha','a99',99)
+    )
+    INSERT INTO main.app_settings AS target_row(setting_id, tenant_id, key_name, key_value, version)
+    SELECT setting_id, tenant_id, key_name, key_value, version FROM nx WHERE true
+    ON CONFLICT(setting_id) DO UPDATE SET key_value=excluded.key_value, version=target_row.version+1
+    WHERE target_row.version<excluded.version
+    RETURNING target_row.setting_id AS id, target_row.key_name AS key_name, target_row.key_value AS key_value, target_row.version AS version";
+
+$tests['real upstream UPSERT RETURNING SELECT input dynamic upsert2-201 accepts schema qualified target alias'] = static function (TestRunner $t) use ($aliasSql, $baseRows): void {
+    $actual = SQLiteUpsertReturningSql::execute($aliasSql, ['app_settings' => $baseRows], [['setting_id']]);
+
+    $t->same('app_settings', $actual['target']);
+    $t->same('target_row', $actual['target_alias']);
+};
+$tests['real upstream UPSERT RETURNING SELECT input dynamic upsert2-201 alias updates use current target image'] = static function (TestRunner $t) use ($aliasSql, $baseRows): void {
+    $actual = SQLiteUpsertReturningSql::execute($aliasSql, ['app_settings' => $baseRows], [['setting_id']]);
+
+    $t->same([3, 11, 12, 4], array_column($actual['returning'], 'version'));
+    $t->same(['alpha' => 'a99', 'beta' => 'b0', 'gamma' => 'g0', 'delta' => 'd15'], array_column($actual['after'], 'key_value', 'key_name'));
+};
+$tests['real upstream UPSERT RETURNING SELECT input dynamic upsert2-201 alias returning rows preserve source order'] = static function (TestRunner $t) use ($aliasSql, $baseRows): void {
+    $actual = SQLiteUpsertReturningSql::execute($aliasSql, ['app_settings' => $baseRows], [['setting_id']]);
+
+    $t->same(['alpha', 'delta', 'delta', 'alpha'], array_column($actual['returning'], 'key_name'));
+    $t->same([1, 4, 4, 1], array_column($actual['returning'], 'id'));
+};
+$tests['real upstream UPSERT RETURNING SELECT input dynamic upsert2-201 alias change accounting matches returned rows'] = static function (TestRunner $t) use ($aliasSql, $baseRows): void {
+    $actual = SQLiteUpsertReturningSql::execute($aliasSql, ['app_settings' => $baseRows], [['setting_id']]);
+
+    $t->same(4, $actual['changes']);
+    $t->same($actual['changes'], count($actual['returning']));
+    $t->same(2, count($actual['skipped_rows']));
+};
+$tests['real upstream UPSERT RETURNING SELECT input dynamic upsert2-202 rejects original target qualifier after alias'] = static function (TestRunner $t) use ($baseRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpsertReturningSql::execute(
+        "WITH nx(setting_id, tenant_id, key_name, key_value, version) AS (VALUES (1,10,'alpha','a8',8))
+         INSERT INTO app_settings AS target_row(setting_id, tenant_id, key_name, key_value, version)
+         SELECT setting_id, tenant_id, key_name, key_value, version FROM nx WHERE true
+         ON CONFLICT(setting_id) DO UPDATE SET version=app_settings.version+1
+         WHERE target_row.version<excluded.version
+         RETURNING setting_id",
+        ['app_settings' => $baseRows],
+        [['setting_id']],
+    ));
+};
+$tests['real upstream UPSERT RETURNING SELECT input dynamic upsert2-202 rejects original target qualifier in where after alias'] = static function (TestRunner $t) use ($baseRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpsertReturningSql::execute(
+        "WITH nx(setting_id, tenant_id, key_name, key_value, version) AS (VALUES (1,10,'alpha','a8',8))
+         INSERT INTO app_settings AS target_row(setting_id, tenant_id, key_name, key_value, version)
+         SELECT setting_id, tenant_id, key_name, key_value, version FROM nx WHERE true
+         ON CONFLICT(setting_id) DO UPDATE SET version=target_row.version+1
+         WHERE app_settings.version<excluded.version
+         RETURNING setting_id",
+        ['app_settings' => $baseRows],
+        [['setting_id']],
+    ));
+};
+$tests['real upstream UPSERT RETURNING SELECT input dynamic upsert2-202 rejects original target qualifier in returning after alias'] = static function (TestRunner $t) use ($baseRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpsertReturningSql::execute(
+        "WITH nx(setting_id, tenant_id, key_name, key_value, version) AS (VALUES (1,10,'alpha','a8',8))
+         INSERT INTO app_settings AS target_row(setting_id, tenant_id, key_name, key_value, version)
+         SELECT setting_id, tenant_id, key_name, key_value, version FROM nx WHERE true
+         ON CONFLICT(setting_id) DO UPDATE SET version=target_row.version+1
+         WHERE target_row.version<excluded.version
+         RETURNING app_settings.setting_id",
+        ['app_settings' => $baseRows],
+        [['setting_id']],
+    ));
+};
+
 $tests['real upstream UPSERT RETURNING SELECT input dynamic cites source scripts and sections'] = static function (TestRunner $t): void {
     $t->same(
-        ['upsert2.test upsert2-200', 'upsert2.test upsert2-201', 'upsert2.test upsert2-210', 'returning1.test returning1-4.5', 'returning1.test returning1-17'],
-        ['upsert2.test upsert2-200', 'upsert2.test upsert2-201', 'upsert2.test upsert2-210', 'returning1.test returning1-4.5', 'returning1.test returning1-17'],
+        ['upsert2.test upsert2-200', 'upsert2.test upsert2-201', 'upsert2.test upsert2-202', 'upsert2.test upsert2-210', 'returning1.test returning1-4.5', 'returning1.test returning1-17'],
+        ['upsert2.test upsert2-200', 'upsert2.test upsert2-201', 'upsert2.test upsert2-202', 'upsert2.test upsert2-210', 'returning1.test returning1-4.5', 'returning1.test returning1-17'],
     );
 };
 $tests['real upstream UPSERT RETURNING SELECT input dynamic dependency closure note'] = static function (TestRunner $t): void {

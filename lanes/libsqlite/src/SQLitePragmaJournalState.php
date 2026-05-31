@@ -9,6 +9,8 @@ final class SQLitePragmaJournalState
     /** @var array<string, array{synchronous:int,journal_mode:string,temporary:bool,memory:bool,wal_capable:bool}> */
     private array $schemas = [];
 
+    private bool $transactionActive = false;
+
     /**
      * @param array<string, array{synchronous?:int|string,journal_mode?:string,temporary?:bool,memory?:bool,wal_capable?:bool}> $schemas
      */
@@ -96,6 +98,48 @@ final class SQLitePragmaJournalState
     }
 
     /**
+     * @return array{status:string,transaction_active:true}
+     */
+    public function begin(): array
+    {
+        if ($this->transactionActive) {
+            throw new \InvalidArgumentException('SQLite PRAGMA journal transaction is already active');
+        }
+
+        $this->transactionActive = true;
+
+        return ['status' => 'ok', 'transaction_active' => true];
+    }
+
+    /**
+     * @return array{status:string,transaction_active:false}
+     */
+    public function commit(): array
+    {
+        if (!$this->transactionActive) {
+            throw new \InvalidArgumentException('SQLite PRAGMA journal transaction is not active');
+        }
+
+        $this->transactionActive = false;
+
+        return ['status' => 'ok', 'transaction_active' => false];
+    }
+
+    /**
+     * @return array{status:string,transaction_active:false}
+     */
+    public function rollback(): array
+    {
+        if (!$this->transactionActive) {
+            throw new \InvalidArgumentException('SQLite PRAGMA journal transaction is not active');
+        }
+
+        $this->transactionActive = false;
+
+        return ['status' => 'ok', 'transaction_active' => false];
+    }
+
+    /**
      * @param array{synchronous?:int|string,journal_mode?:string,temporary?:bool,memory?:bool,wal_capable?:bool} $state
      * @return array{synchronous:int,journal_mode:string,temporary:bool,memory:bool,wal_capable:bool}
      */
@@ -137,6 +181,9 @@ final class SQLitePragmaJournalState
         $reason = null;
 
         if ($requested !== null) {
+            if ($this->transactionActive) {
+                throw new \RuntimeException('Safety level may not be changed inside a transaction');
+            }
             $effective = self::normalizeSynchronous($requested);
             $this->schemas[$schema]['synchronous'] = $effective;
         }
