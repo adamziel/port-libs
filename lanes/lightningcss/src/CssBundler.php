@@ -12,6 +12,9 @@ final class CssBundler
     /** @var (callable(string, string): (string|array{external?:string,file?:string}))|null */
     private $resolver = null;
 
+    /** @var (callable(string): string)|null */
+    private $reader = null;
+
     /** @var array<string, int> */
     private array $sourceIndexes = [];
 
@@ -50,6 +53,15 @@ final class CssBundler
     }
 
     /**
+     * @param callable(string): string $reader
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     */
+    public function bundleWithReader(string $entry, callable $reader, ?callable $resolver = null): string
+    {
+        return $this->bundleInternal($entry, [], $resolver, false, [], $reader)['code'];
+    }
+
+    /**
      * @return array{
      *   code:string,
      *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
@@ -70,11 +82,34 @@ final class CssBundler
      *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
      * }
      *
+     * @param callable(string): string $reader
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool} $options
+     */
+    public function bundleCssModulesWithReader(string $entry, callable $reader, ?callable $resolver = null, array $options = []): array
+    {
+        return $this->bundleInternal($entry, [], $resolver, true, $options, $reader);
+    }
+
+    /**
+     * @return array{
+     *   code:string,
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     * }
+     *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
      * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool} $cssModuleOptions
+     * @param (callable(string): string)|null $reader
      */
-    private function bundleInternal(string $entry, array $files, ?callable $resolver, bool $cssModules, array $cssModuleOptions = []): array
+    private function bundleInternal(
+        string $entry,
+        array $files,
+        ?callable $resolver,
+        bool $cssModules,
+        array $cssModuleOptions = [],
+        ?callable $reader = null
+    ): array
     {
         $this->files = [];
         foreach ($files as $path => $css) {
@@ -82,6 +117,7 @@ final class CssBundler
         }
 
         $this->resolver = $resolver;
+        $this->reader = $reader;
         $this->sourceIndexes = [];
         $this->stylesheets = [];
         $this->cssModules = $cssModules;
@@ -141,17 +177,7 @@ final class CssBundler
             'parentDepIndex' => 0,
         ];
 
-        if (!array_key_exists($file, $this->files)) {
-            throw new CssBundleException(
-                'resolver-error',
-                "Could not read `{$file}`.",
-                $rule['loc']['column'] === 0 ? null : $rule['file'],
-                $rule['loc']['column'] === 0 ? null : $rule['loc']['line'],
-                $rule['loc']['column'] === 0 ? null : $rule['loc']['column'],
-            );
-        }
-
-        $source = $this->files[$file];
+        $source = $this->readFile($file, $rule);
         $cssModuleResult = null;
         if ($this->cssModules) {
             $cssModuleResult = (new CssModulesTransformer())->transform($source, [
@@ -264,6 +290,61 @@ final class CssBundler
         $this->stylesheets[$sourceIndex]['cssModuleReferences'] = $cssModuleReferences;
 
         return $sourceIndex;
+    }
+
+    /**
+     * @param array{layer:?string,supports:?string,media:string,loc:array{line:int,column:int},file:string} $rule
+     */
+    private function readFile(string $file, array $rule): string
+    {
+        if ($this->reader !== null) {
+            try {
+                $source = ($this->reader)($file);
+            } catch (\Throwable $throwable) {
+                throw new CssBundleException(
+                    'resolver-error',
+                    $throwable->getMessage(),
+                    $rule['loc']['column'] === 0 ? null : $rule['file'],
+                    $rule['loc']['column'] === 0 ? null : $rule['loc']['line'],
+                    $rule['loc']['column'] === 0 ? null : $rule['loc']['column'],
+                );
+            }
+
+            if (!is_string($source)) {
+                throw new CssBundleException(
+                    'resolver-error',
+                    'expect String, got: ' . $this->readerTypeName($source),
+                    $rule['loc']['column'] === 0 ? null : $rule['file'],
+                    $rule['loc']['column'] === 0 ? null : $rule['loc']['line'],
+                    $rule['loc']['column'] === 0 ? null : $rule['loc']['column'],
+                );
+            }
+
+            return $source;
+        }
+
+        if (!array_key_exists($file, $this->files)) {
+            throw new CssBundleException(
+                'resolver-error',
+                "Could not read `{$file}`.",
+                $rule['loc']['column'] === 0 ? null : $rule['file'],
+                $rule['loc']['column'] === 0 ? null : $rule['loc']['line'],
+                $rule['loc']['column'] === 0 ? null : $rule['loc']['column'],
+            );
+        }
+
+        return $this->files[$file];
+    }
+
+    private function readerTypeName(mixed $value): string
+    {
+        return match (get_debug_type($value)) {
+            'int', 'float' => 'Number',
+            'bool' => 'Boolean',
+            'null' => 'Null',
+            'array' => 'Object',
+            default => get_debug_type($value),
+        };
     }
 
     /**

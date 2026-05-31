@@ -628,4 +628,120 @@ CSS;
         $t->same(['px', 'rem', 'rem'], $seenLengthUnits);
         $t->same(['f2' => 'rem', 'f3' => 'rem'], $genericArgumentUnits);
     },
+    'custom at-rules compose upstream EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'EnvironmentVariable' => [
+                    '--branding-small' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                        $seenNames[] = $environmentVariable['name'];
+
+                        return $tokens['--branding-small'];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => [
+                    '--branding-padding' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                        $seenNames[] = $environmentVariable['name'];
+
+                        return $tokens['--branding-padding'];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  body {
+    padding: env(--branding-padding);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@media (width<=600px){body{padding:20px}}', $result);
+        $t->same([
+            ['type' => 'custom', 'ident' => '--branding-small'],
+            ['type' => 'custom', 'ident' => '--branding-padding'],
+        ], $seenNames);
+    },
+    'custom at-rules compose upstream Variable visitors in declaration values' => static function (TestRunner $t): void {
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Variable' => static function (array $variable) use (&$seenNames, $tokens): ?array {
+                    $seenNames[] = $variable['name']['ident'];
+
+                    return $variable['name']['ident'] === '--branding-small' ? $tokens['--branding-small'] : null;
+                },
+            ],
+            [
+                'Variable' => static function (array $variable) use (&$seenNames, $tokens): ?array {
+                    $seenNames[] = $variable['name']['ident'];
+
+                    return $variable['name']['ident'] === '--branding-padding' ? $tokens['--branding-padding'] : null;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+body {
+  padding: var(--branding-padding);
+  width: var(--branding-small);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('body{padding:20px;width:600px}', $result);
+        $t->same(['--branding-padding', '--branding-padding', '--branding-small'], $seenNames);
+    },
+    'custom at-rules serialize upstream raw env and var visitor replacements' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.foo { margin: env(--gap); padding: var(--pad); }', [], [
+            'EnvironmentVariable' => [
+                '--gap' => static fn (): array => ['raw' => '10px'],
+            ],
+            'Variable' => [
+                '--pad' => static fn (): array => ['raw' => '20px'],
+            ],
+        ]);
+
+        $t->same('.foo{margin:10px;padding:20px}', $result);
+    },
 ];

@@ -114,6 +114,30 @@ final class DeclarationBlock
         'list-style-image',
         'list-style-type',
     ];
+    private const TEXT_DECORATION_LONGHANDS = [
+        'text-decoration-line',
+        'text-decoration-thickness',
+        'text-decoration-style',
+        'text-decoration-color',
+    ];
+    private const TEXT_DECORATION_LINES = [
+        'underline',
+        'overline',
+        'line-through',
+        'blink',
+    ];
+    private const TEXT_DECORATION_EXCLUSIVE_LINES = [
+        'none',
+        'spelling-error',
+        'grammar-error',
+    ];
+    private const TEXT_DECORATION_STYLES = [
+        'solid',
+        'double',
+        'dotted',
+        'dashed',
+        'wavy',
+    ];
     private const BORDER_IMAGE_LONGHANDS = [
         'border-image-source',
         'border-image-slice',
@@ -268,6 +292,13 @@ final class DeclarationBlock
             return $listStyleValue;
         }
         if ($this->isListStyleProperty($property)) {
+            return null;
+        }
+        $textDecorationValue = $this->getTextDecorationProperty($entries, $property);
+        if ($textDecorationValue !== null) {
+            return $textDecorationValue;
+        }
+        if ($this->isTextDecorationProperty($property)) {
             return null;
         }
 
@@ -3928,6 +3959,316 @@ final class DeclarationBlock
         return preg_match('/^(?:url|(?:-(?:webkit|o)-)?(?:linear|radial|conic)-gradient|image-set|cross-fade|paint)\(/i', trim($token)) === 1;
     }
 
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getTextDecorationProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isTextDecorationProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'text-decoration') {
+                $parsed = $this->parseTextDecorationComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::TEXT_DECORATION_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isTextDecorationLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeTextDecorationLonghandValue($entry['property'], $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'text-decoration') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::TEXT_DECORATION_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeTextDecorationComponents([
+                'text-decoration-line' => $components['text-decoration-line']['value'],
+                'text-decoration-thickness' => $components['text-decoration-thickness']['value'],
+                'text-decoration-style' => $components['text-decoration-style']['value'],
+                'text-decoration-color' => $components['text-decoration-color']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setTextDecorationLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isTextDecorationLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeTextDecorationLonghandValue($property, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'text-decoration') {
+                continue;
+            }
+
+            $components = $this->parseTextDecorationComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'text-decoration',
+                'value' => $this->serializeTextDecorationComponents($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeTextDecorationLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'text-decoration') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseTextDecorationComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::TEXT_DECORATION_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{
+     *     text-decoration-line:string,
+     *     text-decoration-thickness:string,
+     *     text-decoration-style:string,
+     *     text-decoration-color:string
+     * }|null
+     */
+    private function parseTextDecorationComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $lineTokens = [];
+        $exclusiveLine = null;
+        $thickness = null;
+        $style = null;
+        $color = null;
+
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::TEXT_DECORATION_EXCLUSIVE_LINES, true)) {
+                if ($lineTokens !== [] || $exclusiveLine !== null) {
+                    return null;
+                }
+                $exclusiveLine = $lower;
+                continue;
+            }
+            if (in_array($lower, self::TEXT_DECORATION_LINES, true)) {
+                if ($exclusiveLine !== null || in_array($lower, $lineTokens, true)) {
+                    return null;
+                }
+                $lineTokens[] = $lower;
+                continue;
+            }
+            if ($thickness === null && $this->isTextDecorationThicknessToken($token)) {
+                $thickness = $this->normalizeTextDecorationThicknessValue($token);
+                continue;
+            }
+            if ($style === null && in_array($lower, self::TEXT_DECORATION_STYLES, true)) {
+                $style = $lower;
+                continue;
+            }
+            if ($color === null) {
+                $color = $this->normalizeTextDecorationColorValue($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        $line = $exclusiveLine ?? $this->normalizeTextDecorationLineValue(implode(' ', $lineTokens));
+
+        return [
+            'text-decoration-line' => $line === '' ? 'none' : $line,
+            'text-decoration-thickness' => $thickness ?? 'auto',
+            'text-decoration-style' => $style ?? 'solid',
+            'text-decoration-color' => $color ?? 'currentColor',
+        ];
+    }
+
+    /**
+     * @param array{
+     *     text-decoration-line:string,
+     *     text-decoration-thickness:string,
+     *     text-decoration-style:string,
+     *     text-decoration-color:string
+     * } $components
+     */
+    private function serializeTextDecorationComponents(array $components): string
+    {
+        $line = $this->normalizeTextDecorationLineValue($components['text-decoration-line']);
+        if ($line === 'none') {
+            return 'none';
+        }
+
+        $parts = [$line];
+        $thickness = $this->normalizeTextDecorationThicknessValue($components['text-decoration-thickness']);
+        $style = strtolower(trim($components['text-decoration-style']));
+        $color = $this->normalizeTextDecorationColorValue($components['text-decoration-color']);
+
+        if (strcasecmp($thickness, 'auto') !== 0) {
+            $parts[] = $thickness;
+        }
+        if ($style !== 'solid') {
+            $parts[] = $style;
+        }
+        if (strcasecmp($color, 'currentColor') !== 0) {
+            $parts[] = $color;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function normalizeTextDecorationLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'text-decoration-line' => $this->normalizeTextDecorationLineValue($value),
+            'text-decoration-thickness' => $this->normalizeTextDecorationThicknessValue($value),
+            'text-decoration-style' => strtolower(trim($value)),
+            'text-decoration-color' => $this->normalizeTextDecorationColorValue($value),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeTextDecorationLineValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return 'none';
+        }
+
+        $lines = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::TEXT_DECORATION_EXCLUSIVE_LINES, true)) {
+                return $lower;
+            }
+            if (in_array($lower, self::TEXT_DECORATION_LINES, true) && !in_array($lower, $lines, true)) {
+                $lines[] = $lower;
+            }
+        }
+
+        $ordered = [];
+        foreach (self::TEXT_DECORATION_LINES as $line) {
+            if (in_array($line, $lines, true)) {
+                $ordered[] = $line;
+            }
+        }
+
+        return $ordered === [] ? 'none' : implode(' ', $ordered);
+    }
+
+    private function normalizeTextDecorationThicknessValue(string $value): string
+    {
+        return strtolower(trim($value));
+    }
+
+    private function normalizeTextDecorationColorValue(string $value): string
+    {
+        $value = trim($value);
+
+        return strcasecmp($value, 'currentcolor') === 0 ? 'currentColor' : $value;
+    }
+
+    private function isTextDecorationProperty(string $property): bool
+    {
+        return $property === 'text-decoration' || $this->isTextDecorationLonghand($property);
+    }
+
+    private function isTextDecorationLonghand(string $property): bool
+    {
+        return in_array($property, self::TEXT_DECORATION_LONGHANDS, true);
+    }
+
+    private function isTextDecorationThicknessToken(string $token): bool
+    {
+        $token = trim($token);
+        $lower = strtolower($token);
+        if ($lower === 'auto' || $lower === 'from-font') {
+            return true;
+        }
+
+        return preg_match('/^(?:[+-]?(?:\d+|\d*\.\d+)(?:[a-z%]+)?|(?:calc|clamp|min|max|var)\()/i', $token) === 1;
+    }
+
     private function isQuotedStringToken(string $token): bool
     {
         return preg_match('/^([\'"]).*\1$/s', trim($token)) === 1;
@@ -4034,6 +4375,10 @@ final class DeclarationBlock
         $listStyleValue = $this->setListStyleLonghand($entries, $property, $value, $important);
         if ($listStyleValue !== null) {
             return $this->parseEntries($listStyleValue);
+        }
+        $textDecorationValue = $this->setTextDecorationLonghand($entries, $property, $value, $important);
+        if ($textDecorationValue !== null) {
+            return $this->parseEntries($textDecorationValue);
         }
 
         $lastMatch = null;
@@ -4976,6 +5321,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isTextDecorationLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeTextDecorationLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeTextDecorationLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
 
         $normalEntries = $this->removeEntriesWithPropertyId($normalEntries, $property);
         $importantEntries = $this->removeEntriesWithPropertyId($importantEntries, $property);
@@ -5076,7 +5427,11 @@ final class DeclarationBlock
             return self::OVERFLOW_LONGHANDS;
         }
 
-        return $property === 'list-style' ? self::LIST_STYLE_LONGHANDS : null;
+        if ($property === 'list-style') {
+            return self::LIST_STYLE_LONGHANDS;
+        }
+
+        return $property === 'text-decoration' ? self::TEXT_DECORATION_LONGHANDS : null;
     }
 
     /**

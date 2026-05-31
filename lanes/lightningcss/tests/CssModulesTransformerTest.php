@@ -115,6 +115,43 @@ CSS));
         $t->same([], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules scopes escaped local selectors and composes idents' => static function (TestRunner $t) use ($export, $local, $global): void {
+        $css = <<<'CSS'
+.sm\:m-1 {
+  composes: base\:one;
+  color: red;
+}
+
+.hex\3a utility {
+  composes: base\3a one;
+  color: yellow;
+}
+
+.base\:one {
+  color: blue;
+}
+
+.foo\@bar {
+  composes: base\:one other from global;
+  background: white;
+}
+
+:global(.wp\:block) .foo\@bar {
+  border-color: red;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_sm\:m-1{color:red}.EgL3uq_hex\:utility{color:#ff0}.EgL3uq_base\:one{color:#00f}.EgL3uq_foo\@bar{background:#fff}.wp\:block .EgL3uq_foo\@bar{border-color:red}', $result['code']);
+        $t->same([
+            'sm:m-1' => $export('EgL3uq_sm:m-1', [$local('EgL3uq_base:one')]),
+            'hex:utility' => $export('EgL3uq_hex:utility', [$local('EgL3uq_base:one')]),
+            'base:one' => $export('EgL3uq_base:one'),
+            'foo@bar' => $export('EgL3uq_foo@bar', [$global('base:one'), $global('other')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules pure mode enforces upstream local selector boundaries' => static function (TestRunner $t) use ($export): void {
         $transformer = new CssModulesTransformer();
 

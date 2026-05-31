@@ -11,6 +11,8 @@ final class SourceMap
 {
     private const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
+    private string $projectRoot;
+
     /** @var list<string> */
     private array $sources = [];
 
@@ -41,8 +43,14 @@ final class SourceMap
 
     private int $generatedLineCount = 0;
 
+    public function __construct(string $projectRoot = '/')
+    {
+        $this->projectRoot = $projectRoot;
+    }
+
     public function addSource(string $source): int
     {
+        $source = self::makeRelativePath($this->projectRoot, $source);
         if (isset($this->sourceIndexes[$source])) {
             return $this->sourceIndexes[$source];
         }
@@ -486,7 +494,7 @@ final class SourceMap
     /**
      * @param array<string, mixed> $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(array $data, string $projectRoot = '/'): self
     {
         if (!isset($data['mappings']) || !is_string($data['mappings'])) {
             throw new InvalidArgumentException('Source map mappings must be a string.');
@@ -496,20 +504,20 @@ final class SourceMap
         $sourcesContent = self::listOfNullableStrings($data['sourcesContent'] ?? [], 'sourcesContent');
         $names = self::listOfStrings($data['names'] ?? [], 'names');
 
-        $map = new self();
+        $map = new self($projectRoot);
         $map->addVlqMap($data['mappings'], $sources, $sourcesContent, $names);
 
         return $map;
     }
 
-    public static function fromJson(string $json): self
+    public static function fromJson(string $json, string $projectRoot = '/'): self
     {
         $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         if (!is_array($data)) {
             throw new InvalidArgumentException('Source map JSON must decode to an object.');
         }
 
-        return self::fromArray($data);
+        return self::fromArray($data, $projectRoot);
     }
 
     /**
@@ -817,6 +825,65 @@ final class SourceMap
         }
 
         return $offsetValue;
+    }
+
+    private static function makeRelativePath(string $base, string $target): string
+    {
+        if (str_starts_with(strtolower($target), 'file://')) {
+            $target = substr($target, 7);
+        }
+
+        if (!self::isAbsolutePath($target)) {
+            if (str_contains($target, ':')) {
+                return $target;
+            }
+
+            return implode('/', self::chunkPath($target));
+        }
+
+        $baseParts = self::chunkPath($base);
+        $targetParts = self::chunkPath($target);
+        $common = 0;
+        $limit = min(count($baseParts), count($targetParts));
+        while ($common < $limit && $baseParts[$common] === $targetParts[$common]) {
+            $common++;
+        }
+
+        return implode(
+            '/',
+            array_merge(
+                array_fill(0, count($baseParts) - $common, '..'),
+                array_slice($targetParts, $common)
+            )
+        );
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        if (str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+            return true;
+        }
+
+        return strlen($path) > 3
+            && $path[1] === ':'
+            && ($path[2] === '/' || $path[2] === '\\')
+            && ctype_alpha($path[0]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function chunkPath(string $path): array
+    {
+        $parts = preg_split('/[\/\\\\]+/', $path);
+        if ($parts === false) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $parts,
+            static fn (string $part): bool => $part !== '' && $part !== '.'
+        ));
     }
 
     /**

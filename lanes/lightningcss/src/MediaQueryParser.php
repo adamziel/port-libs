@@ -126,6 +126,9 @@ final class MediaQueryParser
         }
 
         if (preg_match('/^(.+?)\s*(<=|>=|<|>)\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>)\s*(.+)$/', $feature, $matches) === 1) {
+            if (!$this->isValidIntervalComparisonPair($matches[2], $matches[4])) {
+                throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
+            }
             $this->validateRangeFeature(strtolower($matches[3]), $matches[1], $matches[5], $feature);
 
             return $this->minifyValue($matches[1]) . $matches[2] . strtolower($matches[3]) . $matches[4] . $this->minifyValue($matches[5]);
@@ -152,6 +155,14 @@ final class MediaQueryParser
         }
 
         if (preg_match('/^(min|max)-([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/i', $feature, $matches) === 1) {
+            $type = $this->knownMediaFeatureType(strtolower($matches[2]));
+            if ($type !== null && !$this->mediaFeatureTypeAllowsRanges($type)) {
+                throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
+            }
+            if ($type === null) {
+                return strtolower($matches[1]) . '-' . strtolower($matches[2]) . ':' . $this->minifyValue($matches[3]);
+            }
+
             $this->validateRangeFeature(strtolower($matches[2]), $matches[3], null, $feature);
             $operator = strtolower($matches[1]) === 'min' ? '>=' : '<=';
 
@@ -255,18 +266,71 @@ final class MediaQueryParser
 
     private function rangeComparableMediaFeatureType(string $name): ?string
     {
-        if (str_starts_with($name, 'min-') || str_starts_with($name, 'max-')) {
+        $type = $this->knownMediaFeatureType($name);
+        if ($type !== null) {
+            return $this->mediaFeatureTypeAllowsRanges($type) ? $type : null;
+        }
+
+        if ($this->isLegacyKnownMediaFeatureName($name)) {
             return null;
         }
 
+        return 'unknown';
+    }
+
+    private function knownMediaFeatureType(string $name): ?string
+    {
         return match ($name) {
             'width', 'height', 'device-width', 'device-height' => 'length',
             'aspect-ratio', 'device-aspect-ratio' => 'ratio',
             'color', 'color-index', 'monochrome', 'horizontal-viewport-segments', 'vertical-viewport-segments' => 'integer',
             'resolution' => 'resolution',
             '-webkit-device-pixel-ratio', '-moz-device-pixel-ratio' => 'number',
+            'grid' => 'boolean',
+            'orientation',
+            'overflow-block',
+            'overflow-inline',
+            'display-mode',
+            'scan',
+            'update',
+            'environment-blending',
+            'color-gamut',
+            'dynamic-range',
+            'inverted-colors',
+            'pointer',
+            'hover',
+            'any-pointer',
+            'any-hover',
+            'nav-controls',
+            'video-color-gamut',
+            'video-dynamic-range',
+            'scripting',
+            'prefers-reduced-motion',
+            'prefers-reduced-transparency',
+            'prefers-contrast',
+            'forced-colors',
+            'prefers-color-scheme',
+            'prefers-reduced-data' => 'ident',
             default => null,
         };
+    }
+
+    private function mediaFeatureTypeAllowsRanges(string $type): bool
+    {
+        return in_array($type, ['length', 'number', 'integer', 'resolution', 'ratio', 'unknown'], true);
+    }
+
+    private function isLegacyKnownMediaFeatureName(string $name): bool
+    {
+        if (preg_match('/^(min|max)-(.+)$/i', $name, $matches) === 1) {
+            return $this->knownMediaFeatureType(strtolower($matches[2])) !== null;
+        }
+
+        if (preg_match('/^-webkit-(min|max)-(.+)$/i', $name, $matches) === 1) {
+            return $this->knownMediaFeatureType('-webkit-' . strtolower($matches[2])) !== null;
+        }
+
+        return false;
     }
 
     private function isValidRangeValue(string $type, string $value): bool
@@ -289,8 +353,27 @@ final class MediaQueryParser
             'number' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))$/', $value) === 1,
             'resolution' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:dpcm|dpi|dppx|x))$/i', $value) === 1,
             'ratio' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))(?:\s*\/\s*(?:0|[+-]?(?:\d+|\d*\.\d+)))?$/', $value) === 1,
+            'unknown' => $this->isValidUnknownRangeValue($value),
             default => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+))$/', $value) === 1,
         };
+    }
+
+    private function isValidUnknownRangeValue(string $value): bool
+    {
+        return preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))$/', $value) === 1
+            || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))(?:\s*\/\s*(?:0|[+-]?(?:\d+|\d*\.\d+)))$/', $value) === 1
+            || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+))$/', $value) === 1
+            || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:dpcm|dpi|dppx|x))$/i', $value) === 1
+            || preg_match('/^[-_a-zA-Z][-_a-zA-Z0-9]*$/', $value) === 1;
+    }
+
+    private function isValidIntervalComparisonPair(string $startOperator, string $endOperator): bool
+    {
+        $less = ['<', '<='];
+        $greater = ['>', '>='];
+
+        return (in_array($startOperator, $less, true) && in_array($endOperator, $less, true))
+            || (in_array($startOperator, $greater, true) && in_array($endOperator, $greater, true));
     }
 
     private function containsTopLevelDelimiter(string $value, string $delimiter): bool

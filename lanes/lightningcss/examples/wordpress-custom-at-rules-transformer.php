@@ -11,6 +11,8 @@ $css = <<<'CSS'
 @asset-style "wp-block-card/style.css";
 @block-color #056ef0;
 @token --wp-ring #056ef0;
+@env-token --wp-card-breakpoint 782px;
+@var-token --wp-card-padding 24px;
 
 @tokens wp {
   --gap: 24px;
@@ -23,6 +25,12 @@ $css = <<<'CSS'
 
   & .wp-block-button__link {
     color: token('wp.accent');
+  }
+}
+
+@media (max-width: env(--wp-card-breakpoint)) {
+  .wp-block-card {
+    padding: var(--wp-card-padding);
   }
 }
 
@@ -58,6 +66,8 @@ $tokens = [];
 $mixins = [];
 $dependencies = [];
 $colorAliases = [];
+$environmentTokens = [];
+$variableTokens = [];
 $transformer = new CustomAtRuleTransformer();
 
 $result = $transformer->transform($css, [
@@ -119,7 +129,7 @@ $result = $transformer->transform($css, [
     ],
     [
         'Rule' => [
-            'unknown' => static function (array $rule) use (&$dependencies, &$colorAliases): array {
+            'unknown' => static function (array $rule) use (&$dependencies, &$colorAliases, &$environmentTokens, &$variableTokens): ?array {
                 if ($rule['name'] === 'asset-style') {
                     $dependencies[] = ['type' => 'style', 'path' => $rule['preludeTokens'][0]['value']['value']];
 
@@ -129,6 +139,24 @@ $result = $transformer->transform($css, [
                     $colorAliases[$rule['preludeTokens'][0]['value']] = $rule['preludeTokens'][1]['value'];
 
                     return [];
+                }
+                if ($rule['name'] === 'env-token') {
+                    $environmentTokens[$rule['preludeTokens'][0]['value']] = [
+                        'raw' => $rule['preludeTokens'][1]['value'],
+                    ];
+
+                    return [];
+                }
+                if ($rule['name'] === 'var-token') {
+                    $variableTokens[$rule['preludeTokens'][0]['value']] = [
+                        'raw' => $rule['preludeTokens'][1]['value'],
+                    ];
+
+                    return [];
+                }
+
+                if (!empty($rule['hasBlock'])) {
+                    return null;
                 }
 
                 $colorAliases[$rule['name']] = $rule['prelude'];
@@ -158,6 +186,16 @@ $result = $transformer->transform($css, [
                 return $tokens[$arguments[0] ?? ''] ?? null;
             },
         ],
+        'EnvironmentVariable' => static function (array $environmentVariable) use (&$environmentTokens): ?array {
+            $name = $environmentVariable['name']['ident'] ?? null;
+
+            return is_string($name) ? ($environmentTokens[$name] ?? null) : null;
+        },
+        'Variable' => static function (array $variable) use (&$variableTokens): ?array {
+            $name = $variable['name']['ident'] ?? null;
+
+            return is_string($name) ? ($variableTokens[$name] ?? null) : null;
+        },
         'FunctionExit' => [
             'wp-size' => static function (array $function): ?array {
                 $argument = $function['arguments'][0] ?? null;
@@ -230,7 +268,7 @@ $result = $transformer->transform($css, [
     ],
 ]));
 
-$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0;margin-left:20px;margin-right:20px}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
+$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0;margin-left:20px;margin-right:20px}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
@@ -246,6 +284,14 @@ if (($argv[1] ?? null) === '--self-test') {
     }
     if ($colorAliases !== ['wp-accent' => '#056ef0', '--wp-ring' => '#056ef0']) {
         fwrite(STDERR, "Unexpected custom at-rule color aliases:\n" . json_encode($colorAliases) . "\n");
+        exit(1);
+    }
+    if ($environmentTokens !== ['--wp-card-breakpoint' => ['raw' => '782px']]) {
+        fwrite(STDERR, "Unexpected custom at-rule environment tokens:\n" . json_encode($environmentTokens) . "\n");
+        exit(1);
+    }
+    if ($variableTokens !== ['--wp-card-padding' => ['raw' => '24px']]) {
+        fwrite(STDERR, "Unexpected custom at-rule variable tokens:\n" . json_encode($variableTokens) . "\n");
         exit(1);
     }
 

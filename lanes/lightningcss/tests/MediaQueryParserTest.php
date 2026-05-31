@@ -35,6 +35,16 @@ return [
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= 2)'));
         $t->same('(-moz-device-pixel-ratio<1.5)', $parser->minifyList('(-moz-device-pixel-ratio < 1.5)'));
     },
+    'media query parser maps upstream unknown range feature parity' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('(theme-breakpoint>=2)', $parser->minifyList('(theme-breakpoint >= 2)'));
+        $t->same('(2<theme-ratio<3)', $parser->minifyList('(2 / 1 < theme-ratio < 3 / 1)'));
+        $t->same('(theme-density>=1.5dppx)', $parser->minifyList('(theme-density >= 1.5dppx)'));
+        $t->same('(theme-state=expanded)', $parser->minifyList('(theme-state = expanded)'));
+        $t->same('(--wp-breakpoint>env(--wp-breakpoint))', $parser->minifyList('(--wp-breakpoint > env(--wp-breakpoint))'));
+        $t->same('(min-theme-breakpoint:2)', $parser->minifyList('(min-theme-breakpoint: 2)'));
+    },
     'media query parser maps upstream feature values qualifiers and lists' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
@@ -120,6 +130,10 @@ return [
             '(color-index >= 1.5)',
             '(device-width >= 2/1)',
             '(horizontal-viewport-segments >= 2px)',
+            '(100px < width > 200px)',
+            '(100px <= width > 200px)',
+            '(100px > width < 200px)',
+            '(1 < color-index > 3)',
         ] as $query) {
             $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
         }

@@ -112,12 +112,24 @@ $themeJsonInputMap->addMapping(0, 0, $themeJsonSourceIndex, 6, 8, 'settings.colo
 $themeJsonInputMap->addMapping(0, strlen($coverThemeJsonRule), $themeJsonSourceIndex, 12, 6, 'styles.blocks.core/spacer.spacing.margin.top');
 $generatedThemeJsonMap->extendWithSourceMap($themeJsonInputMap);
 
+$projectRootMap = new SourceMap('/srv/www/example');
+$projectStyle = $projectRootMap->addSource('/srv/www/example/wp-content/themes/example/style.css');
+$projectBlocks = $projectRootMap->addSource('file:///srv/www/example/wp-content/themes/example/./blocks.css');
+$projectVirtual = $projectRootMap->addSource('theme://generated/editor.css');
+$projectRootMap->setSourceContent($projectStyle, $entrySource);
+$projectRootMap->setSourceContent($projectBlocks, $blockSource);
+$projectRootMap->setSourceContent($projectVirtual, '.wp-block-cover{outline:2px solid currentColor}');
+$projectRootMap->addMapping(0, 0, $projectStyle, 1, 0, 'theme-footer');
+$projectRootMap->addMapping(0, strlen($footerRule), $projectBlocks, 5, 0, 'block-cover');
+$projectRootMap->addMapping(1, 0, $projectVirtual, 0, 0, 'virtual-editor-rule');
+
 $actual = [
     'css' => $code,
     'map' => $map->toJson(null, false),
     'emptyMap' => $themeJsonMap->toJson(null, false),
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
     'extendedInputMap' => $generatedThemeJsonMap->toJson(null, false),
+    'projectRootMap' => $projectRootMap->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -127,6 +139,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'emptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/theme-json.css"],"sourcesContent":[":root {\n  --wp--style--global--content-size: 720px;\n}\n"],"names":[]}',
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
         'extendedInputMap' => '{"version":3,"mappings":"ACMQE,wDAMFC","sources":["wp-content/cache/theme-json.generated.css","wp-content/themes/example/theme.json"],"sourcesContent":[".wp-block-cover{color:var(--wp--preset--color--primary)}.wp-block-spacer{margin-top:1rem}","{\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"slug\": \"primary\", \"color\": \"#06c\" }\n      ]\n    }\n  },\n  \"styles\": {\n    \"blocks\": {\n      \"core/spacer\": { \"spacing\": { \"margin\": { \"top\": \"1rem\" } } }\n    }\n  }\n}"],"names":["coverRule","spacerRule","settings.color.primary","styles.blocks.core/spacer.spacing.margin.top"]}',
+        'projectRootMap' => '{"version":3,"mappings":"AACAA,0BCIAC;ACLAC","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css","theme://generated/editor.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}",".wp-block-cover{outline:2px solid currentColor}"],"names":["theme-footer","block-cover","virtual-editor-rule"]}',
     ];
 
     if ($actual !== $expected) {

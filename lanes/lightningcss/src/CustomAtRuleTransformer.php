@@ -36,6 +36,18 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $genericFunctionExitVisitor = null;
 
+    /** @var array<string, callable> */
+    private array $environmentVariableVisitors = [];
+
+    /** @var callable|null */
+    private $genericEnvironmentVariableVisitor = null;
+
+    /** @var array<string, callable> */
+    private array $variableVisitors = [];
+
+    /** @var callable|null */
+    private $genericVariableVisitor = null;
+
     /** @var callable|null */
     private $lengthVisitor = null;
 
@@ -180,6 +192,36 @@ final class CustomAtRuleTransformer
                     }
 
                     $replacement = $callback($function, $transformer);
+                    if ($replacement !== null) {
+                        return $replacement;
+                    }
+                }
+
+                return null;
+            },
+            'EnvironmentVariable' => static function (array $environmentVariable, self $transformer) use ($visitors): mixed {
+                foreach ($visitors as $visitor) {
+                    $callback = self::environmentVariableVisitorCallback($visitor, $environmentVariable);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($environmentVariable, $transformer);
+                    if ($replacement !== null) {
+                        return $replacement;
+                    }
+                }
+
+                return null;
+            },
+            'Variable' => static function (array $variable, self $transformer) use ($visitors): mixed {
+                foreach ($visitors as $visitor) {
+                    $callback = self::variableVisitorCallback($visitor, $variable);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($variable, $transformer);
                     if ($replacement !== null) {
                         return $replacement;
                     }
@@ -368,6 +410,32 @@ final class CustomAtRuleTransformer
             }
         }
 
+        $this->environmentVariableVisitors = [];
+        $this->genericEnvironmentVariableVisitor = null;
+        $environmentVariableConfig = $visitor['EnvironmentVariable'] ?? [];
+        if (is_callable($environmentVariableConfig)) {
+            $this->genericEnvironmentVariableVisitor = $environmentVariableConfig;
+        } elseif (is_array($environmentVariableConfig)) {
+            foreach ($environmentVariableConfig as $name => $callback) {
+                if (is_string($name) && is_callable($callback)) {
+                    $this->environmentVariableVisitors[$name] = $callback;
+                }
+            }
+        }
+
+        $this->variableVisitors = [];
+        $this->genericVariableVisitor = null;
+        $variableConfig = $visitor['Variable'] ?? [];
+        if (is_callable($variableConfig)) {
+            $this->genericVariableVisitor = $variableConfig;
+        } elseif (is_array($variableConfig)) {
+            foreach ($variableConfig as $name => $callback) {
+                if (is_string($name) && is_callable($callback)) {
+                    $this->variableVisitors[$name] = $callback;
+                }
+            }
+        }
+
         $this->lengthVisitor = is_callable($visitor['Length'] ?? null) ? $visitor['Length'] : null;
 
         $this->tokenVisitors = [];
@@ -428,7 +496,7 @@ final class CustomAtRuleTransformer
                     $rule = $this->buildUnknownRule($name, $atPrelude, $body, null);
                     $replacement = $this->callUnknownRuleVisitor($rule);
                     $output .= $replacement === null
-                        ? $prelude . '{' . $this->processRuleList($body) . '}'
+                        ? $this->emitUnknownRule($rule, null)
                         : $this->emitReplacement($replacement, null);
                 }
             } else {
@@ -540,7 +608,7 @@ final class CustomAtRuleTransformer
                     $rule = $this->buildUnknownRule($name, $atPrelude, $nestedBody, $selectors);
                     $replacement = $this->callUnknownRuleVisitor($rule);
                     $output .= $replacement === null
-                        ? $nestedPrelude . '{' . $this->processStyleBody($nestedBody, $selectors) . '}'
+                        ? $this->emitUnknownRule($rule, $selectors)
                         : $this->emitReplacement($replacement, $selectors);
                 }
             } else {
@@ -754,7 +822,7 @@ final class CustomAtRuleTransformer
             throw new \InvalidArgumentException('Unknown at-rule replacement is missing a name');
         }
 
-        $prelude = trim((string) ($rule['prelude'] ?? ''));
+        $prelude = trim($this->rewriteAtRulePreludeValue((string) ($rule['prelude'] ?? '')));
         $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
         if (empty($rule['hasBlock'])) {
             return $head . ';';
@@ -899,6 +967,46 @@ final class CustomAtRuleTransformer
 
         if (is_array($functionConfig)) {
             return self::caseInsensitiveCallback($functionConfig, $functionName);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     * @param array<string, mixed> $environmentVariable
+     */
+    private static function environmentVariableVisitorCallback(array $visitor, array $environmentVariable): ?callable
+    {
+        $config = $visitor['EnvironmentVariable'] ?? null;
+        if (is_callable($config)) {
+            return $config;
+        }
+
+        if (is_array($config)) {
+            $callback = $config[self::environmentVariableCallbackName($environmentVariable)] ?? null;
+
+            return is_callable($callback) ? $callback : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     * @param array<string, mixed> $variable
+     */
+    private static function variableVisitorCallback(array $visitor, array $variable): ?callable
+    {
+        $config = $visitor['Variable'] ?? null;
+        if (is_callable($config)) {
+            return $config;
+        }
+
+        if (is_array($config)) {
+            $callback = $config[self::variableCallbackName($variable)] ?? null;
+
+            return is_callable($callback) ? $callback : null;
         }
 
         return null;
@@ -1120,6 +1228,11 @@ final class CustomAtRuleTransformer
         return $this->rewriteValueTokens($this->rewriteValueFunctions($value));
     }
 
+    private function rewriteAtRulePreludeValue(string $value): string
+    {
+        return $this->rewriteValueFunctions($value);
+    }
+
     private function rewriteValueFunctions(string $value): string
     {
         $output = '';
@@ -1143,6 +1256,13 @@ final class CustomAtRuleTransformer
             }
 
             $argumentsCss = substr($value, $open + 1, $close - $open - 1);
+            $valueReplacement = $this->callStructuredValueVisitor($name, $argumentsCss, $name . '(' . $argumentsCss . ')');
+            if ($valueReplacement !== null) {
+                $output .= $this->serializeVisitorValue($valueReplacement);
+                $cursor = $close + 1;
+                continue;
+            }
+
             $replacement = $this->callFunctionVisitor($name, $this->parseFunctionArguments($argumentsCss), $name . '(' . $argumentsCss . ')');
             if ($replacement === null) {
                 $output .= $this->serializeVisitorValue($this->visitFunctionExit($name, $argumentsCss, $name . '(' . $argumentsCss . ')'));
@@ -1187,6 +1307,50 @@ final class CustomAtRuleTransformer
         }
 
         return $visitor($function, $this);
+    }
+
+    private function callStructuredValueVisitor(string $name, string $argumentsCss, string $raw): mixed
+    {
+        $lower = strtolower($name);
+        if ($lower === 'env' && ($this->environmentVariableVisitors !== [] || $this->genericEnvironmentVariableVisitor !== null)) {
+            $replacement = $this->callEnvironmentVariableVisitor($this->parseEnvironmentVariable($argumentsCss, $raw));
+
+            return $replacement === null ? null : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+        }
+
+        if ($lower === 'var' && ($this->variableVisitors !== [] || $this->genericVariableVisitor !== null)) {
+            $replacement = $this->callVariableVisitor($this->parseVariable($argumentsCss, $raw));
+
+            return $replacement === null ? null : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $environmentVariable
+     */
+    private function callEnvironmentVariableVisitor(array $environmentVariable): mixed
+    {
+        $visitor = $this->environmentVariableVisitors[self::environmentVariableCallbackName($environmentVariable)] ?? $this->genericEnvironmentVariableVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        return $visitor($environmentVariable, $this);
+    }
+
+    /**
+     * @param array<string, mixed> $variable
+     */
+    private function callVariableVisitor(array $variable): mixed
+    {
+        $visitor = $this->variableVisitors[self::variableCallbackName($variable)] ?? $this->genericVariableVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        return $visitor($variable, $this);
     }
 
     private function applyValueVisitors(mixed $value): mixed
@@ -1259,6 +1423,13 @@ final class CustomAtRuleTransformer
             return $value;
         }
 
+        if (isset($value['raw']) && is_string($value['raw'])) {
+            return [
+                'type' => 'raw',
+                'value' => $value['raw'],
+            ];
+        }
+
         if (isset($value['unit'], $value['value']) && is_string($value['unit']) && (is_int($value['value']) || is_float($value['value']))) {
             return $this->normalizeLengthValue($value);
         }
@@ -1273,6 +1444,10 @@ final class CustomAtRuleTransformer
         }
         if (!is_array($value)) {
             return '';
+        }
+
+        if (isset($value['raw']) && is_string($value['raw'])) {
+            return $value['raw'];
         }
 
         $type = $value['type'] ?? null;
@@ -1295,6 +1470,21 @@ final class CustomAtRuleTransformer
         }
         if ($type === 'raw') {
             return (string) ($value['value'] ?? '');
+        }
+        if ($type === 'var') {
+            return $this->serializeVariableValue(is_array($value['value'] ?? null) ? $value['value'] : $value);
+        }
+        if ($type === 'env') {
+            return $this->serializeEnvironmentVariableValue(is_array($value['value'] ?? null) ? $value['value'] : $value);
+        }
+        if ($type === 'function' && isset($value['value']) && is_array($value['value'])) {
+            $function = $value['value'];
+            $arguments = $function['arguments'] ?? [];
+            if (!is_array($arguments)) {
+                $arguments = [];
+            }
+
+            return (string) ($function['name'] ?? '') . '(' . implode(',', array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments)) . ')';
         }
 
         return (string) ($value['value'] ?? '');
@@ -1428,6 +1618,11 @@ final class CustomAtRuleTransformer
             $close = $this->findMatchingParen($argument, $open);
             if ($close === strlen($argument) - 1) {
                 $argumentsCss = substr($argument, $open + 1, $close - $open - 1);
+                $valueReplacement = $this->callStructuredValueVisitor($name, $argumentsCss, $argument);
+                if ($valueReplacement !== null) {
+                    return $valueReplacement;
+                }
+
                 $replacement = $this->callFunctionVisitor($name, $this->parseFunctionArguments($argumentsCss), $argument);
 
                 return $replacement === null
@@ -1469,6 +1664,103 @@ final class CustomAtRuleTransformer
         }
 
         return ['type' => 'raw', 'value' => $argument];
+    }
+
+    /**
+     * @return array{name:array<string, string>, fallback:list<mixed>|null, raw:string}
+     */
+    private function parseEnvironmentVariable(string $argumentsCss, string $raw): array
+    {
+        $parts = $this->splitTopLevel($argumentsCss, ',');
+        $name = trim($parts[0] ?? '');
+
+        return [
+            'name' => str_starts_with($name, '--')
+                ? ['type' => 'custom', 'ident' => $name]
+                : ['type' => 'ua', 'value' => $name],
+            'fallback' => count($parts) > 1 ? $this->parseFallbackTokenList(implode(',', array_slice($parts, 1))) : null,
+            'raw' => $raw,
+        ];
+    }
+
+    /**
+     * @return array{name:array{ident:string}, fallback:list<mixed>|null, raw:string}
+     */
+    private function parseVariable(string $argumentsCss, string $raw): array
+    {
+        $parts = $this->splitTopLevel($argumentsCss, ',');
+
+        return [
+            'name' => ['ident' => trim($parts[0] ?? '')],
+            'fallback' => count($parts) > 1 ? $this->parseFallbackTokenList(implode(',', array_slice($parts, 1))) : null,
+            'raw' => $raw,
+        ];
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function parseFallbackTokenList(string $css): array
+    {
+        $css = trim($css);
+
+        return $css === '' ? [] : [['type' => 'raw', 'value' => $css]];
+    }
+
+    /**
+     * @param array<string, mixed> $environmentVariable
+     */
+    private static function environmentVariableCallbackName(array $environmentVariable): string
+    {
+        $name = $environmentVariable['name'] ?? [];
+        if (is_array($name)) {
+            if (isset($name['ident']) && is_string($name['ident'])) {
+                return $name['ident'];
+            }
+            if (isset($name['value']) && is_string($name['value'])) {
+                return $name['value'];
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed> $variable
+     */
+    private static function variableCallbackName(array $variable): string
+    {
+        $name = $variable['name'] ?? [];
+
+        return is_array($name) && isset($name['ident']) && is_string($name['ident']) ? $name['ident'] : '';
+    }
+
+    /**
+     * @param array<string, mixed> $variable
+     */
+    private function serializeVariableValue(array $variable): string
+    {
+        $name = self::variableCallbackName($variable);
+        $fallback = $variable['fallback'] ?? null;
+        if (!is_array($fallback) || $fallback === []) {
+            return 'var(' . $name . ')';
+        }
+
+        return 'var(' . $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback)) . ')';
+    }
+
+    /**
+     * @param array<string, mixed> $environmentVariable
+     */
+    private function serializeEnvironmentVariableValue(array $environmentVariable): string
+    {
+        $name = self::environmentVariableCallbackName($environmentVariable);
+        $fallback = $environmentVariable['fallback'] ?? null;
+        if (!is_array($fallback) || $fallback === []) {
+            return 'env(' . $name . ')';
+        }
+
+        return 'env(' . $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback)) . ')';
     }
 
     private function formatNumber(int|float $value): string

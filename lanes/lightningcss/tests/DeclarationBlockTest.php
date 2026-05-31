@@ -515,6 +515,34 @@ return [
         );
         $t->same(['value' => 'none', 'important' => true], $block->getProperty('list-style: none !important', 'list-style-type'));
     },
+    'declaration block reads upstream text decoration cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $decoration = 'text-decoration: underline wavy red 2px';
+        $t->same(['value' => 'underline 2px wavy red', 'important' => false], $block->getProperty($decoration, 'text-decoration'));
+        $t->same(['value' => 'underline', 'important' => false], $block->getProperty($decoration, 'text-decoration-line'));
+        $t->same(['value' => '2px', 'important' => false], $block->getProperty($decoration, 'text-decoration-thickness'));
+        $t->same(['value' => 'wavy', 'important' => false], $block->getProperty($decoration, 'text-decoration-style'));
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty($decoration, 'text-decoration-color'));
+        $t->same(
+            ['value' => 'underline overline from-font dashed var(--wp--preset--color--accent)', 'important' => true],
+            $block->getProperty(
+                'text-decoration-line: overline underline !important; text-decoration-thickness: from-font !important; text-decoration-style: dashed !important; text-decoration-color: var(--wp--preset--color--accent) !important',
+                'text-decoration'
+            )
+        );
+        $t->same(
+            ['value' => 'none', 'important' => false],
+            $block->getProperty('text-decoration: wavy red', 'text-decoration')
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'text-decoration-line: underline; text-decoration-thickness: 2px !important; text-decoration-style: wavy; text-decoration-color: red',
+                'text-decoration'
+            )
+        );
+    },
     'declaration block set replaces direct properties and serializes priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -879,6 +907,30 @@ return [
         $t->same(
             'list-style: square; list-style-position: inside !important',
             $block->setProperty('list-style: square', 'list-style-position', 'inside', true)
+        );
+    },
+    'declaration block sets upstream text decoration cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'text-decoration: underline 2px wavy blue',
+            $block->setProperty('text-decoration: underline wavy red 2px', 'text-decoration-color', 'blue')
+        );
+        $t->same(
+            'text-decoration: underline overline wavy red',
+            $block->setProperty('text-decoration: underline wavy red', 'text-decoration-line', 'overline underline')
+        );
+        $t->same(
+            'text-decoration: underline from-font wavy red',
+            $block->setProperty('text-decoration: underline wavy red', 'text-decoration-thickness', 'from-font')
+        );
+        $t->same(
+            'text-decoration: underline red',
+            $block->setProperty('text-decoration: underline wavy red', 'text-decoration-style', 'solid')
+        );
+        $t->same(
+            'text-decoration-color: blue; text-decoration: underline wavy red !important',
+            $block->setProperty('text-decoration: underline wavy red !important', 'text-decoration-color', 'blue')
         );
     },
     'declaration block sets upstream mask border cssom longhands in existing shorthands' => static function (TestRunner $t): void {
@@ -1267,6 +1319,26 @@ return [
         $t->same(
             'color: red; list-style-position: inside !important; list-style-type: square !important',
             $block->removeProperty('list-style: inside url(marker.svg) square !important; color: red', 'list-style-image')
+        );
+    },
+    'declaration block removes upstream text decoration cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'text-decoration-line: underline; text-decoration-thickness: 2px; text-decoration-style: wavy',
+            $block->removeProperty('text-decoration: underline wavy red 2px', 'text-decoration-color')
+        );
+        $t->same(
+            'text-decoration-line: underline; text-decoration-thickness: auto; text-decoration-color: red',
+            $block->removeProperty('text-decoration: underline solid red', 'text-decoration-style')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('text-decoration: underline wavy red; text-decoration-color: blue; color: red', 'text-decoration')
+        );
+        $t->same(
+            'color: red; text-decoration-thickness: 2px !important; text-decoration-style: wavy !important; text-decoration-color: red !important',
+            $block->removeProperty('text-decoration: underline wavy red 2px !important; color: red; text-decoration-line: overline', 'text-decoration-line')
         );
     },
     'declaration block removes upstream mask border cssom longhands and shorthand' => static function (TestRunner $t): void {

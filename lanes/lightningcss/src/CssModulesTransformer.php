@@ -372,7 +372,8 @@ final class CssModulesTransformer
         $tokens = $this->tokenizeComposesValue($value);
         $fromIndex = null;
         foreach ($tokens as $index => $token) {
-            if (strcasecmp($token, 'from') === 0) {
+            $decoded = $this->isQuotedToken($token) ? null : $this->decodeCssIdentifierToken($token);
+            if ($decoded !== null && strcasecmp($decoded, 'from') === 0) {
                 $fromIndex = $index;
                 break;
             }
@@ -389,7 +390,8 @@ final class CssModulesTransformer
                 throw new \InvalidArgumentException('Invalid CSS Modules composes declaration');
             }
 
-            if (strcasecmp($from[0], 'global') === 0) {
+            $decodedFrom = $this->isQuotedToken($from[0]) ? null : $this->decodeCssIdentifierToken($from[0]);
+            if ($decodedFrom !== null && strcasecmp($decodedFrom, 'global') === 0) {
                 $type = 'global';
             } else {
                 $specifier = $this->parseQuotedSpecifier($from[0]);
@@ -407,14 +409,15 @@ final class CssModulesTransformer
 
         $references = [];
         foreach ($names as $name) {
-            if (!$this->isValidComposesIdent($name)) {
+            $decodedName = $this->parseComposesIdent($name);
+            if ($decodedName === null) {
                 throw new \InvalidArgumentException('Invalid CSS Modules composes declaration');
             }
 
             if ($type === 'local') {
                 $references[] = [
                     'type' => 'local',
-                    'name' => $this->scopedName($name),
+                    'name' => $this->scopedName($decodedName),
                 ];
                 continue;
             }
@@ -422,14 +425,14 @@ final class CssModulesTransformer
             if ($type === 'global') {
                 $references[] = [
                     'type' => 'global',
-                    'name' => $name,
+                    'name' => $decodedName,
                 ];
                 continue;
             }
 
             $references[] = [
                 'type' => 'dependency',
-                'name' => $name,
+                'name' => $decodedName,
                 'specifier' => $specifier ?? '',
             ];
         }
@@ -462,6 +465,25 @@ final class CssModulesTransformer
                     $current = '';
                     $quote = null;
                 }
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $current .= $char;
+                $next = $value[$i + 1];
+                if (ctype_xdigit($next)) {
+                    $hexLength = 0;
+                    while ($i + 1 < $length && $hexLength < 6 && ctype_xdigit($value[$i + 1])) {
+                        $current .= $value[++$i];
+                        $hexLength++;
+                    }
+                    if ($i + 1 < $length && ctype_space($value[$i + 1])) {
+                        $current .= $value[++$i];
+                    }
+                    continue;
+                }
+
+                $current .= $value[++$i];
                 continue;
             }
 
@@ -508,13 +530,39 @@ final class CssModulesTransformer
         return substr($token, 1, -1);
     }
 
-    private function isValidComposesIdent(string $name): bool
+    private function parseComposesIdent(string $token): ?string
     {
-        if (in_array(strtolower($name), ['from', 'initial', 'inherit', 'unset', 'default', 'revert', 'revert-layer'], true)) {
-            return false;
+        if ($this->isQuotedToken($token)) {
+            return null;
         }
 
-        return preg_match('/^-?(?:[A-Za-z_]|-[A-Za-z_])[A-Za-z0-9_-]*$/', $name) === 1;
+        $decoded = $this->decodeCssIdentifierToken($token);
+        if ($decoded === null || $decoded === '') {
+            return null;
+        }
+
+        if (in_array(strtolower($decoded), ['from', 'initial', 'inherit', 'unset', 'default', 'revert', 'revert-layer'], true)) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    private function decodeCssIdentifierToken(string $token): ?string
+    {
+        $parsed = $this->readCssIdentifierToken($token, 0);
+        if ($parsed === null || $parsed['end'] !== strlen($token)) {
+            return null;
+        }
+
+        return $parsed['decoded'];
+    }
+
+    private function isQuotedToken(string $token): bool
+    {
+        $quote = $token[0] ?? '';
+
+        return ($quote === '"' || $quote === "'") && substr($token, -1) === $quote;
     }
 
     /**
@@ -557,11 +605,13 @@ final class CssModulesTransformer
     private function isSimpleLocalClassSelector(string $selector): bool
     {
         $selector = trim($selector);
-        if ($selector === '') {
+        if ($selector === '' || $selector[0] !== '.') {
             return false;
         }
 
-        return preg_match('/^\.[A-Za-z_-][A-Za-z0-9_-]*$/', $selector) === 1;
+        $token = $this->readCssIdentifierToken($selector, 1);
+
+        return $token !== null && $token['end'] === strlen($selector);
     }
 
     /**
@@ -643,8 +693,8 @@ final class CssModulesTransformer
             }
 
             if ($bracketDepth === 0 && $mode === 'local' && ($char === '.' || $char === '#')) {
-                $nameStart = $i + 1;
-                if ($nameStart < $length && $this->isIdentStart($selector[$nameStart])) {
+                $token = $this->readCssIdentifierToken($selector, $i + 1);
+                if ($token !== null) {
                     return true;
                 }
             }
@@ -761,14 +811,13 @@ final class CssModulesTransformer
             }
 
             if ($bracketDepth === 0 && $mode === 'local' && ($char === '.' || $char === '#')) {
-                $nameStart = $i + 1;
-                if ($nameStart < $length && $this->isIdentStart($selector[$nameStart])) {
-                    $nameEnd = $this->readIdentEnd($selector, $nameStart);
-                    $local = substr($selector, $nameStart, $nameEnd - $nameStart);
+                $token = $this->readCssIdentifierToken($selector, $i + 1);
+                if ($token !== null) {
+                    $local = $token['decoded'];
                     $locals[$local] = true;
                     $this->ensureExport($local);
-                    $output .= $char . $this->scopedName($local);
-                    $i = $nameEnd - 1;
+                    $output .= $char . $this->escapeCssIdentifier($this->scopedName($local));
+                    $i = $token['end'] - 1;
                     continue;
                 }
             }
@@ -1317,21 +1366,169 @@ final class CssModulesTransformer
         return $next === '' || !$this->isIdentChar($next);
     }
 
-    private function readIdentEnd(string $value, int $start): int
+    /**
+     * @return array{raw:string, decoded:string, end:int}|null
+     */
+    private function readCssIdentifierToken(string $value, int $start): ?array
     {
         $length = strlen($value);
         $offset = $start;
+        $decoded = '';
 
-        while ($offset < $length && $this->isIdentChar($value[$offset])) {
+        if ($offset >= $length) {
+            return null;
+        }
+
+        if ($value[$offset] === '-') {
+            $decoded .= '-';
             $offset++;
         }
 
-        return $offset;
+        if ($offset >= $length) {
+            return null;
+        }
+
+        $first = $value[$offset];
+        if ($first === '\\') {
+            $escape = $this->readCssEscape($value, $offset);
+            if ($escape === null) {
+                return null;
+            }
+            $decoded .= $escape['decoded'];
+            $offset = $escape['end'];
+        } elseif ($first === '-' || $this->isCssIdentifierStartChar($first)) {
+            $decoded .= $first;
+            $offset++;
+        } else {
+            return null;
+        }
+
+        while ($offset < $length) {
+            $char = $value[$offset];
+            if ($char === '\\') {
+                $escape = $this->readCssEscape($value, $offset);
+                if ($escape === null) {
+                    break;
+                }
+                $decoded .= $escape['decoded'];
+                $offset = $escape['end'];
+                continue;
+            }
+
+            if (!$this->isCssIdentifierChar($char)) {
+                break;
+            }
+
+            $decoded .= $char;
+            $offset++;
+        }
+
+        if ($decoded === '-' || $decoded === '--') {
+            return null;
+        }
+
+        return [
+            'raw' => substr($value, $start, $offset - $start),
+            'decoded' => $decoded,
+            'end' => $offset,
+        ];
     }
 
-    private function isIdentStart(string $char): bool
+    /**
+     * @return array{decoded:string, end:int}|null
+     */
+    private function readCssEscape(string $value, int $offset): ?array
     {
-        return ctype_alpha($char) || $char === '_' || $char === '-';
+        $length = strlen($value);
+        if (($value[$offset] ?? '') !== '\\' || $offset + 1 >= $length) {
+            return null;
+        }
+
+        $next = $value[$offset + 1];
+        if ($next === "\n" || $next === "\r" || $next === "\f") {
+            return null;
+        }
+
+        if (!ctype_xdigit($next)) {
+            return [
+                'decoded' => $next,
+                'end' => $offset + 2,
+            ];
+        }
+
+        $hex = '';
+        $cursor = $offset + 1;
+        while ($cursor < $length && strlen($hex) < 6 && ctype_xdigit($value[$cursor])) {
+            $hex .= $value[$cursor];
+            $cursor++;
+        }
+
+        if ($cursor < $length && ctype_space($value[$cursor])) {
+            $cursor++;
+        }
+
+        return [
+            'decoded' => $this->codepointToUtf8((int) hexdec($hex)),
+            'end' => $cursor,
+        ];
+    }
+
+    private function escapeCssIdentifier(string $identifier): string
+    {
+        $output = '';
+        $length = strlen($identifier);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $identifier[$i];
+            $code = ord($char);
+
+            if ($i === 0 && ctype_digit($char)) {
+                $output .= '\\' . dechex($code) . ' ';
+                continue;
+            }
+
+            if ($i === 1 && $identifier[0] === '-' && ctype_digit($char)) {
+                $output .= '\\' . dechex($code) . ' ';
+                continue;
+            }
+
+            if ($this->isCssIdentifierChar($char) || $code >= 0x80) {
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === "\0" || $char === "\n" || $char === "\r" || $char === "\f") {
+                $output .= '\\' . dechex($code) . ' ';
+                continue;
+            }
+
+            $output .= '\\' . $char;
+        }
+
+        return $output;
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0 || $codepoint > 0x10ffff) {
+            $codepoint = 0xfffd;
+        }
+
+        if (function_exists('mb_chr')) {
+            return mb_chr($codepoint, 'UTF-8');
+        }
+
+        return html_entity_decode('&#x' . dechex($codepoint) . ';', ENT_NOQUOTES, 'UTF-8');
+    }
+
+    private function isCssIdentifierStartChar(string $char): bool
+    {
+        return ctype_alpha($char) || $char === '_' || ord($char) >= 0x80;
+    }
+
+    private function isCssIdentifierChar(string $char): bool
+    {
+        return ctype_alnum($char) || $char === '_' || $char === '-' || ord($char) >= 0x80;
     }
 
     private function isIdentChar(string $char): bool

@@ -395,6 +395,97 @@ CSS,
         $assertResolverShapeError(static fn (): array => ['file' => 1234], 2, 3);
         $assertResolverShapeError(static fn (): array => ['external' => 1234], 2, 3);
     },
+    'css bundler maps upstream source provider read callbacks' => static function (TestRunner $t): void {
+        $files = [
+            'foo.css' => "@import 'hello/world.css'; .foo { color: red; }",
+            'hello/world.css' => "@import '../bar.css'; .bar { color: green; }",
+            'bar.css' => '.baz { color: blue; }',
+            'root-entry.css' => "@import 'root:bar.css'; .root { color: red; }",
+        ];
+        $reads = [];
+        $reader = static function (string $file) use (&$reads, $files): string {
+            $reads[] = $file;
+            if (!array_key_exists($file, $files)) {
+                throw new RuntimeException("Could not find {$file}.");
+            }
+
+            return $files[$file];
+        };
+
+        $t->same(
+            '.baz{color:#00f}.bar{color:green}.foo{color:red}',
+            (new CssBundler())->bundleWithReader('foo.css', $reader)
+        );
+        $t->same(['foo.css', 'hello/world.css', 'bar.css'], $reads);
+
+        $resolved = [];
+        $t->same(
+            '.baz{color:#00f}.root{color:red}',
+            (new CssBundler())->bundleWithReader(
+                'root-entry.css',
+                $reader,
+                static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                    $resolved[] = [$specifier, $originatingFile];
+
+                    return substr($specifier, strlen('root:'));
+                }
+            )
+        );
+        $t->same([['root:bar.css', 'root-entry.css']], $resolved);
+    },
+    'css bundler maps upstream source provider read diagnostics' => static function (TestRunner $t): void {
+        $initialReadRejected = false;
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
+                throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Oh noes! Failed to read `foo.css`.', $exception->getMessage());
+            $t->same(null, $exception->sourceFile);
+            $t->same(null, $exception->sourceLine);
+            $t->same(null, $exception->sourceColumn);
+            $initialReadRejected = true;
+        }
+
+        if (!$initialReadRejected) {
+            throw new RuntimeException('Expected entry read callback exception');
+        }
+
+        $importReadRejected = false;
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
+                if ($file === 'foo.css') {
+                    return '@import "bar.css";';
+                }
+
+                throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Oh noes! Failed to read `bar.css`.', $exception->getMessage());
+            $t->same('foo.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+            $importReadRejected = true;
+        }
+
+        if (!$importReadRejected) {
+            throw new RuntimeException('Expected imported read callback exception');
+        }
+
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static fn (): int => 1234);
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('expect String, got: Number', $exception->getMessage());
+            $t->same(null, $exception->sourceFile);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected non-string read callback exception');
+    },
     'css bundler shares custom media definitions across imported graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print{.a{color:green}}.entry{color:red}',

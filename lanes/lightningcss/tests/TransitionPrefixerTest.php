@@ -1528,6 +1528,31 @@ CSS;
             ])
         );
     },
+    'transition prefixer maps upstream unknown media range fallbacks inside layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@layer blocks{@media (min-theme-breakpoint:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme-breakpoint >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media ((min-theme-ratio:2) and (max-theme-ratio:3)) or (theme-state:expanded){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (2 / 1 <= theme-ratio <= 3 / 1) or (theme-state: expanded) { .wp-block-query { color: yellow; } } }', [
+                'include' => ['MediaIntervalSyntax'],
+            ])
+        );
+        $t->same(
+            '@layer blocks{@media (theme-breakpoint>=2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme-breakpoint >= 2) { .wp-block-query { color: yellow; } } }', [
+                'firefox' => 60,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media (100px < width > 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+    },
     'transition prefixer maps upstream media range include and exclude flags inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

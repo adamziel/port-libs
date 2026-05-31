@@ -231,6 +231,48 @@ return [
             SourceMap::fromJson('{"version":3,"mappings":"A","sources":[7],"names":[]}');
         });
     },
+    'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
+        $map = new SourceMap('/srv/www/site/wp-content/themes/example');
+        $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');
+        $styleAgain = $map->addSource('file:///srv/www/site/wp-content/themes/example/./style.css');
+        $shared = $map->addSource('/srv/www/site/wp-content/themes/shared/tokens.css');
+        $relative = $map->addSource('./blocks/cover.css');
+        $virtual = $map->addSource('theme://generated/cover.css');
+
+        $map->addMapping(0, 0, $style, 0, 0);
+        $map->addMapping(0, 20, $shared, 4, 2, 'sharedToken');
+        $map->addMapping(1, 0, $relative, 2, 1);
+        $map->addMapping(1, 12, $virtual, 0, 0);
+
+        $data = $map->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same($style, $styleAgain);
+        $t->same(['style.css', '../shared/tokens.css', 'blocks/cover.css', 'theme://generated/cover.css'], $data['sources']);
+        $t->same([0, 1, 2, 3], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 20, 0, 12], array_column($decoded, 'generatedColumn'));
+        $t->same(['sharedToken'], $data['names']);
+
+        $windows = new SourceMap('C:\\www\\theme\\css');
+        $windows->addSource('C:\\www\\theme\\blocks\\card.css');
+        $windows->addSource('C:\\www\\theme\\css\\.\\editor.css');
+        $t->same(['../blocks/card.css', 'editor.css'], $windows->toArray(null, false)['sources']);
+    },
+    'source map imports raw vlq maps with upstream project-root source normalization' => static function (TestRunner $t): void {
+        $map = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAA;AACA","sources":["/srv/www/site/wp-content/themes/example/style.css","file:///srv/www/site/wp-content/themes/shared/tokens.css"],"sourcesContent":[".theme{}",".tokens{}"],"names":[]}',
+            '/srv/www/site/wp-content/themes/example'
+        );
+
+        $data = $map->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same('AAAA;AACA', $map->writeVlq());
+        $t->same(['style.css', '../shared/tokens.css'], $data['sources']);
+        $t->same(['.theme{}', '.tokens{}'], $data['sourcesContent']);
+        $t->same([0, 1], array_column($decoded, 'generatedLine'));
+        $t->same([0, 0], array_column($decoded, 'sourceIndex'));
+    },
     'source map offsets generated columns with upstream overlap semantics' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('blocks.css');

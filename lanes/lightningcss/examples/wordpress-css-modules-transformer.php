@@ -29,6 +29,12 @@ $css = <<<'CSS'
   color: yellow;
 }
 
+.card\:featured {
+  composes: card;
+  composes: wp\:alignwide from global;
+  outline: 1px solid yellow;
+}
+
 :global(.wp-block-button :local(.legacyButton)) .cardTitle {
   text-decoration: none;
 }
@@ -134,7 +140,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@view-transition{types:BlockA_card-enter BlockA_page}',
+    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@view-transition{types:BlockA_card-enter BlockA_page}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -173,6 +179,20 @@ $expected = [
                     'type' => 'dependency',
                     'name' => 'heading',
                     'specifier' => './typography.module.css',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'card:featured' => [
+            'name' => 'BlockA_card:featured',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_card',
+                ],
+                [
+                    'type' => 'global',
+                    'name' => 'wp:alignwide',
                 ],
             ],
             'isReferenced' => false,

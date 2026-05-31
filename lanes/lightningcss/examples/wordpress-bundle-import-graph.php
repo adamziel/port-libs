@@ -97,6 +97,47 @@ try {
     echo 'resolver-shape: rejected' . PHP_EOL;
 }
 
+$readerFiles = [
+    '/reader-theme.css' => <<<'CSS'
+@import "pkg:tokens.css";
+@import "blocks/query.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/vendor/tokens.css' => ':root { --wp--preset--color--brand: blue; }',
+    '/blocks/query.css' => '.wp-block-query { color: green; }',
+];
+$readerReads = [];
+$readerBundle = (new CssBundler())->bundleWithReader(
+    '/reader-theme.css',
+    static function (string $file) use (&$readerReads, $readerFiles): string {
+        $readerReads[] = $file;
+        if (!array_key_exists($file, $readerFiles)) {
+            throw new RuntimeException("Missing reader-backed theme file {$file}");
+        }
+
+        return $readerFiles[$file];
+    },
+    static function (string $specifier, string $originatingFile): string {
+        if (str_starts_with($specifier, 'pkg:')) {
+            return '/vendor/' . substr($specifier, strlen('pkg:'));
+        }
+
+        return rtrim(dirname($originatingFile), '/') . '/' . ltrim($specifier, './');
+    }
+);
+
+if (
+    $readerBundle !== ':root{--wp--preset--color--brand:blue}.wp-block-query{color:green}.wp-site-blocks{color:red}'
+    || $readerReads !== ['/reader-theme.css', '/vendor/tokens.css', '/blocks/query.css']
+) {
+    fwrite(STDERR, "Unexpected reader-backed bundle graph output\n");
+    exit(1);
+}
+
+echo 'reader-provider: resolved' . PHP_EOL;
+
 $moduleBundle = (new CssBundler())->bundleCssModules('/modules/card.css', [
     '/modules/card.css' => <<<'CSS'
 @import "../theme.css";
