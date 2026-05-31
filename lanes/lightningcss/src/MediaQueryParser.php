@@ -43,6 +43,7 @@ final class MediaQueryParser
         $query = $this->normalizeParentheses($query);
         $query = preg_replace('/\b(and|or)\b/i', ' $1 ', $query) ?? $query;
         $query = $this->normalizeWhitespace($query);
+        $query = $this->normalizeBooleanConditionGroups($query);
         $query = preg_replace_callback('/^(not|only)\s+(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]) . ' ' . strtolower($m[2]), $query) ?? $query;
         $query = preg_replace_callback('/^(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]), $query) ?? $query;
 
@@ -179,6 +180,139 @@ final class MediaQueryParser
     private function normalizeWhitespace(string $value): string
     {
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    }
+
+    private function normalizeBooleanConditionGroups(string $query): string
+    {
+        $query = preg_replace('/\bnot\s*\(/i', 'not (', $query) ?? $query;
+        $query = $this->simplifyNotWrappedConditions($query);
+        $query = $this->flattenRedundantBooleanGroups($query, 'and');
+        $query = $this->flattenRedundantBooleanGroups($query, 'or');
+
+        return $this->normalizeWhitespace($query);
+    }
+
+    private function simplifyNotWrappedConditions(string $query): string
+    {
+        $output = '';
+        $length = strlen($query);
+
+        for ($i = 0; $i < $length; $i++) {
+            if (!$this->startsKeywordAt($query, $i, 'not')) {
+                $output .= $query[$i];
+                continue;
+            }
+
+            $after = $i + 3;
+            $spaceStart = $after;
+            while ($after < $length && ctype_space($query[$after])) {
+                $after++;
+            }
+
+            if ($after === $spaceStart || ($query[$after] ?? '') !== '(') {
+                $output .= $query[$i];
+                continue;
+            }
+
+            $close = $this->findMatchingDelimiter($query, $after, '(', ')');
+            $inner = substr($query, $after + 1, $close - $after - 1);
+            $stripped = $this->stripOneBalancedParentheses(trim($inner));
+
+            $output .= 'not ';
+            if ($stripped !== null) {
+                $output .= '(' . $stripped . ')';
+            } else {
+                $output .= substr($query, $after, $close - $after + 1);
+            }
+
+            $i = $close;
+        }
+
+        return $output;
+    }
+
+    private function flattenRedundantBooleanGroups(string $query, string $operator): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($query);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $query[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $query[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char !== '(') {
+                $output .= $char;
+                continue;
+            }
+
+            $close = $this->findMatchingDelimiter($query, $i, '(', ')');
+            $inner = substr($query, $i + 1, $close - $i - 1);
+            if ($this->containsTopLevelKeyword($inner, $operator)
+                && ($this->endsWithKeyword($output, $operator) || $this->remainingStartsWithKeyword($query, $close + 1, $operator))
+            ) {
+                $output .= $inner;
+                $i = $close;
+                continue;
+            }
+
+            $output .= substr($query, $i, $close - $i + 1);
+            $i = $close;
+        }
+
+        return $output;
+    }
+
+    private function stripOneBalancedParentheses(string $value): ?string
+    {
+        if (($value[0] ?? '') !== '(') {
+            return null;
+        }
+
+        $close = $this->findMatchingDelimiter($value, 0, '(', ')');
+
+        return $close === strlen($value) - 1 ? substr($value, 1, -1) : null;
+    }
+
+    private function startsKeywordAt(string $value, int $offset, string $keyword): bool
+    {
+        if (strncasecmp(substr($value, $offset, strlen($keyword)), $keyword, strlen($keyword)) !== 0) {
+            return false;
+        }
+
+        $before = $value[$offset - 1] ?? '';
+        $after = $value[$offset + strlen($keyword)] ?? '';
+
+        return ($before === '' || preg_match('/[-_a-zA-Z0-9]/', $before) !== 1)
+            && ($after === '' || preg_match('/[-_a-zA-Z0-9]/', $after) !== 1);
+    }
+
+    private function endsWithKeyword(string $value, string $keyword): bool
+    {
+        return preg_match('/(?:^|\s)' . preg_quote($keyword, '/') . '\s*$/i', $value) === 1;
+    }
+
+    private function remainingStartsWithKeyword(string $value, int $offset, string $keyword): bool
+    {
+        $remaining = ltrim(substr($value, $offset));
+
+        return preg_match('/^' . preg_quote($keyword, '/') . '(?:\s|$)/i', $remaining) === 1;
     }
 
     private function trimNumber(string $number): string

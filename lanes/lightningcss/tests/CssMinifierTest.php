@@ -670,6 +670,43 @@ CSS
         $t->same('@import "foo.css";', $minifier->minify('@charset "UTF-8"; @import url(foo.css);'));
         $t->same('@layer foo;@import "foo.css";', $minifier->minify('@layer foo; @import url(foo.css);'));
     },
+    'css minifier maps upstream layer statement and block consolidation' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('@layer foo;', $minifier->minify('@layer foo;'));
+        $t->same('@layer foo,bar;', $minifier->minify('@layer foo, bar;'));
+        $t->same('@layer foo.bar,baz;', $minifier->minify('@layer foo.bar, baz;'));
+        $t->same('@layer foo{.bar{color:red}}', $minifier->minify('@layer foo { .bar { color: red; } }'));
+        $t->same('@layer foo.bar{.bar{color:red}}', $minifier->minify('@layer foo.bar { .bar { color: red; } }'));
+        $t->same('@layer{.bar{color:red}}', $minifier->minify('@layer { .bar { color: red; } }'));
+        $t->same('@layer foo\\ bar,baz;', $minifier->minify('@layer foo\\20 bar, baz;'));
+        $t->same(
+            '@layer one.two\\ three\\#four\\.five{.bar{color:red}}',
+            $minifier->minify('@layer one.two\\20 three\\#four\\.five { .bar { color: red; } }')
+        );
+        $t->same('@layer a,b,c;', $minifier->minify('@layer a; @layer b; @layer c;'));
+        $t->same('@layer a,b,c;', $minifier->minify('@layer a {} @layer b {} @layer c {}'));
+        $t->same(
+            '@layer foo{.foo{color:red;background:#fff}.baz{color:#fff}}',
+            $minifier->minify('@layer foo { .foo { color: red; } } @layer foo { .foo { background: #fff; } .baz { color: #fff; } }')
+        );
+        $t->same(
+            '@layer a;@layer b{.foo{color:red}}@layer c;',
+            $minifier->minify('@layer a; @layer b { .foo { color: red; } } @layer c {}')
+        );
+        $t->same(
+            '@layer a,b,c;@layer d{foo{color:red}}',
+            $minifier->minify('@layer a, b; @layer c {} @layer d { foo { color: red; } }')
+        );
+        $t->same(
+            '@layer a{foo{color:red}}@layer b,c;',
+            $minifier->minify('@layer a, b, c; @layer a { foo { color: red; } }')
+        );
+        $t->same(
+            '@layer a,b;@import "a.css" layer(x);@layer c;@layer d{foo{color:red}}',
+            $minifier->minify('@layer a; @layer b; @import "a.css" layer(x); @layer c; @layer d { foo { color: red; } }')
+        );
+    },
     'css minifier maps upstream supports rule condition normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -2211,6 +2248,48 @@ CSS;
 
         $t->same(
             '@layer blocks;@import "./blocks/query-card.css" supports(display:grid) screen and (width>=600px);.wp-block-query{color:#ff0}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress layer ordered responsive block css minifies without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@layer theme;
+@layer blocks {}
+@layer utilities;
+
+@layer blocks {
+  .wp-block-query {
+    color: red;
+  }
+}
+
+@layer blocks {
+  .wp-block-query {
+    background: #fff;
+  }
+
+  @media all {
+    .wp-block-query__empty {
+      color: chartreuse;
+    }
+  }
+
+  @media not all {
+    .wp-block-query__debug {
+      color: red;
+    }
+  }
+
+  @media (min-width: 600px) and ((hover) and (color)) {
+    .wp-block-query {
+      color: yellow;
+    }
+  }
+}
+CSS;
+
+        $t->same(
+            '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}}@layer utilities;',
             (new CssMinifier())->minify($css)
         );
     },

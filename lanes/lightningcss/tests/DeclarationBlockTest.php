@@ -560,6 +560,70 @@ return [
             $block->removeProperty('border: 1px solid red !important; border-left-width: 4px; color: blue', 'border-left-width')
         );
     },
+    'declaration block removes upstream shorthand groups and included longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'color: green',
+            $block->removeProperty(
+                'border: 1px solid red; border-top-color: blue; color: green; border-left-width: 4px',
+                'border'
+            )
+        );
+        $t->same(
+            'color: green',
+            $block->removeProperty(
+                'border: 1px solid red !important; border-top-color: blue !important; color: green; border-left-width: 4px !important',
+                'border'
+            )
+        );
+        $t->same(
+            'border-left-style: dotted; color: green',
+            $block->removeProperty(
+                'border-color: red green blue black; border-top-color: orange; border-left-style: dotted; color: green',
+                'border-color'
+            )
+        );
+        $t->same(
+            'border-right-width: 3px',
+            $block->removeProperty(
+                'border-top: 2px dotted blue; border-top-color: green; border-right-width: 3px',
+                'border-top'
+            )
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('flex-flow: column wrap; flex-direction: row; flex-wrap: nowrap; color: red', 'flex-flow')
+        );
+        $t->same(
+            'flex-direction: row; color: red',
+            $block->removeProperty(
+                '-webkit-flex-flow: column wrap; flex-direction: row; -webkit-flex-wrap: nowrap; -webkit-flex-direction: column; color: red',
+                '-webkit-flex-flow'
+            )
+        );
+        $t->same(
+            'color: blue',
+            $block->removeProperty(
+                'grid-area: header / main / footer / aside; grid-row-start: promo; grid-column-end: rail; color: blue',
+                'grid-area'
+            )
+        );
+        $t->same(
+            'grid-auto-flow: dense; color: blue',
+            $block->removeProperty(
+                'grid-template: auto 1fr / auto; grid-template-rows: min-content; grid-template-columns: 1fr; grid-auto-flow: dense; color: blue',
+                'grid-template'
+            )
+        );
+        $t->same(
+            'color: blue',
+            $block->removeProperty(
+                'grid: auto 1fr / auto; grid-template-rows: min-content; grid-template-columns: 1fr; grid-auto-flow: dense; grid-auto-rows: 12px; color: blue',
+                'grid'
+            )
+        );
+    },
     'declaration block removes upstream cssom priority buckets' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

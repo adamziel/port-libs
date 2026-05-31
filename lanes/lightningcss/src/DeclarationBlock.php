@@ -2615,6 +2615,13 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        $shorthandLonghands = $this->cssomShorthandLonghands($property);
+        if ($shorthandLonghands !== null) {
+            $normalEntries = $this->removeShorthandLonghandsWithinPriority($normalEntries, $property, $shorthandLonghands);
+            $importantEntries = $this->removeShorthandLonghandsWithinPriority($importantEntries, $property, $shorthandLonghands);
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
 
         if ($this->isBoxLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeBoxLonghand($normalEntries, $property));
@@ -2671,6 +2678,70 @@ final class DeclarationBlock
             static fn (array $entry): bool => $entry['property'] !== 'background'
                 && !in_array($entry['property'], self::BACKGROUND_LONGHANDS, true)
         ));
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @param list<string> $longhands
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function removeShorthandLonghandsWithinPriority(array $entries, string $property, array $longhands): array
+    {
+        return array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => $entry['property'] !== $property
+                && !in_array($entry['property'], $longhands, true)
+        ));
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function cssomShorthandLonghands(string $property): ?array
+    {
+        $borderLonghands = $this->borderShorthandLonghands($property);
+        if ($borderLonghands !== null) {
+            return $borderLonghands;
+        }
+
+        $flexLonghands = $this->flexFlowLonghands($property);
+        if ($flexLonghands !== null) {
+            return $flexLonghands;
+        }
+
+        return $this->gridShorthandLonghands($property);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function flexFlowLonghands(string $property): ?array
+    {
+        $prefix = $this->flexPrefixForProperty($property);
+        $base = $this->baseFlexProperty($property);
+        if ($prefix === null || $base !== 'flex-flow') {
+            return null;
+        }
+
+        return [
+            $this->flexProperty($prefix, 'flex-direction'),
+            $this->flexProperty($prefix, 'flex-wrap'),
+        ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function gridShorthandLonghands(string $property): ?array
+    {
+        return match ($property) {
+            'grid-template' => self::GRID_TEMPLATE_COMPONENTS,
+            'grid' => array_merge(self::GRID_TEMPLATE_COMPONENTS, self::GRID_AUTO_COMPONENTS),
+            'grid-row' => ['grid-row-start', 'grid-row-end'],
+            'grid-column' => ['grid-column-start', 'grid-column-end'],
+            'grid-area' => self::GRID_AREA_COMPONENTS,
+            default => null,
+        };
     }
 
     private function isRemovableFlexLonghand(string $property): bool

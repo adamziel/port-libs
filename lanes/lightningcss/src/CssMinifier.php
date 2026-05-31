@@ -93,6 +93,7 @@ final class CssMinifier
         $css = $this->minifyContainerQueries($this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output)))));
         $css = $this->canonicalizeImplicitNestedSelectors($css);
         $css = $this->minifyImportRules($css);
+        $css = $this->minifyLayerRules($css);
         $css = $this->minifyNamespaceRules($css);
         $css = $this->normalizeNamespaceAttributeSelectors($css);
         $css = $this->minifySupportsRules($css);
@@ -816,6 +817,302 @@ final class CssMinifier
         return $output;
     }
 
+    private function minifyLayerRules(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $position = $this->findTopLevelAtKeyword($css, '@layer', $cursor);
+            if ($position === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $output .= substr($css, $cursor, $position - $cursor);
+            $nodes = [];
+            $scan = $position;
+
+            while ($scan < $length) {
+                $next = $this->skipWhitespace($css, $scan);
+                if (!$this->startsAtKeyword($css, $next, '@layer')) {
+                    break;
+                }
+
+                $node = $this->parseLayerRuleAt($css, $next);
+                if ($node === null) {
+                    break;
+                }
+
+                $nodes[] = $node;
+                $scan = $node['end'];
+            }
+
+            if ($nodes === []) {
+                $output .= substr($css, $position, 6);
+                $cursor = $position + 6;
+                continue;
+            }
+
+            $output .= $this->shouldPreserveLayerRunSourceOrder($nodes)
+                ? $this->serializeLayerRunSourceOrder($nodes)
+                : $this->serializeLayerRun($nodes);
+            $cursor = $scan;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{end:int,type:string,names:list<string>,body?:string}|null
+     */
+    private function parseLayerRuleAt(string $css, int $offset): ?array
+    {
+        $start = $offset + strlen('@layer');
+        $semicolon = $this->findNextTopLevel($css, ';', $start);
+        $open = $this->findNextTopLevel($css, '{', $start);
+
+        if ($semicolon !== null && ($open === null || $semicolon < $open)) {
+            $prelude = trim(substr($css, $start, $semicolon - $start));
+            if ($prelude === '') {
+                return null;
+            }
+
+            return [
+                'end' => $semicolon + 1,
+                'type' => 'statement',
+                'names' => $this->minifyLayerNameList($prelude),
+            ];
+        }
+
+        if ($open === null) {
+            return null;
+        }
+
+        $prelude = trim(substr($css, $start, $open - $start));
+        if (str_contains($prelude, ',')) {
+            return null;
+        }
+
+        $close = $this->findMatchingBraceInCss($css, $open);
+        $body = substr($css, $open + 1, $close - $open - 1);
+        if ($prelude === '') {
+            return [
+                'end' => $close + 1,
+                'type' => 'anonymous-block',
+                'names' => [],
+                'body' => $this->minifyLayerRules($body),
+            ];
+        }
+
+        $names = $this->minifyLayerNameList($prelude);
+        if (count($names) !== 1) {
+            return null;
+        }
+
+        return [
+            'end' => $close + 1,
+            'type' => trim($body) === '' ? 'statement' : 'block',
+            'names' => $names,
+            'body' => $this->minifyLayerRules($body),
+        ];
+    }
+
+    /**
+     * @param list<array{end:int,type:string,names:list<string>,body?:string}> $nodes
+     */
+    private function serializeLayerRun(array $nodes): string
+    {
+        $order = [];
+        $bodies = [];
+        $anonymous = [];
+
+        foreach ($nodes as $node) {
+            if ($node['type'] === 'anonymous-block') {
+                $anonymous[] = '@layer{' . ($node['body'] ?? '') . '}';
+                continue;
+            }
+
+            foreach ($node['names'] as $name) {
+                if (!isset($order[$name])) {
+                    $order[$name] = count($order);
+                }
+            }
+
+            if ($node['type'] === 'block') {
+                $name = $node['names'][0];
+                $body = $node['body'] ?? '';
+                $bodies[$name] = isset($bodies[$name])
+                    ? $this->combineRuleBodies($bodies[$name], $body)
+                    : $body;
+            }
+        }
+
+        $orderedNames = array_keys($order);
+        usort($orderedNames, static fn (string $left, string $right): int => $order[$left] <=> $order[$right]);
+
+        $output = '';
+        $pendingStatements = [];
+        foreach ($orderedNames as $name) {
+            if (!isset($bodies[$name])) {
+                $pendingStatements[] = $name;
+                continue;
+            }
+
+            if ($pendingStatements !== []) {
+                $output .= '@layer ' . implode(',', $pendingStatements) . ';';
+                $pendingStatements = [];
+            }
+
+            $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($bodies[$name]) . '}';
+        }
+
+        if ($pendingStatements !== []) {
+            $output .= '@layer ' . implode(',', $pendingStatements) . ';';
+        }
+
+        return $output . implode('', $anonymous);
+    }
+
+    /**
+     * @param list<array{end:int,type:string,names:list<string>,body?:string}> $nodes
+     */
+    private function shouldPreserveLayerRunSourceOrder(array $nodes): bool
+    {
+        $sawStatement = false;
+        foreach ($nodes as $node) {
+            if ($node['type'] === 'statement') {
+                $sawStatement = true;
+                continue;
+            }
+
+            if ($sawStatement && str_contains($node['body'] ?? '', '@layer')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{end:int,type:string,names:list<string>,body?:string}> $nodes
+     */
+    private function serializeLayerRunSourceOrder(array $nodes): string
+    {
+        $output = '';
+        foreach ($nodes as $node) {
+            if ($node['type'] === 'anonymous-block') {
+                $output .= '@layer{' . ($node['body'] ?? '') . '}';
+                continue;
+            }
+
+            if ($node['type'] === 'statement') {
+                $output .= '@layer ' . implode(',', $node['names']) . ';';
+                continue;
+            }
+
+            $output .= '@layer ' . $node['names'][0] . '{' . ($node['body'] ?? '') . '}';
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function minifyLayerNameList(string $prelude): array
+    {
+        $names = [];
+        foreach ($this->splitTopLevel($prelude, ',') as $name) {
+            $name = trim($name);
+            if ($name === '') {
+                continue;
+            }
+
+            $names[] = $this->minifyLayerName($name);
+        }
+
+        return $names;
+    }
+
+    private function minifyLayerName(string $name): string
+    {
+        $name = preg_replace('/\\\\20\s?/i', '\\ ', $name) ?? $name;
+        $name = preg_replace('/\\\\([.#])/', '\\\\$1', $name) ?? $name;
+
+        return preg_replace('/(?<!\\\\)\s+/', '', $name) ?? $name;
+    }
+
+    private function findTopLevelAtKeyword(string $css, string $keyword, int $start): ?int
+    {
+        $quote = null;
+        $braceDepth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $char === '@' && $this->startsAtKeyword($css, $i, $keyword)) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function skipWhitespace(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        while ($offset < $length && ctype_space($value[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
     private function minifyNamespaceStatement(string $statement): string
     {
         $rest = trim(substr($statement, strlen('@namespace')));
@@ -1533,11 +1830,23 @@ final class CssMinifier
             }
 
             $prelude = trim(substr($css, $position + 6, $open - ($position + 6)));
-            $output .= substr($css, $cursor, $position - $cursor) . '@media';
-            if ($prelude !== '') {
-                $output .= ' ' . $parser->minifyList($prelude);
+            $minifiedPrelude = $prelude === '' ? '' : $parser->minifyList($prelude);
+            if ($minifiedPrelude === '' || strcasecmp($minifiedPrelude, 'all') === 0) {
+                $close = $this->findMatchingBraceInCss($css, $open);
+                $body = substr($css, $open + 1, $close - $open - 1);
+                $output .= substr($css, $cursor, $position - $cursor) . $this->minifyMediaQueries($body);
+                $cursor = $close + 1;
+                continue;
             }
-            $output .= '{';
+
+            if (strcasecmp($minifiedPrelude, 'not all') === 0) {
+                $close = $this->findMatchingBraceInCss($css, $open);
+                $output .= substr($css, $cursor, $position - $cursor);
+                $cursor = $close + 1;
+                continue;
+            }
+
+            $output .= substr($css, $cursor, $position - $cursor) . '@media ' . $minifiedPrelude . '{';
             $cursor = $open + 1;
         }
 

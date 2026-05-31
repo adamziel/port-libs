@@ -17,6 +17,9 @@ return [
         $t->same('(100px<width<200px)', $parser->minifyList('(100px < width < 200px)'));
         $t->same('(100px<=width<=200px)', $parser->minifyList('(100px <= width <= 200px)'));
         $t->same('(width>=30em) and (width<=50em)', $parser->minifyList('(min-width: 30em) and (max-width: 50em)'));
+        $t->same('(width<240px)', $parser->minifyList('(240px > width)'));
+        $t->same('(width<=240px)', $parser->minifyList('(240px >= width)'));
+        $t->same('(width<600px) and (height<600px)', $parser->minifyList('(width < 600px) and (height < 600px)'));
     },
     'media query parser maps upstream feature values qualifiers and lists' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -30,6 +33,8 @@ return [
         $t->same('only screen and (color)', $parser->minifyList('only screen and (color)'));
         $t->same('(update:slow) or (hover:none)', $parser->minifyList('(update: slow) or (hover: none)'));
         $t->same('(not (color)) or (hover)', $parser->minifyList('(not (color)) or (hover)'));
+        $t->same('not ((color) or (hover))', $parser->minifyList('not (((color) or (hover)))'));
+        $t->same('(hover) and (color) and (test)', $parser->minifyList('(hover) and ((color) and (test))'));
     },
     'media query parser folds simple same-unit calc values' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -56,5 +61,10 @@ return [
         $css = '@media (min-width: 240px) and (hover: hover) { .foo { color: chartreuse; } }';
 
         $t->same('@media (width>=240px) and (hover:hover){.foo{color:#7fff00}}', (new CssMinifier())->minify($css));
+        $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media { .foo { color: chartreuse } }'));
+        $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media all { .foo { color: chartreuse } }'));
+        $t->same('', (new CssMinifier())->minify('@media not all { .foo { color: chartreuse } }'));
+        $t->same('@media not ((color) or (hover)){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not (((color) or (hover))) { .foo { color: chartreuse } }'));
+        $t->same('@media (hover) and (color) and (test){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover) and ((color) and (test)) { .foo { color: chartreuse } }'));
     },
 ];
