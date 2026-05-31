@@ -46,10 +46,11 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 345G available after bounded cache/log/worktree cleanup; `/tmp` has about 6.4G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge currently at 46 visible workers after a bounded refill
-  toward target 47, plus active libsqlite/Gitoxide workers; the latest refill
-  started LightningCSS workers on `gpt-5.5` xhigh with the priority service
-  tier and no long sleeper loop.
+  a LightningCSS surge currently at 50 visible workers after a bounded refill
+  toward target 50, plus 5 active Gitoxide workers and 6 active SQLite closure
+  workers. The latest refill started LightningCSS/Gitoxide/SQLite workers on
+  `gpt-5.5` xhigh with the priority service tier; the latest process sample
+  found no `sleep 900` or `Sleeping 900` workers.
 
 ## Current Coordination Snapshot
 
