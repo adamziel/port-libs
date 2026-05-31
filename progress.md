@@ -54,6 +54,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS parsing/CSSOM/modules plus
+  Gitoxide tree/partial-clone/credential integration 19:00 UTC): source commit
+  `18b0deb3515dc92a712cbd8626c76fa5de6b3008` (`ports: extend lightningcss
+  parsing cssom modules and gitoxide merge`) landed seven LightningCSS
+  handoffs plus three Gitoxide handoffs after screening the newest ready
+  markers against current source `999259212` and excluding stale shared
+  metadata. LightningCSS full lane evidence moves from `3206` to `3328 pass /
+  0 fail`, with conservative mapped coverage moving from `1721 / 3532` to
+  `1800 / 3532`: 73 bounded relative HSL/HWB color checks, SourceMap
+  `add_sourcemap` child consumption, CSS Modules pseudo-replacement compose
+  behavior, and four text-decoration-skip-ink target-prefix/browser-boundary
+  checks. Background-position CSSOM read/write/remove behavior, dangling media
+  logic validation, and supports-condition import grouping deepen already
+  represented clusters. Gitoxide full lane evidence moves from `5171` to
+  `5206 pass / 0 fail`, with conservative mapped coverage moving from `1614 /
+  2886` to `1617 / 2886`: renamed-symlink tree-merge resolve-tree parity,
+  config-only partial-clone promisor hydration before a first promisor pack,
+  and credential helper root URL path clearing. Gates passed: PHP lint on 31
+  changed/new PHP files, `git diff --check -- lanes/lightningcss
+  lanes/gitoxide`, no WordPress/WP/wp_ source symbols under changed lane `src`
+  trees, focused gate `11 files / 3866 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 3328 assertions / 0 failures`, full Gitoxide
+  lane `39 files / 5206 assertions / 0 failures`, and touched example
+  smoke/self-test runs. Full upstream Rust/Node/WASM/Cargo runners were not
+  executed for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS visitor/CSSOM/source-map
   plus Gitoxide protocol/receive-pack integration 18:56 UTC): source commit
   `bb0637b0b16499d51d74a2f547abf70f9868859f` (`ports: extend
