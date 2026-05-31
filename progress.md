@@ -52,6 +52,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS media/color/modules plus
+  Gitoxide SSH integration 18:11 UTC): source commit
+  `a3b2557c97008533c5a059e0e17cefdcb16d7f49` (`ports: extend lightningcss
+  media color modules and gitoxide ssh`) landed five clean LightningCSS
+  handoffs plus one Gitoxide handoff after excluding stale shared metadata.
+  LightningCSS full lane evidence moves from `2881` to `2923 pass / 0 fail`,
+  with conservative mapped coverage moving from `1637 / 3532` to `1645 /
+  3532`: media range fallback calc() spacing, color() interpolation-space
+  color-mix normalization, CSS Modules dashed `@property` /
+  `@font-palette-values` / `font-palette` scoping, compound resolution media
+  prefix rewrites inside layers, and custom at-rule `Url` visitor composition.
+  Gitoxide full lane evidence moves from `5018` to `5025 pass / 0 fail`, with
+  conservative mapped coverage moving from `1602 / 2886` to `1603 / 2886` for
+  SSH receive-pack option-looking host boundary parity with explicit safe
+  users. Gates passed: PHP lint on changed/new PHP files, `git diff --check --
+  lanes/lightningcss lanes/gitoxide`, no WordPress/WP/wp_ text introduced by
+  changed source diffs, focused gate `6 files / 2385 assertions / 0 failures`,
+  full LightningCSS lane `13 files / 2923 assertions / 0 failures`, full
+  Gitoxide lane `39 files / 5025 assertions / 0 failures`, and touched example
+  smoke/self-test runs. Full upstream Rust/Node/WASM/Cargo runners were not
+  executed for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS visitor/modules/gradients
   integration 18:05 UTC): source commit
   `fcbc7a6c9983fad89791d078fb71c4b3df874a5e` (`ports: extend lightningcss
