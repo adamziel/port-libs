@@ -11,17 +11,20 @@ $delimiter = '0001';
 $flush = '0000';
 
 return [
-    'response' => $packet("acknowledgments\n")
-        . $packet("ACK {$installed} common\n")
-        . $packet("ready\n")
+    'sidebandAll' => true,
+    'response' => $packet("\x02remote: preparing WordPress blobless pack\n")
+        . $packet("\x01acknowledgments\n")
+        . $packet("\x01ACK {$installed} common\n")
+        . $packet("\x01ready\n")
         . $delimiter
-        . $packet("shallow-info\n")
-        . $packet("shallow {$main}\n")
+        . $packet("\x01shallow-info\n")
+        . $packet("\x01shallow {$main}\n")
         . $delimiter
-        . $packet("wanted-refs\n")
-        . $packet("{$main} refs/heads/main\n")
+        . $packet("\x01wanted-refs\n")
+        . $packet("\x01{$main} refs/heads/main\n")
         . $delimiter
-        . $packet("packfile\n")
+        . $packet("\x01packfile\n")
+        . $packet("\x01")
         . $packet("\x02Enumerating objects: 1, done.\n")
         . $packet("\x01" . $packData)
         . $flush,
@@ -30,5 +33,5 @@ return [
         'installed' => $installed,
     ],
     'packData' => $packData,
-    'wordpressUse' => 'A PHP deployment tool can parse protocol v2 fetch response sections, confirm the wanted WordPress branch object, collect shallow boundary updates, surface remote progress, and hand sideband pack bytes to the object database layer.',
+    'wordpressUse' => 'A PHP deployment tool can parse protocol v2 sideband-all fetch response sections, confirm the wanted WordPress branch object, collect shallow boundary updates, surface remote progress, and hand channel-1 pack bytes to the object database layer.',
 ];

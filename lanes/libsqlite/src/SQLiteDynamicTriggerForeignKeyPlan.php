@@ -5048,6 +5048,114 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
+     * @param array{where?:array<string,mixed>,set:array<string,mixed>,parent_columns?:list<string>,child_columns?:list<string>,on_update?:string,parent_affinities?:array<string,string>,parent_collations?:array<string,string>} $statement
+     * @return array<string,mixed>
+     */
+    public static function parentUpdateDistinctActionPlan(array $parents, array $children, array $statement): array
+    {
+        $parentColumns = self::identifierList($statement['parent_columns'] ?? ['x'], 'parent key columns');
+        $childColumns = self::identifierList($statement['child_columns'] ?? ['y'], 'child key columns');
+        if (count($parentColumns) !== count($childColumns)) {
+            throw new \InvalidArgumentException('SQLite e_fkey parent update key width mismatch');
+        }
+
+        $assignments = $statement['set'] ?? [];
+        if ($assignments === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey parent update SET list is empty');
+        }
+
+        $onUpdate = strtolower(trim((string) ($statement['on_update'] ?? 'cascade')));
+        if (!in_array($onUpdate, ['cascade', 'set null', 'no action'], true)) {
+            throw new \InvalidArgumentException('SQLite e_fkey parent update action is unsupported');
+        }
+
+        $parentAffinities = self::foreignKeyColumnModes($statement['parent_affinities'] ?? [], $parentColumns, ['none', 'text', 'numeric', 'integer'], 'affinity');
+        $parentCollations = self::foreignKeyColumnModes($statement['parent_collations'] ?? [], $parentColumns, ['binary', 'nocase', 'rtrim'], 'collation');
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $where = $statement['where'] ?? [];
+        $targetIndex = self::firstMatchingRowIndex($parents, $where);
+        if ($targetIndex === null) {
+            throw new \InvalidArgumentException('SQLite e_fkey parent update target row was not found');
+        }
+
+        $oldParent = self::foreignKeyNormalizeParentRow($parents[$targetIndex], $parentColumns, $parentAffinities);
+        $newParent = $oldParent;
+        foreach ($assignments as $column => $value) {
+            $column = self::identifier((string) $column, 'parent update column');
+            $newParent[$column] = $value;
+        }
+        $newParent = self::foreignKeyNormalizeParentRow($newParent, $parentColumns, $parentAffinities);
+
+        $oldKey = self::foreignKeyRowKey($oldParent, $parentColumns);
+        $newKey = self::foreignKeyRowKey($newParent, $parentColumns);
+        $actionNeeded = !self::foreignKeyParentKeysEqual($oldKey, $newKey, $parentColumns, $parentCollations);
+        $parents[$targetIndex] = $newParent;
+
+        $actionRows = [];
+        if ($actionNeeded) {
+            foreach ($children as $childIndex => $child) {
+                if (!self::foreignKeyChildMatchesParentKey($child, $childColumns, $oldKey, $parentColumns, $parentAffinities, $parentCollations)) {
+                    continue;
+                }
+
+                $oldChildKey = self::foreignKeyRowKey($child, $childColumns);
+                if ($onUpdate === 'cascade') {
+                    foreach ($childColumns as $position => $childColumn) {
+                        $children[$childIndex][$childColumn] = $newKey[$position] ?? null;
+                    }
+                } elseif ($onUpdate === 'set null') {
+                    foreach ($childColumns as $childColumn) {
+                        $children[$childIndex][$childColumn] = null;
+                    }
+                }
+
+                $actionRows[] = [
+                    'child_index' => $childIndex,
+                    'action' => $onUpdate,
+                    'old_child_key' => $oldChildKey,
+                    'new_child_key' => self::foreignKeyRowKey($children[$childIndex], $childColumns),
+                ];
+            }
+        }
+
+        $violations = self::foreignKeyCompositeViolations($parents, $children, $parentColumns, $childColumns, $parentAffinities, $parentCollations);
+
+        return [
+            'source' => 'e_fkey.test e_fkey-52.1..53.3',
+            'operation' => 'parent-update-distinct-foreign-key-action',
+            'status' => $violations === [] ? 'commit-ok' : 'constraint-failed',
+            'on_update' => $onUpdate,
+            'parent_columns' => $parentColumns,
+            'child_columns' => $childColumns,
+            'parent_affinities' => $parentAffinities,
+            'parent_collations' => $parentCollations,
+            'old_parent_key' => $oldKey,
+            'new_parent_key' => $newKey,
+            'old_parent_key_typed' => array_map([self::class, 'foreignKeyTypedValue'], $oldKey),
+            'new_parent_key_typed' => array_map([self::class, 'foreignKeyTypedValue'], $newKey),
+            'parent_key_distinct' => $actionNeeded,
+            'action_taken' => $actionNeeded && $actionRows !== [],
+            'action_count' => count($actionRows),
+            'action_rows' => $actionRows,
+            'parent_rows' => $parents,
+            'child_rows' => $children,
+            'child_key_values' => array_map(static fn (array $row): array => self::foreignKeyRowKey($row, $childColumns), $children),
+            'child_key_types' => array_map(static fn (array $row): array => array_map([self::class, 'foreignKeyTypedValue'], self::foreignKeyRowKey($row, $childColumns)), $children),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'dependencies' => [
+                'sqlite-e-fkey-on-update-action-only-for-distinct-parent-key',
+                'sqlite-e-fkey-parent-collation-controls-parent-key-distinctness',
+                'sqlite-e-fkey-parent-affinity-controls-parent-key-distinctness',
+                'sqlite-e-fkey-set-null-action-skips-equal-parent-key-update',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
      * @param array<string,mixed> $incoming
      * @return array<string,mixed>
      */
@@ -8159,6 +8267,200 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return (string) $parent === (string) $child;
+    }
+
+    /**
+     * @param array<string,string> $modes
+     * @param list<string> $columns
+     * @param list<string> $allowed
+     * @return array<string,string>
+     */
+    private static function foreignKeyColumnModes(array $modes, array $columns, array $allowed, string $label): array
+    {
+        $normalized = [];
+        foreach ($columns as $column) {
+            $mode = strtolower(trim((string) ($modes[$column] ?? ($label === 'affinity' ? 'none' : 'binary'))));
+            if (!in_array($mode, $allowed, true)) {
+                throw new \InvalidArgumentException("SQLite e_fkey parent update {$label} is unsupported");
+            }
+            $normalized[$column] = $mode;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $where
+     */
+    private static function firstMatchingRowIndex(array $rows, array $where): ?int
+    {
+        foreach ($rows as $index => $row) {
+            if (self::rowMatches($row, $where)) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $parentColumns
+     * @param array<string,string> $parentAffinities
+     * @return array<string,mixed>
+     */
+    private static function foreignKeyNormalizeParentRow(array $row, array $parentColumns, array $parentAffinities): array
+    {
+        foreach ($parentColumns as $column) {
+            if (array_key_exists($column, $row)) {
+                $row[$column] = self::foreignKeyApplyAffinity($row[$column], $parentAffinities[$column] ?? 'none');
+            }
+        }
+
+        return $row;
+    }
+
+    private static function foreignKeyApplyAffinity(mixed $value, string $affinity): mixed
+    {
+        if ($value === null || $affinity === 'none') {
+            return $value;
+        }
+
+        if ($affinity === 'text') {
+            return (string) $value;
+        }
+
+        if (($affinity === 'numeric' || $affinity === 'integer') && is_string($value) && is_numeric($value)) {
+            $number = $value + 0;
+            if ($affinity === 'integer' || (float) $number === (float) (int) $number) {
+                return (int) $number;
+            }
+
+            return (float) $number;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     * @return list<mixed>
+     */
+    private static function foreignKeyRowKey(array $row, array $columns): array
+    {
+        return array_map(static fn (string $column): mixed => $row[$column] ?? null, $columns);
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     * @param list<string> $parentColumns
+     * @param array<string,string> $parentCollations
+     */
+    private static function foreignKeyParentKeysEqual(array $left, array $right, array $parentColumns, array $parentCollations): bool
+    {
+        foreach ($parentColumns as $position => $column) {
+            if (!self::foreignKeyStoredValuesEqual($left[$position] ?? null, $right[$position] ?? null, $parentCollations[$column] ?? 'binary')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string,mixed> $child
+     * @param list<string> $childColumns
+     * @param list<mixed> $parentKey
+     * @param list<string> $parentColumns
+     * @param array<string,string> $parentAffinities
+     * @param array<string,string> $parentCollations
+     */
+    private static function foreignKeyChildMatchesParentKey(array $child, array $childColumns, array $parentKey, array $parentColumns, array $parentAffinities, array $parentCollations): bool
+    {
+        foreach ($childColumns as $position => $childColumn) {
+            $childValue = $child[$childColumn] ?? null;
+            if ($childValue === null) {
+                return false;
+            }
+            $parentColumn = $parentColumns[$position] ?? '';
+            $childValue = self::foreignKeyApplyAffinity($childValue, $parentAffinities[$parentColumn] ?? 'none');
+            if (!self::foreignKeyStoredValuesEqual($childValue, $parentKey[$position] ?? null, $parentCollations[$parentColumn] ?? 'binary')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function foreignKeyStoredValuesEqual(mixed $left, mixed $right, string $collation): bool
+    {
+        if ($left === null || $right === null) {
+            return $left === $right;
+        }
+
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return (float) $left === (float) $right;
+        }
+
+        if (is_string($left) && is_string($right)) {
+            return match ($collation) {
+                'nocase' => strcasecmp($left, $right) === 0,
+                'rtrim' => rtrim($left) === rtrim($right),
+                default => $left === $right,
+            };
+        }
+
+        return $left === $right;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param list<string> $parentColumns
+     * @param list<string> $childColumns
+     * @param array<string,string> $parentAffinities
+     * @param array<string,string> $parentCollations
+     * @return list<array{child_index:int,child_key:list<mixed>,phase:string}>
+     */
+    private static function foreignKeyCompositeViolations(array $parents, array $children, array $parentColumns, array $childColumns, array $parentAffinities, array $parentCollations): array
+    {
+        $parentKeys = array_map(static fn (array $row): array => self::foreignKeyRowKey($row, $parentColumns), $parents);
+        $violations = [];
+
+        foreach ($children as $childIndex => $child) {
+            $childKey = self::foreignKeyRowKey($child, $childColumns);
+            if (in_array(null, $childKey, true)) {
+                continue;
+            }
+
+            foreach ($parentKeys as $parentKey) {
+                if (self::foreignKeyChildMatchesParentKey($child, $childColumns, $parentKey, $parentColumns, $parentAffinities, $parentCollations)) {
+                    continue 2;
+                }
+            }
+
+            $violations[] = [
+                'child_index' => $childIndex,
+                'child_key' => $childKey,
+                'phase' => 'statement',
+            ];
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @return array{type:string,value:mixed}
+     */
+    private static function foreignKeyTypedValue(mixed $value): array
+    {
+        return [
+            'type' => get_debug_type($value),
+            'value' => $value,
+        ];
     }
 
     /**

@@ -24,20 +24,22 @@ final class FetchResponse
     ) {
     }
 
-    public static function fromV2PacketLines(string $bytes): self
+    public static function fromV2PacketLines(string $bytes, bool $sidebandAll = false): self
     {
         $offset = 0;
         $acknowledgements = [];
         $shallowUpdates = [];
         $wantedRefs = [];
+        $progressMessages = [];
+        $errorMessages = [];
 
         while (true) {
-            $packet = self::readPacket($bytes, $offset);
+            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages);
             if ($packet === null) {
                 throw new \RuntimeException('fetch response: could not read message headline');
             }
             if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
-                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false);
+                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages);
             }
             if ($packet['kind'] === 'delimiter') {
                 continue;
@@ -48,25 +50,25 @@ final class FetchResponse
 
             $header = rtrim($packet['payload'], "\r\n");
             if ($header === 'acknowledgments') {
-                if (self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...))) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false);
+                if (self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...), $sidebandAll, $progressMessages, $errorMessages)) {
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages);
                 }
                 continue;
             }
             if ($header === 'shallow-info') {
-                if (self::parseV2Section($bytes, $offset, $shallowUpdates, FetchShallowUpdate::fromLine(...))) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false);
+                if (self::parseV2Section($bytes, $offset, $shallowUpdates, FetchShallowUpdate::fromLine(...), $sidebandAll, $progressMessages, $errorMessages)) {
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages);
                 }
                 continue;
             }
             if ($header === 'wanted-refs') {
-                if (self::parseV2Section($bytes, $offset, $wantedRefs, FetchWantedRef::fromLine(...))) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false);
+                if (self::parseV2Section($bytes, $offset, $wantedRefs, FetchWantedRef::fromLine(...), $sidebandAll, $progressMessages, $errorMessages)) {
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages);
                 }
                 continue;
             }
             if ($header === 'packfile') {
-                $sidebands = self::decodeSidebandPacketLines($bytes, $offset);
+                $sidebands = self::decodeSidebandPacketLines($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages);
 
                 return new self(
                     $acknowledgements,
@@ -74,8 +76,8 @@ final class FetchResponse
                     $wantedRefs,
                     true,
                     $sidebands['packData'],
-                    $sidebands['progressMessages'],
-                    $sidebands['errorMessages']
+                    $progressMessages,
+                    $errorMessages
                 );
             }
 
@@ -172,10 +174,17 @@ final class FetchResponse
      * @param list<mixed> $out
      * @param callable(string):mixed $parse
      */
-    private static function parseV2Section(string $bytes, int &$offset, array &$out, callable $parse): bool
-    {
+    private static function parseV2Section(
+        string $bytes,
+        int &$offset,
+        array &$out,
+        callable $parse,
+        bool $sidebandAll,
+        array &$progressMessages,
+        array &$errorMessages
+    ): bool {
         while (true) {
-            $packet = self::readPacket($bytes, $offset);
+            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages);
             if ($packet === null || $packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
                 return true;
             }
@@ -192,34 +201,35 @@ final class FetchResponse
     /**
      * @return array{packData:string,progressMessages:list<string>,errorMessages:list<string>}
      */
-    private static function decodeSidebandPacketLines(string $bytes, int &$offset): array
-    {
+    private static function decodeSidebandPacketLines(
+        string $bytes,
+        int &$offset,
+        bool $sidebandAll,
+        array &$progressMessages,
+        array &$errorMessages
+    ): array {
         $packData = '';
-        $progressMessages = [];
-        $errorMessages = [];
 
         while (true) {
-            $packet = self::readPacket($bytes, $offset);
+            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages);
             if ($packet === null || $packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
                 break;
             }
             if ($packet['kind'] === 'delimiter') {
                 break;
             }
-            if ($packet['payload'] === '') {
-                throw new \InvalidArgumentException('fetch response: sideband packet was empty');
+            if ($sidebandAll) {
+                $packData .= $packet['payload'];
+                continue;
             }
 
-            $band = ord($packet['payload'][0]);
-            $data = substr($packet['payload'], 1);
-            if ($band === 1) {
-                $packData .= $data;
-            } elseif ($band === 2) {
-                $progressMessages[] = self::trimOneTrailingNewline($data);
-            } elseif ($band === 3) {
-                $errorMessages[] = self::trimOneTrailingNewline($data);
+            $sideband = self::decodeSidebandPayload($packet['payload']);
+            if ($sideband['band'] === 1) {
+                $packData .= $sideband['data'];
+            } elseif ($sideband['band'] === 2) {
+                $progressMessages[] = self::trimOneTrailingNewline($sideband['data']);
             } else {
-                throw new \InvalidArgumentException("fetch response: invalid sideband {$band}");
+                $errorMessages[] = self::trimOneTrailingNewline($sideband['data']);
             }
         }
 
@@ -228,6 +238,61 @@ final class FetchResponse
             'progressMessages' => $progressMessages,
             'errorMessages' => $errorMessages,
         ];
+    }
+
+    /**
+     * @param list<string> $progressMessages
+     * @param list<string> $errorMessages
+     * @return null|array{kind:string,payload:string}
+     */
+    private static function readV2Packet(
+        string $bytes,
+        int &$offset,
+        bool $sidebandAll,
+        array &$progressMessages,
+        array &$errorMessages
+    ): ?array {
+        while (true) {
+            $packet = self::readPacket($bytes, $offset);
+            if (!$sidebandAll || $packet === null || $packet['kind'] !== 'data') {
+                return $packet;
+            }
+
+            $sideband = self::decodeSidebandPayload($packet['payload']);
+            if ($sideband['band'] === 1) {
+                if ($sideband['data'] === '') {
+                    continue;
+                }
+
+                return ['kind' => 'data', 'payload' => $sideband['data']];
+            }
+
+            if ($sideband['band'] === 2) {
+                $progressMessages[] = self::trimOneTrailingNewline($sideband['data']);
+                continue;
+            }
+
+            if ($sideband['data'] !== '') {
+                $errorMessages[] = self::trimOneTrailingNewline($sideband['data']);
+            }
+        }
+    }
+
+    /**
+     * @return array{band:int,data:string}
+     */
+    private static function decodeSidebandPayload(string $payload): array
+    {
+        if ($payload === '') {
+            throw new \InvalidArgumentException('fetch response: sideband packet was empty');
+        }
+
+        $band = ord($payload[0]);
+        if ($band < 1 || $band > 3) {
+            throw new \InvalidArgumentException("fetch response: invalid sideband {$band}");
+        }
+
+        return ['band' => $band, 'data' => substr($payload, 1)];
     }
 
     /**

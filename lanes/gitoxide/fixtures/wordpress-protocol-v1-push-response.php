@@ -9,6 +9,8 @@ $progress = [
     'Resolving deltas: 100% (3/3), completed with 1 local object.',
     'WordPress deployment refs updated.',
 ];
+$oldSha256 = str_repeat('a', 64);
+$newSha256 = str_repeat('b', 64);
 
 return [
     'refs' => [
@@ -22,5 +24,18 @@ return [
         . $packet("\x01" . $packet("ok refs/tags/wp-release\n"))
         . $packet("\x02{$progress[1]}\n")
         . $packet("\x01" . $flush)
+        . $flush,
+    'rewrittenRef' => [
+        'requested' => 'refs/for/wp-release',
+        'actual' => 'refs/heads/deploy/wp-release',
+        'oldObject' => $oldSha256,
+        'newObject' => $newSha256,
+    ],
+    'rewrittenResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-release\n")
+        . $packet("option refname refs/heads/deploy/wp-release\n")
+        . $packet("option old-oid {$oldSha256}\n")
+        . $packet("option new-oid {$newSha256}\n")
+        . $packet("option forced-update\n")
         . $flush,
 ];

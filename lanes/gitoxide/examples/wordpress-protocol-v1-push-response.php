@@ -9,6 +9,7 @@ use PortLibs\Gitoxide\PushResponse;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v1-push-response.php';
 $response = PushResponse::fromSidebandPacketLines($fixture['response']);
+$rewrittenResponse = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse']);
 
 return [
     'unpackOk' => $response->unpackOk(),
@@ -21,6 +22,16 @@ return [
             'message' => $status->message,
         ],
         $response->refStatuses()
+    ),
+    'rewrittenRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'effectiveRef' => $status->effectiveRefName(),
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+            'forcedUpdate' => $status->forcedUpdate,
+        ],
+        $rewrittenResponse->refStatuses()
     ),
     'progressMessages' => $response->progressMessages(),
     'errorMessages' => $response->errorMessages(),

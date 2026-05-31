@@ -62,6 +62,33 @@ return [
         $t->same(strtolower($new), $status->newObject);
         $t->same(true, $status->forcedUpdate);
     },
+    'parses report-status-v2 sha256 proc-receive rewritten refs' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = str_repeat('A', 64);
+        $new = str_repeat('B', 64);
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release\n")
+            . $packet("option refname refs/heads/deploy/wp-release\n")
+            . $packet("option old-oid {$old}\n")
+            . $packet("option new-oid {$new}\n")
+            . $packet("option forced-update\n")
+            . $packet("ok refs/heads/main\n")
+            . $flush
+        );
+
+        $rewritten = $response->refStatuses()[0];
+        $unchanged = $response->refStatuses()[1];
+
+        $t->same(true, $response->isSuccessful());
+        $t->same('refs/for/wp-release', $rewritten->refName);
+        $t->same('refs/heads/deploy/wp-release', $rewritten->effectiveRefName());
+        $t->same(strtolower($old), $rewritten->oldObject);
+        $t->same(strtolower($new), $rewritten->newObject);
+        $t->same(true, $rewritten->forcedUpdate);
+        $t->same('refs/heads/main', $unchanged->effectiveRefName());
+        $t->same(null, $unchanged->oldObject);
+        $t->same(null, $unchanged->newObject);
+    },
     'parses upstream-shaped sideband push response' => static function (TestRunner $t) use ($packet, $flush): void {
         $advisory = "\nGitHub found 1 vulnerability on the-lean-crate/criner's default branch (1 high). To find out more, visit:\n"
             . "     https://github.com/the-lean-crate/criner/security/dependabot/1\n\n";
@@ -86,14 +113,17 @@ return [
     },
     'guards malformed push response packet streams' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromSidebandPacketLines($packet("\x09bad band") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("ok refs/heads/main\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("option refname refs/heads/main\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ok main\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet('ok refs/heads/main' . "\n") . $packet('option old-oid ' . str_repeat('f', 63) . "\n") . $flush));
         $t->throws(RuntimeException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("ERR hook failed\n") . $flush));
     },
     'wordpress fixture parses deployment branch and tag push status' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v1-push-response.php';
         $response = PushResponse::fromSidebandPacketLines($fixture['response']);
+        $rewritten = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse'])->refStatuses()[0];
 
         $t->same(true, $response->isSuccessful());
         $t->same('ok', $response->unpackStatus());
@@ -102,5 +132,10 @@ return [
             $response->refStatuses()
         ));
         $t->same($fixture['progress'], $response->progressMessages());
+        $t->same($fixture['rewrittenRef']['requested'], $rewritten->refName);
+        $t->same($fixture['rewrittenRef']['actual'], $rewritten->effectiveRefName());
+        $t->same($fixture['rewrittenRef']['oldObject'], $rewritten->oldObject);
+        $t->same($fixture['rewrittenRef']['newObject'], $rewritten->newObject);
+        $t->same(true, $rewritten->forcedUpdate);
     },
 ];

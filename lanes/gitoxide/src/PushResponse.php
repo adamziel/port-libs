@@ -174,6 +174,9 @@ final class PushResponse
         if ($unpackStatus === null) {
             throw new \InvalidArgumentException('push response: missing unpack status');
         }
+        if ($refStatuses === []) {
+            throw new \InvalidArgumentException('push response: missing command status');
+        }
 
         return new self($unpackStatus, $refStatuses, $progressMessages, $errorMessages);
     }

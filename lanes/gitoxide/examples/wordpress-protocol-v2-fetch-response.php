@@ -7,7 +7,7 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 use PortLibs\Gitoxide\FetchResponse;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v2-fetch-response.php';
-$response = FetchResponse::fromV2PacketLines($fixture['response']);
+$response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
 
 return [
     'acknowledgements' => array_map(
