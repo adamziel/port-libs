@@ -1274,6 +1274,120 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function reserveBytesVacuumHeaderProfile(
+        int $initialReserveBytes,
+        int $firstRequestedReserveBytes,
+        int $secondRequestedReserveBytes,
+        int $pageSize,
+        int $rowsInserted,
+        int $randomBlobBytes,
+        bool $readerConnectionOpen = true
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite reservebytes.test page size must be a power of two at least 512');
+        }
+        foreach ([
+            'initial reserve bytes' => $initialReserveBytes,
+            'first requested reserve bytes' => $firstRequestedReserveBytes,
+            'second requested reserve bytes' => $secondRequestedReserveBytes,
+        ] as $label => $reserveBytes) {
+            if ($reserveBytes < 0 || $reserveBytes > 255) {
+                throw new \InvalidArgumentException("SQLite reservebytes.test {$label} must be between 0 and 255");
+            }
+            if ($reserveBytes >= $pageSize) {
+                throw new \InvalidArgumentException("SQLite reservebytes.test {$label} must fit inside the page size");
+            }
+        }
+        if ($firstRequestedReserveBytes < $initialReserveBytes) {
+            throw new \InvalidArgumentException('SQLite reservebytes.test first reserve-byte request must not shrink the initial header reservation');
+        }
+        if ($secondRequestedReserveBytes <= $firstRequestedReserveBytes) {
+            throw new \InvalidArgumentException('SQLite reservebytes.test second reserve-byte request must increase the first request');
+        }
+        if ($rowsInserted < 1 || $randomBlobBytes < 1) {
+            throw new \InvalidArgumentException('SQLite reservebytes.test requires positive row and blob sizes');
+        }
+
+        $hexPayloadBytes = $randomBlobBytes * 2;
+        $rowCellBytes = $hexPayloadBytes + 24;
+        $indexCellBytes = 24;
+        $pagesFor = static function (int $reserveBytes) use ($pageSize, $rowsInserted, $rowCellBytes, $indexCellBytes): int {
+            $usableBytes = $pageSize - $reserveBytes;
+            if ($usableBytes <= 100) {
+                throw new \InvalidArgumentException('SQLite reservebytes.test usable page bytes must leave room for b-tree headers');
+            }
+
+            return 2 + (int) ceil(($rowsInserted * ($rowCellBytes + $indexCellBytes)) / $usableBytes);
+        };
+
+        $headerSequence = [
+            self::reserveByteHex($initialReserveBytes),
+            self::reserveByteHex($initialReserveBytes),
+            self::reserveByteHex($firstRequestedReserveBytes),
+            self::reserveByteHex($firstRequestedReserveBytes),
+            self::reserveByteHex($secondRequestedReserveBytes),
+        ];
+
+        return [
+            'status' => 'ok',
+            'script' => 'reservebytes.test',
+            'scenario' => 'reservebytes-1.0-1.4',
+            'upstream' => [
+                'reservebytes.test 1.0 create table/index and populate rows',
+                'reservebytes.test 1.1 second connection integrity before reserve change',
+                'reservebytes.test 1.2.1 first file_control_reservebytes leaves header byte unchanged',
+                'reservebytes.test 1.2.2 second connection integrity after pending reserve change',
+                'reservebytes.test 1.3.2 first VACUUM rebuild applies reserve byte',
+                'reservebytes.test 1.3.4 second connection integrity after first VACUUM',
+                'reservebytes.test 1.3.5 header byte records first reserve value',
+                'reservebytes.test 1.4.1 second reserve request leaves previous header byte until VACUUM',
+                'reservebytes.test 1.4.2 second VACUUM rebuild applies reserve byte',
+                'reservebytes.test 1.4.3 second connection integrity after second VACUUM',
+                'reservebytes.test 1.4.4 header byte records second reserve value',
+            ],
+            'page_size' => $pageSize,
+            'initial_reserve_bytes' => $initialReserveBytes,
+            'first_requested_reserve_bytes' => $firstRequestedReserveBytes,
+            'second_requested_reserve_bytes' => $secondRequestedReserveBytes,
+            'header_byte_offset' => 20,
+            'header_hex_sequence' => $headerSequence,
+            'header_hex_after_create' => $headerSequence[0],
+            'header_hex_after_first_file_control' => $headerSequence[1],
+            'header_hex_after_first_vacuum' => $headerSequence[2],
+            'header_hex_after_second_file_control' => $headerSequence[3],
+            'header_hex_after_second_vacuum' => $headerSequence[4],
+            'usable_bytes_initial' => $pageSize - $initialReserveBytes,
+            'usable_bytes_after_first_vacuum' => $pageSize - $firstRequestedReserveBytes,
+            'usable_bytes_after_second_vacuum' => $pageSize - $secondRequestedReserveBytes,
+            'rows_inserted' => $rowsInserted,
+            'index_entries' => $rowsInserted,
+            'random_blob_bytes' => $randomBlobBytes,
+            'hex_payload_bytes' => $hexPayloadBytes,
+            'database_pages_after_insert' => $pagesFor($initialReserveBytes),
+            'database_pages_after_first_vacuum' => $pagesFor($firstRequestedReserveBytes),
+            'database_pages_after_second_vacuum' => $pagesFor($secondRequestedReserveBytes),
+            'reader_connection_open' => $readerConnectionOpen,
+            'reader_integrity_sequence' => $readerConnectionOpen ? ['ok', 'ok', 'ok', 'ok'] : ['not-open'],
+            'file_control_first_pending_until_vacuum' => true,
+            'file_control_second_pending_until_vacuum' => true,
+            'first_vacuum_applies_pending_reserve_bytes' => true,
+            'second_vacuum_applies_pending_reserve_bytes' => true,
+            'table' => 'app_data',
+            'index' => 'app_data_b_c',
+            'columns' => ['id', 'key_number', 'payload_hex'],
+            'reason' => 'file_control_reservebytes_changes_header_byte_only_after_vacuum_rebuild',
+            'dependencies' => [
+                'upstream-reservebytes-test',
+                'sqlite-vfs-file-control-reserve-bytes',
+                'sqlite-vacuum-rebuild-reserve-bytes',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function checksumReserveProfile(
         int $reserveBytes,
         int $pageSize,
@@ -3202,6 +3316,11 @@ final class SQLiteVfsIoDynamicPlan
     {
         $remainder = $value % $pageSize;
         return $remainder === 0 ? $value : $value + ($pageSize - $remainder);
+    }
+
+    private static function reserveByteHex(int $reserveBytes): string
+    {
+        return strtoupper(str_pad(dechex($reserveBytes), 2, '0', STR_PAD_LEFT));
     }
 
     private static function crash8Scenario(string $scenario): string
