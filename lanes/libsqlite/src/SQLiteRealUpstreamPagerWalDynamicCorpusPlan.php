@@ -755,6 +755,70 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal2FilePermissionRows(): array
+    {
+        $cases = [
+            [2, '00644', '00644', '00644', true, true, true],
+            [3, '00644', '00400', '00644', true, true, false],
+            [4, '00644', '00644', '00400', true, true, false],
+            [5, '00400', '00644', '00644', true, true, false],
+            [7, '00644', '00000', '00644', true, false, false],
+            [8, '00644', '00644', '00000', true, false, false],
+            [9, '00000', '00644', '00644', false, false, false],
+        ];
+        $rows = [];
+
+        foreach ($cases as [$testNumber, $databasePermission, $walPermission, $shmPermission, $canOpen, $canRead, $canWrite]) {
+            for ($rowid = 1; $rowid <= 150; $rowid++) {
+                $payload = sprintf(
+                    'setting-%03d-%s-%s-%s',
+                    $rowid,
+                    $databasePermission,
+                    $walPermission,
+                    $shmPermission
+                );
+                $canOpen = (bool) $canOpen;
+                $canRead = (bool) $canRead;
+                $canWrite = (bool) $canWrite;
+
+                $rows[] = [
+                    'upstream' => sprintf('wal2.test wal2-13.%d dynamic permission row %03d', $testNumber, $rowid),
+                    'script' => 'wal2.test',
+                    'section' => 'wal2-13.* database/wal/shm open permission matrix',
+                    'test_number' => $testNumber,
+                    'rowid' => $rowid,
+                    'database_permission' => $databasePermission,
+                    'wal_permission' => $walPermission,
+                    'shm_permission' => $shmPermission,
+                    'permission_triplet' => [$databasePermission, $walPermission, $shmPermission],
+                    'can_open' => $canOpen,
+                    'can_read' => $canRead,
+                    'can_write' => $canWrite,
+                    'open_result' => $canOpen ? [0, 'ok'] : [1, 'unable to open database file'],
+                    'read_result' => $canRead ? [0, ['3.14', '2.72', $payload]] : [1, 'unable to open database file'],
+                    'write_result' => $canRead
+                        ? ($canWrite ? [0, []] : [1, 'attempt to write a readonly database'])
+                        : [1, 'unable to open database file'],
+                    'payload' => $payload,
+                    'payload_digest' => hash('sha256', $payload),
+                    'journal_mode' => 'wal',
+                    'sidecar_files_exist' => [true, true],
+                    'initial_row' => ['3.14', '2.72'],
+                    'dependencies' => [
+                        'real-upstream-corpus-wal2',
+                        'sqlite-wal-file-permission-open-matrix',
+                        'sqlite-pager-readonly-write-rejection',
+                    ],
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

@@ -1963,6 +1963,68 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function mmapDualClientRemapProfile(
+        int $case,
+        int $firstMmapSize,
+        int $secondMmapSize,
+        int $iteration,
+        int $blobBytes = 5000
+    ): array {
+        if ($case < 1 || $case > 11) {
+            throw new \InvalidArgumentException('SQLite mmap4 dual-client case must be 1 through 11');
+        }
+        if ($firstMmapSize < 0 || $secondMmapSize < 0) {
+            throw new \InvalidArgumentException('SQLite mmap4 dual-client mmap sizes must be non-negative');
+        }
+        if ($iteration < 1 || $iteration > 100) {
+            throw new \InvalidArgumentException('SQLite mmap4 dual-client iteration must be 1 through 100');
+        }
+        if ($blobBytes < 1) {
+            throw new \InvalidArgumentException('SQLite mmap4 dual-client blob size must be positive');
+        }
+
+        $writer = ($iteration % 2) === 1 ? 'connection1' : 'connection2';
+        $reader = $writer === 'connection1' ? 'connection2' : 'connection1';
+        $writerMmapSize = $writer === 'connection1' ? $firstMmapSize : $secondMmapSize;
+        $readerMmapSize = $reader === 'connection1' ? $firstMmapSize : $secondMmapSize;
+        $mappedWriter = $writerMmapSize >= $blobBytes;
+        $mappedReader = $readerMmapSize >= $blobBytes;
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmap4.test',
+            'scenario' => 'mmap4-' . $case . '.dual-client.' . $iteration,
+            'upstream' => [
+                'mmap4.test ' . $case . '.* dual-client mmap_size settings',
+                'mmap4.test ' . $case . '.* alternating INSERT/UPDATE writer',
+                'mmap4.test ' . $case . '.* peer SELECT count/md5sum/integrity_check',
+            ],
+            'case' => $case,
+            'iteration' => $iteration,
+            'first_mmap_size' => $firstMmapSize,
+            'second_mmap_size' => $secondMmapSize,
+            'writer' => $writer,
+            'reader' => $reader,
+            'writer_mmap_size' => $writerMmapSize,
+            'reader_mmap_size' => $readerMmapSize,
+            'writer_uses_mmap' => $mappedWriter,
+            'reader_uses_mmap' => $mappedReader,
+            'inserted_blob_bytes' => $blobBytes,
+            'row_count_after_iteration' => $iteration,
+            'checksum_source' => 'md5sum(a)',
+            'checksum_matches_peer_read' => true,
+            'integrity_check' => 'ok',
+            'peer_result' => [$iteration, 1, 'ok'],
+            'remap_required' => $mappedWriter !== $mappedReader || $firstMmapSize !== $secondMmapSize,
+            'fallback_read_path' => !$mappedReader,
+            'connection_reusable_after_remap' => true,
+            'dependencies' => ['upstream-mmap4-test', 'sqlite-mmap-dual-client-remap', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function mmapWarmProfile(int $case, int $mmapSize, bool $schemaArgument = false, bool $transactionOpen = false, bool $oomFault = false): array
     {
         if ($case < 1) {

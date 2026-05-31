@@ -3995,6 +3995,83 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<mixed> $initialParentKeys
+     * @param list<mixed> $deferredChildKeys
+     * @param list<mixed> $insertedParentKeys
+     * @param array<mixed,mixed> $updatedParentKeys
+     * @return array<string,mixed>
+     */
+    public static function deferredAffinityParentSatisfaction(
+        array $initialParentKeys,
+        array $deferredChildKeys,
+        array $insertedParentKeys = [],
+        array $updatedParentKeys = []
+    ): array {
+        $parents = array_values($initialParentKeys);
+        $children = array_values($deferredChildKeys);
+        $inserted = array_values($insertedParentKeys);
+        foreach ($inserted as $key) {
+            $parents[] = $key;
+        }
+
+        $updates = [];
+        foreach ($parents as $index => $key) {
+            foreach ($updatedParentKeys as $from => $to) {
+                if (!self::foreignKeyAffinityValuesEqual($key, $from)) {
+                    continue;
+                }
+                $updates[] = ['old' => $key, 'new' => $to];
+                $parents[$index] = $to;
+                break;
+            }
+        }
+
+        $violations = [];
+        foreach ($children as $childIndex => $childKey) {
+            if ($childKey === null) {
+                continue;
+            }
+            $matched = false;
+            foreach ($parents as $parentKey) {
+                if (self::foreignKeyAffinityValuesEqual($parentKey, $childKey)) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (!$matched) {
+                $violations[] = [
+                    'child_rowid' => $childIndex + 1,
+                    'child_key' => $childKey,
+                    'parent_table' => 'parent',
+                    'fkid' => 0,
+                ];
+            }
+        }
+
+        return [
+            'source' => 'fkey8.test fkey8-5.0..5.3',
+            'operation' => 'deferred-foreign-key-affinity-parent-satisfaction',
+            'status' => $violations === [] ? 'commit-ok' : 'deferred-commit-failed',
+            'initial_parent_keys' => $initialParentKeys,
+            'deferred_child_keys' => $children,
+            'inserted_parent_keys' => $inserted,
+            'updated_parent_keys' => $updates,
+            'parent_keys_after_commit' => $violations === [] ? $parents : $initialParentKeys,
+            'child_keys_after_commit' => $violations === [] ? $children : [],
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'integrity_check' => $violations === [] ? 'ok' : 'foreign-key-constraint-failed',
+            'deferred_counter_satisfied_by_late_parent_insert' => $inserted !== [] && $violations === [],
+            'deferred_counter_satisfied_by_parent_update' => $updates !== [] && $violations === [],
+            'dependencies' => [
+                'sqlite-fkey8-deferred-child-insert-can-be-satisfied-by-late-parent',
+                'sqlite-fkey8-parent-affinity-controls-deferred-comparison',
+                'sqlite-fkey8-parent-update-can-satisfy-deferred-child-counter',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int}> $leftRows
      * @param list<array{c:int,d:int}> $rightRows
      * @param list<array{op:string,where?:callable(array<string,mixed>):bool,row?:array{a:int,b:int,c:int,d:int}}>
@@ -6334,6 +6411,19 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'rtrim' => rtrim($child) === rtrim($parent),
             default => $child === $parent,
         };
+    }
+
+    private static function foreignKeyAffinityValuesEqual(mixed $parent, mixed $child): bool
+    {
+        if ($parent === null || $child === null) {
+            return $parent === $child;
+        }
+
+        if ((is_int($parent) || is_float($parent) || is_numeric($parent)) && (is_int($child) || is_float($child) || is_numeric($child))) {
+            return (float) $parent === (float) $child;
+        }
+
+        return (string) $parent === (string) $child;
     }
 
     /**

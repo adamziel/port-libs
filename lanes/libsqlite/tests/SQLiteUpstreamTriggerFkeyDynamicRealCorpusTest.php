@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDeferredForeignKeyTransactionPlan;
+use PortLibs\LibSqlite\SQLiteUpstreamTriggerFkeyDynamicPlan;
 
 $fkey22Operations = [
     ['case' => 'fkey2-2-1', 'op' => 'schema'],
@@ -185,6 +186,165 @@ foreach ($failureExpectations as $case => $message) {
     $tests["upstream fkey2 deferred transaction {$case} error message"] = static function (TestRunner $t) use ($traceByCase, $case, $message): void {
         $t->same($message, $traceByCase()[$case]['error']);
     };
+}
+
+$fkey7Plan = static fn (): array => SQLiteUpstreamTriggerFkeyDynamicPlan::fkey7();
+$fkey7ReadCases = static function () use ($fkey7Plan): array {
+    $cases = [];
+    foreach ($fkey7Plan()['read_cases'] as $case) {
+        $cases[$case['case']] = $case;
+    }
+
+    return $cases;
+};
+
+$tests['upstream fkey7 schema parent table primary key'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same(['a'], $fkey7Plan()['schema']['s1']['primary_key']);
+};
+$tests['upstream fkey7 schema par primary key'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same(['a'], $fkey7Plan()['schema']['par']['primary_key']);
+};
+$tests['upstream fkey7 corpus dependency marker'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same(true, in_array('sqlite-upstream-fkey7-read-dependencies', $fkey7Plan()['dependencies'], true));
+};
+
+$fkey7ReadExpectations = [
+    'fkey7-1.2' => ['par', 's1'],
+    'fkey7-1.3' => ['c1', 'c2', 'par'],
+    'fkey7-1.4' => ['c3', 'par'],
+    'fkey7-1.5' => ['c1', 'c2', 'c3', 'par', 's1'],
+];
+
+foreach ($fkey7ReadExpectations as $case => $reads) {
+    $tests["upstream fkey7 {$case} reads exact dependency tables"] = static function (TestRunner $t) use ($fkey7ReadCases, $case, $reads): void {
+        $t->same($reads, $fkey7ReadCases()[$case]['reads']);
+    };
+    $tests["upstream fkey7 {$case} read count"] = static function (TestRunner $t) use ($fkey7ReadCases, $case, $reads): void {
+        $t->same(count($reads), $fkey7ReadCases()[$case]['read_count']);
+    };
+    $tests["upstream fkey7 {$case} reads parent table"] = static function (TestRunner $t) use ($fkey7ReadCases, $case): void {
+        $t->same(true, $fkey7ReadCases()[$case]['reads_parent']);
+    };
+    $tests["upstream fkey7 {$case} source filename"] = static function (TestRunner $t) use ($fkey7ReadCases, $case): void {
+        $t->same('fkey7.test', $fkey7ReadCases()[$case]['source']);
+    };
+    foreach (['c1', 'c2', 'c3', 'par', 's1'] as $table) {
+        $tests["upstream fkey7 {$case} read membership {$table}"] = static function (TestRunner $t) use ($fkey7ReadCases, $case, $table, $reads): void {
+            $t->same(in_array($table, $reads, true), in_array($table, $fkey7ReadCases()[$case]['reads'], true));
+        };
+    }
+}
+
+$tests['upstream fkey7 zeroblob literal FK failure code'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same('SQLITE_CONSTRAINT_FOREIGNKEY', $fkey7Plan()['zeroblob']['fkey7-2.1']['code']);
+};
+$tests['upstream fkey7 zeroblob literal leaves child empty'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same([], $fkey7Plan()['zeroblob']['fkey7-2.1']['child_rows']);
+};
+$tests['upstream fkey7 bound zeroblob FK failure code'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same('SQLITE_CONSTRAINT_FOREIGNKEY', $fkey7Plan()['zeroblob']['fkey7-2.2']['code']);
+};
+$tests['upstream fkey7 bound zeroblob byte count'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same(45, $fkey7Plan()['zeroblob']['fkey7-2.2']['bound_blob_bytes']);
+};
+
+foreach (['fkey7-4.1' => 'FOREIGN KEY constraint failed', 'fkey7-4.4' => 'UNIQUE constraint failed: child.c'] as $case => $message) {
+    $tests["upstream fkey7 OR FAIL {$case} error precedence"] = static function (TestRunner $t) use ($fkey7Plan, $case, $message): void {
+        $t->same($message, $fkey7Plan()['or_fail'][$case]['error']);
+    };
+}
+foreach (['fkey7-4.2' => [], 'fkey7-4.5' => [123]] as $case => $rows) {
+    $tests["upstream fkey7 OR FAIL {$case} child rows"] = static function (TestRunner $t) use ($fkey7Plan, $case, $rows): void {
+        $t->same($rows, $fkey7Plan()['or_fail'][$case]['child_rows']);
+    };
+}
+foreach (['fkey7-4.3', 'fkey7-4.6'] as $case) {
+    $tests["upstream fkey7 OR FAIL {$case} foreign key check clean"] = static function (TestRunner $t) use ($fkey7Plan, $case): void {
+        $t->same([], $fkey7Plan()['or_fail'][$case]['foreign_key_check']);
+    };
+}
+
+$tests['upstream fkey7 stat4 analyze keeps child index'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same('c4_x', $fkey7Plan()['stat4']['child_index']);
+};
+$tests['upstream fkey7 stat4 analyze deferred violations clear'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same(0, $fkey7Plan()['stat4']['deferred_violation_count']);
+};
+$tests['upstream fkey7 stat4 parent insert visible'] = static function (TestRunner $t) use ($fkey7Plan): void {
+    $t->same([1, 2, 3, 4], $fkey7Plan()['stat4']['parent_rows']);
+};
+
+$trigger2Plan = static fn (): array => SQLiteUpstreamTriggerFkeyDynamicPlan::trigger2RowTiming();
+$trigger2Cases = static function () use ($trigger2Plan): array {
+    $cases = [];
+    foreach ($trigger2Plan()['row_timing_cases'] as $case) {
+        $cases[$case['case']] = $case;
+    }
+
+    return $cases;
+};
+
+$tests['upstream trigger2 disables recursive triggers for row timing corpus'] = static function (TestRunner $t) use ($trigger2Plan): void {
+    $t->same(false, $trigger2Plan()['recursive_triggers']);
+};
+$tests['upstream trigger2 corpus dependency marker'] = static function (TestRunner $t) use ($trigger2Plan): void {
+    $t->same(true, in_array('sqlite-upstream-trigger2-before-after-row-order', $trigger2Plan()['dependencies'], true));
+};
+
+$trigger2ExpectedUpdate = [
+    [1, 1, 2, 4, 6, 10, 20],
+    [2, 1, 2, 13, 24, 10, 20],
+    [3, 3, 4, 13, 24, 30, 40],
+    [4, 3, 4, 40, 60, 30, 40],
+];
+$trigger2ExpectedDelete = [
+    [1, 100, 100, 400, 300, 0, 0],
+    [2, 100, 100, 300, 200, 0, 0],
+    [3, 300, 200, 300, 200, 0, 0],
+    [4, 300, 200, 0, 0, 0, 0],
+];
+$trigger2ExpectedInsert = [
+    [1, 0, 0, 0, 0, 5, 6],
+    [2, 0, 0, 5, 6, 5, 6],
+];
+
+foreach (array_keys($trigger2Cases()) as $case) {
+    $tests["upstream trigger2 {$case} update row timing log"] = static function (TestRunner $t) use ($trigger2Cases, $case, $trigger2ExpectedUpdate): void {
+        $t->same($trigger2ExpectedUpdate, $trigger2Cases()[$case]['update_log']);
+    };
+    $tests["upstream trigger2 {$case} conditional update log"] = static function (TestRunner $t) use ($trigger2Cases, $case): void {
+        $t->same([[1, 1, 2, 13, 24, 10, 20]], $trigger2Cases()[$case]['conditional_update_log']);
+    };
+    $tests["upstream trigger2 {$case} delete row timing log"] = static function (TestRunner $t) use ($trigger2Cases, $case, $trigger2ExpectedDelete): void {
+        $t->same($trigger2ExpectedDelete, $trigger2Cases()[$case]['delete_log']);
+    };
+    $tests["upstream trigger2 {$case} insert row timing log"] = static function (TestRunner $t) use ($trigger2Cases, $case, $trigger2ExpectedInsert): void {
+        $t->same($trigger2ExpectedInsert, $trigger2Cases()[$case]['insert_log']);
+    };
+    $tests["upstream trigger2 {$case} source filename"] = static function (TestRunner $t) use ($trigger2Cases, $case): void {
+        $t->same('trigger2.test', $trigger2Cases()[$case]['source']);
+    };
+    foreach (['update_log' => 4, 'conditional_update_log' => 1, 'delete_log' => 4, 'insert_log' => 2] as $key => $count) {
+        $tests["upstream trigger2 {$case} {$key} row count"] = static function (TestRunner $t) use ($trigger2Cases, $case, $key, $count): void {
+            $t->same($count, count($trigger2Cases()[$case][$key]));
+        };
+    }
+    foreach (['update_log', 'delete_log', 'insert_log'] as $key) {
+        foreach ([0, 1] as $rowIndex) {
+            $tests["upstream trigger2 {$case} {$key} row {$rowIndex} sequence id"] = static function (TestRunner $t) use ($trigger2Cases, $case, $key, $rowIndex): void {
+                $t->same($rowIndex + 1, $trigger2Cases()[$case][$key][$rowIndex][0]);
+            };
+        }
+    }
+    foreach (['update_log' => $trigger2ExpectedUpdate, 'delete_log' => $trigger2ExpectedDelete, 'insert_log' => $trigger2ExpectedInsert] as $key => $rows) {
+        foreach ($rows as $rowIndex => $row) {
+            foreach ($row as $columnIndex => $value) {
+                $tests["upstream trigger2 {$case} {$key} row {$rowIndex} column {$columnIndex} value"] = static function (TestRunner $t) use ($trigger2Cases, $case, $key, $rowIndex, $columnIndex, $value): void {
+                    $t->same($value, $trigger2Cases()[$case][$key][$rowIndex][$columnIndex]);
+                };
+            }
+        }
+    }
 }
 
 return $tests;

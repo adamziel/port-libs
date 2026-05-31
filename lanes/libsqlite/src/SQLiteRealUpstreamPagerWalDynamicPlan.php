@@ -931,6 +931,119 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal8Wal9PageSizeMappingCases(): array
+    {
+        $wal8Scenarios = [
+            [
+                'source_file' => 'wal8.test',
+                'upstream' => 'wal8.test 1.0 1.1',
+                'phase' => 'empty-handle-sees-wal-initialized-by-second-handle-before-vacuum',
+                'other_handle_initializes_wal_before_schema' => true,
+                'schema_created_before_wal' => false,
+                'page_size_pragma_after_open' => 4096,
+                'vacuum_result_code' => 0,
+                'vacuum_message' => '',
+                'schema_names' => ['t1'],
+                'journal_mode' => 'wal',
+                'rows' => [[1, 2]],
+            ],
+            [
+                'source_file' => 'wal8.test',
+                'upstream' => 'wal8.test 2.0 2.1',
+                'phase' => 'empty-handle-sees-wal-enabled-after-schema-before-vacuum',
+                'other_handle_initializes_wal_before_schema' => false,
+                'schema_created_before_wal' => true,
+                'page_size_pragma_after_open' => 4096,
+                'vacuum_result_code' => 0,
+                'vacuum_message' => '',
+                'schema_names' => ['t1'],
+                'journal_mode' => 'wal',
+                'rows' => [[1, 2]],
+            ],
+            [
+                'source_file' => 'wal8.test',
+                'upstream' => 'wal8.test 3.0 3.1',
+                'phase' => 'empty-handle-page-size-pragma-does-not-hide-wal-schema',
+                'other_handle_initializes_wal_before_schema' => true,
+                'schema_created_before_wal' => false,
+                'page_size_pragma_after_open' => 4096,
+                'vacuum_result_code' => null,
+                'vacuum_message' => null,
+                'schema_names' => ['t1'],
+                'journal_mode' => 'wal',
+                'rows' => [[1, 2]],
+            ],
+        ];
+
+        $wal9Scenario = [
+            'source_file' => 'wal9.test',
+            'upstream' => 'wal9.test 1.0 1.6 1.7',
+            'phase' => 'fully-checkpointed-large-wal-partial-shm-rollback-does-not-remap-tail',
+            'page_size' => 1024,
+            'wal_autocheckpoint' => 0,
+            'database_bytes_after_checkpoint' => 1024,
+            'wal_bytes_greater_than' => 1500 * 1024,
+            'shm_bytes_greater_than' => 32768,
+            'checkpoint' => [0, 14501, 14501],
+            'partial_shm_mapping_bytes' => 32768,
+            'rolled_back_insert_value' => 'hello',
+            'rollback_result_code' => 0,
+            'rollback_message' => '',
+            'reader_requires_tail_mapping_after_checkpoint' => false,
+        ];
+
+        $pageSizeRequests = [1024, 2048, 4096, 8192];
+        $schemaReaders = ['sqlite_master', 'schema-cache', 'pager-schema'];
+        $checkpointModes = ['passive', 'full', 'restart', 'truncate'];
+
+        $cases = [];
+        for ($i = 0; $i < 1000; $i++) {
+            if (($i % 4) === 3) {
+                $checkpointFrameCount = $wal9Scenario['checkpoint'][1] + intdiv($i, 4);
+                $cases[] = $wal9Scenario + [
+                    'case' => $i + 1,
+                    'requested_page_size' => $pageSizeRequests[$i % count($pageSizeRequests)],
+                    'schema_reader' => $schemaReaders[intdiv($i, 4) % count($schemaReaders)],
+                    'checkpoint_mode' => $checkpointModes[intdiv($i, 12) % count($checkpointModes)],
+                    'checkpoint' => [0, $checkpointFrameCount, $checkpointFrameCount],
+                    'wal_bytes' => ($checkpointFrameCount + 1) * 1024,
+                    'shm_bytes' => 32768 + (4096 * (1 + ($i % 8))),
+                    'assertion_family' => 'wal9-partial-shm-rollback-after-full-checkpoint',
+                    'dependencies' => [
+                        'sqlite-real-upstream-pager-wal-dynamic',
+                        'sqlite-upstream-wal9-partial-shm-rollback',
+                        'sqlite-wal-checkpoint-reader-mapping',
+                    ],
+                ];
+                continue;
+            }
+
+            $scenario = $wal8Scenarios[$i % count($wal8Scenarios)];
+            $requestedPageSize = $pageSizeRequests[intdiv($i, 3) % count($pageSizeRequests)];
+            $cases[] = $scenario + [
+                'case' => $i + 1,
+                'requested_page_size' => $requestedPageSize,
+                'schema_reader' => $schemaReaders[intdiv($i, 3) % count($schemaReaders)],
+                'checkpoint_mode' => $checkpointModes[intdiv($i, 9) % count($checkpointModes)],
+                'effective_page_size' => $scenario['page_size_pragma_after_open'],
+                'vacuum_keeps_database_readable' => true,
+                'wal_sidecar_exists' => true,
+                'database_was_empty_when_first_handle_opened' => true,
+                'assertion_family' => 'wal8-empty-file-page-size-after-wal-init',
+                'dependencies' => [
+                    'sqlite-real-upstream-pager-wal-dynamic',
+                    'sqlite-upstream-wal8-empty-file-page-size',
+                    'sqlite-pager-empty-file-wal-page-size',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<array<string, mixed>> $locks
      */
     private static function countLocks(array $locks, string $op, string $level): int
