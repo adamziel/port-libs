@@ -3590,11 +3590,8 @@ final class SQLiteSelectSql
                 throw new \InvalidArgumentException('SQLite SELECT SQL predicate needs both operands');
             }
 
-            $predicate = [
-                'operator' => $operator,
-                'left' => self::valueExpression($left, $tables),
-                'right' => self::valueExpression($right, $tables),
-            ];
+            $predicateRight = $right;
+            $predicateEscape = null;
             if ($operator === 'LIKE' || $operator === 'NOT LIKE') {
                 $escapeParts = self::splitTopLevelByKeyword($right, 'ESCAPE');
                 if (count($escapeParts) > 2) {
@@ -3604,9 +3601,18 @@ final class SQLiteSelectSql
                     if ($escapeParts[0] === '' || $escapeParts[1] === '') {
                         throw new \InvalidArgumentException('SQLite SELECT SQL LIKE ESCAPE predicate needs pattern and escape operands');
                     }
-                    $predicate['right'] = self::valueExpression($escapeParts[0], $tables);
-                    $predicate['escape'] = self::valueExpression($escapeParts[1], $tables);
+                    $predicateRight = $escapeParts[0];
+                    $predicateEscape = $escapeParts[1];
                 }
+            }
+
+            $predicate = [
+                'operator' => $operator,
+                'left' => self::valueExpression($left, $tables),
+                'right' => self::valueExpression($predicateRight, $tables),
+            ];
+            if ($predicateEscape !== null) {
+                $predicate['escape'] = self::valueExpression($predicateEscape, $tables);
             }
 
             return $predicate;
@@ -4017,11 +4023,8 @@ final class SQLiteSelectSql
                 throw new \InvalidArgumentException("SQLite SELECT SQL expression {$operator} needs both operands");
             }
 
-            $predicate = [
-                'operator' => strtoupper($operator),
-                'left' => self::valueExpression($left, $tables),
-                'right' => self::valueExpression($right, $tables),
-            ];
+            $predicateRight = $right;
+            $predicateEscape = null;
             if (strcasecmp($operator, 'LIKE') === 0 || strcasecmp($operator, 'NOT LIKE') === 0) {
                 $escapeParts = self::splitTopLevelByKeyword($right, 'ESCAPE');
                 if (count($escapeParts) > 2) {
@@ -4031,9 +4034,18 @@ final class SQLiteSelectSql
                     if ($escapeParts[0] === '' || $escapeParts[1] === '') {
                         throw new \InvalidArgumentException('SQLite SELECT SQL LIKE ESCAPE expression needs pattern and escape operands');
                     }
-                    $predicate['right'] = self::valueExpression($escapeParts[0], $tables);
-                    $predicate['escape'] = self::valueExpression($escapeParts[1], $tables);
+                    $predicateRight = $escapeParts[0];
+                    $predicateEscape = $escapeParts[1];
                 }
+            }
+
+            $predicate = [
+                'operator' => strtoupper($operator),
+                'left' => self::valueExpression($left, $tables),
+                'right' => self::valueExpression($predicateRight, $tables),
+            ];
+            if ($predicateEscape !== null) {
+                $predicate['escape'] = self::valueExpression($predicateEscape, $tables);
             }
 
             return [

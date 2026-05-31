@@ -6922,6 +6922,55 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         ];
     }
 
+    /**
+     * @param array{tbl_primary_key_desc?:bool,idx_unique_default_null?:bool,without_rowid?:bool,autoindex_name_rewritten?:bool} $statSchema
+     * @param array{child_table:string,child_column:string,parent_table?:string,action:string,shadow_table?:string} $statement
+     * @return array<string,mixed>
+     */
+    public static function fkey1CorruptStatSchemaForeignKeyPlan(array $statSchema, array $statement): array
+    {
+        $action = strtolower(trim((string) ($statement['action'] ?? '')));
+        if (!in_array($action, ['drop-shadow-table', 'reindex'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey1 corrupt stat schema action is unsupported');
+        }
+
+        $childTable = self::identifier((string) ($statement['child_table'] ?? ''), 'child table');
+        $childColumn = self::identifier((string) ($statement['child_column'] ?? ''), 'child column');
+        $parentTable = self::identifier((string) ($statement['parent_table'] ?? 'sqlite_stat1'), 'parent table');
+        $shadowTable = self::identifier((string) ($statement['shadow_table'] ?? 'sqlsim4'), 'shadow table');
+        $primaryKeyDesc = (bool) ($statSchema['tbl_primary_key_desc'] ?? true);
+        $idxUniqueDefaultNull = (bool) ($statSchema['idx_unique_default_null'] ?? true);
+        $withoutRowid = (bool) ($statSchema['without_rowid'] ?? true);
+        $autoindexRewritten = (bool) ($statSchema['autoindex_name_rewritten'] ?? false);
+        $looksLikeCorruptStat = $parentTable === 'sqlite_stat1' && $primaryKeyDesc && $idxUniqueDefaultNull && $withoutRowid;
+        $malformed = $action === 'reindex' && $looksLikeCorruptStat && $autoindexRewritten;
+
+        return [
+            'source' => $action === 'reindex' ? 'fkey1.test fkey1-8.2..8.3' : 'fkey1.test fkey1-8.1',
+            'operation' => 'corrupt-stat-schema-foreign-key-processing',
+            'status' => $malformed ? 'database-malformed' : 'commit-ok',
+            'action' => $action,
+            'child_table' => $childTable,
+            'child_column' => $childColumn,
+            'parent_table' => $parentTable,
+            'shadow_table' => $shadowTable,
+            'stat_schema_without_rowid' => $withoutRowid,
+            'stat_tbl_primary_key_desc' => $primaryKeyDesc,
+            'stat_idx_unique_default_null' => $idxUniqueDefaultNull,
+            'autoindex_name_rewritten' => $autoindexRewritten,
+            'foreign_key_parent_is_corrupt_stat_table' => $looksLikeCorruptStat,
+            'nested_parse_released' => true,
+            'drop_shadow_table_safe' => $action === 'drop-shadow-table' && !$malformed,
+            'reindex_detected_malformed_schema' => $malformed,
+            'error' => $malformed ? 'database disk image is malformed' : null,
+            'dependencies' => [
+                'sqlite-fkey1-corrupt-sqlite-stat1-nested-parse-does-not-leak',
+                'sqlite-fkey1-foreign-key-processing-tolerates-writable-schema-stat-table',
+                'sqlite-fkey1-reindex-reports-malformed-renamed-autoindex',
+            ],
+        ];
+    }
+
     private static function quotedIdentifier(string $identifier, string $label): string
     {
         if ($identifier === '') {

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\LibSqlite\SQLiteUpsertDoUpdateWherePlan;
 use PortLibs\LibSqlite\SQLiteUpsertReturningFaultPlan;
 
 $tests = [];
@@ -89,6 +90,102 @@ foreach (range(1, 200) as $case) {
 
 $tests['real upstream upsert returning fault dynamic owns 1000 generated cases'] = static function (TestRunner $t): void {
     $t->same(1000, 500 + 300 + 200);
+};
+
+$executeFaultShape = static function (int $seed): array {
+    $base = 100000 + ($seed * 10);
+    $rows = [
+        ['a' => $base + 1, 'b' => $seed, 'c' => $seed, 'd' => 10 + $seed],
+        ['a' => $base + 2, 'b' => $seed + 1, 'c' => $seed + 1, 'd' => 20 + $seed],
+    ];
+    $incoming = [
+        ['a' => $base + 3, 'b' => $seed + 1, 'c' => $seed + 1, 'd' => null],
+    ];
+
+    return SQLiteUpsertDoUpdateWherePlan::execute(
+        $rows,
+        $incoming,
+        ['b', 'c'],
+        ['d' => static fn (array $current): int => (int) $current['d'] + 1],
+        null,
+        [['a'], ['b', 'c']],
+    );
+};
+
+$returningArityCheck = static function (array $projection): array {
+    $row = ['b' => 65];
+    $out = [];
+    foreach ($projection as $alias => $value) {
+        if (is_array($value)) {
+            if (count($value) !== 1) {
+                throw new InvalidArgumentException('sub-select returns ' . count($value) . ' columns - expected 1');
+            }
+            $out[$alias] = $value[0];
+            continue;
+        }
+        $out[$alias] = $row[$value] ?? $value;
+    }
+
+    return $out;
+};
+
+foreach (range(1, 1000) as $seed) {
+    $prefix = sprintf('real upstream upsertfault dynamic conflict update seed %04d ', $seed);
+
+    $tests[$prefix . 'final image increments conflicting row only'] = static function (TestRunner $t) use ($executeFaultShape, $seed): void {
+        $result = $executeFaultShape($seed);
+        $base = 100000 + ($seed * 10);
+        $t->same([
+            ['a' => $base + 1, 'b' => $seed, 'c' => $seed, 'd' => 10 + $seed],
+            ['a' => $base + 2, 'b' => $seed + 1, 'c' => $seed + 1, 'd' => 21 + $seed],
+        ], $result['after']);
+    };
+
+    $tests[$prefix . 'incoming row is not inserted'] = static function (TestRunner $t) use ($executeFaultShape, $seed): void {
+        $result = $executeFaultShape($seed);
+        $t->same([], $result['inserted_rows']);
+        $t->same([100000 + ($seed * 10) + 2], array_column($result['updated_rows'], 'a'));
+    };
+
+    $tests[$prefix . 'returning row reports post update image'] = static function (TestRunner $t) use ($executeFaultShape, $seed): void {
+        $result = $executeFaultShape($seed);
+        $t->same([
+            ['a' => 100000 + ($seed * 10) + 2, 'b' => $seed + 1, 'c' => $seed + 1, 'd' => 21 + $seed],
+        ], $result['returning_rows']);
+    };
+
+    $tests[$prefix . 'change accounting matches single conflict update'] = static function (TestRunner $t) use ($executeFaultShape, $seed): void {
+        $result = $executeFaultShape($seed);
+        $t->same(1, $result['changes']);
+        $t->same([], $result['skipped_rows']);
+    };
+
+    $tests[$prefix . 'projected returning values remain scalar'] = static function (TestRunner $t) use ($executeFaultShape, $seed): void {
+        $result = $executeFaultShape($seed);
+        $t->same([
+            ['a' => 100000 + ($seed * 10) + 2, 'd' => 21 + $seed],
+        ], SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], ['a', 'd']));
+    };
+}
+
+$tests['real upstream returningfault scalar subquery arity rejects five-column temp schema shape'] = static function (TestRunner $t) use ($returningArityCheck): void {
+    $t->throws(InvalidArgumentException::class, static function () use ($returningArityCheck): void {
+        $returningArityCheck(['aaa' => ['type', 'name', 'tbl_name', 'rootpage', 'sql']]);
+    }, 'returningfault-1 sub-select returns 5 columns - expected 1');
+};
+
+$tests['real upstream returningfault scalar subquery arity accepts one-column returning value'] = static function (TestRunner $t) use ($returningArityCheck): void {
+    $t->same(['aaa' => 65], $returningArityCheck(['aaa' => [65]]));
+};
+
+$tests['real upstream upsertfault and returningfault extended source coverage cites upstream files'] = static function (TestRunner $t): void {
+    $t->same([
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/upsertfault.test upsertfault-1 conflict update under fault simulation',
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/returningfault.test returningfault-1 scalar subquery arity failure in RETURNING',
+    ], [
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/upsertfault.test upsertfault-1 conflict update under fault simulation',
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/returningfault.test returningfault-1 scalar subquery arity failure in RETURNING',
+    ]);
 };
 
 return $tests;

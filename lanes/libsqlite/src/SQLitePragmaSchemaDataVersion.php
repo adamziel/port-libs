@@ -319,6 +319,92 @@ final class SQLitePragmaSchemaDataVersion
     }
 
     /**
+     * Model the schema-cookie reload gate exercised by PRAGMA schema_version=N.
+     *
+     * @param list<array{id:string,schema:string,schema_cookie:int,sql?:string}> $preparedStatements
+     * @return array{
+     *     status:string,
+     *     operation:string,
+     *     schema:string,
+     *     before_schema_version:int,
+     *     after_schema_version:int,
+     *     changed:bool,
+     *     reason:string,
+     *     expired:list<string>,
+     *     preserved:list<string>,
+     *     reasons:array<string,string>,
+     *     header:array<string,int>,
+     *     dependencies:list<string>
+     * }
+     */
+    public function schemaVersionReloadPlan(string $sql, array $preparedStatements): array
+    {
+        $parsed = self::parse($sql);
+        if ($parsed['pragma'] !== 'schema_version') {
+            throw new InvalidArgumentException('SQLite schema-version reload plan requires PRAGMA schema_version');
+        }
+        if ($parsed['value'] === null) {
+            throw new InvalidArgumentException('SQLite schema-version reload plan requires an assigned value');
+        }
+
+        $schema = $parsed['schema'];
+        $this->ensureSchema($schema);
+        $before = $this->schemas[$schema]['schema_version'];
+        $result = $this->execute($sql);
+        $after = $this->schemas[$schema]['schema_version'];
+        $changed = (bool) $result['changed'];
+
+        $expired = [];
+        $preserved = [];
+        $reasons = [];
+        foreach ($preparedStatements as $statement) {
+            $id = (string) $statement['id'];
+            $statementSchema = self::normalizeSchemaName((string) ($statement['schema'] ?? $schema));
+            $statementCookie = self::normalizeVersion((int) $statement['schema_cookie']);
+
+            if ($statementSchema !== $schema) {
+                $preserved[] = $id;
+                $reasons[$id] = 'different_schema';
+                continue;
+            }
+
+            if (!$changed) {
+                $preserved[] = $id;
+                $reasons[$id] = 'schema_cookie_unchanged';
+                continue;
+            }
+
+            if ($statementCookie !== $after) {
+                $expired[] = $id;
+                $reasons[$id] = 'schema_cookie_mismatch_after_pragma_assignment';
+                continue;
+            }
+
+            $preserved[] = $id;
+            $reasons[$id] = 'schema_cookie_matches_assigned_value';
+        }
+
+        return [
+            'status' => 'ok',
+            'operation' => 'schema-version-reload-plan',
+            'schema' => $schema,
+            'before_schema_version' => $before,
+            'after_schema_version' => $after,
+            'changed' => $changed,
+            'reason' => (string) $result['reason'],
+            'expired' => $expired,
+            'preserved' => $preserved,
+            'reasons' => $reasons,
+            'header' => $this->headerUpdate($schema),
+            'dependencies' => [
+                'sqlite-pragma-schema-version-reload',
+                'sqlite-schema-cookie-prepared-statement-expiry',
+                'sqlite-attached-schema-version-isolation',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, array<string, int|bool>>
      */
     public function state(): array

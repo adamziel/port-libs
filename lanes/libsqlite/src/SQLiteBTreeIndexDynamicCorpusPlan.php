@@ -4270,6 +4270,50 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table_name:string,constraints:list<string>,expected_autoindex_count:int,autoindex_names:list<string>,drop_index_name:string|null,drop_if_exists:bool,expected_error:string|null,result_code:int,integrity:string}>
+     */
+    public static function indexRedundantConstraintAutoindexCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index.test redundant constraint dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index-16.1', 'column UNIQUE PRIMARY KEY creates one autoindex', ['c UNIQUE PRIMARY KEY'], 1, ['sqlite_autoindex_t7_1'], null, false, null],
+            ['index-16.2', 'recreated column UNIQUE PRIMARY KEY still creates one autoindex', ['c UNIQUE PRIMARY KEY'], 1, ['sqlite_autoindex_t7_1'], null, false, null],
+            ['index-16.3', 'column PRIMARY KEY plus UNIQUE(c) coalesces to one autoindex', ['c PRIMARY KEY', 'UNIQUE(c)'], 1, ['sqlite_autoindex_t7_1'], null, false, null],
+            ['index-16.4', 'matching composite UNIQUE and PRIMARY KEY share one autoindex', ['c', 'd', 'UNIQUE(c,d)', 'PRIMARY KEY(c,d)'], 1, ['sqlite_autoindex_t7_1'], null, false, null],
+            ['index-16.5', 'different UNIQUE(c) and PRIMARY KEY(c,d) require two autoindexes', ['c', 'd', 'UNIQUE(c)', 'PRIMARY KEY(c,d)'], 2, ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2'], null, false, null],
+            ['index-17.1', 'three distinct constraints receive stable autoindex names', ['c', 'd UNIQUE', 'UNIQUE(c)', 'PRIMARY KEY(c,d)'], 3, ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2', 'sqlite_autoindex_t7_3'], null, false, null],
+            ['index-17.2', 'DROP INDEX rejects primary-key autoindex', ['c', 'd UNIQUE', 'UNIQUE(c)', 'PRIMARY KEY(c,d)'], 3, ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2', 'sqlite_autoindex_t7_3'], 'sqlite_autoindex_t7_1', false, 'index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped'],
+            ['index-17.3', 'DROP INDEX IF EXISTS also rejects protected autoindex', ['c', 'd UNIQUE', 'UNIQUE(c)', 'PRIMARY KEY(c,d)'], 3, ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2', 'sqlite_autoindex_t7_3'], 'sqlite_autoindex_t7_1', true, 'index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped'],
+            ['index-17.4', 'DROP INDEX IF EXISTS permits missing ordinary name', ['c', 'd UNIQUE', 'UNIQUE(c)', 'PRIMARY KEY(c,d)'], 3, ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2', 'sqlite_autoindex_t7_3'], 'no_such_index', true, null],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $constraints, $count, $names, $dropName, $ifExists, $error] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'index.test sections index-16.1 through index-17.4',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' dynamic batch ' . (intdiv($case - 1, count($templates)) + 1),
+                'table_name' => 't7',
+                'constraints' => $constraints,
+                'expected_autoindex_count' => $count,
+                'autoindex_names' => $names,
+                'drop_index_name' => $dropName,
+                'drop_if_exists' => $ifExists,
+                'expected_error' => $error,
+                'result_code' => $error === null ? 0 : 1,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,index_name:string|null,table_name:string,result_rows:list<array<int,mixed>>,expected_error:string|null,uses_index:bool,autoindex_count:int|null,sort_order:list<int>,numeric_affinity:bool,integrity:string,batch:int}>
      */
     public static function indexLateLifecycleAndAffinityCases(int $cases = 1000): array
@@ -7411,6 +7455,96 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         }
 
         return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,kind:string,sql:string,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,expected:list<mixed>,uses_index:bool,index_name:string|null,catalog_indexes:list<string>,integrity:string,detail:string}>
+     */
+    public static function indexTestTailSchemaAffinityCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index.test tail schema affinity dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            self::indexTailCase('index-14.1', 'affinity-order', 'SELECT c FROM t6 ORDER BY a,b', 0, null, [[3], [5], [2], [1], [4]], [3, 5, 2, 1, 4], true, 't6i1', ['t6i1'], 'mixed affinity index order'),
+            self::indexTailCase('index-14.2', 'affinity-eq', "SELECT c FROM t6 WHERE a=''", 0, null, [[2], [1]], [2, 1], true, 't6i1', ['t6i1'], 'empty text equality uses leading index term'),
+            self::indexTailCase('index-14.3', 'affinity-scan', "SELECT c FROM t6 WHERE b=''", 0, null, [[1], [3]], [1, 3], false, null, ['t6i1'], 'non-leading equality preserves result order'),
+            self::indexTailCase('index-14.4', 'affinity-range', "SELECT c FROM t6 WHERE a>''", 0, null, [[4]], [4], true, 't6i1', ['t6i1'], 'text range excludes numeric values'),
+            self::indexTailCase('index-14.5', 'affinity-range', "SELECT c FROM t6 WHERE a>=''", 0, null, [[2], [1], [4]], [2, 1, 4], true, 't6i1', ['t6i1'], 'inclusive text range keeps empty strings'),
+            self::indexTailCase('index-14.6', 'affinity-range', 'SELECT c FROM t6 WHERE a>123', 0, null, [[2], [1], [4]], [2, 1, 4], true, 't6i1', ['t6i1'], 'numeric literal coerces through index affinity'),
+            self::indexTailCase('index-14.7', 'affinity-range', 'SELECT c FROM t6 WHERE a>=123', 0, null, [[5], [2], [1], [4]], [5, 2, 1, 4], true, 't6i1', ['t6i1'], 'inclusive numeric range admits numeric record'),
+            self::indexTailCase('index-14.8', 'affinity-range', "SELECT c FROM t6 WHERE a<'abc'", 0, null, [[5], [2], [1]], [5, 2, 1], true, 't6i1', ['t6i1'], 'upper text range keeps numeric values'),
+            self::indexTailCase('index-14.9', 'affinity-range', "SELECT c FROM t6 WHERE a<='abc'", 0, null, [[5], [2], [1], [4]], [5, 2, 1, 4], true, 't6i1', ['t6i1'], 'inclusive upper text range includes abc'),
+            self::indexTailCase('index-14.10', 'affinity-range', "SELECT c FROM t6 WHERE a<=''", 0, null, [[5], [2], [1]], [5, 2, 1], true, 't6i1', ['t6i1'], 'empty upper bound includes numeric and empty text'),
+            self::indexTailCase('index-14.11', 'affinity-range', "SELECT c FROM t6 WHERE a<''", 0, null, [[5]], [5], true, 't6i1', ['t6i1'], 'strict empty upper bound keeps numeric only'),
+            self::indexTailCase('index-15.2', 'numeric-text-order', 'SELECT b FROM t1 ORDER BY a, b', 0, null, array_map(static fn (int $v): array => [$v], [13, 14, 15, 12, 8, 5, 2, 1, 3, 6, 10, 11, 9, 4, 7]), [13, 14, 15, 12, 8, 5, 2, 1, 3, 6, 10, 11, 9, 4, 7], true, 'index1', ['index1'], 'numeric-looking text sorts by converted index keys'),
+            self::indexTailCase('index-15.3', 'numeric-type-filter', "SELECT b FROM t1 WHERE typeof(a) IN ('integer','real') ORDER BY b", 0, null, array_map(static fn (int $v): array => [$v], [1, 2, 3, 5, 6, 8, 10, 11, 12, 13, 14, 15]), [1, 2, 3, 5, 6, 8, 10, 11, 12, 13, 14, 15], true, 'index1', ['index1'], 'numeric affinity conversion is visible to typeof filter'),
+            self::indexTailCase('index-16.1', 'autoindex-count', 'CREATE TABLE t7(c UNIQUE PRIMARY KEY)', 0, null, [[1]], [1], false, 'sqlite_autoindex_t7_1', ['sqlite_autoindex_t7_1'], 'duplicate column constraints share one autoindex'),
+            self::indexTailCase('index-16.4', 'autoindex-count', 'CREATE TABLE t7(c,d,UNIQUE(c,d),PRIMARY KEY(c,d))', 0, null, [[1]], [1], false, 'sqlite_autoindex_t7_1', ['sqlite_autoindex_t7_1'], 'duplicate composite constraints share one autoindex'),
+            self::indexTailCase('index-16.5', 'autoindex-count', 'CREATE TABLE t7(c,d,UNIQUE(c),PRIMARY KEY(c,d))', 0, null, [[2]], [2], false, 'sqlite_autoindex_t7_2', ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2'], 'distinct constraints keep two autoindexes'),
+            self::indexTailCase('index-17.1', 'autoindex-names', 'SELECT name FROM sqlite_master WHERE tbl_name=t7 AND type=index', 0, null, [['sqlite_autoindex_t7_1'], ['sqlite_autoindex_t7_2'], ['sqlite_autoindex_t7_3']], ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2', 'sqlite_autoindex_t7_3'], false, 'sqlite_autoindex_t7_1', ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2', 'sqlite_autoindex_t7_3'], 'autoindex names stay deterministic'),
+            self::indexTailCase('index-17.2', 'autoindex-drop-error', 'DROP INDEX sqlite_autoindex_t7_1', 1, 'index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped', [], [], false, 'sqlite_autoindex_t7_1', ['sqlite_autoindex_t7_1'], 'autoindexes cannot be dropped explicitly'),
+            self::indexTailCase('index-18.1', 'reserved-name-error', 'CREATE TABLE sqlite_t1(a,b,c)', 1, 'object name reserved for internal use: sqlite_t1', [], [], false, null, [], 'reserved sqlite table name rejected'),
+            self::indexTailCase('index-18.2', 'reserved-name-error', 'CREATE INDEX sqlite_i1 ON t7(c)', 1, 'object name reserved for internal use: sqlite_i1', [], [], false, null, [], 'reserved sqlite index name rejected'),
+            self::indexTailCase('index-18.3', 'reserved-name-error', 'CREATE VIEW sqlite_v1 AS SELECT * FROM t7', 1, 'object name reserved for internal use: sqlite_v1', [], [], false, null, [], 'reserved sqlite view name rejected'),
+            self::indexTailCase('index-18.4', 'reserved-name-error', 'CREATE TRIGGER sqlite_tr1 BEFORE INSERT ON t7 BEGIN SELECT 1; END', 1, 'object name reserved for internal use: sqlite_tr1', [], [], false, null, [], 'reserved sqlite trigger name rejected'),
+            self::indexTailCase('index-19.2', 'conflict-policy', 'INSERT INTO t7 VALUES(1)', 1, 'UNIQUE constraint failed: t7.a', [], [], true, 'sqlite_autoindex_t7_1', ['sqlite_autoindex_t7_1'], 'shared unique primary key keeps default conflict policy'),
+            self::indexTailCase('index-19.6', 'conflict-policy', 'CREATE TABLE t7(a PRIMARY KEY ON CONFLICT FAIL, UNIQUE(a) ON CONFLICT IGNORE)', 1, 'conflicting ON CONFLICT clauses specified', [], [], false, null, [], 'conflicting single-index policies are rejected'),
+            self::indexTailCase('index-21.1', 'temp-index-scope', 'CREATE INDEX temp.i21 ON t6(c)', 1, 'cannot create a TEMP index on non-TEMP table "t6"', [], [], false, null, [], 'temp index cannot target persistent table'),
+            self::indexTailCase('index-21.2', 'temp-index-scope', 'SELECT x FROM temp.t6 ORDER BY x DESC', 0, null, [[9], [5], [1]], [9, 5, 1], true, 'i21', ['i21'], 'temp index orders temp table rows'),
+            self::indexTailCase('index-22.0', 'expression-index', 'SELECT a,b FROM t1 AFTER expression indexes x1/x2', 0, null, [['a', 1], ['a', 0]], ['a', 1, 'a', 0], true, 'x2', ['x1', 'x2'], 'boolean expression unique index keeps distinct expression rows'),
+            self::indexTailCase('index-23.0', 'expression-index', 'SELECT * FROM t1; REINDEX', 0, null, [['0.0', 1.0], ['1.0', 1.0]], ['0.0', 1.0, '1.0', 1.0], true, 't1x1', ['t1x1'], 'GLOB expression index survives reindex'),
+            self::indexTailCase('index-23.1', 'expression-index', 'SELECT * FROM t1 after UNIQUE index on TYPEOF(a)', 0, null, [[0.1]], [0.1], true, 'index_0', ['index_0'], 'TYPEOF expression unique index ignores duplicate type'),
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $template['case'] = $case;
+            $template['detail'] .= '; dynamic replay ' . (intdiv($case - 1, count($templates)) + 1);
+            $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array<int,mixed>> $resultRows
+     * @param list<mixed> $expected
+     * @param list<string> $catalogIndexes
+     * @return array{source:string,case:int,upstream_section:string,scenario:string,kind:string,sql:string,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,expected:list<mixed>,uses_index:bool,index_name:string|null,catalog_indexes:list<string>,integrity:string,detail:string}
+     */
+    private static function indexTailCase(
+        string $section,
+        string $kind,
+        string $sql,
+        int $resultCode,
+        ?string $error,
+        array $resultRows,
+        array $expected,
+        bool $usesIndex,
+        ?string $indexName,
+        array $catalogIndexes,
+        string $detail,
+    ): array {
+        return [
+            'source' => 'index.test sections index-14.1 through index-23.1',
+            'case' => 0,
+            'upstream_section' => $section,
+            'scenario' => 'tail index schema, affinity, conflict, temp-index, and expression-index corpus',
+            'kind' => $kind,
+            'sql' => $sql,
+            'result_code' => $resultCode,
+            'error' => $error,
+            'result_rows' => $resultRows,
+            'expected' => $expected,
+            'uses_index' => $usesIndex,
+            'index_name' => $indexName,
+            'catalog_indexes' => $catalogIndexes,
+            'integrity' => $resultCode === 0 ? 'ok' : 'expected-error',
+            'detail' => $detail,
+        ];
     }
 
     /**

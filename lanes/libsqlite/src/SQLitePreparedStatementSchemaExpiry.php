@@ -8,7 +8,7 @@ use InvalidArgumentException;
 
 final class SQLitePreparedStatementSchemaExpiry
 {
-    /** @var array<string,array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:string|null, steps:int}> */
+    /** @var array<string,array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:string|null, steps:int, active:bool, terminal_code:string|null, legacy:bool}> */
     private array $statements = [];
 
     private int $generation = 0;
@@ -41,6 +41,22 @@ final class SQLitePreparedStatementSchemaExpiry
      */
     public function prepare(string $id, string $sql): array
     {
+        return $this->prepareStatement($id, $sql, false);
+    }
+
+    /**
+     * @return array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:null, steps:int, active:bool, terminal_code:null, legacy:bool}
+     */
+    public function prepareLegacy(string $id, string $sql): array
+    {
+        return $this->prepareStatement($id, $sql, true);
+    }
+
+    /**
+     * @return array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:null, steps:int, active:bool, terminal_code:null, legacy:bool}
+     */
+    private function prepareStatement(string $id, string $sql, bool $legacy): array
+    {
         $statementId = trim($id);
         if ($statementId === '') {
             throw new InvalidArgumentException('SQLite prepared statement id cannot be empty');
@@ -58,6 +74,9 @@ final class SQLitePreparedStatementSchemaExpiry
             'expired' => false,
             'expiry_reason' => null,
             'steps' => 0,
+            'active' => false,
+            'terminal_code' => null,
+            'legacy' => $legacy,
         ];
         $this->statements[$statementId] = $statement;
 
@@ -70,6 +89,20 @@ final class SQLitePreparedStatementSchemaExpiry
     public function step(string $id): array
     {
         $statement = $this->statement($id);
+        if ($statement['terminal_code'] !== null) {
+            return [
+                'status' => 'ok',
+                'id' => $statement['id'],
+                'code' => $statement['terminal_code'],
+                'auto_reprepared' => false,
+                'generation_before' => $statement['generation'],
+                'generation_after' => $this->generation,
+                'expiry_reason' => $statement['expiry_reason'],
+                'result_rows' => 0,
+                'target_exists' => $this->targetExists($statement),
+            ];
+        }
+
         $generationBefore = $statement['generation'];
         $autoReprepared = $statement['expired'] || $statement['generation'] !== $this->generation;
         $reason = $statement['expiry_reason'];
@@ -79,6 +112,7 @@ final class SQLitePreparedStatementSchemaExpiry
             $statement['expiry_reason'] = null;
         }
         $statement['steps']++;
+        $statement['active'] = true;
         $this->statements[$statement['id']] = $statement;
 
         $targetExists = $this->targetExists($statement);
@@ -103,6 +137,7 @@ final class SQLitePreparedStatementSchemaExpiry
     public function reset(string $id): array
     {
         $statement = $this->statement($id);
+        $this->statements[$statement['id']]['active'] = false;
 
         return [
             'status' => 'ok',
@@ -123,7 +158,7 @@ final class SQLitePreparedStatementSchemaExpiry
         return [
             'status' => 'ok',
             'id' => $statement['id'],
-            'code' => 'SQLITE_OK',
+            'code' => $statement['terminal_code'] ?? 'SQLITE_OK',
             'generation' => $this->generation,
             'existed' => true,
         ];
@@ -134,7 +169,7 @@ final class SQLitePreparedStatementSchemaExpiry
      * schema2.test. sqlite3_prepare_v2 statements are expired, but their next
      * step can auto-reprepare instead of returning SQLITE_SCHEMA.
      *
-     * @return array{status:string, operation:string, name:string|null, generation:int, invalidated:bool, invalidated_statements:list<string>, reason:string|null}
+     * @return array{status:string, operation:string, name:string|null, generation:int, invalidated:bool, invalidated_statements:list<string>, reason:string|null, code:string}
      */
     public function apply(string $operation, ?string $name = null): array
     {
@@ -142,6 +177,22 @@ final class SQLitePreparedStatementSchemaExpiry
         $object = $name === null ? null : self::key($name);
         $invalidates = true;
         $reason = null;
+        $terminalCode = null;
+
+        if (in_array($op, ['delete_function', 'delete_collation', 'replace_function', 'replace_collation'], true) && $this->hasActiveLegacyStatement()) {
+            $this->requireName($object, $op);
+
+            return [
+                'status' => 'busy',
+                'operation' => $op,
+                'name' => $object,
+                'generation' => $this->generation,
+                'invalidated' => false,
+                'invalidated_statements' => [],
+                'reason' => 'active_statement_blocks_runtime_object_change',
+                'code' => 'SQLITE_BUSY',
+            ];
+        }
 
         switch ($op) {
             case 'create_table':
@@ -202,6 +253,10 @@ final class SQLitePreparedStatementSchemaExpiry
                 $this->requireName($object, $op);
                 $reason = 'runtime_function_deleted';
                 break;
+            case 'replace_function':
+                $this->requireName($object, $op);
+                $reason = 'runtime_function_replaced';
+                break;
             case 'add_collation':
                 $this->requireName($object, $op);
                 $invalidates = false;
@@ -210,8 +265,20 @@ final class SQLitePreparedStatementSchemaExpiry
                 $this->requireName($object, $op);
                 $reason = 'runtime_collation_deleted';
                 break;
+            case 'replace_collation':
+                $this->requireName($object, $op);
+                $reason = 'runtime_collation_replaced';
+                break;
+            case 'rollback_schema_cookie':
+                $reason = 'schema_rollback_cookie_reused';
+                $terminalCode = 'SQLITE_SCHEMA';
+                break;
             case 'set_authorizer':
                 $reason = 'authorizer_changed';
+                break;
+            case 'set_authorizer_deny':
+                $reason = 'authorizer_denied';
+                $terminalCode = 'SQLITE_AUTH';
                 break;
             default:
                 throw new InvalidArgumentException("Unsupported SQLite schema expiry operation {$operation}");
@@ -223,6 +290,9 @@ final class SQLitePreparedStatementSchemaExpiry
             foreach ($this->statements as $id => $statement) {
                 $this->statements[$id]['expired'] = true;
                 $this->statements[$id]['expiry_reason'] = $reason;
+                if ($terminalCode !== null) {
+                    $this->statements[$id]['terminal_code'] = $terminalCode;
+                }
                 $invalidated[] = $id;
             }
         }
@@ -235,15 +305,17 @@ final class SQLitePreparedStatementSchemaExpiry
             'invalidated' => $invalidates,
             'invalidated_statements' => $invalidated,
             'reason' => $reason,
+            'code' => 'SQLITE_OK',
         ];
     }
 
-    /** @return array{generation:int, prepared:int, tables:list<string>, views:list<string>, indexes:list<string>, triggers:list<string>, attached_schemas:list<string>} */
+    /** @return array{generation:int, prepared:int, active:int, tables:list<string>, views:list<string>, indexes:list<string>, triggers:list<string>, attached_schemas:list<string>} */
     public function snapshot(): array
     {
         return [
             'generation' => $this->generation,
             'prepared' => count($this->statements),
+            'active' => count(array_filter($this->statements, static fn (array $statement): bool => $statement['active'])),
             'tables' => array_keys($this->tables),
             'views' => array_keys($this->views),
             'indexes' => array_keys($this->indexes),
@@ -252,7 +324,7 @@ final class SQLitePreparedStatementSchemaExpiry
         ];
     }
 
-    /** @return array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:string|null, steps:int} */
+    /** @return array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:string|null, steps:int, active:bool, terminal_code:string|null, legacy:bool} */
     private function statement(string $id): array
     {
         $statementId = trim($id);
@@ -269,6 +341,9 @@ final class SQLitePreparedStatementSchemaExpiry
         if (preg_match('/^select\s+\*\s+from\s+(?:sqlite_schema|sqlite_master)\b/i', $trimmed) === 1) {
             return 'schema_scan';
         }
+        if (preg_match('/^create\s+table\s+([A-Za-z_][A-Za-z0-9_]*)\b/i', $trimmed) === 1) {
+            return 'create_table';
+        }
         if (preg_match('/^select\s+\*\s+from\s+([A-Za-z_][A-Za-z0-9_]*)\b/i', $trimmed) === 1) {
             return 'table_scan';
         }
@@ -278,14 +353,18 @@ final class SQLitePreparedStatementSchemaExpiry
 
     private function statementTarget(string $sql): ?string
     {
-        if (preg_match('/^select\s+\*\s+from\s+(?!sqlite_schema\b|sqlite_master\b)([A-Za-z_][A-Za-z0-9_]*)\b/i', trim($sql), $matches) !== 1) {
-            return null;
+        $trimmed = trim($sql);
+        if (preg_match('/^select\s+\*\s+from\s+(?!sqlite_schema\b|sqlite_master\b)([A-Za-z_][A-Za-z0-9_]*)\b/i', $trimmed, $matches) === 1) {
+            return self::key($matches[1]);
+        }
+        if (preg_match('/^create\s+table\s+([A-Za-z_][A-Za-z0-9_]*)\b/i', $trimmed, $matches) === 1) {
+            return self::key($matches[1]);
         }
 
-        return self::key($matches[1]);
+        return null;
     }
 
-    /** @param array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:string|null, steps:int} $statement */
+    /** @param array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:string|null, steps:int, active:bool, terminal_code:string|null, legacy:bool} $statement */
     private function targetExists(array $statement): ?bool
     {
         if ($statement['target'] === null) {
@@ -297,7 +376,7 @@ final class SQLitePreparedStatementSchemaExpiry
         return isset($this->tables[$target]) || isset($this->views[$target]);
     }
 
-    /** @param array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:string|null, steps:int} $statement */
+    /** @param array{id:string, sql:string, kind:string, target:string|null, generation:int, expired:bool, expiry_reason:string|null, steps:int, active:bool, terminal_code:string|null, legacy:bool} $statement */
     private function rowCountFor(array $statement, ?bool $targetExists): int
     {
         if ($statement['kind'] === 'schema_scan') {
@@ -308,6 +387,17 @@ final class SQLitePreparedStatementSchemaExpiry
         }
 
         return 0;
+    }
+
+    private function hasActiveLegacyStatement(): bool
+    {
+        foreach ($this->statements as $statement) {
+            if ($statement['active'] && $statement['legacy']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function requireName(?string $name, string $operation): void

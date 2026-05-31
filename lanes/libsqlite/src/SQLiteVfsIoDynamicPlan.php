@@ -3123,6 +3123,99 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function sysfaultTransientEintrProfile(
+        string $syscall,
+        int $faultPosition,
+        string $journalMode = 'truncate',
+        int $chunkSize = 8192,
+        int $blobBytes = 10000,
+        bool $attachedWrite = true
+    ): array {
+        $syscall = strtolower(trim($syscall));
+        $retryable = ['open', 'ftruncate', 'close', 'read', 'pread', 'pread64', 'write', 'fallocate'];
+        if (!in_array($syscall, $retryable, true)) {
+            throw new \InvalidArgumentException('SQLite sysfault transient EINTR profile syscall is unsupported');
+        }
+        if ($faultPosition < 1) {
+            throw new \InvalidArgumentException('SQLite sysfault transient EINTR profile fault position must be positive');
+        }
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'truncate', 'persist', 'wal'], true)) {
+            throw new \InvalidArgumentException('SQLite sysfault transient EINTR profile journal mode is unsupported');
+        }
+        if ($chunkSize < 1 || $blobBytes < 1) {
+            throw new \InvalidArgumentException('SQLite sysfault transient EINTR profile chunk and payload sizes must be positive');
+        }
+
+        $journalEcho = $journalMode === 'wal' ? 'wal' : $journalMode;
+        $rowsAfterCommit = [
+            ['a' => 'abc', 'b' => 'def', 'c' => 'ghi'],
+            ['a' => 'jkl', 'b' => 'mno', 'c' => 'pqr'],
+        ];
+        $largeRowsDeleted = $blobBytes > 3;
+        $auxRows = $attachedWrite ? [2] : [1];
+        $retryAttempts = $faultPosition + 1;
+
+        return [
+            'status' => 'ok',
+            'script' => 'sysfault.test',
+            'scenario' => 'sysfault-2.1-' . $syscall . '-' . $faultPosition,
+            'upstream' => [
+                'sysfault.test 2.setup attached database and primary-key table fixture',
+                'sysfault.test 2.1 vfsfault-transient single EINTR does not affect processing',
+            ],
+            'syscall' => $syscall,
+            'fault_position' => $faultPosition,
+            'errno' => 'EINTR',
+            'transient_fault' => true,
+            'retry_required' => true,
+            'retry_attempts_before_success' => $retryAttempts,
+            'journal_mode' => $journalMode,
+            'journal_mode_echo' => $journalEcho,
+            'chunk_size' => $chunkSize,
+            'blob_bytes' => $blobBytes,
+            'attached_write' => $attachedWrite,
+            'transaction_statements' => [
+                'ATTACH test.db2 AS aux',
+                'SELECT * FROM t1',
+                'PRAGMA journal_mode = ' . $journalMode,
+                'BEGIN',
+                'INSERT INTO t1 VALUES(jkl,mno,pqr)',
+                'INSERT INTO t1 VALUES(randomblob(' . $blobBytes . '),0,0)',
+                $attachedWrite ? 'UPDATE aux.t2 SET x = 2' : 'SELECT x FROM aux.t2',
+                'COMMIT',
+                'DELETE FROM t1 WHERE length(a)>3',
+            ],
+            'initial_rows' => [['a' => 'abc', 'b' => 'def', 'c' => 'ghi']],
+            'rows_after_commit_before_delete' => [
+                ['a' => 'abc', 'b' => 'def', 'c' => 'ghi'],
+                ['a' => 'jkl', 'b' => 'mno', 'c' => 'pqr'],
+                ['a' => 'randomblob(' . $blobBytes . ')', 'b' => 0, 'c' => 0],
+            ],
+            'rows_after_delete' => $rowsAfterCommit,
+            'aux_rows_after_commit' => $auxRows,
+            'large_blob_row_deleted' => $largeRowsDeleted,
+            'expected_result' => [
+                'abc', 'def', 'ghi',
+                $journalEcho,
+                'abc', 'def', 'ghi',
+                'jkl', 'mno', 'pqr',
+                $auxRows[0],
+            ],
+            'result_code' => 'SQLITE_OK',
+            'connection_reusable_after_fault' => true,
+            'integrity_check' => 'ok',
+            'dependencies' => [
+                'sqlite-upstream-sysfault-test',
+                'sqlite-vfs-transient-eintr-retry',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function syscallEintrOpenRetryProfile(string $journalMode, int $faultIndex, int $attachedDatabases = 1): array
     {
         $journalMode = strtolower(trim($journalMode));
