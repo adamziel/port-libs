@@ -373,6 +373,38 @@ return [
             $block->setProperty('background: linear-gradient(red, green)', 'background-position', '20px 10px')
         );
     },
+    'declaration block sets upstream background cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'background: red url(hero.jpg)',
+            $block->setProperty('background: url(hero.jpg) green', 'background-color', 'red')
+        );
+        $t->same(
+            'background: linear-gradient(red, green) left top no-repeat, url(new.png) right bottom repeat-x',
+            $block->setProperty(
+                'background: url(a.png) left top no-repeat, url(b.png) right bottom repeat-x',
+                'background-image',
+                'linear-gradient(red, green), url(new.png)'
+            )
+        );
+        $t->same(
+            'background: url(a.png) repeat-x, url(b.png) no-repeat',
+            $block->setProperty('background: url(a.png), url(b.png)', 'background-repeat', 'repeat no-repeat, no-repeat')
+        );
+        $t->same(
+            'background: url(hero.jpg) 0 0 / cover',
+            $block->setProperty('background: url(hero.jpg)', 'background-size', 'cover')
+        );
+        $t->same(
+            'background: url(a.png) 20px 5px, url(b.png) 30px bottom',
+            $block->setProperty('background: url(a.png) 20px 10px, url(b.png) 30px 40px', 'background-position-y', '5px, bottom')
+        );
+        $t->same(
+            'background: url(a.png), url(b.png); background-repeat: repeat-x',
+            $block->setProperty('background: url(a.png), url(b.png)', 'background-repeat', 'repeat-x')
+        );
+    },
     'declaration block sets upstream border side longhands without decomposing' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -436,6 +468,24 @@ return [
         $t->same(
             'padding-top: 1rem !important; padding-right: 2rem !important; padding-bottom: 3rem !important',
             $block->removeProperty('padding: 1rem 2rem 3rem 4rem !important', 'padding-left')
+        );
+    },
+    'declaration block removes upstream background cssom shorthand and supported longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'color: red; color: blue',
+            $block->removeProperty(
+                'color: red; background: url(hero.jpg) green; background-color: blue; background-repeat: no-repeat; color: blue',
+                'background'
+            )
+        );
+        $t->same(
+            'padding: 1rem',
+            $block->removeProperty(
+                'background: red !important; background-color: blue; padding: 1rem; background-image: url(foo.png) !important',
+                'background'
+            )
         );
     },
     'declaration block removes upstream cssom priority buckets' => static function (TestRunner $t): void {

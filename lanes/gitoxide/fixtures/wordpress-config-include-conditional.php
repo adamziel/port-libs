@@ -67,6 +67,16 @@ $write($repo . '/unbounded-double-star.config', <<<CFG
 unboundedDoubleStar = should-not-load
 CFG);
 
+$write($repo . '/invalid-posix.config', <<<CFG
+[wordpress]
+invalidPosix = should-not-load
+CFG);
+
+$write($repo . '/unclosed-bracket.config', <<<CFG
+[wordpress]
+unclosedBracket = should-not-load
+CFG);
+
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
@@ -80,6 +90,10 @@ url = https://git.example.test/wp-content/site-7.git
 url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
 [remote "nested-content"]
 url = https://git.example.test/wp/site/content.git
+[remote "invalid-posix"]
+url = https://git.example.test/wp-content/site-[[:word:]].git
+[remote "unclosed-bracket"]
+url = https://git.example.test/wp-content/site-[.git
 [includeIf "onbranch:deploy/"]
 path = ../deploy-branch.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/**"]
@@ -98,6 +112,10 @@ path = ../posix-url.config
 path = ../legacy-byte.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp/site**content.git"]
 path = ../unbounded-double-star.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:word:]].git"]
+path = ../invalid-posix.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[.git"]
+path = ../unclosed-bracket.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -120,6 +138,8 @@ return [
     'posixUrlPolicy' => $config->value('wordpress', null, 'posixUrl'),
     'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
     'unboundedDoubleStarRejectedPolicy' => $config->value('wordpress', null, 'unboundedDoubleStar'),
+    'invalidPosixPolicy' => $config->value('wordpress', null, 'invalidPosix'),
+    'unclosedBracketPolicy' => $config->value('wordpress', null, 'unclosedBracket'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

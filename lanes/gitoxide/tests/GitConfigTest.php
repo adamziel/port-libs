@@ -337,6 +337,60 @@ return [
         $t->same(null, $config->value('user', null, 'slash'));
     },
 
+    'conditional include malformed bracket classes abort like gix wildmatch' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/work[[:word:]]';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = invalid-posix\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:work[[:word:]]/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/work[';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = unclosed-class\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:work[/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+
+        $t->same('base-value', $loadConditionalValue('onbranch:release/[[:word:]]', [
+            'branchName' => 'refs/heads/release/[[:word:]]',
+        ]));
+        $t->same('base-value', $loadConditionalValue('onbranch:release/[', [
+            'branchName' => 'refs/heads/release/[',
+        ]));
+
+        $root = $tmpDir();
+        $write($root . '/invalid-posix-url', "[user]\ninvalid = should-not-load\n");
+        $write($root . '/unclosed-url', "[user]\nunclosed = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [remote "invalid-posix"]
+        url = https://git.example.test/wp-content/site-[[:word:]].git
+        [remote "unclosed"]
+        url = https://git.example.test/wp-content/site-[.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:word:]].git"]
+        path = "invalid-posix-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[.git"]
+        path = "unclosed-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same(null, $config->value('user', null, 'invalid'));
+        $t->same(null, $config->value('user', null, 'unclosed'));
+    },
+
     'conditional include wildmatch stays byte safe for malformed utf8 names' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $legacyByte = "\xFF";
 
@@ -499,6 +553,8 @@ return [
         $t->same('matched', $fixture['posixUrlPolicy']);
         $t->same('matched', $fixture['legacyBytePolicy']);
         $t->same(null, $fixture['unboundedDoubleStarRejectedPolicy']);
+        $t->same(null, $fixture['invalidPosixPolicy']);
+        $t->same(null, $fixture['unclosedBracketPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
@@ -508,6 +564,8 @@ return [
         $t->same($fixture['posixUrlPolicy'], $summary['posixUrlPolicy']);
         $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
         $t->same($fixture['unboundedDoubleStarRejectedPolicy'], $summary['unboundedDoubleStarRejectedPolicy']);
+        $t->same($fixture['invalidPosixPolicy'], $summary['invalidPosixPolicy']);
+        $t->same($fixture['unclosedBracketPolicy'], $summary['unclosedBracketPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

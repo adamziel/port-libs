@@ -1492,12 +1492,16 @@ final class DeclarationBlock
             } else {
                 $position = $positions[$i] ?? null;
             }
+            $size = $sizes[$i] ?? null;
+            if ($position === null && $size !== null && !$this->isDefaultBackgroundSize($size)) {
+                $position = '0 0';
+            }
             if ($position !== null) {
                 $layer[] = $position;
             }
-            if (($sizes[$i] ?? null) !== null && !$this->isDefaultBackgroundSize($sizes[$i])) {
+            if ($size !== null && !$this->isDefaultBackgroundSize($size)) {
                 $layer[] = '/';
-                $layer[] = $sizes[$i];
+                $layer[] = $size;
             }
             if (($repeats[$i] ?? null) !== null) {
                 $layer[] = $this->compressBackgroundRepeat($repeats[$i]);
@@ -1686,7 +1690,7 @@ final class DeclarationBlock
         if ($this->isBoxLonghand($property)) {
             return $this->parseEntries($this->setBoxLonghand($entries, $property, $value, $important));
         }
-        $backgroundValue = $this->setBackgroundPositionLonghand($entries, $property, $value, $important);
+        $backgroundValue = $this->setBackgroundLonghand($entries, $property, $value, $important);
         if ($backgroundValue !== null) {
             return $this->parseEntries($backgroundValue);
         }
@@ -1728,9 +1732,9 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
-    private function setBackgroundPositionLonghand(array $entries, string $property, string $value, bool $important): ?string
+    private function setBackgroundLonghand(array $entries, string $property, string $value, bool $important): ?string
     {
-        if (!in_array($property, ['background-position', 'background-position-x', 'background-position-y'], true)) {
+        if (!in_array($property, self::BACKGROUND_LONGHANDS, true)) {
             return null;
         }
 
@@ -1751,6 +1755,9 @@ final class DeclarationBlock
             if ($entries[$index]['important'] !== $important) {
                 return null;
             }
+            if (!$this->backgroundLonghandCanApplyToShorthand($entries[$index]['value'], $property, $value)) {
+                return null;
+            }
 
             $components = $this->backgroundComponentsFromShorthand($entries[$index]['value'], $entries[$index]['important']);
             $this->applyBackgroundLonghand($components, $property, $value, $important);
@@ -1769,6 +1776,15 @@ final class DeclarationBlock
         }
 
         return null;
+    }
+
+    private function backgroundLonghandCanApplyToShorthand(string $background, string $property, string $value): bool
+    {
+        if ($property === 'background-color') {
+            return true;
+        }
+
+        return count($this->splitTopLevel($value, ',')) === count($this->parseBackgroundLayers($background));
     }
 
     /**
@@ -2063,6 +2079,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($property === 'background') {
+            $normalEntries = $this->removeBackgroundShorthandWithinPriority($normalEntries);
+            $importantEntries = $this->removeBackgroundShorthandWithinPriority($importantEntries);
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
 
         if ($this->isBoxLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeBoxLonghand($normalEntries, $property));
@@ -2093,6 +2115,19 @@ final class DeclarationBlock
             $entries,
             fn (array $entry): bool => $entry['property'] !== $property
                 && !$this->isBoxLonghandFor($entry['property'], $property)
+        ));
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function removeBackgroundShorthandWithinPriority(array $entries): array
+    {
+        return array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => $entry['property'] !== 'background'
+                && !in_array($entry['property'], self::BACKGROUND_LONGHANDS, true)
         ));
     }
 

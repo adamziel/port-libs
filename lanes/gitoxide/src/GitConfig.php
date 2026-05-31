@@ -628,10 +628,14 @@ final class GitConfig
             if ($byte === '[') {
                 $end = self::findCharacterClassEnd($pattern, $index);
                 if ($end !== null) {
-                    $regex .= '(?!/)' . self::characterClassRegex(substr($pattern, $index + 1, $end - $index - 1));
+                    $classRegex = self::characterClassRegex(substr($pattern, $index + 1, $end - $index - 1));
+                    $regex .= $classRegex === null ? '(?!)' : '(?!/)' . $classRegex;
                     $index = $end;
                     continue;
                 }
+
+                $regex .= '(?!)';
+                continue;
             }
 
             $regex .= preg_quote($byte, '~');
@@ -676,7 +680,7 @@ final class GitConfig
         return null;
     }
 
-    private static function characterClassRegex(string $class): string
+    private static function characterClassRegex(string $class): ?string
     {
         if ($class === '') {
             return preg_quote('[]', '~');
@@ -706,7 +710,7 @@ final class GitConfig
                     $name = substr($class, $index + 2, $end - $index - 2);
                     $mapped = self::posixCharacterClassRegex($name);
                     if ($mapped === null) {
-                        return preg_quote('[' . ($negated ? '!' : '') . $class . ']', '~');
+                        return null;
                     }
                     $body .= $mapped;
                     $index = $end + 1;

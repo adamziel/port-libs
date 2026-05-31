@@ -20,5 +20,7 @@ return [
     'posixUrlPolicy' => $fixture['posixUrlPolicy'],
     'legacyBytePolicy' => $fixture['legacyBytePolicy'],
     'unboundedDoubleStarRejectedPolicy' => $fixture['unboundedDoubleStarRejectedPolicy'],
+    'invalidPosixPolicy' => $fixture['invalidPosixPolicy'],
+    'unclosedBracketPolicy' => $fixture['unclosedBracketPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];
