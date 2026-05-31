@@ -615,6 +615,7 @@ return [
         $t->same('.theme{color:green}', $map->getSourceContent($style));
         $t->same('', $map->getSourceContent($block));
         $t->same('.editor{outline:0}', $map->getSourceContent($virtual));
+        $t->same(['.theme{color:green}', '', '.editor{outline:0}'], $map->getSourcesContent());
 
         $footerName = $map->addName('theme-footer');
         $nameIndexes = $map->addNames(['block-cover', 'theme-footer', 'editor-inline']);
@@ -643,6 +644,42 @@ return [
             ],
             $map->getMappings()
         );
+        $t->same(['.theme{color:green}', '', '.editor{outline:0}'], $map->getSourcesContent());
+    },
+    'source map exposes upstream sourcesContent table after sparse writes and remaps' => static function (TestRunner $t): void {
+        $sparse = new SourceMap();
+        $sparse->addSource('blocks/first.css');
+        $second = $sparse->addSource('blocks/second.css');
+        $third = $sparse->addSource('blocks/third.css');
+        $sparse->setSourceContent($third, ".third{}\n");
+
+        $t->same(['', '', ".third{}\n"], $sparse->getSourcesContent());
+
+        $sparse->setSourceContent($second, ".second{}\n");
+        $t->same(['', ".second{}\n", ".third{}\n"], $sparse->getSourcesContent());
+
+        $json = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAA;AACA","sources":["raw.css","missing.css"],"sourcesContent":[".raw{}\n"],"names":[]}'
+        );
+        $t->same([".raw{}\n", ''], $json->getSourcesContent());
+
+        $parent = new SourceMap();
+        $child = new SourceMap();
+        $skipped = $child->addSource('blocks/skipped.css');
+        $kept = $child->addSource('blocks/kept.css');
+        $unused = $child->addSource('blocks/unused.css');
+        $child->setSourceContent($skipped, ".skipped{}\n");
+        $child->setSourceContent($kept, ".kept{}\n");
+        $child->setSourceContent($unused, ".unused{}\n");
+        $child->addMapping(0, 0, $skipped, 0, 0, 'skippedRule');
+        $child->addMapping(1, 4, $kept, 1, 2, 'keptRule');
+        $child->addName('unusedRule');
+
+        $parent->addSourceMap($child, -1);
+
+        $t->same([".skipped{}\n", ".kept{}\n", ".unused{}\n"], $parent->getSourcesContent());
+        $t->same([], $child->getSourcesContent());
+        $t->same([1], array_column($parent->getMappings(), 'sourceIndex'));
     },
     'source map offsets generated columns with upstream overlap semantics' => static function (TestRunner $t): void {
         $map = new SourceMap();
@@ -707,9 +744,12 @@ return [
         $beforeColumnNoop = $map->writeVlq();
         $map->offsetColumns(1, 3, 2);
         $t->same($beforeColumnNoop, $map->writeVlq());
-        $map->offsetColumns(1, 3, -4);
-        $t->same($beforeColumnNoop, $map->writeVlq());
-        $map->offsetColumns(2, 0, -1);
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(1, 3, -4);
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(2, 0, -1);
+        });
         $t->same($beforeColumnNoop, $map->writeVlq());
         $map->offsetColumns(5, 3, -4);
         $t->same($beforeColumnNoop, $map->writeVlq());
@@ -846,6 +886,26 @@ return [
             [".wp-block-cover {}\n\n.wp-block-button {}\n", "--wp--preset--color--primary: #06c;\n:root {}\n"],
             $data['sourcesContent']
         );
+    },
+    'source map empty maps keep upstream lone carriage returns inside lines' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addEmptyMap('legacy.css', "a\rb\nc\r\nd\re", 1);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same(';AAAA;AACA;AACA', $map->writeVlq());
+        $t->same([1, 2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([0, 1, 2], array_column($decoded, 'originalLine'));
+        $t->same([0, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same(["a\rb\nc\r\nd\re"], $data['sourcesContent']);
+
+        $trailingCarriageReturn = new SourceMap();
+        $trailingCarriageReturn->addEmptyMap('trailing-cr.css', "a\rb\r");
+        $trailingDecoded = SourceMap::decodeVlq($trailingCarriageReturn->writeVlq());
+
+        $t->same('AAAA', $trailingCarriageReturn->writeVlq());
+        $t->same([0], array_column($trailingDecoded, 'generatedLine'));
+        $t->same([0], array_column($trailingDecoded, 'originalLine'));
     },
     'source map rejects upstream unsigned 32-bit offset overflow' => static function (TestRunner $t): void {
         $map = new SourceMap();

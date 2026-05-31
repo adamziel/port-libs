@@ -102,6 +102,13 @@ $themeJsonMap->addEmptyMap(
     1
 );
 
+$carriageReturnEmptyMap = new SourceMap();
+$carriageReturnEmptyMap->addEmptyMap(
+    'wp-content/themes/example/legacy-cr.css',
+    ".wp-block-legacy\r.wp-block-modern\n.wp-block-crlf\r\n.wp-block-tail\r.rule",
+    1
+);
+
 $inlineEditorMap = new SourceMap();
 $inlineEditorSource = $inlineEditorMap->addSource('wp-content/themes/example/editor-inline.css');
 $inlineEditorMap->setSourceContent($inlineEditorSource, ".wp-block-spacer {\n  margin-top: 1rem;\n}\n");
@@ -115,11 +122,11 @@ $emptyLineOffsetMap->addMapping(0, 0, $emptyLineOffsetSource, 0, 0);
 $emptyLineOffsetMap->offsetLines(1, 2);
 $emptyLineOffsetBeforeColumnNoop = $emptyLineOffsetMap->toJson(null, false);
 $emptyLineOffsetMap->offsetColumns(1, 3, 2);
-$emptyLineColumnOffsetGuard = true;
+$emptyLineColumnOffsetGuard = false;
 try {
     $emptyLineOffsetMap->offsetColumns(1, 3, -4);
 } catch (InvalidArgumentException) {
-    $emptyLineColumnOffsetGuard = false;
+    $emptyLineColumnOffsetGuard = true;
 }
 $emptyLineOffsetMap->offsetColumns(5, 3, -4);
 $bufferRoundTripMap = SourceMap::fromBuffer('/', $emptyLineOffsetMap->toBuffer());
@@ -333,6 +340,7 @@ $lookup = [
     'missingSource' => $projectRootMap->getSourceIndex('wp-content/themes/example/missing.css'),
     'sources' => $projectRootMap->getSources(),
     'blockContent' => $projectRootMap->getSourceContent($projectBlocks),
+    'sourcesContent' => $projectRootMap->getSourcesContent(),
     'nameIndexes' => $projectRootMap->addNames(['theme-footer', 'block-cover', 'virtual-editor-rule']),
     'virtualName' => $projectRootMap->getNameIndex('virtual-editor-rule'),
     'names' => $projectRootMap->getNames(),
@@ -349,6 +357,7 @@ $actual = [
     'partialSkippedNestedSourceTableMap' => $partialSkippedNestedParent->toJson(null, false),
     'partialSkippedNestedChildConsumed' => $partialSkippedNestedChildConsumed,
     'emptyMap' => $themeJsonMap->toJson(null, false),
+    'carriageReturnEmptyMap' => $carriageReturnEmptyMap->toJson(null, false),
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
     'emptyLineColumnOffsetMap' => $emptyLineOffsetMap->toJson(null, false),
     'emptyLineColumnOffsetGuard' => $emptyLineColumnOffsetGuard && $emptyLineOffsetBeforeColumnNoop === $emptyLineOffsetMap->toJson(null, false),
@@ -386,6 +395,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'partialSkippedNestedSourceTableMap' => '{"version":3,"mappings":"ICCEC","sources":["wp-content/themes/example/blocks/skipped-partial.css","wp-content/themes/example/blocks/kept-partial.css","wp-content/themes/example/blocks/unused-partial.css"],"sourcesContent":[".wp-block-skipped-partial{}\n",".wp-block-kept-partial{}\n",".wp-block-unused-partial{}\n"],"names":["skipped-partial-rule","kept-partial-rule","unused-partial-name"]}',
         'partialSkippedNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'emptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/theme-json.css"],"sourcesContent":[":root {\n  --wp--style--global--content-size: 720px;\n}\n"],"names":[]}',
+        'carriageReturnEmptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/legacy-cr.css"],"sourcesContent":[".wp-block-legacy\r.wp-block-modern\n.wp-block-crlf\r\n.wp-block-tail\r.rule"],"names":[]}',
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
         'emptyLineColumnOffsetMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
         'emptyLineColumnOffsetGuard' => true,
@@ -415,6 +425,7 @@ if (($argv[1] ?? null) === '--self-test') {
             'missingSource' => null,
             'sources' => ['wp-content/themes/example/style.css', 'wp-content/themes/example/blocks.css', 'theme://generated/editor.css'],
             'blockContent' => $blockSource,
+            'sourcesContent' => [$entrySource, $blockSource, '.wp-block-cover{outline:2px solid currentColor}'],
             'nameIndexes' => [0, 1, 2],
             'virtualName' => 2,
             'names' => ['theme-footer', 'block-cover', 'virtual-editor-rule'],

@@ -46,6 +46,14 @@ return [
         $t->same('(hover) and (width<240px)', $parser->minifyList('(hover) and (not (not (width < 240px)))'));
         $t->same('not (100px<=width<=200px)', $parser->minifyList('not (100px <= width <= 200px)'));
     },
+    'media query parser maps upstream negated equality range normalization' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('(width=240px)', $parser->minifyList('not (width = 240px)'));
+        $t->same('(width=240px)', $parser->minifyList('not (240px = width)'));
+        $t->same('(theme-state=expanded)', $parser->minifyList('not (theme-state = expanded)'));
+        $t->same('(--wp-breakpoint=env(--wp-breakpoint))', $parser->minifyList('not (--wp-breakpoint = env(--wp-breakpoint))'));
+    },
     'media query parser maps upstream typed range feature families' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
@@ -97,6 +105,12 @@ return [
         $t->same('(color) or (hover)', $parser->minifyList('all and ((color) or (hover))'));
         $t->same('not all and (color)', $parser->minifyList('not all and (color)'));
         $t->same('only all and (color)', $parser->minifyList('only all and (color)'));
+        $t->same('all,all', $parser->minifyList('all, all'));
+        $t->same('not all,not all', $parser->minifyList('not all, not all'));
+        $t->true($parser->alwaysMatchesList('all, all'));
+        $t->same(false, $parser->alwaysMatchesList('all, (hover)'));
+        $t->true($parser->neverMatchesList('not all, not all'));
+        $t->same(false, $parser->neverMatchesList('not all, (hover)'));
         $t->same('(update:slow) or (hover:none)', $parser->minifyList('(update: slow) or (hover: none)'));
         $t->same('(not (color)) or (hover)', $parser->minifyList('(not (color)) or (hover)'));
         $t->same('not ((color) or (hover))', $parser->minifyList('not (((color) or (hover)))'));
@@ -289,7 +303,12 @@ return [
         $t->same('', (new CssMinifier())->minify('@media not all { .foo { color: chartreuse } }'));
         $t->same('@media not ((color) or (hover)){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not (((color) or (hover))) { .foo { color: chartreuse } }'));
         $t->same('@media (hover) and (color) and (test){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover) and ((color) and (test)) { .foo { color: chartreuse } }'));
+        $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media all, all { .foo { color: chartreuse } }'));
+        $t->same('', (new CssMinifier())->minify('@media not all, not all { .foo { color: chartreuse } }'));
+        $t->same('@media not all,(hover){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not all, (hover) { .foo { color: chartreuse } }'));
         $t->same('@layer blocks{@media (width>=240px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not (width < 240px) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{.foo{color:#7fff00}}', (new CssMinifier())->minify('@layer blocks { @media all, all { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks;', (new CssMinifier())->minify('@layer blocks { @media not all, not all { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (width<960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and (not (width < 960px)) { .foo { color: chartreuse } } }'));
@@ -302,6 +321,8 @@ return [
         $t->same('@layer blocks{@media not all and (color){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not all and (color) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and ((color) or (hover)){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and ((color) or (hover)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (grid:1){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (grid: +1) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (width=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (width = 240px) { .foo { color: yellow } } }'));
+        $t->same('@layer blocks{@media (--wp-breakpoint=env(--wp-breakpoint)){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (--wp-breakpoint = env(--wp-breakpoint)) { .foo { color: yellow } } }'));
     },
     'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

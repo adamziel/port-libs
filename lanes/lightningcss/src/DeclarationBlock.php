@@ -4913,6 +4913,10 @@ final class DeclarationBlock
             return '-webkit-';
         }
 
+        if ($property === '-ms-flex-flow' || $property === '-ms-flex-direction' || $property === '-ms-flex-wrap') {
+            return '-ms-';
+        }
+
         if ($property === 'flex' || str_starts_with($property, 'flex-')) {
             return '';
         }
@@ -4922,11 +4926,20 @@ final class DeclarationBlock
 
     private function baseFlexProperty(string $property): ?string
     {
+        $prefix = '';
         if (str_starts_with($property, '-webkit-')) {
             $property = substr($property, strlen('-webkit-'));
+            $prefix = '-webkit-';
+        } elseif (str_starts_with($property, '-ms-')) {
+            $property = substr($property, strlen('-ms-'));
+            $prefix = '-ms-';
         }
 
-        return in_array($property, ['flex', 'flex-flow', 'flex-direction', 'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis'], true)
+        $allowed = $prefix === '-ms-'
+            ? ['flex-flow', 'flex-direction', 'flex-wrap']
+            : ['flex', 'flex-flow', 'flex-direction', 'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis'];
+
+        return in_array($property, $allowed, true)
             ? $property
             : null;
     }
@@ -8272,7 +8285,7 @@ final class DeclarationBlock
     public function setProperty(string $block, string $property, string $value, bool $important = false): string
     {
         $property = $this->normalizeProperty($property);
-        $value = trim($value);
+        $value = trim($this->replaceCssCommentsWithWhitespace($value));
         if ($value === '') {
             throw new \InvalidArgumentException('CSS declaration value cannot be empty');
         }
@@ -11866,6 +11879,7 @@ final class DeclarationBlock
      */
     private function splitTopLevel(string $value, string $delimiter): array
     {
+        $value = $this->replaceCssCommentsWithWhitespace($value);
         $parts = [''];
         $quote = null;
         $depth = 0;
@@ -11897,6 +11911,53 @@ final class DeclarationBlock
         }
 
         return $parts;
+    }
+
+    private function replaceCssCommentsWithWhitespace(string $value): string
+    {
+        $result = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $result .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $result .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $result .= $char;
+                continue;
+            }
+
+            if ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $commentEnd = strpos($value, '*/', $i + 2);
+                if ($commentEnd === false) {
+                    throw new \InvalidArgumentException('Unclosed CSS comment in declaration');
+                }
+                if ($result === '' || !ctype_space($result[strlen($result) - 1])) {
+                    $result .= ' ';
+                }
+                $i = $commentEnd + 1;
+                while ($i + 1 < $length && ctype_space($value[$i + 1])) {
+                    $i++;
+                }
+                continue;
+            }
+
+            $result .= $char;
+        }
+
+        return $result;
     }
 
     private function findTopLevelColon(string $value): ?int

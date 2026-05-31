@@ -66,6 +66,11 @@ $timestampSkewNoCommitGraphBase = $timeOnlyFinder->mergeBase(
     $fixture['timestampSkewLeftReview'],
     $fixture['timestampSkewRightReview'],
 );
+$junctionGraphWalkBases = $finder->mergeBasesAgainst(
+    $fixture['junctionPluginReview'],
+    $fixture['junctionOtherReviews'],
+);
+$junctionStableIntersectionBases = $finder->mergeBasesMany($fixture['junctionHeads']);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -111,6 +116,15 @@ return [
     'timestampSkewExpectedBase' => $fixture['timestampSkewExpectedBase'],
     'timestampSkewPrunesNewerRoot' => $timestampSkewBase === $fixture['timestampSkewExpectedBase']
         && $timestampSkewNoCommitGraphBase === $fixture['timestampSkewExpectedBase'],
+    'junctionHeads' => $fixture['junctionHeads'],
+    'junctionOtherReviews' => $fixture['junctionOtherReviews'],
+    'junctionGraphWalkBases' => $junctionGraphWalkBases,
+    'junctionStableIntersectionBases' => $junctionStableIntersectionBases,
+    'junctionGraphWalkKeepsUnionSideContentBase' => $junctionGraphWalkBases === [
+        $fixture['junctionThemeBase'],
+        $fixture['junctionContentBase'],
+    ],
+    'junctionStableIntersectionPrunesContentBase' => $junctionStableIntersectionBases === [$fixture['junctionThemeBase']],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

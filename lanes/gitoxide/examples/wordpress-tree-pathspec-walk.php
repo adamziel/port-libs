@@ -50,6 +50,9 @@ $root = new Tree([
             ])),
         ])),
     ])),
+    $tree('WP-CONTENT', new Tree([
+        $tree('mu-plugins', new Tree([$blob('Loader.PHP')])),
+    ])),
 ]);
 
 $pathspecs = PathspecSearch::fromSpecs([
@@ -83,6 +86,10 @@ $inheritedIcasePathspecs = PathspecSearch::fromSpecs(
     defaultIgnoreCase: true,
 );
 $prefixedPathspecs = PathspecSearch::fromSpecs([':(icase)mu-plugins/*.php'], 'WP-CONTENT');
+$mixedPrefixPathspecs = PathspecSearch::fromSpecs([
+    ':(icase)mu-plugins/*.php',
+    ':(top)index.php',
+], 'WP-CONTENT');
 $siblingPrefixPathspecs = PathspecSearch::fromSpecs(
     ['../themes/acme/theme.json'],
     'wp-content/plugins',
@@ -177,6 +184,18 @@ $inheritedIcaseRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$mixedPrefixRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $mixedPrefixPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 $siblingPrefixRecords = TreePathspecWalk::breadthFirst(
     $root,
     $siblingPrefixPathspecs,
@@ -233,6 +252,10 @@ return [
     'pathAwareDefaultContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $pathAwareDefaultRecords),
     'pathAwareDefaultNestedSrcSkipped' => !$pathAwareDefaultPathspecs->isIncluded('wp-content/plugins/gutenberg/src/editor.js', false),
     'inheritedIcaseDefaultContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $inheritedIcaseRecords),
+    'mixedPrefixCommonPrefixCollapsed' => $mixedPrefixPathspecs->commonPrefix() === '',
+    'mixedPrefixContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $mixedPrefixRecords),
+    'mixedPrefixLowerContentSkipped' => !$mixedPrefixPathspecs->isIncluded('wp-content/mu-plugins/Loader.PHP', false),
+    'mixedPrefixUpperContentIncluded' => $mixedPrefixPathspecs->isIncluded('WP-CONTENT/mu-plugins/Loader.PHP', false),
     'siblingPrefixContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $siblingPrefixRecords),
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],

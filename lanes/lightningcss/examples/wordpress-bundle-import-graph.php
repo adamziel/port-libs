@@ -262,6 +262,19 @@ if ($supportsGraphBundle !== '@supports ((display:grid) or (display:flex)) and (
 
 echo 'supports-import-graph: grouped' . PHP_EOL;
 
+$charsetGraphBundle = (new CssBundler())->bundle('/charset-entry.css', [
+    '/charset-entry.css' => '@import "blocks/card.css" screen; .wp-site-blocks { color: red }',
+    '/blocks/card.css' => '@charset "UTF-8"; @import "../tokens.css"; .wp-block-card { color: green }',
+    '/tokens.css' => ':root { --wp--preset--color--brand: blue }',
+]);
+
+if ($charsetGraphBundle !== '@media screen{:root{--wp--preset--color--brand:blue}.wp-block-card{color:green}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected imported @charset statements to be ignored before block styles are wrapped\n");
+    exit(1);
+}
+
+echo 'charset-import-graph: ignored' . PHP_EOL;
+
 $lateLayerBundle = (new CssBundler())->bundle('/late-layer-entry.css', [
     '/late-layer-entry.css' => '@import "blocks/card.css" layer(theme.blocks); .wp-site-blocks { color: red }',
     '/blocks/card.css' => '.wp-block-card { color: green } @layer editor-overrides;',

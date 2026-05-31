@@ -1894,7 +1894,7 @@ final class CssMinifier
 
             $prelude = trim(substr($css, $position + 6, $open - ($position + 6)));
             $minifiedPrelude = $prelude === '' ? '' : $parser->minifyList($prelude, allowCompactedNegation: true);
-            if ($minifiedPrelude === '' || strcasecmp($minifiedPrelude, 'all') === 0) {
+            if ($parser->alwaysMatchesList($minifiedPrelude)) {
                 $close = $this->findMatchingBraceInCss($css, $open);
                 $body = substr($css, $open + 1, $close - $open - 1);
                 $output .= substr($css, $cursor, $position - $cursor) . $this->minifyMediaQueries($body);
@@ -1902,7 +1902,7 @@ final class CssMinifier
                 continue;
             }
 
-            if (strcasecmp($minifiedPrelude, 'not all') === 0) {
+            if ($parser->neverMatchesList($minifiedPrelude)) {
                 $close = $this->findMatchingBraceInCss($css, $open);
                 $output .= substr($css, $cursor, $position - $cursor);
                 $cursor = $close + 1;

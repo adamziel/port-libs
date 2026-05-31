@@ -437,6 +437,46 @@ return [
         $t->same(['WP-CONTENT/plugins/Plugin.PHP'], $walkPaths($records));
         $t->same(['WP-CONTENT', 'WP-CONTENT/plugins'], $readPaths);
     },
+    'mixed top pathspecs keep icase caller prefixes case sensitive during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('FOO', new Tree([$blob('BAR')])),
+            $tree('foo', new Tree([$blob('bar')])),
+            $tree('other', new Tree([$blob('path')])),
+        ]);
+        $search = PathspecSearch::fromSpecs([':(icase)bar', ':(top)other/path'], 'FOO');
+
+        $t->same('', $search->commonPrefix());
+        $t->same('FOO', $search->patterns()[0]->prefixDirectory());
+        $t->same(true, $search->isIncluded('FOO/BAR', false));
+        $t->same(false, $search->isIncluded('foo/bar', false));
+        $t->same(true, $search->isIncluded('other/path', false));
+
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+                if (!isset($objects[$entry->oid])) {
+                    throw new RuntimeException("Missing tree object for {$path}");
+                }
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            'FOO/BAR',
+            'other/path',
+        ], $walkPaths($records));
+    },
     'guards prefix normalization from escaping the worktree during tree walks' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
         [$root, $read] = $makeTreeStore();
 
@@ -669,5 +709,12 @@ return [
             'wp-content/themes/acme/style.css',
         ], $example['attrFilteredContentPaths']);
         $t->same(true, $example['attrFilteredWithoutProviderEmpty']);
+        $t->same(true, $example['mixedPrefixCommonPrefixCollapsed']);
+        $t->same([
+            'index.php',
+            'WP-CONTENT/mu-plugins/Loader.PHP',
+        ], $example['mixedPrefixContentPaths']);
+        $t->same(true, $example['mixedPrefixLowerContentSkipped']);
+        $t->same(true, $example['mixedPrefixUpperContentIncluded']);
     },
 ];

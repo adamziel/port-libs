@@ -387,6 +387,43 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler ignores upstream charset statements across import graph' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@media screen{.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" screen; .a { color: red }',
+                '/b.css' => '@charset "UTF-8"; .b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '.c{color:#00f}.d{color:purple}.b{color:green}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css"; .a { color: red }',
+                '/b.css' => '@import "c.css"; @charset "UTF-8"; @import "d.css"; .b { color: green }',
+                '/c.css' => '.c { color: blue }',
+                '/d.css' => '.d { color: purple }',
+            ], '/a.css')
+        );
+
+        try {
+            $bundle([
+                '/a.css' => '@import "b.css"; .a { color: red }',
+                '/b.css' => '.b { color: green } @charset "UTF-8"; @import "c.css";',
+                '/c.css' => '.c { color: blue }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('@import rules must precede all rules aside from @charset and @layer statements', $exception->getMessage());
+            $t->same('/b.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(46, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected late @import after style and ignored @charset exception');
+    },
     'css bundler preserves upstream supports condition grouping across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@supports ((display:flex) or (display:grid)) and (color:red){.c{color:#00f}}@supports (display:flex) or (display:grid){.b{color:green}}.a{color:red}',

@@ -2081,6 +2081,62 @@ final class CssModulesTransformer
         );
     }
 
+    /**
+     * @param array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}> $exports
+     * @param (callable(string, string): (string|list<string>|null))|null $resolveDependency
+     * @return array<string, string>
+     */
+    public static function exportClassLists(array $exports, ?callable $resolveDependency = null): array
+    {
+        $classLists = [];
+        foreach (array_keys($exports) as $local) {
+            $classLists[(string) $local] = self::exportClassList($exports, (string) $local, $resolveDependency) ?? '';
+        }
+
+        return $classLists;
+    }
+
+    /**
+     * @param array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}> $exports
+     * @param (callable(string, string): (string|list<string>|null))|null $resolveDependency
+     */
+    public static function exportClassList(array $exports, string $local, ?callable $resolveDependency = null): ?string
+    {
+        $export = $exports[$local] ?? null;
+        if ($export === null) {
+            return null;
+        }
+
+        $classes = [(string) $export['name']];
+        foreach (($export['composes'] ?? []) as $reference) {
+            $type = (string) ($reference['type'] ?? '');
+            if ($type === 'local' || $type === 'global') {
+                $classes[] = (string) ($reference['name'] ?? '');
+                continue;
+            }
+
+            if ($type === 'dependency') {
+                if ($resolveDependency === null) {
+                    throw new \InvalidArgumentException('Cannot flatten unresolved CSS Modules dependency reference');
+                }
+
+                $resolved = $resolveDependency((string) ($reference['name'] ?? ''), (string) ($reference['specifier'] ?? ''));
+                if ($resolved === null) {
+                    continue;
+                }
+
+                foreach ((array) $resolved as $className) {
+                    $classes[] = (string) $className;
+                }
+                continue;
+            }
+
+            throw new \InvalidArgumentException('Invalid CSS Modules export reference');
+        }
+
+        return implode(' ', array_values(array_filter($classes, static fn (string $className): bool => $className !== '')));
+    }
+
     private function patternStartsWithSegment(string $segment): bool
     {
         return str_starts_with($this->pattern, $segment);

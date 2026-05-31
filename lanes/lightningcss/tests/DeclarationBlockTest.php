@@ -161,6 +161,38 @@ return [
             $block->getProperty('color: red !importantish', 'color')
         );
     },
+    'declaration block ignores css comments while tokenizing cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = '/* header ; : */ color /* key : */: red /* value ; : */ ! /* priority ; */ important; background: white; margin: 5px /* side ; */ 6px; --Block-Accent: var(--wp--preset--color--accent) /* custom ; : */';
+
+        $t->same(['value' => 'red', 'important' => true], $block->getProperty($declarations, 'color'));
+        $t->same(['value' => '5px 6px', 'important' => false], $block->getProperty($declarations, 'margin'));
+        $t->same(['value' => '6px', 'important' => false], $block->getProperty($declarations, 'margin-left'));
+        $t->same(
+            ['value' => 'var(--wp--preset--color--accent)', 'important' => false],
+            $block->getProperty($declarations, '--Block-Accent')
+        );
+        $t->same(
+            'background: white; margin: 5px 6px; --Block-Accent: var(--wp--preset--color--accent); color: blue',
+            $block->setProperty($declarations, 'color', 'blue')
+        );
+        $t->same(
+            'background: white; margin: 8px 6px 5px; --Block-Accent: var(--wp--preset--color--accent); color: red !important',
+            $block->setProperty($declarations, 'margin-top', '8px /* write separator ; */')
+        );
+        $t->same(
+            'background: white; margin-right: 6px; margin-bottom: 5px; margin-left: 6px; --Block-Accent: var(--wp--preset--color--accent); color: red !important',
+            $block->removeProperty($declarations, 'margin-top')
+        );
+        $t->same(
+            'background: white; margin: 5px 6px; --Block-Accent: var(--wp--preset--color--accent)',
+            $block->removeProperty($declarations, 'color')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $block->getProperty('color: red /* unterminated', 'color')
+        );
+    },
     'declaration block reads upstream background cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -638,14 +670,24 @@ return [
             ['value' => 'row wrap', 'important' => false],
             $block->getProperty('-webkit-flex-direction: row; -webkit-flex-wrap: wrap', '-webkit-flex-flow')
         );
+        $t->same(
+            ['value' => 'row wrap', 'important' => false],
+            $block->getProperty('-ms-flex-direction: row; -ms-flex-wrap: wrap', '-ms-flex-flow')
+        );
         $t->same(null, $block->getProperty('flex-direction: row; flex-wrap: wrap', '-webkit-flex-flow'));
+        $t->same(null, $block->getProperty('-ms-flex-direction: row; flex-wrap: wrap', '-ms-flex-flow'));
         $t->same(null, $block->getProperty('-webkit-flex-direction: row; flex-wrap: wrap', '-webkit-flex-flow'));
         $t->same(null, $block->getProperty('-webkit-flex-direction: row; flex-wrap: wrap', 'flex-flow'));
         $t->same(
             ['value' => 'row', 'important' => false],
             $block->getProperty('-webkit-flex-flow: row', '-webkit-flex-direction')
         );
+        $t->same(
+            ['value' => 'row', 'important' => false],
+            $block->getProperty('-ms-flex-flow: row', '-ms-flex-direction')
+        );
         $t->same(null, $block->getProperty('-webkit-flex-flow: row', 'flex-direction'));
+        $t->same(null, $block->getProperty('-ms-flex-flow: row', '-webkit-flex-direction'));
     },
     'declaration block reads upstream flex cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -1409,8 +1451,16 @@ return [
             $block->setProperty('-webkit-flex-flow: row wrap', '-webkit-flex-direction', 'column')
         );
         $t->same(
+            '-ms-flex-flow: column wrap',
+            $block->setProperty('-ms-flex-flow: row wrap', '-ms-flex-direction', 'column')
+        );
+        $t->same(
             'flex-flow: wrap; -webkit-flex-direction: column',
             $block->setProperty('flex-flow: row wrap', '-webkit-flex-direction', 'column')
+        );
+        $t->same(
+            'flex-flow: wrap; -ms-flex-direction: column',
+            $block->setProperty('flex-flow: row wrap', '-ms-flex-direction', 'column')
         );
     },
     'declaration block sets upstream flex cssom longhands in existing shorthand' => static function (TestRunner $t): void {
@@ -2241,6 +2291,8 @@ return [
         $t->same('flex-wrap: wrap', $block->removeProperty('flex-flow: column wrap', 'flex-direction'));
         $t->same('flex-flow: column wrap', $block->removeProperty('flex-flow: column wrap', '-webkit-flex-direction'));
         $t->same('-webkit-flex-wrap: wrap', $block->removeProperty('-webkit-flex-flow: column wrap', '-webkit-flex-direction'));
+        $t->same('-ms-flex-wrap: wrap', $block->removeProperty('-ms-flex-flow: column wrap', '-ms-flex-direction'));
+        $t->same('-ms-flex-flow: column wrap', $block->removeProperty('-ms-flex-flow: column wrap', '-webkit-flex-direction'));
     },
     'declaration block removes upstream flex cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();

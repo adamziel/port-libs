@@ -271,6 +271,9 @@ final class PathspecSearch
         if ($pattern->alwaysMatches()) {
             return PathspecMatch::KIND_ALWAYS;
         }
+        if (!$this->caseSensitivePrefixMatches($pattern, $relativePath, $isDirectory)) {
+            return null;
+        }
 
         if ($pattern->searchMode !== PathspecPattern::SEARCH_LITERAL && $pattern->firstWildcardPosition() !== null) {
             if ($this->globMatches($pattern, $relativePath, $isDirectory)) {
@@ -279,6 +282,21 @@ final class PathspecSearch
         }
 
         return $this->verbatimMatchKind($pattern, $relativePath, $isDirectory);
+    }
+
+    private function caseSensitivePrefixMatches(PathspecPattern $pattern, string $relativePath, bool $isDirectory): bool
+    {
+        if (!$pattern->ignoreCase || $pattern->prefixLength === 0) {
+            return true;
+        }
+
+        $prefix = $pattern->prefixDirectory();
+        $next = $relativePath[$pattern->prefixLength] ?? null;
+        if (($next === null && !$isDirectory) || ($next !== null && $next !== '/')) {
+            return false;
+        }
+
+        return substr($relativePath, 0, $pattern->prefixLength) === $prefix;
     }
 
     private function verbatimMatchKind(PathspecPattern $pattern, string $relativePath, bool $isDirectory): ?string

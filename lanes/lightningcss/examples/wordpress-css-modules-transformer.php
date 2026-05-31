@@ -107,6 +107,14 @@ CSS;
 $result = (new CssModulesTransformer())->transform($css, [
     'hash' => 'BlockA',
 ]);
+$dependencyClassName = static fn (string $name, string $specifier): ?string => [
+    './core.module.css' => [
+        'reset' => 'Core_reset',
+    ],
+    './typography components.module.css' => [
+        'heading' => 'Type_heading',
+    ],
+][$specifier][$name] ?? null;
 
 $contentHashResult = (new CssModulesTransformer())->transform(<<<'CSS'
 .cardHash {
@@ -344,6 +352,12 @@ CSS, [
 $actual = [
     'code' => $result['code'],
     'exports' => $result['exports'],
+    'classLists' => [
+        'card' => CssModulesTransformer::exportClassList($result['exports'], 'card', $dependencyClassName),
+        'cardTitle' => CssModulesTransformer::exportClassList($result['exports'], 'cardTitle', $dependencyClassName),
+        'card:featured' => CssModulesTransformer::exportClassList($result['exports'], 'card:featured', $dependencyClassName),
+        'cardGrid' => CssModulesTransformer::exportClassList($result['exports'], 'cardGrid', $dependencyClassName),
+    ],
     'bareGlobal' => $bareGlobal,
     'invalidComposes' => $invalidComposes,
     'invalidGlobalList' => $invalidGlobalList,
@@ -531,6 +545,12 @@ $expected = [
             ],
             'isReferenced' => false,
         ],
+    ],
+    'classLists' => [
+        'card' => 'BlockA_card Core_reset has-spacing',
+        'cardTitle' => 'BlockA_cardTitle Type_heading',
+        'card:featured' => 'BlockA_card:featured BlockA_card wp:alignwide',
+        'cardGrid' => 'BlockA_cardGrid BlockA_card',
     ],
     'bareGlobal' => 'rejected',
     'invalidComposes' => 'rejected',
@@ -722,6 +742,7 @@ if (($argv[1] ?? null) === '--self-test') {
 
 echo $actual['code'] . PHP_EOL;
 echo json_encode($actual['exports'], JSON_PRETTY_PRINT) . PHP_EOL;
+echo 'class-lists: ' . json_encode($actual['classLists'], JSON_UNESCAPED_SLASHES) . PHP_EOL;
 echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;

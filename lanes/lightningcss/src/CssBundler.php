@@ -827,6 +827,8 @@ final class CssBundler
                         'type' => 'layer-statement',
                         'raw' => $raw,
                     ];
+                } elseif ($this->startsAtKeyword($css, $cursor, '@charset')) {
+                    $this->validateCharsetStatement($raw, $file, $this->sourceLocation($css, $cursor));
                 } else {
                     if (!$this->startsAtKeyword($css, $cursor, '@charset')) {
                         $importsAllowed = false;
@@ -862,6 +864,11 @@ final class CssBundler
                             'loc' => $this->sourceLocation($css, $cursor),
                             'import' => $this->parseImportStatement(substr($css, $cursor), $this->sourceLocation($css, $cursor), $file),
                         ];
+                        break;
+                    }
+
+                    if ($this->startsAtKeyword($css, $cursor, '@charset')) {
+                        $this->validateCharsetStatement(substr($css, $cursor), $file, $this->sourceLocation($css, $cursor));
                         break;
                     }
 
@@ -911,6 +918,30 @@ final class CssBundler
         }
 
         return $items;
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function validateCharsetStatement(string $statement, string $file, array $loc): void
+    {
+        $rest = trim(substr(rtrim(trim($statement), ';'), strlen('@charset')));
+        $offset = $this->skipWhitespaceAndComments($rest, 0);
+        $quote = $rest[$offset] ?? '';
+        if ($quote !== '"' && $quote !== "'") {
+            throw new CssBundleException('parser-error', 'Invalid @charset rule', $file, $loc['line'], $loc['column']);
+        }
+
+        try {
+            $end = $this->readQuotedTokenEnd($rest, $offset);
+        } catch (CssBundleException) {
+            throw new CssBundleException('parser-error', 'Invalid @charset rule', $file, $loc['line'], $loc['column']);
+        }
+
+        $after = $this->skipWhitespaceAndComments($rest, $end);
+        if ($after < strlen($rest)) {
+            throw new CssBundleException('parser-error', 'Invalid @charset rule', $file, $loc['line'], $loc['column']);
+        }
     }
 
     /**

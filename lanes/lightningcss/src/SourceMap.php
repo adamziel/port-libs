@@ -124,6 +124,14 @@ final class SourceMap
         return $this->sourcesContent[$sourceIndex];
     }
 
+    /**
+     * @return list<string>
+     */
+    public function getSourcesContent(): array
+    {
+        return $this->sourceContentsForJson();
+    }
+
     public function addName(string $name): int
     {
         if (isset($this->nameIndexes[$name])) {
@@ -419,6 +427,10 @@ final class SourceMap
 
         $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
         if ($lineMappings === []) {
+            if ($generatedLine < $this->generatedLineCount) {
+                $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+            }
+
             return;
         }
 
@@ -1267,12 +1279,13 @@ final class SourceMap
             return [];
         }
 
-        $lines = preg_split('/\r\n|\r|\n/', $sourceContent);
+        // Rust str::lines() splits LF/CRLF line endings, but preserves lone CR bytes.
+        $lines = preg_split('/\r\n|\n/', $sourceContent);
         if ($lines === false) {
             return [];
         }
 
-        if (preg_match('/(?:\r\n|\r|\n)$/', $sourceContent) === 1) {
+        if (preg_match('/(?:\r\n|\n)$/', $sourceContent) === 1) {
             array_pop($lines);
         }
 

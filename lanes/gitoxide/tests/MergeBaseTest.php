@@ -290,6 +290,57 @@ return [
             $t->same([$c2], $secondFinder->mergeBasesMany([$pl, $pr]));
         }
     },
+    'maps upstream generated three-head baseline with union-side bases' => static function (TestRunner $t) use ($finder): void {
+        $oid = static fn (string $hex): string => str_repeat($hex, 20);
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+
+        $j = $oid('a0');
+        $jb = $oid('a1');
+        $jc = $oid('a2');
+        $jTemp1 = $oid('a3');
+        $ja = $oid('a4');
+        $jaa = $oid('a5');
+        $jTemp2 = $oid('a6');
+        $jd = $oid('a7');
+        $jdd = $oid('a8');
+        $jTemp3 = $oid('a9');
+        $je = $oid('ab');
+
+        $commits = [
+            $j => $timedCommit(1700000000),
+            $jb => $timedCommit(1700000060, [$j]),
+            $jc => $timedCommit(1700000120, [$j]),
+            $jTemp1 => $timedCommit(1700000180, [$j]),
+            $ja => $timedCommit(1700000240, [$jTemp1, $jb]),
+            $jaa => $timedCommit(1700000300, [$ja, $jc]),
+            $jTemp2 => $timedCommit(1700000360, [$j]),
+            $jd => $timedCommit(1700000420, [$jTemp2, $jb]),
+            $jdd => $timedCommit(1700000480, [$jd, $jc]),
+            $jTemp3 => $timedCommit(1700000540, [$j]),
+            $je => $timedCommit(1700000600, [$jTemp3, $jc]),
+        ];
+
+        foreach ([true, false] as $useCommitGraphGenerations) {
+            $mergeBase = $finder($commits, $useCommitGraphGenerations);
+
+            $t->same([$jc, $jb], $mergeBase->mergeBasesAgainst($jaa, [$jdd, $je]));
+            $t->same($jc, $mergeBase->mergeBaseAgainst($jaa, [$jdd, $je]));
+            $t->same([$jc], $mergeBase->mergeBasesMany([$jaa, $jdd, $je]));
+            $t->same([$jc, $jb], $mergeBase->mergeBasesAgainst($jaa, [$jdd, $je]));
+        }
+    },
     'maps upstream graph walk with sha256 commit ids' => static function (TestRunner $t) use ($commit, $finder): void {
         $sha256 = static fn (string $hex): string => str_repeat($hex, 64);
         $root = $sha256('1');
@@ -492,6 +543,12 @@ return [
         $t->same($fixture['timestampSkewExpectedBase'], $example['timestampSkewBase']);
         $t->same($fixture['timestampSkewExpectedBase'], $example['timestampSkewNoCommitGraphBase']);
         $t->same(true, $example['timestampSkewPrunesNewerRoot']);
+        $t->same([$fixture['junctionThemeBase'], $fixture['junctionContentBase']], $finder->mergeBasesAgainst($fixture['junctionPluginReview'], $fixture['junctionOtherReviews']));
+        $t->same([$fixture['junctionThemeBase']], $finder->mergeBasesMany($fixture['junctionHeads']));
+        $t->same([$fixture['junctionThemeBase'], $fixture['junctionContentBase']], $example['junctionGraphWalkBases']);
+        $t->same([$fixture['junctionThemeBase']], $example['junctionStableIntersectionBases']);
+        $t->same(true, $example['junctionGraphWalkKeepsUnionSideContentBase']);
+        $t->same(true, $example['junctionStableIntersectionPrunesContentBase']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

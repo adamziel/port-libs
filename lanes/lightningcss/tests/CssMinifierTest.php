@@ -3285,8 +3285,20 @@ CSS;
     }
   }
 
+  @media all, all {
+    .wp-block-query__all-list {
+      color: chartreuse;
+    }
+  }
+
   @media not all {
     .wp-block-query__debug {
+      color: red;
+    }
+  }
+
+  @media not all, not all {
+    .wp-block-query__dead-list {
       color: red;
     }
   }
@@ -3300,7 +3312,7 @@ CSS;
 CSS;
 
         $t->same(
-            '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}}@layer utilities;',
+            '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}.wp-block-query__all-list{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}}@layer utilities;',
             (new CssMinifier())->minify($css)
         );
     },

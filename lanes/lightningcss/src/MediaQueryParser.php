@@ -34,6 +34,48 @@ final class MediaQueryParser
         return $this->convertDppxResolutionUnits($queryList);
     }
 
+    public function alwaysMatchesList(string $queryList): bool
+    {
+        $queryList = trim($queryList);
+        if ($queryList === '') {
+            return true;
+        }
+
+        $queries = $this->splitTopLevel($this->minifyList($queryList, allowCompactedNegation: true), ',');
+        if ($queries === []) {
+            return true;
+        }
+
+        foreach ($queries as $query) {
+            if (strcasecmp($query, 'all') !== 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function neverMatchesList(string $queryList): bool
+    {
+        $queryList = trim($queryList);
+        if ($queryList === '') {
+            return false;
+        }
+
+        $queries = $this->splitTopLevel($this->minifyList($queryList, allowCompactedNegation: true), ',');
+        if ($queries === []) {
+            return false;
+        }
+
+        foreach ($queries as $query) {
+            if (strcasecmp($query, 'not all') !== 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function minifyQuery(string $query, bool $allowCompactedNegation): string
     {
         $query = trim($query);
@@ -987,7 +1029,7 @@ final class MediaQueryParser
 
     private function invertSimpleRangeFeature(string $feature): ?string
     {
-        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>)\s*(.+)$/', $feature, $matches) !== 1) {
+        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) !== 1) {
             return null;
         }
 

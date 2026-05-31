@@ -786,6 +786,47 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules flattens upstream local global and dependency compose class lists' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $css = <<<'CSS'
+.button {
+  composes: reset;
+  composes: wp-block-button from global;
+  composes: tone shadow from "./theme.css";
+  color: red;
+}
+
+.reset {
+  color: blue;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+        $resolver = static fn (string $name, string $specifier) => $specifier === './theme.css'
+            ? [
+                'tone' => 'Theme_tone',
+                'shadow' => 'Theme_shadow Theme_depth',
+            ][$name] ?? null
+            : null;
+
+        $t->same('.EgL3uq_button{color:red}.EgL3uq_reset{color:#00f}', $result['code']);
+        $t->same([
+            'button' => $export('EgL3uq_button', [
+                $local('EgL3uq_reset'),
+                $global('wp-block-button'),
+                $dependency('tone', './theme.css'),
+                $dependency('shadow', './theme.css'),
+            ]),
+            'reset' => $export('EgL3uq_reset'),
+        ], $result['exports']);
+        $t->same('EgL3uq_button EgL3uq_reset wp-block-button Theme_tone Theme_shadow Theme_depth', CssModulesTransformer::exportClassList($result['exports'], 'button', $resolver));
+        $t->same('EgL3uq_reset', CssModulesTransformer::exportClassList($result['exports'], 'reset'));
+        $t->same(null, CssModulesTransformer::exportClassList($result['exports'], 'missing'));
+        $t->same([
+            'button' => 'EgL3uq_button EgL3uq_reset wp-block-button Theme_tone Theme_shadow Theme_depth',
+            'reset' => 'EgL3uq_reset',
+        ], CssModulesTransformer::exportClassLists($result['exports'], $resolver));
+        $t->throws(InvalidArgumentException::class, static fn () => CssModulesTransformer::exportClassList($result['exports'], 'button'));
+    },
     'css modules maps upstream hash and content-hash patterns through composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
         $patterned = (new CssModulesTransformer())->transform('.foo { color: red }', [
             'pattern' => 'test-[hash]-[local]',
