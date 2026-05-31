@@ -52,6 +52,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 16:25 UTC):
+  source commit `7d0fee1b072f094a6ec1365ffb76c2fbe71cdaee`
+  (`ports: extend lightningcss font cssom module maps`) landed seven verified
+  LightningCSS handoffs after excluding stale shared metadata. LightningCSS full
+  lane evidence moves from `2092` to `2168 pass / 0 fail`, with conservative
+  mapped coverage moving from `1349 / 3532` to `1370 / 3532`: font/property
+  target fallback boundaries, custom at-rule visitor factory dependency
+  composition, and SourceMap JSON/data-URL import defaults. CSSOM
+  place-alignment, media range equality, bundle URL import modifiers, and CSS
+  Modules dependency specifier escape decoding deepen already represented
+  clusters. Gates passed: PHP lint on changed/new PHP files, `git diff --check
+  -- lanes/lightningcss`, no WordPress/WP/wp_ text introduced by the changed
+  source diff, focused LightningCSS gate `7 files / 1159 assertions / 0
+  failures`, full LightningCSS lane `13 files / 2168 assertions / 0 failures`,
+  and seven touched examples exiting 0. One targets-prefix handoff was deferred
+  because it conflicted after the accepted property-values prefixer slice. Full
+  upstream LightningCSS Rust/Node/WASM runners were not run for this isolated
+  batch.
+
 - 2026-05-31 supervisor continuation (libsqlite selected corpus integration
   16:22 UTC): source commit
   `244af0e12cb234114c65902b96f88c63059491d2` (`ports: extend sqlite pragma
