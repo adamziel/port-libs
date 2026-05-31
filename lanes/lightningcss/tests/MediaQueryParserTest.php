@@ -80,6 +80,8 @@ return [
         $t->same('(update:slow) or (hover:none)', $parser->minifyList('(update: slow) or (hover: none)'));
         $t->same('(not (color)) or (hover)', $parser->minifyList('(not (color)) or (hover)'));
         $t->same('not ((color) or (hover))', $parser->minifyList('not (((color) or (hover)))'));
+        $t->same('screen and ((color) or (hover))', $parser->minifyList('screen and ((color) or (hover))'));
+        $t->same('only screen and ((color) or (hover))', $parser->minifyList('only screen and ((color) or (hover))'));
         $t->same('(hover) and (color) and (test)', $parser->minifyList('(hover) and ((color) and (test))'));
     },
     'media query parser folds simple same-unit calc values' => static function (TestRunner $t): void {
@@ -115,6 +117,10 @@ return [
             'env(--theme-breakpoint)',
             'var(--theme-breakpoint)',
             'screen and var(--theme-breakpoint)',
+            'screen and (color) or (hover)',
+            'not screen and (color) or (hover)',
+            'only screen and (width >= 240px) or (hover)',
+            'all and (color) or (hover)',
             '()',
             'screen and ()',
         ];
@@ -194,6 +200,7 @@ return [
         $t->same('@layer blocks{@media (width>=600px) and (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and (min-width: 600px) and (hover) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (color) or (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and ((color) or (hover)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media not all and (color){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not all and (color) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media screen and ((color) or (hover)){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and ((color) or (hover)) { .foo { color: chartreuse } } }'));
     },
     'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -212,6 +219,7 @@ return [
             '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and calc(theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen and (color) or (hover) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and () { .wp-block-query { color: chartreuse; } } }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));

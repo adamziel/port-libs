@@ -361,6 +361,24 @@ Focused smart HTTP proxy credential lifecycle inventory inspected on 2026-05-22:
 - `gix-transport/src/client/blocking_io/http/curl/remote.rs` contains the mapped credential lifecycle: after obtaining proxy credentials, the curl backend calls the next credential action with `store()` when the request finishes with HTTP 200 and `erase()` when the transfer fails or the final status is not accepted.
 - The PHP slice maps that lifecycle with `proxyCredentialStore` and `proxyCredentialErase` callbacks for credentials returned by `proxyCredentialHelper`, while continuing to keep `Proxy-Authorization` out of origin request headers.
 
+Focused smart HTTP proxy username-helper inventory inspected on 2026-05-31:
+
+- `gix/src/repository/config/transport.rs` sets `Options::proxy_authenticate`
+  when a configured proxy URL parses with a username, and
+  `gix/tests/gix/repository/config/transport_options.rs::http_proxy_with_username`
+  asserts that a `http://user@localhost:9090` proxy triggers credential-helper
+  authentication before connection setup.
+- `gix-transport/src/client/blocking_io/http/curl/remote.rs` then obtains proxy
+  credentials and applies proxy username/password on the curl handle while
+  keeping proxy credentials separate from ordinary origin request headers.
+- The PHP slice now maps username-only proxy URLs to `proxyCredentialHelper`
+  actions, preserving the username in the normalized proxy URL passed to the
+  helper/store callbacks. Explicit `user:password` proxy URLs and accepted SOCKS
+  username handshakes remain supported.
+- Focused PHP evidence: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`
+  passed 1 file, 471 assertions, 0 failures after a red-first failure for the
+  username-only proxy helper expectation.
+
 Focused default SOCKS handshake inventory inspected on 2026-05-22:
 
 - `gix-transport/src/client/blocking_io/http/curl/remote.rs` maps curl proxy declarations by prefix: `socks5h` uses remote DNS, `socks5` uses SOCKS5, `socks4a` uses SOCKS4a, and `socks`/`socks4` use SOCKS4.
@@ -1304,3 +1322,31 @@ Attributes/pathspec glob character-class slice prepared on 2026-05-31:
   and `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace tests
   were not run for this slice.
 - Expected mapped denominator movement: `1561 / 2886` to `1562 / 2886`.
+
+Send-pack receive-status unrequested-option slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-send-pack-receive-status-parity-20260531T175851Z`
+  on accepted base `b1feedb755e93656cf717884940e8c64724c26f1` maps the
+  send-pack status application boundary where unrequested remote status refs
+  are ignored but report-status-v2 options after an unrequested ref are
+  rejected.
+- Source truth: upstream Gitoxide `gix-transport/tests/client/git.rs::push_v1_simulated`
+  and `gix-transport/tests/fixtures/v1/push.response` provide the nested
+  receive-status sideband boundary; Git `send-pack.c::receive_status()` at
+  source `866e6a391f466baeeb98bc585845ea638322c04b` only accepts `option`
+  directives after a matched requested `ok/ng` status.
+- Native PHP delta: `PushRefStatus` now records option-line presence even for
+  ignored future options, and `PushResponse::forExpectedRefNames()` rejects
+  option-bearing statuses for refs absent from the outgoing send-pack command
+  while still ignoring plain unrequested status refs.
+- Verification: red-first probe printed `accepted` before implementation for
+  an unrequested `refs/heads/ghost` status followed by `option refname
+  refs/heads/other`; after implementation,
+  `php tools/run-tests.php lanes/gitoxide/tests/PushResponseTest.php` passed
+  `1 test files, 122 assertions, 0 failures`, and
+  `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`
+  passed `1 test files, 457 assertions, 0 failures`. Full lane verification
+  passed with `php tools/run-tests.php lanes/gitoxide/tests` reporting `39
+  test files, 5025 assertions, 0 failures`; PHP lint, JSON validation, the
+  touched example smoke, and `git diff --check -- lanes/gitoxide` also passed.
+- Expected mapped denominator movement: `1602 / 2886` to `1603 / 2886`.

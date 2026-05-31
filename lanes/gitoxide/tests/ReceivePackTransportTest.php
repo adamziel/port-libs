@@ -317,6 +317,26 @@ return [
         $t->same([], $response->rejectedRefs());
         $t->same(['remote: validating deployment refs'], $response->progressMessages());
     },
+    'receive-pack client rejects options after unrequested status refs like send-pack' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress unexpected status option payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status-v2 side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: validating deployment refs\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $packet("ok refs/heads/ghost ignored by send-pack\n"))
+            . $packet("\x01" . $packet("option refname refs/heads/other\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+
+        $t->throws(InvalidArgumentException::class, static fn () => $client->send($session->buildRequest([$blob])));
+    },
     'stream receive-pack transport reports watchdog timeout while reading packet length' => static function (TestRunner $t): void {
         if (!function_exists('stream_socket_pair')) {
             throw new RuntimeException('stream_socket_pair is required for stream timeout watchdog tests');
@@ -1882,6 +1902,45 @@ return [
         $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'helper-user', 'password' => 'helper-pass']]], $storedCredentials);
         $t->same([], $erasedCredentials);
 
+        $usernameOnlyProxyCalls = [];
+        $usernameOnlyProxyRequests = [];
+        $usernameOnlyProxyStores = [];
+        $usernameOnlyProxyTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$usernameOnlyProxyRequests, $packet, $flush): array {
+                $usernameOnlyProxyRequests[] = [
+                    'headers' => $headers,
+                    'httpOptions' => $httpOptions,
+                ];
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy-user@proxy.example.test:8080',
+                'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$usernameOnlyProxyCalls): array {
+                    $usernameOnlyProxyCalls[] = [$proxyUrl, $requestHost];
+
+                    return ['username' => 'proxy-user', 'password' => 'helper-secret'];
+                },
+                'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$usernameOnlyProxyStores): void {
+                    $usernameOnlyProxyStores[] = [$proxyUrl, $requestHost, $credentials];
+                },
+            ]
+        );
+        $usernameOnlyProxyTransport->readAdvertisement();
+        $t->same([['http://proxy-user@proxy.example.test:8080', 'git.example.test']], $usernameOnlyProxyCalls);
+        $t->same('http://proxy-user@proxy.example.test:8080', $usernameOnlyProxyRequests[0]['httpOptions']['proxyUrl']);
+        $t->same('Basic ' . base64_encode('proxy-user:helper-secret'), $usernameOnlyProxyRequests[0]['httpOptions']['proxyAuthorization']);
+        $t->same(null, $usernameOnlyProxyRequests[0]['headers']['Proxy-Authorization'] ?? null);
+        $t->same([['http://proxy-user@proxy.example.test:8080', 'git.example.test', ['username' => 'proxy-user', 'password' => 'helper-secret']]], $usernameOnlyProxyStores);
+
         $redirectHelperCalls = [];
         $redirectHelperRequests = [];
         $redirectHelperStores = [];
@@ -2569,12 +2628,22 @@ return [
     },
     'wordpress fixture stores smart http proxy credentials without leaking origin headers' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-proxy-credentials.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-smart-http-proxy-credentials.php';
 
         $t->same([['http://wp-proxy.example.test:8080', 'git.example.test']], $fixture['helperCalls']);
         $t->same([['http://wp-proxy.example.test:8080', 'git.example.test', ['username' => 'wp-proxy-user', 'password' => 'wp-proxy-pass']]], $fixture['storedCredentials']);
         $t->same([], $fixture['erasedCredentials']);
         $t->same('Basic ' . base64_encode('wp-proxy-user:wp-proxy-pass'), $fixture['proxyAuthorizationSent']);
         $t->same(false, $fixture['originProxyHeaderLeaked']);
+        $t->same([['http://wp-proxy-user@wp-proxy.example.test:8080', 'git.example.test']], $fixture['usernameOnlyProxyHelperCalls']);
+        $t->same('http://wp-proxy-user@wp-proxy.example.test:8080', $fixture['usernameOnlyProxyUrl']);
+        $t->same('Basic ' . base64_encode('wp-proxy-user:helper-secret'), $fixture['usernameOnlyProxyAuthorizationSent']);
+        $t->same([['http://wp-proxy-user@wp-proxy.example.test:8080', 'git.example.test', ['username' => 'wp-proxy-user', 'password' => 'helper-secret']]], $fixture['usernameOnlyProxyStores']);
+        $t->same(false, $fixture['usernameOnlyOriginProxyHeaderLeaked']);
+        $t->same($fixture['usernameOnlyProxyHelperCalls'], $summary['usernameOnlyProxyHelperCalls']);
+        $t->same($fixture['usernameOnlyProxyUrl'], $summary['usernameOnlyProxyCredentialUrl']);
+        $t->same($fixture['usernameOnlyProxyAuthorizationSent'], $summary['usernameOnlyProxyAuthorizationSent']);
+        $t->same(false, $summary['usernameOnlyOriginProxyHeaderLeaked']);
         $t->same([
             'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
             'https://git.example.test/redirected.git/info/refs?service=git-receive-pack',
@@ -2588,6 +2657,7 @@ return [
         $t->same([], $fixture['unexpectedStatusStores']);
         $t->same([['http://wp-proxy.example.test:8080', 'git.example.test', ['username' => 'stale-proxy-user', 'password' => 'stale-proxy-pass']]], $fixture['unexpectedStatusErasures']);
         $t->contains('refs/heads/main', $fixture['advertisementBytes']);
+        $t->contains('refs/heads/main', $fixture['usernameOnlyProxyAdvertisementBytes']);
     },
     'wordpress fixture documents smart http socks tls receive-pack discovery' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-socks-tls.php';

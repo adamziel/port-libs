@@ -22,6 +22,8 @@ final class CssBundler
 
     private ?SourceMap $sourceMap = null;
 
+    private string $sourceMapProjectRoot = '/';
+
     private bool $cssModules = false;
 
     /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,container?:bool,projectRoot?:string,project_root?:string} */
@@ -186,6 +188,7 @@ final class CssBundler
         $this->filesystemReads = $filesystemReads;
         $this->sourceIndexes = [];
         $this->sourceMap = $sourceMapProjectRoot === null ? null : new SourceMap($sourceMapProjectRoot);
+        $this->sourceMapProjectRoot = $sourceMapProjectRoot ?? '/';
         $this->stylesheets = [];
         $this->cssModules = $cssModules;
         $this->cssModuleOptions = $cssModuleOptions;
@@ -247,8 +250,7 @@ final class CssBundler
 
         $source = $this->readFile($file, $rule);
         if ($this->sourceMap !== null) {
-            $sourceMapIndex = $this->sourceMap->addSource($file);
-            $this->sourceMap->setSourceContent($sourceMapIndex, $source);
+            $this->addBundleSource($file, $source);
         }
 
         $cssModuleResult = null;
@@ -417,6 +419,42 @@ final class CssBundler
         }
 
         return $this->files[$file];
+    }
+
+    private function addBundleSource(string $file, string $source): void
+    {
+        if ($this->sourceMap === null) {
+            return;
+        }
+
+        $sourceMapUrl = $this->sourceMapUrl($source);
+        if ($sourceMapUrl !== null && str_starts_with(strtolower($sourceMapUrl), 'data:')) {
+            try {
+                $this->sourceMap->addSourceMap(SourceMap::fromDataUrl($sourceMapUrl, $this->sourceMapProjectRoot));
+
+                return;
+            } catch (\Throwable) {
+                // Fall back to generated CSS source collection when the inline map is malformed.
+            }
+        }
+
+        $sourceMapIndex = $this->sourceMap->addSource($file);
+        $this->sourceMap->setSourceContent($sourceMapIndex, $source);
+    }
+
+    private function sourceMapUrl(string $source): ?string
+    {
+        $matchCount = preg_match_all('/\/\*[#@]\s*sourceMappingURL\s*=\s*([^\s*]+)\s*\*\//i', $source, $matches);
+        if ($matchCount === false || $matchCount === 0) {
+            return null;
+        }
+
+        $urls = $matches[1] ?? [];
+        if ($urls === []) {
+            return null;
+        }
+
+        return trim((string) end($urls));
     }
 
     private function readerTypeName(mixed $value): string

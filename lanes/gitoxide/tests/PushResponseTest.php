@@ -190,6 +190,33 @@ return [
         $t->same($new, $filtered->refStatuses()[1]->newObject);
         $t->same([], $filtered->rejectedRefs());
     },
+    'rejects report-status-v2 options after unrequested refs like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $unknownWithKnownOption = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/main\n")
+            . $packet("ok refs/heads/ghost ignored by send-pack\n")
+            . $packet("option refname refs/heads/other\n")
+            . $flush
+        );
+        $unknownWithFutureOption = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/main\n")
+            . $packet("ok refs/heads/ghost ignored by send-pack\n")
+            . $packet("option future-extension ignored\n")
+            . $flush
+        );
+
+        $t->same('refs/heads/other', $unknownWithKnownOption->refStatuses()[1]->effectiveRefName());
+        $t->same(true, $unknownWithFutureOption->refStatuses()[1]->hasReportOption());
+        $t->throws(InvalidArgumentException::class, static fn () => $unknownWithKnownOption->forExpectedRefNames(['refs/heads/main']));
+        $t->throws(InvalidArgumentException::class, static fn () => $unknownWithFutureOption->forExpectedRefNames(['refs/heads/main']));
+        $t->same(true, PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/main\n")
+            . $packet("ok refs/heads/ghost ignored by send-pack\n")
+            . $flush
+        )->forExpectedRefNames(['refs/heads/main'])->isSuccessful());
+    },
     'enforces upstream packet-line length bounds for receive-pack status' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
         $maxPacketLineLength = 65520;
         $statusPrefix = 'ng refs/heads/main ';
@@ -337,5 +364,6 @@ return [
         $t->same(true, $summary['expectedLastStatusWon']);
         $t->same(true, $summary['carriageReturnStatusRejected']);
         $t->same(true, $summary['emptyPacketLineRejected']);
+        $t->same(true, $summary['unrequestedOptionRejected']);
     },
 ];

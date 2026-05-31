@@ -38,6 +38,13 @@ try {
 } catch (InvalidArgumentException $error) {
     $emptyPacketLineRejected = str_contains($error->getMessage(), 'invalid empty packet line');
 }
+$unrequestedOptionRejected = false;
+try {
+    PushResponse::fromReportStatusPacketLines($fixture['unrequestedOptionResponse'])
+        ->forExpectedRefNames(['refs/heads/main']);
+} catch (InvalidArgumentException $error) {
+    $unrequestedOptionRejected = str_contains($error->getMessage(), 'option followed unrequested ref');
+}
 
 return [
     'unpackOk' => $response->unpackOk(),
@@ -102,4 +109,5 @@ return [
     'expectedLastStatusWon' => $expectedFilteredResponse->refStatuses()[0]->message === 'post-update hook accepted',
     'carriageReturnStatusRejected' => $carriageReturnStatusRejected,
     'emptyPacketLineRejected' => $emptyPacketLineRejected,
+    'unrequestedOptionRejected' => $unrequestedOptionRejected,
 ];

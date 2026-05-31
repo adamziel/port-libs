@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LightningCSS\CssBundleException;
 use PortLibs\LightningCSS\CssBundler;
+use PortLibs\LightningCSS\SourceMap;
 
 $bundle = static fn (array $files, string $entry, ?callable $resolver = null): string => (new CssBundler())->bundle($entry, $files, $resolver);
 $bundleModules = static fn (array $files, string $entry, ?callable $resolver = null, array $options = []): array => (new CssBundler())->bundleCssModules($entry, $files, $resolver, $options);
@@ -187,6 +188,34 @@ CSS,
         $t->same(':root{--gap:1rem}.button{color:#00f}.entry{color:red}', $result['code']);
         $t->same(['/theme/entry.css', '/theme/tokens.css', '/shared/button.css'], $reads);
         $t->same(['entry.css', 'tokens.css', '../shared/button.css'], $result['sourceMap']->toArray(null, false)['sources']);
+    },
+    'css bundler remaps upstream inline input source maps across imports' => static function (TestRunner $t): void {
+        $inputMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/card.scss'],
+            'sourcesContent' => ['.card { color: $theme-green }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/card.css"; .entry { color: red }',
+            '/theme/blocks/card.css' => ".card { color: green }\n/*# sourceMappingURL={$inputMap} */",
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($data['mappings']);
+
+        $t->same('.card{color:green}.entry{color:red}', $result['code']);
+        $t->same(['entry.css', 'blocks/card.scss'], $data['sources']);
+        $t->same([
+            '@import "blocks/card.css"; .entry { color: red }',
+            '.card { color: $theme-green }',
+        ], $data['sourcesContent']);
+        $t->same('ACAA', $data['mappings']);
+        $t->same(1, $decoded[0]['sourceIndex']);
+        $t->same(0, $decoded[0]['originalLine']);
+        $t->same(0, $decoded[0]['originalColumn']);
     },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(

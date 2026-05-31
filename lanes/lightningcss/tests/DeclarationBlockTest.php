@@ -646,6 +646,27 @@ return [
             $block->getProperty('animation: fade 200ms; animation-duration: 400ms !important', 'animation-duration')
         );
     },
+    'declaration block reads upstream animation range cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $range = 'animation-range: entry 10% exit 90%';
+        $t->same(['value' => 'entry 10% exit 90%', 'important' => false], $block->getProperty($range, 'animation-range'));
+        $t->same(['value' => 'entry 10%', 'important' => false], $block->getProperty($range, 'animation-range-start'));
+        $t->same(['value' => 'exit 90%', 'important' => false], $block->getProperty($range, 'animation-range-end'));
+        $t->same(['value' => 'entry', 'important' => false], $block->getProperty('animation-range: entry', 'animation-range-end'));
+        $t->same(
+            ['value' => '10% 90%', 'important' => false],
+            $block->getProperty('animation-range-start: 10%; animation-range-end: 90%', 'animation-range')
+        );
+        $t->same(
+            ['value' => 'entry 10%, contain', 'important' => true],
+            $block->getProperty('animation-range: entry 10% exit 90%, contain !important', 'animation-range-start')
+        );
+        $t->same(
+            null,
+            $block->getProperty('animation-range-start: entry !important; animation-range-end: exit 90%', 'animation-range')
+        );
+    },
     'declaration block reads upstream transition cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1253,6 +1274,34 @@ return [
             $block->setProperty('animation: wp-block-fade 240ms !important', 'animation-duration', '320ms')
         );
     },
+    'declaration block sets upstream animation range cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'animation-range: entry exit 90%',
+            $block->setProperty('animation-range: entry', 'animation-range-end', 'exit 90%')
+        );
+        $t->same(
+            'animation-range: cover 20% exit 90%',
+            $block->setProperty('animation-range: entry 10% exit 90%', 'animation-range-start', 'cover 20%')
+        );
+        $t->same(
+            'animation-range: entry',
+            $block->setProperty('animation-range: entry exit 90%', 'animation-range-end', 'normal')
+        );
+        $t->same(
+            'animation-range: entry 10% exit 90%, contain 20%',
+            $block->setProperty('animation-range: entry exit 90%, contain', 'animation-range-start', 'entry 10%, contain 20%')
+        );
+        $t->same(
+            'animation-range: entry, cover; animation-range-end: exit 90%',
+            $block->setProperty('animation-range: entry, cover', 'animation-range-end', 'exit 90%')
+        );
+        $t->same(
+            'animation-range-end: exit 90%; animation-range: entry !important',
+            $block->setProperty('animation-range: entry !important', 'animation-range-end', 'exit 90%')
+        );
+    },
     'declaration block sets upstream grid placement cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1847,6 +1896,33 @@ return [
         $t->same(
             'animation-name: fade, slide; animation-duration: 200ms, 300ms; animation-timing-function: ease, linear; animation-iteration-count: 1, 1; animation-direction: normal, normal; animation-play-state: running, running; animation-delay: 0s, 50ms; animation-timeline: auto, auto',
             $block->removeProperty('animation: fade 200ms both, slide 300ms linear 50ms forwards', 'animation-fill-mode')
+        );
+    },
+    'declaration block removes upstream animation range cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'animation-range-start: entry 10%',
+            $block->removeProperty('animation-range: entry 10% exit 90%', 'animation-range-end')
+        );
+        $t->same(
+            'animation-range-end: exit 90%',
+            $block->removeProperty('animation-range: entry 10% exit 90%', 'animation-range-start')
+        );
+        $t->same(
+            'animation-range-end: exit 90%, contain',
+            $block->removeProperty('animation-range: entry 10% exit 90%, contain', 'animation-range-start')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty(
+                'animation-range: entry exit 90%; animation-range-start: entry; animation-range-end: cover; color: red',
+                'animation-range'
+            )
+        );
+        $t->same(
+            'color: red; animation-range-end: exit 90% !important',
+            $block->removeProperty('animation-range: entry exit 90% !important; color: red; animation-range-start: entry', 'animation-range-start')
         );
     },
     'declaration block removes upstream grid placement cssom longhands and shorthands' => static function (TestRunner $t): void {

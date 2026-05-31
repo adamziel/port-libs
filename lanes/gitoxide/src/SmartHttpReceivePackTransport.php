@@ -20,7 +20,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
-    /** @var array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string} */
+    /** @var array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string} */
     private readonly array $httpOptions;
 
     /**
@@ -599,7 +599,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array{type: string, stream: string, url: string, authorization: ?string} $proxy
+     * @param array{type: string, stream: string, url: string, authorization: ?string, username: ?string} $proxy
      * @param ?array{proxyUrl: string, requestHost: string, credentials: array{username: string, password: string}} $proxyCredentialAction
      * @return array{authorization: ?string, credentialAction: ?array{proxyUrl: string, requestHost: string, credentials: array{username: string, password: string}}}
      */
@@ -617,6 +617,17 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
         $helper = $this->httpOptions['proxyCredentialHelper'];
         if ($helper === null) {
+            if ($proxy['username'] !== null && in_array($proxy['type'], ['socks4', 'socks4a', 'socks5', 'socks5h'], true)) {
+                return [
+                    'authorization' => self::basicAuthorization(
+                        $proxy['username'],
+                        '',
+                        'smart HTTP receive-pack proxy credentials',
+                    ),
+                    'credentialAction' => null,
+                ];
+            }
+
             return ['authorization' => null, 'credentialAction' => null];
         }
         if ($proxyCredentialAction !== null
@@ -775,7 +786,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, mixed> $httpOptions
-     * @return array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string}
+     * @return array{proxy: ?array{type: string, stream: string, url: string, authorization: ?string, username: ?string}, noProxy: list<string>, proxyAuthorization: ?string, proxyAuthMethod: string, proxyCredentialHelper: ?callable, proxyCredentialStore: ?callable, proxyCredentialErase: ?callable, sslCaInfo: ?string, sslVerify: bool, followRedirects: string}
      */
     private static function normalizeHttpOptions(array $httpOptions): array
     {
@@ -895,7 +906,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @return array{type: string, stream: string, url: string, authorization: ?string}
+     * @return array{type: string, stream: string, url: string, authorization: ?string, username: ?string}
      */
     private static function normalizeProxy(string $proxy): array
     {
@@ -934,19 +945,31 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         $port = isset($parts['port']) ? (int) $parts['port'] : self::defaultProxyPort($type);
         $authority = self::authority($host, $port);
         $authorization = null;
+        $username = null;
+        $urlAuthority = $authority;
         if (isset($parts['user'])) {
-            $authorization = self::basicAuthorization(
-                rawurldecode((string) $parts['user']),
-                rawurldecode((string) ($parts['pass'] ?? '')),
-                'smart HTTP receive-pack proxy credentials',
-            );
+            $username = rawurldecode((string) $parts['user']);
+            if (self::containsControlByte($username)) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack proxy credentials must not contain control bytes');
+            }
+            if (array_key_exists('pass', $parts)) {
+                $authorization = self::basicAuthorization(
+                    $username,
+                    rawurldecode((string) $parts['pass']),
+                    'smart HTTP receive-pack proxy credentials',
+                );
+                $username = null;
+            } else {
+                $urlAuthority = rawurlencode($username) . '@' . $authority;
+            }
         }
 
         return [
             'type' => $type,
             'stream' => 'tcp://' . $authority,
-            'url' => $type . '://' . $authority,
+            'url' => $type . '://' . $urlAuthority,
             'authorization' => $authorization,
+            'username' => $username,
         ];
     }
 

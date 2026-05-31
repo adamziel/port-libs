@@ -306,6 +306,37 @@ return [
         $t->same([4, 4, 5], array_column($offsetDecoded, 'generatedColumn'));
         $t->same([0, null, null], array_column($offsetDecoded, 'sourceIndex'));
     },
+    'source map offsets duplicate generated columns like upstream vlq mapping lines' => static function (TestRunner $t): void {
+        $positive = new SourceMap();
+        $positive->addVlqMap(
+            'AAAAAA,C',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['rule']
+        );
+        $positive->offsetColumns(0, 0, 5);
+        $positiveDecoded = SourceMap::decodeVlq($positive->writeVlq());
+
+        $t->same('AAAAA,K,C', $positive->writeVlq());
+        $t->same([0, 5, 6], array_column($positiveDecoded, 'generatedColumn'));
+        $t->same([0, null, null], array_column($positiveDecoded, 'sourceIndex'));
+        $t->same([0, null, null], array_column($positiveDecoded, 'nameIndex'));
+
+        $negative = new SourceMap();
+        $negative->addVlqMap(
+            'AAAAAA,K',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['rule']
+        );
+        $negative->offsetColumns(0, 5, -5);
+        $negativeDecoded = SourceMap::decodeVlq($negative->writeVlq());
+
+        $t->same('AAAAA,A', $negative->writeVlq());
+        $t->same([0, 0], array_column($negativeDecoded, 'generatedColumn'));
+        $t->same([0, null], array_column($negativeDecoded, 'sourceIndex'));
+        $t->same([0, null], array_column($negativeDecoded, 'nameIndex'));
+    },
     'source map rejects invalid raw vlq map indexes' => static function (TestRunner $t): void {
         $map = new SourceMap();
 

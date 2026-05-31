@@ -50,12 +50,25 @@ final class MediaQueryParser
         $query = $this->normalizeWhitespace($query);
         $this->validateTopLevelConditionFunctions($query);
         $query = $this->normalizeBooleanConditionGroups($query);
+        $this->validateExplicitMediaTypeCondition($query);
         $query = $this->invertNegatedSimpleRangeConditions($query);
         $query = $this->normalizeRedundantTopLevelConditionWrappers($query);
         $query = preg_replace_callback('/^(not|only)\s+(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]) . ' ' . strtolower($m[2]), $query) ?? $query;
         $query = preg_replace_callback('/^(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]), $query) ?? $query;
 
         return trim($query);
+    }
+
+    private function validateExplicitMediaTypeCondition(string $query): void
+    {
+        $mediaPrefix = $this->extractExplicitMediaTypePrefix($query);
+        if ($mediaPrefix === null) {
+            return;
+        }
+
+        if ($this->splitTopLevelLogical($mediaPrefix['condition'], 'or') !== null) {
+            throw new \InvalidArgumentException('Media query conditions after an explicit media type cannot contain top-level or');
+        }
     }
 
     private function normalizeParentheses(string $source, bool $allowCompactedNegation): string

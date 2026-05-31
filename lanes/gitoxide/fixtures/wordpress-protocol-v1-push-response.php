@@ -83,6 +83,11 @@ return [
         . $packet("option new-oid {$newHookObject}\n")
         . $packet("ok refs/heads/main post-update hook accepted\n")
         . $flush,
+    'unrequestedOptionResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/heads/main\n")
+        . $packet("ok refs/heads/ghost ignored by send-pack\n")
+        . $packet("option refname refs/heads/other\n")
+        . $flush,
     'oversizedReportStatus' => 'ffff' . str_repeat('x', 0xffff - 4),
     'fatalSidebandResponse' => $packet("\x03pre-receive hook declined deployment\n") . $flush,
     'carriageReturnStatusResponse' => $packet("unpack ok\n")

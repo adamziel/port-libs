@@ -120,6 +120,32 @@ if (
 
 echo 'source-map-sources: collected' . PHP_EOL;
 
+$generatedBlockMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/generated-card.scss'],
+    'sourcesContent' => ['.wp-block-card { color: $theme-green }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+
+$generatedSourceBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/generated-card.css"; .wp-site-blocks { color: red }',
+    '/blocks/generated-card.css' => ".wp-block-card { color: green }\n/*# sourceMappingURL={$generatedBlockMap} */",
+], null, '/');
+
+if (
+    $generatedSourceBundle['code'] !== '.wp-block-card{color:green}.wp-site-blocks{color:red}'
+    || $generatedSourceBundle['sourceMap']->toArray(null, false)['sources'] !== [
+        'theme.css',
+        'blocks/generated-card.scss',
+    ]
+) {
+    fwrite(STDERR, "Expected inline input source map to replace generated block CSS source\n");
+    exit(1);
+}
+
+echo 'source-map-input: remapped' . PHP_EOL;
+
 $sharedPresetBundle = (new CssBundler())->bundle('style.css', [
     'style.css' => <<<'CSS'
 @import "../shared/presets.css";

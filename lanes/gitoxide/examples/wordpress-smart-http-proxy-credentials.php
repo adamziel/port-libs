@@ -16,6 +16,18 @@ return [
         ],
         $fixture['storedCredentials']
     ),
+    'usernameOnlyProxyHelperCalls' => $fixture['usernameOnlyProxyHelperCalls'],
+    'usernameOnlyProxyCredentialUrl' => $fixture['usernameOnlyProxyUrl'],
+    'usernameOnlyProxyAuthorizationSent' => $fixture['usernameOnlyProxyAuthorizationSent'],
+    'usernameOnlyProxyCredentialsStored' => array_map(
+        static fn (array $entry): array => [
+            'proxyUrl' => $entry[0],
+            'requestHost' => $entry[1],
+            'username' => $entry[2]['username'],
+        ],
+        $fixture['usernameOnlyProxyStores']
+    ),
+    'usernameOnlyOriginProxyHeaderLeaked' => $fixture['usernameOnlyOriginProxyHeaderLeaked'],
     'proxyAuthorizationSent' => $fixture['proxyAuthorizationSent'],
     'originProxyHeaderLeaked' => $fixture['originProxyHeaderLeaked'],
     'redirectRequestUrls' => $fixture['redirectRequestUrls'],

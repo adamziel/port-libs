@@ -86,6 +86,10 @@ final class DeclarationBlock
         'animation-fill-mode',
         'animation-timeline',
     ];
+    private const ANIMATION_RANGE_LONGHANDS = [
+        'animation-range-start',
+        'animation-range-end',
+    ];
     private const TRANSITION_LONGHANDS = [
         'transition-property',
         'transition-duration',
@@ -503,6 +507,13 @@ final class DeclarationBlock
         if ($this->isAnimationProperty($property)) {
             return null;
         }
+        $animationRangeValue = $this->getAnimationRangeProperty($entries, $property);
+        if ($animationRangeValue !== null) {
+            return $animationRangeValue;
+        }
+        if ($this->isAnimationRangeProperty($property)) {
+            return null;
+        }
         $transitionValue = $this->getTransitionProperty($entries, $property);
         if ($transitionValue !== null) {
             return $transitionValue;
@@ -724,6 +735,47 @@ final class DeclarationBlock
         }
 
         return $this->composeAnimationShorthandProperty($components);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getAnimationRangeProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isAnimationRangeProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'animation-range') {
+                $parsed = $this->animationRangeComponentsFromShorthand($entry['value'], $entry['important']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach ($parsed as $component => $value) {
+                    $components[$component] = $value;
+                }
+                continue;
+            }
+
+            if (!$this->isAnimationRangeLonghand($entry['property'])) {
+                continue;
+            }
+
+            $components[$entry['property']] = [
+                'value' => $this->normalizeAnimationRangeLonghandList($entry['property'], $entry['value']),
+                'important' => $entry['important'],
+            ];
+        }
+
+        if ($property !== 'animation-range') {
+            return $components[$property] ?? null;
+        }
+
+        return $this->composeAnimationRangeShorthandProperty($components);
     }
 
     /**
@@ -4971,6 +5023,42 @@ final class DeclarationBlock
         return $this->serializeEntries($result);
     }
 
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeAnimationRangeLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'animation-range') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $layers = $this->parseAnimationRangeLayers($entry['value']);
+            if ($layers === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $remainingLonghand = $property === 'animation-range-start'
+                ? 'animation-range-end'
+                : 'animation-range-start';
+            $remainingKey = $property === 'animation-range-start' ? 'end' : 'start';
+            $result[] = [
+                'property' => $remainingLonghand,
+                'value' => implode(', ', array_column($layers, $remainingKey)),
+                'important' => $entry['important'],
+            ];
+        }
+
+        return $this->serializeEntries($result);
+    }
+
     private function isTransitionProperty(string $property): bool
     {
         return $this->baseTransitionProperty($property) !== null;
@@ -7569,6 +7657,10 @@ final class DeclarationBlock
         if ($animationValue !== null) {
             return $this->parseEntries($animationValue);
         }
+        $animationRangeValue = $this->setAnimationRangeLonghand($entries, $property, $value, $important);
+        if ($animationRangeValue !== null) {
+            return $this->parseEntries($animationRangeValue);
+        }
         $maskValue = $this->setMaskLonghand($entries, $property, $value, $important);
         if ($maskValue !== null) {
             return $this->parseEntries($maskValue);
@@ -8426,6 +8518,406 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
+    private function setAnimationRangeLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isAnimationRangeLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeAnimationRangeLonghandList($property, $value);
+        $values = $this->animationComponentList($value);
+        if ($values === []) {
+            throw new \InvalidArgumentException("{$property} cannot be empty");
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'animation-range') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $layers = $this->parseAnimationRangeLayers($entries[$index]['value']);
+            if ($layers === null) {
+                continue;
+            }
+            if (count($values) !== count($layers)) {
+                $entries[$index] = [
+                    'property' => 'animation-range',
+                    'value' => $this->serializeAnimationRangeLayers($layers),
+                    'important' => $important,
+                ];
+                $entries[] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            foreach ($layers as $layerIndex => $_layer) {
+                $side = $this->parseAnimationRangeSideValue(
+                    $values[$layerIndex],
+                    $property === 'animation-range-start' ? 'start' : 'end'
+                );
+                if ($side === null) {
+                    return null;
+                }
+
+                $layers[$layerIndex][$property === 'animation-range-start' ? 'start' : 'end'] = $this->serializeAnimationRangeSide(
+                    $side,
+                    $property === 'animation-range-start' ? 'start' : 'end'
+                );
+            }
+
+            $entries[$index] = [
+                'property' => 'animation-range',
+                'value' => $this->serializeAnimationRangeLayers($layers),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, array{value:string, important:bool}>|null
+     */
+    private function animationRangeComponentsFromShorthand(string $value, bool $important): ?array
+    {
+        $layers = $this->parseAnimationRangeLayers($value);
+        if ($layers === null) {
+            return null;
+        }
+
+        return [
+            'animation-range' => [
+                'value' => $this->serializeAnimationRangeLayers($layers),
+                'important' => $important,
+            ],
+            'animation-range-start' => [
+                'value' => implode(', ', array_column($layers, 'start')),
+                'important' => $important,
+            ],
+            'animation-range-end' => [
+                'value' => implode(', ', array_column($layers, 'end')),
+                'important' => $important,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeAnimationRangeShorthandProperty(array $components): ?array
+    {
+        foreach (self::ANIMATION_RANGE_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $components['animation-range-start']['important'];
+        if ($components['animation-range-end']['important'] !== $important) {
+            return null;
+        }
+
+        $starts = $this->animationComponentList($components['animation-range-start']['value']);
+        $ends = $this->animationComponentList($components['animation-range-end']['value']);
+        if ($starts === [] || count($starts) !== count($ends)) {
+            return null;
+        }
+
+        $values = [];
+        foreach ($starts as $index => $startValue) {
+            $start = $this->parseAnimationRangeSideValue($startValue, 'start');
+            $end = $this->parseAnimationRangeSideValue($ends[$index], 'end');
+            if ($start === null || $end === null) {
+                return null;
+            }
+
+            $values[] = $this->serializeAnimationRangePair($start, $end);
+        }
+
+        return [
+            'value' => implode(', ', $values),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @return list<array{start:string, end:string}>|null
+     */
+    private function parseAnimationRangeLayers(string $value): ?array
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layer = trim($layer);
+            if ($layer === '') {
+                continue;
+            }
+
+            $parsed = $this->parseAnimationRangeLayer($layer);
+            if ($parsed === null) {
+                return null;
+            }
+            $layers[] = $parsed;
+        }
+
+        return $layers === [] ? null : $layers;
+    }
+
+    /**
+     * @return array{start:string, end:string}|null
+     */
+    private function parseAnimationRangeLayer(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $index = 0;
+        $start = $this->parseAnimationRangeSide($tokens, $index, 'start', true);
+        if ($start === null) {
+            return null;
+        }
+
+        if ($index < count($tokens)) {
+            $end = $this->parseAnimationRangeSide($tokens, $index, 'end', true);
+            if ($end === null || $index !== count($tokens)) {
+                return null;
+            }
+        } else {
+            $end = $this->defaultAnimationRangeEndSide($start);
+        }
+
+        return [
+            'start' => $this->serializeAnimationRangeSide($start, 'start'),
+            'end' => $this->serializeAnimationRangeSide($end, 'end'),
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array<string, string>|null
+     */
+    private function parseAnimationRangeSide(array $tokens, int &$index, string $side, bool $allowCustomFunctionOffset): ?array
+    {
+        $token = $tokens[$index] ?? null;
+        if ($token === null) {
+            return null;
+        }
+
+        $lower = strtolower(trim($token));
+        if ($lower === 'normal') {
+            $index++;
+
+            return ['kind' => 'normal'];
+        }
+
+        if ($this->isAnimationRangeOffsetToken($token) || ($allowCustomFunctionOffset && $this->isAnimationRangeFunctionToken($token))) {
+            $index++;
+
+            return [
+                'kind' => 'offset',
+                'value' => trim($token),
+            ];
+        }
+
+        if ($this->isAnimationRangeFunctionToken($token)) {
+            return null;
+        }
+
+        $index++;
+        $offset = $side === 'start' ? '0%' : '100%';
+        if (isset($tokens[$index]) && $this->isAnimationRangeOffsetToken($tokens[$index])) {
+            $offset = trim($tokens[$index]);
+            $index++;
+        }
+
+        return [
+            'kind' => 'timeline',
+            'name' => trim($token),
+            'offset' => $offset,
+        ];
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function parseAnimationRangeSideValue(string $value, string $side): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $index = 0;
+        $parsed = $this->parseAnimationRangeSide($tokens, $index, $side, true);
+        if ($parsed === null || $index !== count($tokens)) {
+            return null;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * @param array<string, string> $start
+     * @return array<string, string>
+     */
+    private function defaultAnimationRangeEndSide(array $start): array
+    {
+        if (($start['kind'] ?? null) === 'timeline') {
+            return [
+                'kind' => 'timeline',
+                'name' => $start['name'],
+                'offset' => '100%',
+            ];
+        }
+
+        return ['kind' => 'normal'];
+    }
+
+    /**
+     * @param list<array{start:string, end:string}> $layers
+     */
+    private function serializeAnimationRangeLayers(array $layers): string
+    {
+        $values = [];
+        foreach ($layers as $layer) {
+            $start = $this->parseAnimationRangeSideValue($layer['start'], 'start');
+            $end = $this->parseAnimationRangeSideValue($layer['end'], 'end');
+            if ($start === null || $end === null) {
+                $values[] = trim($layer['start'] . ' ' . $layer['end']);
+                continue;
+            }
+
+            $values[] = $this->serializeAnimationRangePair($start, $end);
+        }
+
+        return implode(', ', $values);
+    }
+
+    /**
+     * @param array<string, string> $start
+     * @param array<string, string> $end
+     */
+    private function serializeAnimationRangePair(array $start, array $end): string
+    {
+        $startValue = $this->serializeAnimationRangeSide($start, 'start');
+        if ($this->animationRangeEndCanBeOmitted($start, $end)) {
+            return $startValue;
+        }
+
+        return $startValue . ' ' . $this->serializeAnimationRangeSide($end, 'end');
+    }
+
+    private function normalizeAnimationRangeLonghandList(string $property, string $value): string
+    {
+        return implode(', ', array_map(
+            fn (string $part): string => $this->normalizeAnimationRangeLonghandValue($property, $part),
+            $this->animationComponentList($value)
+        ));
+    }
+
+    private function normalizeAnimationRangeLonghandValue(string $property, string $value): string
+    {
+        $side = $property === 'animation-range-start' ? 'start' : 'end';
+        $parsed = $this->parseAnimationRangeSideValue($value, $side);
+
+        return $parsed === null ? trim($value) : $this->serializeAnimationRangeSide($parsed, $side);
+    }
+
+    /**
+     * @param array<string, string> $sideValue
+     */
+    private function serializeAnimationRangeSide(array $sideValue, string $side): string
+    {
+        $kind = $sideValue['kind'] ?? '';
+        if ($kind === 'normal') {
+            return 'normal';
+        }
+        if ($kind === 'offset') {
+            return trim($sideValue['value'] ?? '');
+        }
+        if ($kind !== 'timeline') {
+            return trim($sideValue['value'] ?? '');
+        }
+
+        $name = trim($sideValue['name'] ?? '');
+        $offset = trim($sideValue['offset'] ?? '');
+        if ($this->isDefaultAnimationRangeOffset($offset, $side)) {
+            return $name;
+        }
+
+        return trim($name . ' ' . $offset);
+    }
+
+    /**
+     * @param array<string, string> $start
+     * @param array<string, string> $end
+     */
+    private function animationRangeEndCanBeOmitted(array $start, array $end): bool
+    {
+        if (($end['kind'] ?? null) === 'normal') {
+            return true;
+        }
+
+        return ($start['kind'] ?? null) === 'timeline'
+            && ($end['kind'] ?? null) === 'timeline'
+            && ($start['name'] ?? null) === ($end['name'] ?? null)
+            && $this->isDefaultAnimationRangeOffset($end['offset'] ?? '', 'end');
+    }
+
+    private function isDefaultAnimationRangeOffset(string $offset, string $side): bool
+    {
+        $offset = strtolower(trim($offset));
+
+        return $side === 'start'
+            ? in_array($offset, ['0', '0%'], true)
+            : in_array($offset, ['100', '100%'], true);
+    }
+
+    private function isAnimationRangeOffsetToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:%|[a-zA-Z]+)?$/', trim($token)) === 1
+            || preg_match('/^(?:calc|min|max|clamp)\(/i', trim($token)) === 1;
+    }
+
+    private function isAnimationRangeFunctionToken(string $token): bool
+    {
+        return preg_match('/^[a-zA-Z_-][a-zA-Z0-9_-]*\(/', trim($token)) === 1;
+    }
+
+    private function isAnimationRangeProperty(string $property): bool
+    {
+        return $property === 'animation-range' || $this->isAnimationRangeLonghand($property);
+    }
+
+    private function isAnimationRangeLonghand(string $property): bool
+    {
+        return in_array($property, self::ANIMATION_RANGE_LONGHANDS, true);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
     private function setLogicalBoxProperty(array $entries, string $property, string $value, bool $important): ?string
     {
         $parts = $this->logicalBoxLonghandParts($property);
@@ -8679,6 +9171,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isAnimationRangeLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeAnimationRangeLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeAnimationRangeLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isMaskLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeMaskLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeMaskLonghand($importantEntries, $property));
@@ -8878,6 +9376,10 @@ final class DeclarationBlock
 
         if ($property === 'overflow') {
             return self::OVERFLOW_LONGHANDS;
+        }
+
+        if ($property === 'animation-range') {
+            return self::ANIMATION_RANGE_LONGHANDS;
         }
 
         if ($property === 'list-style') {

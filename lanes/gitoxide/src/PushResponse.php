@@ -153,6 +153,10 @@ final class PushResponse
         $matched = [];
         foreach ($this->refStatuses as $status) {
             if (!isset($expected[$status->refName])) {
+                if ($status->hasReportOption()) {
+                    throw new \InvalidArgumentException("push response: report-status-v2 option followed unrequested ref {$status->refName}");
+                }
+
                 continue;
             }
             $matched[$status->refName] = $status;

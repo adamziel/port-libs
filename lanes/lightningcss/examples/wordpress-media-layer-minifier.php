@@ -40,6 +40,12 @@ $css = <<<'CSS'
     }
   }
 
+  @media screen and ((color) or (hover)) {
+    .wp-block-query__screen-feature {
+      color: yellow;
+    }
+  }
+
   @media (not (width < 960px)) {
     .wp-block-query.is-wide {
       color: chartreuse;
@@ -50,7 +56,7 @@ CSS;
 
 $minifier = new CssMinifier();
 $actual = $minifier->minify($css);
-$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}@media (width>=960px){.wp-block-query.is-wide{color:#7fff00}}}@layer utilities;';
+$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}@media screen and ((color) or (hover)){.wp-block-query__screen-feature{color:#ff0}}@media (width>=960px){.wp-block-query.is-wide{color:#7fff00}}}@layer utilities;';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($actual !== $expected) {
@@ -68,6 +74,7 @@ if (($argv[1] ?? null) === '--self-test') {
     foreach ([
         '@layer theme, blocks {}',
         '@import "blocks/query-card.css" layer(theme, blocks) {};',
+        '@layer blocks { @media screen and (color) or (hover) { .wp-block-query { color: chartreuse; } } }',
     ] as $invalidLayerCss) {
         try {
             $minifier->minify($invalidLayerCss);

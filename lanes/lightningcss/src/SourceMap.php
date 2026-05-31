@@ -411,7 +411,7 @@ final class SourceMap
         }
 
         $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
-        $shiftStart = $this->lowerBoundGeneratedColumn($lineMappings, $generatedColumn);
+        $shiftStart = $this->rustBinarySearchGeneratedColumn($lineMappings, $generatedColumn);
         $shiftIndexes = [];
         for ($i = $shiftStart; $i < count($lineMappings); $i++) {
             $shiftIndexes[$lineMappings[$i]['index']] = true;
@@ -419,7 +419,7 @@ final class SourceMap
 
         $removeIndexes = [];
         if ($generatedColumnOffset < 0) {
-            $removeStart = $this->lowerBoundGeneratedColumn($lineMappings, $startColumn);
+            $removeStart = $this->rustBinarySearchGeneratedColumn($lineMappings, $startColumn);
             for ($i = $removeStart; $i < $shiftStart; $i++) {
                 $removeIndexes[$lineMappings[$i]['index']] = true;
             }
@@ -1086,20 +1086,30 @@ final class SourceMap
     /**
      * @param list<array{index:int,column:int,order:int}> $lineMappings
      */
-    private function lowerBoundGeneratedColumn(array $lineMappings, int $generatedColumn): int
+    private function rustBinarySearchGeneratedColumn(array $lineMappings, int $generatedColumn): int
     {
-        $low = 0;
-        $high = count($lineMappings);
-        while ($low < $high) {
-            $mid = intdiv($low + $high, 2);
-            if ($lineMappings[$mid]['column'] < $generatedColumn) {
-                $low = $mid + 1;
-            } else {
-                $high = $mid;
-            }
+        $size = count($lineMappings);
+        if ($size === 0) {
+            return 0;
         }
 
-        return $low;
+        $base = 0;
+        while ($size > 1) {
+            $half = intdiv($size, 2);
+            $middle = $base + $half;
+            $comparison = $lineMappings[$middle]['column'] <=> $generatedColumn;
+            if ($comparison <= 0) {
+                $base = $middle;
+            }
+            $size -= $half;
+        }
+
+        $comparison = $lineMappings[$base]['column'] <=> $generatedColumn;
+        if ($comparison === 0) {
+            return $base;
+        }
+
+        return $base + ($comparison < 0 ? 1 : 0);
     }
 
     /**

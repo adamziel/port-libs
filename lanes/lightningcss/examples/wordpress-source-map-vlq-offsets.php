@@ -181,6 +181,24 @@ $streamingRawVlqMap->addVlqMap(
     4
 );
 
+$duplicateColumnPositiveMap = new SourceMap();
+$duplicateColumnPositiveMap->addVlqMap(
+    'AAAAAA,C',
+    ['wp-content/themes/example/source-map-duplicate-column.css'],
+    ['.wp-block-duplicate-column{}'],
+    ['duplicate-column-rule']
+);
+$duplicateColumnPositiveMap->offsetColumns(0, 0, 5);
+
+$duplicateColumnNegativeMap = new SourceMap();
+$duplicateColumnNegativeMap->addVlqMap(
+    'AAAAAA,K',
+    ['wp-content/themes/example/source-map-duplicate-column.css'],
+    ['.wp-block-duplicate-column{}'],
+    ['duplicate-column-rule']
+);
+$duplicateColumnNegativeMap->offsetColumns(0, 5, -5);
+
 $maxUnsignedVlqDecode = SourceMap::decodeVlq('+/////H')[0]['generatedColumn'];
 $invalidRelativeVlqGuard = true;
 foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI'] as $invalidVlqMapping) {
@@ -223,6 +241,8 @@ $actual = [
     'dataUrlRoundTrip' => $dataUrlRoundTrip->toJson('/'),
     'negativeOffsetRawMap' => $negativeOffsetRawMap->toJson(null, false),
     'streamingRawVlqMap' => $streamingRawVlqMap->toJson(null, false),
+    'duplicateColumnPositiveMap' => $duplicateColumnPositiveMap->toJson(null, false),
+    'duplicateColumnNegativeMap' => $duplicateColumnNegativeMap->toJson(null, false),
     'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
     'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
     'lookup' => $lookup,
@@ -243,6 +263,8 @@ if (($argv[1] ?? null) === '--self-test') {
         'dataUrlRoundTrip' => '{"version":3,"sourceRoot":"/","mappings":";CAAAA","sources":["wp-content/themes/example/inline-critical.css"],"sourcesContent":[".critical{display:block}\n"],"names":["critical-rule"]}',
         'negativeOffsetRawMap' => '{"version":3,"mappings":"ICKMC","sources":["wp-content/themes/example/source-map-prelude.css","wp-content/themes/example/blocks/cover.css"],"sourcesContent":[".prelude{}",".wp-block-cover{}"],"names":["prelude-rule","cover-rule"]}',
         'streamingRawVlqMap' => '{"version":3,"mappings":";;IAAAA,A;K","sources":["wp-content/themes/example/source-map-stream.css"],"sourcesContent":[".wp-block-source-map-stream{}"],"names":["stream-rule"]}',
+        'duplicateColumnPositiveMap' => '{"version":3,"mappings":"AAAAA,K,C","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
+        'duplicateColumnNegativeMap' => '{"version":3,"mappings":"AAAAA,A","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
         'maxUnsignedVlqDecode' => 4294967295,
         'invalidRelativeVlqGuard' => true,
         'lookup' => [

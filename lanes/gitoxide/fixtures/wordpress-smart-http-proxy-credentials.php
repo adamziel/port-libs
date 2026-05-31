@@ -53,6 +53,44 @@ $transport = new SmartHttpReceivePackTransport(
 
 $advertisement = $transport->readAdvertisement();
 
+$usernameOnlyProxyRequests = [];
+$usernameOnlyProxyHelperCalls = [];
+$usernameOnlyProxyStores = [];
+$usernameOnlyProxyTransport = new SmartHttpReceivePackTransport(
+    'https://git.example.test/wp-content.git',
+    static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$usernameOnlyProxyRequests, $packet, $flush, $advertisementBytes): array {
+        $usernameOnlyProxyRequests[] = [
+            'method' => $method,
+            'url' => $url,
+            'headers' => $headers,
+            'body' => $body,
+            'timeout' => $timeout,
+            'httpOptions' => $httpOptions,
+        ];
+
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+        ];
+    },
+    [],
+    5.0,
+    ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+    [
+        'proxy' => 'http://wp-proxy-user@wp-proxy.example.test:8080',
+        'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$usernameOnlyProxyHelperCalls): array {
+            $usernameOnlyProxyHelperCalls[] = [$proxyUrl, $requestHost];
+
+            return ['username' => 'wp-proxy-user', 'password' => 'helper-secret'];
+        },
+        'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$usernameOnlyProxyStores): void {
+            $usernameOnlyProxyStores[] = [$proxyUrl, $requestHost, $credentials];
+        },
+    ],
+);
+$usernameOnlyProxyAdvertisement = $usernameOnlyProxyTransport->readAdvertisement();
+
 $redirectRequests = [];
 $redirectHelperCalls = [];
 $redirectStoredCredentials = [];
@@ -138,6 +176,12 @@ return [
     'helperCalls' => $helperCalls,
     'storedCredentials' => $storedCredentials,
     'erasedCredentials' => $erasedCredentials,
+    'usernameOnlyProxyAdvertisementBytes' => $usernameOnlyProxyAdvertisement,
+    'usernameOnlyProxyHelperCalls' => $usernameOnlyProxyHelperCalls,
+    'usernameOnlyProxyStores' => $usernameOnlyProxyStores,
+    'usernameOnlyProxyAuthorizationSent' => $usernameOnlyProxyRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
+    'usernameOnlyProxyUrl' => $usernameOnlyProxyRequests[0]['httpOptions']['proxyUrl'] ?? null,
+    'usernameOnlyOriginProxyHeaderLeaked' => isset($usernameOnlyProxyRequests[0]['headers']['Proxy-Authorization']),
     'redirectAdvertisementBytes' => $redirectAdvertisement,
     'redirectRequestUrls' => array_map(static fn (array $request): string => $request['url'], $redirectRequests),
     'redirectHelperCalls' => $redirectHelperCalls,
@@ -150,5 +194,5 @@ return [
     'unexpectedStatusErasures' => $unexpectedStatusErasures,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, keep them out of origin headers, reuse one helper credential action across a safe smart HTTP redirect, store it only after the final HTTP 200 request, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames as helper context, keep proxy credentials out of origin headers, reuse one helper credential action across a safe smart HTTP redirect, store it only after the final HTTP 200 request, and erase helper credentials after unexpected proxy/origin statuses.',
 ];
