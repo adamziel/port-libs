@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 00:01 UTC):
+  Latest libsqlite source is integrated as `b263066b1`
+  (`libsqlite: add twenty-ninth current corpus sweep`). The batch accepted 8
+  behavior-producing handoffs: SELECT7 HAVING affinity, VFS IOERR pointer-map,
+  window FILTER aggregate/window parity, expression row-context distinct
+  comparison, PRAGMA data_version connection-local behavior, B-tree autoindex3
+  planner behavior, pager/WAL persist limit behavior, and UPSERT RETURNING
+  long-yield behavior. Verification passed PHP lint for `12` changed/new PHP
+  files, `git diff --check -- lanes/libsqlite`,
+  `SQLiteNoDomainSpecificApiTest.php` with `1 file / 3 assertions / 0
+  failures`, focused selected tests `8 files / 162674 assertions / 0 failures /
+  14364 PASS lines`, accepted-base overlap `2 files / 56646 assertions / 0
+  failures / 3651 PASS lines`, expression related tests `6 files / 82512
+  assertions / 0 failures / 37363 PASS lines`, VFS related tests `2 files /
+  90212 assertions / 0 failures / 3866 PASS lines`, PRAGMA related tests `2
+  files / 17310 assertions / 0 failures / 2323 PASS lines`, and B-tree related
+  tests `18 files / 709881 assertions / 0 failures / 42616 PASS lines`. Honest
+  selected movement is `+10713`, so the public row should move to `1273283 pass
+  / 0 fail` with coverage still `1589 / 1589`. A JSON handoff from the same
+  intake was parked because it was an explicit blocker/exhaustion note, not
+  runnable behavior.
+
 - 2026-05-30 supervisor continuation (integration sample 23:58 UTC):
   Latest libsqlite source is integrated as `687848e2f`
   (`libsqlite: add twenty-eighth current corpus sweep`). The batch accepted 6
