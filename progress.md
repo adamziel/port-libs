@@ -46,11 +46,40 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 361G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.6G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge currently refilled to 25 visible workers plus active
+  a LightningCSS surge currently targeted at 28 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (LightningCSS surge plus
+  sqlite/css/gitoxide integration 15:30 UTC): source commit
+  `71cde579773619be16067d9eafaebf1d1b946844` (`ports: add css sqlite
+  gitoxide runner parity`) landed sixteen verified handoffs after excluding
+  stale shared metadata. Gitoxide full lane evidence moves from `4757` to
+  `4806 pass / 0 fail`, with mapped coverage moving from `1585 / 2886` to
+  `1589 / 2886`: stale-queue merge-base graph walking, sparse-checkout
+  directory-type boundaries, tree pathspec parent-escape rejection, and
+  URL-form SSH empty-port normalization. LightningCSS full lane evidence moves
+  from `1843` to `1918 pass / 0 fail`, with conservative mapped coverage
+  moving from `1262 / 3532` to `1311 / 3532`: CSS Modules dashed-ident bundle
+  graphs, custom at-rule style visitors, same-space lab/oklab color-mix
+  helpers, and background-clip:text target-prefix boundaries; functional
+  :local() composes rejection and border-image CSSOM are verified inside
+  already mapped clusters. Libsqlite selected evidence moves from `2936779` to
+  `3020960 pass / 0 fail` while mapped coverage remains `1589 / 1589`; the
+  batch adds app-WAL post-checkpoint follow-up parity, row-value iif()/if()
+  LIMIT forms, json101 json/jsonb statement atomicity, e_walhook dispatch,
+  VFS lock4 deadlock profiles, and legal window2 ROWS-following frames. Gates
+  passed: PHP lint on changed PHP files, diff checks, Gitoxide focused `4
+  files / 874 assertions / 0 failures`, full Gitoxide `39 files / 4806
+  assertions / 0 failures`, LightningCSS focused gates and full LightningCSS
+  `13 files / 1918 assertions / 0 failures`, libsqlite selected
+  `8 files / 114577 assertions / 0 failures` under `memory_limit=2048M`, and
+  all touched examples. The visible LightningCSS pool was refilled with four
+  additional `gpt-5.5` xhigh priority workers and no long sleeper loop. Full
+  upstream Rust/Node/Cargo runners and libsqlite release/all-runner parity were
+  not run for this isolated batch.
 
 - 2026-05-31 supervisor continuation (LightningCSS/libsqlite integration
   15:08 UTC): source commit `c7f40df35cea0d901a0e1b8ad627ab49b2c78790`
