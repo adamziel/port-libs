@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 17:42:38 UTC",
-    "sourceCommit": "22f42d2f72f3f002064dd7cfee2dec49626eb999",
-    "sourceCommitShort": "22f42d2f72f3",
-    "sourceBranch": "main",
-    "dashboardCommit": "9b3e273a0417daac9dac06801ad2f7640a547e85",
-    "dashboardCommitShort": "9b3e273a0417",
-    "averageProgressPercent": "86.6",
+    "generated": "2026-05-31 17:58:53 UTC",
+    "sourceCommit": "77a2b953466835cbe164db1bb10c4d80e5be6a2c",
+    "sourceCommitShort": "77a2b9534668",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "77a2b953466835cbe164db1bb10c4d80e5be6a2c",
+    "dashboardCommitShort": "77a2b9534668",
+    "averageProgressPercent": "86.7",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "85.7",
+            "progressPercent": "86.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1601",
-            "coverage": "1601 / 3532",
-            "php": "2794 pass / 0 fail",
+            "mapped": "1616",
+            "coverage": "1616 / 3532",
+            "php": "2825 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "native CSS parser/formatter/minifier, declaration CSSOM...",
-            "audit": "Supervisor accepted source commit 22f42d2...",
-            "currentWork": "Native LightningCSS now scopes CSS Modules container-query names, rejects invalid relativ...",
+            "audit": "Supervisor accepted source commit b2b1050...",
+            "currentWork": "Native LightningCSS now follows parcel_sourcemap raw VLQ byte-stream parsing, canonicaliz...",
             "nextTarget": "Continue current-base LightningCSS integration from clean candidates, prioritizing non-ov...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "22f42d2"
+            "commit": "b2b1050"
         },
         {
             "library": "markerPDF",
