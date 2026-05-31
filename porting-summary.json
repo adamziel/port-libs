@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 16:21:54 UTC",
-    "sourceCommit": "244af0e12cb234114c65902b96f88c63059491d2",
-    "sourceCommitShort": "244af0e12cb2",
+    "generated": "2026-05-31 16:27:06 UTC",
+    "sourceCommit": "7d0fee1b072f094a6ec1365ffb76c2fbe71cdaee",
+    "sourceCommitShort": "7d0fee1b072f",
     "sourceBranch": "main",
-    "dashboardCommit": "bdaf5ae393d1f9f238c65e55659a883bec4a8a44",
-    "dashboardCommitShort": "bdaf5ae393d1",
-    "averageProgressPercent": "86.3",
+    "dashboardCommit": "084fea1c004e28a03a3680cc6c8bbf0ab3213d81",
+    "dashboardCommitShort": "084fea1c004e",
+    "averageProgressPercent": "86.4",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "82.0",
+            "progressPercent": "83.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1349",
-            "coverage": "1349 / 3532",
-            "php": "2092 pass / 0 fail",
+            "mapped": "1370",
+            "coverage": "1370 / 3532",
+            "php": "2168 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "static upstream inventory plus PHP-focused LightningCSS...",
-            "audit": "Supervisor accepted source commit 4b52aac...",
-            "currentWork": "Native LightningCSS now covers reader-backed bundle SourceProvider behavior, escaped CSS...",
-            "nextTarget": "Keep the 36-worker LightningCSS surge on current-base handoffs for exact CSS Modules hash...",
+            "phase": "native CSS parser/formatter/minifier, declaration CSSOM...",
+            "audit": "Supervisor accepted source commit 7d0fee1...",
+            "currentWork": "Native LightningCSS now extends font/property target fallback behavior, CSSOM place-align...",
+            "nextTarget": "Continue integrating current-base LightningCSS handoffs, prioritizing non-overlapping pro...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "4b52aac"
+            "commit": "7d0fee1"
         },
         {
             "library": "markerPDF",
