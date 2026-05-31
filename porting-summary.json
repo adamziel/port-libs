@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 14:12:29 UTC",
-    "sourceCommit": "de2bdca74cebaa7aa23bfc409149ef9c4d7bb1d4",
-    "sourceCommitShort": "de2bdca74ceb",
+    "generated": "2026-05-31 14:59:02 UTC",
+    "sourceCommit": "99fdb5f4b17295c9c1b9a5bff902491a6dc8fcc3",
+    "sourceCommitShort": "99fdb5f4b172",
     "sourceBranch": "main",
-    "dashboardCommit": "5ffcc18007fccbdcaaf02e5122be9188a81923db",
-    "dashboardCommitShort": "5ffcc18007fc",
+    "dashboardCommit": "c9eed3af82dd62dc81cbc9c1f980d0dd56e15201",
+    "dashboardCommitShort": "c9eed3af82dd",
     "averageProgressPercent": "86.8",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1583",
-            "coverage": "1583 / 2886",
-            "php": "4725 pass / 0 fail",
+            "mapped": "1584",
+            "coverage": "1584 / 2886",
+            "php": "4740 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit 5ebe59bce658967f68...",
-            "currentWork": "Native Gitoxide now covers hasconfig remote URL backslash byte matching without filesyste...",
+            "audit": "Accepted source commit 99fdb5f4b17295c9c1...",
+            "currentWork": "Native Gitoxide now covers the upstream rename-within-rename-2 same-target nested directo...",
             "nextTarget": "Continue current-base Gitoxide handoffs for protocol/transport, reference transactions, p...",
             "blocker": "No current Gitoxide PHP blocker for this batch.",
-            "commit": "5ebe59b"
+            "commit": "99fdb5f"
         },
         {
             "library": "libsqlite",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "2927535 pass / 0 fail",
+            "php": "2927776 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Accepted source commit b0d8a112b0f2a321e0...",
-            "currentWork": "Committed libsqlite where7 multi-index OR dynamic cases, e_select2 join associativity dyn...",
+            "audit": "Accepted source commit 99fdb5f4b17295c9c1...",
+            "currentWork": "Added generic application WAL post-recovery checkpoint restart/truncate scenarios that re...",
             "nextTarget": "Keep active current-base libsqlite workers on real PASS-delta and full-runner closure han...",
-            "blocker": "Remaining libsqlite closure items: full-suite/runner confidence beyond fo...",
-            "commit": "b0d8a11"
+            "blocker": "Remaining libsqlite closure items: the full libsqlite lane currently fail...",
+            "commit": "99fdb5f"
         },
         {
             "library": "LightningCSS",
