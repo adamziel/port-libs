@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 03:17 UTC):
+  Batch59 is integrated locally as source
+  `3cf53a893d5aeaf0ee24cd9d2842dcba042e22fb` (`libsqlite: add
+  fifty-ninth current corpus sweep`). The batch accepted 2 source/test-moving
+  handoffs across expression affinity dynamic real-operator modulo semantics
+  and VFS `delete_db.test` database sidecar behavior. Seven candidates were
+  rejected or parked as note-only/no source-test delta after status exclusion or
+  rowvalue source conflict. Verification passed PHP lint for `4` changed/new
+  PHP files, `git diff --check -- lanes/libsqlite`, no newly-added WordPress/wp
+  source text in the batch diff, focused selected tests `2 files / 32814
+  assertions / 0 failures / 3302 PASS lines`, and accepted-base overlap `0
+  files / 0 assertions / 0 failures / 0 PASS lines`. A related diagnostic guard
+  produced `16141` PASS lines and `6` failures in the pre-existing
+  `SQLiteExpressionOperatorCorpusTest` unary-plus cluster, reproduced on the
+  pre-batch base, so it is not counted as accepted movement. Honest selected
+  movement is `+3302`, moving libsqlite from `1793986` to `1797288 pass / 0
+  fail`; mapped coverage remains `1589 / 1589`. Broad release/all-runner parity
+  remains open; gitoxide starts only after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 03:10 UTC):
   Batch58 is integrated locally as source
   `a0b2783e1e2b358183e45880c6aa404f09873604` (`libsqlite: add
