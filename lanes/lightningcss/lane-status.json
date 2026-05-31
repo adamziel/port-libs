@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 92.3,
-    "suiteProgress": "Supervisor-integrated LightningCSS custom visitor/color/CSSOM/import/media batch adds logical transform visitor AST handling, invalid visitor-returned CSS variable guard behavior, lab()/lch() relative colors from named sRGB origins, SourceProvider entry-path identity, mask-position axis CSSOM read/write/remove behavior, and mixed-case media boolean operator canonicalization. Verification passed PHP lint on 16 changed/new PHP files, six example smoke runs, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src, focused LightningCSS gate 5 files / 2836 assertions / 0 failures, and full LightningCSS lane 13 files / 4120 assertions / 0 failures.",
-    "phpPass": 4120,
+    "estimatedProgress": 92.4,
+    "suiteProgress": "Supervisor-integrated LightningCSS target-prefixing slice maps upstream outline advanced-color target fallbacks: outline-color, outline shorthand, and var()-guarded outline Lab fallbacks for older Chrome targets. Verification passed PHP lint on 3 changed/new PHP files, focused TransitionPrefixerTest.php 1 file / 621 assertions / 0 failures, full LightningCSS lane 13 files / 4124 assertions / 0 failures, wordpress-outline-color-fallback-prefixer.php --self-test, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
+    "phpPass": 4124,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source c9014b67: full LightningCSS lane passed 13 files / 4120 assertions / 0 failures. Conservative mapped coverage moves from 2057 / 3532 to 2073 / 3532: +14 lab()/lch() relative-color sRGB-origin checks, +1 logical transform custom visitor behavior, and +1 invalid visitor-returned CSS variable guard behavior. SourceProvider entry-path identity, mask-position axis CSSOM, and mixed-case media boolean operators deepen already represented clusters.",
-    "currentWork": "Custom at-rule visitor AST behavior, relative lab/lch color normalization, SourceProvider import graph path identity, mask-position CSSOM axes, and media boolean operator canonicalization are integrated from screened worker handoffs.",
+    "audit": "2026-05-31 supervisor outline target-prefix slice at source 510f49dd: full LightningCSS lane passed 13 files / 4124 assertions / 0 failures. Conservative mapped coverage moves from 2073 / 3532 to 2076 / 3532: +3 upstream src/lib.rs::test_outline prefix_test helpers for outline advanced-color target fallbacks.",
+    "currentWork": "Outline advanced-color target fallbacks are integrated in TransitionPrefixer while the current custom visitor/color/CSSOM/import/media work remains covered by the full lane gate.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "c9014b67d40be9bb7b0615f78872d91f88ea6541",
+    "latestCommit": "510f49dd9f21e1d1823992cb178aa6ec7de53530",
     "nextTask": "Keep LightningCSS as the main worker pool and prioritize fresh current-base handoffs that add new mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
-    "commit": "c9014b67d40be9bb7b0615f78872d91f88ea6541"
+    "commit": "510f49dd9f21e1d1823992cb178aa6ec7de53530"
 }
