@@ -688,6 +688,24 @@ CSS;
             $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css));
         }
     },
+    'css modules rejects upstream deprecated value rules before composing exports' => static function (TestRunner $t): void {
+        foreach ([
+            '@value compact: (max-width: 37.4375em);',
+            '/* migrated CSS Modules alias */ @value compact: (max-width: 37.4375em);',
+            '.card { composes: base; color: red } @value compact: (max-width:37em); .base { color: blue }',
+            '@media (min-width: 1px) { @value compact: (min-width: 1px); .card { composes: base; color: red } }',
+            '@value compact { .card { color: red } }',
+        ] as $css) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('The @value rule is deprecated', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected deprecated CSS Modules @value exception');
+        }
+    },
     'css modules merges repeated composes declarations across local and dependency references' => static function (TestRunner $t) use ($export, $local, $dependency): void {
         $css = <<<'CSS'
 .test {

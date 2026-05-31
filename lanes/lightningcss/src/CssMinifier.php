@@ -14872,6 +14872,12 @@ final class CssMinifier
                 return $relative;
             }
         }
+        if ($name === 'lch' || $name === 'oklch') {
+            $relative = $this->minifyRelativePolarColorFunction($name, $matches[2]);
+            if ($relative !== null) {
+                return $relative;
+            }
+        }
 
         $parts = $this->parseAdvancedColorFunctionParts($matches[2]);
         if ($parts === null) {
@@ -14989,6 +14995,35 @@ final class CssMinifier
             . ')';
     }
 
+    private function minifyRelativePolarColorFunction(string $space, string $arguments): ?string
+    {
+        $parsed = $this->parseRelativePolarColorArguments($space, $arguments);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $lightness = $this->evaluateRelativePolarLightnessComponent($parsed['components'][0], $parsed['origin'], $space);
+        $chroma = $this->evaluateRelativePolarChromaComponent($parsed['components'][1], $parsed['origin'], $space);
+        $hue = $this->evaluateRelativePolarHueComponent($parsed['components'][2], $parsed['origin']);
+        if ($lightness === null || $chroma === null || $hue === null) {
+            return null;
+        }
+
+        $alpha = $parsed['alpha'] === null
+            ? ['type' => 'number', 'value' => 1.0]
+            : $this->evaluateRelativePolarAlphaComponent($parsed['alpha'], $parsed['origin']);
+        if ($alpha === null) {
+            return null;
+        }
+
+        return $space . '('
+            . $this->serializeRelativePolarLightness($lightness, $space) . ' '
+            . $this->serializeRelativePolarChroma($chroma) . ' '
+            . $this->serializeRelativePolarHue($hue)
+            . $this->serializeRelativeAdvancedAlpha($alpha)
+            . ')';
+    }
+
     /**
      * @return array{
      *   origin:array{l:float,a:float,b:float,alpha:float},
@@ -15009,6 +15044,37 @@ final class CssMinifier
         }
 
         $origin = $this->parseRelativeRectangularColorOrigin($space, $tokens[1]);
+        if ($origin === null) {
+            return null;
+        }
+
+        return [
+            'origin' => $origin,
+            'components' => array_slice($tokens, 2, 3),
+            'alpha' => isset($slashParts[1]) ? trim($slashParts[1]) : null,
+        ];
+    }
+
+    /**
+     * @return array{
+     *   origin:array{l:float,c:float,h:float,alpha:float},
+     *   components:list<string>,
+     *   alpha:?string
+     * }|null
+     */
+    private function parseRelativePolarColorArguments(string $space, string $arguments): ?array
+    {
+        $slashParts = $this->splitTopLevel(trim($arguments), '/');
+        if ($slashParts === [] || count($slashParts) > 2) {
+            return null;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($slashParts[0]);
+        if (count($tokens) !== 5 || strcasecmp($tokens[0], 'from') !== 0) {
+            return null;
+        }
+
+        $origin = $this->parseRelativePolarColorOrigin($space, $tokens[1]);
         if ($origin === null) {
             return null;
         }
@@ -15055,6 +15121,45 @@ final class CssMinifier
             'l' => max(0.0, $lightness),
             'a' => $a,
             'b' => $b,
+            'alpha' => min(1.0, max(0.0, $alpha)),
+        ];
+    }
+
+    /**
+     * @return array{l:float,c:float,h:float,alpha:float}|null
+     */
+    private function parseRelativePolarColorOrigin(string $space, string $origin): ?array
+    {
+        $origin = trim($origin);
+        $serialized = $this->minifyAdvancedColorFunction($origin) ?? $origin;
+        $quotedSpace = preg_quote($space, '/');
+        if (preg_match('/^' . $quotedSpace . '\((.*)\)$/is', trim($serialized), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseAdvancedColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 3) {
+            return null;
+        }
+
+        $lightness = $this->parseRelativePolarLightness($parts['components'][0], $space);
+        $chroma = $this->parseRelativePolarChroma($parts['components'][1], $space);
+        $hue = $this->parseHueDegrees($parts['components'][2]);
+        if ($lightness === null || $chroma === null || $hue === null) {
+            return null;
+        }
+
+        $alpha = $parts['alpha'] === null
+            ? 1.0
+            : $this->parseRelativeRectangularAlpha($parts['alpha']);
+        if ($alpha === null) {
+            return null;
+        }
+
+        return [
+            'l' => max(0.0, $lightness),
+            'c' => max(0.0, $chroma),
+            'h' => $hue,
             'alpha' => min(1.0, max(0.0, $alpha)),
         ];
     }
@@ -15113,6 +15218,42 @@ final class CssMinifier
         return null;
     }
 
+    private function parseRelativePolarLightness(string $token, string $space): ?float
+    {
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return 0.0;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        if ($space === 'oklch') {
+            return $number['isPercentage'] ? $number['value'] / 100 : $number['value'];
+        }
+
+        return $number['value'];
+    }
+
+    private function parseRelativePolarChroma(string $token, string $space): ?float
+    {
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return 0.0;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        if ($space === 'lch') {
+            return $number['isPercentage'] ? $number['value'] * 1.5 : $number['value'];
+        }
+
+        return $number['isPercentage'] ? $number['value'] * 0.004 : $number['value'];
+    }
+
     /**
      * @param array{l:float,a:float,b:float,alpha:float} $origin
      * @return array{type:'none'}|array{type:'number',value:float}|null
@@ -15138,6 +15279,168 @@ final class CssMinifier
                 'type' => 'number',
                 'value' => $value,
             ];
+        }
+
+        $channel = $this->relativeColorChannelValue($token, $origin);
+        if ($channel !== null) {
+            return [
+                'type' => 'number',
+                'value' => $channel,
+            ];
+        }
+
+        if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
+            $value = $this->evaluateRelativeColorCalcExpression($matches[1], $origin);
+            if ($value === null) {
+                return null;
+            }
+
+            return [
+                'type' => 'number',
+                'value' => $value,
+            ];
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return [
+                'type' => 'number',
+                'value' => (float) $matches[1],
+            ];
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) !== 1) {
+            return null;
+        }
+
+        return [
+            'type' => 'number',
+            'value' => (float) $token,
+        ];
+    }
+
+    /**
+     * @param array{l:float,c:float,h:float,alpha:float} $origin
+     * @return array{type:'none'}|array{type:'number',value:float}|null
+     */
+    private function evaluateRelativePolarLightnessComponent(string $token, array $origin, string $space): ?array
+    {
+        $component = $this->evaluateRelativePolarNumericComponent($token, $origin);
+        if ($component === null || $component['type'] === 'none') {
+            return $component;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', trim($token), $matches) === 1 && $space === 'oklch') {
+            return [
+                'type' => 'number',
+                'value' => (float) $matches[1] / 100,
+            ];
+        }
+
+        return $component;
+    }
+
+    /**
+     * @param array{l:float,c:float,h:float,alpha:float} $origin
+     * @return array{type:'none'}|array{type:'number',value:float}|null
+     */
+    private function evaluateRelativePolarChromaComponent(string $token, array $origin, string $space): ?array
+    {
+        $component = $this->evaluateRelativePolarNumericComponent($token, $origin);
+        if ($component === null || $component['type'] === 'none') {
+            return $component;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', trim($token), $matches) === 1) {
+            return [
+                'type' => 'number',
+                'value' => $space === 'lch' ? (float) $matches[1] * 1.5 : (float) $matches[1] * 0.004,
+            ];
+        }
+
+        return $component;
+    }
+
+    /**
+     * @param array{l:float,c:float,h:float,alpha:float} $origin
+     * @return array{type:'none'}|array{type:'number',value:float}|null
+     */
+    private function evaluateRelativePolarHueComponent(string $token, array $origin): ?array
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (strcasecmp($token, 'none') === 0) {
+            return ['type' => 'none'];
+        }
+
+        $channel = $this->relativeColorChannelValue($token, $origin);
+        if ($channel !== null) {
+            return [
+                'type' => 'number',
+                'value' => $channel,
+            ];
+        }
+
+        if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
+            $value = $this->evaluateRelativeColorCalcExpression($matches[1], $origin);
+            if ($value === null) {
+                return null;
+            }
+
+            return [
+                'type' => 'number',
+                'value' => $value,
+            ];
+        }
+
+        $degrees = $this->parseHueDegreesUnbounded($token);
+        if ($degrees === null) {
+            return null;
+        }
+
+        return [
+            'type' => 'number',
+            'value' => $degrees,
+        ];
+    }
+
+    /**
+     * @param array{l:float,c:float,h:float,alpha:float} $origin
+     * @return array{type:'none'}|array{type:'number',value:float}|null
+     */
+    private function evaluateRelativePolarAlphaComponent(string $token, array $origin): ?array
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return ['type' => 'none'];
+        }
+
+        $value = $this->evaluateRelativeColorChannelToken($token, $origin, true);
+        if ($value === null) {
+            return null;
+        }
+
+        return [
+            'type' => 'number',
+            'value' => $value,
+        ];
+    }
+
+    /**
+     * @param array{l:float,c:float,h:float,alpha:float} $origin
+     * @return array{type:'none'}|array{type:'number',value:float}|null
+     */
+    private function evaluateRelativePolarNumericComponent(string $token, array $origin): ?array
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (strcasecmp($token, 'none') === 0) {
+            return ['type' => 'none'];
         }
 
         $channel = $this->relativeColorChannelValue($token, $origin);
@@ -15216,6 +15519,47 @@ final class CssMinifier
         }
 
         return '/' . $this->minifyColorNumber($alpha);
+    }
+
+    /**
+     * @param array{type:'none'}|array{type:'number',value:float} $component
+     */
+    private function serializeRelativePolarLightness(array $component, string $space): string
+    {
+        if ($component['type'] === 'none') {
+            return 'none';
+        }
+
+        $value = max(0.0, $component['value']);
+        if ($space === 'oklch') {
+            $value *= 100;
+        }
+
+        return $this->minifyColorNumber($value) . '%';
+    }
+
+    /**
+     * @param array{type:'none'}|array{type:'number',value:float} $component
+     */
+    private function serializeRelativePolarChroma(array $component): string
+    {
+        if ($component['type'] === 'none') {
+            return 'none';
+        }
+
+        return $this->minifyColorNumber(max(0.0, $component['value']));
+    }
+
+    /**
+     * @param array{type:'none'}|array{type:'number',value:float} $component
+     */
+    private function serializeRelativePolarHue(array $component): string
+    {
+        if ($component['type'] === 'none') {
+            return 'none';
+        }
+
+        return $this->minifyColorNumber($component['value']);
     }
 
     /**
@@ -15437,6 +15781,28 @@ final class CssMinifier
         $degrees = fmod($degrees, 360.0);
 
         return $degrees < 0 ? $degrees + 360.0 : $degrees;
+    }
+
+    private function parseHueDegreesUnbounded(string $token): ?float
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return 0.0;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)?$/i', $token, $matches) !== 1) {
+            return null;
+        }
+
+        $value = (float) $matches[1];
+        $unit = strtolower($matches[2] ?? 'deg');
+
+        return match ($unit) {
+            'grad' => $value * 0.9,
+            'rad' => $value * 180 / M_PI,
+            'turn' => $value * 360,
+            default => $value,
+        };
     }
 
     private function parsePercentageComponent(string $token): ?float

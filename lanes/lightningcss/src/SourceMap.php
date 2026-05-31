@@ -247,6 +247,18 @@ final class SourceMap
         $sourceIndexes = [];
         $nameIndexes = [];
 
+        foreach ($sourceMap->sources as $index => $source) {
+            $mappedIndex = $this->addSource($source);
+            $sourceIndexes[$index] = $mappedIndex;
+            if (array_key_exists($index, $sourceMap->sourcesContent)) {
+                $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
+            }
+        }
+
+        foreach ($sourceMap->names as $index => $name) {
+            $nameIndexes[$index] = $this->addName($name);
+        }
+
         $childMaxLine = null;
         $remappedByLine = [];
         foreach ($sourceMap->mappings as $mapping) {
@@ -265,10 +277,6 @@ final class SourceMap
                     throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
                 }
 
-                if (!array_key_exists($mapping['nameIndex'], $nameIndexes)) {
-                    $nameIndexes[$mapping['nameIndex']] = $this->addName($sourceMap->names[$mapping['nameIndex']]);
-                }
-
                 $nameIndex = $nameIndexes[$mapping['nameIndex']];
             }
 
@@ -276,14 +284,6 @@ final class SourceMap
             if ($mapping['sourceIndex'] !== null) {
                 if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
                     throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
-                }
-
-                if (!array_key_exists($mapping['sourceIndex'], $sourceIndexes)) {
-                    $mappedIndex = $this->addSource($sourceMap->sources[$mapping['sourceIndex']]);
-                    $sourceIndexes[$mapping['sourceIndex']] = $mappedIndex;
-                    if (array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)) {
-                        $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
-                    }
                 }
 
                 $sourceIndex = $sourceIndexes[$mapping['sourceIndex']];
@@ -304,25 +304,6 @@ final class SourceMap
             $sourceMap->generatedLineCount,
             $childMaxLine === null ? 0 : $childMaxLine + 1
         );
-        if ($remappedByLine === []) {
-            foreach ($sourceMap->sources as $index => $source) {
-                if (array_key_exists($index, $sourceIndexes)) {
-                    continue;
-                }
-
-                $mappedIndex = $this->addSource($source);
-                $sourceIndexes[$index] = $mappedIndex;
-                if (array_key_exists($index, $sourceMap->sourcesContent)) {
-                    $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
-                }
-            }
-
-            foreach ($sourceMap->names as $index => $name) {
-                if (!array_key_exists($index, $nameIndexes)) {
-                    $nameIndexes[$index] = $this->addName($name);
-                }
-            }
-        }
 
         if ($childLineCount === 0) {
             $this->drainSourceMap($sourceMap);

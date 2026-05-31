@@ -175,6 +175,16 @@ return [
             $fixture['objects'][0]['oid'],
             $ambiguousOid,
         ], $ambiguous['matches']);
+
+        $packedPrefix = $database->disambiguatePrefix(strtoupper($fixture['objects'][0]['oid']), 4);
+        $t->true($packedPrefix !== null);
+        $t->same(substr($fixture['objects'][0]['oid'], 0, strlen($packedPrefix)), $packedPrefix);
+        $t->true(strlen($packedPrefix) > 4);
+        $t->same(['status' => 'found', 'oid' => $fixture['objects'][0]['oid']], $database->lookupPrefix($packedPrefix));
+        $t->same($duplicatePackedOid, $database->disambiguatePrefix($duplicatePackedOid, 40));
+        $t->same(null, $database->disambiguatePrefix(str_repeat('f', 40), 4));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->disambiguatePrefix($fixture['objects'][0]['oid'], 3));
+
         $t->same('missing', $database->lookupPrefix('ffff')['status']);
     },
     'object database rejects incomplete pack pairs' => static function (TestRunner $t): void {
@@ -536,6 +546,12 @@ return [
         $prefix = $database->lookupPrefix(strtoupper(substr($fixture['objectsByRole']['media']['oid'], 0, 8)));
         $t->same('found', $prefix['status']);
         $t->same($fixture['objectsByRole']['media']['oid'], $prefix['oid']);
+
+        $shortestMediaPrefix = $database->disambiguatePrefix(strtoupper($fixture['objectsByRole']['media']['oid']), 4);
+        $t->true($shortestMediaPrefix !== null);
+        $t->same(substr($fixture['objectsByRole']['media']['oid'], 0, strlen($shortestMediaPrefix)), $shortestMediaPrefix);
+        $t->same(['status' => 'found', 'oid' => $fixture['objectsByRole']['media']['oid']], $database->lookupPrefix($shortestMediaPrefix));
+        $t->same(null, $database->disambiguatePrefix(str_repeat('f', 40), 4));
     },
     'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir] = $writeWordPressMultiPackFixture(true);

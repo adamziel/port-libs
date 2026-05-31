@@ -999,6 +999,101 @@ return [
             'exclude' => ['logical-properties'],
         ]));
     },
+    'transition prefixer maps upstream logical border target fallbacks' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        $t->same(
+            '.foo{border-top:2px solid red;border-bottom:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-block: 2px solid red; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{border-top:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-block-start: 2px solid red; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{border-bottom:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-block-end: 2px solid red; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{border-left:2px solid red;border-right:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left:2px solid red}'
+                . $selector['ltr-modern'] . '{border-left:2px solid red}'
+                . $selector['rtl-webkit'] . '{border-right:2px solid red}'
+                . $selector['rtl-modern'] . '{border-right:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left-width:2px}'
+                . $selector['ltr-modern'] . '{border-left-width:2px}'
+                . $selector['rtl-webkit'] . '{border-right-width:2px}'
+                . $selector['rtl-modern'] . '{border-right-width:2px}',
+            $prefixer->prefixForTargets('.foo { border-inline-start-width: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-right:2px solid red}'
+                . $selector['ltr-modern'] . '{border-right:2px solid red}'
+                . $selector['rtl-webkit'] . '{border-left:2px solid red}'
+                . $selector['rtl-modern'] . '{border-left:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-inline-end: 2px solid red; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left:2px solid red;border-right:5px solid green}'
+                . $selector['ltr-modern'] . '{border-left:2px solid red;border-right:5px solid green}'
+                . $selector['rtl-webkit'] . '{border-right:2px solid red;border-left:5px solid green}'
+                . $selector['rtl-modern'] . '{border-right:2px solid red;border-left:5px solid green}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{border-left-width:2px;border-right-width:2px}',
+            $prefixer->prefixForTargets('.foo { border-inline-width: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{border-left-style:solid;border-right-style:solid}',
+            $prefixer->prefixForTargets('.foo { border-inline-style: solid; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{border-left-color:red;border-right-color:red}',
+            $prefixer->prefixForTargets('.foo { border-inline-color: red; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-right:var(--test)}'
+                . $selector['ltr-modern'] . '{border-right:var(--test)}'
+                . $selector['rtl-webkit'] . '{border-left:var(--test)}'
+                . $selector['rtl-modern'] . '{border-left:var(--test)}',
+            $prefixer->prefixForTargets('.foo { border-inline-end: var(--test); }', ['safari' => 8])
+        );
+    },
+    'transition prefixer maps upstream logical border browser boundaries' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+        $inlineStartFallback = $selector['ltr-webkit'] . '{border-left:2px solid red}'
+            . $selector['ltr-modern'] . '{border-left:2px solid red}'
+            . $selector['rtl-webkit'] . '{border-right:2px solid red}'
+            . $selector['rtl-modern'] . '{border-right:2px solid red}';
+
+        $t->same('.foo{border-block-start-width:2px;border-block-end-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 13]));
+        $t->same('.foo{border-block-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 15]));
+        $t->same('.foo{border-inline-start:2px solid red;border-inline-end:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => 13]));
+        $t->same('.foo{border-inline:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => '14.1']));
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => '12.0']));
+        $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => '12.1']));
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['chrome' => 68]));
+        $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['chrome' => 69]));
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['firefox' => 40]));
+        $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['firefox' => 41]));
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', [
+            'browsers' => ['chrome' => 120],
+            'include' => ['LogicalProperties'],
+        ]));
+        $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', [
+            'browsers' => ['safari' => 8],
+            'exclude' => ['logical-properties'],
+        ]));
+    },
     'transition prefixer maps upstream display flex target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

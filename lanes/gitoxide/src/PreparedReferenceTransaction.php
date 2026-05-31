@@ -18,6 +18,7 @@ final class PreparedReferenceTransaction
     public function __construct(
         private readonly string $gitDirectory,
         private readonly array $locks,
+        private ?string $packedRefsLockPath = null,
     ) {
         foreach ($locks as $lock) {
             if (!$lock['edit'] instanceof ReferenceTransactionEdit) {
@@ -94,17 +95,21 @@ final class PreparedReferenceTransaction
             return $this->edits();
         }
 
-        for ($index = count($this->locks) - 1; $index >= 0; $index--) {
-            if (($this->locks[$index]['action'] ?? self::ACTION_UPDATE) === self::ACTION_NOOP) {
-                continue;
-            }
+        try {
+            for ($index = count($this->locks) - 1; $index >= 0; $index--) {
+                if (($this->locks[$index]['action'] ?? self::ACTION_UPDATE) === self::ACTION_NOOP) {
+                    continue;
+                }
 
-            $lockPath = $this->locks[$index]['lockPath'];
-            if (is_file($lockPath) && !unlink($lockPath)) {
-                throw new \RuntimeException("Unable to remove prepared reference lock: {$lockPath}");
-            }
+                $lockPath = $this->locks[$index]['lockPath'];
+                if (is_file($lockPath) && !unlink($lockPath)) {
+                    throw new \RuntimeException("Unable to remove prepared reference lock: {$lockPath}");
+                }
 
-            $this->deleteEmptyParents(dirname($lockPath));
+                $this->deleteEmptyParents(dirname($lockPath));
+            }
+        } finally {
+            $this->releasePackedRefsLock();
         }
 
         $this->open = false;
@@ -130,16 +135,20 @@ final class PreparedReferenceTransaction
 
         $this->open = false;
 
-        foreach ($this->locks as $lock) {
-            $action = $lock['action'] ?? self::ACTION_UPDATE;
-            if ($action === self::ACTION_NOOP) {
-                continue;
+        try {
+            foreach ($this->locks as $lock) {
+                $action = $lock['action'] ?? self::ACTION_UPDATE;
+                if ($action === self::ACTION_NOOP) {
+                    continue;
+                }
+                if ($action === self::ACTION_DELETE) {
+                    $this->commitDelete($lock);
+                } else {
+                    $this->commitUpdate($lock);
+                }
             }
-            if ($action === self::ACTION_DELETE) {
-                $this->commitDelete($lock);
-            } else {
-                $this->commitUpdate($lock);
-            }
+        } finally {
+            $this->releasePackedRefsLock();
         }
 
         return $this->edits();
@@ -296,6 +305,24 @@ final class PreparedReferenceTransaction
         ReferenceName::assertValid($physicalName);
 
         return rtrim($this->gitDirectory, '/\\') . '/logs/' . $physicalName;
+    }
+
+    private function releasePackedRefsLock(): void
+    {
+        if ($this->packedRefsLockPath === null) {
+            return;
+        }
+
+        $lockPath = $this->packedRefsLockPath;
+        if (is_file($lockPath)) {
+            if (!unlink($lockPath)) {
+                throw new \RuntimeException("Unable to remove prepared packed-refs lock: {$lockPath}");
+            }
+        } elseif (is_dir($lockPath)) {
+            throw new \RuntimeException("Unable to remove prepared packed-refs lock directory: {$lockPath}");
+        }
+
+        $this->packedRefsLockPath = null;
     }
 
     private function shouldAutoCreateReflog(string $physicalName): bool

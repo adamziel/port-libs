@@ -8,6 +8,7 @@ use PortLibs\Gitoxide\CommitSignature;
 use PortLibs\Gitoxide\ReferenceName;
 use PortLibs\Gitoxide\ReferenceStore;
 use PortLibs\Gitoxide\ReferenceTarget;
+use PortLibs\Gitoxide\ReferenceTransactionEdit;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-reference-transaction.php';
 $dir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-' . bin2hex(random_bytes(4));
@@ -104,6 +105,50 @@ $preparedNoOp = $store->prepareLooseUpdateTransaction(
 );
 $preparedNoOpEdits = $preparedNoOp->commit();
 
+$packedLockDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-lock-' . bin2hex(random_bytes(4));
+mkdir($packedLockDir, 0777, true);
+file_put_contents($packedLockDir . '/packed-refs', "{$fixture['productionCommit']} refs/heads/production\n");
+$packedLockStore = ReferenceStore::at($packedLockDir);
+$preparedPackedLock = $packedLockStore->prepareLooseUpdateTransaction([
+    $fixture['preparedPackedLockRef'] => ReferenceTarget::object($fixture['reviewCommit']),
+]);
+$preparedPackedLockHeld = is_file($packedLockDir . '/packed-refs.lock');
+$preparedPackedLockBlocked = null;
+try {
+    $packedLockStore->prepareLooseUpdateTransaction([
+        'refs/heads/review/plugin-g/concurrent' => ReferenceTarget::object($fixture['productionCommit']),
+    ]);
+} catch (RuntimeException $exception) {
+    $preparedPackedLockBlocked = $exception->getMessage();
+}
+$preparedPackedRollbackEdits = $preparedPackedLock->rollback();
+$preparedPackedLockCleanedRollback = !is_file($packedLockDir . '/packed-refs.lock');
+
+$logOnlyDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-log-only-lock-' . bin2hex(random_bytes(4));
+mkdir($logOnlyDir, 0777, true);
+file_put_contents($logOnlyDir . '/packed-refs', "{$fixture['productionCommit']} refs/heads/production\n");
+file_put_contents($logOnlyDir . '/packed-refs.lock', 'held by packed ref compaction');
+$logOnlyStore = ReferenceStore::at($logOnlyDir);
+$logOnlyRef = $fixture['preparedLogOnlyRef'];
+$logOnlyStore->looseStore()->writeDirect($logOnlyRef, $fixture['reviewCommit']);
+$logOnlyStore->appendReflog(
+    $logOnlyRef,
+    ReferenceTarget::object($fixture['reviewCommit']),
+    ReferenceTarget::object($fixture['productionCommit']),
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    'audit before packed compaction',
+    true,
+);
+$preparedLogOnlyDelete = $logOnlyStore->prepareLooseDeleteTransaction(
+    [$logOnlyRef],
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::object($fixture['reviewCommit']),
+    false,
+    'sha1',
+    ReferenceTransactionEdit::REFLOG_ONLY,
+);
+$preparedLogOnlyDeleteEdits = $preparedLogOnlyDelete->commit();
+
 return [
     'namespace' => $fixture['namespace'],
     'productionCommit' => $production->targetObjectId(),
@@ -138,5 +183,14 @@ return [
     'preparedNoOpHeldLockPreserved' => is_file($preparedNoOpPath . '.lock')
         && file_get_contents($preparedNoOpPath . '.lock') === 'held by an idempotent deploy check',
     'preparedNoOpReflogExists' => $store->reflogExists($preparedNoOpRef),
+    'preparedPackedRollbackEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedRollbackEdits),
+    'preparedPackedLockHeld' => $preparedPackedLockHeld,
+    'preparedPackedLockBlocked' => $preparedPackedLockBlocked,
+    'preparedPackedLockCleanedRollback' => $preparedPackedLockCleanedRollback,
+    'preparedLogOnlyDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedLogOnlyDeleteEdits),
+    'preparedLogOnlyPackedLockPreserved' => is_file($logOnlyDir . '/packed-refs.lock')
+        && file_get_contents($logOnlyDir . '/packed-refs.lock') === 'held by packed ref compaction',
+    'preparedLogOnlyRefStillExists' => $logOnlyStore->tryFind($logOnlyRef) !== null,
+    'preparedLogOnlyReflogExists' => $logOnlyStore->reflogExists($logOnlyRef),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

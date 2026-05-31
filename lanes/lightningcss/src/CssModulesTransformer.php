@@ -97,7 +97,9 @@ final class CssModulesTransformer
             $nextStatement = $this->findNextTopLevel($css, ';', $cursor);
 
             if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
-                $output .= str_replace(self::PURE_NO_CHECK_MARKER, '', substr($css, $cursor, $nextStatement - $cursor + 1));
+                $statement = substr($css, $cursor, $nextStatement - $cursor + 1);
+                $this->assertNoDeprecatedValueRule($statement);
+                $output .= str_replace(self::PURE_NO_CHECK_MARKER, '', $statement);
                 $cursor = $nextStatement + 1;
                 continue;
             }
@@ -114,6 +116,7 @@ final class CssModulesTransformer
             $trimmedPrelude = trim($prelude);
 
             if ($trimmedPrelude !== '' && $trimmedPrelude[0] === '@') {
+                $this->assertNoDeprecatedValueRule($trimmedPrelude);
                 $output .= $this->rewriteAtRulePrelude($prelude, $trimmedPrelude) . '{' . $this->transformAtRuleBody($trimmedPrelude, $body, $styleNestingDepth) . '}';
                 $cursor = $close + 1;
                 continue;
@@ -451,6 +454,8 @@ final class CssModulesTransformer
         if ($trimmed === '') {
             return $statement;
         }
+
+        $this->assertNoDeprecatedValueRule($trimmed);
 
         $withoutSemicolon = rtrim($trimmed, ';');
         $colon = $this->findNextTopLevel($withoutSemicolon, ':', 0);
@@ -1794,6 +1799,25 @@ final class CssModulesTransformer
         }
 
         return trim($output);
+    }
+
+    private function assertNoDeprecatedValueRule(string $source): void
+    {
+        $source = ltrim($source);
+        while (str_starts_with($source, '/*')) {
+            $end = strpos($source, '*/');
+            if ($end === false) {
+                break;
+            }
+
+            $source = ltrim(substr($source, $end + 2));
+        }
+
+        if (preg_match('/^@value\b/i', $source) !== 1) {
+            return;
+        }
+
+        throw new \InvalidArgumentException('The @value rule is deprecated');
     }
 
     /**

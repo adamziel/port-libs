@@ -1187,7 +1187,7 @@ final class CustomAtRuleTransformer
                 continue;
             }
 
-            if (preg_match('/[_a-zA-Z][-_a-zA-Z0-9]*/A', substr($selector, $cursor), $matches) === 1) {
+            if (preg_match('/(?:--[-_a-zA-Z0-9]+|[_a-zA-Z][-_a-zA-Z0-9]*)/A', substr($selector, $cursor), $matches) === 1) {
                 $components[] = ['type' => 'type', 'name' => $matches[0]];
                 $cursor += strlen($matches[0]);
                 continue;
@@ -1647,7 +1647,15 @@ final class CustomAtRuleTransformer
                 }
             } else {
                 $selectors = $this->splitTopLevel($prelude, ',');
-                $output .= $this->processStyleBody($body, $selectors);
+                if ($this->styleRuleVisitor !== null && $this->styleBodyHasAtRuleStatement($body)) {
+                    $rule = $this->buildStyleRuleVisitorRule($selectors, $body, null);
+                    $replacement = ($this->styleRuleVisitor)($rule, $this);
+                    $output .= $replacement === null
+                        ? $this->processStyleBody($body, $selectors)
+                        : $this->emitStyleRuleReplacement($replacement, $rule);
+                } else {
+                    $output .= $this->processStyleBody($body, $selectors);
+                }
             }
 
             $cursor = $close + 1;
@@ -1787,6 +1795,132 @@ final class CustomAtRuleTransformer
         }
 
         return $output . $this->emitDeclarationRule($selectors, $declarations);
+    }
+
+    private function styleBodyHasAtRuleStatement(string $body): bool
+    {
+        $cursor = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length) {
+            $nextBlock = $this->findNextTopLevel($body, '{', $cursor);
+            $nextStatement = $this->findNextTopLevel($body, ';', $cursor);
+
+            if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
+                $statement = trim(substr($body, $cursor, $nextStatement - $cursor));
+                if ($statement !== '' && str_starts_with($statement, '@')) {
+                    return true;
+                }
+
+                $cursor = $nextStatement + 1;
+                continue;
+            }
+
+            if ($nextBlock === null) {
+                return false;
+            }
+
+            $close = $this->findMatchingBrace($body, $nextBlock);
+            $cursor = $close + 1;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $selectors
+     * @param list<string>|null $parentSelectors
+     * @return array<string, mixed>
+     */
+    private function buildStyleRuleVisitorRule(array $selectors, string $body, ?array $parentSelectors): array
+    {
+        $declarations = '';
+        $rules = [];
+        $cursor = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length) {
+            $nextBlock = $this->findNextTopLevel($body, '{', $cursor);
+            $nextStatement = $this->findNextTopLevel($body, ';', $cursor);
+
+            if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
+                $statement = trim(substr($body, $cursor, $nextStatement - $cursor));
+                if ($statement !== '') {
+                    if (str_starts_with($statement, '@')) {
+                        [$name, $prelude] = $this->parseAtPrelude($statement);
+                        $rules[] = $this->buildNestedUnknownRuleForStyleVisitor($name, $prelude, null, $parentSelectors);
+                    } else {
+                        $declarations .= $statement . ';';
+                    }
+                }
+                $cursor = $nextStatement + 1;
+                continue;
+            }
+
+            if ($nextBlock === null) {
+                $declarations .= substr($body, $cursor);
+                break;
+            }
+
+            $prefix = substr($body, $cursor, $nextBlock - $cursor);
+            [$declarationPart, $nestedPrelude] = $this->splitDeclarationsAndNestedPrelude($prefix);
+            $declarations .= $declarationPart;
+            $nestedPrelude = trim($nestedPrelude);
+            $close = $this->findMatchingBrace($body, $nextBlock);
+            $nestedBody = substr($body, $nextBlock + 1, $close - $nextBlock - 1);
+
+            if (str_starts_with($nestedPrelude, '@')) {
+                [$name, $prelude] = $this->parseAtPrelude($nestedPrelude);
+                $rules[] = $this->buildNestedUnknownRuleForStyleVisitor($name, $prelude, $nestedBody, $parentSelectors);
+            }
+
+            $cursor = $close + 1;
+        }
+
+        $entries = $this->declarationBlock->parseEntries($declarations);
+        $normal = [];
+        $important = [];
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                $important[] = $entry;
+            } else {
+                $normal[] = $entry;
+            }
+        }
+
+        $selectors = array_values(array_filter(
+            array_map(static fn (string $selector): string => trim($selector), $selectors),
+            static fn (string $selector): bool => $selector !== ''
+        ));
+
+        return [
+            'type' => 'style',
+            'kind' => 'style-rule',
+            'selector' => implode(',', $selectors),
+            'selectors' => $selectors,
+            'declarations' => $entries,
+            'value' => [
+                'selectors' => array_map(fn (string $selector): array => $this->selectorComponentsFromString($selector), $selectors),
+                'declarations' => [
+                    'declarations' => $normal,
+                    'importantDeclarations' => $important,
+                ],
+                'rules' => $rules,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array<string, mixed>}
+     */
+    private function buildNestedUnknownRuleForStyleVisitor(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
+    {
+        $rule = $this->buildUnknownRule($name, $prelude, $body, $parentSelectors);
+        $rule['preludeText'] = $rule['prelude'];
+        $rule['prelude'] = $rule['preludeTokens'];
+
+        return ['type' => 'unknown', 'value' => $rule];
     }
 
     /**
@@ -2965,7 +3099,11 @@ final class CustomAtRuleTransformer
             throw new \InvalidArgumentException('Unknown at-rule replacement is missing a name');
         }
 
-        $prelude = trim($this->rewriteAtRulePreludeValue((string) ($rule['prelude'] ?? '')));
+        $preludeValue = $rule['prelude'] ?? '';
+        $prelude = is_string($preludeValue)
+            ? $preludeValue
+            : (string) ($rule['preludeText'] ?? '');
+        $prelude = trim($this->rewriteAtRulePreludeValue($prelude));
         if ($this->isKeyframesAtRule($name)) {
             $prelude = $this->rewriteKeyframesPrelude($prelude);
         }

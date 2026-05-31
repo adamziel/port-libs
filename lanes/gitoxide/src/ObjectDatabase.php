@@ -215,6 +215,33 @@ final class ObjectDatabase
         return ['status' => 'found', 'oid' => $oids[0]];
     }
 
+    public function disambiguatePrefix(string $oid, int $minimumHexLength): ?string
+    {
+        $this->assertObjectId($oid);
+        $hexLength = ReferenceTarget::hashHexLength($this->objectHash);
+        if ($minimumHexLength < 4 || $minimumHexLength > $hexLength) {
+            throw new \InvalidArgumentException("Disambiguation prefix length must be between 4 and {$hexLength} hexadecimal characters");
+        }
+
+        $oid = strtolower($oid);
+        if ($minimumHexLength === $hexLength) {
+            return $this->contains($oid) ? $oid : null;
+        }
+
+        for ($length = $minimumHexLength; $length < $hexLength; $length++) {
+            $prefix = substr($oid, 0, $length);
+            $result = $this->lookupPrefix($prefix);
+            if ($result['status'] === 'missing') {
+                return null;
+            }
+            if ($result['status'] === 'found') {
+                return $prefix;
+            }
+        }
+
+        return $this->contains($oid) ? $oid : null;
+    }
+
     /**
      * @return list<string>
      */
@@ -590,6 +617,7 @@ final class ObjectDatabase
         }
 
         $this->primaryLooseStore()->write($object);
+        $this->refreshObjectStorage();
 
         return $object;
     }

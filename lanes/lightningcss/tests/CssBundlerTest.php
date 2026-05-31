@@ -217,7 +217,7 @@ CSS,
         $t->same(0, $decoded[0]['originalLine']);
         $t->same(0, $decoded[0]['originalColumn']);
     },
-    'css bundler omits unused upstream inline input source map sources across imports' => static function (TestRunner $t): void {
+    'css bundler preserves unused upstream inline input source map sources across imports' => static function (TestRunner $t): void {
         $inputMap = 'data:application/json;base64,' . base64_encode(json_encode([
             'version' => 3,
             'mappings' => 'ACAA',
@@ -235,14 +235,17 @@ CSS,
         ], null, '/theme');
 
         $data = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($data['mappings']);
 
         $t->same('.card{color:green}.entry{color:red}', $result['code']);
-        $t->same(['entry.css', 'blocks/generated-card.scss'], $data['sources']);
+        $t->same(['entry.css', 'blocks/_tokens.scss', 'blocks/generated-card.scss'], $data['sources']);
         $t->same([
             '@import "blocks/generated-card.css"; .entry { color: red }',
+            '$brand: green;',
             '.card { color: $brand }',
         ], $data['sourcesContent']);
-        $t->same('ACAA', $data['mappings']);
+        $t->same('AEAA', $data['mappings']);
+        $t->same(2, $decoded[0]['sourceIndex']);
     },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
@@ -536,6 +539,41 @@ CSS,
             ['blocks/card.css', '/entry.css'],
             ['pkg:icon.css', '/entry.css'],
         ], $resolved);
+    },
+    'css bundler rejects upstream bad unquoted url import sources before resolution' => static function (TestRunner $t): void {
+        $assertBadUrlImport = static function (string $css) use ($t): void {
+            $reads = [];
+            try {
+                (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css' ? $css : '.bad { color: red }';
+                });
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same('Invalid @import source', $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same(1, $exception->sourceLine);
+                $t->same(1, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected bad unquoted @import url() source exception');
+        };
+
+        $assertBadUrlImport('@import url(blocks/card hero.css); .entry { color: red }');
+        $assertBadUrlImport('@import url(blocks/card(hero).css); .entry { color: red }');
+        $assertBadUrlImport("@import url(blocks/card\\\nhero.css); .entry { color: red }");
+
+        $t->same(
+            '.card{color:green}.entry{color:red}',
+            (new CssBundler())->bundle('/entry.css', [
+                '/entry.css' => '@import url(blocks/card\ hero.css); .entry { color: red }',
+                '/blocks/card hero.css' => '.card { color: green }',
+            ])
+        );
     },
     'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(

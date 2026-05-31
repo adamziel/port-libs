@@ -249,6 +249,20 @@ CSS);
 
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
+@value compact: (max-width: 37.4375em);
+
+.card {
+  composes: reset;
+  color: red;
+}
+CSS);
+    $deprecatedValueRule = 'accepted';
+} catch (InvalidArgumentException $exception) {
+    $deprecatedValueRule = $exception->getMessage();
+}
+
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
   composes: reset;
   color: red;
@@ -315,6 +329,7 @@ $actual = [
     'invalidComposes' => $invalidComposes,
     'invalidGlobalList' => $invalidGlobalList,
     'invalidLocalComposes' => $invalidLocalComposes,
+    'deprecatedValueRule' => $deprecatedValueRule,
     'invalidPattern' => $invalidPattern,
     'pureNoCheck' => $pureNoCheck['code'],
     'licensePureNoCheck' => $licensePureNoCheck['code'],
@@ -500,6 +515,7 @@ $expected = [
     'invalidComposes' => 'rejected',
     'invalidGlobalList' => 'rejected',
     'invalidLocalComposes' => 'rejected',
+    'deprecatedValueRule' => 'The @value rule is deprecated',
     'invalidPattern' => 'Error parsing CSS modules pattern: unknown placeholder "[block]" at index 0',
     'pureNoCheck' => '.wp-block-button{color:red}',
     'licensePureNoCheck' => "/*! Block CSS delivery license */\n.wp-block-button{color:red}.BlockA_licenseCard{color:#ff0}.BlockA_card{color:#00f}",
@@ -653,6 +669,7 @@ echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
 echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
+echo 'deprecated-value-rule: ' . $actual['deprecatedValueRule'] . PHP_EOL;
 echo 'invalid-pattern: ' . $actual['invalidPattern'] . PHP_EOL;
 echo 'pure-no-check: ' . $actual['pureNoCheck'] . PHP_EOL;
 echo 'license-pure-no-check: ' . $actual['licensePureNoCheck'] . PHP_EOL;

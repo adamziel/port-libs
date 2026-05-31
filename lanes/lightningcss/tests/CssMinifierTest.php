@@ -484,6 +484,89 @@ CSS
             }
         }
     },
+    'css minifier maps upstream lch and oklch relative same-space colors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            '%1$s(from %1$s(70%% 45 30) l c h)' => '%1$s(70%% 45 30)',
+            '%1$s(from %1$s(70%% 45 30) l c h / alpha)' => '%1$s(70%% 45 30)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c h / alpha)' => '%1$s(70%% 45 30/.4)',
+            '%1$s(from %1$s(200%% 300 400 / 500%%) l c h / alpha)' => '%1$s(200%% 300 40)',
+            '%1$s(from %1$s(-200%% -300 -400 / -500%%) l c h / alpha)' => '%1$s(0%% 0 320/0)',
+            '%1$s(from %1$s(from %1$s(70%% 45 30) l c h) l c h)' => '%1$s(70%% 45 30)',
+            '%1$s(from %1$s(70%% 45 30) 0%% 0 0)' => '%1$s(0%% 0 0)',
+            '%1$s(from %1$s(70%% 45 30) 0%% 0 0deg)' => '%1$s(0%% 0 0)',
+            '%1$s(from %1$s(70%% 45 30) 0%% 0 0 / 0)' => '%1$s(0%% 0 0/0)',
+            '%1$s(from %1$s(70%% 45 30) 0%% 0 0deg / 0)' => '%1$s(0%% 0 0/0)',
+            '%1$s(from %1$s(70%% 45 30) 0%% c h / alpha)' => '%1$s(0%% 45 30)',
+            '%1$s(from %1$s(70%% 45 30) l 0 h / alpha)' => '%1$s(70%% 0 30)',
+            '%1$s(from %1$s(70%% 45 30) l c 0 / alpha)' => '%1$s(70%% 45 0)',
+            '%1$s(from %1$s(70%% 45 30) l c 0deg / alpha)' => '%1$s(70%% 45 0)',
+            '%1$s(from %1$s(70%% 45 30) l c h / 0)' => '%1$s(70%% 45 30/0)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) 0%% c h / alpha)' => '%1$s(0%% 45 30/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l 0 h / alpha)' => '%1$s(70%% 0 30/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c 0 / alpha)' => '%1$s(70%% 45 0/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c 0deg / alpha)' => '%1$s(70%% 45 0/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c h / 0)' => '%1$s(70%% 45 30/0)',
+            '%1$s(from %1$s(70%% 45 30) 25%% c h / alpha)' => '%1$s(25%% 45 30)',
+            '%1$s(from %1$s(70%% 45 30) l 25 h / alpha)' => '%1$s(70%% 25 30)',
+            '%1$s(from %1$s(70%% 45 30) l c 25 / alpha)' => '%1$s(70%% 45 25)',
+            '%1$s(from %1$s(70%% 45 30) l c 25deg / alpha)' => '%1$s(70%% 45 25)',
+            '%1$s(from %1$s(70%% 45 30) l c h / .25)' => '%1$s(70%% 45 30/.25)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) 25%% c h / alpha)' => '%1$s(25%% 45 30/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l 25 h / alpha)' => '%1$s(70%% 25 30/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c 25 / alpha)' => '%1$s(70%% 45 25/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c 25deg / alpha)' => '%1$s(70%% 45 25/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c h / .25)' => '%1$s(70%% 45 30/.25)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) 200%% 300 400 / 500)' => '%1$s(200%% 300 400)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) -200%% -300 -400 / -500)' => '%1$s(0%% 0 -400/0)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) 50%% 120 400deg / 500)' => '%1$s(50%% 120 400)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) 50%% 120 -400deg / -500)' => '%1$s(50%% 120 -400/0)',
+            '%1$s(from %1$s(70%% 45 30) l c c / alpha)' => '%1$s(70%% 45 45)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c c / alpha)' => '%1$s(70%% 45 45/.4)',
+            '%1$s(from %1$s(70%% 45 30) calc(l) calc(c) calc(h))' => '%1$s(70%% 45 30)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) calc(l) calc(c) calc(h) / calc(alpha))' => '%1$s(70%% 45 30/.4)',
+            '%1$s(from %1$s(70%% 45 30) none none none)' => '%1$s(none none none)',
+            '%1$s(from %1$s(70%% 45 30) none none none / none)' => '%1$s(none none none/none)',
+            '%1$s(from %1$s(70%% 45 30) l c none)' => '%1$s(70%% 45 none)',
+            '%1$s(from %1$s(70%% 45 30) l c none / alpha)' => '%1$s(70%% 45 none)',
+            '%1$s(from %1$s(70%% 45 30) l c h / none)' => '%1$s(70%% 45 30/none)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c none / alpha)' => '%1$s(70%% 45 none/.4)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) l c h / none)' => '%1$s(70%% 45 30/none)',
+            '%1$s(from %1$s(none none none) l c h)' => '%1$s(0%% 0 0)',
+            '%1$s(from %1$s(none none none / none) l c h / alpha)' => '%1$s(0%% 0 0/0)',
+            '%1$s(from %1$s(70%% none 30) l c h)' => '%1$s(70%% 0 30)',
+            '%1$s(from %1$s(70%% 45 30 / none) l c h / alpha)' => '%1$s(70%% 45 30/0)',
+        ];
+
+        foreach (['lch', 'oklch'] as $space) {
+            foreach ($cases as $input => $expected) {
+                $t->same(
+                    '.foo{color:' . sprintf($expected, $space) . '}',
+                    $minifier->minify('.foo { color: ' . sprintf($input, $space) . '; }')
+                );
+            }
+        }
+
+        $spaceSpecificCases = [
+            'lch' => [
+                'lch(from lch(70% 45 30) alpha c h / alpha)' => 'lch(1% 45 30)',
+                'lch(from lch(70% 45 30 / 40%) alpha c h / alpha)' => 'lch(.4% 45 30/.4)',
+            ],
+            'oklch' => [
+                'oklch(from oklch(70% 45 30) alpha c h / alpha)' => 'oklch(100% 45 30)',
+                'oklch(from oklch(70% 45 30 / 40%) alpha c h / alpha)' => 'oklch(40% 45 30/.4)',
+            ],
+        ];
+
+        foreach ($spaceSpecificCases as $casesBySpace) {
+            foreach ($casesBySpace as $input => $expected) {
+                $t->same(
+                    '.foo{color:' . $expected . '}',
+                    $minifier->minify('.foo { color: ' . $input . '; }')
+                );
+            }
+        }
+    },
     'css minifier maps upstream color calc components in custom property values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

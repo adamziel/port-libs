@@ -66,12 +66,9 @@ final class ReferenceStore
         ?ReferenceTarget $expectedTarget = null,
     ): PreparedReferenceTransaction
     {
-        if (is_file($this->packedRefsLockPath()) || is_dir($this->packedRefsLockPath())) {
-            throw new \RuntimeException('The lock for the packed-ref file could not be obtained');
-        }
-
         $locks = [];
         $writeReflog = $committer !== null || $reflogMessage !== '' || $forceCreateReflog;
+        $packedRefsLockPath = $this->preparePackedRefsLockForLooseTransaction();
 
         try {
             foreach ($updates as $name => $target) {
@@ -129,12 +126,12 @@ final class ReferenceStore
                 ];
             }
         } catch (\Throwable $throwable) {
-            (new PreparedReferenceTransaction($this->gitDirectory, $locks))->rollback();
+            (new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath))->rollback();
 
             throw $throwable;
         }
 
-        return new PreparedReferenceTransaction($this->gitDirectory, $locks);
+        return new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath);
     }
 
     /**
@@ -161,12 +158,11 @@ final class ReferenceStore
         ], true)) {
             throw new \InvalidArgumentException("Unknown reference deletion reflog mode: {$reflogMode}");
         }
-        if (is_file($this->packedRefsLockPath()) || is_dir($this->packedRefsLockPath())) {
-            throw new \RuntimeException('The lock for the packed-ref file could not be obtained');
-        }
-
         $locks = [];
         $preparedNames = [];
+        $packedRefsLockPath = $reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
+            ? $this->preparePackedRefsLockForLooseTransaction()
+            : null;
 
         try {
             foreach ($names as $name) {
@@ -214,12 +210,12 @@ final class ReferenceStore
                 }
             }
         } catch (\Throwable $throwable) {
-            (new PreparedReferenceTransaction($this->gitDirectory, $locks))->rollback();
+            (new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath))->rollback();
 
             throw $throwable;
         }
 
-        return new PreparedReferenceTransaction($this->gitDirectory, $locks);
+        return new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath);
     }
 
     public function update(
@@ -1257,6 +1253,21 @@ final class ReferenceStore
                 @unlink($this->packedRefsLockPath());
             }
         }
+    }
+
+    private function preparePackedRefsLockForLooseTransaction(): ?string
+    {
+        if ($this->packedRefsLockPathExists()) {
+            throw new \RuntimeException('The lock for the packed-ref file could not be obtained');
+        }
+        if (!$this->packedRefsPathExists()) {
+            return null;
+        }
+
+        $lock = $this->acquirePackedRefsLock();
+        $this->closePackedRefsLock($lock);
+
+        return $this->packedRefsLockPath();
     }
 
     /**

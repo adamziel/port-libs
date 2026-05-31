@@ -137,6 +137,7 @@ if (
     $generatedSourceBundle['code'] !== '.wp-block-card{color:green}.wp-site-blocks{color:red}'
     || $generatedSourceBundle['sourceMap']->toArray(null, false)['sources'] !== [
         'theme.css',
+        'blocks/_tokens.scss',
         'blocks/generated-card.scss',
     ]
 ) {
@@ -145,7 +146,7 @@ if (
 }
 
 echo 'source-map-input: remapped' . PHP_EOL;
-echo 'source-map-input-unused: pruned' . PHP_EOL;
+echo 'source-map-input-unused: preserved' . PHP_EOL;
 
 $sharedPresetBundle = (new CssBundler())->bundle('style.css', [
     'style.css' => <<<'CSS'
@@ -199,6 +200,41 @@ if ($hexEscapedCrlfBundle !== '.wp-block-card{color:green}.wp-block-navigation{c
 }
 
 echo 'escaped-crlf-imports: resolved' . PHP_EOL;
+
+$escapedSpaceUrlBundle = (new CssBundler())->bundle('/escaped-space-url.css', [
+    '/escaped-space-url.css' => '@import url(blocks/card\ hero.css); .wp-site-blocks { color: red; }',
+    '/blocks/card hero.css' => '.wp-block-card { color: green; }',
+]);
+
+if ($escapedSpaceUrlBundle !== '.wp-block-card{color:green}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected escaped url() whitespace to stay inside block import paths\n");
+    exit(1);
+}
+
+echo 'escaped-space-url-import: resolved' . PHP_EOL;
+
+try {
+    (new CssBundler())->bundle('/bad-url-import.css', [
+        '/bad-url-import.css' => '@import url(blocks/card hero.css); .wp-site-blocks { color: red; }',
+        '/blocks/card hero.css' => '.wp-block-card { color: green; }',
+    ]);
+
+    fwrite(STDERR, "Expected unescaped whitespace in url() import to be rejected\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Invalid @import source'
+        || $exception->sourceFile !== '/bad-url-import.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 1
+    ) {
+        fwrite(STDERR, 'Unexpected bad url() import diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'bad-url-import: rejected-before-resolution' . PHP_EOL;
+}
 
 $mediaBooleanBundle = (new CssBundler())->bundle('/entry.css', [
     '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',

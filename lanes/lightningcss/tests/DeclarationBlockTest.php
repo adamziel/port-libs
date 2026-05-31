@@ -122,6 +122,45 @@ return [
             )
         );
     },
+    'declaration block parses upstream comment-separated important flags in cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => 'red', 'important' => true],
+            $block->getProperty('color: red !/* theme override */ important', 'color')
+        );
+        $t->same(
+            ['value' => 'red', 'important' => true],
+            $block->getProperty('color: red ! /* theme override */ IMPORTANT /* trailing */', 'color')
+        );
+        $t->same(
+            ['value' => 'var(--wp--preset--color--accent)', 'important' => true],
+            $block->getProperty(
+                'color: var(--wp--preset--color--accent) /* keep */ ! /* core */ important; color: var(--wp--preset--color--contrast)',
+                'color'
+            )
+        );
+        $t->same(
+            ['value' => 'red', 'important' => true],
+            $block->getProperty('--Block-Accent: red !/* custom token */ important; --block-accent: blue', '--Block-Accent')
+        );
+        $t->same(
+            'background: white; color: green',
+            $block->setProperty('color: red !/* core */ important; background: white; color: blue', 'color', 'green')
+        );
+        $t->same(
+            'background: white; color: green !important',
+            $block->setProperty('color: red !/* core */ important; background: white; color: blue', 'color', 'green', true)
+        );
+        $t->same(
+            'padding: 1rem; margin-right: 10px !important; margin-bottom: 10px !important; margin-left: 10px !important',
+            $block->removeProperty('margin: 10px ! /* core */ important; padding: 1rem; margin-top: 12px', 'margin-top')
+        );
+        $t->same(
+            ['value' => 'red !importantish', 'important' => false],
+            $block->getProperty('color: red !importantish', 'color')
+        );
+    },
     'declaration block reads upstream background cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

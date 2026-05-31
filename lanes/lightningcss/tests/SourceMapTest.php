@@ -798,6 +798,38 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map preserves partial skipped child tables during upstream offset merge' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+
+        $child = new SourceMap();
+        $skippedSource = $child->addSource('blocks/skipped.css');
+        $keptSource = $child->addSource('blocks/kept.css');
+        $unusedSource = $child->addSource('blocks/unused.css');
+        $child->setSourceContent($skippedSource, ".skipped{}\n");
+        $child->setSourceContent($keptSource, ".kept{}\n");
+        $child->setSourceContent($unusedSource, ".unused{}\n");
+        $child->addMapping(0, 0, $skippedSource, 0, 0, 'skippedRule');
+        $child->addMapping(1, 4, $keptSource, 1, 2, 'keptRule');
+        $child->addName('unusedName');
+
+        $parent->addSourceMap($child, -1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('ICCEC', $parent->writeVlq());
+        $t->same([0], array_column($decoded, 'generatedLine'));
+        $t->same([4], array_column($decoded, 'generatedColumn'));
+        $t->same([1], array_column($decoded, 'sourceIndex'));
+        $t->same([1], array_column($decoded, 'originalLine'));
+        $t->same([2], array_column($decoded, 'originalColumn'));
+        $t->same([1], array_column($decoded, 'nameIndex'));
+        $t->same(['blocks/skipped.css', 'blocks/kept.css', 'blocks/unused.css'], $data['sources']);
+        $t->same([".skipped{}\n", ".kept{}\n", ".unused{}\n"], $data['sourcesContent']);
+        $t->same(['skippedRule', 'keptRule', 'unusedName'], $data['names']);
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map adds upstream empty line maps with line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addEmptyMap('theme.css', ".wp-block-cover {}\n\n.wp-block-button {}\n", 2);

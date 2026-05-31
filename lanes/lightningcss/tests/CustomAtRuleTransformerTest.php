@@ -1030,6 +1030,78 @@ CSS;
         $t->same('.test.focus-visible{margin-left:20px;margin-right:20px}.test:focus-visible{margin-left:20px;margin-right:20px}', $result);
         $t->same('.focus-visible', substr($result, 5, 14));
     },
+    'custom at-rules expose upstream nested unknown style rules to apply visitors' => static function (TestRunner $t): void {
+        $defined = [];
+        $seen = [];
+        $seenApplyPrelude = null;
+
+        $css = <<<'CSS'
+--toolbar-theme {
+  color: white;
+  border: 1px solid green;
+}
+
+.toolbar {
+  @apply --toolbar-theme;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'style' => static function (array $rule) use (&$defined, &$seen, &$seenApplyPrelude): array {
+                    $selector = $rule['value']['selectors'][0] ?? [];
+                    $seen[] = [
+                        'selectorType' => $selector[0]['type'] ?? null,
+                        'selectorName' => $selector[0]['name'] ?? null,
+                        'childRules' => count($rule['value']['rules'] ?? []),
+                    ];
+
+                    if (
+                        count($selector) === 1
+                        && ($selector[0]['type'] ?? null) === 'type'
+                        && str_starts_with((string) ($selector[0]['name'] ?? ''), '--')
+                    ) {
+                        $defined[$selector[0]['name']] = $rule['value']['declarations'];
+
+                        return ['type' => 'ignored'];
+                    }
+
+                    $remaining = [];
+                    foreach (($rule['value']['rules'] ?? []) as $child) {
+                        if (($child['type'] ?? null) !== 'unknown' || ($child['value']['name'] ?? null) !== 'apply') {
+                            $remaining[] = $child;
+                            continue;
+                        }
+
+                        foreach (($child['value']['prelude'] ?? []) as $token) {
+                            $seenApplyPrelude = $token;
+                            if (($token['type'] ?? null) === 'dashed-ident' && isset($defined[$token['value']])) {
+                                $rule['value']['declarations']['declarations'] = [
+                                    ...($rule['value']['declarations']['declarations'] ?? []),
+                                    ...($defined[$token['value']]['declarations'] ?? []),
+                                ];
+                                $rule['value']['declarations']['importantDeclarations'] = [
+                                    ...($rule['value']['declarations']['importantDeclarations'] ?? []),
+                                    ...($defined[$token['value']]['importantDeclarations'] ?? []),
+                                ];
+                            }
+                        }
+                    }
+                    $rule['value']['rules'] = $remaining;
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('.toolbar{color:#fff;border:1px solid green}', $result);
+        $t->same([
+            ['selectorType' => 'type', 'selectorName' => '--toolbar-theme', 'childRules' => 0],
+            ['selectorType' => 'class', 'selectorName' => 'toolbar', 'childRules' => 1],
+        ], $seen);
+        $t->same(['type' => 'dashed-ident', 'value' => '--toolbar-theme'], $seenApplyPrelude);
+        $t->same(['declarations', 'importantDeclarations'], array_keys($defined['--toolbar-theme']));
+    },
     'custom at-rules compose upstream FunctionExit and Length value visitors' => static function (TestRunner $t): void {
         $seenFunctions = [];
         $seenLengthUnits = [];

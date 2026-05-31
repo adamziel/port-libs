@@ -279,6 +279,15 @@ final class TransitionPrefixer
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
         $alphaHexChanged = $this->rewriteAlphaHexFallbackEntries($entries, $targetOptions);
         $fontTargetChanged = $this->rewriteFontTargetFallbackEntries($entries, $targetOptions);
+        $logicalBorderFallback = $this->rewriteLogicalBorderFallbackRule(
+            $selectors,
+            $entries,
+            $targetOptions['logicalBorderNeedsFallback'] ?? false,
+            $targetOptions['logicalBorderShorthandNeedsFallback'] ?? false
+        );
+        if ($logicalBorderFallback !== null) {
+            return $logicalBorderFallback . implode('', $supportRules);
+        }
         $logicalInsetFallback = ($targetOptions['logicalInsetNeedsFallback'] ?? false)
             ? $this->rewriteLogicalInsetFallbackRule($selectors, $entries)
             : null;
@@ -1042,6 +1051,28 @@ final class TransitionPrefixer
             'borderImageNeedsMoz' => $this->targetInRange($normalized, 'firefox', [3, 5], [14]),
             'borderImageNeedsO' => $this->targetInRange($normalized, 'opera', [11], [12, 1]),
             'clampNeedsMaxMinFallback' => $this->targetInRange($normalized, 'safari', [0], [12]),
+            'logicalBorderNeedsFallback' => $logicalPropertiesIncluded || (!$logicalPropertiesExcluded && (
+                $this->targetInRange($normalized, 'android', [0], [68, 255, 255])
+                || $this->targetInRange($normalized, 'chrome', [0], [68, 255, 255])
+                || $this->targetInRange($normalized, 'edge', [0], [78, 255, 255])
+                || $this->targetInRange($normalized, 'firefox', [0], [40, 255, 255])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [12, 1, 255])
+                || $this->targetInRange($normalized, 'opera', [0], [47, 255, 255])
+                || $this->targetInRange($normalized, 'safari', [0], [12, 0, 255])
+                || $this->targetInRange($normalized, 'samsung', [0], [9, 255, 255])
+                || isset($normalized['ie'])
+            )),
+            'logicalBorderShorthandNeedsFallback' => !$logicalPropertiesIncluded && !$logicalPropertiesExcluded && (
+                $this->targetInRange($normalized, 'android', [0], [86, 255, 255])
+                || $this->targetInRange($normalized, 'chrome', [0], [86, 255, 255])
+                || $this->targetInRange($normalized, 'edge', [0], [86, 255, 255])
+                || $this->targetInRange($normalized, 'firefox', [0], [65, 255, 255])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [14, 4, 255])
+                || $this->targetInRange($normalized, 'opera', [0], [61, 255, 255])
+                || $this->targetInRange($normalized, 'safari', [0], [14, 0, 255])
+                || $this->targetInRange($normalized, 'samsung', [0], [13, 255, 255])
+                || isset($normalized['ie'])
+            ),
             'logicalInsetNeedsFallback' => $logicalPropertiesIncluded || (!$logicalPropertiesExcluded && (
                 $this->targetInRange($normalized, 'android', [0], [86, 255, 255])
                 || $this->targetInRange($normalized, 'chrome', [0], [86, 255, 255])
@@ -1945,6 +1976,219 @@ final class TransitionPrefixer
             'border-end-start-radius' => $direction === 'rtl' ? 'border-bottom-right-radius' : 'border-bottom-left-radius',
             default => null,
         };
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function rewriteLogicalBorderFallbackRule(string $selectors, array $entries, bool $needsFullFallback, bool $needsShorthandFallback): ?string
+    {
+        if (!$needsFullFallback && !$needsShorthandFallback) {
+            return null;
+        }
+
+        $ltrEntries = [];
+        $rtlEntries = [];
+        $changed = false;
+        $needsDirectionSplit = false;
+
+        foreach ($entries as $entry) {
+            $fallback = $this->logicalBorderFallbackEntries($entry, $needsFullFallback, $needsShorthandFallback);
+            if ($fallback === null) {
+                $ltrEntries[] = $entry;
+                $rtlEntries[] = $entry;
+                continue;
+            }
+
+            array_push($ltrEntries, ...$fallback['ltr']);
+            array_push($rtlEntries, ...$fallback['rtl']);
+            $changed = true;
+            $needsDirectionSplit = $needsDirectionSplit || $fallback['directional'];
+        }
+
+        if (!$changed) {
+            return null;
+        }
+
+        if (!$needsDirectionSplit) {
+            return $selectors . '{' . $this->serializeDeclarations($ltrEntries) . '}';
+        }
+
+        return $this->selectorVariant($selectors, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+            . $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+            . $this->selectorVariant($selectors, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
+            . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @return array{ltr:list<array{property:string,name:string,value:string,important:bool}>,rtl:list<array{property:string,name:string,value:string,important:bool}>,directional:bool}|null
+     */
+    private function logicalBorderFallbackEntries(array $entry, bool $needsFullFallback, bool $needsShorthandFallback): ?array
+    {
+        $property = $entry['property'];
+        $value = $entry['value'];
+        $important = $entry['important'];
+
+        if ($needsFullFallback) {
+            switch ($property) {
+                case 'border-block':
+                    return $this->logicalBorderFallbackResult([
+                        ['border-top', $value],
+                        ['border-bottom', $value],
+                    ], null, false, $important);
+
+                case 'border-block-start':
+                    return $this->logicalBorderFallbackResult([
+                        ['border-top', $value],
+                    ], null, false, $important);
+
+                case 'border-block-end':
+                    return $this->logicalBorderFallbackResult([
+                        ['border-bottom', $value],
+                    ], null, false, $important);
+
+                case 'border-inline':
+                    return $this->logicalBorderFallbackResult([
+                        ['border-left', $value],
+                        ['border-right', $value],
+                    ], null, false, $important);
+
+                case 'border-inline-start':
+                    return $this->logicalBorderFallbackResult(
+                        [['border-left', $value]],
+                        [['border-right', $value]],
+                        true,
+                        $important
+                    );
+
+                case 'border-inline-end':
+                    return $this->logicalBorderFallbackResult(
+                        [['border-right', $value]],
+                        [['border-left', $value]],
+                        true,
+                        $important
+                    );
+            }
+
+            if (preg_match('/^border-(block|inline)-(start|end)-(width|style|color)$/', $property, $matches) === 1) {
+                $axis = $matches[1];
+                $side = $matches[2];
+                $suffix = '-' . $matches[3];
+
+                if ($axis === 'block') {
+                    $physical = $side === 'start' ? 'border-top' . $suffix : 'border-bottom' . $suffix;
+                    return $this->logicalBorderFallbackResult([[$physical, $value]], null, false, $important);
+                }
+
+                if ($side === 'start') {
+                    return $this->logicalBorderFallbackResult(
+                        [['border-left' . $suffix, $value]],
+                        [['border-right' . $suffix, $value]],
+                        true,
+                        $important
+                    );
+                }
+
+                return $this->logicalBorderFallbackResult(
+                    [['border-right' . $suffix, $value]],
+                    [['border-left' . $suffix, $value]],
+                    true,
+                    $important
+                );
+            }
+        }
+
+        if (preg_match('/^border-(block|inline)-(width|style|color)$/', $property, $matches) === 1) {
+            $axis = $matches[1];
+            $suffix = '-' . $matches[2];
+            $sides = $this->axisSides($value);
+            if ($sides === null) {
+                return null;
+            }
+
+            if ($needsFullFallback) {
+                if ($axis === 'block') {
+                    return $this->logicalBorderFallbackResult([
+                        ['border-top' . $suffix, $sides[0]],
+                        ['border-bottom' . $suffix, $sides[1]],
+                    ], null, false, $important);
+                }
+
+                return $this->logicalBorderFallbackResult(
+                    [
+                        ['border-left' . $suffix, $sides[0]],
+                        ['border-right' . $suffix, $sides[1]],
+                    ],
+                    [
+                        ['border-left' . $suffix, $sides[1]],
+                        ['border-right' . $suffix, $sides[0]],
+                    ],
+                    $sides[0] !== $sides[1],
+                    $important
+                );
+            }
+
+            if ($needsShorthandFallback) {
+                if ($axis === 'block') {
+                    return $this->logicalBorderFallbackResult([
+                        ['border-block-start' . $suffix, $sides[0]],
+                        ['border-block-end' . $suffix, $sides[1]],
+                    ], null, false, $important);
+                }
+
+                return $this->logicalBorderFallbackResult([
+                    ['border-inline-start' . $suffix, $sides[0]],
+                    ['border-inline-end' . $suffix, $sides[1]],
+                ], null, false, $important);
+            }
+        }
+
+        if ($needsShorthandFallback) {
+            switch ($property) {
+                case 'border-block':
+                    return $this->logicalBorderFallbackResult([
+                        ['border-block-start', $value],
+                        ['border-block-end', $value],
+                    ], null, false, $important);
+
+                case 'border-inline':
+                    return $this->logicalBorderFallbackResult([
+                        ['border-inline-start', $value],
+                        ['border-inline-end', $value],
+                    ], null, false, $important);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{0:string,1:string}> $ltr
+     * @param list<array{0:string,1:string}>|null $rtl
+     * @return array{ltr:list<array{property:string,name:string,value:string,important:bool}>,rtl:list<array{property:string,name:string,value:string,important:bool}>,directional:bool}
+     */
+    private function logicalBorderFallbackResult(array $ltr, ?array $rtl, bool $directional, bool $important): array
+    {
+        return [
+            'ltr' => $this->declarationEntriesFromPairs($ltr, $important),
+            'rtl' => $this->declarationEntriesFromPairs($rtl ?? $ltr, $important),
+            'directional' => $directional,
+        ];
+    }
+
+    /**
+     * @param list<array{0:string,1:string}> $pairs
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function declarationEntriesFromPairs(array $pairs, bool $important): array
+    {
+        $entries = [];
+        foreach ($pairs as [$property, $value]) {
+            $entries[] = $this->declarationEntry($property, $value, $important);
+        }
+
+        return $entries;
     }
 
     /**

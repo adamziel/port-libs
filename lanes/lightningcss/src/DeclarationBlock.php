@@ -11596,22 +11596,25 @@ final class DeclarationBlock
     private function splitImportantFlag(string $value): array
     {
         $value = trim($value);
-        if (!str_ends_with(strtolower($value), 'important')) {
+        $end = $this->trimCssWhitespaceAndCommentsBackward($value, strlen($value), 0);
+        if ($end < strlen('important') || strtolower(substr($value, $end - strlen('important'), strlen('important'))) !== 'important') {
             return [$value, false];
         }
 
-        $importantStart = strlen($value) - strlen('important');
-        $beforeImportant = rtrim(substr($value, 0, $importantStart));
-        if ($beforeImportant === '' || substr($beforeImportant, -1) !== '!') {
+        $importantStart = $end - strlen('important');
+        $beforeImportant = $this->trimCssWhitespaceAndCommentsBackward($value, $importantStart, 0);
+        if ($beforeImportant === 0 || $value[$beforeImportant - 1] !== '!') {
             return [$value, false];
         }
 
-        $bang = strlen($beforeImportant) - 1;
+        $bang = $beforeImportant - 1;
         if (!$this->isTopLevelOffset($value, $bang)) {
             return [$value, false];
         }
 
-        return [rtrim(substr($beforeImportant, 0, -1)), true];
+        $valueEnd = $this->trimCssWhitespaceAndCommentsBackward($value, $bang, 0);
+
+        return [rtrim(substr($value, 0, $valueEnd)), true];
     }
 
     private function findTopLevelColonInRange(string $value, int $start, int $end): ?int

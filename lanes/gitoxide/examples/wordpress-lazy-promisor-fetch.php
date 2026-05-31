@@ -53,7 +53,7 @@ $resolver = new class($mediaBlob, $gitDir) implements PromisorObjectResolver {
         file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
         file_put_contents($packDir . '/' . $basename . '.promisor', "WordPress media lazy hydration\n");
 
-        return null;
+        return $this->object;
     }
 };
 

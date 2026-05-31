@@ -88,7 +88,13 @@ final class TreeMergeResult
 
         $tree = $this->tree;
         $remaining = [];
-        foreach ($this->conflicts as $conflict) {
+        $sourceConflictsResolvedByTargetAdd = self::sourceConflictsResolvedByTargetAdd($this->conflicts);
+        foreach ($this->conflicts as $index => $conflict) {
+            if (isset($sourceConflictsResolvedByTargetAdd[$index])) {
+                $tree = self::removeEntryAtPath($tree, $conflict->path, $readObject, $writeObject);
+                continue;
+            }
+
             $isContentConflict = isset(self::CONTENT_CONFLICT_REASONS[$conflict->reason]);
             if ($isContentConflict && $contentResolution === null) {
                 $remaining[] = $conflict;
@@ -117,6 +123,69 @@ final class TreeMergeResult
         }
 
         return new self($tree, $remaining);
+    }
+
+    /**
+     * @param list<TreeMergeConflict> $conflicts
+     * @return array<int, true>
+     */
+    private static function sourceConflictsResolvedByTargetAdd(array $conflicts): array
+    {
+        $sourceIndexes = [];
+        foreach ($conflicts as $targetIndex => $targetConflict) {
+            if (
+                $targetConflict->reason !== 'rename-target-add'
+                || $targetConflict->base !== null
+                || !self::hasTargetTypeClash($targetConflict)
+            ) {
+                continue;
+            }
+
+            foreach ($conflicts as $sourceIndex => $sourceConflict) {
+                if (
+                    $sourceIndex === $targetIndex
+                    || !in_array($sourceConflict->reason, ['rename-modify', 'rename-delete'], true)
+                    || !self::conflictsShareSideEntry($sourceConflict, $targetConflict)
+                ) {
+                    continue;
+                }
+
+                $sourceIndexes[$sourceIndex] = true;
+            }
+        }
+
+        return $sourceIndexes;
+    }
+
+    private static function hasTargetTypeClash(TreeMergeConflict $conflict): bool
+    {
+        return $conflict->ours !== null
+            && $conflict->theirs !== null
+            && $conflict->ours->kind() !== $conflict->theirs->kind();
+    }
+
+    private static function conflictsShareSideEntry(TreeMergeConflict $left, TreeMergeConflict $right): bool
+    {
+        foreach ([$left->ours, $left->theirs] as $leftEntry) {
+            if ($leftEntry === null) {
+                continue;
+            }
+
+            foreach ([$right->ours, $right->theirs] as $rightEntry) {
+                if ($rightEntry !== null && self::sameEntry($leftEntry, $rightEntry)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static function sameEntry(TreeEntry $left, TreeEntry $right): bool
+    {
+        return $left->filename === $right->filename
+            && $left->mode === $right->mode
+            && $left->oid === $right->oid;
     }
 
     /**

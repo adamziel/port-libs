@@ -377,8 +377,11 @@ final class MediaQueryParser
 
     private function validateDiscreteMediaFeature(string $name, string $value, string $feature): void
     {
-        if ($name === 'grid' && !in_array(trim($value), ['0', '1'], true)) {
-            throw new \InvalidArgumentException("Invalid media query feature value: {$feature}");
+        if ($name === 'grid') {
+            $value = trim($value);
+            if (preg_match('/^[+-]?\d+$/', $value) !== 1 || !in_array((int) $value, [0, 1], true)) {
+                throw new \InvalidArgumentException("Invalid media query feature value: {$feature}");
+            }
         }
     }
 

@@ -81,6 +81,20 @@ $skippedNestedChild->addName('unused-nested-name');
 $skippedNestedParent->addSourceMap($skippedNestedChild, -1);
 $skippedNestedChildConsumed = $skippedNestedChild->toJson(null, false);
 
+$partialSkippedNestedParent = new SourceMap();
+$partialSkippedNestedChild = new SourceMap();
+$partialSkippedSource = $partialSkippedNestedChild->addSource('wp-content/themes/example/blocks/skipped-partial.css');
+$partialKeptSource = $partialSkippedNestedChild->addSource('wp-content/themes/example/blocks/kept-partial.css');
+$partialUnusedSource = $partialSkippedNestedChild->addSource('wp-content/themes/example/blocks/unused-partial.css');
+$partialSkippedNestedChild->setSourceContent($partialSkippedSource, ".wp-block-skipped-partial{}\n");
+$partialSkippedNestedChild->setSourceContent($partialKeptSource, ".wp-block-kept-partial{}\n");
+$partialSkippedNestedChild->setSourceContent($partialUnusedSource, ".wp-block-unused-partial{}\n");
+$partialSkippedNestedChild->addMapping(0, 0, $partialSkippedSource, 0, 0, 'skipped-partial-rule');
+$partialSkippedNestedChild->addMapping(1, 4, $partialKeptSource, 1, 2, 'kept-partial-rule');
+$partialSkippedNestedChild->addName('unused-partial-name');
+$partialSkippedNestedParent->addSourceMap($partialSkippedNestedChild, -1);
+$partialSkippedNestedChildConsumed = $partialSkippedNestedChild->toJson(null, false);
+
 $themeJsonMap = new SourceMap();
 $themeJsonMap->addEmptyMap(
     'wp-content/themes/example/theme-json.css',
@@ -332,6 +346,8 @@ $actual = [
     'consumedNestedReplayNoop' => $consumedNestedReplayNoop,
     'skippedNestedSourceTableMap' => $skippedNestedParent->toJson(null, false),
     'skippedNestedChildConsumed' => $skippedNestedChildConsumed,
+    'partialSkippedNestedSourceTableMap' => $partialSkippedNestedParent->toJson(null, false),
+    'partialSkippedNestedChildConsumed' => $partialSkippedNestedChildConsumed,
     'emptyMap' => $themeJsonMap->toJson(null, false),
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
     'emptyLineColumnOffsetMap' => $emptyLineOffsetMap->toJson(null, false),
@@ -367,6 +383,8 @@ if (($argv[1] ?? null) === '--self-test') {
         'consumedNestedReplayNoop' => true,
         'skippedNestedSourceTableMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/blocks/skipped-nested.css","wp-content/themes/example/blocks/unused-nested.css"],"sourcesContent":[".wp-block-skipped-nested{}\n",".wp-block-unused-nested{}\n"],"names":["skipped-nested-rule","unused-nested-name"]}',
         'skippedNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'partialSkippedNestedSourceTableMap' => '{"version":3,"mappings":"ICCEC","sources":["wp-content/themes/example/blocks/skipped-partial.css","wp-content/themes/example/blocks/kept-partial.css","wp-content/themes/example/blocks/unused-partial.css"],"sourcesContent":[".wp-block-skipped-partial{}\n",".wp-block-kept-partial{}\n",".wp-block-unused-partial{}\n"],"names":["skipped-partial-rule","kept-partial-rule","unused-partial-name"]}',
+        'partialSkippedNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'emptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/theme-json.css"],"sourcesContent":[":root {\n  --wp--style--global--content-size: 720px;\n}\n"],"names":[]}',
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
         'emptyLineColumnOffsetMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',

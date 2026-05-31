@@ -43,6 +43,18 @@ $treeAtPath = static function (Tree $root, string $path) use ($read): Tree {
 
     return $current;
 };
+$treeAtPathOrEmpty = static function (Tree $root, string $path) use ($read): Tree {
+    $current = $root;
+    foreach (explode('/', $path) as $part) {
+        $entry = $current->entryNamed($part, true);
+        if ($entry === null || !$entry->isTree()) {
+            return new Tree([]);
+        }
+        $current = Tree::fromObject($read($entry->oid));
+    }
+
+    return $current;
+};
 $wpContent = static fn (TreeEntry $metadata, TreeEntry $theme): Tree => new Tree([
     $metadata,
     $tree('themes', new Tree([
@@ -242,6 +254,34 @@ $symlinkOursResolved = $symlinkConflictResult->resolveTreeConflicts($read, $writ
 $symlinkResolvedMuPlugins = $treeAtPath($symlinkOursResolved->tree, 'wp-content/mu-plugins');
 $symlinkResolvedPlugin = $treeAtPath($symlinkOursResolved->tree, 'wp-content/plugins/acme');
 $symlinkResolvedEntry = $symlinkResolvedMuPlugins->entryNamed('acme-bootstrap-current.php');
+$targetAddBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $blob('legacy-loader.php', "<?php\n// original\nload_plugin_textdomain('acme');\n"),
+        ])),
+    ])),
+]);
+$targetAddOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $blob('legacy-loader.php', "<?php\nload_plugin_textdomain('acme');\n"),
+            $symlink('active-loader.php', 'legacy-loader.php'),
+        ])),
+    ])),
+]);
+$targetAddTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $blob('active-loader.php', "<?php\n// original\nload_plugin_textdomain('acme');\nadd_action('init', 'acme_boot');\n"),
+        ])),
+    ])),
+]);
+$targetAddResult = TreeMerge::mergeRecursive($targetAddBase, $targetAddOurs, $targetAddTheirs, $read, $write);
+$targetAddAncestorResolved = $targetAddResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+$targetAddOursResolved = $targetAddResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+$targetAddAncestorMuPlugins = $treeAtPathOrEmpty($targetAddAncestorResolved->tree, 'wp-content/mu-plugins');
+$targetAddOursMuPlugins = $treeAtPathOrEmpty($targetAddOursResolved->tree, 'wp-content/mu-plugins');
+$targetAddOursEntry = $targetAddOursMuPlugins->entryNamed('active-loader.php');
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -377,5 +417,20 @@ echo json_encode([
         'resolvedSymlinkTarget' => $symlinkResolvedEntry === null ? null : $read($symlinkResolvedEntry->oid)->body,
         'bootstrapVersion' => $read($symlinkResolvedPlugin->entryNamed('bootstrap.php')?->oid ?? '')->body,
         'indexStagesAfterResolution' => count($symlinkOursResolved->indexEntries()),
+    ],
+    'renameTargetAddSymlinkResolution' => [
+        'cleanBeforeResolution' => $targetAddResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $targetAddResult->conflicts,
+        ),
+        'ancestorResolvedClean' => $targetAddAncestorResolved->isClean(),
+        'ancestorMuPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $targetAddAncestorMuPlugins->entries),
+        'oursResolvedClean' => $targetAddOursResolved->isClean(),
+        'oursMuPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $targetAddOursMuPlugins->entries),
+        'oursActiveKind' => $targetAddOursEntry?->kind(),
+        'oursActiveTarget' => $targetAddOursEntry === null ? null : $read($targetAddOursEntry->oid)->body,
+        'indexStagesAfterAncestorResolution' => count($targetAddAncestorResolved->indexEntries()),
+        'indexStagesAfterOursResolution' => count($targetAddOursResolved->indexEntries()),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

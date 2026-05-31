@@ -1292,6 +1292,74 @@ return [
         $t->same(null, $store->tryFind('refs/heads/a/b/ref'));
         $t->same(null, $store->tryFind('refs/heads/a/c/ref'));
     },
+    'prepared loose update transactions hold packed refs lock while packed refs exist' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-packed-hold-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/existing-packed\n");
+        $store = ReferenceStore::at($dir);
+
+        $ongoing = $store->prepareLooseUpdateTransaction([
+            'refs/heads/new-review' => ReferenceTarget::object($old),
+        ]);
+
+        $t->same(true, is_file($dir . '/packed-refs.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/new-review.lock'));
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->prepareLooseUpdateTransaction([
+                'refs/heads/non-conflicting' => ReferenceTarget::object($new),
+            ]),
+            'a second prepared transaction waits on the packed refs lock even for non-conflicting loose refs',
+        );
+        $t->same(false, is_file($dir . '/refs/heads/non-conflicting.lock'));
+
+        $ongoing->commit();
+
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/new-review'));
+
+        $second = $store->prepareLooseUpdateTransaction([
+            'refs/heads/non-conflicting' => ReferenceTarget::object($new),
+        ]);
+        $t->same(true, is_file($dir . '/packed-refs.lock'));
+        $second->rollback();
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/non-conflicting.lock'));
+    },
+    'prepared reflog-only deletes ignore held packed refs lock like upstream' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-log-only-packed-lock-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/packed-main\n");
+        file_put_contents($dir . '/packed-refs.lock', 'held by packed ref compaction');
+        $store = ReferenceStore::at($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeDirect('refs/heads/log-only', $old);
+        $store->appendReflog(
+            'refs/heads/log-only',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($new),
+            $committer,
+            'audit before compaction',
+            true,
+        );
+
+        $transaction = $store->prepareLooseDeleteTransaction(
+            ['refs/heads/log-only'],
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+            false,
+            'sha1',
+            ReferenceTransactionEdit::REFLOG_ONLY,
+        );
+        $edits = $transaction->commit();
+
+        $t->same(['refs/heads/log-only'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same([ReferenceTransactionEdit::REFLOG_ONLY], array_map(static fn ($edit): string => $edit->reflogMode, $edits));
+        $t->same('held by packed ref compaction', file_get_contents($dir . '/packed-refs.lock'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/log-only'));
+        $t->same(false, $store->reflogExists('refs/heads/log-only'));
+    },
     'reference store recovers empty directory blockers when creating loose refs' => static function (TestRunner $t): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-empty-dir-blocker-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1367,7 +1435,19 @@ return [
         $t->same($fixture['reviewCommit'], $summary['preparedNoOpCommit']);
         $t->same($fixture['expectedPreparedNoOpHeldLockPreserved'], $summary['preparedNoOpHeldLockPreserved']);
         $t->same($fixture['expectedPreparedNoOpReflogExists'], $summary['preparedNoOpReflogExists']);
+        $t->same($fixture['expectedPreparedPackedRollbackEditNames'], $summary['preparedPackedRollbackEditNames']);
+        $t->same($fixture['expectedPreparedPackedLockHeld'], $summary['preparedPackedLockHeld']);
+        $t->same(
+            $fixture['expectedPreparedPackedLockBlockedPrefix'],
+            substr((string) $summary['preparedPackedLockBlocked'], 0, strlen($fixture['expectedPreparedPackedLockBlockedPrefix'])),
+        );
+        $t->same($fixture['expectedPreparedPackedLockCleanedRollback'], $summary['preparedPackedLockCleanedRollback']);
+        $t->same($fixture['expectedPreparedLogOnlyDeleteEditNames'], $summary['preparedLogOnlyDeleteEditNames']);
+        $t->same($fixture['expectedPreparedLogOnlyPackedLockPreserved'], $summary['preparedLogOnlyPackedLockPreserved']);
+        $t->same($fixture['expectedPreparedLogOnlyRefStillExists'], $summary['preparedLogOnlyRefStillExists']);
+        $t->same($fixture['expectedPreparedLogOnlyReflogExists'], $summary['preparedLogOnlyReflogExists']);
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
+        $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

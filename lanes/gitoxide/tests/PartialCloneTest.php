@@ -231,6 +231,45 @@ return [
         $t->same(true, in_array($resolver->packName, $database->promisorPackNames(), true));
         $t->same($missingMediaBlob->body, (new ObjectDatabase($gitDir))->read($missingMediaOid)->body);
     },
+    'object database refreshes promisor packs when resolver returns object after disk hydration' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $returnedThemeBlob = new GitObject('blob', 'Resolver returned decoded theme bytes and wrote a promisor pack');
+        $returnedThemeOid = $returnedThemeBlob->oid();
+        $resolver = new class($returnedThemeBlob, $gitDir) implements PromisorObjectResolver {
+            public array $requests = [];
+            public ?string $packName = null;
+
+            public function __construct(
+                private readonly GitObject $object,
+                private readonly string $gitDir,
+            ) {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+                $pack = PackBuilder::build([$this->object]);
+                $packDir = $this->gitDir . '/objects/pack';
+                $basename = 'pack-' . $pack->packChecksum();
+                $this->packName = $basename . '.promisor';
+
+                file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+                file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+                file_put_contents($packDir . '/' . $basename . '.promisor', "returned object hydration\n");
+
+                return $this->object;
+            }
+        };
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->same('promised-missing', $database->objectState($returnedThemeOid)['status']);
+        $t->same($returnedThemeBlob->body, $database->read($returnedThemeOid)->body);
+        $t->same([$returnedThemeOid], $resolver->requests);
+        $t->same(true, in_array($resolver->packName, $database->promisorPackNames(), true));
+        $t->same('promisor-present', $database->objectState($returnedThemeOid)['status']);
+        $t->same('pack', $database->readHeader($returnedThemeOid)['source']);
+        $t->same($returnedThemeBlob->body, (new ObjectDatabase($gitDir))->read($returnedThemeOid)->body);
+    },
     'object database refreshes headers after promisor resolver hydrates a pack' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $missingConfigBlob = new GitObject('blob', 'Hydrated theme config bytes');
@@ -345,6 +384,9 @@ return [
             'url' => 'https://git.example.test/wp-content.git',
             'partialCloneFilter' => 'blob:none',
         ]], $summary['promisorRemotes']);
+        $t->same('promisor-present', $summary['afterRead']['status']);
+        $t->same(true, in_array($summary['hydrationPack'], $summary['promisorPacksAfterHydration'], true));
+        $t->same(true, $summary['persistedInPackStore']);
         $t->same('promised-missing', $summary['beforeExternalHydration']['status']);
         $t->same(true, $summary['containsAfterExternalHydration']);
         $t->same('found', $summary['prefixAfterExternalHydration']['status']);

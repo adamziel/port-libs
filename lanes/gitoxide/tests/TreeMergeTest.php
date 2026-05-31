@@ -1472,6 +1472,39 @@ return [
             $result->indexEntries(),
         ));
     },
+    'maps upstream gix-merge tree-baseline rename-add-symlink resolve-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));
+        $base = new Tree([$blobEntry('foo', "original\n1\n2\n3\n4\n5\n")]);
+        $ours = new Tree([
+            $blobEntry('foo', "1\n2\n3\n4\n5\n"),
+            $linkEntry('bar', 'foo'),
+        ]);
+        $theirs = new Tree([$blobEntry('bar', "original\n1\n2\n3\n4\n5\n6\n")]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+        $theirsResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+        $oursBar = $oursResolved->tree->entryNamed('bar');
+        $theirsBar = $theirsResolved->tree->entryNamed('bar');
+
+        $t->true($ancestorResolved->isClean());
+        $t->same([], $names($ancestorResolved->tree));
+        $t->same([], $ancestorResolved->indexEntries());
+
+        $t->true($oursResolved->isClean());
+        $t->same(['bar'], $names($oursResolved->tree));
+        $t->same('link', $oursBar?->kind());
+        $t->same('foo', $read($oursBar?->oid ?? '')->body);
+        $t->same([], $oursResolved->indexEntries());
+
+        $t->true($theirsResolved->isClean());
+        $t->same(['bar'], $names($theirsResolved->tree));
+        $t->same('blob', $theirsBar?->kind());
+        $t->same("original\n1\n2\n3\n4\n5\n6\n", $read($theirsBar?->oid ?? '')->body);
+        $t->same([], $theirsResolved->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline rename-add-same-symlink fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $linkEntry = static fn (string $filename, string $target): TreeEntry => new TreeEntry('120000', $filename, $write(new GitObject('blob', $target)));

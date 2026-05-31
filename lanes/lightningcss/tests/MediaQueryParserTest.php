@@ -86,6 +86,10 @@ return [
         $t->same('(hover)', $parser->minifyList('(hover)'));
         $t->same('(aspect-ratio:11/5)', $parser->minifyList('(aspect-ratio: 11 / 5)'));
         $t->same('(aspect-ratio:2)', $parser->minifyList('(aspect-ratio: 2/1)'));
+        $t->same('(grid:1)', $parser->minifyList('(grid: +1)'));
+        $t->same('(grid:1)', $parser->minifyList('(grid: 01)'));
+        $t->same('(grid:0)', $parser->minifyList('(grid: +0)'));
+        $t->same('(grid:0)', $parser->minifyList('(grid: -0)'));
         $t->same('not screen and (color)', $parser->minifyList('not screen and (color)'));
         $t->same('only screen and (color)', $parser->minifyList('only screen and (color)'));
         $t->same('(color)', $parser->minifyList('all and (color)'));
@@ -138,6 +142,9 @@ return [
             '(1px <= min-width <= 2px)',
             '(1px <= scan <= 2px)',
             '(grid: 10)',
+            '(grid: -1)',
+            '(grid: 1.0)',
+            '(grid: true)',
             '(prefers-color-scheme = dark)',
             '(width >= var(--theme-breakpoint))',
             '(--theme-breakpoint >= var(--theme-breakpoint))',
@@ -289,6 +296,7 @@ return [
         $t->same('@layer blocks{@media (color) or (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and ((color) or (hover)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media not all and (color){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not all and (color) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and ((color) or (hover)){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and ((color) or (hover)) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (grid:1){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (grid: +1) { .foo { color: chartreuse } } }'));
     },
     'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -304,6 +312,7 @@ return [
             '@layer blocks { @media (1px <= min-width <= 2px) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (scan >= 1) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (grid: 10) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (grid: 1.0) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',

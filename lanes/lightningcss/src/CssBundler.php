@@ -941,6 +941,7 @@ final class CssBundler
             if (($specifier[0] ?? '') === '"' || ($specifier[0] ?? '') === "'") {
                 $specifier = $this->cssStringTokenValue($specifier);
             } else {
+                $this->validateUnquotedImportUrlSource($specifier, $file, $loc);
                 $specifier = $this->decodeCssEscapes($specifier);
             }
             $offset = $close + 1;
@@ -2324,6 +2325,54 @@ final class CssBundler
         }
 
         throw new CssBundleException('parser-error', 'CSS contains an unbalanced string');
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function validateUnquotedImportUrlSource(string $source, string $file, array $loc): void
+    {
+        $length = strlen($source);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+            $byte = ord($char);
+
+            if ($char === '\\') {
+                if ($i + 1 >= $length) {
+                    $this->throwInvalidImportSource($file, $loc);
+                }
+
+                $next = $source[$i + 1];
+                if ($next === "\n" || $next === "\f" || $next === "\r") {
+                    $this->throwInvalidImportSource($file, $loc);
+                }
+
+                $i = $this->cssEscapeEndOffset($source, $i);
+                continue;
+            }
+
+            if (
+                ctype_space($char)
+                || $char === '"'
+                || $char === "'"
+                || $char === '('
+                || $byte === 0
+                || ($byte >= 1 && $byte <= 8)
+                || $byte === 11
+                || ($byte >= 14 && $byte <= 31)
+                || $byte === 127
+            ) {
+                $this->throwInvalidImportSource($file, $loc);
+            }
+        }
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function throwInvalidImportSource(string $file, array $loc): void
+    {
+        throw new CssBundleException('parser-error', 'Invalid @import source', $file, $loc['line'], $loc['column']);
     }
 
     private function cssStringTokenValue(string $token): string
