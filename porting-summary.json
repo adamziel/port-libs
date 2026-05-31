@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 18:13:55 UTC",
-    "sourceCommit": "50b2abd4a14bca239147ed065633053669ad83e4",
-    "sourceCommitShort": "50b2abd4a14b",
+    "generated": "2026-05-31 18:21:12 UTC",
+    "sourceCommit": "9f06e1081383bc5c79df30530d2072dfcefffba0",
+    "sourceCommitShort": "9f06e1081383",
     "sourceBranch": "unknown",
-    "dashboardCommit": "50b2abd4a14bca239147ed065633053669ad83e4",
-    "dashboardCommitShort": "50b2abd4a14b",
-    "averageProgressPercent": "86.7",
+    "dashboardCommit": "9f06e1081383bc5c79df30530d2072dfcefffba0",
+    "dashboardCommitShort": "9f06e1081383",
+    "averageProgressPercent": "86.8",
     "lanes": [
         {
             "library": "difftastic",
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "87.1",
+            "progressPercent": "87.2",
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1603",
-            "coverage": "1603 / 2886",
-            "php": "5025 pass / 0 fail",
+            "mapped": "1605",
+            "coverage": "1605 / 2886",
+            "php": "5047 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus native PHP object databa...",
-            "audit": "Supervisor accepted source commit a3b2557...",
-            "currentWork": "Native Gitoxide SSH receive-pack transport now matches gix-transport argv-boundary behavi...",
+            "audit": "Supervisor accepted source commit 66a2609...",
+            "currentWork": "Native Gitoxide now rejects report-status-v2 option lines attached to unrequested refs at...",
             "nextTarget": "Continue current-base Gitoxide work on pack/index/MIDX prefix boundaries, reference trans...",
             "blocker": "No current Gitoxide PHP blocker for this batch.",
-            "commit": "a3b2557"
+            "commit": "66a2609"
         },
         {
             "library": "libsqlite",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "86.8",
+            "progressPercent": "86.9",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1645",
-            "coverage": "1645 / 3532",
-            "php": "2923 pass / 0 fail",
+            "mapped": "1647",
+            "coverage": "1647 / 3532",
+            "php": "2964 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "native CSS parser/formatter/minifier, declaration CSSOM...",
-            "audit": "Supervisor accepted source commit a3b2557...",
-            "currentWork": "Native LightningCSS now preserves calc() operator spacing while lowering media range fall...",
+            "audit": "Supervisor accepted source commit 66a2609...",
+            "currentWork": "Native LightningCSS now remaps inline input source maps across bundled import graphs, off...",
             "nextTarget": "Continue current-base LightningCSS integration from clean candidates, prioritizing non-ov...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "a3b2557"
+            "commit": "66a2609"
         },
         {
             "library": "markerPDF",
