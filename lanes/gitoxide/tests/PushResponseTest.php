@@ -372,9 +372,27 @@ return [
         $t->contains('sideband error pre-receive hook declined', $runtimeMessage(
             static fn () => PushResponse::fromSidebandPacketLines($packet("\x03pre-receive hook declined\n") . $flush)
         ));
+        $t->contains('sideband error pre-receive hook declined after status', $runtimeMessage(
+            static fn () => PushResponse::fromSidebandPacketLines(
+                $packet("\x01" . $packet("unpack ok\n"))
+                . $packet("\x01" . $packet("ok refs/heads/main\n"))
+                . $packet("\x03pre-receive hook declined after status\n")
+                . $packet("\x01" . $flush)
+                . $flush
+            )
+        ));
         $t->contains('missing report-status flush packet', $invalidArgumentMessage(
             static fn () => PushResponse::fromSidebandPacketLines($packet("\x01" . $packet("unpack ok\n")) . $flush)
         ));
+        $keepalive = PushResponse::fromSidebandPacketLines(
+            $packet("\x03")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        );
+        $t->same(true, $keepalive->isSuccessful());
+        $t->same([], $keepalive->errorMessages());
     },
     'wordpress fixture parses deployment branch and tag push status' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v1-push-response.php';
@@ -438,5 +456,7 @@ return [
         $t->same(true, $summary['emptyPacketLineRejected']);
         $t->same(true, $summary['unrequestedOptionRejected']);
         $t->same(true, $summary['missingExpectedStatusRejected']);
+        $t->same(true, $summary['fatalAfterStatusRejected']);
+        $t->same(true, $summary['emptyErrorSidebandAccepted']);
     },
 ];

@@ -43,6 +43,19 @@ return [
         . $packet("packfile\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'cloneExchangeResponse' => $packet("version 2\n")
+        . $packet("agent=port-libs/0.1\n")
+        . $packet("ls-refs\n")
+        . $packet("fetch=shallow\n")
+        . $packet("object-format=sha1\n")
+        . $flush
+        . $packet("{$main} HEAD symref-target:refs/heads/main\n")
+        . $packet("{$main} refs/heads/main\n")
+        . $flush
+        . $packet("packfile\n")
+        . $packet("\x02Enumerating objects: 1, done.\n")
+        . $packet("\x01" . $packData)
+        . $flush,
     'rawUploadPackErrorResponse' => $packet('ERR raw WordPress fetch failure' . "\n"),
     'emptyErrorSidebandResponse' => $packet("packfile\n")
         . $packet("\x03")
@@ -60,4 +73,5 @@ return [
     'emptyErrorSidebandUse' => 'Empty channel-3 sideband keepalive/error packets are ignored instead of creating a blank deployment error, matching Gitoxide remote-progress handling.',
     'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
     'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
+    'cloneExchangeUse' => 'A WordPress deployment fetch can parse a persistent protocol v2 upload-pack exchange from capability advertisement through ls-refs and the following sidebanded fetch response before importing pack bytes.',
 ];

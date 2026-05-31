@@ -756,6 +756,23 @@ return [
             $map->offsetLines(1, -2);
         });
     },
+    'source map rejects negative line offsets beyond upstream generated span' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('theme.css');
+        $map->addMapping(0, 0, $sourceIndex, 0, 0);
+
+        $map->offsetLines(5, 2);
+        $t->same('AAAA;;;;;;;', $map->writeVlq());
+
+        $map->offsetLines(8, -2);
+        $t->same('AAAA;;;;;', $map->writeVlq());
+
+        $beforeOutOfRangeRemoval = $map->writeVlq();
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetLines(7, -2);
+        });
+        $t->same($beforeOutOfRangeRemoval, $map->writeVlq());
+    },
     'source map preserves empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('theme.css');

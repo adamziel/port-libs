@@ -43,3 +43,57 @@ No new support component is needed. The slice reuses native PHP reference-store,
 ## Non-Overlap
 
 This does not repeat accepted packed-ref lock collision, prepared commit publication, reflog message byte validation, deref update/delete splitting, sparse checkout, pathspec, URL/refspec, merge-base, or transport slices. It narrows the remaining prepared reference transaction lock/reflog parity gap around unchanged object updates and `.lock` sidecar visibility.
+
+---
+
+Slice: `gitoxide-reference-transaction-lock-reflog-parity-20260531T203827Z`
+
+Base accepted HEAD: `91b42fe7029899440b4b46f38b3f903a76f3b322`
+
+## Upstream Source Truth
+
+- Re-read `gix-ref/src/store/file/transaction/prepare.rs`.
+- Re-read `gix-ref/src/store/file/transaction/commit.rs`.
+- Re-read `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs`.
+- Existing lane inventory already records the exact upstream runner:
+  `file::transaction::prepare_and_commit::create_or_update::symbolic_head_missing_referent_then_update_referent`
+  passed 1/1 with 143 filtered out.
+
+## Mapped Behavior
+
+- Prepared dereferenced updates split symbolic parents into `RefLog::Only` edits while the leaf referent receives the actual reference write.
+- Prepared symbolic parent locks are staged during prepare, but commit removes them after writing only the parent reflog, preserving the symbolic parent file.
+- Parent reflog entries use the leaf referent's previous object id when available, matching upstream `leaf_referent_previous_oid` handling.
+- Missing leaf referents are created through the prepared leaf lock while both parent and leaf reflogs record a null-old-id to new-object transition.
+
+## Native Changes
+
+- Extended `ReferenceStore::prepareLooseUpdateTransaction()` with an optional deref mode that stages parent reflog-only locks and leaf reference locks.
+- Updated `PreparedReferenceTransaction::commitUpdate()` to support reflog-only update edits by appending the prepared reflog and removing the lock instead of publishing it as a reference file.
+- Added focused PHP coverage for missing and existing leaf referent prepared-deref updates.
+- Extended the WordPress reference transaction fixture/example with a prepared symbolic `HEAD` production publish that logs both `HEAD` and the production branch while keeping `HEAD` symbolic.
+
+## Verification
+
+- `php -l lanes/gitoxide/src/ReferenceStore.php`: pass.
+- `php -l lanes/gitoxide/src/PreparedReferenceTransaction.php`: pass.
+- `php -l lanes/gitoxide/tests/ReferenceStoreTest.php`: pass.
+- `php -l lanes/gitoxide/examples/wordpress-reference-transaction.php`: pass.
+- `php -l lanes/gitoxide/fixtures/wordpress-reference-transaction.php`: pass.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReferenceStoreTest.php`: `1 test files, 471 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReflogTest.php lanes/gitoxide/tests/ReferenceStoreTest.php`: `2 test files, 616 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`: `39 test files, 5444 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-reference-transaction.php`: exit `0`.
+- `jq empty lanes/gitoxide/lane-status.json`: pass.
+- `git diff --check -- lanes/gitoxide`: pass.
+- `rg -n "WordPress|wordpress|wp_|WP|Wp" lanes/gitoxide/src || true`: no matches.
+
+Full upstream Cargo workspace tests were not run; this slice used targeted upstream source reads plus the existing bounded upstream runner evidence recorded in `lanes/gitoxide/notes/upstream-inventory.md`.
+
+## Dependency Closure
+
+No new support component is needed. The slice reuses native PHP reference-store, loose-reference, prepared-transaction, reflog, namespace, and commit-signature helpers; no shell-out, live provider, credential store, or external Git process is required.
+
+## Non-Overlap
+
+This does not repeat accepted direct deref update/delete reporting, prepared unchanged object no-op handling, prepared delete/reflog-only handling, packed-ref lock collision handling, packed update-mode rewrites, reflog parser/append behavior, sparse checkout, pathspec, URL/refspec, merge-base, or transport slices. It adds the missing prepared transaction variant of upstream dereferenced symbolic update lock and reflog behavior.

@@ -64,6 +64,7 @@ final class ReferenceStore
         bool $forceCreateReflog = false,
         string $previous = self::PREVIOUS_ANY,
         ?ReferenceTarget $expectedTarget = null,
+        bool $deref = false,
     ): PreparedReferenceTransaction
     {
         $locks = [];
@@ -76,10 +77,53 @@ final class ReferenceStore
                     throw new \InvalidArgumentException('Prepared reference updates must be keyed by name and contain ReferenceTarget values');
                 }
 
-                $physicalName = $this->physicalName((string) $name);
+                [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName((string) $name), $deref, $algorithm);
                 $physicalTarget = $this->physicalTarget($target);
                 $existing = $this->tryFindPhysical($physicalName, $algorithm);
                 $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
+
+                if ($derefParents !== []) {
+                    $leafPreviousForReflog = $existing?->target;
+                    foreach ($derefParents as $parent) {
+                        $parentPhysicalName = $parent['name'];
+                        $parentTargetPath = $this->referencePath($parentPhysicalName);
+                        $parentLockPath = $parentTargetPath . '.lock';
+
+                        if (is_file($parentLockPath) || is_dir($parentLockPath)) {
+                            throw new \RuntimeException("A lock could not be obtained for reference \"{$this->storeRelativeName($parentPhysicalName)}\"");
+                        }
+
+                        $parentDirectory = dirname($parentLockPath);
+                        if (!is_dir($parentDirectory) && !mkdir($parentDirectory, 0777, true) && !is_dir($parentDirectory)) {
+                            throw new \RuntimeException("Unable to create prepared reference lock directory: {$parentDirectory}");
+                        }
+
+                        if (file_put_contents($parentLockPath, $physicalTarget->storageBytes(), LOCK_EX) === false) {
+                            throw new \RuntimeException("Unable to write prepared reference lock: {$parentPhysicalName}");
+                        }
+
+                        $locks[] = [
+                            'lockPath' => $parentLockPath,
+                            'edit' => ReferenceTransactionEdit::update(
+                                $this->storeRelativeName($parentPhysicalName),
+                                $this->storeRelativeTarget($parent['target']),
+                                $this->storeRelativeTarget($physicalTarget),
+                                ReferenceTransactionEdit::REFLOG_ONLY,
+                                false,
+                            ),
+                            'reflog' => $writeReflog ? [
+                                'physicalName' => $parentPhysicalName,
+                                'previousTarget' => $leafPreviousForReflog,
+                                'newTarget' => $physicalTarget,
+                                'committer' => $committer,
+                                'message' => $reflogMessage,
+                                'forceCreate' => $forceCreateReflog,
+                                'algorithm' => $algorithm,
+                            ] : null,
+                        ];
+                    }
+                }
+
                 $targetPath = $this->referencePath($physicalName);
                 $lockPath = $targetPath . '.lock';
                 $edit = ReferenceTransactionEdit::update(

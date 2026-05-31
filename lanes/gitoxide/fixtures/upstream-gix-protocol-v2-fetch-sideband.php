@@ -16,12 +16,69 @@ return [
         'repository' => 'GitoxideLabs/gitoxide',
         'commit' => '87433ed33eee9ba974111d20b854f6acb07cd4a6',
         'paths' => [
+            'gix-protocol/tests/fixtures/v2/clone.response',
             'gix-protocol/tests/fixtures/v2/clone-only.response',
             'gix-protocol/tests/fixtures/v2/clone-only-with-keepalive.response',
             'gix-protocol/tests/fixtures/v2/clone-only-2.response',
+            'gix-transport/tests/client/git.rs::handshake_v2_and_request',
+            'gix-protocol/tests/protocol/fetch/v2.rs::{ls_remote,clone_abort_prep}',
             'gix-protocol/tests/protocol/fetch/response.rs::v2::from_line_reader::{clone,clone_with_sidebands}',
             'gix-protocol/src/remote_progress.rs',
         ],
+    ],
+    'cloneExchange' => [
+        'response' => $decode(<<<'BASE64'
+MDAwZXZlcnNpb24gMgowMDE1YWdlbnQ9Z2l0LzIuMjguMAowMDBjbHMtcmVmcwowMDEyZmV0Y2g9
+c2hhbGxvdwowMDEyc2VydmVyLW9wdGlvbgowMDE3b2JqZWN0LWZvcm1hdD1zaGExCjAwMDAwMDUy
+ODA4ZTUwZDcyNGY2MDRmNjlhYjkzYzZkYTI5MTljMDE0NjY3YmVkYiBIRUFEIHN5bXJlZi10YXJn
+ZXQ6cmVmcy9oZWFkcy9tYXN0ZXIKMDAzZjgwOGU1MGQ3MjRmNjA0ZjY5YWI5M2M2ZGEyOTE5YzAx
+NDY2N2JlZGIgcmVmcy9oZWFkcy9tYXN0ZXIKMDAwMDAwMGRwYWNrZmlsZQowMDQwAkVudW1lcmF0
+aW5nIG9iamVjdHM6IDMsIGRvbmUuCkNvdW50aW5nIG9iamVjdHM6ICAzMyUgKDEvMykNMDAyMgJD
+b3VudGluZyBvYmplY3RzOiAgNjYlICgyLzMpDTAwNDYCQ291bnRpbmcgb2JqZWN0czogMTAwJSAo
+My8zKQ1Db3VudGluZyBvYmplY3RzOiAxMDAlICgzLzMpLCBkb25lLgowMzVjAVBBQ0sAAAACAAAA
+A5JCeJylk8mum1gARPd8xd2jDmDAXKSk1cwzZjCDvWMGMxtsMF+fl46y613X8ixKqpLO+iwKkNAw
+yWmKYRmIn8mMSXHilJ5PJVMQbEmVdJmSNMyZEkleaz0+gV+kybI2yQCudVN04PvyB3xbf4F/mqwb
+X/m3bOz/BgTNMiROMZABKA5xHPmifbOuxf/tqaZqaSrw16/wkqLZwFEc4GuKzV0DT/qXIwABjasd
+PMfxAsflciNJOgwuJdHqHpsNl8Etaq+zBEm7V1Yrcx3EGTbjhKp1/3AEVFb3kjcMizfjMc/vI4k9
+XdXKcw9J1q0t3BlnFqOb1/UpS9JmM5OSD8b8ydpPXVqGhCEgZ64GxIzAUsX0w/DyBzP9cJeiiltj
+jt12xQ0ok9BrEW2L2cRGE7X43K95twonPAkgAjzuAdUmRx9CYjmSoBOl0YjvZwLdRYRO9HatLPUV
+VSlCw6u7oYtMnxQlLGa0Wi3fpYEAIrq1kSdLcuF5B3vdm2eGfahlOwlSPmG7fm+zIGNRPE0p/vDo
+WHtnIk3oRhmSE9FVXz+Ez0k/KEfhKImWHHlOUqbfR/wpeLJTORe+xn1pLYanr50uo3pDGYYmLeHW
+h0etyYo8I6BY7gRd2QftsWxQhqEWhf2SDnohdyJrtq8T9y6UgVf4DbOgtSuTvbOigZEkz4fwiL5W
+RLdAcMw41fzHVqDRJSbtpQyfVLaXBIGultpno9M2bOW+Tp/LxvIR73W8LVp15GiHcyAgnXp1ys+5
+n6qX2FrZoyqHY2jpmO3Ii9SMQ23LQ6wQn06fghV3DmknbkbJXPF1iqH5RgDnxSy7oaPFqU1o1s4t
+rRPNRsflvmKDF1xMuTsqRsazShBG8cH7UTpbyzJrVLNlUHMRYFgkL84E6gUDpb2wbe6ZoCyOTjhf
+bRivlNDr0vsuK0MUPfY+CQjjZdxP5f0+WbXSq/JXw1hS0yrR0E3yPXrt2tU8QZkbmYOb43gTVCHC
+LvbIKxaNta7PnD34AwE/zoHgI7+dkWzxv4xB1roA41CA354iPwEq1UzroQJ4nDM0MDAzMVHISM3J
+yWco6FZXK2yftcTl5Jmlsocm8v9a880aALz1DbY5eJxLzyzJr8hMSeUCABKyAzAwMTkBaBUKEEXw
+TcD8Lb9yMTaZ/aaWv0EwMDNhAlRvdGFsIDMgKGRlbHRhIDApLCByZXVzZWQgMCAoZGVsdGEgMCks
+IHBhY2stcmV1c2VkIDAKMDAwNgEmMDAwMA==
+BASE64),
+        'capabilities' => ['agent', 'ls-refs', 'fetch', 'server-option', 'object-format'],
+        'fetchCapabilities' => ['shallow'],
+        'remoteRefs' => [
+            [
+                'kind' => 'symbolic',
+                'name' => 'HEAD',
+                'object' => '808e50d724f604f69ab93c6da2919c014667bedb',
+                'target' => 'refs/heads/master',
+            ],
+            [
+                'kind' => 'direct',
+                'name' => 'refs/heads/master',
+                'object' => '808e50d724f604f69ab93c6da2919c014667bedb',
+                'target' => null,
+            ],
+        ],
+        'messageBytes' => [
+            'capabilityAdvertisement' => 110,
+            'lsRefsAdvertisement' => 149,
+            'fetchResponse' => 1134,
+        ],
+        'packBytes' => 876,
+        'packTrailer' => '150a1045f04dc0fc2dbf72313699fda696bf4126',
+        'progressCount' => 4,
+        'remoteProgressCount' => 3,
     ],
     'cloneOnly' => [
         'response' => $decode(<<<'BASE64'

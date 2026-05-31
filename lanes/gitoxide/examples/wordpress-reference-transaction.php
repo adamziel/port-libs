@@ -149,6 +149,27 @@ $preparedLogOnlyDelete = $logOnlyStore->prepareLooseDeleteTransaction(
 );
 $preparedLogOnlyDeleteEdits = $preparedLogOnlyDelete->commit();
 
+$preparedDerefDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-deref-lock-' . bin2hex(random_bytes(4));
+$preparedDerefStore = new ReferenceStore($preparedDerefDir, null, $fixture['namespace']);
+$preparedDerefPrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedDerefStore->looseStore()->writeSymbolic($preparedDerefPrefix . $fixture['preparedDerefHeadRef'], $preparedDerefPrefix . $fixture['preparedDerefTargetRef']);
+$preparedDerefStore->looseStore()->writeDirect($preparedDerefPrefix . $fixture['preparedDerefTargetRef'], $fixture['productionCommit']);
+$preparedDeref = $preparedDerefStore->prepareLooseUpdateTransaction(
+    [$fixture['preparedDerefHeadRef'] => ReferenceTarget::object($fixture['reviewCommit'])],
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedDerefReflogMessage'],
+    true,
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::object($fixture['productionCommit']),
+    true,
+);
+$preparedDerefHadLocks = is_file($preparedDerefDir . '/' . $preparedDerefPrefix . 'HEAD.lock')
+    && is_file($preparedDerefDir . '/' . $preparedDerefPrefix . $fixture['preparedDerefTargetRef'] . '.lock');
+$preparedDerefEdits = $preparedDeref->commit();
+$preparedDerefCleanedLocks = !is_file($preparedDerefDir . '/' . $preparedDerefPrefix . 'HEAD.lock')
+    && !is_file($preparedDerefDir . '/' . $preparedDerefPrefix . $fixture['preparedDerefTargetRef'] . '.lock');
+
 return [
     'namespace' => $fixture['namespace'],
     'productionCommit' => $production->targetObjectId(),
@@ -192,5 +213,14 @@ return [
         && file_get_contents($logOnlyDir . '/packed-refs.lock') === 'held by packed ref compaction',
     'preparedLogOnlyRefStillExists' => $logOnlyStore->tryFind($logOnlyRef) !== null,
     'preparedLogOnlyReflogExists' => $logOnlyStore->reflogExists($logOnlyRef),
+    'preparedDerefEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedDerefEdits),
+    'preparedDerefEditModes' => array_map(static fn ($edit): string => $edit->reflogMode, $preparedDerefEdits),
+    'preparedDerefUpdatesReference' => array_map(static fn ($edit): bool => $edit->updatesReference, $preparedDerefEdits),
+    'preparedDerefHadLocks' => $preparedDerefHadLocks,
+    'preparedDerefCleanedLocks' => $preparedDerefCleanedLocks,
+    'preparedDerefHeadContents' => file_get_contents($preparedDerefDir . '/' . $preparedDerefPrefix . 'HEAD'),
+    'preparedDerefProductionCommit' => $preparedDerefStore->find($fixture['preparedDerefTargetRef'])->targetObjectId(),
+    'preparedDerefHeadReflog' => $preparedDerefStore->reflogContents($fixture['preparedDerefHeadRef']),
+    'preparedDerefProductionReflog' => $preparedDerefStore->reflogContents($fixture['preparedDerefTargetRef']),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

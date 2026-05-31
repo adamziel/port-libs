@@ -63,7 +63,9 @@ final class PushResponse
             } elseif ($band === 2) {
                 $progressMessages[] = self::trimOneTrailingNewline($data);
             } elseif ($band === 3) {
-                $errorMessages[] = self::trimOneTrailingNewline($data);
+                if ($data !== '') {
+                    $errorMessages[] = self::trimOneTrailingNewline($data);
+                }
             } else {
                 throw new \InvalidArgumentException("push response: invalid sideband {$band}");
             }
@@ -72,7 +74,7 @@ final class PushResponse
         if (!$sawFlush) {
             throw new \InvalidArgumentException('push response: missing sideband flush packet');
         }
-        if ($statusBytes === '' && $errorMessages !== []) {
+        if ($errorMessages !== []) {
             throw new \RuntimeException('push response: sideband error ' . implode("\n", $errorMessages));
         }
 

@@ -404,6 +404,35 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => $client->send($session->buildRequest([$blob])));
     },
+    'receive-pack client treats sideband error as fatal even after status report' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress fatal sideband after status payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: validating deployment refs\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x03pre-receive hook declined after status\n")
+            . $packet("\x01" . $flush)
+            . $flush;
+        $write = $streamWith('');
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $write),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+
+        try {
+            $client->send($session->buildRequest([$blob]));
+        } catch (RuntimeException $exception) {
+            $t->contains('sideband error pre-receive hook declined after status', $exception->getMessage());
+            $t->contains('refs/heads/main', $streamBytes($write));
+
+            return;
+        }
+
+        throw new RuntimeException('Expected receive-pack sideband error to be fatal');
+    },
     'stream receive-pack transport reports watchdog timeout while reading packet length' => static function (TestRunner $t): void {
         if (!function_exists('stream_socket_pair')) {
             throw new RuntimeException('stream_socket_pair is required for stream timeout watchdog tests');
@@ -2571,6 +2600,7 @@ return [
         $t->same(1, $v1Context['protocolVersion']);
         $t->same(['LANG' => 'C', 'LC_ALL' => 'C'], $v1Context['environment']);
         $t->same(['deploy@git.example.test'], $v1Context['sshArguments']);
+        $t->same(false, $v1Context['useShell']);
         $t->same('ssh://deploy@git.example.test/wp-content.git', $v1Context['credentialContext']->toUrl());
         $optionLikeHostContext = SshReceivePackTransport::connectorContext('deploy@-git-proxy.example.test:wp-content.git', ['protocolVersion' => 2]);
         $t->same('-git-proxy.example.test', $optionLikeHostContext['host']);
@@ -2610,6 +2640,7 @@ return [
         $t->same('plink', $inferredPlinkContext['programKind']);
         $t->same('/opt/bin/Plink.exe', $inferredPlinkContext['sshCommand']);
         $t->same(['-P', '2225', 'deploy@git.example.test'], $inferredPlinkContext['sshArguments']);
+        $t->same(false, $inferredPlinkContext['useShell']);
 
         $simpleContext = SshReceivePackTransport::connectorContext(
             'deploy@git.example.test:wp-content.git',
@@ -2619,6 +2650,26 @@ return [
         $t->same('simple', $simpleContext['sshCommand']);
         $t->same(['LANG' => 'C', 'LC_ALL' => 'C'], $simpleContext['environment']);
         $t->same(['deploy@git.example.test'], $simpleContext['sshArguments']);
+        $t->same(false, $simpleContext['useShell']);
+
+        $shellContext = SshReceivePackTransport::connectorContext(
+            'deploy@git.example.test:wp-content.git',
+            ['sshCommand' => 'echo hi'],
+        );
+        $t->same('simple', $shellContext['programKind']);
+        $t->same('echo hi', $shellContext['sshCommand']);
+        $t->same(false, $shellContext['disallowShell']);
+        $t->same(true, $shellContext['useShell']);
+        $t->same(['deploy@git.example.test'], $shellContext['sshArguments']);
+
+        $shellDisabledContext = SshReceivePackTransport::connectorContext(
+            'deploy@git.example.test:wp-content.git',
+            ['sshCommand' => 'echo hi', 'disallowShell' => true],
+        );
+        $t->same('simple', $shellDisabledContext['programKind']);
+        $t->same(true, $shellDisabledContext['disallowShell']);
+        $t->same(false, $shellDisabledContext['useShell']);
+        $t->same(['deploy@git.example.test'], $shellDisabledContext['sshArguments']);
 
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://example.test/repo.git', ['protocolVersion' => 0]));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://example.test/repo.git', ['protocolVersion' => 3]));
@@ -2822,6 +2873,9 @@ return [
         $t->same(['-batch', '-P', '2222', 'deploy@git.example.test'], $fixture['sshTortoisePlinkContext']['sshArguments']);
         $t->same('simple', $fixture['sshSimpleContext']['programKind']);
         $t->same(['deploy@git.example.test'], $fixture['sshSimpleContext']['sshArguments']);
+        $t->same(false, $fixture['sshSimpleContext']['useShell']);
+        $t->same(true, $fixture['sshShellScriptContext']['useShell']);
+        $t->same(false, $fixture['sshDisallowShellContext']['useShell']);
         $t->same(true, $fixture['sshSimplePortRejected']);
         $t->same(true, $fixture['unsafeSshLegacyHostRejected']);
         $t->same(['GIT_PROTOCOL' => 'version=2', 'LANG' => 'C', 'LC_ALL' => 'C'], $fixture['sshProtocolV2Context']['environment']);

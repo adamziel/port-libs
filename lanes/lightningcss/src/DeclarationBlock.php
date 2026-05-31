@@ -265,6 +265,14 @@ final class DeclarationBlock
         'border-image-outset',
         'border-image-repeat',
     ];
+    private const WEBKIT_MASK_BOX_IMAGE_SHORTHAND = '-webkit-mask-box-image';
+    private const WEBKIT_MASK_BOX_IMAGE_LONGHANDS = [
+        '-webkit-mask-box-image-source',
+        '-webkit-mask-box-image-slice',
+        '-webkit-mask-box-image-width',
+        '-webkit-mask-box-image-outset',
+        '-webkit-mask-box-image-repeat',
+    ];
     private const BORDER_IMAGE_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
     private const MASK_BORDER_LONGHANDS = [
         'mask-border-source',
@@ -586,6 +594,13 @@ final class DeclarationBlock
         $maskBorderValue = $this->getMaskBorderProperty($entries, $property);
         if ($maskBorderValue !== null) {
             return $maskBorderValue;
+        }
+        $webkitMaskBoxImageValue = $this->getWebkitMaskBoxImageProperty($entries, $property);
+        if ($webkitMaskBoxImageValue !== null) {
+            return $webkitMaskBoxImageValue;
+        }
+        if ($this->isWebkitMaskBoxImageProperty($property)) {
+            return null;
         }
         $borderRadiusValue = $this->getBorderRadiusProperty($entries, $property);
         if ($borderRadiusValue !== null) {
@@ -2396,6 +2411,180 @@ final class DeclarationBlock
     private function isDefaultMaskBorderMode(string $value): bool
     {
         return strcasecmp(trim($value), 'alpha') === 0;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getWebkitMaskBoxImageProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isWebkitMaskBoxImageProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND) {
+                $parsed = $this->parseBorderImageComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::BORDER_IMAGE_LONGHANDS as $longhand) {
+                    $webkitLonghand = $this->borderImageToWebkitMaskBoxImageProperty($longhand);
+                    if ($webkitLonghand === null) {
+                        continue;
+                    }
+
+                    $components[$webkitLonghand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isWebkitMaskBoxImageLonghand($entry['property'])) {
+                $borderImageProperty = $this->webkitMaskBoxImageToBorderImageProperty($entry['property']);
+                if ($borderImageProperty === null) {
+                    continue;
+                }
+
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeBorderImageLonghandValue($borderImageProperty, $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND) {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::WEBKIT_MASK_BOX_IMAGE_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->composeBorderImageShorthandValue($this->webkitMaskBoxImageComponentsToBorderImage($components)),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setWebkitMaskBoxImageLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isWebkitMaskBoxImageLonghand($property)) {
+            return null;
+        }
+
+        $borderImageProperty = $this->webkitMaskBoxImageToBorderImageProperty($property);
+        if ($borderImageProperty === null) {
+            return null;
+        }
+
+        $value = $this->normalizeBorderImageLonghandValue($borderImageProperty, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND) {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $components = $this->parseBorderImageComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$borderImageProperty] = $value;
+            $entries[$index] = [
+                'property' => self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND,
+                'value' => $this->composeBorderImageShorthandValue($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    private function isWebkitMaskBoxImageProperty(string $property): bool
+    {
+        return $property === self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND || $this->isWebkitMaskBoxImageLonghand($property);
+    }
+
+    private function isWebkitMaskBoxImageLonghand(string $property): bool
+    {
+        return in_array($property, self::WEBKIT_MASK_BOX_IMAGE_LONGHANDS, true);
+    }
+
+    private function webkitMaskBoxImageToBorderImageProperty(string $property): ?string
+    {
+        return match ($property) {
+            self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND => 'border-image',
+            '-webkit-mask-box-image-source' => 'border-image-source',
+            '-webkit-mask-box-image-slice' => 'border-image-slice',
+            '-webkit-mask-box-image-width' => 'border-image-width',
+            '-webkit-mask-box-image-outset' => 'border-image-outset',
+            '-webkit-mask-box-image-repeat' => 'border-image-repeat',
+            default => null,
+        };
+    }
+
+    private function borderImageToWebkitMaskBoxImageProperty(string $property): ?string
+    {
+        return match ($property) {
+            'border-image' => self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND,
+            'border-image-source' => '-webkit-mask-box-image-source',
+            'border-image-slice' => '-webkit-mask-box-image-slice',
+            'border-image-width' => '-webkit-mask-box-image-width',
+            'border-image-outset' => '-webkit-mask-box-image-outset',
+            'border-image-repeat' => '-webkit-mask-box-image-repeat',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     * @return array{
+     *     border-image-source:string,
+     *     border-image-slice:string,
+     *     border-image-width:string,
+     *     border-image-outset:string,
+     *     border-image-repeat:string
+     * }
+     */
+    private function webkitMaskBoxImageComponentsToBorderImage(array $components): array
+    {
+        return [
+            'border-image-source' => $components['-webkit-mask-box-image-source']['value'],
+            'border-image-slice' => $components['-webkit-mask-box-image-slice']['value'],
+            'border-image-width' => $components['-webkit-mask-box-image-width']['value'],
+            'border-image-outset' => $components['-webkit-mask-box-image-outset']['value'],
+            'border-image-repeat' => $components['-webkit-mask-box-image-repeat']['value'],
+        ];
     }
 
     /**
@@ -8539,6 +8728,10 @@ final class DeclarationBlock
         if ($maskBorderValue !== null) {
             return $this->parseEntries($maskBorderValue);
         }
+        $webkitMaskBoxImageValue = $this->setWebkitMaskBoxImageLonghand($entries, $property, $value, $important);
+        if ($webkitMaskBoxImageValue !== null) {
+            return $this->parseEntries($webkitMaskBoxImageValue);
+        }
         $borderRadiusValue = $this->setBorderRadiusLonghand($entries, $property, $value, $important);
         if ($borderRadiusValue !== null) {
             return $this->parseEntries($borderRadiusValue);
@@ -10490,6 +10683,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isWebkitMaskBoxImageLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeWebkitMaskBoxImageLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeWebkitMaskBoxImageLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isBorderRadiusLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeBorderRadiusLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeBorderRadiusLonghand($importantEntries, $property));
@@ -10708,6 +10907,10 @@ final class DeclarationBlock
 
         if ($property === 'mask-border') {
             return self::MASK_BORDER_LONGHANDS;
+        }
+
+        if ($property === self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND) {
+            return self::WEBKIT_MASK_BOX_IMAGE_LONGHANDS;
         }
 
         if ($property === 'outline') {
@@ -11184,6 +11387,54 @@ final class DeclarationBlock
 
                 $result[] = [
                     'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeWebkitMaskBoxImageLonghand(array $entries, string $property): string
+    {
+        $borderImageProperty = $this->webkitMaskBoxImageToBorderImageProperty($property);
+        if ($borderImageProperty === null) {
+            return $this->serializeEntries($entries);
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== self::WEBKIT_MASK_BOX_IMAGE_SHORTHAND) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseBorderImageComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::BORDER_IMAGE_LONGHANDS as $longhand) {
+                if ($longhand === $borderImageProperty) {
+                    continue;
+                }
+
+                $webkitLonghand = $this->borderImageToWebkitMaskBoxImageProperty($longhand);
+                if ($webkitLonghand === null) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $webkitLonghand,
                     'value' => $components[$longhand],
                     'important' => $entry['important'],
                 ];

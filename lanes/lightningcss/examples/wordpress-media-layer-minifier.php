@@ -106,6 +106,8 @@ if (($argv[1] ?? null) === '--self-test') {
         '@import "blocks/query-card.css" layer(theme, blocks) {};',
         '@layer blocks { @media screen and (color) or (hover) { .wp-block-query { color: chartreuse; } } }',
         '@layer blocks { @media (width > 480px) and (hover) or (pointer) { .wp-block-query { color: chartreuse; } } }',
+        '@layer blocks { @media ((color) or unknown(foo)) { .wp-block-query { color: chartreuse; } } }',
+        '@layer blocks { @media (not unknown(foo)) { .wp-block-query { color: chartreuse; } } }',
         '@layer blocks { @media (hover) and { .wp-block-query { color: chartreuse; } } }',
     ] as $invalidLayerCss) {
         try {

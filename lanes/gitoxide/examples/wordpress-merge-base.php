@@ -62,6 +62,10 @@ $timestampSkewBase = $finder->mergeBase(
     $fixture['timestampSkewLeftReview'],
     $fixture['timestampSkewRightReview'],
 );
+$timestampSkewReverseBase = $finder->mergeBase(
+    $fixture['timestampSkewRightReview'],
+    $fixture['timestampSkewLeftReview'],
+);
 $timestampSkewNoCommitGraphBase = $timeOnlyFinder->mergeBase(
     $fixture['timestampSkewLeftReview'],
     $fixture['timestampSkewRightReview'],
@@ -112,10 +116,12 @@ return [
     'shallowPairwiseStopsAtReleaseBaseline' => $shallowPairwiseBase === $fixture['shallowReleaseBaseline'],
     'timestampSkewHeads' => $fixture['timestampSkewHeads'],
     'timestampSkewBase' => $timestampSkewBase,
+    'timestampSkewReverseBase' => $timestampSkewReverseBase,
     'timestampSkewNoCommitGraphBase' => $timestampSkewNoCommitGraphBase,
     'timestampSkewExpectedBase' => $fixture['timestampSkewExpectedBase'],
     'timestampSkewPrunesNewerRoot' => $timestampSkewBase === $fixture['timestampSkewExpectedBase']
         && $timestampSkewNoCommitGraphBase === $fixture['timestampSkewExpectedBase'],
+    'timestampSkewPermutationOrderIsStable' => $timestampSkewReverseBase === $fixture['timestampSkewExpectedBase'],
     'junctionHeads' => $fixture['junctionHeads'],
     'junctionOtherReviews' => $fixture['junctionOtherReviews'],
     'junctionGraphWalkBases' => $junctionGraphWalkBases,

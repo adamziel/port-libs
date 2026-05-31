@@ -375,6 +375,56 @@ return [
             )
         );
     },
+    'declaration block reads writes removes upstream webkit mask box image cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $webkitMaskBox = '-webkit-mask-box-image: url("frame.svg") 10 40 10 40 / 12px / 2 round round !important';
+
+        $t->same(['value' => 'url(frame.svg)', 'important' => true], $block->getProperty($webkitMaskBox, '-webkit-mask-box-image-source'));
+        $t->same(['value' => '10 40', 'important' => true], $block->getProperty($webkitMaskBox, '-webkit-mask-box-image-slice'));
+        $t->same(['value' => '12px', 'important' => true], $block->getProperty($webkitMaskBox, '-webkit-mask-box-image-width'));
+        $t->same(['value' => '2', 'important' => true], $block->getProperty($webkitMaskBox, '-webkit-mask-box-image-outset'));
+        $t->same(['value' => 'round', 'important' => true], $block->getProperty($webkitMaskBox, '-webkit-mask-box-image-repeat'));
+        $t->same(['value' => 'url(frame.svg) 10 40 / 12px / 2 round', 'important' => true], $block->getProperty($webkitMaskBox, '-webkit-mask-box-image'));
+        $t->same(null, $block->getProperty($webkitMaskBox, 'mask-border-source'));
+        $t->same(
+            ['value' => 'url(frame.svg) 10 40 / 12px / 2 round', 'important' => false],
+            $block->getProperty(
+                '-webkit-mask-box-image-source: url("frame.svg"); -webkit-mask-box-image-slice: 10 40 10 40; -webkit-mask-box-image-width: 12px; -webkit-mask-box-image-outset: 2; -webkit-mask-box-image-repeat: round round',
+                '-webkit-mask-box-image'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                '-webkit-mask-box-image-source: url(frame.svg); -webkit-mask-box-image-slice: 10; -webkit-mask-box-image-width: 12px !important; -webkit-mask-box-image-outset: 2; -webkit-mask-box-image-repeat: round',
+                '-webkit-mask-box-image'
+            )
+        );
+        $t->same(
+            '-webkit-mask-box-image: url(new-frame.svg) 25 / 12px round',
+            $block->setProperty('-webkit-mask-box-image: url(frame.svg) 25 / 12px round', '-webkit-mask-box-image-source', 'url("new-frame.svg")')
+        );
+        $t->same(
+            '-webkit-mask-box-image: url(frame.svg) 25 / 12px space round',
+            $block->setProperty('-webkit-mask-box-image: url(frame.svg) 25 / 12px round', '-webkit-mask-box-image-repeat', 'space round')
+        );
+        $t->same(
+            '-webkit-mask-box-image: url(frame.svg) 25 / 12px round; mask-border-source: url(new-frame.svg)',
+            $block->setProperty('-webkit-mask-box-image: url(frame.svg) 25 / 12px round', 'mask-border-source', 'url(new-frame.svg)')
+        );
+        $t->same(
+            '-webkit-mask-box-image-slice: 25; -webkit-mask-box-image-width: 12px; -webkit-mask-box-image-outset: 0; -webkit-mask-box-image-repeat: round',
+            $block->removeProperty('-webkit-mask-box-image: url(frame.svg) 25 / 12px round', '-webkit-mask-box-image-source')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('-webkit-mask-box-image: url(frame.svg) 25 / 12px round; -webkit-mask-box-image-repeat: space; color: red', '-webkit-mask-box-image')
+        );
+        $t->same(
+            'color: red; -webkit-mask-box-image-slice: 25 !important; -webkit-mask-box-image-width: 12px !important; -webkit-mask-box-image-outset: 0 !important; -webkit-mask-box-image-repeat: round !important',
+            $block->removeProperty('-webkit-mask-box-image: url(frame.svg) 25 / 12px round !important; color: red; -webkit-mask-box-image-source: url(other.svg)', '-webkit-mask-box-image-source')
+        );
+    },
     'declaration block reads upstream mask cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $mask = 'mask: url("mask.svg") 25% 75% / cover no-repeat content-box padding-box subtract luminance';

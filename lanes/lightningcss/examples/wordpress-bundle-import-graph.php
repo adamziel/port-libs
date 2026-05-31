@@ -287,6 +287,19 @@ if ($lateLayerBundle !== '@layer theme.blocks{.wp-block-card{color:green}@layer 
 
 echo 'late-layer-import-order: preserved' . PHP_EOL;
 
+$escapedLayerBundle = (new CssBundler())->bundle('/escaped-layer-entry.css', [
+    '/escaped-layer-entry.css' => '@import "blocks/card.css" layer(plugin\2e cards); .wp-site-blocks { color: red }',
+    '/blocks/card.css' => '@import "../tokens.css" layer(palette\2c dark); .wp-block-card { color: green }',
+    '/tokens.css' => ':root { --wp--preset--color--brand: blue }',
+]);
+
+if ($escapedLayerBundle !== '@layer plugin\\.cards.palette\\,dark{:root{--wp--preset--color--brand:blue}}@layer plugin\\.cards{.wp-block-card{color:green}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected escaped import layer names to survive block-theme graph composition\n");
+    exit(1);
+}
+
+echo 'escaped-layer-imports: preserved' . PHP_EOL;
+
 try {
     (new CssBundler())->bundle('/broken-theme.css', [
         '/broken-theme.css' => '.wp-site-blocks { color: red } @import "tokens.css";',

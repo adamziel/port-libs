@@ -1138,6 +1138,82 @@ return [
             (string) $store->reflogContents('refs/new'),
         );
     },
+    'prepared deref update creates missing referent and keeps symbolic parent like upstream' => static function (TestRunner $t) use ($new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-deref-missing-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['HEAD' => ReferenceTarget::object($new)],
+            'sha1',
+            $committer,
+            'prepared deref publish',
+            true,
+            ReferenceStore::PREVIOUS_ANY,
+            null,
+            true,
+        );
+
+        $t->same(true, is_file($dir . '/HEAD.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/main.lock'));
+        $edits = $transaction->commit();
+        $zeros = str_repeat('0', 40);
+
+        $t->same(['HEAD', 'refs/heads/main'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same(
+            [ReferenceTransactionEdit::REFLOG_ONLY, ReferenceTransactionEdit::REFLOG_AND_REFERENCE],
+            array_map(static fn ($edit): string => $edit->reflogMode, $edits),
+        );
+        $t->same([false, true], array_map(static fn ($edit): bool => $edit->updatesReference, $edits));
+        $t->same('symbolic', $edits[0]->previousTarget?->kind);
+        $t->same('refs/heads/main', $edits[0]->previousTarget?->value);
+        $t->same(null, $edits[1]->previousTarget);
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same(false, is_file($dir . '/HEAD.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/main.lock'));
+        $t->contains(
+            "{$zeros} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tprepared deref publish\n",
+            (string) $store->reflogContents('HEAD'),
+        );
+        $t->contains(
+            "{$zeros} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tprepared deref publish\n",
+            (string) $store->reflogContents('refs/heads/main'),
+        );
+    },
+    'prepared deref update uses leaf previous object for symbolic parent reflog' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-deref-existing-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['HEAD' => ReferenceTarget::object($new)],
+            'sha1',
+            $committer,
+            'prepared deref fast-forward',
+            true,
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+            true,
+        );
+        $edits = $transaction->commit();
+
+        $t->same(['HEAD', 'refs/heads/main'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same($old, $edits[1]->previousTarget?->value);
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->contains(
+            "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tprepared deref fast-forward\n",
+            (string) $store->reflogContents('HEAD'),
+        );
+        $t->contains(
+            "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tprepared deref fast-forward\n",
+            (string) $store->reflogContents('refs/heads/main'),
+        );
+    },
     'prepared reference transaction commit recovers empty reflog directory blockers' => static function (TestRunner $t) use ($old): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-dir-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1446,8 +1522,24 @@ return [
         $t->same($fixture['expectedPreparedLogOnlyPackedLockPreserved'], $summary['preparedLogOnlyPackedLockPreserved']);
         $t->same($fixture['expectedPreparedLogOnlyRefStillExists'], $summary['preparedLogOnlyRefStillExists']);
         $t->same($fixture['expectedPreparedLogOnlyReflogExists'], $summary['preparedLogOnlyReflogExists']);
+        $t->same($fixture['expectedPreparedDerefEditNames'], $summary['preparedDerefEditNames']);
+        $t->same($fixture['expectedPreparedDerefEditModes'], $summary['preparedDerefEditModes']);
+        $t->same($fixture['expectedPreparedDerefUpdatesReference'], $summary['preparedDerefUpdatesReference']);
+        $t->same(true, $summary['preparedDerefHadLocks']);
+        $t->same(true, $summary['preparedDerefCleanedLocks']);
+        $t->same($fixture['expectedPhysicalHead'], $summary['preparedDerefHeadContents']);
+        $t->same($fixture['reviewCommit'], $summary['preparedDerefProductionCommit']);
+        $t->contains(
+            $fixture['productionCommit'] . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedDerefReflogMessage'],
+            (string) $summary['preparedDerefHeadReflog'],
+        );
+        $t->contains(
+            $fixture['productionCommit'] . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedDerefReflogMessage'],
+            (string) $summary['preparedDerefProductionReflog'],
+        );
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
+        $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

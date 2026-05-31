@@ -116,6 +116,16 @@ return [
         . $flush,
     'oversizedReportStatus' => 'ffff' . str_repeat('x', 0xffff - 4),
     'fatalSidebandResponse' => $packet("\x03pre-receive hook declined deployment\n") . $flush,
+    'fatalAfterStatusResponse' => $packet("\x01" . $packet("unpack ok\n"))
+        . $packet("\x01" . $packet("ok refs/heads/main\n"))
+        . $packet("\x03pre-receive hook declined after deployment status\n")
+        . $packet("\x01" . $flush)
+        . $flush,
+    'emptyErrorSidebandResponse' => $packet("\x03")
+        . $packet("\x01" . $packet("unpack ok\n"))
+        . $packet("\x01" . $packet("ok refs/heads/main\n"))
+        . $packet("\x01" . $flush)
+        . $flush,
     'carriageReturnStatusResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/main\r\n")
         . $flush,

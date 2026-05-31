@@ -27,6 +27,8 @@ return [
     'sshPlinkArguments' => $fixture['sshPlinkContext']['sshArguments'],
     'sshTortoisePlinkArguments' => $fixture['sshTortoisePlinkContext']['sshArguments'],
     'sshSimpleArguments' => $fixture['sshSimpleContext']['sshArguments'],
+    'sshShellScriptUsesShell' => $fixture['sshShellScriptContext']['useShell'],
+    'sshDisallowShellUsesShell' => $fixture['sshDisallowShellContext']['useShell'],
     'sshSimplePortRejected' => $fixture['sshSimplePortRejected'],
     'sshCredentialContext' => $fixture['sshProtocolV2Context']['redactedCredentialContext'],
     'sshAuthenticationBoundary' => $fixture['sshProtocolV2Context']['authenticationBoundary'],

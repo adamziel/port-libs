@@ -73,6 +73,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     programKind: string,
      *     sshCommand: string,
      *     disallowShell: bool,
+     *     useShell: bool,
      *     environment: array<string, string>,
      *     sshArguments: list<string>,
      *     credentialContext: CredentialContext,
@@ -315,7 +316,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool} $options
-     * @return array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool}
+     * @return array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool}
      */
     private static function normalizeConnectOptions(array $options): array
     {
@@ -352,12 +353,13 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'programKind' => $normalizedKind,
             'sshCommand' => $sshCommand,
             'disallowShell' => $disallowShell,
+            'useShell' => self::sshCommandUsesShell($sshCommand, $disallowShell),
         ];
     }
 
     /**
      * @param array{host: string, user: ?string, port: ?int, path: string} $target
-     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool} $options
+     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool} $options
      * @return array{
      *     host: string,
      *     user: ?string,
@@ -368,6 +370,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     programKind: string,
      *     sshCommand: string,
      *     disallowShell: bool,
+     *     useShell: bool,
      *     environment: array<string, string>,
      *     sshArguments: list<string>,
      *     credentialContext: CredentialContext,
@@ -402,6 +405,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'programKind' => $options['programKind'],
             'sshCommand' => $options['sshCommand'],
             'disallowShell' => $options['disallowShell'],
+            'useShell' => $options['useShell'],
             'environment' => $environment,
             'sshArguments' => $sshArguments,
             'credentialContext' => $credentialContext,
@@ -412,7 +416,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array{host: string, user: ?string, port: ?int, path: string} $target
-     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool} $options
+     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool} $options
      * @return list<string>
      */
     private static function sshArgumentsForTarget(array $target, array $options): array
@@ -485,6 +489,21 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'simple' => 'ssh',
             default => $programKind,
         };
+    }
+
+    private static function sshCommandUsesShell(string $sshCommand, bool $disallowShell): bool
+    {
+        if ($disallowShell) {
+            return false;
+        }
+
+        foreach (['|', '&', ';', '<', '>', '(', ')', '$', '`', '\\', '"', "'", ' ', "\t", "\n", '*', '?', '[', '#', '~', '=', '%'] as $byte) {
+            if (str_contains($sshCommand, $byte)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function connectorAcceptsContext(callable $connector): bool

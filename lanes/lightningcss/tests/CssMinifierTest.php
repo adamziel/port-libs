@@ -1720,6 +1720,8 @@ CSS
         $t->same('@import "test.css" layer(foo);', $minifier->minify("@import 'test.css' layer(foo);"));
         $t->same('@import "test.css" layer(foo.bar);', $minifier->minify("@import 'test.css' layer(foo.bar);"));
         $t->same('@import "test.css" layer(foo\\ bar);', $minifier->minify("@import 'test.css' layer(foo\\20 bar);"));
+        $t->same('@import "test.css" layer(foo\\.bar);', $minifier->minify("@import 'test.css' layer(foo\\2e bar);"));
+        $t->same('@import "test.css" layer(foo\\,bar);', $minifier->minify("@import 'test.css' layer(foo\\2c bar);"));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@import 'test.css' layer(foo, bar) {};"));
     },
     'css minifier maps upstream layer statement and block consolidation' => static function (TestRunner $t): void {
@@ -1730,6 +1732,8 @@ CSS
         $t->same('@layer foo.bar,baz;', $minifier->minify('@layer foo.bar, baz;'));
         $t->same('@layer foo{.bar{color:red}}', $minifier->minify('@layer foo { .bar { color: red; } }'));
         $t->same('@layer foo.bar{.bar{color:red}}', $minifier->minify('@layer foo.bar { .bar { color: red; } }'));
+        $t->same('@layer foo\\.bar{.bar{color:red}}', $minifier->minify('@layer foo\\2e bar { .bar { color: red; } }'));
+        $t->same('@layer foo\\,bar{.bar{color:red}}', $minifier->minify('@layer foo\\2c bar { .bar { color: red; } }'));
         $t->same('@layer{.bar{color:red}}', $minifier->minify('@layer { .bar { color: red; } }'));
         $t->same('@layer foo\\ bar,baz;', $minifier->minify('@layer foo\\20 bar, baz;'));
         $t->same(

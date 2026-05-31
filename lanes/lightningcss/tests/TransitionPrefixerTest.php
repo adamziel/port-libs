@@ -997,6 +997,44 @@ return [
         $t->same($prefixed, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['safari' => 9]));
         $t->same($modern, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['safari' => 10]));
     },
+    'transition prefixer maps upstream logical text-align browser boundaries' => static function (TestRunner $t) use ($rtlLangs): void {
+        $prefixer = new TransitionPrefixer();
+        $ltr = ':not(:is(' . $rtlLangs . '))';
+        $rtl = ':is(' . $rtlLangs . ')';
+
+        $t->same(
+            '.foo' . $ltr . '{text-align:left}.foo' . $rtl . '{text-align:right}',
+            $prefixer->prefixForTargets('.foo { text-align: start; }', ['safari' => 2])
+        );
+        $t->same(
+            '.foo' . $ltr . '{text-align:right}.foo' . $rtl . '{text-align:left}',
+            $prefixer->prefixForTargets('.foo { text-align: end; }', ['safari' => 2])
+        );
+        $t->same(
+            '.foo{text-align:start}',
+            $prefixer->prefixForTargets('.foo { text-align: start; }', ['safari' => 14])
+        );
+        $t->same(
+            '.foo>.bar' . $ltr . '{text-align:left}.foo>.bar' . $rtl . '{text-align:right}',
+            $prefixer->prefixForTargets('.foo > .bar { text-align: start; }', ['safari' => 2])
+        );
+        $t->same(
+            '.foo' . $ltr . ':after{text-align:left}.foo' . $rtl . ':after{text-align:right}',
+            $prefixer->prefixForTargets('.foo:after { text-align: start; }', ['safari' => 2])
+        );
+        $t->same(
+            '.foo:hover' . $ltr . '{text-align:left}.foo:hover' . $rtl . '{text-align:right}',
+            $prefixer->prefixForTargets('.foo:hover { text-align: start; }', ['safari' => 2])
+        );
+        $t->same(
+            '.foo' . $ltr . '{text-align:left}.foo' . $rtl . '{text-align:right}',
+            $prefixer->prefixForTargets('.foo { text-align: start; }', ['chrome' => 17])
+        );
+        $t->same(
+            '.foo{text-align:start}',
+            $prefixer->prefixForTargets('.foo { text-align: start; }', ['chrome' => 18])
+        );
+    },
     'transition prefixer maps upstream logical inset target fallbacks' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');

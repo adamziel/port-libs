@@ -295,6 +295,12 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
+        $logicalTextAlignFallback = ($targetOptions['logicalTextAlignNeedsFallback'] ?? false)
+            ? $this->rewriteLogicalTextAlignFallbackRule($selectors, $entries)
+            : null;
+        if ($logicalTextAlignFallback !== null) {
+            return $logicalTextAlignFallback . implode('', $supportRules);
+        }
         if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
@@ -1107,6 +1113,16 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'samsung', [0], [13, 255, 255])
                 || isset($normalized['ie'])
             )),
+            'logicalTextAlignNeedsFallback' => $logicalPropertiesIncluded || (!$logicalPropertiesExcluded && $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [37],
+                'chrome' => [18],
+                'edge' => [79],
+                'firefox' => [4],
+                'ios_saf' => [2],
+                'opera' => [14],
+                'safari' => [3, 1],
+                'samsung' => [1],
+            ])),
             'lightDarkNeedsFallback' => !$lightDarkExcluded && (
                 ($chrome !== null && !$this->targetAtLeast($normalized, 'chrome', [123]))
                 || (isset($normalized['edge']) && !$this->targetAtLeast($normalized, 'edge', [123]))
@@ -2250,6 +2266,51 @@ final class TransitionPrefixer
             . $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
             . $this->selectorVariant($selectors, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
             . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function rewriteLogicalTextAlignFallbackRule(string $selectors, array $entries): ?string
+    {
+        $baseEntries = [];
+        $ltrEntries = [];
+        $rtlEntries = [];
+        $changed = false;
+
+        foreach ($entries as $entry) {
+            if ($entry['property'] !== 'text-align' || $entry['important']) {
+                $baseEntries[] = $entry;
+                continue;
+            }
+
+            $value = strtolower(trim($entry['value']));
+            if ($value === 'start') {
+                $ltrEntries[] = $this->declarationEntry('text-align', 'left');
+                $rtlEntries[] = $this->declarationEntry('text-align', 'right');
+                $changed = true;
+                continue;
+            }
+
+            if ($value === 'end') {
+                $ltrEntries[] = $this->declarationEntry('text-align', 'right');
+                $rtlEntries[] = $this->declarationEntry('text-align', 'left');
+                $changed = true;
+                continue;
+            }
+
+            $baseEntries[] = $entry;
+        }
+
+        if (!$changed) {
+            return null;
+        }
+
+        $output = $baseEntries === [] ? '' : $selectors . '{' . $this->serializeDeclarations($baseEntries) . '}';
+
+        return $output
+            . $this->directionSelectorVariant($selectors, 'ltr') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+            . $this->directionSelectorVariant($selectors, 'rtl') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
     }
 
     /**
@@ -7593,6 +7654,29 @@ final class TransitionPrefixer
             static fn (string $selector): string => trim($selector) . $suffix,
             $this->splitTopLevel($selectors, ',')
         ));
+    }
+
+    private function directionSelectorVariant(string $selectors, string $direction): string
+    {
+        $suffix = $direction === 'rtl'
+            ? $this->rtlPseudo('is')
+            : ':not(' . $this->rtlPseudo('is') . ')';
+
+        return implode(',', array_map(
+            fn (string $selector): string => $this->insertSelectorSuffixBeforePseudoElement(trim($selector), $suffix),
+            $this->splitTopLevel($selectors, ',')
+        ));
+    }
+
+    private function insertSelectorSuffixBeforePseudoElement(string $selector, string $suffix): string
+    {
+        if (preg_match('/(?:::(?:before|after|first-letter|first-line)|:(?:before|after|first-letter|first-line))\b/i', $selector, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return $selector . $suffix;
+        }
+
+        $offset = $matches[0][1];
+
+        return substr($selector, 0, $offset) . $suffix . substr($selector, $offset);
     }
 
     private function rtlPseudo(string $function): string

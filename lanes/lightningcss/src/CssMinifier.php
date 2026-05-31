@@ -894,7 +894,7 @@ final class CssMinifier
         }
 
         $prelude = trim(substr($css, $start, $open - $start));
-        if (str_contains($prelude, ',')) {
+        if (count($this->splitLayerNameList($prelude)) > 1) {
             throw new \InvalidArgumentException("Invalid @layer block prelude: {$prelude}");
         }
 
@@ -1027,7 +1027,7 @@ final class CssMinifier
     private function minifyLayerNameList(string $prelude): array
     {
         $names = [];
-        foreach ($this->splitTopLevel($prelude, ',') as $name) {
+        foreach ($this->splitLayerNameList($prelude) as $name) {
             $name = trim($name);
             if ($name === '') {
                 continue;
@@ -1041,10 +1041,127 @@ final class CssMinifier
 
     private function minifyLayerName(string $name): string
     {
-        $name = preg_replace('/\\\\20\s?/i', '\\ ', $name) ?? $name;
-        $name = preg_replace('/\\\\([.#])/', '\\\\$1', $name) ?? $name;
+        $segments = [];
+        foreach ($this->splitLayerNameSegments($name) as $segment) {
+            $segment = trim($segment);
+            if ($segment === '') {
+                continue;
+            }
 
-        return preg_replace('/(?<!\\\\)\s+/', '', $name) ?? $name;
+            $segments[] = $this->serializeCssIdentifier($this->decodeCssIdentifier($segment));
+        }
+
+        return implode('.', $segments);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitLayerNameList(string $prelude): array
+    {
+        return $this->splitEscapedIdentifierParts($prelude, ',');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitLayerNameSegments(string $name): array
+    {
+        return $this->splitEscapedIdentifierParts($name, '.');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitEscapedIdentifierParts(string $value, string $delimiter): array
+    {
+        $parts = [''];
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '\\') {
+                $end = $this->cssEscapeEndOffset($value, $i);
+                $parts[array_key_last($parts)] .= substr($value, $i, $end - $i + 1);
+                $i = $end;
+                continue;
+            }
+
+            if ($char === $delimiter) {
+                $parts[] = '';
+                continue;
+            }
+
+            $parts[array_key_last($parts)] .= $char;
+        }
+
+        return array_values(array_map('trim', $parts));
+    }
+
+    private function decodeCssIdentifier(string $identifier): string
+    {
+        return $this->decodeCssStringEscapes($identifier);
+    }
+
+    private function serializeCssIdentifier(string $identifier): string
+    {
+        $output = '';
+        $length = strlen($identifier);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $identifier[$i];
+            $byte = ord($char);
+
+            if ($i === 0 && ctype_digit($char)) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            if ($i === 1 && ($identifier[0] ?? '') === '-' && ctype_digit($char)) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            if ($this->isIdentifierChar($char) || $byte >= 0x80) {
+                $output .= $char;
+                continue;
+            }
+
+            if ($byte === 0 || ($byte >= 1 && $byte <= 31) || $byte === 127) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            $output .= '\\' . $char;
+        }
+
+        return $output;
+    }
+
+    private function cssEscapeEndOffset(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        if ($offset + 1 >= $length) {
+            return $offset;
+        }
+
+        $cursor = $offset + 1;
+        $next = $value[$cursor];
+        if (!ctype_xdigit($next)) {
+            return $next === "\r" && ($value[$cursor + 1] ?? '') === "\n" ? $cursor + 1 : $cursor;
+        }
+
+        $digits = 0;
+        while ($cursor < $length && $digits < 6 && ctype_xdigit($value[$cursor])) {
+            $cursor++;
+            $digits++;
+        }
+
+        if ($cursor < $length && ctype_space($value[$cursor])) {
+            return $value[$cursor] === "\r" && ($value[$cursor + 1] ?? '') === "\n" ? $cursor + 1 : $cursor;
+        }
+
+        return $cursor - 1;
     }
 
     private function findTopLevelAtKeyword(string $css, string $keyword, int $start): ?int
@@ -1380,7 +1497,7 @@ final class CssMinifier
                 if (($tail[strlen('layer')] ?? '') === '(') {
                     [$function, $functionEnd] = $this->readFunctionRaw($tail, 0);
                     $layerName = trim(substr($function, strlen('layer('), -1));
-                    if (count($this->splitTopLevel($layerName, ',')) > 1) {
+                    if (count($this->splitLayerNameList($layerName)) > 1) {
                         throw new \InvalidArgumentException("Invalid @import layer name: {$layerName}");
                     }
 

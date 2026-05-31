@@ -477,6 +477,10 @@ final class SourceMap
         $removeStart = null;
         $removeEnd = null;
         if ($generatedLineOffset < 0) {
+            if ($generatedLine > $this->generatedLineCount) {
+                throw new InvalidArgumentException('Generated line must not exceed generated line count for negative line offsets.');
+            }
+
             $removeStart = $startLine;
             $removeEnd = $generatedLine;
         }

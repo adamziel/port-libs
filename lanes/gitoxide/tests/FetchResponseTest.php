@@ -7,6 +7,7 @@ use PortLibs\Gitoxide\FetchCommand;
 use PortLibs\Gitoxide\FetchResponse;
 use PortLibs\Gitoxide\FetchShallowUpdate;
 use PortLibs\Gitoxide\FetchWantedRef;
+use PortLibs\Gitoxide\ProtocolV2FetchExchange;
 use PortLibs\Gitoxide\RemoteProgress;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
@@ -279,6 +280,38 @@ return [
         $t->same(true, str_contains($keepaliveResponse, "0005\x01"));
         $t->same('150a1045f04dc0fc2dbf72313699fda696bf4126', bin2hex(substr(FetchResponse::fromV2PacketLines($keepaliveResponse)->packData(), -20)));
     },
+    'parses upstream protocol v2 clone exchange before sideband fetch response' => static function (TestRunner $t): void {
+        $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-sideband.php';
+        $fixture = $fixtures['cloneExchange'];
+        $exchange = ProtocolV2FetchExchange::fromPacketLines($fixture['response']);
+        $response = $exchange->fetchResponse();
+
+        $remoteRefs = array_map(
+            static fn ($ref): array => [
+                'kind' => $ref->kind,
+                'name' => $ref->name,
+                'object' => $ref->object,
+                'target' => $ref->target,
+            ],
+            $exchange->remoteRefs()
+        );
+
+        $t->same($fixture['capabilities'], $exchange->capabilities()->names());
+        $t->same($fixture['fetchCapabilities'], $exchange->capabilities()->capability('fetch')?->values());
+        $t->same($fixture['remoteRefs'], $remoteRefs);
+        $t->same($fixture['messageBytes']['capabilityAdvertisement'], strlen($exchange->capabilityAdvertisementBytes()));
+        $t->same($fixture['messageBytes']['lsRefsAdvertisement'], strlen($exchange->lsRefsAdvertisementBytes()));
+        $t->same($fixture['messageBytes']['fetchResponse'], strlen($exchange->fetchResponseBytes()));
+        $t->same(true, $response->hasPack());
+        $t->same([], $response->acknowledgements());
+        $t->same([], $response->shallowUpdates());
+        $t->same([], $response->wantedRefs());
+        $t->same($fixture['packBytes'], strlen($response->packData()));
+        $t->same($fixture['packTrailer'], bin2hex(substr($response->packData(), -20)));
+        $t->same($fixture['progressCount'], count($response->progressMessages()));
+        $t->same($fixture['remoteProgressCount'], count($response->remoteProgress()));
+        $t->same([], $response->errorMessages());
+    },
     'parses upstream v2 ref-in-want wanted-refs response with sideband pack' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-ref-in-want-sideband.php';
         $fixture = $fixtures['refInWant'];
@@ -404,6 +437,7 @@ return [
         $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
         $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAckResponse']);
         $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
+        $cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
 
         $t->same(true, $response->hasPack());
         $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
@@ -426,6 +460,11 @@ return [
         $t->same($fixture['objects']['main'], $refInWantResponse->wantedRefs()[0]->object);
         $t->same($fixture['packData'], $refInWantResponse->packData());
         $t->same([], $refInWantResponse->progressMessages());
+        $t->same(['agent', 'ls-refs', 'fetch', 'object-format'], $cloneExchange->capabilities()->names());
+        $t->same('refs/heads/main', $cloneExchange->remoteRefs()[0]->target);
+        $t->same('refs/heads/main', $cloneExchange->remoteRefs()[1]->name);
+        $t->same($fixture['packData'], $cloneExchange->fetchResponse()->packData());
+        $t->same(['Enumerating objects: 1, done.'], $cloneExchange->fetchResponse()->progressMessages());
         $t->same(
             'fetch response: upload-pack error raw WordPress fetch failure',
             rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true)))
@@ -438,5 +477,7 @@ return [
         $t->same(true, $summary['suffixlessAckParsed']);
         $t->same(true, $summary['refInWantParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['refInWantPackTrailer']);
+        $t->same(true, $summary['cloneExchangeParsed']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['cloneExchangePackTrailer']);
     },
 ];

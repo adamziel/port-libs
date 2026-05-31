@@ -1497,6 +1497,44 @@ CSS;
             'kept' => $export('EgL3uq_kept'),
         ], $snakeCaseOption['exports']);
     },
+    'css modules unused symbols do not prune matching global selectors before composes exports' => static function (TestRunner $t) use ($export, $local): void {
+        $css = <<<'CSS'
+:global(.legacy) .card {
+  color: red;
+}
+
+.legacy {
+  color: blue;
+}
+
+.card {
+  composes: reset;
+  color: green;
+}
+
+.reset {
+  color: yellow;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css, [
+            'unusedSymbols' => ['legacy'],
+        ]);
+
+        $t->same('.legacy .EgL3uq_card{color:red}.EgL3uq_card{color:green}.EgL3uq_reset{color:#ff0}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_reset')]),
+            'reset' => $export('EgL3uq_reset'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $cardPruned = (new CssModulesTransformer())->transform(':global(.legacy) .card { color: red } .card { color: green }', [
+            'unusedSymbols' => ['card'],
+        ]);
+
+        $t->same('', $cardPruned['code']);
+        $t->same([], $cardPruned['exports']);
+    },
     'css modules scopes upstream view transition declaration idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'
 .card {

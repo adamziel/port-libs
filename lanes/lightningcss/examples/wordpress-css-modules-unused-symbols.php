@@ -16,6 +16,10 @@ $css = <<<'CSS'
   margin: 0;
 }
 
+:global(.legacyCard) .card {
+  outline: 1px solid green;
+}
+
 .legacyCard {
   composes: wp-alignwide from global;
   color: green;
@@ -40,7 +44,7 @@ $result = (new CssModulesTransformer())->transform($css, [
 ]);
 
 $expected = [
-    'code' => '.BlockA_card{color:red}.BlockA_reset{margin:0}',
+    'code' => '.BlockA_card{color:red}.BlockA_reset{margin:0}.legacyCard .BlockA_card{outline:1px solid green}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',

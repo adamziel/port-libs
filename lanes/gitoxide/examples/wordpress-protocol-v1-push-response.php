@@ -30,6 +30,13 @@ try {
 } catch (RuntimeException $error) {
     $fatalSidebandRejected = str_contains($error->getMessage(), 'sideband error pre-receive hook declined deployment');
 }
+$fatalAfterStatusRejected = false;
+try {
+    PushResponse::fromSidebandPacketLines($fixture['fatalAfterStatusResponse']);
+} catch (RuntimeException $error) {
+    $fatalAfterStatusRejected = str_contains($error->getMessage(), 'sideband error pre-receive hook declined after deployment status');
+}
+$emptyErrorSidebandResponse = PushResponse::fromSidebandPacketLines($fixture['emptyErrorSidebandResponse']);
 $carriageReturnStatusRejected = false;
 try {
     PushResponse::fromReportStatusPacketLines($fixture['carriageReturnStatusResponse']);
@@ -123,6 +130,9 @@ return [
     'errorMessages' => $response->errorMessages(),
     'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
     'fatalSidebandRejected' => $fatalSidebandRejected,
+    'fatalAfterStatusRejected' => $fatalAfterStatusRejected,
+    'emptyErrorSidebandAccepted' => $emptyErrorSidebandResponse->isSuccessful()
+        && $emptyErrorSidebandResponse->errorMessages() === [],
     'fallThroughAccepted' => $fallThroughResponse->refStatuses()[0]->fallThrough,
     'compatibilityOptionExtensionsIgnored' => $compatibilityResponse->refStatuses()[0]->oldObject === $fixture['compatibilityRef']['oldObject'],
     'compatibilityBareRejectionDefaulted' => $compatibilityResponse->refStatuses()[1]->message === 'failed',

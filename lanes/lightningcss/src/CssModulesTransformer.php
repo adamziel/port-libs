@@ -85,7 +85,11 @@ final class CssModulesTransformer
         }
 
         if ($minify && $this->unusedSymbols !== []) {
-            $code = $this->pruneUnusedSymbolsFromCss($code, $this->scopedUnusedSymbols());
+            $code = $this->pruneUnusedSymbolsFromCss(
+                $code,
+                $this->scopedUnusedSymbols(),
+                $this->scopedUnusedSelectorSymbols()
+            );
             $this->pruneUnusedExports($code);
             $this->pruneUnusedReferences($code);
         }
@@ -1913,8 +1917,9 @@ final class CssModulesTransformer
 
     /**
      * @param array<string, true> $unusedSymbols
+     * @param array<string, true> $unusedSelectorSymbols
      */
-    private function pruneUnusedSymbolsFromCss(string $css, array $unusedSymbols): string
+    private function pruneUnusedSymbolsFromCss(string $css, array $unusedSymbols, array $unusedSelectorSymbols): string
     {
         $output = '';
         $cursor = 0;
@@ -1946,7 +1951,7 @@ final class CssModulesTransformer
                 }
 
                 if ($this->atRuleContainsNestedRules($trimmedPrelude)) {
-                    $body = $this->pruneUnusedSymbolsFromCss($body, $unusedSymbols);
+                    $body = $this->pruneUnusedSymbolsFromCss($body, $unusedSymbols, $unusedSelectorSymbols);
                     if (trim($body) === '') {
                         $cursor = $close + 1;
                         continue;
@@ -1958,7 +1963,7 @@ final class CssModulesTransformer
                 continue;
             }
 
-            if ($this->selectorListIsUnused($prelude, $unusedSymbols)) {
+            if ($this->selectorListIsUnused($prelude, $unusedSelectorSymbols)) {
                 $cursor = $close + 1;
                 continue;
             }
@@ -1968,6 +1973,31 @@ final class CssModulesTransformer
         }
 
         return $output;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function scopedUnusedSelectorSymbols(): array
+    {
+        $symbols = [];
+        $exportNames = [];
+        foreach ($this->exports as $export) {
+            $exportNames[(string) $export['name']] = true;
+        }
+
+        foreach ($this->unusedSymbols as $symbol) {
+            if (str_starts_with($symbol, '--')) {
+                continue;
+            }
+
+            $symbols[$this->scopedName($symbol)] = true;
+            if (isset($exportNames[$symbol])) {
+                $symbols[$symbol] = true;
+            }
+        }
+
+        return $symbols;
     }
 
     /**

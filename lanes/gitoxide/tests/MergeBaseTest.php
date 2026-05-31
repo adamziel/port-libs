@@ -290,6 +290,175 @@ return [
             $t->same([$c2], $secondFinder->mergeBasesMany([$pl, $pr]));
         }
     },
+    'maps upstream generated merge-base permutation baseline archive' => static function (TestRunner $t) use ($finder): void {
+        $oid = static fn (string $hex): string => str_repeat($hex, 20);
+        $timedCommit = static fn (int $offsetSeconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            'Ada <ada@example.test> ' . (1700000000 + $offsetSeconds) . ' +0000',
+            'CI <ci@example.test> ' . (1700000000 + $offsetSeconds) . ' +0000',
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ['Ada <ada@example.test> ' . (1700000000 + $offsetSeconds) . ' +0000'],
+                'committer' => ['CI <ci@example.test> ' . (1700000000 + $offsetSeconds) . ' +0000'],
+            ],
+        );
+
+        $ids = [
+            'DA' => $oid('01'),
+            'DB' => $oid('02'),
+            'E' => $oid('03'),
+            'D' => $oid('04'),
+            'F' => $oid('05'),
+            'C' => $oid('06'),
+            'B' => $oid('07'),
+            'A' => $oid('08'),
+            'G' => $oid('09'),
+            'H' => $oid('0a'),
+        ];
+        $commits = [
+            $ids['DA'] => $timedCommit(0),
+            $ids['DB'] => $timedCommit(100),
+            $ids['E'] => $timedCommit(5),
+            $ids['D'] => $timedCommit(4, [$ids['E']]),
+            $ids['F'] => $timedCommit(6, [$ids['E']]),
+            $ids['C'] => $timedCommit(3, [$ids['D']]),
+            $ids['B'] => $timedCommit(2, [$ids['C']]),
+            $ids['A'] => $timedCommit(1, [$ids['B']]),
+            $ids['G'] => $timedCommit(7, [$ids['B'], $ids['E']]),
+            $ids['H'] => $timedCommit(8, [$ids['A'], $ids['F']]),
+        ];
+        $oidFor = static fn (string $label): string => $ids[$label]
+            ?? throw new RuntimeException("Unknown upstream merge-base label: {$label}");
+        $baseline = <<<'BASELINE'
+DB DB => DB
+DB H =>
+DB G =>
+DB F =>
+DB E =>
+DB D =>
+DB C =>
+DB B =>
+DB A =>
+DB DA =>
+H DB =>
+H H => H
+H G => B
+H F => F
+H E => E
+H D => D
+H C => C
+H B => B
+H A => A
+H DA =>
+G DB =>
+G H => B
+G G => G
+G F => E
+G E => E
+G D => D
+G C => C
+G B => B
+G A => B
+G DA =>
+F DB =>
+F H => F
+F G => E
+F F => F
+F E => E
+F D => E
+F C => E
+F B => E
+F A => E
+F DA =>
+E DB =>
+E H => E
+E G => E
+E F => E
+E E => E
+E D => E
+E C => E
+E B => E
+E A => E
+E DA =>
+D DB =>
+D H => D
+D G => D
+D F => E
+D E => E
+D D => D
+D C => D
+D B => D
+D A => D
+D DA =>
+C DB =>
+C H => C
+C G => C
+C F => E
+C E => E
+C D => D
+C C => C
+C B => C
+C A => C
+C DA =>
+B DB =>
+B H => B
+B G => B
+B F => E
+B E => E
+B D => D
+B C => C
+B B => B
+B A => B
+B DA =>
+A DB =>
+A H => A
+A G => B
+A F => E
+A E => E
+A D => D
+A C => C
+A B => B
+A A => A
+A DA =>
+DA DB =>
+DA H =>
+DA G =>
+DA F =>
+DA E =>
+DA D =>
+DA C =>
+DA B =>
+DA A =>
+DA DA => DA
+BASELINE;
+
+        foreach ([true, false] as $useCommitGraphGenerations) {
+            $mergeBase = $finder($commits, $useCommitGraphGenerations);
+
+            foreach (explode("\n", $baseline) as $line) {
+                if (preg_match('/^([A-Z0-9-]+) ([A-Z0-9-]+) => ?(.*)$/', $line, $matches) !== 1) {
+                    throw new RuntimeException("Malformed upstream merge-base baseline row: {$line}");
+                }
+
+                $expected = $matches[3] === ''
+                    ? []
+                    : array_map($oidFor, explode(' ', $matches[3]));
+
+                $t->same(
+                    [$expected, $expected],
+                    [
+                        $mergeBase->mergeBasesAgainst($oidFor($matches[1]), [$oidFor($matches[2])]),
+                        $mergeBase->mergeBases($oidFor($matches[1]), $oidFor($matches[2])),
+                    ],
+                    "upstream make_merge_base_repos 3_permutations {$line}"
+                        . ($useCommitGraphGenerations ? ' with commit graph' : ' without commit graph'),
+                );
+            }
+        }
+    },
     'maps upstream generated three-head baseline with union-side bases' => static function (TestRunner $t) use ($finder): void {
         $oid = static fn (string $hex): string => str_repeat($hex, 20);
         $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
@@ -541,8 +710,10 @@ return [
         $t->same($fixture['timestampSkewExpectedBase'], $timeOnlyFinder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));
         $t->same([$fixture['timestampSkewExpectedBase']], $finder->mergeBasesAgainst($fixture['timestampSkewLeftReview'], [$fixture['timestampSkewRightReview']]));
         $t->same($fixture['timestampSkewExpectedBase'], $example['timestampSkewBase']);
+        $t->same($fixture['timestampSkewExpectedBase'], $example['timestampSkewReverseBase']);
         $t->same($fixture['timestampSkewExpectedBase'], $example['timestampSkewNoCommitGraphBase']);
         $t->same(true, $example['timestampSkewPrunesNewerRoot']);
+        $t->same(true, $example['timestampSkewPermutationOrderIsStable']);
         $t->same([$fixture['junctionThemeBase'], $fixture['junctionContentBase']], $finder->mergeBasesAgainst($fixture['junctionPluginReview'], $fixture['junctionOtherReviews']));
         $t->same([$fixture['junctionThemeBase']], $finder->mergeBasesMany($fixture['junctionHeads']));
         $t->same([$fixture['junctionThemeBase'], $fixture['junctionContentBase']], $example['junctionGraphWalkBases']);

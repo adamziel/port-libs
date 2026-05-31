@@ -182,6 +182,15 @@ final class PreparedReferenceTransaction
 
         $this->appendPreparedReflog($lock['reflog'] ?? null);
 
+        if (!$lock['edit']->updatesReference) {
+            if (is_file($lockPath) && !unlink($lockPath)) {
+                throw new \RuntimeException("Unable to remove prepared reflog-only reference lock: {$lockPath}");
+            }
+            $this->deleteEmptyParents(dirname($lockPath));
+
+            return;
+        }
+
         if (is_dir($targetPath) && !$this->removeEmptyDirectoryTree($targetPath)) {
             throw new \RuntimeException("Unable to replace directory blocker with prepared reference: {$lock['edit']->name}");
         }

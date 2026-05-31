@@ -923,6 +923,24 @@ CSS,
 
         throw new RuntimeException('Expected unsupported anonymous layer combination exception');
     },
+    'css bundler preserves escaped import layer names through graph composition' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@layer foo\\.bar.baz\\ qux{.c{color:#00f}}@layer foo\\.bar{.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(foo\2e bar); .a { color: red }',
+                '/b.css' => '@import "c.css" layer(baz\20 qux); .b { color: green }',
+                '/c.css' => '.c { color: blue }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@layer theme\\,tokens{.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme\2c tokens); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+    },
     'css bundler rejects invalid import layer names before graph resolution' => static function (TestRunner $t): void {
         $assertInvalidLayerImport = static function (string $css, string $message) use ($t): void {
             $reads = [];

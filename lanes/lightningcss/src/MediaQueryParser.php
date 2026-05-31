@@ -219,6 +219,32 @@ final class MediaQueryParser
         }
     }
 
+    private function validateConditionOperationOperands(string $condition): void
+    {
+        $parts = $this->splitTopLevelLogical($condition, 'or')
+            ?? $this->splitTopLevelLogical($condition, 'and')
+            ?? [];
+
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '' || $this->isSingleParenthesizedCondition($part)) {
+                continue;
+            }
+
+            throw new \InvalidArgumentException("Invalid media query condition operand: {$part}");
+        }
+    }
+
+    private function isSingleParenthesizedCondition(string $condition): bool
+    {
+        $condition = trim($condition);
+        if (($condition[0] ?? '') !== '(') {
+            return false;
+        }
+
+        return $this->findMatchingDelimiter($condition, 0, '(', ')') === strlen($condition) - 1;
+    }
+
     private function normalizeParentheses(string $source, bool $allowCompactedNegation): string
     {
         $output = '';
@@ -276,12 +302,18 @@ final class MediaQueryParser
         if ($this->containsTopLevelKeyword($inner, 'and') || $this->containsTopLevelKeyword($inner, 'or')) {
             $inner = $this->normalizeWhitespace($inner);
             $this->validateTopLevelLogicalOperators($inner);
+            $this->validateConditionOperationOperands($inner);
 
             return $this->normalizeParentheses($inner, $allowCompactedNegation);
         }
 
         if (preg_match('/^not\s+(.+)$/i', $inner, $matches) === 1) {
-            return 'not ' . $this->normalizeParentheses($this->normalizeWhitespace($matches[1]), $allowCompactedNegation);
+            $condition = $this->normalizeWhitespace($matches[1]);
+            if (!$this->isSingleParenthesizedCondition($condition)) {
+                throw new \InvalidArgumentException('Media query negation must be followed by a parenthesized condition');
+            }
+
+            return 'not ' . $this->normalizeParentheses($condition, $allowCompactedNegation);
         }
 
         if ($inner[0] === '(') {
